@@ -1,0 +1,393 @@
+{
+  "schema_version": 1,
+  "task": "213-217-final-supplement",
+  "covered_tasks": [
+    "213",
+    "214",
+    "215",
+    "216",
+    "217"
+  ],
+  "reviewer": "/root/branch_audit",
+  "implementation_commit": "9219be40ff0aa2d7e2902cd0a6da151bd44b3cb4",
+  "verdict": "Pass",
+  "status": "Pass",
+  "scope": "Supplemental independent review of final integration source identity, normative registry/status and bounded five-module217 consumer. Previous executions retain their actual source/compiler identities; no full-language, all-user-ZUI or product acceptance claim.",
+  "execution_identity": {
+    "integration213_execution_source": "f581cd67d1f36b088111a4afc55d308a0a47fe59",
+    "owning_capture214_216_execution_source": "68dd99af8b995275db8ba51df73e419899c10e3d",
+    "consumer217_execution_source": "06a80559e91f5fc743bbadf17ddb900e25bc85d8",
+    "consumer217_compiler_source": "68dd99af8b995275db8ba51df73e419899c10e3d",
+    "consumer217_cli_sha256": "448ff19886570b775176bca237ef512a523bd924e61f465b13b20d8b3be88ca7",
+    "consumer217_author_delivery": "71c0203a13fa7dbdb1bbcf057ba142c21c1fbf80",
+    "integrator_default_full_workspace_fmt_clippy_release_consumer208_execution_source": "8628d976666084cf77946b70d8b48e3a92ed2d95",
+    "integrator_reference_full_workspace_execution_source": "46a2947f9733592b8d5e75493ff12ca1c9cef06d",
+    "integrator_results_are_not_reviewer_reexecutions": true,
+    "this_candidate_was_not_relabelled_as_those_execution_sources": true,
+    "prior_review213": "../../213/by_branch_audit/REVIEW.json",
+    "prior_review216": "../../216/by_branch_audit/REVIEW.json"
+  },
+  "source_equivalence": {
+    "comparison_source": "68dd99af8b995275db8ba51df73e419899c10e3d",
+    "production_changed": [],
+    "production_scope": "All crates content outside tests plus root Cargo/toolchain/build inputs; every changed repository path additionally enumerated/classified.",
+    "production_tests_normative_registry_identical_to_formal_source": "8628d976666084cf77946b70d8b48e3a92ed2d95",
+    "reference_production_tests_identical_to_formal_source": "46a2947f9733592b8d5e75493ff12ca1c9cef06d",
+    "additional_paths_explicitly_reviewed": [
+      ".agent/git-branches.md",
+      ".agent/mainline-priority.md",
+      ".github/workflows/verify-main.yml",
+      "_zil_goal.md"
+    ],
+    "additional_path_judgment": "Branch rules use main/task/<ID> and date-qualified archive tags; priority/goal updates preserve finite-scope and historical execution identities. CI differs solely by TEST/DEV STRIP=symbols, matching the integrator execution profile; no gate, command, timeout or job removed.",
+    "single_test_migration": "impl206_analyze unchanged malformed capture/raw input now reaches ownership field mismatch: precise SafeReject E-ANALYZE-IR replaces old blanket Unsupported expectation. Production code is unchanged.",
+    "normative_inputs_changed": [
+      "spec/interfaces.json"
+    ],
+    "interface_json_paths_changed": [
+      "/implemented_partial_schema/product_capture214/acceptance",
+      "/implemented_partial_schema/product_capture214/closed",
+      "/implemented_partial_schema/product_capture214/status"
+    ],
+    "interface_review": "Only implementation status, explicit closed default-readonly borrowing and limited acceptance wording changed. Language design, grammar, attributes, diagnostics, dependency policy, schema/Wire27 and product gates are byte-identical to68dd.",
+    "consumer_manifest_files_unchanged": 42,
+    "consumer_manifest": [
+      {
+        "path": "examples/mainline/zui_start217/README.md",
+        "sha256": "366863038fd2fc6041cf0da446bce98a13830329b669b08c8e806500cd21f146",
+        "same_as_execution": true
+      },
+      {
+        "path": "examples/mainline/zui_start217/collection.zil",
+        "sha256": "10f3cacb124115ac38998675f51d049fbe2062c4ba8fa242a84afc6c859cb5f3",
+        "same_as_execution": true
+      },
+      {
+        "path": "examples/mainline/zui_start217/factory.zil",
+        "sha256": "27a680fe4e3ded960c996c30a196c03e4038acec4dbded3b439a2cb23f19be18",
+        "same_as_execution": true
+      },
+      {
+        "path": "examples/mainline/zui_start217/indexed_control/main.zil",
+        "sha256": "48b9761e1c00dc0d16a365e3e8a7c6f20b018bf3a3c3b0033bca93925a0e19a4",
+        "same_as_execution": true
+      },
+      {
+        "path": "examples/mainline/zui_start217/main.zil",
+        "sha256": "89d4205bd387e656968949a6263781c81b837e40242bbdb6f9e40b8d6afbbd47",
+        "same_as_execution": true
+      },
+      {
+        "path": "examples/mainline/zui_start217/portable.zil",
+        "sha256": "6d97afabc23947412c40f7d26a4e6abbb8ffd172e5e3b3c026c09faa0c8186bf",
+        "same_as_execution": true
+      },
+      {
+        "path": "examples/mainline/zui_start217/state.zil",
+        "sha256": "d9c70d70132097c27cf9b2d0b44a34c980220c16ade99b0410d92ffebddb291b",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/173/allocator_probe.c",
+        "sha256": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/ORACLE.json",
+        "sha256": "05140f3423017be127f4610294f2b09decffcd71cca7d42a1b561b032e527362",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/PROBES.json",
+        "sha256": "1f25af9895df1f0bf0f5ae8000b8e262f3462634c41e40300561ece97017868b",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/oracle.py",
+        "sha256": "da8d2170eef66d395447b2a62cfcfdb7243002b009f524febd37ddd572c31ef7",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/associated-type/main.zil",
+        "sha256": "ffb2b17ac27e4bba9addc479ae5261ff0acc77f7f83ceee14b8f702ffc500b49",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/bytebuffer-local-desc/main.zil",
+        "sha256": "0ebd29951c056d578e79d2125b9e990eb44f0f9715b15a7ea4bc3a8e07aca909",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/bytebuffer-slice-capture/main.zil",
+        "sha256": "7f416be39c13293f5e5e9e7dbd1d8d25ff5e7b880b59274e27fccd5ef527feb5",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/callback-generic-value-param/main.zil",
+        "sha256": "61babdb5a7e7a9a7dbc2bd0a26fbc132e0845fc87a23ff6d5e465069229d9bb3",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/callback-loop-control/main.zil",
+        "sha256": "8b1f10c98d3795fc9e37f3e5362dc7cb9407a9312814dff8de757298da2ee4d7",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/callback-nested-helper/main.zil",
+        "sha256": "2cc51c8f3288a857ee23f18db75933a0ec94e0207f8ade032f57d5c0f420af3e",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/callback-return-generic/main.zil",
+        "sha256": "4c0f77fdab969e509f8299bedf6e7904ceb9c72af78b6a49d8f199b69d4d6539",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/callback-two-parameters/main.zil",
+        "sha256": "a910b30e3f3b6717e81e699ec9e4b4e414c24416c353c4adf09891e830d19d96",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/closure-address-param/main.zil",
+        "sha256": "7acd0974b3d1a58494cdaa044683252f2e97ed50ed3689fa0b047a71f85eab76",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/closure-mut-address-param/main.zil",
+        "sha256": "abfd18fe99def528944467d141be862b77e7bf07606541d89e5fb0b1e070fed7",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/closure-owned-error-result/main.zil",
+        "sha256": "fa103e9bd11f1a7768513095d0ac0995e70b605ab85ed276b83be55fb1eb50aa",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/closure-package-param/main.zil",
+        "sha256": "65383728a4f8c571e5fc7bc38ea234b554a7240e06162e7dfdde93ec3d0e35a4",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/copy-option-library-control/main.zil",
+        "sha256": "bcc699519008ec07b45d424c9b74a12f0b71cdd4f43f3498fa45dc5133c94c60",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/ct-constant-control/main.zil",
+        "sha256": "af1d68a0f0a1a2e49b445f90a821a781f294c3f23b6bdd123c55c075bbab8235",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/ct-item-if/main.zil",
+        "sha256": "f16c9205744b609bdea1ea3e24ce8bbe854bb74a1a583757951f6b0ed6e44f93",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/ct-statement-if/main.zil",
+        "sha256": "fed41828771802bdb61326a4abe762fd3f4e6f577d1eff54478dae9018661944",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/dyn-parameter/main.zil",
+        "sha256": "33b6eb967a57c8fcc7bf5054d87ec0b83aeeb26645e5322967338542a9c7e28c",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/dyn-valid-parameter/main.zil",
+        "sha256": "68acda16d5a8f8fdf87bfef7cf881c268ab4b005562d4f263380a997c0b0e50e",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/generic-lifetime/main.zil",
+        "sha256": "13fa00651f148a8e3150ff37dc9afe142e5a547a4615948a9199805291aefd16",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/indexed-callback-delete/main.zil",
+        "sha256": "48b9761e1c00dc0d16a365e3e8a7c6f20b018bf3a3c3b0033bca93925a0e19a4",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/nested-store-element/main.zil",
+        "sha256": "1de8510c71af92d06fbb17268295e779c337b1c00d84ded1ee68f27265a25be1",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/optional-parameter/main.zil",
+        "sha256": "7d26bfea2820bd3c9eaf2d2c3c80921029a5c31b51ac8d2a24059bb64df3e656",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/owning-enum-option/main.zil",
+        "sha256": "a94020ac6d5e995ffd8017494d81eebc13f5fbd38f631b99821a4b655a7ab3ec",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/package-direct-nested/main.zil",
+        "sha256": "8f82dcba19831acf7417ee2fd4c852b8086d2dc377c8fc470131f87a603d2dba",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/product-error-union/main.zil",
+        "sha256": "1dbfaccd1c2ef7f2632aa4f6fb9ee50ced554232f9f4184486162b04cd230f67",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/product-owning-store/main.zil",
+        "sha256": "da50bdad3a6e2d8e03e1aa23350555e2b6509b84ed7e818f497686b62f6c6dd5",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/product-store-element/main.zil",
+        "sha256": "ec2fe34c2c8a9b52cd66015160b7cbf4caa4fb1cfc66e4a38c8b516a66ff6376",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/syntax-extension/main.zil",
+        "sha256": "ec178d9d59e8acc5aa1fa4e36911cc9783420ae308542708ee77d8277f514cbd",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/probes/syntax-valid-alias/main.zil",
+        "sha256": "b5221cbe2152e01a45252f1504ebab05f47d28a46baffecf73d8de3d16a56476",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/language/217/run.py",
+        "sha256": "2fefd422c09d1fc28b7eb2d27f801da845ed608acb0b4ff9c9f35aeb8a408e88",
+        "same_as_execution": true
+      },
+      {
+        "path": "tools/research/142/allocator_probe.c",
+        "sha256": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5",
+        "same_as_execution": true
+      }
+    ],
+    "author_docs_reviewed_at": "71c0203a13fa7dbdb1bbcf057ba142c21c1fbf80",
+    "author_docs_byte_identical": true,
+    "full_delta_receipt": "identity-audit.json"
+  },
+  "normative_identity": {
+    "actual_spec_hash": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+    "actual_normative_hash": "4d5480fd3f7de30f6a846489e624ce01bb64d7e835c7e01930bd3410a2206db1",
+    "actual_files": {
+      "_zil_design.md": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+      "policy/dependencies.json": "78c220a298944d391be2e487460de25387510607f81d06e882a81220e22bfc1a",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "spec/diagnostics.json": "0258adda6f803a4fffd4d24f6cd1b05fb313dbdad2b4b99d4cb26f74c0fad991",
+      "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "spec/interfaces.json": "8c94511ba11344dea57e14ad00caf7164f875f7e93a70057e06a6879d74a6b6b",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    },
+    "required_input_set_matches": true,
+    "registry_matches_all_actual_git_bytes": true,
+    "prior_registry_mismatch_not_rewritten": "867, author214-216 and68dd retain their historical stale registry. New candidate fixes current registration; it does not change old commits, old execution identities or old acceptance."
+  },
+  "consumer_static_review": [
+    "Three initial Node<F,G> values use distinct actual Product FnMut and ByteBuffer FnOnce environments. IDs/parents and mutable windows remain explicit values; no ClosureId/type-based instance collapse.",
+    "Generic erase reserves a temporary suffix before moving any node. A failed preparation leaves original nodes intact; successful reverse-pop/restore preserves surviving order while selected node is destroyed immediately.",
+    "FnMut moves its complete child locally, performs explicit byte growth and restores it on normal and failed return. Shared/partial ownership contracts are those separately reviewed in214-216.",
+    "Replacing one popped Node active callback drops its old actual environment and retains the other callback and sibling nodes. Full-capacity push returns a complete rejected Node whose cleanup is observable.",
+    "Oracle operation model does not consume native/compiler output. Reviewer separately froze five normal traces and complete allocation/peak-byte predictions before reading the author oracle/native observations.",
+    "Runner pins clean source commit, CLI hash/build receipt, matching compiler production inputs and42 frozen inputs; it validates phase/status/diagnostics, module count, Verify count, native stdout/full exit and actual allocation balance.",
+    "Author/replay allocation path rebuilds emitted LLVM withClang; reviewer additionally links the actual API objects with only the allocator wrapper added. Evidence levels remain distinct."
+  ],
+  "independent_replay": {
+    "source_commit": "06a80559e91f5fc743bbadf17ddb900e25bc85d8",
+    "compiler_source_commit": "68dd99af8b995275db8ba51df73e419899c10e3d",
+    "receipt": "replay01/summary.json",
+    "receipt_sha256": "76b468793010b0692ca50da9cd97caeb6be091498aac067b1912f1f67b192f70",
+    "command_receipt": "replay-command.json",
+    "probe_count": 29,
+    "probe_outcome_groups": {
+      "verify:Success": 11,
+      "types:Unsupported": 12,
+      "expand:Unsupported": 4,
+      "parse:SafeReject": 2
+    },
+    "ordinary_unmodified_cli_executions": 14,
+    "clang_llvm_allocation_probe_executions": 102,
+    "actual_allocation_failures": 74,
+    "indexed_control_executions": 2,
+    "indexed_control_output": "B!AC",
+    "all_probe_live_zero": true,
+    "all_asserted_cases_passed": true
+  },
+  "independent_api_objects": {
+    "source_commit": "06a80559e91f5fc743bbadf17ddb900e25bc85d8",
+    "compiler_source_commit": "68dd99af8b995275db8ba51df73e419899c10e3d",
+    "cli_sha256": "448ff19886570b775176bca237ef512a523bd924e61f465b13b20d8b3be88ca7",
+    "oracle_sha256": "05140f3423017be127f4610294f2b09decffcd71cca7d42a1b561b032e527362",
+    "independent_normal_oracle_sha256": "2f30894a98c0997aec3d0cb5ab48c0b90eca74fbb2b261dc27a4ab30aa26a56c",
+    "instrumentation": "Only native linking adds existing allocator wrapper object. Actual LLVM API Builder-produced objects are used unchanged for all injected failures and cache hits.",
+    "build_count": 4,
+    "execution_count": 204,
+    "actual_allocation_failures": 148,
+    "all_live_zero": true,
+    "llvm_ir_equal_to_replay": true,
+    "normal_peak_bytes_match_independent_predeclaration": true
+  },
+  "api_controls": {
+    "receipt": "api-matrix01/RESULT.json",
+    "receipt_sha256": "d68ec8059687cd854b6da4b641d3fa4209033dc765112ad4a7e68e077f229fc3",
+    "optimization": [
+      "O0",
+      "O2"
+    ],
+    "modes": [
+      "API object cache cold",
+      "API object cache hit"
+    ],
+    "cold_objects": "Every current uncached object report is builder with parse_ns=0.",
+    "hits": "verification_runs=1 and current_preflight_ns>0; exact hit count equals actual units.",
+    "normal_Node_stride_bytes": 112,
+    "normal_peak_requested_payload_bytes": [
+      337,
+      675,
+      678,
+      681,
+      336
+    ],
+    "memory_scope": "Requested bytes of wrapped runtime realloc/free in the finite consumer; not process RSS or all allocator behavior.",
+    "counts_are_executions_not_additional_semantic_coverage_families": true
+  },
+  "documentation_review": "71c final readiness document distinguishes originalf581 audit, current06a execution, known syntax-invalid probes, actual Unsupported boundaries, finite three-node scope, 14 API ordinary versus102 Clang rebuilt fault runs, O(n) erase and unmeasured broader goals. It does not assert all user ZUI requirements complete.",
+  "findings": [],
+  "unresolved_within_scope": [],
+  "handoff_record_completion": "Integrator will commit final213-217 task/review/acceptance references to this exact implementation_commit and retain original author_delivery_commit values. The docs reference to evidence/integration/217/RESULT.json is a planned final receipt, absent from this source candidate; its actual creation and handoff checks remain integrator duties. This source review does not waive unrelated historical handoff debt.",
+  "independence": {
+    "production_or_consumer_authored_by_reviewer": false,
+    "production_modified_by_reviewer": false,
+    "harnesses_outside_repo": true,
+    "independent_worktree": "/workspace/scratch/3cf12ce32e36/review-217"
+  },
+  "infrastructure_failures": "External review wrapper first failed Python parsing before any project execution; INFRA01 retained and wrapper syntax corrected. No production or oracle edits.",
+  "not_run": [
+    "Native Windows",
+    "Wine on this candidate",
+    "Arbitrary-scale graph",
+    "Stable generation-ID public protocol",
+    "Open heterogeneous registry",
+    "Declarative ui syntax",
+    "Retained OS userdata",
+    "Async/cancellation",
+    "Rust timing/RSS/maintenance/compiler-cost comparison",
+    "Full product gates"
+  ],
+  "all_user_zui_requirements": "NotClaimed",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing",
+  "raw_evidence_archive": {
+    "filename": "review217-raw-evidence.zip",
+    "path": "/workspace/scratch/3cf12ce32e36/recovery/review217-raw-evidence.zip",
+    "bytes": 2257735,
+    "sha256": "6644e87c2572cd16cbc57a1c2945927ab98bd1be32a00224ec6ea6be2c3fcafe",
+    "included_files": 1219,
+    "uncompressed_bytes": 52731828,
+    "excluded_execution_products": 11,
+    "excluded_execution_product_bytes": 340064,
+    "all_payload_hashes_and_crc_verified": true,
+    "originals_retained": true
+  }
+}

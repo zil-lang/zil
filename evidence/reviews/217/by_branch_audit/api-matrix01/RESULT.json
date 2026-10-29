@@ -1,0 +1,3909 @@
+{
+  "status": "Pass",
+  "source_commit": "06a80559e91f5fc743bbadf17ddb900e25bc85d8",
+  "compiler_source_commit": "68dd99af8b995275db8ba51df73e419899c10e3d",
+  "cli_sha256": "448ff19886570b775176bca237ef512a523bd924e61f465b13b20d8b3be88ca7",
+  "oracle_sha256": "05140f3423017be127f4610294f2b09decffcd71cca7d42a1b561b032e527362",
+  "independent_normal_oracle_sha256": "2f30894a98c0997aec3d0cb5ab48c0b90eca74fbb2b261dc27a4ab30aa26a56c",
+  "instrumentation": "Only native linking adds existing allocator wrapper object. Actual LLVM API Builder-produced objects are used unchanged for all injected failures and cache hits.",
+  "builds": [
+    {
+      "name": "O0-cold",
+      "verification_runs": 1,
+      "module_count": 5,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 38560,
+            "input_kind": "builder",
+            "preflight_ns": 6589303,
+            "builder_ns": 3818786,
+            "parse_ns": 0,
+            "optimize_ns": 165930,
+            "emit_ns": 33795545,
+            "total_ns": 45742834,
+            "cache": {
+              "state": "miss",
+              "action_key": "233b06321b1abc9b307e86500ce21bd35b5bb3acfb87404f8c4c54d5431bd746",
+              "corrupt": false,
+              "key_ns": 13774504,
+              "lookup_ns": 40591,
+              "current_preflight_ns": 0
+            }
+          }
+        ],
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 0,
+          "misses": 1,
+          "corrupt": 0,
+          "stored": 1,
+          "write_failures": 0,
+          "key_ns": 13774504,
+          "lookup_ns": 40591,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "1a7ddaca1666eaeb5719b96eaec38224e45f29642ad5b5a33b70628e80ce4f09",
+      "executable_sha256": "3fc20c2e57f26138e342436e8993a2f702694c3bebc4f4d4e4e5032ea9635d37"
+    },
+    {
+      "name": "O0-hit",
+      "verification_runs": 1,
+      "module_count": 5,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "input_kind": "object-cache",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "object_bytes": 38560,
+            "cache": {
+              "state": "hit",
+              "action_key": "233b06321b1abc9b307e86500ce21bd35b5bb3acfb87404f8c4c54d5431bd746",
+              "corrupt": false,
+              "key_ns": 18781362,
+              "lookup_ns": 3574318,
+              "current_preflight_ns": 5815887
+            },
+            "llvm_verification_this_request": false,
+            "producer_verified_before_after": true,
+            "preflight_ns": 5815887,
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 28171567
+          }
+        ],
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 1,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 18781362,
+          "lookup_ns": 3574318,
+          "current_preflight_ns": 5815887,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "1a7ddaca1666eaeb5719b96eaec38224e45f29642ad5b5a33b70628e80ce4f09",
+      "executable_sha256": "3fc20c2e57f26138e342436e8993a2f702694c3bebc4f4d4e4e5032ea9635d37"
+    },
+    {
+      "name": "O2-cold",
+      "verification_runs": 1,
+      "module_count": 5,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 10800,
+            "input_kind": "builder",
+            "preflight_ns": 6458736,
+            "builder_ns": 3313034,
+            "parse_ns": 0,
+            "optimize_ns": 41350403,
+            "emit_ns": 42956434,
+            "total_ns": 95092276,
+            "cache": {
+              "state": "miss",
+              "action_key": "1b3e762cf0d9617b1e92ebfa8a0f0758297413e787abc5e48a57caa772499a8f",
+              "corrupt": false,
+              "key_ns": 11151240,
+              "lookup_ns": 46530,
+              "current_preflight_ns": 0
+            }
+          }
+        ],
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 0,
+          "misses": 1,
+          "corrupt": 0,
+          "stored": 1,
+          "write_failures": 0,
+          "key_ns": 11151240,
+          "lookup_ns": 46530,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "1a7ddaca1666eaeb5719b96eaec38224e45f29642ad5b5a33b70628e80ce4f09",
+      "executable_sha256": "eacfe686320118fc995a38373f1688ade225da2017c2666433efa19b52e3e4fd"
+    },
+    {
+      "name": "O2-hit",
+      "verification_runs": 1,
+      "module_count": 5,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "input_kind": "object-cache",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "object_bytes": 10800,
+            "cache": {
+              "state": "hit",
+              "action_key": "1b3e762cf0d9617b1e92ebfa8a0f0758297413e787abc5e48a57caa772499a8f",
+              "corrupt": false,
+              "key_ns": 13257054,
+              "lookup_ns": 465342,
+              "current_preflight_ns": 5909418
+            },
+            "llvm_verification_this_request": false,
+            "producer_verified_before_after": true,
+            "preflight_ns": 5909418,
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 19631814
+          }
+        ],
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 1,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 13257054,
+          "lookup_ns": 465342,
+          "current_preflight_ns": 5909418,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "1a7ddaca1666eaeb5719b96eaec38224e45f29642ad5b5a33b70628e80ce4f09",
+      "executable_sha256": "eacfe686320118fc995a38373f1688ade225da2017c2666433efa19b52e3e4fd"
+    }
+  ],
+  "executions": [
+    {
+      "name": "run-O0-cold-mode-0-0",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "0",
+      "fail_at": 0,
+      "stdout": "S>3Cc>2Bb>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-0-1",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "0",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-0-2",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "0",
+      "fail_at": 2,
+      "stdout": "S>3FCcAa1Bb2",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-0-3",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "0",
+      "fail_at": 3,
+      "stdout": "S>3Cc>2FBbAa1",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-0-4",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "0",
+      "fail_at": 4,
+      "stdout": "S>3Cc>2Bb>1FAa",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-0-5",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "0",
+      "fail_at": 5,
+      "stdout": "S>3Cc>2Bb>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-1-0",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 0,
+      "stdout": "S.Bb2D>3Cc>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-1-1",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-1-2",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 2,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-1-3",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 3,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-1-4",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 4,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-1-5",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 5,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-1-6",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 6,
+      "stdout": "S.Bb2DFAa1Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-1-7",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 7,
+      "stdout": "S.Bb2DFAa1Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-1-8",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 8,
+      "stdout": "S.Bb2D>3FCcAa1",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-1-9",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 9,
+      "stdout": "S.Bb2D>3Cc>1FAa",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-1-10",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 10,
+      "stdout": "S.Bb2D>3Cc>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-0",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 0,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 8,
+        "frees": 8,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-1",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-2",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 2,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-3",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 3,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-4",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 4,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-5",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 5,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-6",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 6,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 340
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-7",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 7,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 341
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-8",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 8,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 342
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-9",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 9,
+      "stdout": "S..Bb2DcRFAa1Ci3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-10",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 10,
+      "stdout": "S..Bb2DcRFAa1Ci3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-11",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 11,
+      "stdout": "S..Bb2DcR>3FCiAa1",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-12",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 12,
+      "stdout": "S..Bb2DcR>3Ci>1FAa",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-2-13",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 13,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 8,
+        "frees": 8,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-3-0",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 0,
+      "stdout": "S...Bb2DEAa1Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 681
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-3-1",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-3-2",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 2,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-3-3",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 3,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-3-4",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 4,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-3-5",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 5,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-3-6",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 6,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 340
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-3-7",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 7,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 341
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-3-8",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 8,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 342
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-3-9",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 9,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 343
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-3-10",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 10,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 344
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-3-11",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 11,
+      "stdout": "S...FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 345
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-3-12",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 12,
+      "stdout": "S...Bb2DEAa1Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 681
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-4-0",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "4",
+      "fail_at": 0,
+      "stdout": "SDd4ZAa1Bb2Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-4-1",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "4",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-cold-mode-4-2",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "4",
+      "fail_at": 2,
+      "stdout": "SDd4ZAa1Bb2Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O0-cold-invalid-0",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "9",
+      "fail_at": 0,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-cold-invalid-1",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "9",
+      "fail_at": 1,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-cold-eof-0",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "",
+      "fail_at": 0,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-cold-eof-1",
+      "opt": "O0",
+      "cache": "cold",
+      "input": "",
+      "fail_at": 1,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-0-0",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "0",
+      "fail_at": 0,
+      "stdout": "S>3Cc>2Bb>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-0-1",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "0",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-0-2",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "0",
+      "fail_at": 2,
+      "stdout": "S>3FCcAa1Bb2",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-0-3",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "0",
+      "fail_at": 3,
+      "stdout": "S>3Cc>2FBbAa1",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-0-4",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "0",
+      "fail_at": 4,
+      "stdout": "S>3Cc>2Bb>1FAa",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-0-5",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "0",
+      "fail_at": 5,
+      "stdout": "S>3Cc>2Bb>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-1-0",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 0,
+      "stdout": "S.Bb2D>3Cc>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-1-1",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-1-2",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 2,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-1-3",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 3,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-1-4",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 4,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-1-5",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 5,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-1-6",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 6,
+      "stdout": "S.Bb2DFAa1Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-1-7",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 7,
+      "stdout": "S.Bb2DFAa1Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-1-8",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 8,
+      "stdout": "S.Bb2D>3FCcAa1",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-1-9",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 9,
+      "stdout": "S.Bb2D>3Cc>1FAa",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-1-10",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 10,
+      "stdout": "S.Bb2D>3Cc>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-0",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 0,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 8,
+        "frees": 8,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-1",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-2",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 2,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-3",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 3,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-4",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 4,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-5",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 5,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-6",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 6,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 340
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-7",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 7,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 341
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-8",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 8,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 342
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-9",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 9,
+      "stdout": "S..Bb2DcRFAa1Ci3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-10",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 10,
+      "stdout": "S..Bb2DcRFAa1Ci3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-11",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 11,
+      "stdout": "S..Bb2DcR>3FCiAa1",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-12",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 12,
+      "stdout": "S..Bb2DcR>3Ci>1FAa",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-2-13",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 13,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 8,
+        "frees": 8,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-3-0",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 0,
+      "stdout": "S...Bb2DEAa1Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 681
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-3-1",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-3-2",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 2,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-3-3",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 3,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-3-4",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 4,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-3-5",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 5,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-3-6",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 6,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 340
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-3-7",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 7,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 341
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-3-8",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 8,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 342
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-3-9",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 9,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 343
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-3-10",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 10,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 344
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-3-11",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 11,
+      "stdout": "S...FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 345
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-3-12",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 12,
+      "stdout": "S...Bb2DEAa1Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 681
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-4-0",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "4",
+      "fail_at": 0,
+      "stdout": "SDd4ZAa1Bb2Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-4-1",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "4",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-hit-mode-4-2",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "4",
+      "fail_at": 2,
+      "stdout": "SDd4ZAa1Bb2Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O0-hit-invalid-0",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "9",
+      "fail_at": 0,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-hit-invalid-1",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "9",
+      "fail_at": 1,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-hit-eof-0",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "",
+      "fail_at": 0,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O0-hit-eof-1",
+      "opt": "O0",
+      "cache": "hit",
+      "input": "",
+      "fail_at": 1,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-0-0",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "0",
+      "fail_at": 0,
+      "stdout": "S>3Cc>2Bb>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-0-1",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "0",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-0-2",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "0",
+      "fail_at": 2,
+      "stdout": "S>3FCcAa1Bb2",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-0-3",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "0",
+      "fail_at": 3,
+      "stdout": "S>3Cc>2FBbAa1",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-0-4",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "0",
+      "fail_at": 4,
+      "stdout": "S>3Cc>2Bb>1FAa",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-0-5",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "0",
+      "fail_at": 5,
+      "stdout": "S>3Cc>2Bb>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-1-0",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 0,
+      "stdout": "S.Bb2D>3Cc>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-1-1",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-1-2",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 2,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-1-3",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 3,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-1-4",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 4,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-1-5",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 5,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-1-6",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 6,
+      "stdout": "S.Bb2DFAa1Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-1-7",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 7,
+      "stdout": "S.Bb2DFAa1Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-1-8",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 8,
+      "stdout": "S.Bb2D>3FCcAa1",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-1-9",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 9,
+      "stdout": "S.Bb2D>3Cc>1FAa",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-1-10",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "1",
+      "fail_at": 10,
+      "stdout": "S.Bb2D>3Cc>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-0",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 0,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 8,
+        "frees": 8,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-1",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-2",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 2,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-3",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 3,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-4",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 4,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-5",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 5,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-6",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 6,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 340
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-7",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 7,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 341
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-8",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 8,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 342
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-9",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 9,
+      "stdout": "S..Bb2DcRFAa1Ci3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-10",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 10,
+      "stdout": "S..Bb2DcRFAa1Ci3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-11",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 11,
+      "stdout": "S..Bb2DcR>3FCiAa1",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-12",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 12,
+      "stdout": "S..Bb2DcR>3Ci>1FAa",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-2-13",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "2",
+      "fail_at": 13,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 8,
+        "frees": 8,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-3-0",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 0,
+      "stdout": "S...Bb2DEAa1Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 681
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-3-1",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-3-2",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 2,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-3-3",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 3,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-3-4",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 4,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-3-5",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 5,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-3-6",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 6,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 340
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-3-7",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 7,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 341
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-3-8",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 8,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 342
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-3-9",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 9,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 343
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-3-10",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 10,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 344
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-3-11",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 11,
+      "stdout": "S...FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 345
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-3-12",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "3",
+      "fail_at": 12,
+      "stdout": "S...Bb2DEAa1Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 681
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-4-0",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "4",
+      "fail_at": 0,
+      "stdout": "SDd4ZAa1Bb2Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-4-1",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "4",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-cold-mode-4-2",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "4",
+      "fail_at": 2,
+      "stdout": "SDd4ZAa1Bb2Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O2-cold-invalid-0",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "9",
+      "fail_at": 0,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-cold-invalid-1",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "9",
+      "fail_at": 1,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-cold-eof-0",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "",
+      "fail_at": 0,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-cold-eof-1",
+      "opt": "O2",
+      "cache": "cold",
+      "input": "",
+      "fail_at": 1,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-0-0",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "0",
+      "fail_at": 0,
+      "stdout": "S>3Cc>2Bb>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-0-1",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "0",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-0-2",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "0",
+      "fail_at": 2,
+      "stdout": "S>3FCcAa1Bb2",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-0-3",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "0",
+      "fail_at": 3,
+      "stdout": "S>3Cc>2FBbAa1",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-0-4",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "0",
+      "fail_at": 4,
+      "stdout": "S>3Cc>2Bb>1FAa",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-0-5",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "0",
+      "fail_at": 5,
+      "stdout": "S>3Cc>2Bb>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-1-0",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 0,
+      "stdout": "S.Bb2D>3Cc>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-1-1",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-1-2",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 2,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-1-3",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 3,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-1-4",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 4,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-1-5",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 5,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-1-6",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 6,
+      "stdout": "S.Bb2DFAa1Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-1-7",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 7,
+      "stdout": "S.Bb2DFAa1Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-1-8",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 8,
+      "stdout": "S.Bb2D>3FCcAa1",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-1-9",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 9,
+      "stdout": "S.Bb2D>3Cc>1FAa",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-1-10",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "1",
+      "fail_at": 10,
+      "stdout": "S.Bb2D>3Cc>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-0",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 0,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 8,
+        "frees": 8,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-1",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-2",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 2,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-3",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 3,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-4",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 4,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-5",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 5,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-6",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 6,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 340
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-7",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 7,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 341
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-8",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 8,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 342
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-9",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 9,
+      "stdout": "S..Bb2DcRFAa1Ci3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-10",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 10,
+      "stdout": "S..Bb2DcRFAa1Ci3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-11",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 11,
+      "stdout": "S..Bb2DcR>3FCiAa1",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-12",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 12,
+      "stdout": "S..Bb2DcR>3Ci>1FAa",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-2-13",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "2",
+      "fail_at": 13,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 8,
+        "frees": 8,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-3-0",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 0,
+      "stdout": "S...Bb2DEAa1Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 681
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-3-1",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-3-2",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 2,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-3-3",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 3,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-3-4",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 4,
+      "stdout": "SFAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-3-5",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 5,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-3-6",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 6,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 340
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-3-7",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 7,
+      "stdout": "S.FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 341
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-3-8",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 8,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 342
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-3-9",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 9,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 343
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-3-10",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 10,
+      "stdout": "S..FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 344
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-3-11",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 11,
+      "stdout": "S...FAa1Bb2Cc3",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 345
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-3-12",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "3",
+      "fail_at": 12,
+      "stdout": "S...Bb2DEAa1Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 681
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-4-0",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "4",
+      "fail_at": 0,
+      "stdout": "SDd4ZAa1Bb2Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-4-1",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "4",
+      "fail_at": 1,
+      "stdout": "Aa1F",
+      "exit": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-hit-mode-4-2",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "4",
+      "fail_at": 2,
+      "stdout": "SDd4ZAa1Bb2Cc3",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "name": "run-O2-hit-invalid-0",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "9",
+      "fail_at": 0,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-hit-invalid-1",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "9",
+      "fail_at": 1,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-hit-eof-0",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "",
+      "fail_at": 0,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-O2-hit-eof-1",
+      "opt": "O2",
+      "cache": "hit",
+      "input": "",
+      "fail_at": 1,
+      "stdout": "",
+      "exit": 9,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    }
+  ],
+  "build_count": 4,
+  "execution_count": 204,
+  "actual_allocation_failures": 148,
+  "all_live_zero": true,
+  "llvm_ir_equal_to_replay": true,
+  "normal_peak_bytes_match_independent_predeclaration": true
+}

@@ -1,0 +1,2186 @@
+{
+  "status": "Pass",
+  "source_commit": "06a80559e91f5fc743bbadf17ddb900e25bc85d8",
+  "compiler_source_commit": "68dd99af8b995275db8ba51df73e419899c10e3d",
+  "cli_sha256": "448ff19886570b775176bca237ef512a523bd924e61f465b13b20d8b3be88ca7",
+  "compiler_build_receipt_sha256": "2702d99af392a54f55774c827893b2d571c0a966fe5c3cd926f6850adf7e5064",
+  "source_manifest_sha256": "09f51d1f3d73818de60384ef6de2eee4fdf062c2abe88dbabb1c525e1ce74d22",
+  "oracle_sha256": "05140f3423017be127f4610294f2b09decffcd71cca7d42a1b561b032e527362",
+  "sources": {
+    "examples/mainline/zui_start217/README.md": "366863038fd2fc6041cf0da446bce98a13830329b669b08c8e806500cd21f146",
+    "examples/mainline/zui_start217/collection.zil": "10f3cacb124115ac38998675f51d049fbe2062c4ba8fa242a84afc6c859cb5f3",
+    "examples/mainline/zui_start217/factory.zil": "27a680fe4e3ded960c996c30a196c03e4038acec4dbded3b439a2cb23f19be18",
+    "examples/mainline/zui_start217/indexed_control/main.zil": "48b9761e1c00dc0d16a365e3e8a7c6f20b018bf3a3c3b0033bca93925a0e19a4",
+    "examples/mainline/zui_start217/main.zil": "89d4205bd387e656968949a6263781c81b837e40242bbdb6f9e40b8d6afbbd47",
+    "examples/mainline/zui_start217/portable.zil": "6d97afabc23947412c40f7d26a4e6abbb8ffd172e5e3b3c026c09faa0c8186bf",
+    "examples/mainline/zui_start217/state.zil": "d9c70d70132097c27cf9b2d0b44a34c980220c16ade99b0410d92ffebddb291b",
+    "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+    "tools/language/217/ORACLE.json": "05140f3423017be127f4610294f2b09decffcd71cca7d42a1b561b032e527362",
+    "tools/language/217/PROBES.json": "1f25af9895df1f0bf0f5ae8000b8e262f3462634c41e40300561ece97017868b",
+    "tools/language/217/oracle.py": "da8d2170eef66d395447b2a62cfcfdb7243002b009f524febd37ddd572c31ef7",
+    "tools/language/217/probes/associated-type/main.zil": "ffb2b17ac27e4bba9addc479ae5261ff0acc77f7f83ceee14b8f702ffc500b49",
+    "tools/language/217/probes/bytebuffer-local-desc/main.zil": "0ebd29951c056d578e79d2125b9e990eb44f0f9715b15a7ea4bc3a8e07aca909",
+    "tools/language/217/probes/bytebuffer-slice-capture/main.zil": "7f416be39c13293f5e5e9e7dbd1d8d25ff5e7b880b59274e27fccd5ef527feb5",
+    "tools/language/217/probes/callback-generic-value-param/main.zil": "61babdb5a7e7a9a7dbc2bd0a26fbc132e0845fc87a23ff6d5e465069229d9bb3",
+    "tools/language/217/probes/callback-loop-control/main.zil": "8b1f10c98d3795fc9e37f3e5362dc7cb9407a9312814dff8de757298da2ee4d7",
+    "tools/language/217/probes/callback-nested-helper/main.zil": "2cc51c8f3288a857ee23f18db75933a0ec94e0207f8ade032f57d5c0f420af3e",
+    "tools/language/217/probes/callback-return-generic/main.zil": "4c0f77fdab969e509f8299bedf6e7904ceb9c72af78b6a49d8f199b69d4d6539",
+    "tools/language/217/probes/callback-two-parameters/main.zil": "a910b30e3f3b6717e81e699ec9e4b4e414c24416c353c4adf09891e830d19d96",
+    "tools/language/217/probes/closure-address-param/main.zil": "7acd0974b3d1a58494cdaa044683252f2e97ed50ed3689fa0b047a71f85eab76",
+    "tools/language/217/probes/closure-mut-address-param/main.zil": "abfd18fe99def528944467d141be862b77e7bf07606541d89e5fb0b1e070fed7",
+    "tools/language/217/probes/closure-owned-error-result/main.zil": "fa103e9bd11f1a7768513095d0ac0995e70b605ab85ed276b83be55fb1eb50aa",
+    "tools/language/217/probes/closure-package-param/main.zil": "65383728a4f8c571e5fc7bc38ea234b554a7240e06162e7dfdde93ec3d0e35a4",
+    "tools/language/217/probes/copy-option-library-control/main.zil": "bcc699519008ec07b45d424c9b74a12f0b71cdd4f43f3498fa45dc5133c94c60",
+    "tools/language/217/probes/ct-constant-control/main.zil": "af1d68a0f0a1a2e49b445f90a821a781f294c3f23b6bdd123c55c075bbab8235",
+    "tools/language/217/probes/ct-item-if/main.zil": "f16c9205744b609bdea1ea3e24ce8bbe854bb74a1a583757951f6b0ed6e44f93",
+    "tools/language/217/probes/ct-statement-if/main.zil": "fed41828771802bdb61326a4abe762fd3f4e6f577d1eff54478dae9018661944",
+    "tools/language/217/probes/dyn-parameter/main.zil": "33b6eb967a57c8fcc7bf5054d87ec0b83aeeb26645e5322967338542a9c7e28c",
+    "tools/language/217/probes/dyn-valid-parameter/main.zil": "68acda16d5a8f8fdf87bfef7cf881c268ab4b005562d4f263380a997c0b0e50e",
+    "tools/language/217/probes/generic-lifetime/main.zil": "13fa00651f148a8e3150ff37dc9afe142e5a547a4615948a9199805291aefd16",
+    "tools/language/217/probes/indexed-callback-delete/main.zil": "48b9761e1c00dc0d16a365e3e8a7c6f20b018bf3a3c3b0033bca93925a0e19a4",
+    "tools/language/217/probes/nested-store-element/main.zil": "1de8510c71af92d06fbb17268295e779c337b1c00d84ded1ee68f27265a25be1",
+    "tools/language/217/probes/optional-parameter/main.zil": "7d26bfea2820bd3c9eaf2d2c3c80921029a5c31b51ac8d2a24059bb64df3e656",
+    "tools/language/217/probes/owning-enum-option/main.zil": "a94020ac6d5e995ffd8017494d81eebc13f5fbd38f631b99821a4b655a7ab3ec",
+    "tools/language/217/probes/package-direct-nested/main.zil": "8f82dcba19831acf7417ee2fd4c852b8086d2dc377c8fc470131f87a603d2dba",
+    "tools/language/217/probes/product-error-union/main.zil": "1dbfaccd1c2ef7f2632aa4f6fb9ee50ced554232f9f4184486162b04cd230f67",
+    "tools/language/217/probes/product-owning-store/main.zil": "da50bdad3a6e2d8e03e1aa23350555e2b6509b84ed7e818f497686b62f6c6dd5",
+    "tools/language/217/probes/product-store-element/main.zil": "ec2fe34c2c8a9b52cd66015160b7cbf4caa4fb1cfc66e4a38c8b516a66ff6376",
+    "tools/language/217/probes/syntax-extension/main.zil": "ec178d9d59e8acc5aa1fa4e36911cc9783420ae308542708ee77d8277f514cbd",
+    "tools/language/217/probes/syntax-valid-alias/main.zil": "b5221cbe2152e01a45252f1504ebab05f47d28a46baffecf73d8de3d16a56476",
+    "tools/language/217/run.py": "2fefd422c09d1fc28b7eb2d27f801da845ed608acb0b4ff9c9f35aeb8a408e88",
+    "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5"
+  },
+  "platform": "Linux native",
+  "native_windows": "NotRun",
+  "wine": "NotRun",
+  "full_language": "NotSatisfied",
+  "full_zui": "NotClaimed",
+  "product": "NotRun",
+  "environment": {
+    "ZIL_CLANG": "/workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/llvm-17/bin/clang",
+    "LD_LIBRARY_PATH": "/workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/x86_64-linux-gnu",
+    "TMPDIR": "/workspace/scratch/3cf12ce32e36/recovery/review217/tmp"
+  },
+  "probes": [
+    {
+      "name": "bytebuffer-local-desc",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "source_sha256": "0ebd29951c056d578e79d2125b9e990eb44f0f9715b15a7ea4bc3a8e07aca909",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "bytebuffer-slice-capture",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "source_sha256": "7f416be39c13293f5e5e9e7dbd1d8d25ff5e7b880b59274e27fccd5ef527feb5",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-nested-helper",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "source_sha256": "2cc51c8f3288a857ee23f18db75933a0ec94e0207f8ade032f57d5c0f420af3e",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-loop-control",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "source_sha256": "8b1f10c98d3795fc9e37f3e5362dc7cb9407a9312814dff8de757298da2ee4d7",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-two-parameters",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "source_sha256": "a910b30e3f3b6717e81e699ec9e4b4e414c24416c353c4adf09891e830d19d96",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-generic-value-param",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "source_sha256": "61babdb5a7e7a9a7dbc2bd0a26fbc132e0845fc87a23ff6d5e465069229d9bb3",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "closure-address-param",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "source_sha256": "7acd0974b3d1a58494cdaa044683252f2e97ed50ed3689fa0b047a71f85eab76",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "closure-mut-address-param",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "source_sha256": "abfd18fe99def528944467d141be862b77e7bf07606541d89e5fb0b1e070fed7",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-return-generic",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "source_sha256": "4c0f77fdab969e509f8299bedf6e7904ceb9c72af78b6a49d8f199b69d4d6539",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "closure-owned-error-result",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "source_sha256": "fa103e9bd11f1a7768513095d0ac0995e70b605ab85ed276b83be55fb1eb50aa",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "closure-package-param",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "source_sha256": "65383728a4f8c571e5fc7bc38ea234b554a7240e06162e7dfdde93ec3d0e35a4",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "optional-parameter",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "source_sha256": "7d26bfea2820bd3c9eaf2d2c3c80921029a5c31b51ac8d2a24059bb64df3e656",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "ct-item-if",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "source_sha256": "f16c9205744b609bdea1ea3e24ce8bbe854bb74a1a583757951f6b0ed6e44f93",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "ct-statement-if",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "source_sha256": "fed41828771802bdb61326a4abe762fd3f4e6f577d1eff54478dae9018661944",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "ct-constant-control",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "source_sha256": "af1d68a0f0a1a2e49b445f90a821a781f294c3f23b6bdd123c55c075bbab8235",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "dyn-parameter",
+      "status": "SafeReject",
+      "phase": "parse",
+      "verification_runs": 0,
+      "source_sha256": "33b6eb967a57c8fcc7bf5054d87ec0b83aeeb26645e5322967338542a9c7e28c",
+      "purpose": "preserved malformed first probe; excluded from capability conclusions"
+    },
+    {
+      "name": "generic-lifetime",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "source_sha256": "13fa00651f148a8e3150ff37dc9afe142e5a547a4615948a9199805291aefd16",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "package-direct-nested",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "source_sha256": "8f82dcba19831acf7417ee2fd4c852b8086d2dc377c8fc470131f87a603d2dba",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "product-store-element",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "source_sha256": "ec2fe34c2c8a9b52cd66015160b7cbf4caa4fb1cfc66e4a38c8b516a66ff6376",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "product-owning-store",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "source_sha256": "da50bdad3a6e2d8e03e1aa23350555e2b6509b84ed7e818f497686b62f6c6dd5",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "nested-store-element",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "source_sha256": "1de8510c71af92d06fbb17268295e779c337b1c00d84ded1ee68f27265a25be1",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "owning-enum-option",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "source_sha256": "a94020ac6d5e995ffd8017494d81eebc13f5fbd38f631b99821a4b655a7ab3ec",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "associated-type",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "source_sha256": "ffb2b17ac27e4bba9addc479ae5261ff0acc77f7f83ceee14b8f702ffc500b49",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "syntax-extension",
+      "status": "SafeReject",
+      "phase": "parse",
+      "verification_runs": 0,
+      "source_sha256": "ec178d9d59e8acc5aa1fa4e36911cc9783420ae308542708ee77d8277f514cbd",
+      "purpose": "preserved malformed first probe; excluded from capability conclusions"
+    },
+    {
+      "name": "product-error-union",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "source_sha256": "1dbfaccd1c2ef7f2632aa4f6fb9ee50ced554232f9f4184486162b04cd230f67",
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "dyn-valid-parameter",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "source_sha256": "68acda16d5a8f8fdf87bfef7cf881c268ab4b005562d4f263380a997c0b0e50e",
+      "purpose": "corrected shape or actual alternate representation control"
+    },
+    {
+      "name": "syntax-valid-alias",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "source_sha256": "b5221cbe2152e01a45252f1504ebab05f47d28a46baffecf73d8de3d16a56476",
+      "purpose": "corrected shape or actual alternate representation control"
+    },
+    {
+      "name": "copy-option-library-control",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "source_sha256": "bcc699519008ec07b45d424c9b74a12f0b71cdd4f43f3498fa45dc5133c94c60",
+      "purpose": "corrected shape or actual alternate representation control"
+    },
+    {
+      "name": "indexed-callback-delete",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "source_sha256": "48b9761e1c00dc0d16a365e3e8a7c6f20b018bf3a3c3b0033bca93925a0e19a4",
+      "purpose": "corrected shape or actual alternate representation control"
+    }
+  ],
+  "builds": [
+    {
+      "opt": "O0",
+      "verification_runs": 1,
+      "module_count": 5,
+      "executable_sha256": "03b4c8ab6eb4fb8862a99af2face317b9e33652f9159e2de8d8d39249085a3aa",
+      "llvm_sha256": "1a7ddaca1666eaeb5719b96eaec38224e45f29642ad5b5a33b70628e80ce4f09",
+      "allocation_probe_sha256": "db96dd58c51e26a318b960da0808044d6c6afbc3a21d0548ccc1e2b30b59d1d3"
+    },
+    {
+      "opt": "O2",
+      "verification_runs": 1,
+      "module_count": 5,
+      "executable_sha256": "a2013d831f29b0b3e0693757099f97b5f701f008fcaef45c49360d4664a901ec",
+      "llvm_sha256": "1a7ddaca1666eaeb5719b96eaec38224e45f29642ad5b5a33b70628e80ce4f09",
+      "allocation_probe_sha256": "832cc501ce0360283149829c9b36cdc91c2cba00c4ddcd4ed86295c836208a14"
+    }
+  ],
+  "observations": [
+    {
+      "scenario": "mode-0",
+      "opt": "O0",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S>3Cc>2Bb>1AaZ"
+    },
+    {
+      "scenario": "mode-0",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S>3Cc>2Bb>1AaZ",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-0",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "Aa1F",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "mode-0",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "S>3FCcAa1Bb2",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "scenario": "mode-0",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 3,
+      "exit": 1,
+      "stdout": "S>3Cc>2FBbAa1",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-0",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 4,
+      "exit": 1,
+      "stdout": "S>3Cc>2Bb>1FAa",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-0",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 5,
+      "exit": 0,
+      "stdout": "S>3Cc>2Bb>1AaZ",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O0",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S.Bb2D>3Cc>1AaZ"
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S.Bb2D>3Cc>1AaZ",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "Aa1F",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 3,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 4,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 5,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 6,
+      "exit": 1,
+      "stdout": "S.Bb2DFAa1Cc3",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 7,
+      "exit": 1,
+      "stdout": "S.Bb2DFAa1Cc3",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 8,
+      "exit": 1,
+      "stdout": "S.Bb2D>3FCcAa1",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 9,
+      "exit": 1,
+      "stdout": "S.Bb2D>3Cc>1FAa",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 10,
+      "exit": 0,
+      "stdout": "S.Bb2D>3Cc>1AaZ",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ"
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ",
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 8,
+        "frees": 8,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "Aa1F",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 3,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 4,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 5,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 6,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 340
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 7,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 341
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 8,
+      "exit": 1,
+      "stdout": "S..FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 342
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 9,
+      "exit": 1,
+      "stdout": "S..Bb2DcRFAa1Ci3",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 10,
+      "exit": 1,
+      "stdout": "S..Bb2DcRFAa1Ci3",
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 11,
+      "exit": 1,
+      "stdout": "S..Bb2DcR>3FCiAa1",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 12,
+      "exit": 1,
+      "stdout": "S..Bb2DcR>3Ci>1FAa",
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 13,
+      "exit": 0,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ",
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 8,
+        "frees": 8,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S...Bb2DEAa1Cc3"
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S...Bb2DEAa1Cc3",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 681
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "Aa1F",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 3,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 4,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 5,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 6,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 340
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 7,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 341
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 8,
+      "exit": 1,
+      "stdout": "S..FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 342
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 9,
+      "exit": 1,
+      "stdout": "S..FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 343
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 10,
+      "exit": 1,
+      "stdout": "S..FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 344
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 11,
+      "exit": 1,
+      "stdout": "S...FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 345
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 12,
+      "exit": 0,
+      "stdout": "S...Bb2DEAa1Cc3",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 681
+      }
+    },
+    {
+      "scenario": "mode-4",
+      "opt": "O0",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "SDd4ZAa1Bb2Cc3"
+    },
+    {
+      "scenario": "mode-4",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "SDd4ZAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "scenario": "mode-4",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "Aa1F",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "mode-4",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 2,
+      "exit": 0,
+      "stdout": "SDd4ZAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "scenario": "invalid",
+      "opt": "O0",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": ""
+    },
+    {
+      "scenario": "invalid",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": "",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "invalid",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 9,
+      "stdout": "",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "eof",
+      "opt": "O0",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": ""
+    },
+    {
+      "scenario": "eof",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": "",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "eof",
+      "opt": "O0",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 9,
+      "stdout": "",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "mode-0",
+      "opt": "O2",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S>3Cc>2Bb>1AaZ"
+    },
+    {
+      "scenario": "mode-0",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S>3Cc>2Bb>1AaZ",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-0",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "Aa1F",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "mode-0",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "S>3FCcAa1Bb2",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "scenario": "mode-0",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 3,
+      "exit": 1,
+      "stdout": "S>3Cc>2FBbAa1",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-0",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 4,
+      "exit": 1,
+      "stdout": "S>3Cc>2Bb>1FAa",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-0",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 5,
+      "exit": 0,
+      "stdout": "S>3Cc>2Bb>1AaZ",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O2",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S.Bb2D>3Cc>1AaZ"
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S.Bb2D>3Cc>1AaZ",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "Aa1F",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 3,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 4,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 5,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 6,
+      "exit": 1,
+      "stdout": "S.Bb2DFAa1Cc3",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 7,
+      "exit": 1,
+      "stdout": "S.Bb2DFAa1Cc3",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 8,
+      "exit": 1,
+      "stdout": "S.Bb2D>3FCcAa1",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 9,
+      "exit": 1,
+      "stdout": "S.Bb2D>3Cc>1FAa",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "scenario": "mode-1",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 10,
+      "exit": 0,
+      "stdout": "S.Bb2D>3Cc>1AaZ",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 675
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ"
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ",
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 8,
+        "frees": 8,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "Aa1F",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 3,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 4,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 5,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 6,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 340
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 7,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 341
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 8,
+      "exit": 1,
+      "stdout": "S..FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 342
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 9,
+      "exit": 1,
+      "stdout": "S..Bb2DcRFAa1Ci3",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 10,
+      "exit": 1,
+      "stdout": "S..Bb2DcRFAa1Ci3",
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 11,
+      "exit": 1,
+      "stdout": "S..Bb2DcR>3FCiAa1",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 12,
+      "exit": 1,
+      "stdout": "S..Bb2DcR>3Ci>1FAa",
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 7,
+        "frees": 7,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "scenario": "mode-2",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 13,
+      "exit": 0,
+      "stdout": "S..Bb2DcR>3Ci>1AaZ",
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 8,
+        "frees": 8,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 678
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S...Bb2DEAa1Cc3"
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "S...Bb2DEAa1Cc3",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 681
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "Aa1F",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 2,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 3,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 337
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 4,
+      "exit": 1,
+      "stdout": "SFAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 338
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 5,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 339
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 6,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 340
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 7,
+      "exit": 1,
+      "stdout": "S.FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 341
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 8,
+      "exit": 1,
+      "stdout": "S..FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 342
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 9,
+      "exit": 1,
+      "stdout": "S..FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 343
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 10,
+      "exit": 1,
+      "stdout": "S..FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 344
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 11,
+      "exit": 1,
+      "stdout": "S...FAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 345
+      }
+    },
+    {
+      "scenario": "mode-3",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 12,
+      "exit": 0,
+      "stdout": "S...Bb2DEAa1Cc3",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 681
+      }
+    },
+    {
+      "scenario": "mode-4",
+      "opt": "O2",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "SDd4ZAa1Bb2Cc3"
+    },
+    {
+      "scenario": "mode-4",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "SDd4ZAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "scenario": "mode-4",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "Aa1F",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "mode-4",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 2,
+      "exit": 0,
+      "stdout": "SDd4ZAa1Bb2Cc3",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 336
+      }
+    },
+    {
+      "scenario": "invalid",
+      "opt": "O2",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": ""
+    },
+    {
+      "scenario": "invalid",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": "",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "invalid",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 9,
+      "stdout": "",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "eof",
+      "opt": "O2",
+      "instrumented": false,
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": ""
+    },
+    {
+      "scenario": "eof",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 9,
+      "stdout": "",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "eof",
+      "opt": "O2",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 9,
+      "stdout": "",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    }
+  ],
+  "indexed_control": [
+    {
+      "opt": "O0",
+      "verification_runs": 1,
+      "exit": 0,
+      "stdout": "B!AC"
+    },
+    {
+      "opt": "O2",
+      "verification_runs": 1,
+      "exit": 0,
+      "stdout": "B!AC"
+    }
+  ],
+  "counts": {
+    "ordinary": 14,
+    "instrumented": 102,
+    "allocation_failures": 74
+  },
+  "probe_count": 29,
+  "inputs_unchanged": true,
+  "end_git_status": ""
+}

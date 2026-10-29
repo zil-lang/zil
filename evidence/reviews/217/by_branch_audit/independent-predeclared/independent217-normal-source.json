@@ -1,0 +1,12 @@
+{
+  "source_sha256": {
+    "collection.zil": "10f3cacb124115ac38998675f51d049fbe2062c4ba8fa242a84afc6c859cb5f3",
+    "factory.zil": "27a680fe4e3ded960c996c30a196c03e4038acec4dbded3b439a2cb23f19be18",
+    "main.zil": "89d4205bd387e656968949a6263781c81b837e40242bbdb6f9e40b8d6afbbd47",
+    "portable.zil": "6d97afabc23947412c40f7d26a4e6abbb8ffd172e5e3b3c026c09faa0c8186bf",
+    "state.zil": "d9c70d70132097c27cf9b2d0b44a34c980220c16ade99b0410d92ffebddb291b"
+  },
+  "oracle_sha256": "2f30894a98c0997aec3d0cb5ab48c0b90eca74fbb2b261dc27a4ab30aa26a56c",
+  "execution_performed": false,
+  "purpose": "Bind independent pre-execution normal-case deductions to exact source bytes, before frozen217 review."
+}

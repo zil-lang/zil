@@ -1,0 +1,9 @@
+{
+  "status": "InfrastructureFail",
+  "command": ["python3", "recovery/review217/run.py"],
+  "phase": "review wrapper parse before any project command",
+  "exit_code": 1,
+  "diagnostic": "SyntaxError: positional argument follows keyword argument at record.update",
+  "production_or_consumer_changed": false,
+  "resolution": "Corrected only the external reviewer wrapper keyword syntax; initial run created no test output or project process."
+}

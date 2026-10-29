@@ -1,0 +1,1813 @@
+{
+  "candidate": "9219be40ff0aa2d7e2902cd0a6da151bd44b3cb4",
+  "comparison_source": "68dd99af8b995275db8ba51df73e419899c10e3d",
+  "prior_test_execution_sources": [
+    "f581cd67d1f36b088111a4afc55d308a0a47fe59",
+    "68dd99af8b995275db8ba51df73e419899c10e3d"
+  ],
+  "does_not_relabel_prior_test_execution": true,
+  "baseline_normative": {
+    "required_paths": [
+      "_zil_design.md",
+      "policy/dependencies.json",
+      "spec/attributes.json",
+      "spec/diagnostics.json",
+      "spec/grammar.ebnf",
+      "spec/interfaces.json",
+      "validation/product-gates.json"
+    ],
+    "actual_files": {
+      "_zil_design.md": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+      "policy/dependencies.json": "78c220a298944d391be2e487460de25387510607f81d06e882a81220e22bfc1a",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "spec/diagnostics.json": "0258adda6f803a4fffd4d24f6cd1b05fb313dbdad2b4b99d4cb26f74c0fad991",
+      "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "spec/interfaces.json": "bf7905b2c64524c87780c748a248f50f6384743563edd26fb1f7366fa64ccf62",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    },
+    "actual_spec_hash": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+    "actual_normative_hash": "e22a4886dc79fcc4b713867bffc691829b146725beb64a15fe381c8a6f303cb5",
+    "registered_files": {
+      "_zil_design.md": "f26a0d8701b9a00a38286f486b7bcae1b96cf1d9254add7c48d395bb3e6ccbc3",
+      "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "spec/diagnostics.json": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e",
+      "spec/interfaces.json": "930356b0dd9dfb93d55dc3d4420b3b41e1e70600b72d72dae84f99046f9033c3",
+      "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    },
+    "registered_normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+    "required_set_matches": true,
+    "registry_valid": false
+  },
+  "candidate_normative": {
+    "required_paths": [
+      "_zil_design.md",
+      "policy/dependencies.json",
+      "spec/attributes.json",
+      "spec/diagnostics.json",
+      "spec/grammar.ebnf",
+      "spec/interfaces.json",
+      "validation/product-gates.json"
+    ],
+    "actual_files": {
+      "_zil_design.md": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+      "policy/dependencies.json": "78c220a298944d391be2e487460de25387510607f81d06e882a81220e22bfc1a",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "spec/diagnostics.json": "0258adda6f803a4fffd4d24f6cd1b05fb313dbdad2b4b99d4cb26f74c0fad991",
+      "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "spec/interfaces.json": "8c94511ba11344dea57e14ad00caf7164f875f7e93a70057e06a6879d74a6b6b",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    },
+    "actual_spec_hash": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+    "actual_normative_hash": "4d5480fd3f7de30f6a846489e624ce01bb64d7e835c7e01930bd3410a2206db1",
+    "registered_files": {
+      "_zil_design.md": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+      "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "spec/diagnostics.json": "0258adda6f803a4fffd4d24f6cd1b05fb313dbdad2b4b99d4cb26f74c0fad991",
+      "spec/interfaces.json": "8c94511ba11344dea57e14ad00caf7164f875f7e93a70057e06a6879d74a6b6b",
+      "policy/dependencies.json": "78c220a298944d391be2e487460de25387510607f81d06e882a81220e22bfc1a",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    },
+    "registered_normative_hash": "4d5480fd3f7de30f6a846489e624ce01bb64d7e835c7e01930bd3410a2206db1",
+    "required_set_matches": true,
+    "registry_valid": true
+  },
+  "changed_files": [
+    {
+      "status": "M",
+      "path": ".agent/git-branches.md",
+      "classification": "other_requires_inspection",
+      "before": {
+        "sha256": "c9ca628bd2236589839c9c22fa2a1c28e89a28d2b548602f88dd0bcf5a1c344c",
+        "bytes": 3422,
+        "git_tree_entry": "100644 blob 2d93dac23bad1f049f93becdddc1d87681129f58\t.agent/git-branches.md"
+      },
+      "after": {
+        "sha256": "c642217a6e4ea9e5d7dac1bc6090dcf803646b3439f761a057ca483aba5fdc6f",
+        "bytes": 3434,
+        "git_tree_entry": "100644 blob 88b98d7d05afa3d6882e94c930a04539bf89465e\t.agent/git-branches.md"
+      }
+    },
+    {
+      "status": "M",
+      "path": ".agent/mainline-priority.md",
+      "classification": "other_requires_inspection",
+      "before": {
+        "sha256": "8c7dbb511ba49157800c1a53f7f7f74a6e1e76bf91bf1052e2a22456460c5024",
+        "bytes": 8982,
+        "git_tree_entry": "100644 blob ae989f72b1cc4ad5f6a2fd6211a2dd171e01d7d7\t.agent/mainline-priority.md"
+      },
+      "after": {
+        "sha256": "77de81d4971218ef64a721f3a9af7ae04d8a9c3f6960cf991100cedd98feca94",
+        "bytes": 9450,
+        "git_tree_entry": "100644 blob 9cb1e329dd7577a912b2f11607662ee5dc9e91d2\t.agent/mainline-priority.md"
+      }
+    },
+    {
+      "status": "M",
+      "path": ".github/workflows/verify-main.yml",
+      "classification": "other_requires_inspection",
+      "before": {
+        "sha256": "b4a898e7fc406841b5f3df33eeceed564988468b8ef2f3a9c6264c57a3c9aec2",
+        "bytes": 3765,
+        "git_tree_entry": "100644 blob b30b285476c97c946562138bc7443bbbe32cd6cf\t.github/workflows/verify-main.yml"
+      },
+      "after": {
+        "sha256": "ada800d4e2347229f32b4673072f5044e21eea2d5d4e2714e5ecd53144d24c57",
+        "bytes": 3848,
+        "git_tree_entry": "100644 blob f2d8182350dc9285141ffe5700f83c0d86aa6479\t.github/workflows/verify-main.yml"
+      }
+    },
+    {
+      "status": "A",
+      "path": ".task/impl/217.md",
+      "classification": "handoff_record",
+      "before": null,
+      "after": {
+        "sha256": "fb2fa51034f77893b813b905c15e41ae5fa1a668edfc658a473998445e243ba7",
+        "bytes": 1185,
+        "git_tree_entry": "100644 blob 2ed1ee7e70735eb181765a0fbab4f67f0060055b\t.task/impl/217.md"
+      }
+    },
+    {
+      "status": "M",
+      "path": "_zil_goal.md",
+      "classification": "other_requires_inspection",
+      "before": {
+        "sha256": "e909e51e24dedd5d9d6888e91152ef849bcb78e78462f1e5d1c30a704d7b833b",
+        "bytes": 21998,
+        "git_tree_entry": "100644 blob 4d3daf75ca6bbacec79cf6016481a84c06069b21\t_zil_goal.md"
+      },
+      "after": {
+        "sha256": "047d301895057dbf90c12a3371d66fd98073b3c5de9836319cf4db0f38262206",
+        "bytes": 22663,
+        "git_tree_entry": "100644 blob 764add90f3a458f9f2317f7b195a9e73816682bd\t_zil_goal.md"
+      }
+    },
+    {
+      "status": "A",
+      "path": "changes/216-final-snapshot.md",
+      "classification": "documentation",
+      "before": null,
+      "after": {
+        "sha256": "e494be753cd17f8750f9a05012f2c6a9981da611b97b49ab7c63ff3914e9dd4c",
+        "bytes": 1201,
+        "git_tree_entry": "100644 blob eae22236de8d9f21b20890d1777e78922f739c54\tchanges/216-final-snapshot.md"
+      }
+    },
+    {
+      "status": "M",
+      "path": "crates/zil-driver/tests/impl206_analyze.rs",
+      "classification": "test",
+      "before": {
+        "sha256": "1e802e8cf0319a5591839ba3dbe0479efd8e2b23e05df787711bf2c81aa13ccb",
+        "bytes": 14142,
+        "git_tree_entry": "100644 blob 15fc0f8e72e56e1de44c800229eb75299cedb13c\tcrates/zil-driver/tests/impl206_analyze.rs"
+      },
+      "after": {
+        "sha256": "57284016376f85351b819cfa981bc7563a25a17d4a1885422f613d8bcfa98dd3",
+        "bytes": 14719,
+        "git_tree_entry": "100644 blob 22c54e36f394827c55f44d3b134e08ec71d55184\tcrates/zil-driver/tests/impl206_analyze.rs"
+      }
+    },
+    {
+      "status": "M",
+      "path": "data/normative-inputs.json",
+      "classification": "normative_registry",
+      "before": {
+        "sha256": "a96cae8877c4dbaa59f20e2b1d786459e8a69cbdcc7b4c78133a8cda594eda10",
+        "bytes": 876,
+        "git_tree_entry": "100644 blob b22754557f49b5337d260e9679932c65b71fe5d0\tdata/normative-inputs.json"
+      },
+      "after": {
+        "sha256": "6bb543b4dc9cec04862bc133a5f28f89f37b23b0b5bb99b286ab3a5fd0bdf1de",
+        "bytes": 876,
+        "git_tree_entry": "100644 blob b0c3477ab98ca5d16f89d53a7c04bb667f1b079f\tdata/normative-inputs.json"
+      }
+    },
+    {
+      "status": "M",
+      "path": "docs/IMPLEMENTATION-STATUS.md",
+      "classification": "documentation",
+      "before": {
+        "sha256": "3452cd3146d94050f9ef58e95cb94a20693783903952d1b86429cbcb2d1779e8",
+        "bytes": 49584,
+        "git_tree_entry": "100644 blob 7f3f96f6bdd46e36dbdcd242891fa4cf540f4d39\tdocs/IMPLEMENTATION-STATUS.md"
+      },
+      "after": {
+        "sha256": "8063e1e2437dac7f202af39dbe8bc4ad9fd84b018aa197c30fc3e6d66f647f3a",
+        "bytes": 50571,
+        "git_tree_entry": "100644 blob 9658b7981691ed39e3e91438420c53629fb887c1\tdocs/IMPLEMENTATION-STATUS.md"
+      }
+    },
+    {
+      "status": "A",
+      "path": "docs/LANGUAGE-217.md",
+      "classification": "documentation",
+      "before": null,
+      "after": {
+        "sha256": "7b855479fed7301da0d05fb489d76e490e361928aa9bd7eefabdfb6a761c6bf1",
+        "bytes": 5838,
+        "git_tree_entry": "100644 blob 897fc406985e2c019f00119a95644fa6a4467cac\tdocs/LANGUAGE-217.md"
+      }
+    },
+    {
+      "status": "A",
+      "path": "docs/ZUI-LANGUAGE-READINESS-217.md",
+      "classification": "documentation",
+      "before": null,
+      "after": {
+        "sha256": "6b5ea733231503d3ab21b81de2191f5976b94b7fbc8220fa57f84555a1c30595",
+        "bytes": 17148,
+        "git_tree_entry": "100644 blob df7de5ca0176c3719bb60e95854fa090ba333b75\tdocs/ZUI-LANGUAGE-READINESS-217.md"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/03-integrated-native-fixture-failure.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "d7f93a2d471527fc911354f73886228a87b2f10626665ba3d5680504329dfb17",
+        "bytes": 2340,
+        "git_tree_entry": "100644 blob 2491f8ea60f60231359bbb5fe1965a36c205067d\tevidence/impl/216/03-integrated-native-fixture-failure.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/04-store-fixture-corrected-pass.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "5fbd96c4431efda9e8870abeb44ea567cede493a45d4625f7985064f205e9d56",
+        "bytes": 478,
+        "git_tree_entry": "100644 blob 21cc1c328fb132bedaec43866119f2f8d02ed1d7\tevidence/impl/216/04-store-fixture-corrected-pass.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/05-final-raw-and-native-pass.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "53c72cc852635ae66dae8e17ca6b8c333141600b9d48c9234d60235f3ca373be",
+        "bytes": 1723,
+        "git_tree_entry": "100644 blob ee19ccac9dffde1cd46bad1672faa1c2bd64f512\tevidence/impl/216/05-final-raw-and-native-pass.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/06-clippy-pass.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "090369a2718b4da7904149afd6c9a1e207b603081329e07343c0570782df61bc",
+        "bytes": 1134,
+        "git_tree_entry": "100644 blob 0456111645e91139bf4b8601bc273af83b0f343b\tevidence/impl/216/06-clippy-pass.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/07-flat-budget-pass.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "9928eea270101718e7c6a15c2bc6b2502bc284a3d36b0c2f435f131738f83629",
+        "bytes": 474,
+        "git_tree_entry": "100644 blob db5fa59a6c23a28a1353fe1bc067d686d5aa0565\tevidence/impl/216/07-flat-budget-pass.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/SUMMARY.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "bdb3acb1cbd4e8c09dd83f06c9ce40f9091f32af35b1fd39ac9b707f28a0a081",
+        "bytes": 22915,
+        "git_tree_entry": "100644 blob 3ca4d42a3e5b4ec13759d5162cdbc691faebb351\tevidence/impl/216/SUMMARY.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission/candidate.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "005749057fe9fa8107f5458489edbf90acbd85ec37de920eabed0c55cdc3360f",
+        "bytes": 3241,
+        "git_tree_entry": "100644 blob 964bbaad59364bce965f36bc775c6003c35d3b7f\tevidence/impl/216/raw/raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission/candidate.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission/flat-source-control.zil",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "f26f4c19b033c3fb3b70d3a5efbe26afc9e06f81ccbeda47cb8f220edb2e7d7b",
+        "bytes": 122,
+        "git_tree_entry": "100644 blob cd56c2b5a64f24750bfaa5fe6db4614e277c1eb5\tevidence/impl/216/raw/raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission/flat-source-control.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission/input.wire",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "7ede07461fb4965b580336f6fae65faecbe33a3b64b204b3fe6102d7975ddcb4",
+        "bytes": 1807,
+        "git_tree_entry": "100644 blob 42dd9bdd30ec2b522194685f9b2e7a13638e0a5c\tevidence/impl/216/raw/raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission/input.wire"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission/raw.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "6422d18d1f0c06bce9fd9247d8558d5680daa622d6e5a7c8550480255b9a567d",
+        "bytes": 39713,
+        "git_tree_entry": "100644 blob 11d1ff3e38770ec6ef6aa5c69cf37cca98a63e26\tevidence/impl/216/raw/raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission/raw.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission/typed.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "315d23f89da7632cdc57c906bc75694560ec02112dc05224e302c75d722f98ce",
+        "bytes": 28019,
+        "git_tree_entry": "100644 blob 1999ec82a497da18d744f7325ec4b57fce6507c4\tevidence/impl/216/raw/raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission/typed.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission/wire.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "6422d18d1f0c06bce9fd9247d8558d5680daa622d6e5a7c8550480255b9a567d",
+        "bytes": 39713,
+        "git_tree_entry": "100644 blob 11d1ff3e38770ec6ef6aa5c69cf37cca98a63e26\tevidence/impl/216/raw/raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission/wire.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-missing_capture_bind_is_still_rejected/candidate.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "052f7e8ab07241c0fc05df55b267395d8246a887c01830bbf1497a4da587afaa",
+        "bytes": 3248,
+        "git_tree_entry": "100644 blob ddd4b1ee962322d05c7d4d7f0efc85ac662bb129\tevidence/impl/216/raw/raw216-missing_capture_bind_is_still_rejected/candidate.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-missing_capture_bind_is_still_rejected/flat-source-control.zil",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "f26f4c19b033c3fb3b70d3a5efbe26afc9e06f81ccbeda47cb8f220edb2e7d7b",
+        "bytes": 122,
+        "git_tree_entry": "100644 blob cd56c2b5a64f24750bfaa5fe6db4614e277c1eb5\tevidence/impl/216/raw/raw216-missing_capture_bind_is_still_rejected/flat-source-control.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-missing_capture_bind_is_still_rejected/input.wire",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "eb87de349bb81caaaf366cf6cb9ec495412c004d6e5b113b1b315994eb86246b",
+        "bytes": 1777,
+        "git_tree_entry": "100644 blob f63719ab1bf56cf2158482286a8d102d04d31ad9\tevidence/impl/216/raw/raw216-missing_capture_bind_is_still_rejected/input.wire"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-missing_capture_bind_is_still_rejected/raw.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "49ab3315f2288d1b515a22e7bc7673d70883d45f7e4ce57059c39605ea3ffd25",
+        "bytes": 473,
+        "git_tree_entry": "100644 blob 849ed328d129194a0659d89bb162d27abe0ab416\tevidence/impl/216/raw/raw216-missing_capture_bind_is_still_rejected/raw.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-missing_capture_bind_is_still_rejected/typed.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "8baf80e10335e20a4de9b806b92f4f096f4deba499394999734e803f5694dd3c",
+        "bytes": 27386,
+        "git_tree_entry": "100644 blob 7d9608c5c6214e6fc0a6d98853a670ee721f45bb\tevidence/impl/216/raw/raw216-missing_capture_bind_is_still_rejected/typed.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-missing_capture_bind_is_still_rejected/wire.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "49ab3315f2288d1b515a22e7bc7673d70883d45f7e4ce57059c39605ea3ffd25",
+        "bytes": 473,
+        "git_tree_entry": "100644 blob 849ed328d129194a0659d89bb162d27abe0ab416\tevidence/impl/216/raw/raw216-missing_capture_bind_is_still_rejected/wire.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-repeatable_capture_must_return_with_its_child_present/candidate.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "aedd4fe9bd4b405eb5a49dec0068849c6b8f2beef7a6790c1e59c5aef1e8a13e",
+        "bytes": 3242,
+        "git_tree_entry": "100644 blob a1ec1f328088969a3165a15abfa2cf1ad6e53eba\tevidence/impl/216/raw/raw216-repeatable_capture_must_return_with_its_child_present/candidate.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-repeatable_capture_must_return_with_its_child_present/flat-source-control.zil",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "f26f4c19b033c3fb3b70d3a5efbe26afc9e06f81ccbeda47cb8f220edb2e7d7b",
+        "bytes": 122,
+        "git_tree_entry": "100644 blob cd56c2b5a64f24750bfaa5fe6db4614e277c1eb5\tevidence/impl/216/raw/raw216-repeatable_capture_must_return_with_its_child_present/flat-source-control.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-repeatable_capture_must_return_with_its_child_present/input.wire",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "b97c3073a22610cc8ec820dab879dbc055e08541e679213c2a8ca655b0b0ac53",
+        "bytes": 1837,
+        "git_tree_entry": "100644 blob 6866095431bb1e5153077e77861f396766afd5b4\tevidence/impl/216/raw/raw216-repeatable_capture_must_return_with_its_child_present/input.wire"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-repeatable_capture_must_return_with_its_child_present/raw.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "171623831225664a6ba6449225e82ad69d3dba1cf15d4a80b29913aa833f7e3b",
+        "bytes": 484,
+        "git_tree_entry": "100644 blob 5214ca4aff3f4683859ee4359b6225f608c32023\tevidence/impl/216/raw/raw216-repeatable_capture_must_return_with_its_child_present/raw.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-repeatable_capture_must_return_with_its_child_present/typed.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "3c1c5c1495c2cc26ad9c39d4a186a3daa9a1506d0b9dd28eeef2ea63ce78ea53",
+        "bytes": 28647,
+        "git_tree_entry": "100644 blob 9a413591c1d6b8d70315b59006a5a58cd737635e\tevidence/impl/216/raw/raw216-repeatable_capture_must_return_with_its_child_present/typed.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-repeatable_capture_must_return_with_its_child_present/wire.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "171623831225664a6ba6449225e82ad69d3dba1cf15d4a80b29913aa833f7e3b",
+        "bytes": 484,
+        "git_tree_entry": "100644 blob 5214ca4aff3f4683859ee4359b6225f608c32023\tevidence/impl/216/raw/raw216-repeatable_capture_must_return_with_its_child_present/wire.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-shared_capture_cannot_discharge_a_child/candidate.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "5932e2cff1923aa5b5b9fb0708a21f37f5d7cd487a490211f3f653af4e4a14bd",
+        "bytes": 3239,
+        "git_tree_entry": "100644 blob b77f77c2c50d8b778e8183a5ae3f073720342c91\tevidence/impl/216/raw/raw216-shared_capture_cannot_discharge_a_child/candidate.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-shared_capture_cannot_discharge_a_child/flat-source-control.zil",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "f26f4c19b033c3fb3b70d3a5efbe26afc9e06f81ccbeda47cb8f220edb2e7d7b",
+        "bytes": 122,
+        "git_tree_entry": "100644 blob cd56c2b5a64f24750bfaa5fe6db4614e277c1eb5\tevidence/impl/216/raw/raw216-shared_capture_cannot_discharge_a_child/flat-source-control.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-shared_capture_cannot_discharge_a_child/input.wire",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "06c5ebe6b61060c77feb9c651db59ab9f8e8d9cff44153145e652a47c8a1323e",
+        "bytes": 1837,
+        "git_tree_entry": "100644 blob bd6822787f3ebfdf0848405b064a23d5e113856a\tevidence/impl/216/raw/raw216-shared_capture_cannot_discharge_a_child/input.wire"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-shared_capture_cannot_discharge_a_child/raw.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "9660a759acda07c5a3530cbaeb0abe72fdb141e114f140125504040b126df7b7",
+        "bytes": 490,
+        "git_tree_entry": "100644 blob 8b6d4722d67476d057c04102e1605ea2b2cb4479\tevidence/impl/216/raw/raw216-shared_capture_cannot_discharge_a_child/raw.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-shared_capture_cannot_discharge_a_child/typed.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "012e5b1ebea992d59ea95b07f65fd79fcd84a17cd8af083e0764f4f3d6fa06af",
+        "bytes": 28650,
+        "git_tree_entry": "100644 blob 0099f16d8f7c6637ce6383e74734126a0eec6de5\tevidence/impl/216/raw/raw216-shared_capture_cannot_discharge_a_child/typed.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-shared_capture_cannot_discharge_a_child/wire.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "9660a759acda07c5a3530cbaeb0abe72fdb141e114f140125504040b126df7b7",
+        "bytes": 490,
+        "git_tree_entry": "100644 blob 8b6d4722d67476d057c04102e1605ea2b2cb4479\tevidence/impl/216/raw/raw216-shared_capture_cannot_discharge_a_child/wire.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-wrong_capture_index_is_still_rejected/candidate.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "1172fcdc6e565d524e2da0358b31ca466687ed2b28076bd998bc7fe77546c7d0",
+        "bytes": 3248,
+        "git_tree_entry": "100644 blob c0a85614d46c3b18ddbb8341417a832a78fe84f0\tevidence/impl/216/raw/raw216-wrong_capture_index_is_still_rejected/candidate.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-wrong_capture_index_is_still_rejected/flat-source-control.zil",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "f26f4c19b033c3fb3b70d3a5efbe26afc9e06f81ccbeda47cb8f220edb2e7d7b",
+        "bytes": 122,
+        "git_tree_entry": "100644 blob cd56c2b5a64f24750bfaa5fe6db4614e277c1eb5\tevidence/impl/216/raw/raw216-wrong_capture_index_is_still_rejected/flat-source-control.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-wrong_capture_index_is_still_rejected/input.wire",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "70b2e3af61711e985b0bfdb63c94b1cc8b6b4d03bea4b282911ce3b15d51a4cb",
+        "bytes": 1807,
+        "git_tree_entry": "100644 blob 9fce5279c4718d11c46ac4c524ea6d08ed0c224b\tevidence/impl/216/raw/raw216-wrong_capture_index_is_still_rejected/input.wire"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-wrong_capture_index_is_still_rejected/raw.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "d70da23c1d57c1333122da6de5e3690b2a8ddd0966ef0239ab02ea6004f502cb",
+        "bytes": 471,
+        "git_tree_entry": "100644 blob 6eeca7e833d3810f503db02b1da7b67db829a015\tevidence/impl/216/raw/raw216-wrong_capture_index_is_still_rejected/raw.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-wrong_capture_index_is_still_rejected/typed.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "b5d9d4f39220f3e8a665e66d8bae90e1feb1593a941191b2eaf656070005acc1",
+        "bytes": 28019,
+        "git_tree_entry": "100644 blob d5074d7df60f731b40d95510435ffffe49ed8426\tevidence/impl/216/raw/raw216-wrong_capture_index_is_still_rejected/typed.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/216/raw/raw216-wrong_capture_index_is_still_rejected/wire.txt",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "d70da23c1d57c1333122da6de5e3690b2a8ddd0966ef0239ab02ea6004f502cb",
+        "bytes": 471,
+        "git_tree_entry": "100644 blob 6eeca7e833d3810f503db02b1da7b67db829a015\tevidence/impl/216/raw/raw216-wrong_capture_index_is_still_rejected/wire.txt"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/ARTIFACT-MANIFEST.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "5864443492d3d014495c924337ece20ebf816e9ae835e10efaf29146ea76e59b",
+        "bytes": 72527,
+        "git_tree_entry": "100644 blob 8f08fe9bb8b4f1300828588ccb02556999d170fb\tevidence/impl/217/ARTIFACT-MANIFEST.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/FAILURES.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "0be5ff28078b5a02bad999f4df0c3857f9b1ad145af6abf015a878b67076a681",
+        "bytes": 1068,
+        "git_tree_entry": "100644 blob 404a27f479a8de19dc782e86671a749e9471a1ed\tevidence/impl/217/FAILURES.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/RESULT.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "9a9ddbdf8c6c40dee1d76726e0499584f6fb39fcb3ed8ceb717e74faeefedca4",
+        "bytes": 55946,
+        "git_tree_entry": "100644 blob a28aeead00f3457d0e2a5e5dbc9f6b510f30c201\tevidence/impl/217/RESULT.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/RUN.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "103c7ee04ff4f6e5a606969e44126c7dd283311a90bd92d35464782f1576bcf0",
+        "bytes": 788,
+        "git_tree_entry": "100644 blob 0ce952442c7fb261265b24679cdd83189dd7c85c\tevidence/impl/217/RUN.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/audit-followup-original-result.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "c9a26f8892e1f196a518fe71882d05c7e01e8c25f49e1ff47e54db91e1a7ab2a",
+        "bytes": 9846,
+        "git_tree_entry": "100644 blob 5097a19ba1fef89e24ce19df96bcdf5943c445e5\tevidence/impl/217/audit-followup-original-result.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/audit-source-manifest.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "6d45b56b8f415ad505fd7d878e436b17106f73d1893ec21ca6bebba0e98593e3",
+        "bytes": 7899,
+        "git_tree_entry": "100644 blob 12f53c2922a686f12f275ff4d267056cf0f0b500\tevidence/impl/217/audit-source-manifest.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/audit25-original-result.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "7ed31c7906d72253a28cbf7c174469233123df15e4d7938e76e6865601dd980c",
+        "bytes": 21953,
+        "git_tree_entry": "100644 blob 7f5580ef421fe24fe6417101e51f0c34afb64dbc\tevidence/impl/217/audit25-original-result.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/compiler-build.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "2702d99af392a54f55774c827893b2d571c0a966fe5c3cd926f6850adf7e5064",
+        "bytes": 1186,
+        "git_tree_entry": "100644 blob 58330100d4f7444c7b3916308b2f77539c1bc5da\tevidence/impl/217/compiler-build.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/indexed-original-native.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "bcc3a0069eee3dd978f3f153a98d8ff43ccd00227e8c7ad7865bd2a490f60dad",
+        "bytes": 2217,
+        "git_tree_entry": "100644 blob c057c139006a4665878c5929c26bc5b234b4683b\tevidence/impl/217/indexed-original-native.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/source-check02-inputs/collection.zil",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "10f3cacb124115ac38998675f51d049fbe2062c4ba8fa242a84afc6c859cb5f3",
+        "bytes": 845,
+        "git_tree_entry": "100644 blob 8885c0c229f68b316247d80eeeab2ff91a8d3a40\tevidence/impl/217/source-check02-inputs/collection.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/source-check02-inputs/factory.zil",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "27a680fe4e3ded960c996c30a196c03e4038acec4dbded3b439a2cb23f19be18",
+        "bytes": 879,
+        "git_tree_entry": "100644 blob d28d9fcc4d5ce370455a4c6d576d71af6a1e6405\tevidence/impl/217/source-check02-inputs/factory.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/source-check02-inputs/main.zil",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "a794bf03392a54464ec02a806a688e3a9677f5b59b0d0d89cc8dbcd14c6bd755",
+        "bytes": 2196,
+        "git_tree_entry": "100644 blob 44199677e386703062c7b80da192e8b47f406537\tevidence/impl/217/source-check02-inputs/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/source-check02-inputs/portable.zil",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "6d97afabc23947412c40f7d26a4e6abbb8ffd172e5e3b3c026c09faa0c8186bf",
+        "bytes": 158,
+        "git_tree_entry": "100644 blob 5de8d3409a9157894a0ebe97d6fdb82472a94ce3\tevidence/impl/217/source-check02-inputs/portable.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/source-check02-inputs/state.zil",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "d9c70d70132097c27cf9b2d0b44a34c980220c16ade99b0410d92ffebddb291b",
+        "bytes": 595,
+        "git_tree_entry": "100644 blob 47674995522f94d031fbae098882ea3d40f6a149\tevidence/impl/217/source-check02-inputs/state.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/source-check02.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "a473277f3b0277192160f8743e5df597de686662a56cc9f8f257afc2e7af06c7",
+        "bytes": 1470,
+        "git_tree_entry": "100644 blob 957984e36eac71a72d164a9c7194f0bb2201c3b5\tevidence/impl/217/source-check02.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/impl/217/source-check03.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "6f09dd43036203becdc3f5fdeabb8bc8c4636867b636263022171af3744f9c78",
+        "bytes": 4569,
+        "git_tree_entry": "100644 blob a83a36603192f0a2b26e92fd6267195295005b26\tevidence/impl/217/source-check03.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/publication-plan/README.md",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "1b373aba31ed05f63e71e92f95cd148ad49416f6fe76adb559938964cba29f56",
+        "bytes": 5943,
+        "git_tree_entry": "100644 blob d41214e16e0554c998640c89a68485ac999a01c0\tevidence/integration/213/publication-plan/README.md"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/publication-plan/REVIEWABLE.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "1c794ce1820b1352b2659062b0f7b12e91773a795a7275a8ecceafb936b74163",
+        "bytes": 2136,
+        "git_tree_entry": "100644 blob a76bbeb2a4ddb3102317dbeeb5d2010f28317d19\tevidence/integration/213/publication-plan/REVIEWABLE.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/publication-plan/finalize.py",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "cbf1575d60615fe491a72eaee8579c3d33573228bc835b389f062176f9eeb449",
+        "bytes": 1590,
+        "git_tree_entry": "100644 blob b8a34849e8a3b5236492abc559370057101b978b\tevidence/integration/213/publication-plan/finalize.py"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/publication-plan/manifest.template.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "7c9431e51fd65105515130d93795f0890af9a954dcc9daa0a2d1d36b74cc0b0c",
+        "bytes": 2074,
+        "git_tree_entry": "100644 blob 143abfb62654241cb646346ee852946c3dbbb8eb\tevidence/integration/213/publication-plan/manifest.template.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/publication-plan/publish.py",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "e246d2a068cd0421385f36157ac0724efcec10fbeec97789c5bb3c82eb67973f",
+        "bytes": 17963,
+        "git_tree_entry": "100644 blob 8bcd254ce756de7aa6f72f3f3afe77fd594bde7c\tevidence/integration/213/publication-plan/publish.py"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/publication-plan/publish213.yml",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "0b36a9f3cd7f846b40784f81c52ce16b2a706cd277ec0d92d3f435cd147697f5",
+        "bytes": 4755,
+        "git_tree_entry": "100644 blob dea79eb4b030b49c41242e6b884dfc51cbf54e81\tevidence/integration/213/publication-plan/publish213.yml"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/publication-plan/test-first-fixture-failure.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "c967318eace11eb6bca7671b1ab8014a565aa454a7e82bb59099684356f6f0c7",
+        "bytes": 2698,
+        "git_tree_entry": "100644 blob 37b3837aadf22118261dff876bdbd56c64c7f86a\tevidence/integration/213/publication-plan/test-first-fixture-failure.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/publication-plan/test-results.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "8fcf70094c921736c8fce9b15e45f26d01dbfbdc3414450067b789c9184d2343",
+        "bytes": 1976,
+        "git_tree_entry": "100644 blob 0dc876674909e802ca94ebaf4b522981e07b726d\tevidence/integration/213/publication-plan/test-results.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/publication-plan/test_publish.py",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "8769376943129e3266df1d7068fa1d815809849074ddae151581adeda8ef79d7",
+        "bytes": 12973,
+        "git_tree_entry": "100644 blob 68cd2a0e5f01f757c6aa8903fffb3e62eca9e3cf\tevidence/integration/213/publication-plan/test_publish.py"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/publication-plan/verify.py",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "678a8da0c0ea0b96090f1b8df3203fe6e3524d11ad1edc884cf165e5af623768",
+        "bytes": 3664,
+        "git_tree_entry": "100644 blob 2fbdec38d0a1884c14c71d0d4361cc4e69bf60e4\tevidence/integration/213/publication-plan/verify.py"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/validation/check213-01.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "c7dc1fd557ec1e86b58b8efbb5d1c927c250661ffb0bf515a216ad72fa59f61c",
+        "bytes": 2155,
+        "git_tree_entry": "100644 blob f865b0ffca28e15c8b4e762692783ede2e8de048\tevidence/integration/213/validation/check213-01.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/validation/check213-02.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "9872d73976947c94c5c7ce9977cfca3cdbe036d91ed8fe5f0ea09ddd4c77e89d",
+        "bytes": 525,
+        "git_tree_entry": "100644 blob 61bb37a8d70e69a5f6a0d1f1ce4adcc2aa241a2d\tevidence/integration/213/validation/check213-02.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/validation/workspace213-01.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "01766d1894340efb187b8a331fe20ca75442f4820534061a607741c5c78aa482",
+        "bytes": 4189,
+        "git_tree_entry": "100644 blob f421e498246f1ac6ecccfede58dcca938ccd6fee\tevidence/integration/213/validation/workspace213-01.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/213/validation/workspace213-02.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "c3a60fc057248ef481900ea8d27b1877e923bf4de1851240431999931989fa7f",
+        "bytes": 280231,
+        "git_tree_entry": "100644 blob c157a4026abdeb4dc5cd5a68924747cf0688f7cd\tevidence/integration/213/validation/workspace213-02.log"
+      }
+    },
+    {
+      "status": "M",
+      "path": "evidence/integration/216/migration.json",
+      "classification": "evidence",
+      "before": {
+        "sha256": "13a5dcb013cd19b6281cce2e041ec3d47f67ad32476cac6e7846fa1424d90c13",
+        "bytes": 1335,
+        "git_tree_entry": "100644 blob d62524b1b414bb29f157a26c54475cb639a7dd0b\tevidence/integration/216/migration.json"
+      },
+      "after": {
+        "sha256": "c8b84e85e68c4ba4adc245284180f4946cbfcc78efe21bc3d9dbbc8973eb1d61",
+        "bytes": 2099,
+        "git_tree_entry": "100644 blob f755a2132f6d4ca2f1f48083c9b16bfc7f976c0d\tevidence/integration/216/migration.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/216/migration216-reference02.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "7c54aa1c7d578396ad33014a4afa00210c718f4951001f1c6b4da384283f51c0",
+        "bytes": 4620,
+        "git_tree_entry": "100644 blob 0dbbff251a31d02b24a780c0507b6b4f5f69b7c7\tevidence/integration/216/migration216-reference02.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/216/reference216-01.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "e92872da5cdf3bc1c6b97fb6a7215741de55307b0331ca7dc89b5a53fcca89c0",
+        "bytes": 176128,
+        "git_tree_entry": "100644 blob dc8090d86152303810a6ec266e40b0e321554b04\tevidence/integration/216/reference216-01.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/integration/216/workspace216-01.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "5ca4040855996f2edd526618b40a88bf92db9fe805d7eade7f74a7fcb82e999c",
+        "bytes": 183829,
+        "git_tree_entry": "100644 blob 773927d75f22eafe2cdfeaf56255298e465cfd91\tevidence/integration/216/workspace216-01.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/131/by_branch_audit/INFRA01.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "b92427cd0956cea001eaae1fe7cc1ee6830b7b40c1944f49991825b909e63c9c",
+        "bytes": 124,
+        "git_tree_entry": "100644 blob fb0e5446380ccc60e4dafbd47e6583e5c40299cb\tevidence/reviews/131/by_branch_audit/INFRA01.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/131/by_branch_audit/RESULT.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "6b44f75fe2f6674c2e9bb032d1a42cde01e14c87ea1f9e25719958558f3b69d5",
+        "bytes": 2371,
+        "git_tree_entry": "100644 blob 5099e34b9dcf5c3d2c1a8a1027191b224e32b621\tevidence/reviews/131/by_branch_audit/RESULT.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/131/by_branch_audit/REVIEW.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "c2ad1f76f4d9cfa5404325be69c4e70a58861260b0cf530cbdc3620286d17550",
+        "bytes": 3511,
+        "git_tree_entry": "100644 blob 0a6b117b54d251d66883d8994bd82f095f81db66\tevidence/reviews/131/by_branch_audit/REVIEW.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/131/by_branch_audit/build-opt0.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "git_tree_entry": "100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\tevidence/reviews/131/by_branch_audit/build-opt0.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/131/by_branch_audit/build-opt3.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "git_tree_entry": "100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\tevidence/reviews/131/by_branch_audit/build-opt3.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/131/by_branch_audit/test-opt0.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "5eac177e81000482d07325611264c36e9b82d06fdc08e74de076c2b7821e67c5",
+        "bytes": 1444,
+        "git_tree_entry": "100644 blob 05b4faf352500a7d294f3e981942085a44236fce\tevidence/reviews/131/by_branch_audit/test-opt0.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/131/by_branch_audit/test-opt3.log",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "10eeb6377d66c1aebcf03d443bfc2bc5f4caa2cc6f781dd8e708390a107d2822",
+        "bytes": 1444,
+        "git_tree_entry": "100644 blob 8a08d760a8ba86657cca2411607b548b6a7aac02\tevidence/reviews/131/by_branch_audit/test-opt3.log"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/216/by_branch_audit/ARCHIVE.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "7a5df77e2bb649cbb58ccba9409ff9212c620ef0970deb05664e88b1631520f5",
+        "bytes": 451,
+        "git_tree_entry": "100644 blob 56e3b4ece8b6f398d86b44c0734949266d77d298\tevidence/reviews/216/by_branch_audit/ARCHIVE.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/216/by_branch_audit/HARNESS-SHA256.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "94725c22f8916268760cccbee93d8ce60609a11689eb5457befca735e1d64872",
+        "bytes": 641,
+        "git_tree_entry": "100644 blob a118a58d64574ef5f0585dba6b9a756aa875767c\tevidence/reviews/216/by_branch_audit/HARNESS-SHA256.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/216/by_branch_audit/REVIEW.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "93a0cb842ec6e504659bc7b22c66b4d336e14253ac9353e4376f6e50c680556e",
+        "bytes": 16528,
+        "git_tree_entry": "100644 blob 145a38d68ef3b760c3509fb9833dffad4d91a43f\tevidence/reviews/216/by_branch_audit/REVIEW.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/216/by_branch_audit/compiler-build.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "2702d99af392a54f55774c827893b2d571c0a966fe5c3cd926f6850adf7e5064",
+        "bytes": 1186,
+        "git_tree_entry": "100644 blob 58330100d4f7444c7b3916308b2f77539c1bc5da\tevidence/reviews/216/by_branch_audit/compiler-build.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/216/by_branch_audit/differential01/RESULT.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "1fde2b8679b60725ff14111365d54f8cbb75e6593ea3558be3d8e55c8afee8e0",
+        "bytes": 142816,
+        "git_tree_entry": "100644 blob e288b6b4860ec93c10df56b564aa696773a4a89e\tevidence/reviews/216/by_branch_audit/differential01/RESULT.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/216/by_branch_audit/independent-raw01/command.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "60abbcac73fe1fb723aeec2c3c1aa46c99db409ea09ea22d26d6a44fa4d908ff",
+        "bytes": 1193,
+        "git_tree_entry": "100644 blob 1149b3dafd7538fb2e4539cab460cca9df9ccb57\tevidence/reviews/216/by_branch_audit/independent-raw01/command.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/216/by_branch_audit/predeclared/ORACLE.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "ddf978857980d46f160ae57d4a77b96fdd056adf51c36110c2bd71de7911f5ed",
+        "bytes": 8831,
+        "git_tree_entry": "100644 blob ae9704865b4831c7fc8cd1e3f6fa288e7151df98\tevidence/reviews/216/by_branch_audit/predeclared/ORACLE.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "evidence/reviews/216/by_branch_audit/targeted01/command.json",
+      "classification": "evidence",
+      "before": null,
+      "after": {
+        "sha256": "38195a0a9d36e82f20289d399441f7f83f9c822b06d5cd730b3098c93d291198",
+        "bytes": 1437,
+        "git_tree_entry": "100644 blob 52d25b03c463c944545891ba49f99c260cdc03da\tevidence/reviews/216/by_branch_audit/targeted01/command.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "examples/mainline/zui_start217/README.md",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "366863038fd2fc6041cf0da446bce98a13830329b669b08c8e806500cd21f146",
+        "bytes": 2019,
+        "git_tree_entry": "100644 blob 98dd71942818773cc477455387dfb4e3c3808286\texamples/mainline/zui_start217/README.md"
+      }
+    },
+    {
+      "status": "A",
+      "path": "examples/mainline/zui_start217/collection.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "10f3cacb124115ac38998675f51d049fbe2062c4ba8fa242a84afc6c859cb5f3",
+        "bytes": 845,
+        "git_tree_entry": "100644 blob 8885c0c229f68b316247d80eeeab2ff91a8d3a40\texamples/mainline/zui_start217/collection.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "examples/mainline/zui_start217/factory.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "27a680fe4e3ded960c996c30a196c03e4038acec4dbded3b439a2cb23f19be18",
+        "bytes": 879,
+        "git_tree_entry": "100644 blob d28d9fcc4d5ce370455a4c6d576d71af6a1e6405\texamples/mainline/zui_start217/factory.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "examples/mainline/zui_start217/indexed_control/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "48b9761e1c00dc0d16a365e3e8a7c6f20b018bf3a3c3b0033bca93925a0e19a4",
+        "bytes": 1626,
+        "git_tree_entry": "100644 blob 2fb7b17356504898d6987cad241e4bbcf48e9034\texamples/mainline/zui_start217/indexed_control/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "examples/mainline/zui_start217/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "89d4205bd387e656968949a6263781c81b837e40242bbdb6f9e40b8d6afbbd47",
+        "bytes": 2228,
+        "git_tree_entry": "100644 blob 2ae361fe5e7d9291d611512ed993b8c4f62fcdc5\texamples/mainline/zui_start217/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "examples/mainline/zui_start217/portable.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "6d97afabc23947412c40f7d26a4e6abbb8ffd172e5e3b3c026c09faa0c8186bf",
+        "bytes": 158,
+        "git_tree_entry": "100644 blob 5de8d3409a9157894a0ebe97d6fdb82472a94ce3\texamples/mainline/zui_start217/portable.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "examples/mainline/zui_start217/state.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "d9c70d70132097c27cf9b2d0b44a34c980220c16ade99b0410d92ffebddb291b",
+        "bytes": 595,
+        "git_tree_entry": "100644 blob 47674995522f94d031fbae098882ea3d40f6a149\texamples/mainline/zui_start217/state.zil"
+      }
+    },
+    {
+      "status": "M",
+      "path": "spec/interfaces.json",
+      "classification": "normative_input",
+      "before": {
+        "sha256": "bf7905b2c64524c87780c748a248f50f6384743563edd26fb1f7366fa64ccf62",
+        "bytes": 110214,
+        "git_tree_entry": "100644 blob f06419c7897cb080d30910aaa3809c61f6c4965f\tspec/interfaces.json"
+      },
+      "after": {
+        "sha256": "8c94511ba11344dea57e14ad00caf7164f875f7e93a70057e06a6879d74a6b6b",
+        "bytes": 110378,
+        "git_tree_entry": "100644 blob 9665ba9ddcce92a3662ad61392064d25255a5576\tspec/interfaces.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/ORACLE.json",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "05140f3423017be127f4610294f2b09decffcd71cca7d42a1b561b032e527362",
+        "bytes": 16833,
+        "git_tree_entry": "100644 blob 99b58883b7d1920895f6ab037275d0658a10d4bf\ttools/language/217/ORACLE.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/PROBES.json",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "1f25af9895df1f0bf0f5ae8000b8e262f3462634c41e40300561ece97017868b",
+        "bytes": 11665,
+        "git_tree_entry": "100644 blob 7cf21a6df0149e43f37ecfc1f625b0e0d8ea32c1\ttools/language/217/PROBES.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/SOURCE-MANIFEST.json",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "09f51d1f3d73818de60384ef6de2eee4fdf062c2abe88dbabb1c525e1ce74d22",
+        "bytes": 5501,
+        "git_tree_entry": "100644 blob 02b83080832d1bf97dbaedbfe1b90ae31e8351d5\ttools/language/217/SOURCE-MANIFEST.json"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/oracle.py",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "da8d2170eef66d395447b2a62cfcfdb7243002b009f524febd37ddd572c31ef7",
+        "bytes": 4504,
+        "git_tree_entry": "100644 blob da18430016eadf833952e5af12b9300c4527329f\ttools/language/217/oracle.py"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/associated-type/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "ffb2b17ac27e4bba9addc479ae5261ff0acc77f7f83ceee14b8f702ffc500b49",
+        "bytes": 61,
+        "git_tree_entry": "100644 blob 09db6f6a0364b82758990ff14f06ef76d4bfe894\ttools/language/217/probes/associated-type/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/bytebuffer-local-desc/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "0ebd29951c056d578e79d2125b9e990eb44f0f9715b15a7ea4bc3a8e07aca909",
+        "bytes": 73,
+        "git_tree_entry": "100644 blob c1f356b53732c4d0c3a9fc3e54be25c074cbb7e9\ttools/language/217/probes/bytebuffer-local-desc/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/bytebuffer-slice-capture/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "7f416be39c13293f5e5e9e7dbd1d8d25ff5e7b880b59274e27fccd5ef527feb5",
+        "bytes": 146,
+        "git_tree_entry": "100644 blob 2aca1cf153bda219e4e85e7d419bac9c9c721b9e\ttools/language/217/probes/bytebuffer-slice-capture/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/callback-generic-value-param/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "61babdb5a7e7a9a7dbc2bd0a26fbc132e0845fc87a23ff6d5e465069229d9bb3",
+        "bytes": 107,
+        "git_tree_entry": "100644 blob 317a842a15a08ca7bf673d619813f525074b5c3c\ttools/language/217/probes/callback-generic-value-param/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/callback-loop-control/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "8b1f10c98d3795fc9e37f3e5362dc7cb9407a9312814dff8de757298da2ee4d7",
+        "bytes": 161,
+        "git_tree_entry": "100644 blob 199f4a3be1587ecf254d3a24c3ae955bd791e537\ttools/language/217/probes/callback-loop-control/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/callback-nested-helper/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "2cc51c8f3288a857ee23f18db75933a0ec94e0207f8ade032f57d5c0f420af3e",
+        "bytes": 162,
+        "git_tree_entry": "100644 blob 07c948a41a3be7c3a48b96da89469314bb0fcf9d\ttools/language/217/probes/callback-nested-helper/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/callback-return-generic/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "4c0f77fdab969e509f8299bedf6e7904ceb9c72af78b6a49d8f199b69d4d6539",
+        "bytes": 91,
+        "git_tree_entry": "100644 blob 630097c0b56f787ff296845d756daadb3fb89e52\ttools/language/217/probes/callback-return-generic/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/callback-two-parameters/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "a910b30e3f3b6717e81e699ec9e4b4e414c24416c353c4adf09891e830d19d96",
+        "bytes": 157,
+        "git_tree_entry": "100644 blob 728e1f8145ae2346fded2f078c041cd300aae81e\ttools/language/217/probes/callback-two-parameters/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/closure-address-param/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "7acd0974b3d1a58494cdaa044683252f2e97ed50ed3689fa0b047a71f85eab76",
+        "bytes": 58,
+        "git_tree_entry": "100644 blob dd7f456de421d67a997e4b53f1c4dc64f947d186\ttools/language/217/probes/closure-address-param/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/closure-mut-address-param/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "abfd18fe99def528944467d141be862b77e7bf07606541d89e5fb0b1e070fed7",
+        "bytes": 72,
+        "git_tree_entry": "100644 blob 99e657668e9c967730fe5b292bae157c412f8b51\ttools/language/217/probes/closure-mut-address-param/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/closure-owned-error-result/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "fa103e9bd11f1a7768513095d0ac0995e70b605ab85ed276b83be55fb1eb50aa",
+        "bytes": 67,
+        "git_tree_entry": "100644 blob 796625d6e82bd8df229ca1b16075e4e56b1faa1b\ttools/language/217/probes/closure-owned-error-result/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/closure-package-param/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "65383728a4f8c571e5fc7bc38ea234b554a7240e06162e7dfdde93ec3d0e35a4",
+        "bytes": 91,
+        "git_tree_entry": "100644 blob 40e164e4c461dd42bdb1d35f298b08f9be4bc35e\ttools/language/217/probes/closure-package-param/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/copy-option-library-control/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "bcc699519008ec07b45d424c9b74a12f0b71cdd4f43f3498fa45dc5133c94c60",
+        "bytes": 207,
+        "git_tree_entry": "100644 blob 88b91f111a67e1a8a1241e6c7941c48f94156df8\ttools/language/217/probes/copy-option-library-control/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/ct-constant-control/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "af1d68a0f0a1a2e49b445f90a821a781f294c3f23b6bdd123c55c075bbab8235",
+        "bytes": 59,
+        "git_tree_entry": "100644 blob 04e0b93a090c984aebd8626256ee0a31b2addfb5\ttools/language/217/probes/ct-constant-control/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/ct-item-if/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "f16c9205744b609bdea1ea3e24ce8bbe854bb74a1a583757951f6b0ed6e44f93",
+        "bytes": 80,
+        "git_tree_entry": "100644 blob b08222681712144a16f6b7c938a3aa664c93970d\ttools/language/217/probes/ct-item-if/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/ct-statement-if/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "fed41828771802bdb61326a4abe762fd3f4e6f577d1eff54478dae9018661944",
+        "bytes": 50,
+        "git_tree_entry": "100644 blob bc2eb334db7fb592530bfc7f92a7109fcb78e0cf\ttools/language/217/probes/ct-statement-if/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/dyn-parameter/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "33b6eb967a57c8fcc7bf5054d87ec0b83aeeb26645e5322967338542a9c7e28c",
+        "bytes": 112,
+        "git_tree_entry": "100644 blob 99fb5acc338d86532dfe663cbeff387e8aaf025a\ttools/language/217/probes/dyn-parameter/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/dyn-valid-parameter/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "68acda16d5a8f8fdf87bfef7cf881c268ab4b005562d4f263380a997c0b0e50e",
+        "bytes": 114,
+        "git_tree_entry": "100644 blob 52b7c6603419aa799ca93c30346609b6c7b6e9ba\ttools/language/217/probes/dyn-valid-parameter/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/generic-lifetime/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "13fa00651f148a8e3150ff37dc9afe142e5a547a4615948a9199805291aefd16",
+        "bytes": 98,
+        "git_tree_entry": "100644 blob 95efbea5cfc81405b537b25e2e5bdbb0dcbf8b61\ttools/language/217/probes/generic-lifetime/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/indexed-callback-delete/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "48b9761e1c00dc0d16a365e3e8a7c6f20b018bf3a3c3b0033bca93925a0e19a4",
+        "bytes": 1626,
+        "git_tree_entry": "100644 blob 2fb7b17356504898d6987cad241e4bbcf48e9034\ttools/language/217/probes/indexed-callback-delete/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/nested-store-element/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "1de8510c71af92d06fbb17268295e779c337b1c00d84ded1ee68f27265a25be1",
+        "bytes": 141,
+        "git_tree_entry": "100644 blob 3d724ea6ea56a2f5805669ae3d51999d6c7f63cf\ttools/language/217/probes/nested-store-element/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/optional-parameter/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "7d26bfea2820bd3c9eaf2d2c3c80921029a5c31b51ac8d2a24059bb64df3e656",
+        "bytes": 49,
+        "git_tree_entry": "100644 blob f934207df04fa0dfbd34e564303f150a8cc9dafb\ttools/language/217/probes/optional-parameter/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/owning-enum-option/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "a94020ac6d5e995ffd8017494d81eebc13f5fbd38f631b99821a4b655a7ab3ec",
+        "bytes": 125,
+        "git_tree_entry": "100644 blob b4c0089e09d2fd1b32e4f1f7dc605820aebbd626\ttools/language/217/probes/owning-enum-option/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/package-direct-nested/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "8f82dcba19831acf7417ee2fd4c852b8086d2dc377c8fc470131f87a603d2dba",
+        "bytes": 120,
+        "git_tree_entry": "100644 blob bdcf23ec83632619faeb4408ed79a06bab9bf000\ttools/language/217/probes/package-direct-nested/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/product-error-union/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "1dbfaccd1c2ef7f2632aa4f6fb9ee50ced554232f9f4184486162b04cd230f67",
+        "bytes": 169,
+        "git_tree_entry": "100644 blob 195c4593633847bf71090b52a596aab9ba13f644\ttools/language/217/probes/product-error-union/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/product-owning-store/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "da50bdad3a6e2d8e03e1aa23350555e2b6509b84ed7e818f497686b62f6c6dd5",
+        "bytes": 203,
+        "git_tree_entry": "100644 blob 03e43d448b36f4a910ae6db16b9171fb39fd5aaa\ttools/language/217/probes/product-owning-store/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/product-store-element/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "ec2fe34c2c8a9b52cd66015160b7cbf4caa4fb1cfc66e4a38c8b516a66ff6376",
+        "bytes": 191,
+        "git_tree_entry": "100644 blob 3e02da2f15eb4da7c96e2b0c3d892a488b513810\ttools/language/217/probes/product-store-element/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/syntax-extension/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "ec178d9d59e8acc5aa1fa4e36911cc9783420ae308542708ee77d8277f514cbd",
+        "bytes": 72,
+        "git_tree_entry": "100644 blob 819a6250f978febb818902f4e1da7fcfc56de44d\ttools/language/217/probes/syntax-extension/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/probes/syntax-valid-alias/main.zil",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "b5221cbe2152e01a45252f1504ebab05f47d28a46baffecf73d8de3d16a56476",
+        "bytes": 77,
+        "git_tree_entry": "100644 blob 90794c56ff5c00e8df9f276879d1867f7b9230c6\ttools/language/217/probes/syntax-valid-alias/main.zil"
+      }
+    },
+    {
+      "status": "A",
+      "path": "tools/language/217/run.py",
+      "classification": "consumer217",
+      "before": null,
+      "after": {
+        "sha256": "2fefd422c09d1fc28b7eb2d27f801da845ed608acb0b4ff9c9f35aeb8a408e88",
+        "bytes": 11645,
+        "git_tree_entry": "100644 blob 626d331952cfc9b0a800a6c8aed2ccec5f9f370a\ttools/language/217/run.py"
+      }
+    }
+  ],
+  "change_counts": {
+    "consumer217": 41,
+    "documentation": 4,
+    "evidence": 85,
+    "handoff_record": 1,
+    "normative_input": 1,
+    "normative_registry": 1,
+    "other_requires_inspection": 4,
+    "test": 1
+  },
+  "production_changed": [],
+  "normative_content_changed": [
+    "spec/interfaces.json"
+  ],
+  "task_records": [
+    {
+      "path": ".task/impl/213.md",
+      "record": {
+        "id": "213",
+        "parent_task": "B0",
+        "status": "\u65bd\u5de5",
+        "baseline": "a0796270cfde23379d1b227f0a8158121d7c91d5",
+        "spec_hash": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+        "normative_hash": "e22a4886dc79fcc4b713867bffc691829b146725beb64a15fe381c8a6f303cb5",
+        "implementation_author": "/root",
+        "dependencies": [
+          "206"
+        ],
+        "write_set": [
+          "crates/**",
+          "Cargo.toml",
+          "Cargo.lock",
+          "policy/**",
+          "_zil_design.md",
+          "spec/interfaces.json",
+          ".agent/git-branches.md",
+          ".github/**",
+          "tools/sync/**",
+          "docs/INTEGRATION-213.md",
+          "changes/213-integration.md",
+          ".task/impl/213.md",
+          "evidence/integration/213/**"
+        ],
+        "implementation_commit": null,
+        "review": null,
+        "integration_commit": null,
+        "evidence": []
+      },
+      "first_line": "\u65bd\u5de5",
+      "baseline_is_ancestor": true
+    },
+    {
+      "path": ".task/impl/214.md",
+      "record": {
+        "id": "214",
+        "parent_task": "B0",
+        "status": "\u65bd\u5de5",
+        "baseline": "8527fb393d1b6938ad9a4e5d21ad710d78a19ad7",
+        "spec_hash": "a278f56fe806afe9c6d0c26a187755bfc65eb6021260e7a2edde7a87ef769c01",
+        "normative_hash": "b2e4a70829ffeb201eb555c54edb48f9ef8228bbacdc7ea4a0bf45c78f2812b7",
+        "implementation_author": "/root/zui_gap_audit",
+        "dependencies": [
+          "206"
+        ],
+        "write_set": [
+          "crates/zil-types/src/closures.rs",
+          "crates/zil-types/src/closures/package_effects.rs",
+          "crates/zil-types/src/packages.rs",
+          "crates/zil-types/src/retained.rs",
+          "crates/zil-types/src/dynamic_store.rs",
+          "crates/zil-types/tests/impl214*",
+          "crates/zil-driver/tests/impl214*",
+          "evidence/impl/214/**"
+        ],
+        "implementation_commit": null,
+        "review": null,
+        "integration_commit": null,
+        "evidence": []
+      },
+      "first_line": "\u65bd\u5de5",
+      "baseline_is_ancestor": true
+    },
+    {
+      "path": ".task/impl/215.md",
+      "record": {
+        "id": "215",
+        "parent_task": "B0",
+        "status": "\u65bd\u5de5",
+        "baseline": "8527fb393d1b6938ad9a4e5d21ad710d78a19ad7",
+        "spec_hash": "a278f56fe806afe9c6d0c26a187755bfc65eb6021260e7a2edde7a87ef769c01",
+        "normative_hash": "b2e4a70829ffeb201eb555c54edb48f9ef8228bbacdc7ea4a0bf45c78f2812b7",
+        "implementation_author": "/root",
+        "dependencies": [
+          "206"
+        ],
+        "write_set": [
+          "crates/zil-analyze/src/budget.rs",
+          "crates/zil-analyze/src/resources.rs",
+          "crates/zil-analyze/src/resources/product.rs",
+          "crates/zil-analyze/src/callable_fields.rs",
+          "crates/zil-analyze/tests/impl215*",
+          "crates/zil-driver/tests/impl215*",
+          "evidence/impl/215/**"
+        ],
+        "implementation_commit": null,
+        "review": null,
+        "integration_commit": null,
+        "evidence": []
+      },
+      "first_line": "\u65bd\u5de5",
+      "baseline_is_ancestor": true
+    },
+    {
+      "path": ".task/impl/216.md",
+      "record": {
+        "id": "216",
+        "parent_task": "B0",
+        "status": "\u65bd\u5de5",
+        "baseline": "8527fb393d1b6938ad9a4e5d21ad710d78a19ad7",
+        "spec_hash": "a278f56fe806afe9c6d0c26a187755bfc65eb6021260e7a2edde7a87ef769c01",
+        "normative_hash": "b2e4a70829ffeb201eb555c54edb48f9ef8228bbacdc7ea4a0bf45c78f2812b7",
+        "implementation_author": "/root/sync_script",
+        "dependencies": [
+          "206"
+        ],
+        "write_set": [
+          "crates/zil-verify/src/closures.rs",
+          "crates/zil-verify/src/retained.rs",
+          "crates/zil-verify/src/resources.rs",
+          "crates/zil-verify/src/resources/product.rs",
+          "crates/zil-verify/src/packages.rs",
+          "crates/zil-verify/src/dynamic_store.rs",
+          "crates/zil-backend-llvm/src/emit.rs",
+          "crates/zil-backend-llvm/src/emit/resource_closures.rs",
+          "crates/zil-backend-llvm/src/emit/packages.rs",
+          "crates/zil-lower/src/lib.rs",
+          "crates/zil-verify/tests/impl216*",
+          "crates/zil-driver/tests/impl216*",
+          "examples/mainline/product_capture216/**",
+          "tools/language/216/**",
+          "evidence/impl/216/**"
+        ],
+        "implementation_commit": null,
+        "review": null,
+        "integration_commit": null,
+        "evidence": []
+      },
+      "first_line": "\u65bd\u5de5",
+      "baseline_is_ancestor": true
+    },
+    {
+      "path": ".task/impl/217.md",
+      "record": {
+        "id": "217",
+        "parent_task": "B0",
+        "status": "\u65bd\u5de5",
+        "baseline": "68dd99af8b995275db8ba51df73e419899c10e3d",
+        "spec_hash": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+        "normative_hash": "e22a4886dc79fcc4b713867bffc691829b146725beb64a15fe381c8a6f303cb5",
+        "implementation_author": "/root/zui_gap_audit",
+        "dependencies": [
+          "213",
+          "216"
+        ],
+        "write_set": [
+          "examples/mainline/zui_start217/**",
+          "tools/language/217/**",
+          "docs/ZUI-LANGUAGE-READINESS-217.md",
+          "evidence/impl/217/**"
+        ],
+        "implementation_commit": null,
+        "review": null,
+        "integration_commit": null,
+        "evidence": []
+      },
+      "first_line": "\u65bd\u5de5",
+      "baseline_is_ancestor": true
+    }
+  ],
+  "status": "IdentityInspectionOnly; semantic changes and new consumer execution require separate independent review"
+}

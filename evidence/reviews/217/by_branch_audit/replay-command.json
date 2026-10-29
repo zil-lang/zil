@@ -1,0 +1,33 @@
+{
+  "source_commit": "06a80559e91f5fc743bbadf17ddb900e25bc85d8",
+  "compiler_source_commit": "68dd99af8b995275db8ba51df73e419899c10e3d",
+  "cli_sha256": "448ff19886570b775176bca237ef512a523bd924e61f465b13b20d8b3be88ca7",
+  "command": [
+    "python3",
+    "/workspace/scratch/3cf12ce32e36/review-217/tools/language/217/run.py",
+    "--repo",
+    "/workspace/scratch/3cf12ce32e36/review-217",
+    "--cli",
+    "/workspace/scratch/3cf12ce32e36/targets/review216/debug/zil",
+    "--compiler-build-receipt",
+    "/workspace/scratch/3cf12ce32e36/recovery/review216/compiler-build.json",
+    "--compiler-sha256",
+    "448ff19886570b775176bca237ef512a523bd924e61f465b13b20d8b3be88ca7",
+    "--clang",
+    "/workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/llvm-17/bin/clang",
+    "--out",
+    "/workspace/scratch/3cf12ce32e36/recovery/review217/replay01"
+  ],
+  "environment": {
+    "ZIL_CLANG": "/workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/llvm-17/bin/clang",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/x86_64-linux-gnu",
+    "LD_LIBRARY_PATH": "/workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/x86_64-linux-gnu",
+    "TMPDIR": "/workspace/scratch/3cf12ce32e36/recovery/review217/tmp"
+  },
+  "status": "Pass",
+  "start": 1793255778.1289675,
+  "exit_code": 0,
+  "elapsed_seconds": 3.182339668273926,
+  "stdout_sha256": "05f4f6220148797b0aed934d993549c3507bfd460e18a814a5c3f53a7a89a13b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
