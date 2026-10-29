@@ -472,7 +472,7 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
         || function.parameters.iter().any(|parameter| {
             !(parameter.ty.is_copy_value()
                 || matches!(&parameter.ty, Type::Managed(_) if resources::supported(&parameter.ty))
-                || packages::supported(&parameter.ty))
+                || packages::capture_supported(&parameter.ty))
         })
     {
         return Err(unsupported(
@@ -523,7 +523,7 @@ impl Builder<'_, '_> {
         for (index, capture) in pending.captures.iter().enumerate() {
             let ty = capture.stored_type();
             if matches!(&ty, Type::Managed(_) if resources::supported(&ty))
-                || packages::supported(&ty)
+                || packages::capture_supported(&ty)
                 || matches!(ty, Type::Closure(_))
             {
                 cleanup.push(index as u32);
