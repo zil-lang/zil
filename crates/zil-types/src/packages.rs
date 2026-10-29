@@ -34,9 +34,16 @@ pub(super) fn supported(ty: &Type) -> bool {
             || matches!(t, Type::Managed(_) if resources::supported(t))))
 }
 
-/// Ordinary owned values have a separate Product gate. Capture, Store, Sum
-/// and owned-array callers deliberately retain the older `supported` profile.
+/// Ordinary owned values have a separate Product gate. Store, Sum and
+/// owned-array callers deliberately retain the older `supported` profile.
 pub(super) fn ordinary(ty: &Type) -> bool {
+    supported(ty) || (product::nested(ty) && product::supported(ty))
+}
+
+/// Capture qualification is separate from ordinary/container admission. The
+/// new Product branch still requires an actual complete ownership transfer;
+/// its field-state and capture-mode checks are performed by the source flow.
+pub(super) fn capture_supported(ty: &Type) -> bool {
     supported(ty) || (product::nested(ty) && product::supported(ty))
 }
 

@@ -1,0 +1,130 @@
+{
+  "task": "214",
+  "status": "author_limited_checks_passed_pending_independent_review_and_integration",
+  "author": "/root/zui_gap_audit",
+  "language_baseline": "8527fb393d1b6938ad9a4e5d21ad710d78a19ad7",
+  "worktree_base": "867ae69184c2c73e600fca8c971ac362d7123439",
+  "measured_identity": {
+    "kind": "working_tree_source_sha256_before_delivery_commit",
+    "files": {
+      "crates/zil-types/src/closures.rs": "d37622af1d194a6e205323c846fa4ae60e40b4fced235a937df8f9cabef335ff",
+      "crates/zil-types/src/closures/package_effects.rs": "cb03d9b27fee821c87a7cc1ef4c659e253e24fdcf0221e5037fa08bdb1bfbb29",
+      "crates/zil-types/src/packages.rs": "b4355d999f7022ebe138808aac9b5f915c1c54f39786a9fd977e0d5a143b57b9",
+      "crates/zil-types/src/retained.rs": "d94417a3e1c7718a2619d775473864d0188ec1e0e26bba87b161839a6ce8359a",
+      "crates/zil-types/src/dynamic_store.rs": "f9acc8a9d17c84c2af25c49042e43b7e61fbf040425dbc1fd36409521109538c",
+      "crates/zil-driver/tests/impl214_source.rs": "cad32c273429f0869aa9f9e9a1a2a6ff323e57fe0f7f62aa1a9cab3433d6ad89"
+    },
+    "note": "All final checks below ran on these exact source bytes. This author receipt is not a clean-commit independent acceptance or a whole-workspace result."
+  },
+  "environment": {
+    "setup": "source /workspace/scratch/3cf12ce32e36/recovery/env.sh",
+    "cargo_target_dir": "/workspace/scratch/3cf12ce32e36/targets/214",
+    "network": "offline --locked",
+    "profile": "default test/dev debug profile for these already completed checks"
+  },
+  "checks": [
+    {
+      "command": "cargo check --offline --locked -p zil-types",
+      "exit": 0,
+      "scope": "Types compile"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --test impl214_source --test impl077_package_captures --test impl204_source --test impl205_source -- --nocapture",
+      "exit": 0,
+      "log": "targeted-final03.log",
+      "tests": {
+        "impl214_source": 20,
+        "impl077_package_captures": 11,
+        "impl204_source": 20,
+        "impl205_source": 16
+      },
+      "passed": 67,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-types",
+      "exit": 0,
+      "log": "types-unit.log",
+      "passed": 18,
+      "failed": 0,
+      "ignored": 0,
+      "doctests": 0
+    },
+    {
+      "command": "cargo clippy --offline --locked -p zil-types -p zil-driver --test impl214_source -- -D warnings",
+      "exit": 0,
+      "log": "clippy.log"
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    }
+  ],
+  "exact_work_controls": {
+    "new_product_capture_types": {
+      "success": 1006,
+      "resource_limit": 1005,
+      "fresh_success_equal": true
+    },
+    "old_flat206_types": {
+      "success": 418,
+      "resource_limit": 417,
+      "fresh_success_equal": true
+    },
+    "old_flat077_types": {
+      "success": 1175,
+      "resource_limit": 1174
+    },
+    "old_flat077_analyze": {
+      "success": 19297,
+      "resource_limit": 19296
+    },
+    "default_limits_changed": false
+  },
+  "prior_failures_preserved": [
+    {
+      "log": "source-before-fixture-fix.log",
+      "passed": 14,
+      "failed": 3,
+      "cause": "Test source used immutable factory argument for mutation and unsupported 9i64 spelling; corrected to local var p=input and i64(9)."
+    },
+    {
+      "log": "source-after-fixture-fix.log",
+      "passed": 16,
+      "failed": 1,
+      "cause": "Test source used ? in closure without explicit error-union result annotation; corrected to ->i64!i32."
+    },
+    {
+      "log": "source-final01.log",
+      "passed": 17,
+      "failed": 0,
+      "note": "Intermediate subset; not additive to final20."
+    },
+    {
+      "log": "source-final02.log",
+      "passed": 19,
+      "failed": 1,
+      "cause": "New shadowing fixture contains two closures but reused helper requiring one. Assertions corrected to two Fn closures with captures 1 and 0; no production change."
+    }
+  ],
+  "rust_goals": {
+    "same_class_safety": "Types admits only the existing finite complete Product profile and derives Fn/FnMut/FnOnce from whole/direct-child obligations; independent Analyze/Verify proof and adversarial review remain pending.",
+    "runtime_memory": "No schema/opcode, implicit boxing, RC, locks or allocation were added here. New Product native behavior, failure cleanup, performance and memory comparisons are not measured by this slice.",
+    "expression_maintenance": "Real source now carries nested Product through closure factory, State and outer callback Store, while readonly default capture and Product-as-Store-element stay closed.",
+    "compile_cost": "New1006/1005/fresh and old418/417,1175/1174,19297/19296 controls pass with unchanged limits. No compile-speed claim.",
+    "substantive_advance": "Finite synchronous composition advances at Types. Full1.4, product gates and complete ZUI prerequisites are not declared satisfied."
+  },
+  "not_run": [
+    "whole workspace formal suite",
+    "independent task214 review",
+    "new Product Analyze/Verify/Wire/LLVM/O0/O2 acceptance",
+    "new Product allocation-failure native consumers",
+    "performance comparison with Rust"
+  ],
+  "integration_notes": [
+    "Do not merge this slice alone as Product capture acceptance; tasks215/216 provide Analyze and independent Verify/LLVM support.",
+    "Existing206 rejection tests for Product capture require integration-owned migration; this task does not edit them.",
+    "No public schema, Cargo.lock, Analyze/Verify/Lower/LLVM source or task-state files were changed."
+  ]
+}

@@ -1,0 +1,26 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-214/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.44s
+     Running tests/impl214_source.rs (/workspace/scratch/3cf12ce32e36/targets/214/debug/deps/impl214_source-86da7bf93c363b49)
+
+running 17 tests
+test child_partial_local_refill_is_ordinary_complete_transfer ... ok
+test explicit_owned_read_is_repeatable_fn ... ok
+test nested_default_consumer_transfers_the_outer_product ... ok
+test default_whole_and_child_uses_capture_ownership_at_creation ... ok
+test conditional_child_take_records_all_exits ... ok
+test factory_accepts_complete_product_inputs_and_cleanup ... ok
+test complete_child_refill_keeps_fnmut ... ok
+test old_flat_and_new_product_readonly_defaults_remain_closed ... ok
+test original206_child_take_is_once_and_keeps_its_source_bytes ... ok
+test replacement_without_missing_exit_keeps_fnmut ... ok
+test a_product_environment_can_enter_state_and_outer_callback_store ... ok
+test new_capture_does_not_make_product_a_store_element ... ok
+test source_declared_fn_cannot_hide_child_consumption ... ok
+test same_type_siblings_and_three_levels_remain_actual_distinct_values ... ok
+test while_break_and_continue_restore_the_child ... ok
+test try_before_refill_requires_once_even_when_success_restores ... ok
+214 Product capture Types boundary: 1006
+test new_product_capture_has_exact_recoverable_work_boundary ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
