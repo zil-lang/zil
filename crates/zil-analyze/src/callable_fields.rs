@@ -32,6 +32,9 @@ pub(super) fn self_contained(
                         field.is_copy_value()
                             || matches!(field,Type::Managed(_) if !dynamic_store::is_carrier(field))
                     }) => {}
+                Type::Package { .. } if resources::product::nested(capture) => {
+                    resources::product::admit(capture, budget)?;
+                }
                 Type::Package { .. } => {
                     dynamic_store::captured_package(module, capture, budget)?;
                 }

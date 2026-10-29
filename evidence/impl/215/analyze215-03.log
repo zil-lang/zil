@@ -1,0 +1,26 @@
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-analyze)
+    Finished `test` profile [unoptimized] target(s) in 1.54s
+     Running tests/impl204_capture.rs (/workspace/scratch/3cf12ce32e36/targets/215/debug/deps/impl204_capture-476cbdabd0e799d3)
+
+running 7 tests
+test copy_result_restriction_propagates_to_real_owned_children_and_entry_matches ... ok
+test canonical_definition_is_exact_unique_and_has_no_user_teardown ... ok
+test owned_capture_graph_cycles_and_depth_fail_closed ... ok
+test new_leaf_restriction_does_not_close_captured_package_copy_companions_or_outer_state ... ok
+test hidden_callbacks_and_borrowed_or_nested_owned_items_stay_closed ... ok
+test new_qualification_has_exact_and_fresh_work_boundaries ... ok
+test unused_direct_package_and_child_metadata_qualify_each_actual_mode ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/package_budgets.rs (/workspace/scratch/3cf12ce32e36/targets/215/debug/deps/package_budgets-84792b760e803f13)
+
+running 5 tests
+test repeated_copy_field_reads_charge_payload_width ... ok
+test repeated_field_comparisons_charge_nominal_name_bytes ... ok
+test repeated_copy_field_stores_charge_payload_width ... ok
+test repeated_field_descriptions_charge_payload_width ... ok
+test repeated_managed_field_take_refill_charges_payload_width ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+

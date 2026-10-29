@@ -1,0 +1,88 @@
+{
+  "task": "215",
+  "author": "/root",
+  "status": "author_limited_checks_passed_pending_independent_review_and_integration",
+  "worktree_base": "867ae69184c2c73e600fca8c971ac362d7123439",
+  "measured_identity": {
+    "kind": "exact_working_tree_sha256_before_delivery_commit",
+    "files": {
+      "crates/zil-analyze/src/budget.rs": "e51c64bd96d4a98f657dfd2f8c06387338684148d4e15957c65729d6fae68509",
+      "crates/zil-analyze/src/callable_fields.rs": "17a3e8f8e2580d8548b424ba47eee5f1fdcf8f22e145c6029b0594efcb65a4f4",
+      "crates/zil-analyze/src/resources.rs": "0c62d23fd8dadf998bb789cfc7ead34afce9315f348478ce74a6cbd90bbb5c5a",
+      "crates/zil-driver/tests/impl215_capture.rs": "b5c64cd4d636b642904472d362fbab5f95eaddef143df2788f2620234cd682c4"
+    }
+  },
+  "changes": [
+    "Product-only closure capture preflight and callable containment use finite product admission; legacy flat path stays unchanged",
+    "Direct child Package now has capture field responsibility transferred on Bind/EndPackageCapture",
+    "Existing per-leaf actual-location and incoming-source rules remain authoritative; capture creates no fresh debt"
+  ],
+  "checks": [
+    {
+      "command": "cargo test --locked -p zil-driver --test impl215_capture -- --nocapture",
+      "result": "Pass",
+      "counts": {
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0
+      },
+      "log": "analyze215-new04.log"
+    },
+    {
+      "command": "cargo test --locked -p zil-analyze --test impl204_capture --test package_budgets -- --nocapture",
+      "result": "Pass",
+      "counts": {
+        "passed": 12,
+        "failed": 0,
+        "ignored": 0
+      },
+      "log": "analyze215-03.log"
+    },
+    {
+      "command": "cargo clippy --locked -p zil-analyze -p zil-driver --test impl215_capture -- -D warnings",
+      "result": "Pass",
+      "log": "analyze215-clippy.log"
+    },
+    {
+      "command": "git diff --check",
+      "result": "Pass"
+    }
+  ],
+  "new_exact_work_control": {
+    "success": 3254,
+    "resource_limit": 3253,
+    "fresh_success_same_candidate": true,
+    "limits_changed": false
+  },
+  "test_corrections": [
+    {
+      "log": "analyze215-new.log",
+      "cause": "Incorrect Limits field spelling corrected to max_analysis_steps; no production change"
+    },
+    {
+      "log": "analyze215-new02.log",
+      "cause": "Initial negative fixtures retained an invalid shared caller after changing closure mode, which could mask intended ownership rejection; removed invocation and matched exact diagnostics"
+    },
+    {
+      "log": "analyze215-new03.log",
+      "cause": "Duplicate DropPackageField is deliberately conditional/idempotent in both Analyze and Verify. Replaced invalid rejection expectation with duplicate TakePackageField negative and explicit idempotent cleanup positive. No weakening or production change."
+    },
+    {
+      "log": "analyze215-02.log",
+      "cause": "Redundant mutable borrow in preflight call corrected before successful old regression run"
+    }
+  ],
+  "not_run": [
+    "whole workspace on combined214-216",
+    "independent review",
+    "new Product native execution"
+  ],
+  "rust_goals": {
+    "safety": "Six raw and Wire controls independently exercise producer admission and field debt; Verify/LLVM checked by216 and later independent reviewer",
+    "runtime_memory": "No new implicit allocation, schema, opcode or dynamic source table. No runtime performance claim.",
+    "expression_maintenance": "Enables finite complete Product ownership capture and existing State/outer callback Store composition",
+    "compile_cost": "Fresh exact work limit control without changing default limit",
+    "full_language": "NotSatisfied",
+    "product_gates": "NotRun"
+  }
+}

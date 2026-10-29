@@ -502,7 +502,13 @@ pub(super) fn preflight(
                     None,
                 )]);
             }
-            legacy_value(ty, Span::default(), module)?;
+            if super::resources::product::nested(ty) {
+                // Capture admission is independent from ordinary value admission.
+                // It rechecks the complete finite Product before granting an environment slot.
+                super::resources::product::admit(ty, budget)?;
+            } else {
+                legacy_value(ty, Span::default(), module)?;
+            }
         }
         for ty in &closure.parameters {
             if let Type::Address { inner, .. } = ty

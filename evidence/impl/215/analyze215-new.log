@@ -1,0 +1,60 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-verify)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-syntax)
+   Compiling zil-db v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-db)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-types)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-driver)
+error[E0609]: no field `max_analyze_steps` on type `Limits`
+  --> crates/zil-driver/tests/impl215_capture.rs:83:38
+   |
+83 |     let mut high = Limits::default().max_analyze_steps;
+   |                                      ^^^^^^^^^^^^^^^^^ unknown field
+   |
+help: a field with a similar name exists
+   |
+83 -     let mut high = Limits::default().max_analyze_steps;
+83 +     let mut high = Limits::default().max_analysis_steps;
+   |
+
+error[E0560]: struct `Limits` has no field named `max_analyze_steps`
+  --> crates/zil-driver/tests/impl215_capture.rs:88:31
+   |
+88 |         let limits = Limits { max_analyze_steps: mid, ..Limits::default() };
+   |                               ^^^^^^^^^^^^^^^^^ unknown field
+   |
+help: a field with a similar name exists
+   |
+88 -         let limits = Limits { max_analyze_steps: mid, ..Limits::default() };
+88 +         let limits = Limits { max_analysis_steps: mid, ..Limits::default() };
+   |
+
+error[E0560]: struct `Limits` has no field named `max_analyze_steps`
+  --> crates/zil-driver/tests/impl215_capture.rs:98:49
+   |
+98 |         zil_analyze::analyze(&module, &Limits { max_analyze_steps: high, ..Limits::default() }).unwrap();
+   |                                                 ^^^^^^^^^^^^^^^^^ unknown field
+   |
+help: a field with a similar name exists
+   |
+98 -         zil_analyze::analyze(&module, &Limits { max_analyze_steps: high, ..Limits::default() }).unwrap();
+98 +         zil_analyze::analyze(&module, &Limits { max_analysis_steps: high, ..Limits::default() }).unwrap();
+   |
+
+error[E0560]: struct `Limits` has no field named `max_analyze_steps`
+   --> crates/zil-driver/tests/impl215_capture.rs:100:58
+    |
+100 |     let errors = zil_analyze::analyze(&module, &Limits { max_analyze_steps: high - 1, ..Limits::default() }).unwrap_err();
+    |                                                          ^^^^^^^^^^^^^^^^^ unknown field
+    |
+help: a field with a similar name exists
+    |
+100 -     let errors = zil_analyze::analyze(&module, &Limits { max_analyze_steps: high - 1, ..Limits::default() }).unwrap_err();
+100 +     let errors = zil_analyze::analyze(&module, &Limits { max_analysis_steps: high - 1, ..Limits::default() }).unwrap_err();
+    |
+
+Some errors have detailed explanations: E0560, E0609.
+For more information about an error, try `rustc --explain E0560`.
+error: could not compile `zil-driver` (test "impl215_capture") due to 4 previous errors
