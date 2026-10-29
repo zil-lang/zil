@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "profile_id": "x86_64-llvm17-builder-cperf04",
+  "profile_id": "x86_64-llvm17-builder-cperf02",
   "rust_version": "1.99.1",
   "edition": "2024",
   "llvm_version": "17.0.6",
@@ -20,10 +20,10 @@
     "relocation": "PIC",
     "code_model": "default",
     "pipelines": [
-      "default<O0>,function(mem2reg)",
+      "default<O0>",
       "default<O2>"
     ],
     "verification": "before and after passes"
   },
-  "verification_scope": "compile-performance CP04 candidate: limited source/native/cache tests and independent review; performance decision pending; historical product receipts remain historical and are not reaccepted for this profile"
+  "verification_scope": "compile-performance CP02 opt-in diagnostics and limited tests; CP04 mem2reg rejected and reverted; historical product receipts remain historical, not reaccepted for this metadata profile"
 }

@@ -6,7 +6,6 @@
 //! ELF build IDs identify trusted installed tools, not hostile replacements;
 //! SHA-256 detects accidental cache damage, not an attacker replacing both fields.
 use crate::Optimization;
-use std::ffi::CStr;
 use std::fs::{self, File, OpenOptions};
 use std::hash::{Hash, Hasher};
 use std::io::{self, Read, Seek, SeekFrom, Write};
@@ -141,14 +140,27 @@ impl PreparedCache {
         };
         let (version, library) = zil_llvm_api::cache_runtime(&config).map_err(|e| e.to_string())?;
         let compiler = std::env::current_exe().map_err(|e| e.to_string())?;
-        let namespace = action_namespace(
-            installed_identity(&compiler).map_err(|e| e.to_string())?,
-            installed_identity(&library).map_err(|e| e.to_string())?,
-            &version,
-            target,
-            opt,
-            config.optimization.pipeline(),
-        );
+        let mut state = FingerprintBuilder::new();
+        // Versioned exact protocol. Compiler-specific derived Hash cannot cross
+        // a compiler identity boundary. Generic CPU/features/pipeline/relocation
+        // and layout derivation are fixed in that very compiler's native adapter.
+        "ZIL-OBJECT-ACTION-212-v1".hash(&mut state);
+        installed_identity(&compiler)
+            .map_err(|e| e.to_string())?
+            .hash(&mut state);
+        installed_identity(&library)
+            .map_err(|e| e.to_string())?
+            .hash(&mut state);
+        version.hash(&mut state);
+        target.fingerprint().hash(&mut state);
+        match opt {
+            Optimization::O0 => "O0",
+            Optimization::O2 => "O2",
+        }
+        .hash(&mut state);
+        "x86-64|features=|reloc=PIC|model=default|debug=none|lto=none|llvm-pre-post-verify"
+            .hash(&mut state);
+        let namespace = state.digest();
         private_directory(directory).map_err(|e| e.to_string())?;
         let directory = fs::canonicalize(directory)
             .map_err(|e| e.to_string())?
@@ -185,33 +197,6 @@ impl PreparedCache {
             bytes,
         )
     }
-}
-fn action_namespace(
-    compiler: Fingerprint,
-    library: Fingerprint,
-    version: &str,
-    target: &TargetProfile,
-    opt: Optimization,
-    pipeline: &CStr,
-) -> Fingerprint {
-    let mut state = FingerprintBuilder::new();
-    // Versioned exact protocol. Derived Hash stays within a compiler identity.
-    // Hash the recipe actually executed, as well as the codegen level. Other
-    // fixed settings and layout derivation remain bound to the native adapter.
-    "ZIL-OBJECT-ACTION-212-v2".hash(&mut state);
-    compiler.hash(&mut state);
-    library.hash(&mut state);
-    version.hash(&mut state);
-    target.fingerprint().hash(&mut state);
-    match opt {
-        Optimization::O0 => "O0",
-        Optimization::O2 => "O2",
-    }
-    .hash(&mut state);
-    pipeline.to_bytes().hash(&mut state);
-    "x86-64|features=|reloc=PIC|model=default|debug=none|lto=none|llvm-pre-post-verify"
-        .hash(&mut state);
-    state.digest()
 }
 fn machine_key(namespace: Fingerprint, module: &Module) -> Fingerprint {
     let mut state = FingerprintBuilder::new();
@@ -484,27 +469,6 @@ mod tests {
                 }]),
             })],
         }
-    }
-    #[test]
-    fn changing_only_the_pass_recipe_invalidates_object_identity() {
-        let compiler = Fingerprint::of(b"same-compiler");
-        let library = Fingerprint::of(b"same-llvm");
-        let target = TargetProfile::host_llvm();
-        let namespace = |pipeline| {
-            action_namespace(
-                compiler,
-                library,
-                "17.0.6",
-                &target,
-                Optimization::O0,
-                pipeline,
-            )
-        };
-        let old = namespace(c"default<O0>");
-        let promoted = namespace(zil_llvm_api::Optimization::O0.pipeline());
-        assert_ne!(old, promoted);
-        let module = sample();
-        assert_ne!(machine_key(old, &module), machine_key(promoted, &module));
     }
     #[test]
     fn key_binds_all_machine_changes_but_not_authorization_comment() {
