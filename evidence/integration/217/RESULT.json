@@ -1,0 +1,104 @@
+{
+  "status": "Pass",
+  "scope": "Limited integrated213-217 mainline: language206+LLVM212, finite owned Product capture, five-module synchronous language consumer. Not all ZUI requirements or complete1.4.",
+  "source_commit": "9219be40ff0aa2d7e2902cd0a6da151bd44b3cb4",
+  "spec_hash": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+  "normative_hash": "4d5480fd3f7de30f6a846489e624ce01bb64d7e835c7e01930bd3410a2206db1",
+  "workspace": {
+    "status": "Pass",
+    "executed_source_commit": "8628d976666084cf77946b70d8b48e3a92ed2d95",
+    "command": "cargo test --locked --workspace",
+    "passed": 2743,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 285,
+    "log": "workspace216-03.log"
+  },
+  "reference": {
+    "status": "Pass",
+    "executed_source_commit": "46a2947f9733592b8d5e75493ff12ca1c9cef06d",
+    "command": "cargo test --locked --workspace --no-default-features",
+    "passed": 2711,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 285,
+    "log": "reference216-02.log",
+    "equivalence": "Production and test bytes equal8628; later differences are normative registry/status metadata, docs, receipts and217 consumer."
+  },
+  "format": {
+    "status": "Pass",
+    "source": "8628d976666084cf77946b70d8b48e3a92ed2d95",
+    "log": "fmt216-final.log"
+  },
+  "clippy": {
+    "status": "Pass",
+    "source": "8628d976666084cf77946b70d8b48e3a92ed2d95",
+    "command": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+    "log": "clippy216-final.log"
+  },
+  "release_and_existing_consumer": {
+    "status": "Pass",
+    "source": "8628d976666084cf77946b70d8b48e3a92ed2d95",
+    "builds": 16,
+    "executions": 128,
+    "actual_allocation_failures": 56,
+    "receipt": "consumer208.json"
+  },
+  "independent_review_inputs": {
+    "integration213": "evidence/reviews/213/by_branch_audit/REVIEW.json",
+    "owning_capture214_216": "evidence/reviews/216/by_branch_audit/REVIEW.json",
+    "consumer217_author": "evidence/impl/217/RESULT.json"
+  },
+  "profiles": {
+    "debug_info": 0,
+    "incremental": false,
+    "default_test_strip": "symbols",
+    "reference_test_strip": "none",
+    "test_strip_note": "Only host test/debug symbols removed, no ZIL runtime optimization change; no performance comparison."
+  },
+  "logs": {
+    "workspace216-03.log": {
+      "bytes": 282311,
+      "sha256": "26d15afd04b47481887acbb01cd3726f853dff60aca956448364214374046d44"
+    },
+    "reference216-02.log": {
+      "bytes": 280002,
+      "sha256": "db8920d5065ede0c013675621cb56527418ee5e9b874cf14a9c6bdd9a9085f03"
+    },
+    "fmt216-final.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "clippy216-final.log": {
+      "bytes": 1400,
+      "sha256": "974822e408fe8f5edec0f07733065816609eb657d1241481a665ade6e01e01c0"
+    },
+    "release216-final.log": {
+      "bytes": 1317,
+      "sha256": "08fda75ecad3c9948b797b096af327887e6198b56e5bb9f77f0923b0b208b09e"
+    }
+  },
+  "preserved_failures": [
+    "evidence/integration/216/workspace216-01.log",
+    "evidence/integration/216/reference216-01.log",
+    "evidence/integration/216/migration.json",
+    "evidence/impl/214/SUMMARY.json",
+    "evidence/impl/215/SUMMARY.json",
+    "evidence/impl/216/SUMMARY.json",
+    "evidence/impl/217/FAILURES.json"
+  ],
+  "full_language_gate": "NotSatisfied",
+  "full_zui_requirements": "NotSatisfied",
+  "product_gate": "NotRun",
+  "native_windows": "NotRun",
+  "wine_this_round": "NotRun",
+  "B0": "Doing",
+  "historical_handoff": "Pre-existing history errors remain a separate Fail; not semantic evidence.",
+  "review": {
+    "verdict": "Pass",
+    "reviewer": "/root/branch_audit",
+    "implementation_commit": "9219be40ff0aa2d7e2902cd0a6da151bd44b3cb4",
+    "review_commit": "309f773c88a1bca47ed943f031a81a3f0c21db8d",
+    "evidence": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
+  }
+}

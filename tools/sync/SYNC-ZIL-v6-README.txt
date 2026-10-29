@@ -44,7 +44,7 @@ v5 原文件 SHA256：585c91a1c3c5de9ae4bdb5ddfec4db9acd25b1b5a1699ecef1da2abaf6
 覆盖：main 默认快进与重复、远端包含、分叉拒绝、DryRun、MainOnly 已包含/未合并/缺main、
 多分支默认与改名、SkipMain/AllowMain、重复目标拒绝、多包选择、ZIP、脚本目录回退、增量包、
 服务端拒绝和交互跳过。全部通过；未执行原生 Windows PowerShell 5.1 测试。
-未改动任何 GitHub 远端分支。
+上述18组脚本测试仅访问本地 bare remote；本轮 GitHub 主线发布与分支清理由独立的受测发布流程执行，结果另留收据。
 
 可复现测试：安装 PowerShell 7 和 Git 后，将 test_sync.py 放在脚本旁，运行 python3 test_sync.py。
 若 pwsh 不在 PATH，可通过环境变量 ZIL_TEST_PWSH 指定其可执行路径。

@@ -1,0 +1,15 @@
+{
+  "status": "Pass",
+  "source_commit": "f581cd67d1f36b088111a4afc55d308a0a47fe59",
+  "scope": "language206 plus LLVM212 integration only",
+  "workspace": {
+    "passed": 2702,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 281
+  },
+  "validation_log": "evidence/integration/213/validation/workspace213-02.log",
+  "review": "evidence/reviews/213/by_branch_audit/REVIEW.json",
+  "prior_infrastructure_failure": "evidence/integration/213/validation/workspace213-01.log",
+  "current_followup": "evidence/integration/217/RESULT.json"
+}
