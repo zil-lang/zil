@@ -13,10 +13,13 @@ struct Package {
     name: String,
     whole: usize,
     end: usize,
-    fields: BTreeMap<String, usize>,
+    // Child Packages move by ordinary value use; Managed fields project Desc
+    // until an explicit give. Both occupy one complete direct field debt.
+    fields: BTreeMap<String, (usize, bool)>,
     copy_fields: BTreeSet<String>,
     owned_use: bool,
-    contains_store: bool,
+    automatic_owned_use: bool,
+    has_child: bool,
 }
 
 #[derive(Default)]
@@ -45,7 +48,7 @@ pub(super) fn classify(
     }
     let mut packages = Vec::new();
     let mut slots = 0usize;
-    let mut has_store = false;
+    let mut has_automatic_owned_use = false;
     for (capture, item) in captures.iter().enumerate() {
         let Type::Package { fields, .. } = &item.ty else {
             continue;
@@ -64,14 +67,17 @@ pub(super) fn classify(
             .ok_or_else(|| limit("Package slot overflow", item.span))?;
         let mut owned = BTreeMap::new();
         let mut copy_fields = BTreeSet::new();
-        let mut contains_store = false;
+        let mut automatic_owned_use = false;
+        let mut has_child = false;
         for (name, ty) in fields {
             *work = work
                 .checked_sub(name.len())
                 .ok_or_else(|| limit("Package field name budget exceeded", item.span))?;
-            if matches!(ty, Type::Managed(_)) {
-                contains_store |= dynamic_store::is_carrier(ty);
-                owned.insert(name.clone(), slots);
+            if matches!(ty, Type::Managed(_) | Type::Package { .. }) {
+                let child = matches!(ty, Type::Package { .. });
+                has_child |= child;
+                automatic_owned_use |= dynamic_store::is_carrier(ty) || child;
+                owned.insert(name.clone(), (slots, child));
                 slots = slots
                     .checked_add(1)
                     .ok_or_else(|| limit("Package slot overflow", item.span))?;
@@ -87,9 +93,10 @@ pub(super) fn classify(
             fields: owned,
             copy_fields,
             owned_use: false,
-            contains_store,
+            automatic_owned_use,
+            has_child,
         });
-        has_store |= contains_store;
+        has_automatic_owned_use |= automatic_owned_use;
     }
     let mut scan = Scan {
         writes: vec![false; packages.len()],
@@ -99,7 +106,7 @@ pub(super) fn classify(
         limits,
         work,
         nested_moves,
-        has_store,
+        has_automatic_owned_use,
         borrow_depth: 0,
     };
     for parameter in parameters {
@@ -126,7 +133,7 @@ struct Scan<'a> {
     limits: &'a Limits,
     work: &'a mut usize,
     nested_moves: &'a BTreeMap<zil_base::NodeId, BTreeSet<String>>,
-    has_store: bool,
+    has_automatic_owned_use: bool,
     borrow_depth: usize,
 }
 
@@ -229,7 +236,7 @@ impl Scan<'_> {
         self.packages[package].owned_use |= value == EMPTY && self.borrow_depth == 0;
         Ok(())
     }
-    fn field(&mut self, package: usize, name: &str, span: Span) -> R<Option<usize>> {
+    fn field(&mut self, package: usize, name: &str, span: Span) -> R<Option<(usize, bool)>> {
         self.spend(
             name.len().saturating_add(1).saturating_mul(
                 self.packages[package]
@@ -275,7 +282,7 @@ impl Scan<'_> {
             self.whole(state, package, LIVE, target.span)?;
         } else if let CoreExprKind::Member { object, member } = &target.kind
             && let Some(package) = self.named(object)?
-            && let Some(slot) = self.field(package, member, target.span)?
+            && let Some((slot, _)) = self.field(package, member, target.span)?
         {
             state[slot] = LIVE;
         }
@@ -290,10 +297,19 @@ impl Scan<'_> {
                     self.whole(state, package, EMPTY, span)?;
                 }
             }
-            CoreExprKind::Member { object, .. } => {
+            CoreExprKind::Member { object, member } => {
                 // Direct Package projections name its inline slot. More
                 // complex Package expressions already produce whole values.
-                if self.named(object)?.is_none() {
+                if let Some(package) = self.named(object)? {
+                    if self.packages[package].has_child
+                        && self.borrow_depth == 0
+                        && let Some((slot, true)) = self.field(package, member, span)?
+                    {
+                        state[slot] = EMPTY;
+                        self.writes[package] = true;
+                        self.packages[package].owned_use = true;
+                    }
+                } else {
                     self.expr(state, object, depth + 1)?;
                 }
             }
@@ -303,7 +319,7 @@ impl Scan<'_> {
             } => {
                 if let CoreExprKind::Member { object, member } = &operand.kind
                     && let Some(package) = self.named(object)?
-                    && let Some(slot) = self.field(package, member, span)?
+                    && let Some((slot, _)) = self.field(package, member, span)?
                 {
                     state[slot] = EMPTY;
                     self.writes[package] = true;
@@ -435,7 +451,7 @@ impl Scan<'_> {
                         }
                     }
                 }
-                if self.has_store {
+                if self.has_automatic_owned_use {
                     self.nested_owned_uses(state, parameters, body, depth + 1)?;
                 }
             }
@@ -456,8 +472,8 @@ impl Scan<'_> {
         body: &CoreBlock,
         depth: usize,
     ) -> R<()> {
-        // Only new Store-bearing Package captures enter this extra source
-        // walk. A nested body's real value/give use transfers its complete
+        // Only Store-bearing or Product Package captures enter this extra
+        // source walk. A nested body's real value/give use transfers its complete
         // Package when that child is created, regardless of a `move` keyword.
         let count = self.packages.len();
         self.spend(
@@ -486,7 +502,7 @@ impl Scan<'_> {
         self.writes = writes;
         self.partial_exit = exits;
         for (index, prior) in owned.into_iter().enumerate() {
-            let moved = self.packages[index].contains_store && self.packages[index].owned_use;
+            let moved = self.packages[index].automatic_owned_use && self.packages[index].owned_use;
             self.packages[index].owned_use = prior;
             if moved {
                 self.whole(state, index, EMPTY, body.span)?;

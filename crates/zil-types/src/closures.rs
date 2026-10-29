@@ -230,6 +230,12 @@ impl State {
             .ok_or_else(|| limit("byte capture admission budget exceeded", input.span))?;
         let mut owns_leaf_store = false;
         for capture in &checker.captures {
+            if packages::product::nested(&capture.ty) && !capture.moved {
+                return Err(unsupported(
+                    capture.span,
+                    "Product capture requires explicit move or an actual whole/child ownership use",
+                ));
+            }
             if dynamic_store::is_carrier(&capture.stored_type()) {
                 if !capture.moved
                     || !dynamic_store::owned_capture(
@@ -1599,8 +1605,17 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
         let (inner, address) = match ty {
             ty if ty.is_copy_value() => (ty, None),
-            ty @ Type::Package { .. } if packages::supported(ty) => {
-                if !self.move_capture
+            ty @ Type::Package { .. }
+                if packages::supported(ty) || packages::product::nested(ty) =>
+            {
+                if packages::product::nested(ty) {
+                    packages::product::validate(
+                        ty,
+                        self.work_left,
+                        self.limits.max_call_depth,
+                        span,
+                    )?;
+                } else if !self.move_capture
                     && !nested_owned
                     && !dynamic_store::owned_capture(ty, self.work_left, self.limits, span)?
                 {
