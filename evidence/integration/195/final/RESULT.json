@@ -1,0 +1,229 @@
+{
+  "status": "Pass",
+  "scope": "Bounded language mainline integration through195: complete Rust workspace regression and named finite language/platform slices. Not complete1.4 or product acceptance.",
+  "source_commit": "1bf8cf548a4648c597a67bf54b09f6200520e4e2",
+  "crates_tree": "69718b34e6fee5456396bb06a79878a0d054d6cb",
+  "spec_hash": "48641079ef2ecc84aa50a0a9eafd83ae844f0d3de7924fcc8cb3e2fef3f9db5f",
+  "normative_hash": "6488fa9f20121c4268f13153c6daecbfd20da5eb5e8aa86630620413d41edadb",
+  "schema": 24,
+  "executed": 2063,
+  "full_workspace": {
+    "status": "Pass",
+    "command": "formal-workspace04/command/command.json",
+    "environment": "formal-workspace04/environment.json",
+    "passed": 2063,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 216,
+    "unique_empty_temporary_directory": true,
+    "temporary_storage": "independent tmpfs after ordinary-workspace inode failures",
+    "all_subprocess_output_retained": true
+  },
+  "preserved_attempts": [
+    {
+      "run": "formal-workspace01",
+      "source_commit": "7d8cea72460d059f76987f076afa147ed68184eb",
+      "status": "Fail",
+      "counts": {
+        "passed": 2059,
+        "failed": 4,
+        "ignored": 0,
+        "groups": 216
+      },
+      "reason": "Four old expectations after structural Copy and Flow admission; exact original inputs preserved by test-only1bf8cf migration."
+    },
+    {
+      "run": "fixtures01",
+      "source_commit": "1bf8cf548a4648c597a67bf54b09f6200520e4e2",
+      "status": "Pass",
+      "executed": 4,
+      "paths": [
+        "fixtures01/driver-generic",
+        "fixtures01/driver-traits",
+        "fixtures01/expand-generic",
+        "fixtures01/verify-cycle"
+      ],
+      "counts_note": "Targeted repeats of the four migrated tests, not four new language tests."
+    },
+    {
+      "run": "formal-workspace02",
+      "source_commit": "1bf8cf548a4648c597a67bf54b09f6200520e4e2",
+      "status": "InfrastructureFailure",
+      "counts": null,
+      "reason": "Workspace inode exhaustion prevented recorder from saving complete subprocess output. Cargo result unknown; original partial command record retained unchanged. Not a pass."
+    },
+    {
+      "run": "formal-workspace03",
+      "source_commit": "1bf8cf548a4648c597a67bf54b09f6200520e4e2",
+      "status": "PreflightStopped",
+      "cargo_commands_started": 0,
+      "reason": "Free-inode/free-space preflight stopped before cargo. Not a test execution."
+    }
+  ],
+  "legacy_test_migration_review": "evidence/reviews/195/legacy-by193/REVIEW.json",
+  "legacy_test_review_note": "Read-only non-author review has executed0; it does not replace actual root executions or the195 independent110-test gate.",
+  "accepted_slices": [
+    {
+      "id": "178",
+      "status": "已合入",
+      "implementation_commit": "24402e17e1e248fb88a9a69fc5ec961388005e72"
+    },
+    {
+      "id": "179",
+      "status": "已合入",
+      "implementation_commit": "204fea481d8770bf53f2e81324830b4f375d954e"
+    },
+    {
+      "id": "180",
+      "status": "已合入",
+      "implementation_commit": "74254d8da12004519ca342b1c0602a5a90831c44"
+    },
+    {
+      "id": "182",
+      "status": "已合入",
+      "implementation_commit": "ebaddd7faf7b83b257b873e8544af0fef13e670a"
+    },
+    {
+      "id": "183",
+      "status": "已合入",
+      "implementation_commit": "19f58c16ed800b0cee5a8afcc11908925920cd63"
+    },
+    {
+      "id": "184",
+      "status": "已合入",
+      "implementation_commit": "b1461dc39bd920770885b27796068a560e1e6a2a"
+    },
+    {
+      "id": "185",
+      "status": "已合入",
+      "implementation_commit": "3c18ce7884351f1f234b36f38e31c9dad1450e3d"
+    },
+    {
+      "id": "186",
+      "status": "已合入",
+      "implementation_commit": "0fb8aaaeeef058ddd6420e4fc8981c3f957ea330"
+    },
+    {
+      "id": "187",
+      "status": "已合入",
+      "implementation_commit": "472b3ce052b850ef51fbfa3f8d818c51e080a112"
+    },
+    {
+      "id": "188",
+      "status": "已合入",
+      "implementation_commit": "49c60f0cb663c67310f722b2e2d8d563693c2c84"
+    },
+    {
+      "id": "189",
+      "status": "已合入",
+      "implementation_commit": "bfe60582c46526a75349d4eefd3c60fde8f327e6"
+    },
+    {
+      "id": "190",
+      "status": "已合入",
+      "implementation_commit": "7491c212d392b12bb90f735b90f535066fa00a47"
+    },
+    {
+      "id": "191",
+      "status": "已合入",
+      "implementation_commit": "06daaaed653e045a55a005ff6ff41eb2e9a1c60c"
+    },
+    {
+      "id": "192",
+      "status": "已合入",
+      "implementation_commit": "9cf4d846698ef4c21711da73ecf5db44c9799df1"
+    },
+    {
+      "id": "193",
+      "status": "已合入",
+      "implementation_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d"
+    },
+    {
+      "id": "194",
+      "status": "已合入",
+      "implementation_commit": "13df78f532f63874b61d56dc6067884dbac0fe9d"
+    },
+    {
+      "id": "195",
+      "status": "已合入",
+      "implementation_commit": "1a890dabc4eb04b26570439718b0a9432511fa95"
+    }
+  ],
+  "remaining_integration_slices": [
+    {
+      "id": "181",
+      "status": "施工",
+      "implementation_commit": "83174688e249c8e5723ebaffd11cde3024b601b6"
+    }
+  ],
+  "latest_independent_reviews": {
+    "193": "evidence/reviews/193/root/REVIEW.json",
+    "194": "evidence/reviews/194/root/REVIEW.json",
+    "195": "evidence/reviews/195/by193/REVIEW.json"
+  },
+  "platform_evidence": {
+    "193": "evidence/reviews/193/root/REVIEW.json",
+    "194": "evidence/reviews/194/root/REVIEW.json",
+    "195": "evidence/integration/195/platforms/RESULT.json"
+  },
+  "platform_summary": {
+    "193": {
+      "linux_runs": 110,
+      "wine_runs": 110,
+      "actual_allocation_failures_per_platform": 48
+    },
+    "194": {
+      "linux_runs": 60,
+      "wine_runs": 60,
+      "actual_allocation_failures_per_platform": 26
+    },
+    "195": {
+      "linux_runs": 84,
+      "wine_runs": 84,
+      "actual_allocation_failures_per_platform": 50
+    }
+  },
+  "counting_note": "Each receipt keeps its actual source and repeats. Author, reviewer, platform and workspace counts are not summed as distinct coverage.",
+  "handoff_snapshot": {
+    "status": "Fail",
+    "source_commit": "fc4fff748beee48473be6eb073981bbcdac2e544",
+    "errors": 1138,
+    "errors_in178_through195": 0,
+    "path": "handoff-final.json",
+    "scope": "Historical record integrity, not language correctness. Earlier missing commits/evidence remain unresolved."
+  },
+  "preflights_only": {
+    "196": {
+      "input_checks": 12,
+      "success": 2,
+      "unsupported": 10,
+      "native": 0,
+      "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "proposal": "changes/196-proposal.md"
+    },
+    "197": {
+      "input_checks": 24,
+      "verification_runs": 4,
+      "native": 0,
+      "compiler_source": "13df78f532f63874b61d56dc6067884dbac0fe9d",
+      "proposal": "changes/197-proposal.md"
+    }
+  },
+  "full_language_gate": "NotSatisfied",
+  "product_gate": "NotRun",
+  "draft_gate": "NotRun",
+  "full_workspace_gate": "Pass",
+  "B0": "Doing",
+  "native_windows": "NotRun",
+  "draft_gate_note": "No new claim of the complete separate draft/product validation pipeline. This receipt certifies the actual workspace run and named bounded language slices only.",
+  "rust_goals": {
+    "safety": "Independent finite source/raw/Wire checks and actual fault cleanup; complete language safety not proved.",
+    "runtime_memory": "Selected consumers account for real allocation, freeing, zero live and peaks; no same-semantics Rust runtime/RSS comparison.",
+    "expression_maintenance": "Real single-environment Flow, Copy data and slice/reference combinations now work; general maintained UI library costs unmeasured.",
+    "compile_cost": "Default logical limits preserved; no compile-speed comparative claim.",
+    "breakthrough": "Verified language-composition increment, not a product-level net-breakthrough verdict."
+  },
+  "recovery_zip_sha256": "6e0273dc58b99f88dbed40fa3a13648314ed816e4631f83e210d24affe2498ed",
+  "created_utc": "2026-10-28T06:18:00.381852+00:00",
+  "post_test_changes_before_packaging": "Evidence and status documentation only; complete crates tree, normative inputs and Cargo.lock match tested1bf8cf."
+}

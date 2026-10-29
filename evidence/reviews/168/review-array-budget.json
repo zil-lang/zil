@@ -1,0 +1,33 @@
+{
+  "task": "168 review / 167 array budget follow-up",
+  "reviewer": "/root/trait_bounds",
+  "status": "ChangesRequested",
+  "tested_commit": "02040876a7f56f14b2058b91f6277b9db86ec393",
+  "worktree_clean": true,
+  "finding": "R168-3",
+  "scope": "Package-array complete element expansion accounting",
+  "source": "array-probe/src/main.rs",
+  "source_sha256": "a1d1a8a13dd9938a71bd85db395f43d5930e96c88c32e7e95314480437e35655",
+  "candidate": "array-probe/wide-package-array.bin",
+  "candidate_sha256": "d769d0986f02c3f5ba1f7379c4e1aa567e4c7c183e4b60d922445ccca4e80d04",
+  "log": "array-probe.log",
+  "log_sha256": "339eb2f5344ba9f28de36a2495907adbc3c4f2f9bba10125d3ad8ec8ac9fa075",
+  "parameters": {
+    "array_length": 128,
+    "copy_record_fields": 2048,
+    "max_analysis_steps": 100000,
+    "resource_has_actual_drop": true
+  },
+  "raw": "Accepted",
+  "wire": "Accepted",
+  "backend_expansion_lower_bound": {
+    "copy_scalar_tokens_in_per_element_teardown_geps": 262144,
+    "calculation": "128 elements * 2048 Copy i32 fields in the full array type string interpolated for each element teardown GEP"
+  },
+  "cause": "check_type_shape charges length plus one traversal of element; owned Package array preflight charges length times direct field count only; no MakeOwnedArray is needed for a legal uninitialized local with conditional DropOwnedArray",
+  "expected": "ResourceLimit before backend admission under the same selected budget; full element Type weight multiplied by array length",
+  "actual_codegen_executed": false,
+  "not_a_performance_measurement": true,
+  "initial_probe_note": "array-probe-initial-no-teardown.log retained as preliminary observation only; it omitted Drop implementation and therefore did not establish repeated teardown GEP output. Final candidate above adds a real Drop implementation and fixes the claim to repeated type string token copies, not repeated recursive LLVM type traversal.",
+  "created_utc": "2026-10-27T11:54:10.821552+00:00"
+}

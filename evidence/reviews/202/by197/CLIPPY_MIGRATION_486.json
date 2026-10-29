@@ -1,0 +1,22 @@
+{
+  "reviewer": "/root/impl197",
+  "verdict": "Pass",
+  "review_kind": "read-only test lint migration",
+  "reviewed_commit": "48640a9eb4c676d257dff5a6d623f7ecb86cdabd",
+  "previous_commit": "4be2ccce59cee8e26595f7f4b3a37ae92bbcf2d2",
+  "reviewer_source_commit": "9bb87448ed5ea745c52c21989497c676ca3c0a6e",
+  "new_execution": false,
+  "changed_files": [
+    "crates/zil-driver/src/ct_program.rs",
+    "crates/zil-driver/tests/impl126_helper_sequences.rs"
+  ],
+  "runtime_production_changes": false,
+  "source_file_change_boundary": "ct_program.rs changes only one fixture inside #[cfg(test)] mod tests; the source file bytes do change. No executable CLI path is changed.",
+  "findings": [
+    "Root CT uses the same NodeId(802), span, old callee clone and Named(T) TypeApply contents; assigning into the existing Box preserves the complete Core expression value.",
+    "The old 126 one-element loop becomes one lexical block with the identical tuple: once, the same complete FnOnce source bytes, Phase::Expand, SafeReject, and consumed diagnostic substring.",
+    "The case lifetime still ends at the same block boundary before the unchanged original cyclic positive control and native check.",
+    "All assertion bodies and source text are unchanged."
+  ],
+  "execution_boundary": "Only git diff and lexical scope read; no new test or CT execution is counted in this receipt."
+}

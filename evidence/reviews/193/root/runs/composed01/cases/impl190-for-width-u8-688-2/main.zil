@@ -1,0 +1,1 @@
+fn sum<T>(token:T,high:u8)->(T,i32){var sum=0;for index in 0..high{sum+=i32(index)}return (token,sum)}fn main()->i32{let result=sum(0,u8(3));return result.0+result.1-3}

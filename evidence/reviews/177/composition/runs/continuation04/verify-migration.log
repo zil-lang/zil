@@ -1,0 +1,133 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-composition174/crates/zil-verify)
+    Finished `test` profile [unoptimized] target(s) in 7.52s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/deps/zil_verify-c59aee014cb4882b)
+
+running 89 tests
+test package_tests::callable_package_field_relabel_requires_a_real_closure_definition ... ok
+test package_tests::branch_join_retains_all_package_field_description_origins ... ok
+test package_tests::captures::binding_after_prefix_unreachable_and_nonentry_are_rejected ... ok
+test package_tests::captures::bindings_reject_wrong_indices_types_and_orphan_environment ... ok
+test package_tests::captures::capture_bind_has_no_result_and_claimed_initialization_is_untrusted ... ok
+test package_tests::captures::complete_package_factory_input_and_owned_cleanup_contract_are_checked ... ok
+test package_tests::captures::consume_whole_moved_view_can_end_but_exclusive_cannot_return_it ... ok
+test package_tests::captures::end_must_match_binding_and_cannot_be_followed_by_direct_or_desc_access ... ok
+test package_tests::captures::ended_nested_description_alias_is_rejected_even_when_outer_mode_is_exclusive ... ok
+test package_tests::captures::capture_responsibility_budget_has_exact_n_and_n_minus_one_boundary ... ok
+test package_tests::captures::exclusive_error_return_must_also_preserve_full_environment ... ok
+test package_tests::captures::every_error_branch_and_join_must_restore_exclusive_fields ... ok
+test package_tests::captures::exclusive_loop_restores_persistent_fields_without_rebinding_entry ... ok
+test package_tests::captures::exclusive_whole_transfer_restore_and_explicit_replace_preserve_environment ... ok
+test package_tests::captures::mixed_capture_indices_keep_distinct_package_roots_and_managed_debts ... ok
+test package_tests::captures::package_capture_cannot_be_implicitly_copied_or_taken_without_view ... ok
+test package_tests::captures::package_capture_needs_unused_binding_contiguous_prefix_and_no_entry_edges ... ok
+test package_tests::captures::package_view_addresses_and_immutable_rebinding_remain_closed ... ok
+test package_tests::captures::shared_mode_rejects_copy_field_payload_and_responsibility_writes ... ok
+test package_tests::captures::package_captures_are_owned_readonly_repeatable_or_consuming ... ok
+test package_tests::captures::stale_capture_description_cannot_revive_after_replace ... ok
+test package_tests::captures::trap_after_partial_exclusive_update_has_no_return_cleanup_promise ... ok
+test package_tests::captures::shared_package_desc_cannot_write_through_callee_or_nested_closure ... ok
+test package_tests::captures::unique_binding_rejects_duplicate_capture_and_duplicate_view ... ok
+test package_tests::captures::view_ordinary_storage_reset_duplicate_end_and_missing_end_are_rejected ... ok
+test package_tests::captures::view_activity_must_agree_at_a_cfg_join ... ok
+test package_tests::complete_package_copy_field_and_cleanup_pass_raw_and_wire ... ok
+test package_tests::complete_package_requires_strict_scope_even_without_error_operations ... ok
+test package_tests::conditional_whole_move_preserves_other_edges_cleanup_responsibility ... ok
+test package_tests::description_alias_in_local_storage_still_blocks_package_move ... ok
+test package_tests::construction_checks_arity_field_order_operands_and_result_shape ... ok
+test package_tests::descriptions_of_distinct_packages_do_not_block_unrelated_moves ... ok
+test package_tests::fields::conditional_field_cleanup_is_idempotent_without_ending_the_shell ... ok
+test package_tests::failed_preparation_cleans_only_independent_completed_temporaries_in_reverse_order ... ok
+test package_tests::fields::copy_fields_cannot_be_taken_or_dropped_as_managed_values ... ok
+test package_tests::fields::even_an_empty_package_shell_requires_final_cleanup ... ok
+test package_tests::fields::existing_normal_return_debt_scan_is_charged_at_the_exact_budget_boundary ... ok
+test package_tests::fields::field_accesses_require_active_lexical_storage_even_with_initialized_claims ... ok
+test package_tests::fields::field_replacement_does_not_change_shell_cleanup_order ... ok
+test package_tests::fields::field_transfer_keeps_input_provenance_at_create_returns ... ok
+test package_tests::fields::field_operations_recheck_local_kind_index_and_operand_presence ... ok
+test package_tests::fields::let_parameter_can_transfer_a_field_but_cannot_refill_or_change_copy_content ... ok
+test package_tests::fields::live_field_overwrite_and_reused_ssa_are_rejected ... ok
+test package_tests::fields::live_moved_join_requires_conditional_old_cleanup_before_refill ... ok
+test package_tests::fields::loop_cannot_redefine_unconsumed_rhs_or_omit_old_field_cleanup ... ok
+test package_tests::fields::loop_replacement_gets_fresh_instances_without_retargeting_old_descriptions ... ok
+test package_tests::fields::neither_field_drop_nor_store_can_reactivate_an_uninitialized_or_ended_shell ... ok
+test package_tests::fields::merged_description_origins_block_only_their_actual_fields ... ok
+test package_tests::fields::no_package_scalar_controls_charge_resource_frontier_setup_exactly ... ok
+test package_tests::fields::old_description_cannot_be_redirected_by_same_slot_replacement_or_refill ... ok
+test package_tests::fields::partial_package_cannot_manufacture_a_complete_ssa_or_escape_by_return ... ok
+test package_tests::fields::partial_shell_keeps_copy_fields_and_sibling_descriptions_available ... ok
+test package_tests::fields::old_description_alias_and_captured_description_keep_the_precise_field ... ok
+test package_tests::fields::repeated_take_and_description_of_a_missing_field_are_rejected ... ok
+test package_tests::fields::per_field_responsibility_states_and_scans_consume_the_work_budget ... ok
+test package_tests::fields::responsibility_pass_does_not_rescan_unrelated_nominal_resource_definitions ... ok
+test package_tests::fields::result_shape_and_exact_store_type_are_rechecked ... ok
+test package_tests::fields::store_rejects_a_different_but_individually_valid_nominal_resource ... ok
+test package_tests::fields::rhs_error_cleans_prepared_temporary_and_remaining_package_responsibility ... ok
+test package_tests::fields::take_refill_and_complete_return_pass_both_boundaries ... ok
+test package_tests::later_argument_error_cleans_staged_package_and_keeps_unstored_debt_visible ... ok
+test package_tests::ordinary_call_consumes_and_returns_the_complete_package_once ... ok
+test package_tests::owning_error_union_local_relabeling_still_requires_actual_injection ... ok
+test package_tests::package_array_relabel_cannot_replace_required_owned_array_operations ... ok
+test package_tests::package_candidate_identity_and_work_limits_remain_independent ... ok
+test package_tests::package_cannot_use_resource_result_modes_or_resource_operations ... ok
+test package_tests::package_cannot_hide_inside_copy_containers_or_indirect_signatures ... ok
+test package_tests::package_capture_requires_views_and_closure_package_signatures_remain_closed ... ok
+test package_tests::package_cleanup_cannot_be_omitted_or_duplicated ... ok
+test package_tests::package_construction_consumes_each_managed_input_once ... ok
+test package_tests::package_cleanup_must_preserve_other_local_construction_order ... ok
+test package_tests::package_field_description_blocks_whole_move_until_last_use ... ok
+test package_tests::package_field_descriptions_never_follow_rebuilt_storage ... ok
+test package_tests::package_field_metadata_and_nominal_lookup_pay_for_repeated_admission ... ok
+test package_tests::package_field_description_capture_retains_owner_and_allows_move_after_last_call ... ok
+test package_tests::package_fields_reject_noncopy_and_nested_owners ... ok
+test package_tests::package_function_reference_cannot_erase_ordinary_move_contract ... ok
+test package_tests::package_load_cannot_copy_the_owner ... ok
+test package_tests::package_manages_fields_require_matching_nominal_resources ... ok
+test package_tests::package_names_field_names_and_manages_admission_are_checked ... ok
+test package_tests::package_parameter_field_description_and_cleanup_are_checked ... ok
+test package_tests::package_loop_reactivation_must_discharge_each_previous_iteration ... ok
+test package_tests::package_ssa_cannot_be_lost_after_the_root_storage_scope_closes ... ok
+test package_tests::projection_and_cleanup_require_real_package_storage ... ok
+test package_tests::projection_or_second_move_after_conditional_transfer_is_rejected ... ok
+test package_tests::shared_package_window_relabel_cannot_turn_a_stored_owner_into_an_address ... ok
+test package_tests::projections_reject_owning_copy_wrong_kind_index_and_local ... ok
+test package_tests::whole_move_may_follow_the_last_field_description_use ... ok
+test package_tests::whole_package_return_uses_ordinary_value_mode ... ok
+
+test result: ok. 89 passed; 0 failed; 0 ignored; 0 measured; 151 filtered out; finished in 0.11s
+
+     Running tests/impl082_bytes_ffi.rs (/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/deps/impl082_bytes_ffi-897b72b39cca6a80)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.00s
+
+     Running tests/impl086_static_foreign.rs (/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/deps/impl086_static_foreign-d08d10c328fc77ab)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.00s
+
+     Running tests/impl091_slices.rs (/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/deps/impl091_slices-482f46f5d017f92a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.00s
+
+     Running tests/impl095_byte_buffers.rs (/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/deps/impl095_byte_buffers-4815f7fa627449ff)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.00s
+
+     Running tests/impl099_owned_bytes.rs (/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/deps/impl099_owned_bytes-6be06f2d1683c992)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+     Running tests/impl124_signed_shifts.rs (/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/deps/impl124_signed_shifts-e54128603af2766a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+

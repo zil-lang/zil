@@ -1,0 +1,15 @@
+
+running 10 tests
+test error_only_create_consumes_old_success_without_claiming_a_new_resource ... ok
+test direct_store_and_existing_copy_error_inference_keep_their_meaning ... ok
+test loop_local_and_discarded_unions_clean_exactly_once ... ok
+test fresh_payload_survives_local_union_moves_and_question_rewrapping ... ok
+test propagated_failure_drops_incoming_element_and_earlier_store ... ok
+test two_nominal_shapes_transfer_through_ordinary_union_values ... ok
+test unused_signatures_require_the_written_mode_and_actual_copy_error_shape ... ok
+test unused_definitions_cannot_launder_old_success_into_create ... ok
+test unused_union_moves_and_descriptor_aliases_do_not_create_permissions ... ok
+test written_modes_are_checked_with_and_without_instantiation ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.26s
+

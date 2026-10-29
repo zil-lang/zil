@@ -1,0 +1,1 @@
+fn main()->i32{let b=bytes_new();bytes_push(b,7u8);let f=(p:&mut[u8])=>i32(bytes_len(b))+i32(p[0]);return f(bytes_view_mut(b))}

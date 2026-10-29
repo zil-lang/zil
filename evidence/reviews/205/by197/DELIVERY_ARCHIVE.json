@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "task": "205",
+  "reviewer": "/root/review205_finish",
+  "verdict": "Pass",
+  "scope": "Read-only integrity and exact preservation of the declared eleven-source main evidence container. This is not a completeness claim for all205 evidence in one file.",
+  "language_review_unchanged": {
+    "commit": "22cab54c246e641a3adb43718a6f8cfd2df27124",
+    "implementation_commit": "2db3c090088dc3882a7566efe60f6cf6d81cc666",
+    "verdict": "Pass for finite205",
+    "new_language_execution": "NotRun"
+  },
+  "source_zip": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/205-all-components-evidence-compact.zip",
+    "bytes": 82743320,
+    "sha256": "9d9f902451bc479ba063d2aba69317dde7c8eb89bbbb8fccf0ea3ea4918de818"
+  },
+  "delivery_archive": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/205-all-components-evidence-compact.tar.xz",
+    "bytes": 23525588,
+    "sha256": "27cc3e5397fb003a0d9671e21af713d63e99540395ec4b8360eccd4c33513048"
+  },
+  "actual_member_audit": {
+    "members_compared_byte_for_byte": 32346,
+    "decoded_member_bytes": 1617200583,
+    "manifest_bound_members": 32345,
+    "manifest_identity": {
+      "bytes": 6314386,
+      "sha256": "12c89415d1a0ee480d76d6bb19dd5d42d64e3981702ed876672b09a435f19d31"
+    },
+    "index_identity": {
+      "bytes": 68266295,
+      "sha256": "74ebcdc3eec7aa1ebd5e135aafac0e98e8008b853f5141ce90dd00c433c286b1"
+    },
+    "statistics": {
+      "logical_files": 122718,
+      "logical_bytes": 6090232684,
+      "unique_contents": 32339,
+      "unique_bytes": 1542580731,
+      "excluded_execution_products": 4830
+    },
+    "source_count": 11,
+    "zip_member_crc_and_xz_footer_checked": true,
+    "ordinary_files_only": true,
+    "unsafe_paths_duplicate_paths_and_file_as_parent_rejected": true,
+    "input_bytes_and_metadata_unchanged": true,
+    "extraction": false,
+    "compiler_or_packaged_tools_executed": false,
+    "command_receipt": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-delivery01/member-compare-command/command.json",
+      "bytes": 1088,
+      "sha256": "5a86f019b7f3bd737059bc2aa8277ca9e8cd9ad8931c5804e7f7193bccdae16d"
+    },
+    "full_tool_receipt": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-delivery01/member-compare-command/stdout.log",
+      "bytes": 1428,
+      "sha256": "f6fa6ac4ea91a2a66f53e59580b55494388e23eb0ca9c5cc695116c1fe47dffc"
+    },
+    "reused_tool": {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/tools/language/204/review_by197/audit_solid_archive.py",
+      "bytes": 7889,
+      "sha256": "af9c6cda00772b283183126acd22e4e239ad5ade04e54b5fd6c89b43d3d49cd4"
+    },
+    "tool_label_note": "Reused204 auditor retains a literal /root/impl197 label in its raw JSON; this actual205 invocation and review are by /root/review205_finish. The raw output is preserved, not edited."
+  },
+  "declared_sources": [
+    {
+      "id": "types-original",
+      "kind": "compact",
+      "original_archive_sha256": "b99d72a9957836f61d955153d645f871e17dde2f3fc002e99adc57e7da1209d0",
+      "stored_logical_files": 2921,
+      "hash_only_execution_products": 128,
+      "all_original_logical_and_metadata_mappings_preserved": true
+    },
+    {
+      "id": "types-loop",
+      "kind": "compact",
+      "original_archive_sha256": "56c77143233650b33caf0e00bd733ae530aa5b8d7a442ca1ba9b39126aa11877",
+      "stored_logical_files": 501,
+      "hash_only_execution_products": 6,
+      "all_original_logical_and_metadata_mappings_preserved": true
+    },
+    {
+      "id": "types-legacy-forward",
+      "kind": "compact",
+      "original_archive_sha256": "d8310aa9fd3c488cb967d49bd94d0d82ff3a8d9c7184fcd3f77d4da4d12d69a8",
+      "stored_logical_files": 1384,
+      "hash_only_execution_products": 66,
+      "all_original_logical_and_metadata_mappings_preserved": true
+    },
+    {
+      "id": "expand-consumer-original",
+      "kind": "compact",
+      "original_archive_sha256": "a6cc2f626fefc8f4f53684dde69910fa9df99fa04e83f7310d0493c963701e8a",
+      "stored_logical_files": 2270,
+      "hash_only_execution_products": 16,
+      "all_original_logical_and_metadata_mappings_preserved": true
+    },
+    {
+      "id": "legacy-stage-migrations",
+      "kind": "compact",
+      "original_archive_sha256": "69804cb87561bd9c955e48fdf979ced856ca076c15ebde39ca2f24194a8697c1",
+      "stored_logical_files": 1218,
+      "hash_only_execution_products": 52,
+      "all_original_logical_and_metadata_mappings_preserved": true
+    },
+    {
+      "id": "consumer-cli04",
+      "kind": "compact",
+      "original_archive_sha256": "d7e0a990e3c6b1c9775e83a581f5091013418c8470c659b3f6fa5463d5beeae2",
+      "stored_logical_files": 959,
+      "hash_only_execution_products": 12,
+      "all_original_logical_and_metadata_mappings_preserved": true
+    },
+    {
+      "id": "review-cli03",
+      "kind": "compact",
+      "original_archive_sha256": "f96c3e24860276437853cef45b3b4706edb6dbe23809603aae1c6ca0c6881a19",
+      "stored_logical_files": 5370,
+      "hash_only_execution_products": 162,
+      "all_original_logical_and_metadata_mappings_preserved": true
+    },
+    {
+      "id": "review-cli04",
+      "kind": "compact",
+      "original_archive_sha256": "e8a0fbadea97f4a66754c40237b7b53c17b56aeee2f6d30eba4f1cf39d938932",
+      "stored_logical_files": 684,
+      "hash_only_execution_products": 10,
+      "all_original_logical_and_metadata_mappings_preserved": true
+    },
+    {
+      "id": "workspace01-failed",
+      "kind": "compact",
+      "original_archive_sha256": "9c2a5aacb98c6916ae08590e0ab193324da76d4ca5d69328f8fd1758cfa96a15",
+      "stored_logical_files": 53548,
+      "hash_only_execution_products": 2186,
+      "all_original_logical_and_metadata_mappings_preserved": true
+    },
+    {
+      "id": "root-commands-and-probes",
+      "kind": "directory",
+      "original_files": 203,
+      "stored_logical_files": 203,
+      "hash_only_execution_products": 0,
+      "all_original_paths_and_bytes_compared": true
+    },
+    {
+      "id": "workspace02-exact-temporary",
+      "kind": "directory",
+      "original_files": 55852,
+      "stored_logical_files": 53660,
+      "hash_only_execution_products": 2192,
+      "all_original_paths_and_bytes_compared": true
+    }
+  ],
+  "source_mapping_audit": {
+    "command_receipt": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-delivery01/source-coverage02-command/command.json",
+      "bytes": 784,
+      "sha256": "64478f3e0be047e680ca80987f1c4507dc12ae4b97a030df46e11df2473fd7b4"
+    },
+    "script": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-delivery01/source_audit02.py",
+      "bytes": 7936,
+      "sha256": "bf4f86ec662c141108fd0d68e0f6d098d6e8ff22d42ab521d50b6bf433dcfaee"
+    },
+    "result": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-delivery01/SOURCE_COVERAGE02.json",
+      "bytes": 12630,
+      "sha256": "218a45cbd52f3da1f5ec84ec698945831906d48f3721b3798cd9aaab22d5c9a5"
+    },
+    "configuration": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-packaging/inputs.json",
+      "sha256": "0111443ec398aed4a4c229b821dbfd94154c1e69eb0b39db4c8cc08f0f1e6056"
+    },
+    "compact_originals": "All9 original compact archive digests, every logical file, preserved metadata file and exclusion identity match the aggregate mappings.",
+    "directory_originals": "Every one of203 frozen root record files and55852 workspace02 files compared by original path/size/SHA, including hash-only executables; before/after inventories unchanged."
+  },
+  "recorded_root_output_pointer_audit": {
+    "json_records_examined": 71,
+    "command_records_examined": 29,
+    "pointer_occurrences": 13,
+    "unique_directories": 9,
+    "keys": [
+      "ZIL_TEST_REPORT_DIR",
+      "TMPDIR",
+      "temporary_root",
+      "test_output_root"
+    ],
+    "missing_from_main": [
+      {
+        "path": "/dev/shm/zil205-root-ct01",
+        "exists": true,
+        "regular_files": 136,
+        "bytes": 822278,
+        "action": "Preserve original tree in separately labelled supplement; do not change frozen main container or rebind old norm/commit"
+      },
+      {
+        "path": "/dev/shm/zil205-root-ct02",
+        "exists": true,
+        "regular_files": 284,
+        "bytes": 2330877,
+        "action": "Preserve original tree in separately labelled supplement; do not change frozen main container or rebind old norm/commit"
+      },
+      {
+        "path": "/dev/shm/zil205-root-legacy01/cases",
+        "exists": true,
+        "regular_files": 2,
+        "bytes": 720,
+        "action": "Preserve original tree in separately labelled supplement; do not change frozen main container or rebind old norm/commit"
+      }
+    ],
+    "other_recorded_root_pointers_missing": false,
+    "limits": "Only recorded report/TMP paths are asserted; unrecorded environment values are not invented. Absent former workspace01 is covered by its sealed original compact archive."
+  },
+  "supplement_required": {
+    "status": "Pending separate frozen supplemental container and separate review",
+    "original_tree_roots": [
+      "/dev/shm/zil205-root-ct01",
+      "/dev/shm/zil205-root-ct02",
+      "/dev/shm/zil205-root-legacy01"
+    ],
+    "original_ct01": "Fail6/3 at96e4b7b; original source/norm retained",
+    "original_ct02": "Pass24/0 at3fc53e90; original source/norm retained",
+    "other_supplement_scope": "Final language-review audit, this container review, packaging/offline delivery records belong in the separately identified small supplement, not retrofitted into the frozen main container.",
+    "no_main_archive_mutation": true
+  },
+  "audit_attempt_history": {
+    "first_source_coverage_command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-delivery01/source-coverage-command/command.json",
+      "bytes": 781,
+      "sha256": "cb1bae12572c57530b103f478af836c93192c39f768694e75430693539081329"
+    },
+    "actual_status": "Fail",
+    "cause": "Auditor expected legacy01 root while the recorded report path is legacy01/cases. All source mapping/hash checks preceding that narrow assertion had passed; exact corrected suffix is separately rerun.",
+    "second_source_coverage_status": "Pass",
+    "frozen_container_changed": false,
+    "language_results_changed": false
+  },
+  "byte_cap": {
+    "final_bytes": 23525588,
+    "limit_bytes": 50000000,
+    "under_limit": true,
+    "intermediate_zip_not_claimed_under_limit": true
+  },
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun",
+  "native_windows": "NotRun"
+}

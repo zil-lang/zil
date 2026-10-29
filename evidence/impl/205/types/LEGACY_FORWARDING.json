@@ -1,0 +1,212 @@
+{
+  "scope": "205 author follow-up to actual root workspace01 legal legacy-State regression; limited checks, not final integration acceptance",
+  "status": "PassWithinAuthorScope",
+  "implementation_commit": "d71758d2be95995aeb4a9b690fa62ee0095a3797",
+  "base_commit": "0317a093ade0118741d334c45438ade07e9d7228",
+  "spec_hash": "71d03d540f73b8f3835c8f2198c99a8074f9abdce0f58284c3c9df1f0d17c560",
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "original_regression": {
+    "source_bytes": 867,
+    "source_sha256": "dc68299194fcc8dcea73fad37540a270bf16fe497235a8c6858d1bff750e199e",
+    "root_workspace01_status": "Fail: Types E-STATE-ORIGIN",
+    "root_workspace01_commit": "0317a093ade0118741d334c45438ade07e9d7228",
+    "original_test_unchanged": true,
+    "clean_retest": "Pass O0/O2, stdout ZA, exit 0",
+    "source_files": [
+      {
+        "path": "final-original177-01-cases/state-composition177-946064-0/main.zil",
+        "bytes": 182,
+        "sha256": "0a14a1d99e6095c49be614dcad67203af4feba13aa118b8175db14ea4cc27475"
+      },
+      {
+        "path": "final-original177-01-cases/state-composition177-946064-1/main.zil",
+        "bytes": 182,
+        "sha256": "0a14a1d99e6095c49be614dcad67203af4feba13aa118b8175db14ea4cc27475"
+      },
+      {
+        "path": "final-original177-01-cases/state-composition177-946064-2/main.zil",
+        "bytes": 867,
+        "sha256": "dc68299194fcc8dcea73fad37540a270bf16fe497235a8c6858d1bff750e199e"
+      },
+      {
+        "path": "final-original177-01-cases/state-composition177-946064-3/main.zil",
+        "bytes": 867,
+        "sha256": "dc68299194fcc8dcea73fad37540a270bf16fe497235a8c6858d1bff750e199e"
+      },
+      {
+        "path": "final-original177-01-cases/state-composition177-946064-4/main.zil",
+        "bytes": 796,
+        "sha256": "2727f04cf149a84ab69fddbd76c2c1a8d986a7885da11503ec1cec155109f9e9"
+      }
+    ]
+  },
+  "fix": "Extract and unify actual direct Named(F) field origins from a complete legacy State argument before substituting result F; preserve declared capability and actual position MoveWalk, with prepaid field/name/shape work.",
+  "commands": [
+    {
+      "name": "original177-01",
+      "command_record": "/workspace/scratch/39be3faa4442/run-logs/205-types-legacy-followup/original177-01/command.json",
+      "command_sha256": "56308932e40ec80cafbf8e00f31904985f305dc70c0d51041d7bbc89680549b2",
+      "source_commit": "0317a093ade0118741d334c45438ade07e9d7228",
+      "git_status": " M crates/zil-types/src/state_origins.rs\n",
+      "status": "Pass",
+      "groups": [
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    },
+    {
+      "name": "raw-forward01",
+      "command_record": "/workspace/scratch/39be3faa4442/run-logs/205-types-legacy-followup/raw-forward01/command.json",
+      "command_sha256": "1c11efc54fa1f6023b80b53b5bf6f6be89be5ef06bc6f98f3466d6e8c6488272",
+      "source_commit": "0317a093ade0118741d334c45438ade07e9d7228",
+      "git_status": " M crates/zil-driver/tests/impl205_raw.rs\n M crates/zil-types/src/state_origins.rs\n",
+      "status": "Pass",
+      "groups": [
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    },
+    {
+      "name": "final-local01",
+      "command_record": "/workspace/scratch/39be3faa4442/run-logs/205-types-legacy-followup/final-local01/command.json",
+      "command_sha256": "c7bd07f8f64f06adef481a15555201d905af34299ffb1979684d84764d45ff7d",
+      "source_commit": "d71758d2be95995aeb4a9b690fa62ee0095a3797",
+      "git_status": "",
+      "status": "Pass",
+      "groups": [
+        {
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 7,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 16,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    },
+    {
+      "name": "final-original177-01",
+      "command_record": "/workspace/scratch/39be3faa4442/run-logs/205-types-legacy-followup/final-original177-01/command.json",
+      "command_sha256": "3c22065edcfb49426bd463a08c07cd66d9cca0782a42af41056116309c859276",
+      "source_commit": "d71758d2be95995aeb4a9b690fa62ee0095a3797",
+      "git_status": "",
+      "status": "Pass",
+      "groups": [
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    },
+    {
+      "name": "final-producer01",
+      "command_record": "/workspace/scratch/39be3faa4442/run-logs/205-types-legacy-followup/final-producer01/command.json",
+      "command_sha256": "8c7a9f1b0b9278ffca319d631a147925eea4d0448d7f59fef1231ce7abaaf220",
+      "source_commit": "d71758d2be95995aeb4a9b690fa62ee0095a3797",
+      "git_status": "",
+      "status": "Pass",
+      "groups": [
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    },
+    {
+      "name": "final-clippy01",
+      "command_record": "/workspace/scratch/39be3faa4442/run-logs/205-types-legacy-followup/final-clippy01/command.json",
+      "command_sha256": "b3852466e01ea519ba2657296e6c71ed0dfa1034f3ffebeb9c958eda8f13cd8c",
+      "source_commit": "d71758d2be95995aeb4a9b690fa62ee0095a3797",
+      "git_status": "",
+      "status": "Pass",
+      "groups": []
+    }
+  ],
+  "clean_counts": {
+    "source_raw_budget": {
+      "passed": 25,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 3,
+      "source_native_executions": 58
+    },
+    "original177": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "native_executions": 4
+    },
+    "producer_control": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "native_executions": 4
+    },
+    "clippy": "Pass limited zil-types/zil-driver lib and impl205 source/raw/budget"
+  },
+  "new_raw_test": "Both public Types APIs check 1/2-field F-to-G whole-State forwarding, FnOnce preservation, capability strengthening rejection, stronger-source acceptance and stale-versus-last-use alias pairs. No raw test is counted as native execution.",
+  "preserved_types_boundaries": {
+    "old_state": 5293,
+    "ordinary_eager": 88,
+    "replacement": 4498,
+    "loop_refresh_continue": 2935,
+    "protocol": "N / N-1 ResourceLimit / fresh N exact Typed equality"
+  },
+  "handoff": {
+    "status": "Fail",
+    "error_count": 1138,
+    "note": "Inherited handoff debt, not a language test Pass; exact output retained."
+  },
+  "not_claimed": [
+    "root full workspace after repair",
+    "final consumer with repaired CLI",
+    "full language 1.4",
+    "product",
+    "native Windows"
+  ],
+  "notes": [
+    "Dirty precommit observations retain exact patches and production/test source snapshots.",
+    "Clean final checks bind d71758d2; no old command or input identity was rewritten.",
+    "Author reuses independent producer test as a regression control; this is not a new independent review.",
+    "Counts overlap prior 205 runs and must not be added to them."
+  ],
+  "compact_archive": {
+    "integrity": "Pass",
+    "path": "/workspace/scratch/39be3faa4442/deliverables/205-types-legacy-followup-evidence-compact.zip",
+    "bytes": 2120857,
+    "sha256": "d8310aa9fd3c488cb967d49bd94d0d82ff3a8d9c7184fcd3f77d4da4d12d69a8",
+    "statistics": {
+      "logical_files": 1377,
+      "logical_bytes": 88673319,
+      "unique_contents": 687,
+      "unique_bytes": 44653556,
+      "excluded_execution_products": 66
+    },
+    "test_execution": "NotRun by packager"
+  },
+  "compact_archive_verification": {
+    "integrity": "Pass",
+    "statistics": {
+      "logical_files": 1377,
+      "logical_bytes": 88673319,
+      "unique_contents": 687,
+      "unique_bytes": 44653556,
+      "excluded_execution_products": 66
+    }
+  }
+}

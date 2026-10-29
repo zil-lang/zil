@@ -1,0 +1,1 @@
+import model;import factory;import adapter;fn main()->model.E!i32{let pending=adapter.forward(factory.make());let r=pending?;return model.read(r)-65}

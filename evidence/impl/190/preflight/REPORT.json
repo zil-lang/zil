@@ -1,0 +1,186 @@
+{
+  "status": "ReadOnlyPreflight",
+  "author": "/root/restore177_inventory",
+  "source_commit": "472b3ce052b850ef51fbfa3f8d818c51e080a112",
+  "binary_sha256": "ce756a21ab82ff8a06a000b0e7d765c7b608b2657b1674e906426d6d79df7066",
+  "proposal_baseline": "a07e0129a383fd95964875d85d7a91b383011e7e",
+  "rule": "ZIL-LANG-1.4",
+  "schema": 23,
+  "production_modified": false,
+  "observations": [
+    {
+      "case": "while_fn",
+      "source_file": "while_fn/main.zil",
+      "source_sha256": "f60bbc7bbcbd5c66a1b011ae5e3e7cb5877ac5bb1e0dc2bd42526745bd2265b5",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author187/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/while_fn/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/while_fn/phases"
+      ],
+      "original": "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/while_fn"
+    },
+    {
+      "case": "for_fn",
+      "source_file": "for_fn/main.zil",
+      "source_sha256": "de5d1da4ad8a29c0d72b9b29927931da540569e00915b05aff0c39f488343082",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author187/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/for_fn/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/for_fn/phases"
+      ],
+      "original": "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/for_fn"
+    },
+    {
+      "case": "while_fnmut",
+      "source_file": "while_fnmut/main.zil",
+      "source_sha256": "06ae896858b4ebbc0f432eebb463631db81cad1acb5657d70043fa18d74fccf3",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author187/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/while_fnmut/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/while_fnmut/phases"
+      ],
+      "original": "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/while_fnmut"
+    },
+    {
+      "case": "while_fnonce",
+      "source_file": "while_fnonce/main.zil",
+      "source_sha256": "096eab8fb57a099270968d46aba8e8a280734000930de5c60a9f55ce1b935809",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author187/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/while_fnonce/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/while_fnonce/phases"
+      ],
+      "original": "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/while_fnonce"
+    },
+    {
+      "case": "while_zero_calls",
+      "source_file": "while_zero_calls/main.zil",
+      "source_sha256": "6ad64b41bb10d006201995085cc76425bc15615c13e5ffeb393e8cdf2c0f0df7",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author187/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/while_zero_calls/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/while_zero_calls/phases"
+      ],
+      "original": "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/while_zero_calls"
+    },
+    {
+      "case": "ordinary_while_closure",
+      "source_file": "ordinary_while_closure/main.zil",
+      "source_sha256": "c29cb12d3ced90a00d7c5fa8f48008218f464f036bf6d4244c0bf9299ec90134",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author187/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/ordinary_while_closure/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/ordinary_while_closure/phases"
+      ],
+      "original": "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/ordinary_while_closure"
+    },
+    {
+      "case": "ordinary_for_closure",
+      "source_file": "ordinary_for_closure/main.zil",
+      "source_sha256": "8075a0e21b10b869cf650d6014a99a9978c81373a4c4ccc517645db7c89133e3",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author187/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/ordinary_for_closure/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/ordinary_for_closure/phases"
+      ],
+      "original": "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/ordinary_for_closure"
+    },
+    {
+      "case": "finite_helper",
+      "source_file": "finite_helper/main.zil",
+      "source_sha256": "54448635c76bd650f175156d0f94c9ae25a839c95c6f6f94fd30eebd71f84484",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author187/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/finite_helper/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/finite_helper/phases"
+      ],
+      "original": "/workspace/scratch/39be3faa4442/run-logs/190-preflight/probes472/finite_helper"
+    },
+    {
+      "case": "while_break",
+      "source_file": "while_break/main.zil",
+      "source_sha256": "7c8fea61d7c987b64bb43250fe719a2e1ea265ca60bd22b0c5eb835d8494e858",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author187/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/control-exits472/while_break.zil",
+        "--json"
+      ],
+      "original": "/workspace/scratch/39be3faa4442/run-logs/190-preflight/control-exits472"
+    },
+    {
+      "case": "while_continue",
+      "source_file": "while_continue/main.zil",
+      "source_sha256": "251d8f92fa0cb962a1d1e9f96e75da91b5dde785d0fb427292143dae55331065",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author187/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/190-preflight/control-exits472/while_continue.zil",
+        "--json"
+      ],
+      "original": "/workspace/scratch/39be3faa4442/run-logs/190-preflight/control-exits472"
+    }
+  ],
+  "scope": "Read-only preflight with exact historical 187 source, not a current-main or 188 validation",
+  "compiler_check_observations": 10,
+  "success_observations": 3,
+  "unsupported_observations": 7,
+  "native": "NotRun",
+  "raw_wire": "NotRun",
+  "full_workspace": "NotRun",
+  "full_language": "NotSatisfied"
+}

@@ -1,0 +1,119 @@
+{
+  "id": "187",
+  "status": "Pass",
+  "scope": "Limited author acceptance; independent review and mainline integration are separate",
+  "implementation_author": "/root/restore177_inventory",
+  "implementation_commit": "472b3ce052b850ef51fbfa3f8d818c51e080a112",
+  "baseline": "ebaddd7faf7b83b257b873e8544af0fef13e670a",
+  "rule_version": "1.4",
+  "schema_version": 23,
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "1068cda3fe79b906f49eeee4bd3f62863f9db4ae85e8a0dbaa3c439d310777b8",
+  "normative_input_hashes": {
+    "_zil_design.md": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+    "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+    "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+    "spec/diagnostics.json": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e",
+    "spec/interfaces.json": "00d65f1f27c418f752b40e6a8162b6c98c2d02bb295a7ca708301dbd2d98e464",
+    "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+    "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+  },
+  "production_source_hashes": {
+    "crates/zil-analyze/src/budget.rs": "7fd6b49893f95e8dfef6e7b138ab71440b7924b1b98bc9906c940b9730f103e2",
+    "crates/zil-analyze/src/helpers.rs": "a86964877c3f0da24bffa91d250c4f31be4acd627c6d00dcf1d050f4daf187ee",
+    "crates/zil-backend-llvm/src/emit.rs": "a872be7a08073c22260c08c913164297cc5566baf8c9c1417b3285f0c6eb5d79",
+    "crates/zil-lower/src/lib.rs": "dc57ed2ea316299552c71c0be4cb97dd7919dccdf84a70f08f9940f078901942",
+    "crates/zil-types/src/closures.rs": "035a9c05ceb90a499a7b85f240a8f7c2aadb84e48aa95e02211d4b00ff5cb010",
+    "crates/zil-types/src/helpers.rs": "043a8687d18bdb39f13e967d007dfcf81690d734d42d23ee20df95ce4084018f",
+    "crates/zil-verify/src/borrows.rs": "f7c4a346e3ae75b6bc3f367f41aa8f9df0d3238b0ee42f163aedac76179bb36a",
+    "crates/zil-verify/src/borrows/buffer_effects.rs": "7d3a86cbaaa7cf6a0e8636f6f34207e8cccbfddd5b4151d1d01baec9daba6c32",
+    "crates/zil-verify/src/borrows/captures.rs": "ea5ac97442fe394580e2e040766e7ceb99241acd1ccb3495129ac8d4050b6211",
+    "crates/zil-verify/src/borrows/loans.rs": "1b23b7b659d932e64e0fa55c5804fc7f36c8b4b4e4b866a916f6400831ef1782",
+    "crates/zil-verify/src/closures.rs": "6160fc0745eb5d3091227f13071e6a0cf5aa991cb21141c6d9d8fca56668550a",
+    "crates/zil-verify/src/helpers.rs": "162264c310ac2eec5fb4ba69d0803a8395e7f67f66ebc6e74046263f21d06242"
+  },
+  "tests": {
+    "driver": {
+      "passed": 130,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 9,
+      "receipt": "runs/frozen04/summary.json"
+    },
+    "analyze_library": {
+      "passed": 23,
+      "failed": 0,
+      "ignored": 0
+    },
+    "verify_library": {
+      "passed": 240,
+      "failed": 0,
+      "ignored": 0
+    },
+    "combined": {
+      "passed": 393,
+      "failed": 0,
+      "ignored": 0
+    },
+    "library_receipt": "runs/frozen-libs-cli01/libs/command.json",
+    "own_driver_groups": 23
+  },
+  "native": {
+    "source_test_executions": 68,
+    "O0": 34,
+    "O2": 34,
+    "consumer_executions": 48,
+    "consumer_ordinary": 12,
+    "consumer_instrumented": 36,
+    "actual_allocation_failures": 20,
+    "consumer_receipt": "runs/consumer02/summary.json",
+    "cli_receipt": "runs/frozen-libs-cli01/cli/command.json",
+    "cli_sha256": "ce756a21ab82ff8a06a000b0e7d765c7b608b2657b1674e906426d6d79df7066",
+    "platform": "x86_64 Linux",
+    "native_windows": "NotRun",
+    "wine": "NotRun"
+  },
+  "negative_sources": {
+    "total": 35,
+    "verify_borrow_conflict": 29,
+    "analyze_description_lifetime": 2,
+    "types_explicit_unsupported": 4
+  },
+  "raw_wire": {
+    "pairs": 9,
+    "rejections": 18,
+    "candidate_and_diagnostics": "runs/frozen04/cases/borrowed-bytes187-*"
+  },
+  "verification_budget": {
+    "raw": {
+      "success": 11776,
+      "ResourceLimit": 11775
+    },
+    "wire": {
+      "success": 11776,
+      "ResourceLimit": 11775
+    },
+    "default_budgets_changed": false
+  },
+  "quality": {
+    "fmt": 0,
+    "clippy-libs": 0,
+    "clippy-driver": 0
+  },
+  "cold_handoff": {
+    "status": "Fail",
+    "receipt": "runs/quality01/handoff/command.json",
+    "reason": "Preserved historical normative/task snapshot failures; no task or handoff gate changed by author"
+  },
+  "review_receipts": [
+    "review-prepare188-continuity.json",
+    "review094-fixture-migration.json",
+    "review-prepare187-continuity.json"
+  ],
+  "independent_production_review": "Pending root receipt; author results do not self-approve production",
+  "full_workspace": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "evidence_selection": "SELECTION.json",
+  "generated_phase_index": "phase-artifact-index.jsonl"
+}

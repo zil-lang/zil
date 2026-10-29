@@ -1,0 +1,1 @@
+fn take(give b:ByteBuffer){}fn result()->i64{let b=bytes_new();let a=b;take(give b);return bytes_len(a);}

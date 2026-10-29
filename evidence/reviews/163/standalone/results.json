@@ -1,0 +1,640 @@
+[
+  {
+    "name": "package_refill_loop_cleanup",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/package_refill_loop_cleanup/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/package_refill_loop_cleanup/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/package_refill_loop_cleanup/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "ABCDCD",
+    "pass_result": true
+  },
+  {
+    "name": "package_refill_loop_cleanup",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/package_refill_loop_cleanup/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/package_refill_loop_cleanup/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/package_refill_loop_cleanup/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "ABCDCD",
+    "pass_result": true
+  },
+  {
+    "name": "local_and_imported_resource_identity",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/local_and_imported_resource_identity/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/local_and_imported_resource_identity/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/local_and_imported_resource_identity/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "",
+    "pass_result": true
+  },
+  {
+    "name": "local_and_imported_resource_identity",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/local_and_imported_resource_identity/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/local_and_imported_resource_identity/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/local_and_imported_resource_identity/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "",
+    "pass_result": true
+  },
+  {
+    "name": "local_and_imported_package_identity",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/local_and_imported_package_identity/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/local_and_imported_package_identity/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/local_and_imported_package_identity/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "",
+    "pass_result": true
+  },
+  {
+    "name": "local_and_imported_package_identity",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/local_and_imported_package_identity/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/local_and_imported_package_identity/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/local_and_imported_package_identity/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "",
+    "pass_result": true
+  },
+  {
+    "name": "method_effect_worklist_with_alias_arguments",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/method_effect_worklist_with_alias_arguments/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/method_effect_worklist_with_alias_arguments/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/method_effect_worklist_with_alias_arguments/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "",
+    "pass_result": true
+  },
+  {
+    "name": "method_effect_worklist_with_alias_arguments",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/method_effect_worklist_with_alias_arguments/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/method_effect_worklist_with_alias_arguments/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/method_effect_worklist_with_alias_arguments/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "",
+    "pass_result": true
+  },
+  {
+    "name": "same_origin_nominal_aliases_are_readonly",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/same_origin_nominal_aliases_are_readonly/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/same_origin_nominal_aliases_are_readonly/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/same_origin_nominal_aliases_are_readonly/O0-phases",
+      "--json"
+    ],
+    "status": "SafeReject",
+    "phase": "parse",
+    "diagnostics": [
+      {
+        "phase": "parse",
+        "category": "SafeReject",
+        "code": "E-PARSE-EXPECTED",
+        "message": "expected LBrace",
+        "span": {
+          "file": 0,
+          "start": 108,
+          "end": 109
+        },
+        "notes": []
+      }
+    ],
+    "verification_runs": 0,
+    "pass_result": false
+  },
+  {
+    "name": "same_origin_nominal_aliases_are_readonly",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/same_origin_nominal_aliases_are_readonly/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/same_origin_nominal_aliases_are_readonly/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/same_origin_nominal_aliases_are_readonly/O2-phases",
+      "--json"
+    ],
+    "status": "SafeReject",
+    "phase": "parse",
+    "diagnostics": [
+      {
+        "phase": "parse",
+        "category": "SafeReject",
+        "code": "E-PARSE-EXPECTED",
+        "message": "expected LBrace",
+        "span": {
+          "file": 0,
+          "start": 108,
+          "end": 109
+        },
+        "notes": []
+      }
+    ],
+    "verification_runs": 0,
+    "pass_result": false
+  },
+  {
+    "name": "bytebuffer_local_methods_do_not_import_extensions",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/bytebuffer_local_methods_do_not_import_extensions/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/bytebuffer_local_methods_do_not_import_extensions/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/bytebuffer_local_methods_do_not_import_extensions/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "",
+    "pass_result": true
+  },
+  {
+    "name": "bytebuffer_local_methods_do_not_import_extensions",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/bytebuffer_local_methods_do_not_import_extensions/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/bytebuffer_local_methods_do_not_import_extensions/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/bytebuffer_local_methods_do_not_import_extensions/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "",
+    "pass_result": true
+  },
+  {
+    "name": "receiver_and_argument_debts_precede_unrelated_local_cleanup",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/receiver_and_argument_debts_precede_unrelated_local_cleanup/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/receiver_and_argument_debts_precede_unrelated_local_cleanup/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/receiver_and_argument_debts_precede_unrelated_local_cleanup/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 1,
+    "stdout": "BAC",
+    "pass_result": true
+  },
+  {
+    "name": "receiver_and_argument_debts_precede_unrelated_local_cleanup",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/receiver_and_argument_debts_precede_unrelated_local_cleanup/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/receiver_and_argument_debts_precede_unrelated_local_cleanup/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/receiver_and_argument_debts_precede_unrelated_local_cleanup/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 1,
+    "stdout": "BAC",
+    "pass_result": true
+  },
+  {
+    "name": "readonly_callable_field_method_argument",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/readonly_callable_field_method_argument/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/readonly_callable_field_method_argument/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/readonly_callable_field_method_argument/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "",
+    "pass_result": true
+  },
+  {
+    "name": "readonly_callable_field_method_argument",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/readonly_callable_field_method_argument/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/readonly_callable_field_method_argument/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/readonly_callable_field_method_argument/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "",
+    "pass_result": true
+  },
+  {
+    "name": "imported_builtin_extension_is_not_ambient",
+    "kind": "negative",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/imported_builtin_extension_is_not_ambient/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/imported_builtin_extension_is_not_ambient/phases",
+      "--json"
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-ENTRY-SIGNATURE",
+        "message": "native main must take no parameters and return unit or i32, or a supported error union",
+        "span": {
+          "file": 0,
+          "start": 17,
+          "end": 66
+        },
+        "notes": []
+      }
+    ],
+    "pass_result": true
+  },
+  {
+    "name": "borrowed_descriptor_cannot_feed_give_receiver",
+    "kind": "negative",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/borrowed_descriptor_cannot_feed_give_receiver/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/borrowed_descriptor_cannot_feed_give_receiver/phases",
+      "--json"
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-GIVE-DESCRIPTOR",
+        "message": "a descriptor does not own the resource carrier",
+        "span": {
+          "file": 0,
+          "start": 109,
+          "end": 119
+        },
+        "notes": []
+      }
+    ],
+    "pass_result": true
+  },
+  {
+    "name": "old_byte_view_after_method_effect_chain",
+    "kind": "negative",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/old_byte_view_after_method_effect_chain/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/old_byte_view_after_method_effect_chain/phases",
+      "--json"
+    ],
+    "status": "SafeReject",
+    "phase": "verify",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "access overlaps an active address window without its delegated authority",
+        "span": {
+          "file": 0,
+          "start": 232,
+          "end": 242
+        },
+        "notes": []
+      }
+    ],
+    "pass_result": true
+  },
+  {
+    "name": "old_package_byte_view_after_owned_method",
+    "kind": "negative",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/old_package_byte_view_after_owned_method/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/old_package_byte_view_after_owned_method/phases",
+      "--json"
+    ],
+    "status": "SafeReject",
+    "phase": "verify",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use",
+        "span": {
+          "file": 0,
+          "start": 194,
+          "end": 195
+        },
+        "notes": []
+      }
+    ],
+    "pass_result": true
+  },
+  {
+    "name": "private_resource_method_through_factory",
+    "kind": "negative",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/private_resource_method_through_factory/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/private_resource_method_through_factory/phases",
+      "--json"
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-UNKNOWN-FIELD",
+        "message": "unknown field hidden",
+        "span": {
+          "file": 0,
+          "start": 54,
+          "end": 62
+        },
+        "notes": []
+      }
+    ],
+    "pass_result": true
+  },
+  {
+    "name": "private_package_method_through_factory",
+    "kind": "negative",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/private_package_method_through_factory/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/private_package_method_through_factory/phases",
+      "--json"
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-UNKNOWN-FIELD",
+        "message": "unknown field hidden",
+        "span": {
+          "file": 0,
+          "start": 54,
+          "end": 62
+        },
+        "notes": []
+      }
+    ],
+    "pass_result": true
+  },
+  {
+    "name": "nominal_wrong_static_receiver_cannot_pass_by_layout",
+    "kind": "negative",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/nominal_wrong_static_receiver_cannot_pass_by_layout/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/nominal_wrong_static_receiver_cannot_pass_by_layout/phases",
+      "--json"
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "expected Desc(Record { name: \"@module1:$module1_R\", fields: [(\"n\", I32)] }), found Desc(Record { name: \"@module0:$module0_R\", fields: [(\"n\", I32)] })",
+        "span": {
+          "file": 0,
+          "start": 77,
+          "end": 78
+        },
+        "notes": []
+      }
+    ],
+    "pass_result": true
+  },
+  {
+    "name": "owned_mutation_cannot_promise_shared_fn",
+    "kind": "negative",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/owned_mutation_cannot_promise_shared_fn/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/standalone/owned_mutation_cannot_promise_shared_fn/phases",
+      "--json"
+    ],
+    "status": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "opaque callable kind adaptation is not implemented; declared and actual Fn/FnMut/FnOnce kinds must match",
+        "span": {
+          "file": 0,
+          "start": 95,
+          "end": 132
+        },
+        "notes": []
+      }
+    ],
+    "pass_result": true
+  }
+]

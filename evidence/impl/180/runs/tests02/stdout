@@ -1,0 +1,16 @@
+
+running 11 tests
+test cross_function_aliases_cannot_hide_mutation_or_second_window ... ok
+test actual_copy_scalar_array_and_record_fields_update_in_place ... ok
+test live_exclusive_window_blocks_structure_metadata_and_responsibility_changes ... ok
+test managed_fields_whole_packages_and_escaping_windows_remain_closed ... ok
+test raw_and_wire_rebuild_mutability_index_shape_and_actual_holds ... ok
+test raw_and_wire_retargeted_structure_write_cannot_cross_exclusive_window ... ok
+test runtime_index_traps_before_address_even_when_capacity_has_spare_slots ... ok
+test shared_windows_cannot_be_upgraded_or_written ... ok
+test separate_store_fields_and_parameter_apart_checks_preserve_updates ... ok
+test whole_store_exclusive_loan_blocks_shared_and_other_exclusive_views ... ok
+test synchronous_helper_reborrows_then_last_use_allows_reserve_and_pop ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+

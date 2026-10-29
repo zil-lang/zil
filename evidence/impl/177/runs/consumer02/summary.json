@@ -1,0 +1,28 @@
+{
+  "status": "Fail",
+  "source_commit": "b786ebfe9dd9ce9c07b2a76afa7ae0bea0edf063",
+  "compiler_source_commit": "ccb9a2fb71cda9e707d08343a5a76579a713161f",
+  "cli_sha256": "8b266a140bdd6152753d674602d04b6d3715eb2f5cf4a1f7055537ac2bb6feb3",
+  "selected": [
+    "main",
+    "field_exit"
+  ],
+  "sources": {
+    "callbacks.zil": "60eca04279644fee58e4b6022b08192d8460df9ed9489792ff472c6285b6ba05",
+    "collection.zil": "aa853b039a91b3909830a797637dda2ea3ce157918c9cd7ced565e693fbd4d88",
+    "field_exit.zil": "d5eb6ffa22cac71e19880545a10eb1c017683710a333f03833897668e58eba10",
+    "main.zil": "681c339bfb7cb7728170f9ab68c264846aea1df5013ddd72b6f09bbfa5afd9a9",
+    "model.zil": "63350d883dc1844d8734d02337a3d3296d6743864545d68c2cb1b5e505a0c42b",
+    "state.zil": "43b53d55c1ee092db4d6837dbde936e8c99d2d4741ed86e6a6eefddc82fea1ff"
+  },
+  "allocator_sources": {
+    "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+    "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5"
+  },
+  "builds": [],
+  "observations": [],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "error_type": "RuntimeError",
+  "error": "main/O0: {'status': 'Unsupported', 'phase': 'expand', 'diagnostics': [{'phase': 'expand', 'category': 'Unsupported', 'code': 'E-UNSUPPORTED', 'message': 'generic mutable borrow or managed give requires capability checking', 'span': {'file': 2, 'start': 504, 'end': 515}, 'notes': []}], 'artifacts': {'syntax': '/workspace/scratch/39be3faa4442/run-logs/177/consumer02/main/O0/phases/syntax.txt'}, 'input_fingerprint': '353fba66ad18e7ff4e83cc1a4be9ac59df3e51872b7d42cfc3f2a17b3bad342d', 'seconds': 0.041686807, 'cache_hit': False, 'commands': [], 'disk_cache': 'disabled', 'query_events': [{'phase': 'parse', 'disposition': 'executed'}, {'phase': 'parse', 'disposition': 'executed'}, {'phase': 'parse', 'disposition': 'executed'}, {'phase': 'parse', 'disposition': 'executed'}, {'phase': 'parse', 'disposition': 'executed'}, {'phase': 'expand', 'disposition': 'executed'}], 'verification_runs': 0, 'source_files': {'0': '/workspace/scratch/39be3faa4442/zil-restored/wt177/examples/mainline/zui_language177/main.zil', '1': '/workspace/scratch/39be3faa4442/zil-restored/wt177/examples/mainline/zui_language177/model.zil', '2': '/workspace/scratch/39be3faa4442/zil-restored/wt177/examples/mainline/zui_language177/state.zil', '3': '/workspace/scratch/39be3faa4442/zil-restored/wt177/examples/mainline/zui_language177/callbacks.zil', '4': '/workspace/scratch/39be3faa4442/zil-restored/wt177/examples/mainline/zui_language177/collection.zil'}, 'scalar_interfaces': []}"
+}

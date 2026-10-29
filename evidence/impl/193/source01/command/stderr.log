@@ -1,0 +1,4 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt193/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.36s
+     Running tests/impl193_slice_arguments.rs (/workspace/scratch/39be3faa4442/targets178/author193/debug/deps/impl193_slice_arguments-f5505aa925e384ac)
+error: test failed, to rerun pass `-p zil-driver --test impl193_slice_arguments`

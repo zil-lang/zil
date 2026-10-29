@@ -1,0 +1,1 @@
+struct A{n:i32}struct B{n:i32}fn keep<T:Copy,F:Fn()->i32>(f:&F,x:T)->T{f();return x}fn main()->i32{let f=move()=>1;let a=keep(&f,A{n:7});let b=keep(&f,B{n:9});return a.n+b.n-16}

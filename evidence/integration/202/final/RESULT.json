@@ -1,0 +1,159 @@
+{
+  "status": "Pass",
+  "scope": "202 complete ordinary StoreElement template binding; not full1.4 or product completion",
+  "source_commit": "b73ba8a764ee605c1ba8e3a651eb2c6baece8197",
+  "source_clean": true,
+  "source_objects": {
+    "crates": "edda15a71b3bbcfa47e36697419065a08c9069fb",
+    "examples": "07c5d163e613f2d34722977d4199a8f646597c31",
+    "tools": "539195cdcc5c94badc72a7fe243c7ac7a49f5fc3",
+    "Cargo.toml": "71adfaea2deb83d99a108a0aa43e6c47937fe3b5",
+    "Cargo.lock": "38a62627c9e74866270068f2594959001ee00fe3",
+    "_zil_design.md": "0dfda5dae5bb1e0196fe292c5ab7cf0cc04ffa20",
+    "spec": "5258e25c21422f7621b0c38242710a321f68eb6f",
+    "policy/dependencies.json": "59fbacb84e9daa791c501fa94eac41ff01cdb7e4",
+    "validation/product-gates.json": "14d352d66503ba948a55b673ccb913ffb3e5842e"
+  },
+  "scope_equivalent_main_before_receipt": "5ae40b84e7682a0d81587e2ee2d548f0f4594ddd",
+  "spec_hash": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+  "normative_hash": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+  "schema_version": 26,
+  "command": [
+    "cargo",
+    "test",
+    "--workspace",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--no-fail-fast"
+  ],
+  "passed": 2319,
+  "failed": 0,
+  "ignored": 0,
+  "test_result_groups": 241,
+  "duration_seconds": 148.90973377227783,
+  "stdout_log_sha256": "b4ad1de2d6753f62052e640f1e0092fb0d9aec066300a5e1c0d858372f0e1669",
+  "stderr_log_sha256": "6790780ec53cfa1f922d19952b8b4d9889c97cc4c3f915293435f3dff3a72e0e",
+  "independent_review": {
+    "path": "evidence/reviews/202/by197/REVIEW.json",
+    "implementation_commit": "b73ba8a764ee605c1ba8e3a651eb2c6baece8197",
+    "review_commit": "90b501526069a16f60a233fe0dafa41a0480018f",
+    "original_review_commit": "4c5f35162b4359d886c92cdb5fb93fe4d95b0e8e",
+    "actual_tested_source": "988da100191c163ed5afcd87e3186189cacaf468",
+    "verdict": "Pass",
+    "targeted_tests": 26,
+    "native_source_executions": 34,
+    "linux_consumer_executions": 126,
+    "actual_allocation_failures": 86
+  },
+  "compiler": {
+    "source_commit": "7698369cc8c4b6f50d5971ec975040417c92f841",
+    "sha256": "0f41b91e1c34a6831b3e9a882642eef0df6c5d5b30520f76a7b9c8a77e4ecf2b",
+    "build": "cli03/command.json",
+    "clippy_all_workspace_all_targets": "Pass at same source, clippy04/command.json"
+  },
+  "author_evidence": {
+    "frontend": "evidence/impl/202/frontend/SUMMARY.json",
+    "expand": "evidence/impl/202/expand/SUMMARY.json",
+    "expand_shadow": "evidence/impl/202/expand-shadow/SUMMARY.json",
+    "expand_pop": "evidence/impl/202/expand-pop/SUMMARY.json",
+    "consumer": "evidence/impl/202/consumer/SUMMARY.json",
+    "frontend_final_tests": 14,
+    "frontend_native": 22,
+    "types_library_tests": 18,
+    "expand_final_tests": 17,
+    "linux_consumer": 126,
+    "wine_consumer": 126,
+    "actual_allocation_failures_per_platform": 86,
+    "all_live_zero": true,
+    "wine_bad_operations_zero": true,
+    "counts_overlap_and_are_not_summed": true
+  },
+  "migration_reviews": [
+    "evidence/reviews/202/by197/MIGRATION.json",
+    "evidence/reviews/202/by197/CLIPPY_MIGRATION.json",
+    "evidence/reviews/202/by197/CLIPPY_MIGRATION_486.json"
+  ],
+  "preserved_failures": "Exact original lexical-shadow, unused raw metadata, pop dependency and return-context defects, author/reviewer fixture errors, compiler identity refusal, missing LLVM shared-library InfraError, old expectations and Clippy failures are retained separately. No failed run was relabelled as a final Pass.",
+  "root_external_archive": {
+    "file": "202-integration-evidence.zip",
+    "bytes": 135091,
+    "sha256": "73841c7dfc1a5bfcb2a1754a1e1f4827e9a5f88afd49b11b0a282bb255504bb8",
+    "payload_files": 54,
+    "excluded_paths": 1,
+    "all_payload_sha256_and_crc_verified": true,
+    "source_commit": "b73ba8a764ee605c1ba8e3a651eb2c6baece8197"
+  },
+  "combined_external_archive": {
+    "file": "zil-language-202-evidence.zip",
+    "bytes": 28627224,
+    "sha256": "af2aa8a81ec4d5ac140bf5dfc45f161484c05b2a37a9b5053e24d5ab374f216b",
+    "components": [
+      {
+        "file": "202-types-author-evidence.zip",
+        "bytes": 8102607,
+        "sha256": "17dad6a62c86d8fee4a0bc5b139dec756ff57a852cb165e6b5f2fc5b79f77649",
+        "nested_zip_crc_verified": true
+      },
+      {
+        "file": "202-review-by197-evidence.zip",
+        "bytes": 18083149,
+        "sha256": "b29442b742d26391d2c0c722f802d74502f124642587b732d865011a3c6f827f",
+        "nested_zip_crc_verified": true
+      },
+      {
+        "file": "202-consumer-evidence.zip",
+        "bytes": 1740764,
+        "sha256": "343c0eb07d2047e4e70bbfae5ced44bf9de0c0de40a7f809fa5b2c3a716fe263",
+        "nested_zip_crc_verified": true
+      },
+      {
+        "file": "202-expand-evidence.zip",
+        "bytes": 177159,
+        "sha256": "485cea7ca262f67815b5429ebbef0a0c22ed6caba6209a2abd18ea2b7758da8c",
+        "nested_zip_crc_verified": true
+      },
+      {
+        "file": "202-expand-shadow-evidence.zip",
+        "bytes": 170725,
+        "sha256": "8c55639a518fd664c62666e7e30f885ccd0c3adf8c0c0d6f525f4fb58d99e25a",
+        "nested_zip_crc_verified": true
+      },
+      {
+        "file": "202-expand-pop-evidence.zip",
+        "bytes": 214659,
+        "sha256": "8ea71828dbc7f04072be69deeeddf3c1c10ee9c31fd52b3eb7751cfc86999a62",
+        "nested_zip_crc_verified": true
+      },
+      {
+        "file": "202-integration-evidence.zip",
+        "bytes": 135091,
+        "sha256": "73841c7dfc1a5bfcb2a1754a1e1f4827e9a5f88afd49b11b0a282bb255504bb8",
+        "nested_zip_crc_verified": true
+      }
+    ],
+    "all_nested_archives_byte_identical_and_crc_verified": true
+  },
+  "closed_full_workspace_archive": {
+    "archive": "/workspace/scratch/39be3faa4442/run-logs/202-root/zil202-integration01-closed-nonexecutables.zip",
+    "bytes": 109077569,
+    "sha256": "7b60c2f17b59c635bbeac7199725f814fa30df3a06a69d6beecfcb178d95b04c",
+    "source": "/dev/shm/zil202-integration01",
+    "source_commit": "b73ba8a764ee605c1ba8e3a651eb2c6baece8197",
+    "run_status": "Pass",
+    "file_count": 48721,
+    "original_bytes": 2384327233,
+    "machine_products_hash_only": 1934,
+    "all_payload_sha256_and_crc_verified": true,
+    "originals_removed_after_reverification": true,
+    "shm_available_after": 2598944768
+  },
+  "historical_handoff": "handoff01 remains Fail for historical records/objects (1138 errors); no 178..202 slice error. Formal plan check is separate and does not prove language correctness.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing",
+  "native_windows": "NotRun",
+  "formal_draft_product_pipeline": "NotRun",
+  "compiler_speed_claim": "None; separate workstream",
+  "remaining_priority": "203 two independent F/G State bindings and bounded heterogeneous callback Store; remaining full1.4 obligations retained."
+}

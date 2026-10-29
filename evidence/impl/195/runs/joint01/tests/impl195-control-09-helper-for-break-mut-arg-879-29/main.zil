@@ -1,0 +1,1 @@
+fn run<F:FnMut(&mut i32)->i32>(f:&mut F,p:&mut i32,n:i32)->i32{var total=0;for index in 0..n{if index==2{break};total+=f(p)}return total}fn main()->i32{var step=0;var f=move(p:&mut i32)=>{step+=1;*p+=1;return *p};var value=0;return run(&mut f,&mut value,5)-3+value-2}

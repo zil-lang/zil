@@ -1,0 +1,1 @@
+pub fn create()->ByteBuffer contract{result(create);}{return bytes_new();}pub fn fill(b:ByteBuffer)->bool{return bytes_reserve(b,2)&&bytes_push(b,4u8)&&bytes_push(b,5u8);}pub fn view(b:ByteBuffer)->&[u8]{return bytes_view(b);}pub fn view_mut(b:ByteBuffer)->&mut[u8]{return bytes_view_mut(b);}

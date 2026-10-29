@@ -1,0 +1,218 @@
+[
+  {
+    "case": "owned-results166-3004-14",
+    "sources": {
+      "main.zil": "3e5e4b4404a0464c64078ff39705e0da806050a5f70574ddc22816f82d1165e1"
+    },
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "report_sha256": "1f7993f17101ccc850f3a66abf1f99d518cc4bf840eeff8db5cc4b2128929030",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 4 is not initialized on every incoming path"
+      }
+    ]
+  },
+  {
+    "case": "owned-results166-3004-18",
+    "sources": {
+      "main.zil": "a29612ed1cb04dd8742bb91ba7cea889c4d3b973017bfa61ee90073e94faf866"
+    },
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "report_sha256": "79d467f1739c75eae8b4ca6acb0e6bfd688dd5440162d8413e99d3b00d10fb90",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: whole package move requires every Managed field live"
+      }
+    ]
+  },
+  {
+    "case": "owned-results166-3004-19",
+    "sources": {
+      "main.zil": "cd1c6c7af3949d0bf6bdb753b0b8607bb5c8e19795df6ae37d123ff0c91a8f16"
+    },
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "report_sha256": "02c0f2024829ee29ff54262e88998da7bbaeb11cc2ff5a9917af42c1f852b6d6",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: head transition invalidates a description required later"
+      }
+    ]
+  },
+  {
+    "case": "owned-results166-3004-20",
+    "sources": {
+      "main.zil": "f08d2d44c9a27807f1e5967a854285963debb2fb162bf8037654400f250ff59b"
+    },
+    "status": "Unsupported",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "9adcc3546d20a6e9eb2698d4bcc29d09796a74f467a45ac18f4d95711998a8d3",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "error union payloads require finite Copy values or complete owned Packages"
+      }
+    ]
+  },
+  {
+    "case": "owned-results166-3004-21",
+    "sources": {
+      "main.zil": "ea87aba63686d9dcd7590005ca5d76729a14b85e9008dc20609d094b642f863f"
+    },
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "0d1db1c6186c108e2152463031153e9a6389ae842c4cd5c7eeb6dbd188e87eea",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-GIVE-TYPE",
+        "message": "give requires a managed resource carrier"
+      }
+    ]
+  },
+  {
+    "case": "owned-results166-3004-22",
+    "sources": {
+      "main.zil": "88aab184f6c3fcf6cf090682ed1cb53e77bfa766cff3db4256e365f93c35e211"
+    },
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "bc97114c99dc3a8dd4b339b7d63ebe0b56ab03d5fd557bafaa1f6b787e0f350d",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-ERROR-INJECTION-AMBIGUOUS",
+        "message": "the value matches both error and success; equal payload types need an explicit tagged value"
+      }
+    ]
+  },
+  {
+    "case": "owned-results166-3004-23",
+    "sources": {
+      "main.zil": "7fdde1e8bf0821fa6444f4294f058b6cc6429a540919d47156031a0280ce6a1a"
+    },
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "c209c984af4871a0593a89ae549e0f8379bdf30e466ac0f68819f6fdea287bd9",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TRY-ERROR-TYPE",
+        "message": "? requires exactly the enclosing error type; error conversion is explicit"
+      }
+    ]
+  },
+  {
+    "case": "owned-results166-3004-24",
+    "sources": {
+      "main.zil": "a0239df77076a441886f30a2844d841fecf3f7dbb7ac3729cc7848faacbe495a"
+    },
+    "status": "Unsupported",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "e9400181b8c9903b7210b7403289d1b6dadfcd9747d8deaf35d509f0331c5cca",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "closure value requires a finite Copy type"
+      }
+    ]
+  },
+  {
+    "case": "owned-results166-3004-28",
+    "sources": {
+      "main.zil": "4fca05bac3afec88ff62a762601ccd1e83e81d365b4432af140b276c755d7d15"
+    },
+    "status": "SafeReject",
+    "phase": "ct",
+    "verification_runs": 0,
+    "report_sha256": "a4ccea664f713967751e9311b208ab6db68fad2bf59fd85e2f0d05114014b9e5",
+    "diagnostics": [
+      {
+        "phase": "ct",
+        "category": "SafeReject",
+        "code": "E-CT-FORBIDDEN",
+        "message": "CT program supports serializable pure Copy values only"
+      }
+    ]
+  },
+  {
+    "case": "owned-results166-3004-30",
+    "sources": {
+      "main.zil": "bbaaf59e84a7edb2c9f8ae36f56caaa6caa9991ef3c773663d5c1b06fa767746"
+    },
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "report_sha256": "ed1a38efef69fc30b39eff3a38d1fce9d88ec9e6d0b13f371aec1aebeb442486",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use"
+      }
+    ]
+  },
+  {
+    "case": "owned-results166-3004-35",
+    "sources": {
+      "main.zil": "6d5dd4674c697e7342cac0d2ae254d9efeb2b58b0665611afbbaa80941643127"
+    },
+    "status": "Unsupported",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "f19ceedcd902c4ef2c6f5fcd1ecd63172ccecce861b7e740e07e33ec09c87464",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "owned error-union whole-local reassignment requires a retained slot"
+      }
+    ]
+  },
+  {
+    "case": "owned-results166-3004-6",
+    "sources": {
+      "main.zil": "8aaa4f7b05dcb4ae4219e46cb2b095eb9e885d27913570ab97411aac648fca5d"
+    },
+    "status": "Unsupported",
+    "phase": "codegen",
+    "verification_runs": 1,
+    "report_sha256": "810ec16fbbf499cbb4fb291cc8fde15ba82950fba8278bda0674b0ee78f4b2c0",
+    "diagnostics": [
+      {
+        "phase": "codegen",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "native main must return i32, unit, E!i32, or E!unit"
+      }
+    ]
+  }
+]

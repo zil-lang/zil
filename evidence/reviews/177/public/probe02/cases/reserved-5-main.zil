@@ -1,0 +1,1 @@
+fn unused<T>(x:T)->T{let store_at=x;return store_at}fn main(){}

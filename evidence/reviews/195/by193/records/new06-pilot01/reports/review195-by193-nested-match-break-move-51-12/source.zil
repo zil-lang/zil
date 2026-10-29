@@ -1,0 +1,1 @@
+fn keep<T>(value:T,mode:i32)->T{for outer in 0..3{var inner=0;while inner<2{inner+=1;match mode{0=>{return value},1=>{let taken=value;break},_=>{continue}}}break}return value}fn main()->i32{return keep(7,1)-7}

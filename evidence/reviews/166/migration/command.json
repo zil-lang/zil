@@ -1,0 +1,32 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-verify",
+    "--lib",
+    "owning_error_union_local_relabeling_still_requires_actual_injection",
+    "-j",
+    "2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review166",
+  "source_commit": "fc03263d5fd3dfad17e3c40a28e37197bfee73ff",
+  "crates_tree": "5c875cc187d689204281f7fbc8f30e4f25aad7d0",
+  "source_status": "",
+  "start": 1793101117.47015,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "9f23403b5bb8ea0e534877661154c322f8bcb5aced2d8719d4d289f42d020a09",
+  "end": 1793101122.9676373,
+  "seconds": 5.497487306594849,
+  "tests": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 1
+  },
+  "ending_crates_tree": "5c875cc187d689204281f7fbc8f30e4f25aad7d0",
+  "ending_source_status": ""
+}

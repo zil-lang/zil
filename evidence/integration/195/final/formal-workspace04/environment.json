@@ -1,0 +1,16 @@
+{
+  "source_commit": "1bf8cf548a4648c597a67bf54b09f6200520e4e2",
+  "git_status": "",
+  "start_utc": "2026-10-28T06:13:31.842382+00:00",
+  "TMPDIR": "/dev/shm/zil195-formal04-y_cq5eve/tmp",
+  "tmp_initially_empty": true,
+  "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/formal195",
+  "target_reused_from": "formal195 current compiled code; no cache invalidation",
+  "temporary_filesystem": "independent tmpfs, executable native programs; no user source or default compiler limits changed",
+  "free_tmp_bytes_at_start": 5225717760,
+  "free_tmp_inodes_at_start": 1275809,
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+  "clang": "Ubuntu clang version 17.0.6 (++20231209124227+6009708b4367-1~exp1~20231209124336.77)",
+  "no_comparative_performance_claim": true
+}

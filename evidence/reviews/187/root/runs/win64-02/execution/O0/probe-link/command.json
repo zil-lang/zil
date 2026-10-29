@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/lld-link",
+    "/machine:x64",
+    "/subsystem:windows",
+    "/entry:zil.pe.entry",
+    "/nodefaultlib",
+    "/timestamp:0",
+    "/out:/workspace/scratch/39be3faa4442/run-logs/187-review/win64-02/execution/O0/allocation-probe.exe",
+    "/workspace/scratch/39be3faa4442/run-logs/187-review/win64-02/execution/O0/probe.obj",
+    "/workspace/scratch/39be3faa4442/run-logs/187-review/win64-02/execution/O0/heap_probe.obj",
+    "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernel32.lib",
+    "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/msvcrt.lib",
+    "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernelbase.lib"
+  ],
+  "status": "Completed",
+  "start": 1793157417.818071,
+  "stdin_hex": "",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793157417.8330433
+}

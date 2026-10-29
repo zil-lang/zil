@@ -1,0 +1,132 @@
+[
+  {
+    "name": "desc_write_current_head",
+    "exit": 1,
+    "status": "SafeReject",
+    "phase": "verify",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "access overlaps an active address window without its delegated authority",
+        "span": {
+          "file": 0,
+          "start": 98,
+          "end": 101
+        },
+        "notes": []
+      }
+    ],
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets178/author182/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/180-readonly97/probes01/desc_write_current_head.zil",
+      "--json"
+    ]
+  },
+  {
+    "name": "mixed_disjoint_actual_head",
+    "exit": 0,
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets178/author182/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/180-readonly97/probes01/mixed_disjoint_actual_head.zil",
+      "--json"
+    ]
+  },
+  {
+    "name": "mixed_no_head_control",
+    "exit": 0,
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets178/author182/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/180-readonly97/probes01/mixed_no_head_control.zil",
+      "--json"
+    ]
+  },
+  {
+    "name": "current_call_address_parameter",
+    "exit": 3,
+    "status": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "closure value requires a finite Copy type",
+        "span": {
+          "file": 0,
+          "start": 61,
+          "end": 65
+        },
+        "notes": []
+      }
+    ],
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets178/author182/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/180-readonly97/probes01/current_call_address_parameter.zil",
+      "--json"
+    ]
+  },
+  {
+    "name": "desc_read_current_head",
+    "exit": 0,
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets178/author182/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/180-readonly97/probes01/desc_read_current_head.zil",
+      "--json"
+    ]
+  },
+  {
+    "name": "hidden_desc_read_head",
+    "exit": 0,
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets178/author182/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/180-readonly97/probes01/hidden_desc_read_head.zil",
+      "--json"
+    ]
+  },
+  {
+    "name": "helper_address_parameter",
+    "exit": 3,
+    "status": "Unsupported",
+    "phase": "expand",
+    "diagnostics": [
+      {
+        "phase": "expand",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "operation on an unconstrained type parameter requires a declared bound",
+        "span": {
+          "file": 0,
+          "start": 66,
+          "end": 69
+        },
+        "notes": []
+      }
+    ],
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets178/author182/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/180-readonly97/probes01/helper_address_parameter.zil",
+      "--json"
+    ]
+  }
+]

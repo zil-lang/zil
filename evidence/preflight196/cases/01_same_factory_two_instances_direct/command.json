@@ -1,0 +1,28 @@
+{
+  "case": "01_same_factory_two_instances_direct",
+  "purpose": "Distinct runtime environments of one factory concrete type",
+  "source_sha256": "e1bee2ddf056853fa932c1ff3d20b59d905ca2a3640f5b29d300f91b61d99ec4",
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/01_same_factory_two_instances_direct/source.zil",
+    "--stop-after",
+    "verify",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/01_same_factory_two_instances_direct/phases",
+    "--json"
+  ],
+  "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+  "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+  "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+  "exit_code": 0,
+  "start": 1793165162.2717905,
+  "end": 1793165162.287555,
+  "status": "Success",
+  "phase": "verify",
+  "expected_current_status": "Success",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "stdout_sha256": "d5c15fa94ba1e1d957cb26a27fe93c1114f7a52cdcfc10507fa9ed636b0d3af9",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

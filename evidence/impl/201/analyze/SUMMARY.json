@@ -1,0 +1,222 @@
+{
+  "task": "201",
+  "component": "Analyze",
+  "author": "/root/bundle_sync",
+  "kind": "author component evidence; not independent approval",
+  "schema_version": 25,
+  "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
+  "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+  "production_commit": "064f96cf318b1a9121a3591bc4b64a3246d41439",
+  "final_source_test_commit": "175126856d7d78085c0ca0547833db1925b1f279",
+  "production_files": [
+    {
+      "path": "crates/zil-analyze/src/dynamic_store.rs",
+      "sha256": "07be989e29cb8c6d73dd70ce3ac4ba74d6022ee4d4ac146e6005cd6da62aff8c"
+    },
+    {
+      "path": "crates/zil-analyze/src/budget.rs",
+      "sha256": "8b73041552c936ca4aadb42e1a94c7c3615485cda2e5ece896f94434a92918ec"
+    },
+    {
+      "path": "crates/zil-analyze/src/resources.rs",
+      "sha256": "922b5452827d226442d56082012f88d2d62800f716217aa11db12177912d9de1"
+    }
+  ],
+  "runs": [
+    {
+      "name": "baseline01",
+      "source_commit": "cbaf40b936bf54a7f9b7d0ad9b3ce7c59e39231a",
+      "git_status": "",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl201_store",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "record_path": "commands/baseline01/command.json",
+      "record_sha256": "702169f3c30a875118ac7f630447b4e5286671ab81fd07a2c2370b92cda21e24"
+    },
+    {
+      "name": "driver-compile01",
+      "source_commit": "3017a148a8dbd40f7b03d2817e337da540ea4714",
+      "git_status": "",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl201_analyze_store",
+        "--no-run"
+      ],
+      "exit_code": 0,
+      "tests_passed": null,
+      "tests_failed": null,
+      "record_path": "commands/driver-compile01/command.json",
+      "record_sha256": "b306835436f6acce9528adf3aa24fa85e710bc9bd42691fbd192a6a03b3bab03"
+    },
+    {
+      "name": "raw01",
+      "source_commit": "064f96cf318b1a9121a3591bc4b64a3246d41439",
+      "git_status": "",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl201_store",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "tests_passed": 9,
+      "tests_failed": 0,
+      "record_path": "commands/raw01/command.json",
+      "record_sha256": "cf5a1d1de1a49ac4fb7d8bbb69162f89f274d7817f992c1b785a74996b785a9b"
+    },
+    {
+      "name": "regression01",
+      "source_commit": "064f96cf318b1a9121a3591bc4b64a3246d41439",
+      "git_status": "",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "budgets",
+        "--test",
+        "package_budgets",
+        "--test",
+        "impl196_roles",
+        "--test",
+        "impl200_constructor",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "tests_passed": 35,
+      "tests_failed": 0,
+      "record_path": "commands/regression01/command.json",
+      "record_sha256": "c2a339b7662329452f1f367ab1ba62b57f9ec857111d4e8c12eef0a794df2a27"
+    },
+    {
+      "name": "source01",
+      "source_commit": "8386cbbcd37f5eb03d688fe7070d7f220bbb90ad",
+      "git_status": "",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl201_analyze_store",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "tests_passed": 6,
+      "tests_failed": 0,
+      "record_path": "commands/source01/command.json",
+      "record_sha256": "27ea1c53ad0695f8c4bbc6f242905a042253aa40de56cd5fe5159f16ca6c7b66"
+    },
+    {
+      "name": "source02",
+      "source_commit": "175126856d7d78085c0ca0547833db1925b1f279",
+      "git_status": "",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl201_analyze_store",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "tests_passed": 7,
+      "tests_failed": 0,
+      "record_path": "commands/source02/command.json",
+      "record_sha256": "41d9ccb3e9fffcded8b28827f934c4b8189731cfe510266535bcfa96ad7f0e08"
+    }
+  ],
+  "exact_analyze_budgets": {
+    "ordinary_before_and_after": 561,
+    "raw_single": 772,
+    "raw_double_narrow": 1031,
+    "raw_double_wide": 2023,
+    "raw_lending": 1613,
+    "source_original02": 14578,
+    "source_split": 51708,
+    "source_lending": 15633
+  },
+  "each_budget_checks": [
+    "N succeeds",
+    "N-1 Analyze ResourceLimit",
+    "fresh/exact/default CandidatePlan equality"
+  ],
+  "source_raw_wire_final_each": {
+    "success": 5,
+    "safe_reject": 4,
+    "unsupported": 1
+  },
+  "originals": [
+    {
+      "name": "original02",
+      "bytes": 626,
+      "sha256": "23faee6a4575e6c522fa8ffed71d929dfd8463241197c7760cbe670f11f65fa8",
+      "preflight_byte_identical": true
+    },
+    {
+      "name": "split",
+      "bytes": 1157,
+      "sha256": "003e862d7741c0a7cdfc47b6263860c73641c912d69ec7a55a23d9840eeea5bf",
+      "preflight_byte_identical": true
+    },
+    {
+      "name": "package-store-capture",
+      "bytes": 484,
+      "sha256": "5d430f79813e995268368bcbe3c3918e1de093007e5802f79d4f88f196905853",
+      "preflight_byte_identical": true
+    }
+  ],
+  "preserved_first_attempt": "source01 shared-FnMut only changed type claim; Verify E-VERIFY-TYPE. source02 additionally changes actual ReborrowAddress and reaches E-VERIFY-CLOSURE-CALL. Both retained.",
+  "not_run": [
+    "native execution by this component",
+    "Win64/Wine by this component",
+    "native Windows",
+    "formal workspace acceptance",
+    "Analyze/Verify/native for source Package-with-Store capture (Types Unsupported)"
+  ],
+  "layout_boundary": "Analyze checks finite shapes and actual captures. Verify independently checks nonzero/overflow/closure flags/cycles; LLVM computes actual layout.",
+  "archive": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/201-analyze-evidence.zip",
+    "bytes": 979784,
+    "sha256": "e9a52d7b1024478f06cb93e0ee1fbcf1bfd9b66cddc3a2b9a79c7aee5a42e32a",
+    "payload_files": 442,
+    "crc_test": "Pass",
+    "every_payload_sha256_verified": true,
+    "compiled_artifacts_included": false
+  }
+}

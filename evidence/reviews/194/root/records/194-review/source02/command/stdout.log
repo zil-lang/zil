@@ -1,0 +1,75 @@
+
+running 18 tests
+test copy_nested_instance_fix_does_not_change_the_store_element_profile ... ok
+test copy_bound_does_not_admit_other_categories_or_resource_descriptions ... ok
+test multiple_roles_unbounded_data_mixed_modes_and_recursion_remain_closed ... ok
+test closure_environment_is_not_inferred_to_be_a_copy_code_pointer ... ok
+test four_module_instantiation_retains_definition_and_nominal_types ... ok
+test borrowed_lending_windows_are_not_extended_by_copy_data ... ok
+test explicit_copy_addresses_and_current_capture_conflicts_use_existing_permissions ... ok
+test explicit_result_context_can_select_copy_data_without_guessing_from_closure_layout ... ok
+test nested_symbolic_copy_constraints_and_complete_callable_bound_are_substituted ... ok
+test same_closure_extra_data_does_not_erase_width_or_nominal_identity ... ok
+test uninstantiated_templates_do_not_gain_numeric_member_or_forged_capabilities ... ok
+test copy_error_results_and_early_returns_keep_environment_and_local_cleanup_order ... ok
+test mutable_and_consuming_environments_keep_their_real_cleanup ... ok
+test original_audit_map_and_reordered_parameters_reach_native ... ok
+test ordinary_copy_bound_duplicates_only_its_declared_structural_values ... ok
+test same_mode_finite_and_flow_nesting_preserves_copy_loop_state ... ok
+test finite_nested_same_nominal_is_not_a_recursive_layout ... ok
+test record_enum_tuple_array_error_and_function_pointer_are_real_copy_shapes ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.25s
+
+
+running 8 tests
+test full_copy_instance_keys_still_reject_cycles_and_bound_infinite_growth ... ok
+test both_callable_arguments_and_result_are_concretized_before_types ... ok
+test same_closure_has_four_data_instances_with_alias_and_repeated_type_reuse ... ok
+test raw_and_wire_reject_forged_result_type_even_with_rebound_module_hash ... ok
+test raw_and_wire_reject_same_environment_wrong_scalar_instance ... ok
+test raw_and_wire_reject_same_layout_wrong_nominal_instance ... ok
+test each_data_instance_keeps_an_independently_checked_callback_contract ... ok
+test new_instances_pay_work_nodes_depth_and_function_limits_without_budget_changes ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+
+running 7 tests
+test finite_once_zero_or_one_calls_keeps_its_original_trace_domain ... ok
+test exact_four_node_loop_distinguishes_prefix_body_and_return_suffix ... ok
+test a_nonreturning_prefix_still_writes_its_actual_desc_source ... ok
+test no_return_child_keeps_its_prefix_but_never_reaches_the_parent_suffix ... ok
+test all_three_phases_enforce_twenty_four_static_helpers_at_the_exact_depth ... ok
+test exact_work_frontiers_are_independent_and_fresh_requests_recover ... ok
+test two_loop_call_sites_preserve_argument_order_environment_and_single_cleanup ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+
+running 4 tests
+test raw_read_retargeting_keeps_actual_parent_identity ... ok
+test an_owning_sibling_can_be_taken_and_replaced_during_a_copy_window ... ok
+test aligned_and_zero_sized_fields_preserve_inline_storage ... ok
+test nested_helpers_keep_owned_environment_and_explicit_field_arguments_separate ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+
+running 4 tests
+test two_distinct_slice_operands_cannot_relabel_one_actual_backing ... ok
+test nested_borrowed_descriptors_use_the_actual_last_call_backing ... ok
+test a_state_callback_receives_its_buffer_and_counter_siblings ... ok
+test nested_helpers_preserve_mutable_slice_parent_and_large_copy_values ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+
+running 4 tests
+test a_cross_module_wrong_instance_is_rejected_with_matching_candidate_identity ... ok
+test finite_repeated_generic_record_preserves_copy_across_helper_boundaries ... ok
+test equal_spelled_nominals_from_different_modules_keep_distinct_instances ... ok
+test slice_elements_use_copy_specialization_without_copying_exclusive_windows ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+

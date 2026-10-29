@@ -2,6 +2,12 @@
 //! substitute for checked signatures, executable operands, or reconstructed Hold.
 use super::*;
 
+pub(super) fn lending_result(ty: &Type) -> bool {
+    matches!(ty, Type::Address { mutable: false, inner }
+        if inner.is_copy_value()
+            || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value()))
+}
+
 pub(super) fn definition(
     module: &TypedModule,
     id: ClosureId,
@@ -31,6 +37,58 @@ pub(super) fn check_definitions(
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {
         budget.spend(1)?;
+        if closure.lending_captures.len() > limits.max_locals {
+            return Err(limit(
+                "closure lending source count exceeds the local bound",
+            ));
+        }
+        budget.spend(closure.lending_captures.len())?;
+        if closure.lending_captures.len() > closure.captures.len()
+            || closure
+                .lending_captures
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            || closure
+                .lending_captures
+                .iter()
+                .any(|capture| *capture as usize >= closure.captures.len())
+        {
+            return Err(reject(
+                "E-VERIFY-CLOSURE",
+                None,
+                "lending capture indices must be sorted, unique and within the actual environment",
+            ));
+        }
+        if matches!(closure.result, Type::Address { .. }) {
+            if !lending_result(&closure.result)
+                || !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                || closure.lending_captures.is_empty()
+            {
+                return Err(reject(
+                    "E-VERIFY-LENDING",
+                    None,
+                    "lending requires a shared result, a non-consuming entry and explicit environment sources",
+                ));
+            }
+            self_contained(module, closure.id, budget)?;
+            for index in &closure.lending_captures {
+                budget.spend(1)?;
+                let ty = &closure.captures[*index as usize];
+                if !(ty.is_copy_value() || byte_buffers::is_owned(ty)) {
+                    return Err(reject(
+                        "E-VERIFY-LENDING",
+                        None,
+                        "lending source must be actual inline Copy or owned ByteBuffer storage",
+                    ));
+                }
+            }
+        } else if !closure.lending_captures.is_empty() {
+            return Err(reject(
+                "E-VERIFY-LENDING",
+                None,
+                "a non-address result cannot advertise lending sources",
+            ));
+        }
         if closure.id.0 as usize != index {
             return Err(reject(
                 "E-VERIFY-CLOSURE",
@@ -59,7 +117,7 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
-            if ty.is_shared_package_address() {
+            if ty.is_package_address() {
                 return Err(unsupported(
                     "Store element address capture requires a separate retained element-window contract",
                     None,
@@ -71,17 +129,8 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
-            if dynamic_store::is_carrier(ty) {
-                return Err(unsupported(
-                    "Store capture requires a separate retained storage profile",
-                    None,
-                ));
-            }
-            if packages::has_store_fields(ty) {
-                return Err(unsupported(
-                    "Package capture with Store fields requires a retained storage protocol",
-                    None,
-                ));
+            if dynamic_store::is_carrier(ty) || packages::has_store_fields(ty) {
+                dynamic_store::check_owned_capture(module, ty, Some(limits), budget)?;
             }
             if packages::has_array_fields(ty) || packages::has_callable_fields(ty) {
                 return Err(unsupported(
@@ -104,19 +153,25 @@ pub(super) fn check_definitions(
             if let Type::Closure(id) = ty {
                 self_contained(module, *id, budget)?;
             }
-            if byte_buffers::is_desc(ty) {
-                return Err(unsupported(
-                    "borrowed byte storage captures are outside the finite profile",
-                    None,
-                ));
-            }
+            // Borrowed byte descriptions carry no ownership or address loan.
+            // Actual capture origins, storage effects and future uses are
+            // reconstructed by the independent resource and borrow checks.
             if slices::is_window(ty) {
                 return Err(unsupported(
                     "borrowed slice captures are outside the finite slice profile",
                     None,
                 ));
             }
-            check_local_type(ty, None, module, budget)?;
+            // A capture is not an ordinary local value boundary. In 206 the
+            // recursive Product profile is deliberately closed here, including
+            // local environments with no returned-factory contract. Reuse the
+            // exact old Package gate so flat capture admission and work remain
+            // unchanged; later capture support needs its own machine protocol.
+            if matches!(ty, Type::Package { .. }) {
+                packages::check_type_for(module, ty, None, budget)?;
+            } else {
+                check_local_type(ty, None, module, budget)?;
+            }
         }
         if closure.kind == CallableKind::Fn
             && closure
@@ -130,12 +185,21 @@ pub(super) fn check_definitions(
                 "exclusive capture requires an exclusive environment entry",
             ));
         }
-        for ty in closure
-            .parameters
-            .iter()
-            .chain(std::iter::once(&closure.result))
-        {
-            check_type(ty, None)?;
+        for ty in &closure.parameters {
+            if let Type::Address { inner, .. } = ty
+                && closure.result.is_copy_value()
+            {
+                // Raw type preflight already bounded this tree. Verify the
+                // actual finite element shape, not a producer signature bit.
+                slices::check_pointee(inner, None)?;
+            } else {
+                check_type(ty, None)?;
+            }
+        }
+        if lending_result(&closure.result) {
+            check_local_type(&closure.result, None, module, budget)?;
+        } else {
+            check_type(&closure.result, None)?;
         }
         let function = module
             .functions
@@ -194,6 +258,10 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
     let mut state = vec![0u8; module.closures.len()];
     let mut heights = vec![0usize; module.closures.len()];
     let mut expanded = vec![0usize; module.closures.len()];
+    // Allocate only when an actual Store-bearing capture is found. The
+    // existing bounded DAG walk carries the new result restriction upward;
+    // old no-Store environments retain their exact charged work.
+    let mut store_profiles: Option<Vec<bool>> = None;
     for root in 0..state.len() {
         let mut stack = vec![(ClosureId(root as u32), false, 0usize)];
         while let Some((id, exit, depth)) = stack.pop() {
@@ -220,11 +288,15 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
                     return Err(limit("closure layout depth exceeds selected bound"));
                 }
                 let mut work = 1usize;
+                let mut owns_store = false;
                 for ty in &definition.captures {
                     let field = if let Type::Closure(child) = ty {
+                        owns_store |= store_profiles.as_ref().is_some_and(|p| p[child.0 as usize]);
                         expanded[child.0 as usize]
                     } else {
-                        type_layout_work(ty, budget)?
+                        let (work, contains_store) = type_layout_work_with_store(ty, budget)?;
+                        owns_store |= contains_store;
+                        work
                     };
                     work = work
                         .checked_add(field)
@@ -233,6 +305,15 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
                 budget
                     .spend(work)
                     .map_err(|_| limit("closure layout expansion budget exceeded"))?;
+                if owns_store {
+                    dynamic_store::check_capture_result(module, &definition.result, None, budget)?;
+                    if store_profiles.is_none() {
+                        budget.spend(module.closures.len())?;
+                        store_profiles = Some(vec![false; module.closures.len()]);
+                    }
+                    store_profiles.as_mut().expect("allocated Store profiles")[id.0 as usize] =
+                        true;
+                }
                 expanded[id.0 as usize] = work;
                 heights[id.0 as usize] = height;
                 state[id.0 as usize] = 2;
@@ -322,13 +403,23 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
 /// only explicit Closure fields are expanded through the separate DAG above.
 /// Array repetition is charged by the owning-array caller, not by Copy arrays.
 pub(crate) fn type_layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
+    type_layout_work_with_store(ty, budget).map(|(work, _)| work)
+}
+
+fn type_layout_work_with_store(ty: &Type, budget: &mut Budget) -> Check<(usize, bool)> {
+    let root = ty;
     let mut pending = vec![ty];
     let mut work = 0usize;
+    let mut contains_store = false;
     while let Some(ty) = pending.pop() {
         budget.spend(1)?;
         work = work
             .checked_add(1)
             .ok_or_else(|| limit("inline type layout work overflow"))?;
+        if std::ptr::eq(ty, root) {
+            contains_store |= matches!(ty, Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::OwnedStore { .. }));
+        }
         match ty {
             Type::Array { element, .. }
             | Type::Slice { element }
@@ -345,7 +436,14 @@ pub(crate) fn type_layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
             }
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 budget.spend(fields.len())?;
-                pending.extend(fields.iter().map(|(_, ty)| ty));
+                let capture_fields = std::ptr::eq(ty, root) && matches!(ty, Type::Package { .. });
+                pending.extend(fields.iter().map(|(_, field)| {
+                    if capture_fields {
+                        contains_store |= matches!(field, Type::Managed(payload)
+                            if matches!(payload.as_ref(), Type::OwnedStore { .. }));
+                    }
+                    field
+                }));
             }
             Type::Enum { variants, .. } => {
                 budget.spend(variants.len())?;
@@ -367,7 +465,7 @@ pub(crate) fn type_layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
             _ => {}
         }
     }
-    Ok(work)
+    Ok((work, contains_store))
 }
 
 pub(super) fn self_contained(
@@ -435,13 +533,26 @@ pub(super) fn check_resource_instruction(
                 )
             })?;
             let definition = definition(module, environment, span)?;
-            let Some(ty @ Type::Closure(_)) = definition.captures.get(*index as usize) else {
+            let Some(ty) = definition.captures.get(*index as usize) else {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
                     span,
-                    "capture borrow requires an actual inline closure field",
+                    "capture borrow requires an actual environment field",
                 ));
             };
+            if !(ty.is_copy_value() || matches!(ty, Type::Closure(_))) {
+                return Err(reject(
+                    "E-VERIFY-CAPTURE",
+                    span,
+                    "capture borrow requires actual inline Copy or Closure storage",
+                ));
+            }
+            if ty.is_copy_value() && definition.lending_captures.is_empty() {
+                return Err(unsupported(
+                    "inline Copy environment addressing requires its lending entry protocol",
+                    span,
+                ));
+            }
             if *mutable && definition.kind == CallableKind::Fn {
                 return Err(reject(
                     "E-VERIFY-CLOSURE-CALL",
@@ -575,7 +686,10 @@ pub(super) fn check_resource_instruction(
                 ));
             };
             let definition = definition(module, *id, span)?;
-            if !supports(definition.kind, expected_kind) {
+            if !supports(definition.kind, expected_kind)
+                || (expected_kind == CallableKind::FnOnce
+                    && !definition.lending_captures.is_empty())
+            {
                 return Err(reject(
                     "E-VERIFY-CLOSURE-CALL",
                     span,

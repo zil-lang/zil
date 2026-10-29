@@ -1,0 +1,20 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl181_win64_store",
+    "--test",
+    "review181_by179",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "exit_code": 0,
+  "status": "Pass",
+  "elapsed_seconds": 0.061791419982910156
+}

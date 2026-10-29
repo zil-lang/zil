@@ -1,0 +1,27 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/164/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/166/baseline/owned-result.zil",
+    "--json"
+  ],
+  "exit_code": 3,
+  "cli_sha256": "d68bc0b124c8471b48ca97ec902417faa17268445761c71eba702caeb18b0837",
+  "source_sha256": "8a9aa5cb1a83d574700e3cedffb6d92edda8daa61561ebb53bc427f57b9b34ea",
+  "status": "Unsupported",
+  "phase": "types",
+  "diagnostics": [
+    {
+      "phase": "types",
+      "category": "Unsupported",
+      "code": "E-UNSUPPORTED",
+      "message": "error union payloads require finite Copy values",
+      "span": {
+        "file": 0,
+        "start": 174,
+        "end": 212
+      },
+      "notes": []
+    }
+  ]
+}

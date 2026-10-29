@@ -1,0 +1,200 @@
+[
+  {
+    "case": "factory125-borrowed-result-259-6",
+    "status": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "returned closure captures must be self-contained Copy snapshots or owned Managed/Package values; escaping Address/Desc captures are not implemented"
+      }
+    ],
+    "report_sha256": "8106489715fbd7c0bfb94d7a94574a78671c81e43134b838d4c294826df17b6f"
+  },
+  {
+    "case": "factory125-forward-259-9",
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "report_sha256": "9db4c8a6b35c79c3f3e2e87bbd67dbb11c82c4a1e3574a9f897646a1264b6806"
+  },
+  {
+    "case": "factory125-forwarded-259-13",
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "report_sha256": "d545378848c6d82c475d8dc717e80d86b71bb05b4539f9a19d0efdd2d9629cc7"
+  },
+  {
+    "case": "factory125-indirect-recursive-259-31",
+    "status": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "recursive opaque factory result dependencies have no finite concrete identity"
+      }
+    ],
+    "report_sha256": "f43f5329218ba66e9f14c103d4291d132a718ed1be2b82f0780c32dd54ea007c"
+  },
+  {
+    "case": "factory125-once-twice-259-11",
+    "status": "SafeReject",
+    "phase": "expand",
+    "diagnostics": [
+      {
+        "category": "SafeReject",
+        "code": "E-GENERIC-ARGUMENT",
+        "message": "generic callable used after its environment was consumed"
+      }
+    ],
+    "report_sha256": "7d0f792367a73097d5858e406ea6da3c0da915bed4f2457de814c7e9bcaad4b6"
+  },
+  {
+    "case": "factory125-ordinary-helper-after-prepass-259-33",
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "report_sha256": "c3b7bd3e744fdead607f451241adcb30711901dc56c37fc01a3c8473f1610917"
+  },
+  {
+    "case": "factory125-other-after-259-24",
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "report_sha256": "c1308a1d7639d131f4652d37ff7b559c3fef7a7ac8912c929d6491df440c8537"
+  },
+  {
+    "case": "factory125-other-before-259-1",
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "report_sha256": "63bb33f579eebefb70c717a1eeba53b9b790d30263519f08c751ac29159c3e81"
+  },
+  {
+    "case": "factory125-recursive-259-10",
+    "status": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "recursive opaque factory result dependencies have no finite concrete identity"
+      }
+    ],
+    "report_sha256": "9439668324a382671419ccb77b9e5f716987a53eb4095a8d6fa0a37e2a6e1a90"
+  },
+  {
+    "case": "factory125-reverse-259-14",
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "report_sha256": "0e2188bbd5d35c6889196d28c98873fa46461c4ea60a4e881eb888b60fd8cbbf"
+  },
+  {
+    "case": "factory125-wrong-kind-259-12",
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "category": "SafeReject",
+        "code": "E-CLOSURE-MODE",
+        "message": "concrete environment does not implement the requested callable mode"
+      }
+    ],
+    "report_sha256": "64c4f38921688b2aacfc353708c9bdf353cae13429a27790449bcb171ae63c5c"
+  },
+  {
+    "case": "retained168-reject-361-25",
+    "status": "SafeReject",
+    "phase": "verify",
+    "diagnostics": [
+      {
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use"
+      }
+    ],
+    "report_sha256": "afdd1976643d2383b5ea67c235cf16f13719ef9e902e1695410d6b656410c663"
+  },
+  {
+    "case": "retained168-reject-361-30",
+    "status": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "recursive opaque factory result dependencies have no finite concrete identity"
+      }
+    ],
+    "report_sha256": "b8d80fa2844cfd3bb729c011bb0ec502d54727ca7f91ef63d20341acafc00009"
+  },
+  {
+    "case": "retained168-reject-361-33",
+    "status": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "owned nested closure captures require self-contained environments; borrowed dependencies cannot escape"
+      }
+    ],
+    "report_sha256": "d9e64983b3fb398ec9325d3cfb4d3067d52600333d6bd3745341f79a6fed9941"
+  },
+  {
+    "case": "retained168-reject-361-34",
+    "status": "SafeReject",
+    "phase": "verify",
+    "diagnostics": [
+      {
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use"
+      }
+    ],
+    "report_sha256": "39fb12dbdb192f2000a7a0c931599b1ea538d8ba7523e35f675c700708c55ddb"
+  },
+  {
+    "case": "retained168-reject-361-5",
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "different closure expressions have different concrete types"
+      }
+    ],
+    "report_sha256": "a798e2927e2cbd6acfd0bf550c809b15f06846b951e73b1a5d896f93d5f6ffc7"
+  },
+  {
+    "case": "retained168-reject-361-8",
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "all opaque callable returns require the same source-visible concrete identity"
+      }
+    ],
+    "report_sha256": "893ff35257fc2255b3b72d8e549cebb81e3eb5de660048ae3bc732e40c5b86e7"
+  },
+  {
+    "case": "retained168-repeat-once-361-36",
+    "status": "SafeReject",
+    "phase": "analyze",
+    "diagnostics": [
+      {
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 0 is not initialized on every incoming path"
+      }
+    ],
+    "report_sha256": "f194e0bae37b9be85b93fcc92f5d0bd18f9156a0f91b1e83b49832dbf9026a46"
+  }
+]

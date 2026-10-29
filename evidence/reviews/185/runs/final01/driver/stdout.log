@@ -1,0 +1,33 @@
+
+running 1 test
+test retained070_native_factories_survive_return_move_events_and_cleanup ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s
+
+
+running 4 tests
+test raw_borrowed_local_and_nested_creation_keep_their_scope_boundary ... ok
+test independent_same_id_instances_and_parameter_aliases_have_exact_counts ... ok
+test raw_factory_public_envelope_is_rechecked_before_local_calls ... ok
+test raw_mixed_origins_cannot_erase_or_invent_parameter_calls ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 5 tests
+test both_lending_fields_survive_wire_and_change_fingerprints ... ok
+test malformed_capture_indices_are_independently_rejected ... ok
+test opaque_public_json_retains_the_lending_relation ... ok
+test oversized_lending_claims_are_bounded_before_verifier_fingerprinting ... ok
+test transport_claim_does_not_grant_a_copy_result_lending_capability ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 3 tests
+test reviewer_both_wire_count_fields_are_checked_before_allocation ... ok
+test reviewer_in_range_duplicate_and_unsorted_claims_cannot_hide_behind_bounds ... ok
+test reviewer_same_length_source_indices_and_record_positions_have_distinct_identity ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

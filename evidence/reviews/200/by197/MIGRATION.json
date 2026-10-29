@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task": "200",
+  "reviewer": "/root/impl197",
+  "verdict": "Pass for the narrow diagnostic-text migration",
+  "reviewed_commit": "eb7b661c965418c0eb5f06adda0fb4df781b0cb3",
+  "implementation_commit": "d6013e23c0f18c6cad368f5b97cdbef65f5011ce",
+  "migration_parent": "bcedb4db78fb1a6228b3baf54cb36a6e4dedf91b",
+  "review_method": "Read-only Git diff, exact string-only transformation, unchanged original probe bytes, and comparison with the current production diagnostic literal.",
+  "changed_test": "crates/zil-driver/tests/impl182_capture_contracts.rs",
+  "old_diagnostic_substring": "one or two finite nonescaping callable roles with Copy results",
+  "new_diagnostic_substring": "one or two finite nonescaping callable roles, a single lending role, or a bounded same-F owning State constructor are implemented",
+  "source_probe": "examples/mainline/mixed_capture182/probes/helper_address_parameter.zil",
+  "source_sha256": "83a321e516de2218d0af97ce2f288ab51125e7dd36c3ef715c7483e3c11d6f36",
+  "source_unchanged": true,
+  "phase_unchanged": "Types",
+  "category_unchanged": "Unsupported",
+  "other_attacks_unchanged": true,
+  "production_diff": [],
+  "production_diff_basis": "Reviewed commit versus its first parent, all crates/*/src plus Cargo.toml/Cargo.lock.",
+  "new_execution": false,
+  "parent_full_run_report": {
+    "commit": "bcedb4db78fb1a6228b3baf54cb36a6e4dedf91b",
+    "passed": 2197,
+    "failed": 1,
+    "ignored": 0,
+    "groups": 231,
+    "ownership": "Parent-reported execution, not rerun or reattributed to this reviewer."
+  },
+  "boundary": "The source remains a front-door unsupported case. The text change is not a borrow-safety proof. Original failed full-workspace records remain authoritative; targeted results cannot be summed into a full-workspace Pass."
+}

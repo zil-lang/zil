@@ -1,0 +1,1 @@
+extern "C" fn putchar(n:i32)->i32;fn emit(n:i32){unsafe{putchar(n)}}resource R{code:i32}impl Drop for R{fn drop(self:Self){emit(.code)}}fn run<F:FnMut()->i32>(f:&mut F,n:i32)->i32{var total=0;for index in 0..n{let guard=R{code:65+index};if index==1{continue};total+=f() }return total}fn main()->i32{var calls=0;var f=move()=>{calls+=1;emit(67);return calls};return run(&mut f,3)-3}

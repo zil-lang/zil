@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+    "/workspace/scratch/39be3faa4442/run-logs/181-platform/first177.exe"
+  ],
+  "stdin": "3",
+  "expected_stdout": "DEFHZMNOPK",
+  "expected_exit": 0,
+  "status": "Fail",
+  "start": 1793150184.0111644,
+  "exit": 1,
+  "stdout": "",
+  "stderr_bytes": 83,
+  "end": 1793150184.0180206
+}

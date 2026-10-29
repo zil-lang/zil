@@ -1,0 +1,20 @@
+{
+  "task": "164",
+  "status": "Pass",
+  "integrator": "/root",
+  "implementation_commit": "712a9602797891083fe3f549381e1e12ab34dd02",
+  "reviewer": "/root/trait_bounds",
+  "review": "evidence/reviews/164/review.json",
+  "original_review": "evidence/reviews/164/review.json",
+  "original_review_sha256": "dc08648c6f96ff6e33f861295e6031f233afd376222fae8338e625242e22d7ca",
+  "author_evidence": "evidence/impl/164/integration.json",
+  "integrated_workspace": "evidence/impl/164/165-final-workspace/command.json",
+  "integrated_source_commit": "03aa25206fbf4c5d783c5fe0ecc4078fbe628b73",
+  "integrated_crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+  "scope": "This finite task and its actual integration checks have completed. Historical author/reviewer failures and pending-at-the-time receipts are retained unchanged.",
+  "complete_language": "NotSatisfied",
+  "full_zui_ready": false,
+  "product": "NotRun",
+  "formal_parent": "B0 Doing",
+  "historical_handoff": "Fail remains; normative registry/history omissions are not waived or repaired by this receipt"
+}

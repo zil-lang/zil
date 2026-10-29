@@ -1,0 +1,1 @@
+fn escape()->impl Fn()->i32{let b=bytes_new();return ()=>i32(bytes_len(b))}fn main(){}

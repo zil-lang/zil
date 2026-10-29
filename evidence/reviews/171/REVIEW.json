@@ -1,0 +1,184 @@
+{
+  "schema": "zil-independent-slice-review-v1",
+  "reviewer": "/root/package_fields",
+  "implementation_author": "/root/resource_heads",
+  "implementation_commit": "2d5214b0a65a688f86736abdcf54625b5427ae9b",
+  "author_evidence_commit": "831f056ea308b95d9536a05fe763b85e0a4f0287",
+  "crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+  "source_status": "",
+  "normative_hash": "c358b8c5e0abaf11d81b1d55e23f6896cfb485eb4291f34937fe43e9e7ea319c",
+  "verdict": "Pass",
+  "scope": "171 finite synchronous shared user-resource heads, independent origin/liveness/effect checks, supported callback composition and explicitly closed mixed capture boundary. This is not a self-review of included 170 Package code.",
+  "findings": [],
+  "code_review": [
+    "Types admits only shared Address<Managed<finite Copy Record>> user-resource heads and only actual Managed local borrowing; a Desc local, a Package field, ByteBuffer and mutable heads remain outside this profile.",
+    "Independent Verify reconstructs the exact nominal resource definition for head types and BorrowLocal, checks LIVE Managed responsibility, and permits Copy payload AddressField without permitting whole-head ReadAddress or WriteAddress.",
+    "Whole-module head discovery enables actual Desc Hold roots in head-free callees. buffer_effects::infer propagates direct Desc access and internal callback roots through every reachable ordinary-call edge to a bounded fixed point.",
+    "Descriptor callback effects reconstruct local capture roots from CFG input facts and update descriptor local state at every instruction. Ordinary helper argument names do not establish separation.",
+    "The final mixed Desc+Address callback combination is deliberately Unsupported in a module containing actual shared heads. This applies conservatively even when the Address captures an unrelated Copy flag; it is not a proven per-capture read/write contract.",
+    "All captures_descriptors call paths that activate the mixed gate are gated by head_windows. No-head historical mixed Copy-address/Desc callbacks remain supported, including a shared environment alias chain.",
+    "LLVM BorrowLocal emits zero-offset GEP of the original local; shared reborrows preserve that pointer. The nominal Managed record has its ordinary inline payload representation and the drop live flag is cleared before user teardown.",
+    "Head-valued returns and head-derived address returns from head-parameter functions, head capture, captured Managed head borrowing, ordinary head function pointers, and FFI heads remain explicitly outside this slice."
+  ],
+  "verification": {
+    "replayed_author_suite": {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl171_resource_heads",
+        "--offline",
+        "-j2"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review171-package170",
+      "source_commit": "2d5214b0a65a688f86736abdcf54625b5427ae9b",
+      "crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+      "source_status": "",
+      "start": 1793111227.9197571,
+      "status": "Pass",
+      "exit_code": 0,
+      "log_sha256": "632c63fd80d07ad472cd7066df75c3453c796f6050d132c5ee1e475a76ed3fcc",
+      "end": 1793111257.708153,
+      "seconds": 29.788395881652832,
+      "tests": {
+        "passed": 17,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 1
+      },
+      "ending_crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+      "ending_source_status": ""
+    },
+    "independent_suite": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "/workspace/scratch/39be3faa4442/run-logs/review171-package170/probes/Cargo.toml",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review171-package170",
+      "source_commit": "2d5214b0a65a688f86736abdcf54625b5427ae9b",
+      "crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+      "source_status": "",
+      "start": 1793111540.2763867,
+      "status": "Pass",
+      "exit_code": 0,
+      "log_sha256": "aaa6c37029194efe698588b8de1fccbb3573b0b50504f03a9f589310373cdd16",
+      "end": 1793111542.0528607,
+      "seconds": 1.7764739990234375,
+      "tests": {
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 2
+      },
+      "ending_crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+      "ending_source_status": ""
+    },
+    "fresh_target": "/workspace/scratch/39be3faa4442/targets/review171-package170",
+    "replayed_native": {
+      "O0": 12,
+      "O2": 12,
+      "total": 24
+    },
+    "independent_native": {
+      "O0": 4,
+      "O2": 4,
+      "total": 8,
+      "outputs": {
+        "nested Copy payload head": "A / exit0",
+        "projected child last-use then Desc write": "A / exit0",
+        "three-module branching pure-Desc callback, disjoint roots": "BA / exit0",
+        "mixed Copy-address/Desc callback without any head lane": "A / exit0"
+      }
+    },
+    "independent_source_rejects": [
+      {
+        "case": "projected field address remains live across same-owner Desc write",
+        "phase": "Verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT"
+      },
+      {
+        "case": "branching helper internally constructs/invokes a pure-Desc callback while caller head remains live",
+        "phase": "Verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT"
+      },
+      {
+        "case": "final mixed Desc + projected-address callback invoked through environment aliases and &F helper",
+        "phase": "Verify",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "mixed descriptor/address callback captures with resource-head windows require a per-capture effect contract"
+      }
+    ],
+    "raw_wire": {
+      "author_mutant_classes_replayed": 9,
+      "author_rejected_routes": 18,
+      "independent": "Insert DropManaged after the head was projected to a field address, rebind module fingerprint, retain valid SSA/candidate tables. Both raw and wire reject Verify/E-BORROW-CONFLICT."
+    },
+    "exact_analysis_budget": {
+      "fixture": "independent projected-head source",
+      "raw_N": 4392,
+      "wire_N": 4392,
+      "N": "Pass",
+      "N_minus_1": 4391,
+      "N_minus_1_result": "ResourceLimit",
+      "defaults_changed": false
+    },
+    "source_sha256": "d0be932efc86924fd8a3a9730806e31ca3d9c8811cc63f5d4be861aa194fd9cd"
+  },
+  "retained_reviewer_exploration": {
+    "receipt": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "/workspace/scratch/39be3faa4442/run-logs/review171-package170/probes/Cargo.toml",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review171-package170",
+      "source_commit": "2d5214b0a65a688f86736abdcf54625b5427ae9b",
+      "crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+      "source_status": "",
+      "start": 1793111403.1821358,
+      "status": "Fail",
+      "exit_code": 101,
+      "log_sha256": "420d280a74c74c61c26e79f68ea2248aa19b706a699992475e22bd71755a233c",
+      "end": 1793111451.6189275,
+      "seconds": 48.43679165840149,
+      "tests": {
+        "passed": 3,
+        "failed": 2,
+        "ignored": 0,
+        "groups": 1
+      },
+      "error": "required test run has no passing tests or contains failures",
+      "ending_crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+      "ending_source_status": ""
+    },
+    "source": "probes/src/initial.rs",
+    "source_sha256": "ef19aa5fe33eadb3cfeb1a28062011a86edc50787294a6306cf58c2e69b20ec5",
+    "classification": "Reviewer source assumptions corrected; production source unchanged.",
+    "failures": [
+      "Nested generic callable helper contracts already reject in Expand; final probe uses the existing single helper with ordinary shared environment aliases.",
+      "A default captured bool flag is Address<Bool>, confirmed in typed IR; together with Desc it correctly meets the newly declared mixed Unsupported boundary. Final pure-Desc effect probe moves its branch outside the closure, retaining runtime branching in the ordinary helper."
+    ],
+    "not_counted_again": "4 exploratory native runs repeated the final nested layout / projected last-use controls."
+  },
+  "limitations": [
+    "Mixed Desc/Address callback invocation inside any actual-head module remains conservatively Unsupported until per-capture effects are implemented.",
+    "No claim for general nested callable helper contracts, arbitrary address returns/capture, mutable or sealed heads, imported trait implementation solving, or runtime Store composition.",
+    "Linux x64 native evidence only; no performance, product readiness, or complete-language claim."
+  ]
+}

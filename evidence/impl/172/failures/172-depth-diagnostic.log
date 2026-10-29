@@ -1,0 +1,15 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.56s
+     Running tests/impl172_owned_store.rs (/workspace/scratch/39be3faa4442/targets/172-final/debug/deps/impl172_owned_store-303df5d675b7019b)
+
+running 1 test
+172 depth: candidate begin
+172 depth: candidate done
+172 depth: encoder begin
+
+thread 'raw_wire_constructor_depth_and_actual_inline_size_have_independent_limits' (40) has overflowed its stack
+fatal runtime error: stack overflow, aborting
+error: test failed, to rerun pass `-p zil-driver --test impl172_owned_store`
+
+Caused by:
+  process didn't exit successfully: `/workspace/scratch/39be3faa4442/targets/172-final/debug/deps/impl172_owned_store-303df5d675b7019b raw_wire_constructor_depth_and_actual_inline_size_have_independent_limits --nocapture` (signal: 6, SIGABRT: process abort signal)

@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Parse,
+        category: SafeReject,
+        code: "E-PARSE-ATTRIBUTE-UNKNOWN",
+        message: "unknown attribute `independent_unknown` on a retained attachment",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 0,
+                end: 22,
+            },
+        ),
+        notes: [],
+    },
+]

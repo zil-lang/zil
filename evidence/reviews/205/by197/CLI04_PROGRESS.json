@@ -1,0 +1,74 @@
+{
+  "reviewer": "/root/review205_finish",
+  "production_authorship": "None",
+  "scope": "Completed CLI04 independent consumer and final repair controls; waiting for root final workspace/Clippy binding",
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "independent_execution_source_commit": "2dec56f70cd4de5a2d45445e9b2b008aa7f947a2",
+  "compiler_source_commit": "54452f8a50eb494c7c444bca3a9682802246284f",
+  "cli_sha256": "8cf2524495bc1fb1ac59fad705ead558c4c6f72fb200b5b21dc871ef22a5e323",
+  "compiler_production_matches_checkout": true,
+  "linux_consumer": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/linux02-command/command.json",
+      "bytes": 1315,
+      "sha256": "bdda0a146ab080621ba2c89a3da1ff06fa9220a85fb8cf71e4c64a9d91acf867"
+    },
+    "summary": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/linux02/summary.json",
+      "bytes": 81089,
+      "sha256": "1e3463ca36c0532e44b2ec517cffb8a7b0655513930ac32e2608789cde845dfd"
+    },
+    "executions": 140,
+    "ordinary_executions": 20,
+    "instrumented_executions": 120,
+    "actual_allocation_failures": 88,
+    "all_observed_live_zero": true,
+    "peak_live": 4,
+    "peak_bytes": 264
+  },
+  "controls": {
+    "new_independent_forwarding": {
+      "tests": [
+        1,
+        0
+      ],
+      "native": 2,
+      "source_commit": "dc55eed2d685494f5aa84782f1d19cfcf9fb0dc6"
+    },
+    "original177": {
+      "tests": [
+        1,
+        0
+      ],
+      "native": 4
+    },
+    "legacy_forwarding_author_raw_fixture": {
+      "tests": [
+        1,
+        0
+      ],
+      "raw_inputs": 10,
+      "public_entries": 2
+    },
+    "old_budget": {
+      "tests": [
+        1,
+        0
+      ],
+      "sources": 3
+    },
+    "phase_migrations_and_unchanged_neighbors": {
+      "sources": 6,
+      "matches": 6,
+      "native": "NotRun"
+    }
+  },
+  "counts_not_added_to_previous_runs": true,
+  "earlier_cli03": "evidence/reviews/205/by197/CLI03_INTERIM_ARCHIVE.json; earlier passes/failures keep their original identities",
+  "full_workspace": "NotRun by reviewer",
+  "final_review": "Pending root final candidate",
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun",
+  "native_windows": "NotRun"
+}

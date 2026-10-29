@@ -1,0 +1,12 @@
+
+running 7 tests
+test both_callable_arguments_and_result_are_concretized_before_types ... ok
+test same_closure_has_four_data_instances_with_alias_and_repeated_type_reuse ... ok
+test raw_and_wire_reject_same_environment_wrong_scalar_instance ... ok
+test raw_and_wire_reject_same_layout_wrong_nominal_instance ... ok
+test raw_and_wire_reject_forged_result_type_even_with_rebound_module_hash ... ok
+test each_data_instance_keeps_an_independently_checked_callback_contract ... ok
+test new_instances_pay_work_nodes_depth_and_function_limits_without_budget_changes ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+

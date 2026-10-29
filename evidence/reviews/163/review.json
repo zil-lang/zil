@@ -1,0 +1,158 @@
+{
+  "id": "independent-review-163",
+  "status": "Pass",
+  "reviewer": "/root/nested_closures",
+  "implementation_author": "/root/source_inventory",
+  "created_at": "2026-10-27T10:38:51.892428+00:00",
+  "tested_commit": "e21a3b95912843e7ffff0b4c3bee23e582066b55",
+  "delivered_commit": "f5a5b532b3410474495a43780c63d4a0dc1fbcf3",
+  "tested_crates_tree": "513125ee95bd462d9b1984b99727e6638256f656",
+  "delivered_crates_tree": "513125ee95bd462d9b1984b99727e6638256f656",
+  "delivery_source_equivalence": "Git crates tree object identity; only evidence/impl/163 differs between tested and delivered commits.",
+  "source_modification_by_reviewer": false,
+  "standalone": {
+    "independent_positive_sources": 9,
+    "native_executions": 18,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "negative_sources": 8,
+    "all_pass": true,
+    "results": "final-standalone-results.json",
+    "original_first_attempt": "standalone/results.json",
+    "cli_sha256": "d114b62f20ebc4addcf75ea5ea4215b42bd2be465fbf33bbf3bff5b8e4f7424d"
+  },
+  "raw_wire": {
+    "mutations": 2,
+    "routes": [
+      "raw",
+      "wire"
+    ],
+    "rejections": 4,
+    "all_pass": true,
+    "log": "raw-final.log",
+    "cases": [
+      {
+        "name": "duplicate-owned-method-call",
+        "code": "E-VERIFY-RESOURCE",
+        "message": "managed SSA value was not available exactly once"
+      },
+      {
+        "name": "descriptor-fed-to-owned-method",
+        "code": "E-VERIFY-CALL",
+        "message": "call argument does not match the target parameter type"
+      }
+    ],
+    "independence": "Analyze produced only the initial valid plan. Mutations rebounded module fingerprint; Verify independently rejected both exact raw and encoded candidates. No Analyze/Types permission solver was used for mutated candidates."
+  },
+  "composition": {
+    "commit": "c7f8118bfdf0e971e4a76a3b3a1a8aceb969ce7e",
+    "base": "e21a3b95912843e7ffff0b4c3bee23e582066b55",
+    "cherry_picked_existing_implementation": "f3570f1ea07440ed8f0c23903248ead78cf5f789",
+    "merge_conflicts": false,
+    "new_production_edits": false,
+    "independent_positive_sources": 5,
+    "native_executions": 10,
+    "negative_sources": 3,
+    "all_pass": true,
+    "results": "combo/results.json",
+    "cli_sha256": "0b37da91ff184a9ef4c0b2d1a9ac5d9499549c0c2fde35d86a9f7e56501546a7",
+    "coverage": [
+      "nested borrowed resource methods update an owned outer FnMut",
+      "three levels forward one resource debt to an explicit give method",
+      "inner Package method consumes whole; outer full refill preserves FnMut",
+      "inner refill supports FnMut while its owning environment creation consumes the outer FnOnce",
+      "nested receiver and later argument error cleanup prints BAC once",
+      "rejected shared Fn mutation claim, stale Desc use, and incomplete Package refill FnMut claim"
+    ]
+  },
+  "findings": [
+    {
+      "issue": "Package by-value method receiver was unconditionally classified consumed even after full restoration",
+      "resolution": "Author removed unconditional consumed flag and added precise whole-slot transfer to existing Package flow before locking tested commit. Standalone and combined refill/native cleanup probes pass.",
+      "status": "Closed"
+    },
+    {
+      "issue": "resource callable field must not count as a mutating receiver method",
+      "resolution": "Locked implementation distinguishes fields; independent Resource and Package callable Copy field retained Fn probes pass.",
+      "status": "Closed"
+    },
+    {
+      "issue": "potential local/imported same nominal method collision",
+      "resolution": "Independent native programs with local and imported Resource R and Package P pass. Program specialization hygienically qualifies their nominal names; no defect reproduced.",
+      "status": "Not a defect"
+    }
+  ],
+  "fixture_corrections": [
+    {
+      "issue": "first read-only Desc alias fixture used if without braces",
+      "outcome": "Parser correctly rejected fixture at O0/O2; corrected syntax then passed both native runs. Original evidence retained.",
+      "evidence": "corrected/aliases/results.json"
+    },
+    {
+      "issue": "first imported ByteBuffer extension negative used invalid native main()->i64",
+      "outcome": "Initial rejection was unrelated entry validation; corrected main()->i32 now rejects the intended missing local builtin method with E-FIELD-TYPE. Original evidence retained.",
+      "evidence": "corrected/extension/results.json"
+    }
+  ],
+  "scope_limits": [
+    "This review covers task163 and explicit task161+163 composition only; root owns complete workspace and consumer validation.",
+    "Resource/Package head-address receivers, imported ByteBuffer extensions, and general higher-order owning environments are outside the implemented finite profile.",
+    "B0, complete-language and product-gate conclusions are not upgraded; no Rust performance comparison was run."
+  ],
+  "toolchain": {
+    "rust": "1.99.1",
+    "clang": "17.0.6",
+    "inherited159_clang": "17.0.0",
+    "environment_script": "/workspace/scratch/39be3faa4442/toolchains/env.sh",
+    "target": "/workspace/scratch/39be3faa4442/targets/review163",
+    "combo_target": "/workspace/scratch/39be3faa4442/targets/review163/combo"
+  },
+  "commands": [
+    {
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review163",
+      "command": "source /workspace/scratch/39be3faa4442/toolchains/env.sh; CARGO_TARGET_DIR=/workspace/scratch/39be3faa4442/targets/review163 cargo build -p zil-cli --locked --offline",
+      "exit": 0,
+      "log": "build.log"
+    },
+    {
+      "command": "python3 probes.py",
+      "exit": 1,
+      "log": "standalone.log",
+      "note": "Two reviewer fixture corrections described above; every original artifact retained."
+    },
+    {
+      "command": "python3 probes.py --only same_origin --out corrected/aliases",
+      "exit": 0,
+      "log": "corrected-aliases.log"
+    },
+    {
+      "command": "python3 probes.py --only imported_builtin --out corrected/extension",
+      "exit": 0,
+      "log": "corrected-extension.log"
+    },
+    {
+      "command": "python3 probes.py --only package_callable --out corrected/copy-field",
+      "exit": 0,
+      "log": "corrected-copy-field.log"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/scratch/39be3faa4442/targets/review163 cargo run --locked --offline --manifest-path /workspace/scratch/39be3faa4442/run-logs/review163/raw/Cargo.toml",
+      "exit": 0,
+      "log": "raw-final.log"
+    },
+    {
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review163-combo",
+      "command": "CARGO_TARGET_DIR=/workspace/scratch/39be3faa4442/targets/review163/combo cargo build -p zil-cli --locked --offline",
+      "exit": 0,
+      "log": "combo-build.log"
+    },
+    {
+      "command": "python3 probes.py --combo --cli /workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil --out /workspace/scratch/39be3faa4442/run-logs/review163/combo",
+      "exit": 0,
+      "log": "combo.log"
+    }
+  ],
+  "evidence_root": "/workspace/scratch/39be3faa4442/run-logs/review163"
+}

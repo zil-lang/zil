@@ -1,0 +1,137 @@
+{
+  "status": "Pass",
+  "scope": "205 exact primary evidence container integrity; language execution results are preserved originals, not rerun by packager. Final audit/transport/CT supplements are separate.",
+  "format": "standard tar.xz, solid LZMA preset 6",
+  "file": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/205-all-components-evidence-compact.tar.xz",
+    "bytes": 23525588,
+    "sha256": "27cc3e5397fb003a0d9671e21af713d63e99540395ec4b8360eccd4c33513048"
+  },
+  "source_zip": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/205-all-components-evidence-compact.zip",
+    "bytes": 82743320,
+    "sha256": "9d9f902451bc479ba063d2aba69317dde7c8eb89bbbb8fccf0ea3ea4918de818"
+  },
+  "members_compared_byte_for_byte": 32346,
+  "decoded_member_bytes": 1617200583,
+  "statistics": {
+    "logical_files": 122718,
+    "logical_bytes": 6090232684,
+    "unique_contents": 32339,
+    "unique_bytes": 1542580731,
+    "excluded_execution_products": 4830
+  },
+  "sources": [
+    {
+      "id": "types-original",
+      "component": "types",
+      "kind": "compact",
+      "path": "/workspace/scratch/39be3faa4442/deliverables/205-types-evidence-compact.zip",
+      "bytes": 2331489,
+      "sha256": "b99d72a9957836f61d955153d645f871e17dde2f3fc002e99adc57e7da1209d0"
+    },
+    {
+      "id": "types-loop",
+      "component": "types",
+      "kind": "compact",
+      "path": "/workspace/scratch/39be3faa4442/deliverables/205-types-loop-followup-evidence-compact.zip",
+      "bytes": 315885,
+      "sha256": "56c77143233650b33caf0e00bd733ae530aa5b8d7a442ca1ba9b39126aa11877"
+    },
+    {
+      "id": "types-legacy-forward",
+      "component": "types",
+      "kind": "compact",
+      "path": "/workspace/scratch/39be3faa4442/deliverables/205-types-legacy-followup-evidence-compact.zip",
+      "bytes": 2120857,
+      "sha256": "d8310aa9fd3c488cb967d49bd94d0d82ff3a8d9c7184fcd3f77d4da4d12d69a8"
+    },
+    {
+      "id": "expand-consumer-original",
+      "component": "expand-consumer",
+      "kind": "compact",
+      "path": "/workspace/scratch/39be3faa4442/deliverables/205-expand-consumer-evidence-compact.zip",
+      "bytes": 1767037,
+      "sha256": "a6cc2f626fefc8f4f53684dde69910fa9df99fa04e83f7310d0493c963701e8a"
+    },
+    {
+      "id": "legacy-stage-migrations",
+      "component": "expand-consumer",
+      "kind": "compact",
+      "path": "/workspace/scratch/39be3faa4442/deliverables/205-legacy-phase-evidence-compact.zip",
+      "bytes": 2146870,
+      "sha256": "69804cb87561bd9c955e48fdf979ced856ca076c15ebde39ca2f24194a8697c1"
+    },
+    {
+      "id": "consumer-cli04",
+      "component": "expand-consumer",
+      "kind": "compact",
+      "path": "/workspace/scratch/39be3faa4442/deliverables/205-consumer-cli04-evidence-compact.zip",
+      "bytes": 867237,
+      "sha256": "d7e0a990e3c6b1c9775e83a581f5091013418c8470c659b3f6fa5463d5beeae2"
+    },
+    {
+      "id": "review-cli03",
+      "component": "review",
+      "kind": "compact",
+      "path": "/workspace/scratch/39be3faa4442/deliverables/205-review-cli03-evidence-compact.zip",
+      "bytes": 3188592,
+      "sha256": "f96c3e24860276437853cef45b3b4706edb6dbe23809603aae1c6ca0c6881a19"
+    },
+    {
+      "id": "review-cli04",
+      "component": "review",
+      "kind": "compact",
+      "path": "/workspace/scratch/39be3faa4442/deliverables/205-review-cli04-evidence-compact.zip",
+      "bytes": 890675,
+      "sha256": "e8a0fbadea97f4a66754c40237b7b53c17b56aeee2f6d30eba4f1cf39d938932"
+    },
+    {
+      "id": "workspace01-failed",
+      "component": "root",
+      "kind": "compact",
+      "path": "/workspace/scratch/39be3faa4442/deliverables/205-root-workspace01-evidence-compact-retry03.zip",
+      "bytes": 66018788,
+      "sha256": "9c2a5aacb98c6916ae08590e0ab193324da76d4ca5d69328f8fd1758cfa96a15"
+    },
+    {
+      "id": "root-commands-and-probes",
+      "component": "root",
+      "kind": "directory",
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-root"
+    },
+    {
+      "id": "workspace02-exact-temporary",
+      "component": "root",
+      "kind": "directory",
+      "path": "/dev/shm/zil205-root-workspace02"
+    }
+  ],
+  "commands": {
+    "aggregate": "run-logs/205-packaging/aggregate01/command.json",
+    "solid": "run-logs/205-packaging/solid01/command.json"
+  },
+  "member_content_changed": false,
+  "scope_supplement_required": [
+    "Original /dev/shm/zil205-root-ct01:136 files/822278B; /dev/shm/zil205-root-ct02:284 files/2330877B; /dev/shm/zil205-root-legacy01/cases:2 files/720B. All remain intact and will be included under their three parent trees in the small delivery supplement.",
+    "Final read-only language review, primary archive review (including original path-expectation audit failure/corrected Pass) and offline bundle verification are in the later delivery supplement. Root pointer audit examined71 JSON/29 command records/13 recorded path references/9 unique directories and found no fourth unmapped root case tree."
+  ],
+  "source_git_policy": "Only code/tests/tools/docs/compact receipts added to Git. Executables and Cargo caches not shipped. Original source/raw/Wire/IR/binary standard I/O/command data preserved; excluded native artifacts retain path/bytes/SHA.",
+  "recovery": [
+    "Standard tar.xz with regular outer files; extract to a new empty directory.",
+    "Then run shipped compact_evidence.py verify on that directory; optional restore to another new directory, with --component to limit logical expansion.",
+    "Unique decoded members are about1.62GB; restoring every original logical path takes about6.09GB. Source synchronization does not need evidence download/extraction."
+  ],
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "independent_review": {
+    "verdict": "Pass for declared primary11 sources; remaining original3 trees and later audits explicitly go to supplement",
+    "reviewer": "/root/review205_finish",
+    "review_commit": "5bf769b77ab1004cc7b6f22edd94cf550c3b7eec",
+    "evidence": "evidence/reviews/205/by197/DELIVERY_ARCHIVE.json",
+    "record_sha256": "26c56aea88579e273471a28bb4c93441dd3ee6667b08d4b91fcbc739eb27637d",
+    "language_review_unchanged": "evidence/reviews/205/by197/REVIEW.json"
+  }
+}

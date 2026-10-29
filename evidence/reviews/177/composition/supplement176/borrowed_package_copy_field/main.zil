@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R;n:i32}fn make()->P=>P{r:R{n:1},n:41};fn read<T>(p:&P)->i32{return (*p).n}fn main()->i32{let s:Store<P>=store_new();store_reserve(s,1);store_push(s,make());return read::<i32>(store_at(s,0))-41}

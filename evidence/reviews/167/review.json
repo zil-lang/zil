@@ -1,0 +1,271 @@
+{
+  "task": "167",
+  "status": "Pass",
+  "reviewer": "/root/trait_bounds",
+  "implementation_author": "/root/source_inventory",
+  "review_contributors": [
+    "/root (prior exact Package candidate checks)",
+    "/root/trait_bounds (final Closure-array closeout and complete-layout budget counterexample/retest)"
+  ],
+  "tested_commit": "33ac699268f0b2466a5fa79e9d53007ac54984f3",
+  "crates_tree": "e605371a43b39c9727925391b3f80a8b71d2abef",
+  "source_worktree_clean": true,
+  "worktree": "zil-restored/review167-final",
+  "target": "targets/review167-final",
+  "later_production_equivalent_commit": "48fe7064b5cc33b48987e4e02bedf31df9fb3caa",
+  "later_diff_scope": [
+    "changes/169-budget-fixture-migration.md",
+    "crates/zil-analyze/tests/budgets.rs",
+    "evidence/impl/168/followup/acceptance.json",
+    "evidence/impl/168/followup/clippy.log",
+    "evidence/impl/168/followup/commands.json",
+    "evidence/impl/168/followup/driver.log",
+    "evidence/impl/168/followup/format.log",
+    "evidence/impl/168/followup/initial-check-failure.log",
+    "evidence/impl/168/followup/native.json",
+    "evidence/impl/168/followup/verify.log"
+  ],
+  "later_commit_executed_by_this_review": false,
+  "self_review_exclusion": "Reviewer authored task166. No claim in this receipt independently approves task166 or its owned ErrorUnion implementation; task166 requires a different reviewer. Tests ran on the combined compiler, but this review scope is 167 only.",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl167_owned_arrays",
+    "--test",
+    "impl167_array_capture_boundary",
+    "--",
+    "--nocapture"
+  ],
+  "environment": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "toolchain_env": "toolchains/env.sh"
+  },
+  "executed_results": {
+    "test_groups": [
+      {
+        "suite": "impl167_array_capture_boundary",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "impl167_owned_arrays",
+        "passed": 32,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      }
+    ],
+    "total_tests": 33,
+    "native_executions_with_exit_and_stdout_assertions": 36,
+    "all_native_success_verification_runs": 1,
+    "source_negative_reports": 27,
+    "raw_wire_negative_cases": 21,
+    "raw_wire_verification_calls": 42,
+    "log_sha256": "22f2add750725ca6c3e1a868362e6c079399091353c5d75b9a940fbfa1a469e0",
+    "native_receipt_sha256": "e77702fe4e3f1e0e3cbe2781742e618632f743287b5c6f8641bcc8ab0e1b8fee",
+    "raw_wire_receipt_sha256": "baea3428653ff065ad19fa6ba0d0b8b54fbaa0494869fa323ab259e7fdee1b6f",
+    "source_negative_receipt_sha256": "4abd387f81b5880ed85b42100b48752473003980f8d46873243f6580e7f69bed",
+    "additional_package_capture_source_report_sha256": "ec88ce4e120a5a317db3bb6b2eca5a6278635329d82d9d087b18267f75dfb3b0"
+  },
+  "code_findings": [
+    {
+      "scope": "resource-free concrete closure array linearity",
+      "result": "Pass",
+      "evidence": "Types owned_array_input emits actual TakeLocal for a concrete Closure local; independent Verify marks MakeOwnedArray/StoreOwnedArrayElement inputs and TakeOwnedArrayElement outputs affine even without nominal resources. Per-local initialization and live-element debt prevent repeated take. Ordinary closure Copy behavior outside this array transfer lane is not changed."
+    },
+    {
+      "scope": "actual element borrow and permissions",
+      "result": "Pass",
+      "evidence": "BorrowOwnedArrayElement checks fixed bounds, Closure element and mutability, requires a live element, reconstructs provenance as the real local root and emits GEP into the real array storage. Borrow conflicts conservatively cover the whole array; distinct indices do not imply separate exclusive authority."
+    },
+    {
+      "scope": "recursive cleanup and replacement",
+      "result": "Pass",
+      "evidence": "Array slots retain independent live flags; take clears the chosen element flag, refill requires previous debt discharged, and whole movement requires complete elements. Native callback mutation, transfer/refill, FnOnce and error-preparation cases exercise actual environment updates and exactly-once Drop."
+    },
+    {
+      "scope": "whole-array capture boundary",
+      "result": "Pass",
+      "evidence": "Types rejects owned Package/Closure array capture explicitly; Verify independently applies arrays::is_owned_type guard before general local capture admission. Both Package and Closure array source/raw/wire controls hit the exact owned array capture boundary."
+    }
+  ],
+  "selected_exact_raw_wire_diagnostics": [
+    {
+      "case": "duplicate-pure-callback-ssa",
+      "raw": {
+        "phase": "Verify",
+        "category": "SafeReject",
+        "code": "E-VERIFY-MOVE",
+        "message": "non-Copy SSA carrier was already transferred"
+      },
+      "wire_same": true
+    },
+    {
+      "case": "reuse-taken-callback-after-store",
+      "raw": {
+        "phase": "Verify",
+        "category": "SafeReject",
+        "code": "E-VERIFY-MOVE",
+        "message": "non-Copy SSA carrier was already transferred"
+      },
+      "wire_same": true
+    },
+    {
+      "case": "load-cannot-publish-callback-slot",
+      "raw": {
+        "phase": "Verify",
+        "category": "SafeReject",
+        "code": "E-VERIFY-MOVE",
+        "message": "Load/projection is an access view; transfer requires TakeLocal or an explicit child reborrow"
+      },
+      "wire_same": true
+    },
+    {
+      "case": "same-callback-local-moved-twice",
+      "raw": {
+        "phase": "Verify",
+        "category": "SafeReject",
+        "code": "E-VERIFY-INITIALIZATION",
+        "message": "load may read a local before initialization"
+      },
+      "wire_same": true
+    },
+    {
+      "case": "borrow-relabelled-as-owned-environment",
+      "raw": {
+        "phase": "Verify",
+        "category": "SafeReject",
+        "code": "E-VERIFY-TYPE",
+        "message": "instruction result presence or type is incorrect"
+      },
+      "wire_same": true
+    },
+    {
+      "case": "stale-callback-address-after-refill",
+      "raw": {
+        "phase": "Verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use"
+      },
+      "wire_same": true
+    },
+    {
+      "case": "forged-callback-borrow-permission",
+      "raw": {
+        "phase": "Verify",
+        "category": "SafeReject",
+        "code": "E-VERIFY-TYPE",
+        "message": "instruction result presence or type is incorrect"
+      },
+      "wire_same": true
+    },
+    {
+      "case": "callback-borrow-index-outside-array",
+      "raw": {
+        "phase": "Verify",
+        "category": "SafeReject",
+        "code": "E-VERIFY-OWNED-ARRAY",
+        "message": "owning array element index is outside the declared fixed length"
+      },
+      "wire_same": true
+    },
+    {
+      "case": "closed-callback-array-capture",
+      "raw": {
+        "phase": "Verify",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "owned array capture requires a separate retained array protocol"
+      },
+      "wire_same": true
+    }
+  ],
+  "prior_package_review": {
+    "reviewer": "/root",
+    "tested_commit": "a710be769a34ac37182ced84cbaa5b44a99f7734",
+    "crates_tree": "a572ade5e272338d7de4fe41b12f3139b74ebed1",
+    "tests_passed": 19,
+    "command_receipt_sha256": "c629f160076e5b7d1b53e8e823e65780974305a8442e6da250966cea7fe559bb",
+    "log_sha256": "75f5edf1d3a476896f98e4e184e93fc7e2a49c3e8728a07363c16aba44f496b9",
+    "independent_receipt_sha256": "11e1781c5a43d4803e40c8e43fe2041315561cd6a9dc16292b6ed88c493da205",
+    "observations": [
+      {
+        "case": "branch_holes",
+        "opt": "O0",
+        "status": "Pass",
+        "stdout": "ABBA",
+        "exit": 0,
+        "verification_runs": 1
+      },
+      {
+        "case": "branch_holes",
+        "opt": "O2",
+        "status": "Pass",
+        "stdout": "ABBA",
+        "exit": 0,
+        "verification_runs": 1
+      },
+      {
+        "case": "expired_descriptor",
+        "status": "SafeReject",
+        "phase": "analyze",
+        "code": "E-ANALYZE-IR"
+      },
+      {
+        "case": "dynamic_index",
+        "status": "Unsupported",
+        "phase": "types",
+        "code": "E-UNSUPPORTED"
+      },
+      {
+        "case": "temporary_shell",
+        "status": "Unsupported",
+        "phase": "types",
+        "code": "E-UNSUPPORTED"
+      },
+      {
+        "case": "window_after_take",
+        "status": "SafeReject",
+        "phase": "verify",
+        "code": "E-BORROW-CONFLICT"
+      }
+    ],
+    "attribution": "Read and incorporated existing root execution evidence; not represented as newly executed by trait_bounds. The current 33-test execution separately reruns the Package suite on the final candidate.",
+    "excluded_old_receipt": "author-suite recorder CWD identified compose159 rather than compiled review167; IDENTITY-NOTE explicitly excludes it. Only locked-suite is counted."
+  },
+  "layout_budget_review": {
+    "finding": "R168-3 / 167 Package-array complete Type work",
+    "original_candidate": "02040876a7f56f14b2058b91f6277b9db86ec393",
+    "original_candidate_bytes_sha256": "d769d0986f02c3f5ba1f7379c4e1aa567e4c7c183e4b60d922445ccca4e80d04",
+    "original_max_analysis_steps": 100000,
+    "original_observation": "raw and wire accepted a 128-element Package array with a 2048-field Copy leaf and real resource Drop; complete element work was not charged at multiplicity",
+    "fix_execution_commit": "febc071cae01ea328d6aa9d8595937cb03d1291e",
+    "fix_replay_result": "same byte-identical old input now produces Verify ResourceLimit/E-RESOURCE-LIMIT raw and wire; a 4-field leaf neighbor is accepted raw and wire under the same selected budget",
+    "fix_replay_receipt_sha256": "671e6d3dc40e46fdd5e8edf3701f5858f38d58bf3b1a588f35882412493ace20",
+    "fix_replay_log_sha256": "5fb98b9315fb142c5225a90d17717b79ca661d9ca0075f0564c6d5e9f80d46f7",
+    "applicability_to_current_candidate": "resources/arrays.rs is byte-identical to the replayed fix; check_layouts/type_layout_work source range is byte-identical. The only full closures.rs difference is the separate owned ErrorUnion capture guard, outside the layout range. No fresh budget-probe execution on 33ac is claimed.",
+    "array_checker_git_blob": "59031be86ccbd2fd5ca90d2b07557f02791d2abf",
+    "closure_layout_range_sha256": "ef3695905d92a20ff4aadd4d934d4e803ba1060d99351a9bf369b7f7b8c68bad"
+  },
+  "remaining_boundaries": [
+    "Finite nonempty homogeneous Package or self-contained concrete Closure arrays only.",
+    "Owning element operations require a named local and fixed literal index; dynamic indexing/allocation/growth and general owning nesting are not opened.",
+    "Whole-array capture remains Unsupported; moving an actual selected Closure element into a closure is a separate admitted operation.",
+    "No disjoint-element loan precision is claimed.",
+    "No full-workspace, whole-language, ZUI readiness or performance approval is made by this receipt."
+  ],
+  "source_mutations_by_reviewer": false,
+  "new_blocking_findings": [],
+  "completed_utc": "2026-10-27T12:05:41.672018+00:00"
+}

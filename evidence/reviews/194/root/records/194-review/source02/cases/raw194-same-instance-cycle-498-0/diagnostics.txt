@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Expand,
+        category: SafeReject,
+        code: "E-GENERIC-ARGUMENT",
+        message: "Copy bound requires a finite nonrecursive layout",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 21,
+                end: 29,
+            },
+        ),
+        notes: [],
+    },
+]

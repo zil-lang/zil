@@ -1,0 +1,1 @@
+fn leaf<U:Copy,G:Fn(U)->U>(g:&G,x:U)->U=>g(x);fn bad<T:Copy,F:Fn(i32)->i32>(f:&F,x:T)->T=>leaf(f,x);fn main(){}

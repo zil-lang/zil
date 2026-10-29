@@ -1,0 +1,103 @@
+{
+  "base": {
+    "tested_commit": "a3bf9197589b047529a626d0bdc1e1365a27e15b",
+    "commands": [
+      {
+        "name": "driver",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl168_retained_composition",
+          "--test",
+          "impl069_retained",
+          "--test",
+          "impl070_retained",
+          "--test",
+          "impl127_local_factory",
+          "--test",
+          "impl161_nested_closures"
+        ],
+        "exit": 101,
+        "seconds": 18.327,
+        "log": "/workspace/scratch/39be3faa4442/run-logs/168/final/driver.log"
+      },
+      {
+        "name": "verify",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-verify",
+          "--lib"
+        ],
+        "exit": 0,
+        "seconds": 8.556,
+        "log": "/workspace/scratch/39be3faa4442/run-logs/168/final/verify.log"
+      },
+      {
+        "name": "fmt",
+        "argv": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit": 0,
+        "seconds": 3.931,
+        "log": "/workspace/scratch/39be3faa4442/run-logs/168/final/fmt.log"
+      },
+      {
+        "name": "clippy",
+        "argv": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-types",
+          "-p",
+          "zil-analyze",
+          "-p",
+          "zil-verify",
+          "-p",
+          "zil-lower",
+          "-p",
+          "zil-backend-llvm",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl168_retained_composition",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit": 0,
+        "seconds": 11.034,
+        "log": "/workspace/scratch/39be3faa4442/run-logs/168/final/clippy.log"
+      }
+    ]
+  },
+  "corrected": {
+    "tested_commit": "da49a4271fb2941eb7d2b6aa118ccd7ead5db7d5",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl168_retained_composition"
+    ],
+    "exit": 0,
+    "log": "/workspace/scratch/39be3faa4442/run-logs/168/final/driver-corrected.log"
+  }
+}

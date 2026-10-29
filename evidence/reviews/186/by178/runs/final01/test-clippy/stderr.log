@@ -1,0 +1,57 @@
+    Checking zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/review186-by178/crates/zil-base)
+    Checking zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/review186-by178/crates/zil-ir)
+    Checking zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/review186-by178/crates/zil-syntax)
+    Checking zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/review186-by178/crates/zil-db)
+    Checking zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/review186-by178/crates/zil-verify)
+    Checking zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/review186-by178/crates/zil-types)
+    Checking zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/review186-by178/crates/zil-backend-llvm)
+    Checking zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/review186-by178/crates/zil-lower)
+    Checking zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/review186-by178/crates/zil-ct)
+    Checking zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/review186-by178/crates/zil-expand)
+    Checking zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/review186-by178/crates/zil-analyze)
+    Checking zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review186-by178/crates/zil-driver)
+error: this `if` statement can be collapsed
+   --> crates/zil-driver/tests/review186_field_origins.rs:172:9
+    |
+172 | /         if let I::MakePackage { fields } = &mut i.kind {
+173 | |             if fields.len() == 4 {
+174 | |                 fields.swap(1, 3);
+175 | |                 changed = true;
+176 | |             }
+177 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+172 ~         if let I::MakePackage { fields } = &mut i.kind
+173 ~             && fields.len() == 4 {
+174 |                 fields.swap(1, 3);
+175 |                 changed = true;
+176 ~             }
+    |
+
+error: this `if` statement can be collapsed
+   --> crates/zil-driver/tests/review186_field_origins.rs:185:9
+    |
+185 | /         if let I::TakePackageField { index, .. } = &mut i.kind {
+186 | |             if *index == 3 {
+187 | |                 *index = 1;
+188 | |                 changed = true;
+189 | |             }
+190 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#collapsible_if
+help: collapse nested if block
+    |
+185 ~         if let I::TakePackageField { index, .. } = &mut i.kind
+186 ~             && *index == 3 {
+187 |                 *index = 1;
+188 |                 changed = true;
+189 ~             }
+    |
+
+error: could not compile `zil-driver` (test "review186_field_origins") due to 2 previous errors

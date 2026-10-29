@@ -1,0 +1,146 @@
+[
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/consumer/O0/allocation-probe",
+    "sha256": "1221f86a7c178ed9491db6b327e9e023ec7ec6c0d202fb0cc61a82d5ddf6498d",
+    "bytes": 21880,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/consumer/O0/program",
+    "sha256": "9eca306970ac0e4aa8ea45bfe368606f2d11d3cefc4a6d87ad85f41d1a1c6515",
+    "bytes": 20872,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/consumer/O2/allocation-probe",
+    "sha256": "c70da1687c520828b8ae9368a4e4bb003333a7cc393183b0c1f9aace6f10290d",
+    "bytes": 17448,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/consumer/O2/program",
+    "sha256": "d35fc23d62251b6a30dcf45b89b9decf0436a055860f22f557a00615e9027150",
+    "bytes": 16440,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-0/program",
+    "sha256": "6ee11267f58ef291d1f07256af41521eeee3306c8687e7b1d68849dcfc913869",
+    "bytes": 16024,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-10/program",
+    "sha256": "ccd8f7ad381fdda7a27d57856a7708cbb819aaa02755eadf1a0711fac7312405",
+    "bytes": 15992,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-17/program",
+    "sha256": "211d29fbe1b847f574658cafe201113536f4f9704befd654807d90c8b75ba78c",
+    "bytes": 15944,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-19/program",
+    "sha256": "4289b9e0e00f287719f0e980bb6e8228b889b4349c9b9d877c09946d724127ac",
+    "bytes": 15992,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-21/program",
+    "sha256": "675e939d36cd2d0d0bfbd48c903b11cabaea4e943eff0cf5b69c69905d32be91",
+    "bytes": 15944,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-27/program",
+    "sha256": "f45cb8a868341d82f940e7a6e822366465d1f7c350a8a818a92ff5027a86a131",
+    "bytes": 15992,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-29/program",
+    "sha256": "85ee1b6f32ea55cfe250836c051afdebf67e129d029f61b7005be2c7092276c5",
+    "bytes": 15992,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-30/program",
+    "sha256": "dabc5c132eca05af31345a0a92df9a1db14d4b940ddf2ed14071a90068967b98",
+    "bytes": 15944,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-31/program",
+    "sha256": "a1fe12f6494b0bcee7a2da037ba1b049a55ac6b835e3a7330041c9b6759f2de0",
+    "bytes": 15944,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-32/program",
+    "sha256": "e10002b62f34f0a26083f8cfdda79d78d1e87b42e36879d0db28b7269b476d77",
+    "bytes": 16520,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-33/program",
+    "sha256": "e90f23ecef69c58440fcfe17489cc0b47b7e296052f7eaff0383748bd954248d",
+    "bytes": 16520,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-34/program",
+    "sha256": "e3544e883082b95fd0ab4772cdf0812e5cbd3c31106b515c334af5a916f0a299",
+    "bytes": 16184,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-35/program",
+    "sha256": "6a8634034a0ff02911fbae1e23c8c3c7d53ee102bfe566635867698bbebb6139",
+    "bytes": 16184,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-36/program",
+    "sha256": "4ef7bbcb4d7b25dd8cabd2faa789e4776a0e5ae755a0811791762d81fc6f46d2",
+    "bytes": 15992,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-37/program",
+    "sha256": "4092ab22fde861a5a222f117c7a8922bc91f896a6522a1b63f0ee555914fa40e",
+    "bytes": 15944,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-5/program",
+    "sha256": "b7989ab95ba955fed4c0c5533d0b99a1e23166d6569f0d7176a81ceb7b201874",
+    "bytes": 16560,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-6/program",
+    "sha256": "e13db808dda3da73077bb73354db26c5614796a3292985f99379ac5563c540de",
+    "bytes": 15976,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-7/program",
+    "sha256": "5456f770bf561d819221206610d9ea2ecac679dc20567ab109618802df8fc7f8",
+    "bytes": 16224,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-8/program",
+    "sha256": "9bcf02f5f38757bbcab33e605d155e527a830e8e2a32e67529834b7decbd9c1a",
+    "bytes": 16024,
+    "reason": "executable not included"
+  },
+  {
+    "source": "/workspace/scratch/39be3faa4442/runs178/author184/final01/cases/lending184-962-9/program",
+    "sha256": "b44a75293893eb8738f1051714e4b79b6ac6db3b6b59c1123837f82a6847c25a",
+    "bytes": 15976,
+    "reason": "executable not included"
+  }
+]

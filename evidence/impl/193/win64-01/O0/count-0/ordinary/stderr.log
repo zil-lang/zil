@@ -1,0 +1,2 @@
+sock_init: ERROR in sock_check_pollhup()
+wineserver: bind: Operation not permitted

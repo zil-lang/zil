@@ -1,0 +1,48 @@
+EXCERPT ONLY; full original SHA256 is indexed in SOURCE.json. Line numbers refer to original.
+1: ; ZIL verified LLVM module
+2: ; verified-fingerprint: aecff0554e269cce9d714eb854e54ba2bea856604f2a5074ca4378a116ce3077
+3: target triple = "x86_64-unknown-linux-gnu"
+4: 
+5: declare void @llvm.trap()
+6: declare ptr @realloc(ptr, i64)
+7: declare void @free(ptr)
+8: 
+9: define internal ptr @zil.bytes.reallocate(ptr %old, i64 %size) {
+10: entry:
+11:   %result = call ptr @realloc(ptr %old, i64 %size)
+12:   ret ptr %result
+13: }
+14: define internal void @zil.bytes.release(ptr %payload) {
+15: entry:
+16:   call void @free(ptr %payload)
+20: define internal i1 @zil.bytes.reserve(ptr %head, i64 %requested) {
+32:   %next = call ptr @zil.bytes.reallocate(ptr %old, i64 %requested)
+44: define internal i1 @zil.bytes.truncate(ptr %head, i64 %requested) {
+58: define internal i1 @zil.bytes.push(ptr %head, i8 %byte) {
+77: define internal void @zil.bytes.drop(ptr %head) {
+85: define internal i1 @zil.store.1.reserve(ptr %head, i64 %requested) {
+102:   %next = call ptr @zil.bytes.reallocate(ptr %old, i64 %size)
+114: define internal { i1, { { i32 }, i32 }, {} } @zil.store.1.push(ptr %head, { { i32 }, i32 } %item) {
+135: define internal { i1, {}, { { i32 }, i32 } } @zil.store.1.pop(ptr %head) {
+154: define internal void @zil.store.1.drop(ptr %head) {
+177: define internal i1 @zil.store.2.reserve(ptr %head, i64 %requested) {
+194:   %next = call ptr @zil.bytes.reallocate(ptr %old, i64 %size)
+206: define internal { i1, { i8, { i32 }, i64 }, {} } @zil.store.2.push(ptr %head, { i8, { i32 }, i64 } %item) {
+227: define internal { i1, {}, { i8, { i32 }, i64 } } @zil.store.2.pop(ptr %head) {
+246: define internal void @zil.store.2.drop(ptr %head) {
+268: declare { i64, i1 } @llvm.sadd.with.overflow.i64(i64, i64)
+269: declare { i32, i1 } @llvm.ssub.with.overflow.i32(i32, i32)
+271: declare i32 @putchar(i32) nonlazybind
+272: define void @zil.fn.1(ptr %arg.0) {
+288: define { { i32 }, i32 } @zil.fn.2(i32 %arg.0) {
+343: define { i8, { i32 }, i64 } @zil.fn.3(i32 %arg.0) {
+407: define { i1, { i32, [0 x i8] }, i32 } @zil.fn.4() {
+860: define { i1, { i32, [0 x i8] }, { ptr, i64, i64 } } @zil.fn.5({ { i32 }, i32 } %arg.0, i1 %arg.1) {
+999: define { i1, { i32, [0 x i8] }, { ptr, i64, i64 } } @zil.fn.6({ i1, { i32, [0 x i8] }, { ptr, i64, i64 } } %arg.0) {
+1031: define { i1, { i32, [0 x i8] }, { ptr, i64, i64 } } @zil.fn.7({ i8, { i32 }, i64 } %arg.0, i1 %arg.1) {
+1170: define { i1, { i32, [0 x i8] }, { ptr, i64, i64 } } @zil.fn.8({ i1, { i32, [0 x i8] }, { ptr, i64, i64 } } %arg.0) {
+1202: define { ptr, i64, i64 } @zil.fn.9() {
+1206:   %v.0 = freeze { ptr, i64, i64 } zeroinitializer
+1213: define { ptr, i64, i64 } @zil.fn.10() {
+1217:   %v.0 = freeze { ptr, i64, i64 } zeroinitializer
+1224: define i32 @main() {

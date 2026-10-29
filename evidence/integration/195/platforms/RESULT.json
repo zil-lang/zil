@@ -1,0 +1,59 @@
+{
+  "status": "Pass",
+  "reviewer": "/root",
+  "implementation_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
+  "source_commit": "f45462be07dc3ec09bea8f97edc0e21329025e19",
+  "executed": 168,
+  "platforms": {
+    "195-integration/platform-linux": {
+      "status": "Pass",
+      "source_commit": "f45462be07dc3ec09bea8f97edc0e21329025e19",
+      "cli_sha256": "b6790e76f2dca8a55abc307e3957479dfa340e50f5700cd089b05df905146f91",
+      "platform": "linux",
+      "execution": "native",
+      "native_windows": "NotRun",
+      "full_language": "NotSatisfied",
+      "product": "NotRun",
+      "executions": 84,
+      "native_executions": 84,
+      "wine_executions": 0,
+      "ordinary_executions": 14,
+      "instrumented_executions": 70,
+      "actual_allocation_failures": 50
+    },
+    "195-integration/platform-win64": {
+      "status": "Pass",
+      "source_commit": "f45462be07dc3ec09bea8f97edc0e21329025e19",
+      "cli_sha256": "b6790e76f2dca8a55abc307e3957479dfa340e50f5700cd089b05df905146f91",
+      "platform": "win64",
+      "execution": "Wine compatibility",
+      "native_windows": "NotRun",
+      "full_language": "NotSatisfied",
+      "product": "NotRun",
+      "executions": 84,
+      "native_executions": 0,
+      "wine_executions": 84,
+      "ordinary_executions": 14,
+      "instrumented_executions": 70,
+      "actual_allocation_failures": 50
+    }
+  },
+  "source_modules": 4,
+  "optimizations": [
+    "O0",
+    "O2"
+  ],
+  "native_executions": 84,
+  "wine_executions": 84,
+  "actual_allocation_failures_per_platform": 50,
+  "oracle": "Independent exact simulation of three owner capacities, persistent/scratch lifetimes, break/continue iteration cleanup, callback output and final Ticket cleanup. Includes zero,1,2,3,7 counts, malformed input, EOF, every actual allocation fault and after-last index.",
+  "normal_binary": "Unmodified compiler machine output",
+  "probe_binary": "Separate allocator-symbol redirection only; C probe is not a ZIL capability claim.",
+  "limitations": [
+    "This is independent platform integration, separate from195 author154 native and non-author110 tests/90 native.",
+    "Wine compatibility only; native Windows NotRun.",
+    "No product performance, complete1.4 or full-workspace verdict."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

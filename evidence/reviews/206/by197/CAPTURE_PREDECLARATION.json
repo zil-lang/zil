@@ -1,0 +1,17 @@
+{
+  "implementation": "206",
+  "reviewer": "/root/review205_finish",
+  "status": "NotRun",
+  "parent_clean_source": "c60cb7ebe6b113bbb7fae463931abb22238e0ae2",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "reason": "Concrete post-freeze read-only concern from types205_finish: local Closure captures call newly widened check_local_type; old capture profile must remain closed. The previous 45 tests and logs remain frozen.",
+  "contract_oracle": "Legal old flat local capture accepts. A raw module that consistently replaces the parameter, actual SSA, bound Package view and capture type with complete ordinary nested Product remains Unsupported/SafeReject; no returned callable contract is involved. Analyze already keeps legacy_value for captures; Verify must reject independently even with a rebased valid candidate fingerprint.",
+  "mutation": "Keep every opcode, field index, CFG, Bind/End, scalar Copy use, initialization claim and return contract unchanged; replace flat two-field Package {Managed R, n:i32} with complete two-field Package {child:original_flat, n:i32} at its actual parameter/value/view/capture occurrences.",
+  "execution_boundary": "Raw and Wire Verify only, no Lower, native execution or product test for hostile input.",
+  "test": {
+    "path": "crates/zil-driver/tests/impl206_independent_capture.rs",
+    "bytes": 6120,
+    "sha256": "2b1f68ed0b06c75fab7047218e0fb9c2d4999ea5529ca89b346c1b312b9af0df"
+  },
+  "new_production_changes": false
+}

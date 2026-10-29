@@ -1,0 +1,429 @@
+{
+  "status": "Pass",
+  "reviewer": "/root/source_inventory",
+  "review_scope": "Independent review of root-authored 169 integration consumer and expectations; not independent review of the reviewer-authored 167 implementation",
+  "source_commit": "33ac699268f0b2466a5fa79e9d53007ac54984f3",
+  "crates_tree": "e605371a43b39c9727925391b3f80a8b71d2abef",
+  "source_status": "",
+  "worktree": "/workspace/scratch/39be3faa4442/zil-restored/review169-final",
+  "target": "/workspace/scratch/39be3faa4442/targets/review169-final",
+  "compiler_cli_sha256": "50226b61f59111c2200b0406940b56f150e816dfc67f045267f129b434e3b021",
+  "rust": "1.99.1",
+  "clang": "17.0.6",
+  "CARGO_INCREMENTAL": "0",
+  "source_files": {
+    "argument_failure.zil": "cff25f7430b5d1d585ae43709d09e9b9ec06007f04e02c4eee38382520a8361f",
+    "arrays.zil": "426994d02b6551d925e32105296e6b09c20b50533fd207237aec82ea0adf7c07",
+    "callbacks.zil": "983d754ade6b0650b56a01b5d0ff81fa4f38336d17aafaff7537b586d5c12a77",
+    "error_entry.zil": "b7c84ec14ae93020d9abfacfd71bdc2a11a0094bbfc8e84603380f12595152e2",
+    "main.zil": "1013a3e43f0357cef1942489cff8e3e1c606caadcad7e8a6f410be6641117b8f",
+    "model.zil": "4441e0f82da325f956e1bbfdc46c071412370257e1e73cf4f8f3cb2fdabf2631",
+    "prepare_failure.zil": "fce9070ce2a3dcce9bbd0cb363658ab325d54466ede2effb4354c34a9a4b4f70",
+    "transport.zil": "716e1425d49007a9632be1a145a36047b5443e901c0ddb1d22fed31fca408cc4"
+  },
+  "consumer_script_sha256": "5a6eb9fd3b6c2e6935de820f1323837d3659007fa9f040a9051c401ac91e74fb",
+  "allocator_probe_sha256": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5",
+  "matrix_receipt_sha256": "7af995c2b602362cde6b876cc51653ba8186a37f660d39fcbf9c741f239a6255",
+  "build_receipt_sha256": "d71c07df41ed71c2856bfb6fd60b6d049ab647eda9ae46dab77ca8a9995dde00",
+  "native_executions": 24,
+  "ordinary_executions": 8,
+  "instrumented_executions": 16,
+  "compiler_verifications": 8,
+  "expected_semantics": {
+    "main": {
+      "normal_stdout": "AACBACB",
+      "normal_exit": 0,
+      "allocations": 4,
+      "failure_at": 1,
+      "failure_stdout": "A",
+      "failure_allocations": 0,
+      "explanation": "A result roundtrip cleanup, then ACB Package-array cleanup, then ACB nested callback-array cleanup; only result and Package-array factories allocate byte storage."
+    },
+    "prepare_failure": {
+      "normal_stdout": "BA",
+      "normal_exit": 1,
+      "allocations": 2,
+      "failure_at": 2,
+      "failure_stdout": "BA",
+      "failure_allocations": 1,
+      "explanation": "The later B factory cleans itself before propagation cleans the prepared A prefix."
+    },
+    "argument_failure": {
+      "normal_stdout": "BA",
+      "normal_exit": 1,
+      "allocations": 2,
+      "failure_at": 2,
+      "failure_stdout": "BA",
+      "failure_allocations": 1,
+      "explanation": "The later argument fails and cleans B; the already prepared owned first argument A is then cleaned without entering consume."
+    },
+    "error_entry": {
+      "normal_stdout": "D",
+      "normal_exit": 1,
+      "allocations": 1,
+      "failure_at": 1,
+      "failure_stdout": "D",
+      "failure_allocations": 0,
+      "explanation": "An owned Item is carried on the error branch. Reserve/push results are intentionally ignored here; injected failure leaves an empty ByteBuffer and still owns the D ticket."
+    }
+  },
+  "ordinary_observations": [
+    {
+      "case": "main",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "AACBACB",
+      "stderr_empty": true
+    },
+    {
+      "case": "main",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "AACBACB",
+      "stderr_empty": true
+    },
+    {
+      "case": "prepare_failure",
+      "optimization": "O0",
+      "exit_code": 1,
+      "stdout": "BA",
+      "stderr_empty": true
+    },
+    {
+      "case": "prepare_failure",
+      "optimization": "O2",
+      "exit_code": 1,
+      "stdout": "BA",
+      "stderr_empty": true
+    },
+    {
+      "case": "argument_failure",
+      "optimization": "O0",
+      "exit_code": 1,
+      "stdout": "BA",
+      "stderr_empty": true
+    },
+    {
+      "case": "argument_failure",
+      "optimization": "O2",
+      "exit_code": 1,
+      "stdout": "BA",
+      "stderr_empty": true
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O0",
+      "exit_code": 1,
+      "stdout": "D",
+      "stderr_empty": true
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O2",
+      "exit_code": 1,
+      "stdout": "D",
+      "stderr_empty": true
+    }
+  ],
+  "instrumented_observations": [
+    {
+      "case": "main",
+      "optimization": "O0",
+      "allocation_failure": false,
+      "exit_code": 0,
+      "stdout": "AACBACB",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 3
+      },
+      "llvm_sha256": "97bd0c29ce8a16c25d51cf4f66a7f8c4ff5a98d52eedea4ac2535309b80603ea"
+    },
+    {
+      "case": "main",
+      "optimization": "O0",
+      "allocation_failure": true,
+      "exit_code": 1,
+      "stdout": "A",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "llvm_sha256": "97bd0c29ce8a16c25d51cf4f66a7f8c4ff5a98d52eedea4ac2535309b80603ea"
+    },
+    {
+      "case": "main",
+      "optimization": "O2",
+      "allocation_failure": false,
+      "exit_code": 0,
+      "stdout": "AACBACB",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 3
+      },
+      "llvm_sha256": "97bd0c29ce8a16c25d51cf4f66a7f8c4ff5a98d52eedea4ac2535309b80603ea"
+    },
+    {
+      "case": "main",
+      "optimization": "O2",
+      "allocation_failure": true,
+      "exit_code": 1,
+      "stdout": "A",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "llvm_sha256": "97bd0c29ce8a16c25d51cf4f66a7f8c4ff5a98d52eedea4ac2535309b80603ea"
+    },
+    {
+      "case": "prepare_failure",
+      "optimization": "O0",
+      "allocation_failure": false,
+      "exit_code": 1,
+      "stdout": "BA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "llvm_sha256": "90a09963c9d07f1bab039629090e6f10898df328894ee77edb581f44a7accb8c"
+    },
+    {
+      "case": "prepare_failure",
+      "optimization": "O0",
+      "allocation_failure": true,
+      "exit_code": 1,
+      "stdout": "BA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "90a09963c9d07f1bab039629090e6f10898df328894ee77edb581f44a7accb8c"
+    },
+    {
+      "case": "prepare_failure",
+      "optimization": "O2",
+      "allocation_failure": false,
+      "exit_code": 1,
+      "stdout": "BA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "llvm_sha256": "90a09963c9d07f1bab039629090e6f10898df328894ee77edb581f44a7accb8c"
+    },
+    {
+      "case": "prepare_failure",
+      "optimization": "O2",
+      "allocation_failure": true,
+      "exit_code": 1,
+      "stdout": "BA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "90a09963c9d07f1bab039629090e6f10898df328894ee77edb581f44a7accb8c"
+    },
+    {
+      "case": "argument_failure",
+      "optimization": "O0",
+      "allocation_failure": false,
+      "exit_code": 1,
+      "stdout": "BA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "llvm_sha256": "721eaa37bab70d3ec8b8f3741c4220cd92250320f260a958c7958640effb6dbb"
+    },
+    {
+      "case": "argument_failure",
+      "optimization": "O0",
+      "allocation_failure": true,
+      "exit_code": 1,
+      "stdout": "BA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "721eaa37bab70d3ec8b8f3741c4220cd92250320f260a958c7958640effb6dbb"
+    },
+    {
+      "case": "argument_failure",
+      "optimization": "O2",
+      "allocation_failure": false,
+      "exit_code": 1,
+      "stdout": "BA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "llvm_sha256": "721eaa37bab70d3ec8b8f3741c4220cd92250320f260a958c7958640effb6dbb"
+    },
+    {
+      "case": "argument_failure",
+      "optimization": "O2",
+      "allocation_failure": true,
+      "exit_code": 1,
+      "stdout": "BA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "721eaa37bab70d3ec8b8f3741c4220cd92250320f260a958c7958640effb6dbb"
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O0",
+      "allocation_failure": false,
+      "exit_code": 1,
+      "stdout": "D",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "135b7d82003bb6027ec96977c43b391318419bf8fc9fe7e5b1ee88e611c778fe"
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O0",
+      "allocation_failure": true,
+      "exit_code": 1,
+      "stdout": "D",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "llvm_sha256": "135b7d82003bb6027ec96977c43b391318419bf8fc9fe7e5b1ee88e611c778fe"
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O2",
+      "allocation_failure": false,
+      "exit_code": 1,
+      "stdout": "D",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "135b7d82003bb6027ec96977c43b391318419bf8fc9fe7e5b1ee88e611c778fe"
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O2",
+      "allocation_failure": true,
+      "exit_code": 1,
+      "stdout": "D",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "llvm_sha256": "135b7d82003bb6027ec96977c43b391318419bf8fc9fe7e5b1ee88e611c778fe"
+    }
+  ],
+  "findings": [],
+  "coverage_review": [
+    {
+      "kind": "bounded-follow-up-recommended",
+      "case": "main",
+      "failure_at": 4,
+      "reason": "Existing failure_at 1 exits before array composition. Site 4 covers E!Item preparation failure after the array has a vacant slot and an extracted old owner.",
+      "expected_stdout": "ACAB",
+      "expected_exit": 1,
+      "expected_allocator": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0
+      },
+      "executed": false
+    }
+  ],
+  "limits": [
+    "Selected failure positions only, not every allocation position",
+    "Allocation counts cover wrapped ByteBuffer realloc/free ABI, not all process or libc allocations",
+    "Ticket destructor order observed directly; shim counts frees without per-pointer event order",
+    "No independent 167 implementation review is claimed",
+    "Persistent-slot and complete-width follow-up code is present in this bound candidate; this matrix does not independently prove its focused budget cases",
+    "Full language NotSatisfied; product NotRun"
+  ]
+}

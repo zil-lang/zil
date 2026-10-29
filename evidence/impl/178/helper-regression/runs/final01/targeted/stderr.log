@@ -1,0 +1,6 @@
+    Finished `test` profile [unoptimized] target(s) in 0.00s
+     Running tests/impl064.rs (/workspace/scratch/39be3faa4442/targets178/author178-helper/debug/deps/impl064-ca51857e9cc709d7)
+     Running tests/impl065_helpers.rs (/workspace/scratch/39be3faa4442/targets178/author178-helper/debug/deps/impl065_helpers-086b76848dc0a398)
+     Running tests/impl070_retained.rs (/workspace/scratch/39be3faa4442/targets178/author178-helper/debug/deps/impl070_retained-e288f22da3bca16f)
+     Running tests/impl178_generic_store.rs (/workspace/scratch/39be3faa4442/targets178/author178-helper/debug/deps/impl178_generic_store-eea2fb8f5cc12906)
+     Running tests/impl178_helper_give.rs (/workspace/scratch/39be3faa4442/targets178/author178-helper/debug/deps/impl178_helper_give-e728c84151563936)

@@ -157,7 +157,7 @@ pub(crate) fn lower_with_options(
         blocks: None,
     }));
     text.append(byte_buffer::runtime(lir)?);
-    text.append(dynamic_store::runtime(lir)?);
+    text.append(dynamic_store::runtime(lir, &closures)?);
     for (operation, bits) in intrinsics {
         text.push(m::Event::Declare(m::Function {
             name: format!("llvm.{}.with.overflow.i{}", operation, bits),
@@ -377,17 +377,27 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !closure.result.is_copy_value()
+        ) || !(closure.result.is_copy_value()
+            || (!closure.lending_captures.is_empty()
+                && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                && matches!(&closure.result, Type::Address { inner, mutable: false }
+                    if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
             || !closure.captures.iter().all(|ty| {
                 ty.is_copy_value()
                     || matches!(ty, Type::Closure(_))
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+                    // The exact VerifiedModule binding above carries the
+                    // independently checked owning Store capture contract.
+                    // Borrowed descriptions do not gain an owning ABI here.
                     || (resources::supported_type(ty, &lir.resources)
-                        && !matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. }))
-                        && !matches!(ty, Type::Desc(p) if p.as_ref() == &Type::ByteBuffer))
+                        && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
                     || packages::supported_type(ty, &lir.resources)
             })
-            || !closure.parameters.iter().all(Type::is_copy_value)
+            || !closure.parameters.iter().all(|ty| {
+                ty.is_copy_value()
+                    || (closure.result.is_copy_value()
+                        && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
+            })
         {
             return unsupported("LLVM finite resource closure representation", None);
         }
@@ -396,7 +406,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
         if !(function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || resources::supported_type(&function.return_type, &lir.resources)
-            || packages::supported_type(&function.return_type, &lir.resources)
+            || packages::supported_value_type(&function.return_type, &lir.resources)
             || errors::supported_type(&function.return_type, &lir.resources)
             || arrays::supported_type(&function.return_type, &lir.resources)
             || (matches!(function.return_type, Type::Closure(_))
@@ -406,7 +416,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                 !(ty.is_copy_value()
                     || ty.is_scalar_or_address()
                     || resources::supported_type(ty, &lir.resources)
-                    || packages::supported_type(ty, &lir.resources)
+                    || packages::supported_value_type(ty, &lir.resources)
                     || errors::supported_type(ty, &lir.resources)
                     || arrays::supported_type(ty, &lir.resources)
                     || callable_parameter_type(ty, &lir.closures))
@@ -425,9 +435,9 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                 && !concrete_closure
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !ty.is_shared_resource_head_address()
-                && !ty.is_shared_package_address()
+                && !ty.is_package_address()
                 && !resources::supported_type(ty, &lir.resources)
-                && !packages::supported_type(ty, &lir.resources)
+                && !packages::supported_value_type(ty, &lir.resources)
                 && !errors::supported_type(ty, &lir.resources)
                 && !arrays::supported_type(ty, &lir.resources)
             {
@@ -955,7 +965,8 @@ impl FunctionEmitter<'_> {
             | InstructionKind::OwnedStorePop { .. }
             | InstructionKind::OwnedStoreLen { .. }
             | InstructionKind::OwnedStoreCapacity { .. }
-            | InstructionKind::OwnedStoreBorrow { .. } => {
+            | InstructionKind::OwnedStoreBorrow { .. }
+            | InstructionKind::OwnedStoreBorrowMut { .. } => {
                 self.dynamic_store_instruction(instruction)?;
             }
             InstructionKind::ByteBufferNew
@@ -2465,7 +2476,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
             if inner.is_copy_value()
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || ty.is_shared_resource_head_address()
-                || ty.is_shared_package_address() =>
+                || ty.is_package_address() =>
         {
             Ok("ptr".into())
         }
@@ -2500,7 +2511,8 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
             || matches!(ty, Type::Closure(_))
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
-            || matches!(ty, Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer)
+            || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
+            || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
             || matches!(ty, Type::Package { .. }) =>
         {
             llvm_type(ty)
@@ -2522,7 +2534,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
             if inner.is_address_pointee()
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || ty.is_shared_resource_head_address()
-                || ty.is_shared_package_address() =>
+                || ty.is_package_address() =>
         {
             Ok(8)
         }
@@ -2567,7 +2579,8 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                     && !matches!(field, Type::Closure(_))
                     && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
-                    && !matches!(field,Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer)
+                    && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
+                    && !matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
                     && !matches!(field, Type::Package { .. })
                 {
                     return unsupported("unsupported closure field alignment", None);

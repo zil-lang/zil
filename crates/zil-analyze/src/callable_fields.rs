@@ -24,11 +24,17 @@ pub(super) fn self_contained(
             match capture {
                 Type::Closure(child) => pending.push(*child),
                 Type::Managed(_) if !dynamic_store::is_carrier(capture) => {}
+                Type::Managed(_) if dynamic_store::is_owned_carrier(capture) => {
+                    dynamic_store::owned_capture(module, capture, budget)?;
+                }
                 Type::Package { fields, .. }
                     if fields.iter().all(|(_, field)| {
                         field.is_copy_value()
                             || matches!(field,Type::Managed(_) if !dynamic_store::is_carrier(field))
                     }) => {}
+                Type::Package { .. } => {
+                    dynamic_store::captured_package(module, capture, budget)?;
+                }
                 ty if ty.is_copy_value() => {}
                 _ => {
                     return Err(vec![Diagnostic::unsupported(

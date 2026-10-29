@@ -1,0 +1,119 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168/crates/zil-syntax)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168/crates/zil-db)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168/crates/zil-analyze)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168/crates/zil-expand)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168/crates/zil-lower)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.03s
+     Running tests/impl069_retained.rs (/workspace/scratch/39be3faa4442/targets/168/final/debug/deps/impl069_retained-1bd72f07a191bc78)
+
+running 18 tests
+test retained069_copy_snapshot_factory_before_and_after_caller ... ok
+test retained069_cross_module_factory_publishes_actual_return_contract ... ok
+test retained069_hidden_fields_do_not_become_caller_projection_rights ... ok
+test retained069_new_raw_metadata_is_bounded_before_cloning ... ok
+test retained069_analyze_reconstructs_cleanup_and_rejects_missing_contract ... ok
+test retained069_factory_result_and_local_closure_share_source_inference ... ok
+test retained069_fnmut_survives_an_event_loop ... ok
+test retained069_mixed_capture_cleanup_indices_and_owned_return_paths ... ok
+test retained069_managed_use_after_move_and_once_reuse_rejected ... ok
+test retained069_owned_fnmut_updates_retained_resource ... ok
+test retained069_return_is_a_direct_call_with_environment_not_body_substitution ... ok
+test retained069_public_factory_result_can_enter_a_public_helper ... ok
+test retained069_cross_module_same_name_factories_and_module_order ... ok
+test retained069_owned_fn_zero_multiple_and_move_calls ... ok
+test retained069_owned_fnonce_consumes_once ... ok
+test retained069_nearest_source_boundaries_fail_closed ... ok
+test retained069_return_same_local_on_multiple_paths_and_unrelated_closure ... ok
+test retained069_returned_error_callback_and_early_cleanup ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/impl070_retained.rs (/workspace/scratch/39be3faa4442/targets/168/final/debug/deps/impl070_retained-698843bd6b2c78c8)
+
+running 1 test
+test retained070_native_factories_survive_return_move_events_and_cleanup ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.99s
+
+     Running tests/impl127_local_factory.rs (/workspace/scratch/39be3faa4442/targets/168/final/debug/deps/impl127_local_factory-edd7cf1e58c0e9f8)
+
+running 8 tests
+test unused_templates_still_check_opaque_consumption_and_mutability ... ok
+test local_invocations_pay_each_independent_phase_budget ... ok
+test same_factory_same_hidden_identity_has_one_parameter_invocation ... ok
+test two_owned_same_factory_once_instances_each_consume_once ... ok
+test different_local_kind_does_not_change_parameter_bound ... ok
+test same_mutable_factory_instances_keep_independent_state ... ok
+test parameter_alias_retains_parameter_origin ... ok
+test four_modules_clean_called_unused_and_error_environments ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.26s
+
+     Running tests/impl161_nested_closures.rs (/workspace/scratch/39be3faa4442/targets/168/final/debug/deps/impl161_nested_closures-d80c7af33c5cf60f)
+
+running 16 tests
+test nested_closure_function_and_depth_budgets_remain_enforced ... ok
+test capturing_a_callable_environment_and_function_pointer_captures_remain_rejected ... ok
+test independent_verify_rejects_forged_shared_kind_and_second_capture_transfer ... ok
+test nested_error_exit_cleans_only_actual_remaining_owners ... ok
+test inner_unused_environment_and_outer_unused_environment_drop_once ... ok
+test inner_borrowed_writes_persist_in_outer_owned_copy_capture ... ok
+test nested_move_transfers_outer_owned_capture_once ... ok
+test nested_transfer_and_shared_alias_misuse_are_rejected ... ok
+test nested_owning_buffer_replacement_cleans_real_slots ... ok
+test activation_local_managed_owner_moves_into_inner_environment ... ok
+test inner_move_promotes_an_outer_nonmove_managed_capture ... ok
+test nested_package_move_and_inner_refill_keep_distinct_responsibilities ... ok
+test nested_shadowed_parameters_and_locals_do_not_capture_outer_names ... ok
+test nested_move_snapshot_is_distinct_from_borrowed_writeback ... ok
+test nested_signatures_infer_across_three_lexical_layers ... ok
+test outer_package_refill_after_nested_move_keeps_fnmut ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.86s
+
+     Running tests/impl168_retained_composition.rs (/workspace/scratch/39be3faa4442/targets/168/final/debug/deps/impl168_retained_composition-d04e0670dec08b44)
+
+running 20 tests
+test independent_ownership_checks_run_without_nominal_resources ... FAILED
+test independent_raw_and_wire_bound_repeated_child_layout_expansion ... ok
+test distinct_source_opaque_factories_cannot_mix_even_when_forwarded ... ok
+test independent_raw_and_wire_reject_cycles_wrong_capture_indices_and_permissions ... ok
+test independent_raw_and_wire_reject_repeated_nested_take_and_factory_cycles ... ok
+test failed_replacement_keeps_original_slot_responsibility ... ok
+test consumed_callee_is_cleaned_when_later_argument_fails ... ok
+test forward_factories_resolve_reverse_declarations_and_cleanup_once ... ok
+test cross_module_forwarding_preserves_public_opaque_result ... ok
+test nested_error_exit_cleans_inner_activation_then_recursive_environment ... ok
+test recursive_factory_identity_and_escaping_nested_borrow_are_rejected ... ok
+test retained_alias_and_consuming_callback_misuse_are_rejected ... ok
+test nested_move_creation_transfers_ownership_before_any_call ... ok
+test consuming_subenvironment_is_taken_and_called_exactly_once ... ok
+test nonmove_inner_borrow_keeps_outer_owned_callback_live ... ok
+test owned_mutable_subenvironment_updates_real_inline_storage ... ok
+test forwarding_keeps_exact_mutable_and_consuming_factory_kinds ... ok
+test owned_shared_subenvironment_is_borrowed_and_dropped_recursively ... ok
+test uncalled_subenvironment_and_siblings_follow_capture_cleanup_order ... ok
+test same_factory_slot_replacement_drops_previous_after_new_is_ready ... ok
+
+failures:
+
+---- independent_ownership_checks_run_without_nominal_resources stdout ----
+
+thread 'independent_ownership_checks_run_without_nominal_resources' (673) panicked at crates/zil-driver/tests/impl168_retained_composition.rs:326:9:
+[Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-RESOURCE", message: "store would overwrite an outstanding resource responsibility", span: Some(Span { file: FileId(0), start: 183, end: 193 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    independent_ownership_checks_run_without_nominal_resources
+
+test result: FAILED. 19 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.07s
+
+error: test failed, to rerun pass `-p zil-driver --test impl168_retained_composition`

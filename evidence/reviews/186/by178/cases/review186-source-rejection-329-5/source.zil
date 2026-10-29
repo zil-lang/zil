@@ -1,0 +1,1 @@
+resource R{n:i32}package P{pad:i32;manages old:R;wide:[i32;2];manages fresh:R}fn opaque()->P{return P{pad:7,old:R{n:17},wide:[11,13],fresh:R{n:29}}}fn bad()->R contract{result(create)}{let p=opaque();let q=p;return give q.fresh}fn main(){}

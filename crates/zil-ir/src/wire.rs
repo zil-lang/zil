@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 21;
+pub const WIRE_VERSION: u32 = 27;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -21,6 +21,12 @@ fn malformed(code: &str, message: impl Into<String>) -> Diagnostic {
 }
 fn quota(message: impl Into<String>) -> Diagnostic {
     Diagnostic::limit(Phase::Verify, message, None)
+}
+fn flow_count(before: usize, amount: usize, maximum: usize) -> WireResult<usize> {
+    before
+        .checked_add(amount)
+        .filter(|total| *total <= maximum)
+        .ok_or_else(|| quota("candidate callable flow cumulative quota exceeded"))
 }
 fn public<T>(result: WireResult<T>) -> CompileResult<T> {
     result.map_err(|error| vec![error])
@@ -610,6 +616,10 @@ impl<'a> Writer<'a> {
                 CallableKind::FnMut => 2,
                 CallableKind::FnOnce => 3,
             })?;
+            self.count(closure.lending_captures.len(), self.limits.max_locals)?;
+            for index in &closure.lending_captures {
+                self.u32(*index)?;
+            }
         }
         self.count(module.resources.len(), self.limits.max_nodes)?;
         for resource in &module.resources {
@@ -623,38 +633,80 @@ impl<'a> Writer<'a> {
         self.unsupported(&module.unsupported)
     }
     fn callable_contract(&mut self, c: &CallableParameterContract) -> WireResult<()> {
-        self.u32(c.parameter)?;
-        self.u32(c.closure.0)?;
-        self.u8(callable_kind_tag(c.kind))?;
-        for indices in [&c.hold, &c.call, &c.writes] {
-            self.count(indices.len(), self.limits.max_locals)?;
-            for index in indices {
-                self.u32(*index)?;
+        self.count(c.roles.len(), self.limits.max_locals)?;
+        let mut metadata = 0usize;
+        for role in &c.roles {
+            self.u32(role.parameter)?;
+            self.u32(role.closure.0)?;
+            self.u8(callable_kind_tag(role.kind))?;
+            for indices in [&role.hold, &role.call, &role.writes] {
+                metadata = flow_count(metadata, indices.len(), self.limits.max_analysis_steps)?;
+                self.count(indices.len(), self.limits.max_locals)?;
+                for index in indices {
+                    self.u32(*index)?;
+                }
             }
-        }
-        self.u8(match c.cleanup {
-            CallableCleanup::Owned => 0,
-            CallableCleanup::Borrowed => 1,
-        })?;
-        self.count(c.traces.len(), self.limits.max_analysis_steps)?;
-        for trace in &c.traces {
-            self.count(trace.calls.len(), self.limits.max_instructions)?;
-            for call in &trace.calls {
-                self.u8(callable_kind_tag(*call))?;
-            }
-            self.u8(match trace.exit {
-                CallableExit::Return => 0,
-                CallableExit::Trap => 1,
+            self.u8(match role.cleanup {
+                CallableCleanup::Owned => 0,
+                CallableCleanup::Borrowed => 1,
             })?;
         }
+        match &c.traces {
+            CallableTraces::Finite(traces) => {
+                self.u8(0)?;
+                self.count(traces.len(), self.limits.max_analysis_steps)?;
+                for trace in traces {
+                    self.callable_calls(&trace.calls)?;
+                    self.callable_exit(trace.exit)?;
+                }
+            }
+            CallableTraces::Flow(flow) => {
+                self.u8(1)?;
+                self.u32(flow.entry)?;
+                self.count(flow.nodes.len(), self.limits.max_nodes)?;
+                let (mut calls, mut edges) = (0usize, 0usize);
+                for node in &flow.nodes {
+                    calls = flow_count(calls, node.calls.len(), self.limits.max_instructions)?;
+                    self.callable_calls(&node.calls)?;
+                    match &node.next {
+                        CallableFlowNext::Edges(next) => {
+                            self.u8(0)?;
+                            edges = flow_count(edges, next.len(), self.limits.max_analysis_steps)?;
+                            self.count(next.len(), self.limits.max_analysis_steps)?;
+                            for edge in next {
+                                self.u32(*edge)?;
+                            }
+                        }
+                        CallableFlowNext::Exit(exit) => {
+                            self.u8(1)?;
+                            self.callable_exit(*exit)?;
+                        }
+                    }
+                }
+            }
+        }
         Ok(())
+    }
+    fn callable_calls(&mut self, calls: &[CallEvent]) -> WireResult<()> {
+        self.count(calls.len(), self.limits.max_instructions)?;
+        for call in calls {
+            self.u32(call.parameter)?;
+            self.u8(callable_kind_tag(call.kind))?;
+        }
+        Ok(())
+    }
+    fn callable_exit(&mut self, exit: CallableExit) -> WireResult<()> {
+        self.u8(match exit {
+            CallableExit::Return => 0,
+            CallableExit::Trap => 1,
+        })
     }
     fn function(&mut self, function: &TypedFunction) -> WireResult<()> {
         self.boolean(function.callable_return_contract.is_some())?;
         if let Some(c) = &function.callable_return_contract {
             self.u32(c.closure.0)?;
             self.u8(callable_kind_tag(c.kind))?;
-            for indices in [&c.hold, &c.call, &c.writes, &c.cleanup] {
+            for indices in [&c.hold, &c.call, &c.writes, &c.cleanup, &c.lending_captures] {
                 self.count(indices.len(), self.limits.max_locals)?;
                 for index in indices {
                     self.u32(*index)?;
@@ -763,6 +815,11 @@ impl<'a> Writer<'a> {
             }
             InstructionKind::OwnedStoreBorrow { store, index } => {
                 self.u8(86)?;
+                self.u32(store.0)?;
+                self.u32(index.0)?;
+            }
+            InstructionKind::OwnedStoreBorrowMut { store, index } => {
+                self.u8(88)?;
                 self.u32(store.0)?;
                 self.u32(index.0)?;
             }
@@ -1834,7 +1891,7 @@ impl<'a> Reader<'a> {
         for _ in 0..count {
             functions.push(self.function()?);
         }
-        let count = self.count(self.limits.max_functions, 18)?;
+        let count = self.count(self.limits.max_functions, 22)?;
         let mut closures = Vec::with_capacity(count);
         for _ in 0..count {
             let id = ClosureId(self.u32()?);
@@ -1864,6 +1921,7 @@ impl<'a> Reader<'a> {
                 parameters,
                 result,
                 kind,
+                lending_captures: self.callable_indices()?,
             });
         }
         let count = self.count(self.limits.max_nodes, 6)?;
@@ -1907,44 +1965,109 @@ impl<'a> Reader<'a> {
         }
         Ok(result)
     }
-    fn callable_contract(&mut self) -> WireResult<CallableParameterContract> {
-        let parameter = self.u32()?;
-        let closure = ClosureId(self.u32()?);
-        let kind = self.callable_kind()?;
-        let hold = self.callable_indices()?;
-        let call = self.callable_indices()?;
-        let writes = self.callable_indices()?;
-        let cleanup = match self.u8()? {
-            0 => CallableCleanup::Owned,
-            1 => CallableCleanup::Borrowed,
-            _ => return Err(malformed("E-WIRE-TAG", "unknown callable cleanup")),
-        };
-        let count = self.count(self.limits.max_analysis_steps, 5)?;
-        let mut traces = Vec::with_capacity(count);
-        for _ in 0..count {
-            let count = self.count(self.limits.max_instructions, 1)?;
-            let mut calls = Vec::with_capacity(count);
-            for _ in 0..count {
-                calls.push(self.callable_kind()?);
-            }
-            let exit = match self.u8()? {
-                0 => CallableExit::Return,
-                1 => CallableExit::Trap,
-                _ => return Err(malformed("E-WIRE-TAG", "unknown callable exit")),
-            };
-            traces.push(CallableTrace { calls, exit });
+    fn callable_exit(&mut self) -> WireResult<CallableExit> {
+        match self.u8()? {
+            0 => Ok(CallableExit::Return),
+            1 => Ok(CallableExit::Trap),
+            _ => Err(malformed("E-WIRE-TAG", "unknown callable exit")),
         }
-        Ok(CallableParameterContract {
-            parameter,
-            closure,
-            kind,
-            hold,
-            call,
-            writes,
-            cleanup,
-            traces,
-        })
     }
+    fn callable_calls(&mut self, total: &mut usize) -> WireResult<Vec<CallEvent>> {
+        let count = self.count(self.limits.max_instructions, 5)?;
+        *total = flow_count(*total, count, self.limits.max_instructions)?;
+        let mut calls = Vec::with_capacity(count);
+        for _ in 0..count {
+            calls.push(CallEvent {
+                parameter: self.u32()?,
+                kind: self.callable_kind()?,
+            });
+        }
+        Ok(calls)
+    }
+    fn callable_contract(&mut self) -> WireResult<CallableParameterContract> {
+        let count = self.count(self.limits.max_locals, 22)?;
+        let mut roles = Vec::with_capacity(count);
+        let mut metadata = 0usize;
+        for _ in 0..count {
+            let parameter = self.u32()?;
+            let closure = ClosureId(self.u32()?);
+            let kind = self.callable_kind()?;
+            let mut fields = Vec::with_capacity(3);
+            for _ in 0..3 {
+                let count = self.count(self.limits.max_locals, 4)?;
+                metadata = flow_count(metadata, count, self.limits.max_analysis_steps)?;
+                let mut indices = Vec::with_capacity(count);
+                for _ in 0..count {
+                    indices.push(self.u32()?);
+                }
+                fields.push(indices);
+            }
+            let [hold, call, writes]: [Vec<u32>; 3] =
+                fields.try_into().expect("three envelope fields");
+            let cleanup = match self.u8()? {
+                0 => CallableCleanup::Owned,
+                1 => CallableCleanup::Borrowed,
+                _ => return Err(malformed("E-WIRE-TAG", "unknown callable cleanup")),
+            };
+            roles.push(CallableRole {
+                parameter,
+                closure,
+                kind,
+                hold,
+                call,
+                writes,
+                cleanup,
+            });
+        }
+        let traces = match self.u8()? {
+            0 => {
+                let count = self.count(self.limits.max_analysis_steps, 5)?;
+                let mut traces = Vec::with_capacity(count);
+                for _ in 0..count {
+                    let mut total = 0;
+                    let calls = self.callable_calls(&mut total)?;
+                    let exit = self.callable_exit()?;
+                    traces.push(CallableTrace { calls, exit });
+                }
+                CallableTraces::Finite(traces)
+            }
+            1 => {
+                let entry = self.u32()?;
+                let count = self.count(self.limits.max_nodes, 6)?;
+                let mut nodes = Vec::with_capacity(count);
+                let (mut call_count, mut edge_count) = (0usize, 0usize);
+                for _ in 0..count {
+                    let calls = self.callable_calls(&mut call_count)?;
+                    let next = match self.u8()? {
+                        0 => {
+                            let count = self.count(self.limits.max_analysis_steps, 4)?;
+                            edge_count =
+                                flow_count(edge_count, count, self.limits.max_analysis_steps)?;
+                            let mut edges = Vec::with_capacity(count);
+                            for _ in 0..count {
+                                edges.push(self.u32()?);
+                            }
+                            CallableFlowNext::Edges(edges)
+                        }
+                        1 => CallableFlowNext::Exit(self.callable_exit()?),
+                        _ => {
+                            return Err(malformed("E-WIRE-TAG", "unknown callable flow successor"));
+                        }
+                    };
+                    nodes.push(CallableFlowNode { calls, next });
+                }
+                CallableTraces::Flow(CallableFlow { entry, nodes })
+            }
+            _ => {
+                return Err(malformed(
+                    "E-WIRE-TAG",
+                    "unknown callable traces representation",
+                ));
+            }
+        };
+        Ok(CallableParameterContract { roles, traces })
+    }
+
     fn function(&mut self) -> WireResult<TypedFunction> {
         let callable_return_contract = if self.boolean()? {
             Some(CallableReturnContract {
@@ -1954,6 +2077,7 @@ impl<'a> Reader<'a> {
                 call: self.callable_indices()?,
                 writes: self.callable_indices()?,
                 cleanup: self.callable_indices()?,
+                lending_captures: self.callable_indices()?,
             })
         } else {
             None
@@ -2088,6 +2212,10 @@ impl<'a> Reader<'a> {
                 local: LocalId(self.u32()?),
                 index: self.u32()?,
                 mutable: self.boolean()?,
+            },
+            88 => InstructionKind::OwnedStoreBorrowMut {
+                store: ValueId(self.u32()?),
+                index: ValueId(self.u32()?),
             },
             0 => InstructionKind::Constant(self.constant()?),
             1 => InstructionKind::Load(LocalId(self.u32()?)),
@@ -2579,3 +2707,6 @@ mod type_stack_tests;
 
 #[cfg(test)]
 mod state_field_tests;
+
+#[cfg(test)]
+mod flow_tests;

@@ -1,0 +1,1 @@
+fn bad<T:StoreElement>(s:Store<T>,v:T){while store_len(s)<2{store_push(s,v)}};fn main(){}

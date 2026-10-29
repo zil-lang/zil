@@ -1,0 +1,27 @@
+{
+  "implementation_commit": "19f58c16ed800b0cee5a8afcc11908925920cd63",
+  "baseline": "0fc8836bf4e6775cabb85e7f0695dff1772f0412",
+  "public_contract_commit": "44bc53f16ef81f831a852fe71dcf57ae297357c2",
+  "platform_prerequisite": "8493aca5ce86a77cd5e9ea8ab3d3629bafafa2a6",
+  "reviewed_store_window_prerequisite": "74254d8da12004519ca342b1c0602a5a90831c44",
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "642f7de6249bdc52b42fd3c2ad16059cc801ae68c9c94cce83f205c51a55e063",
+  "production_files": {
+    "crates/zil-types/src/aggregates.rs": "6572b261b3fe4a3d1016d840b77a9be9f2b9c5de3fa4d39272e694cf41adcf6e",
+    "crates/zil-types/src/errors.rs": "470df4355c59c332fba569a88af3df67dd5d7610770a66e726ce1d3c5e13e631",
+    "crates/zil-types/src/lib.rs": "c83bc3c0b5906fd6fa439b07567b3eb1a3b1ecc3e97c3d025bb242bc334e3747",
+    "crates/zil-analyze/src/resources.rs": "5002400115cc276aa3c5f5c4d18ff18bee91bfd3035d4669d7f2316aaa71faf5",
+    "crates/zil-analyze/src/budget.rs": "fc056ac48dd5a75984b8b68002ccf6f0df9e5322fdd236b9c06cd8bc52d687ca",
+    "crates/zil-verify/src/errors.rs": "029cc6b48efdf7da0c08d9f9d7baee0e52cf54076374d52302f382306db388da",
+    "crates/zil-verify/src/resources.rs": "47ba2614aff2022074811bac9a283c9d6e14942c3e9bfd3f555685591cc10f70",
+    "crates/zil-lower/src/lib.rs": "d1072df02d6a32c0869723692b1e13d5e0495d9a4cabb7e21a5ee59050f82639",
+    "crates/zil-backend-llvm/src/emit/errors.rs": "7ca9bcf5281947998f7cd4714a6cffed9cb854cf4462f36c63b269ec33151504"
+  },
+  "test_files": {
+    "crates/zil-driver/tests/impl183_owned_resource_results.rs": "03a800cf44ad56013813af903e3666950104d5ad36e8a7aeba0d5bb6ea9852fe",
+    "crates/zil-driver/tests/impl183_raw_owned_success.rs": "5633d706dca0f8fa927ef605ad2a793a7980087155b1dba26a9c4e19bbbfa0f7"
+  },
+  "schema_version": 22,
+  "rule_version": "ZIL-LANG-1.4",
+  "tested_dirty": ""
+}

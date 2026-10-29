@@ -1,0 +1,33 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-analyze",
+    "-p",
+    "zil-verify",
+    "--lib",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/review182",
+  "start": 1793154699.032813,
+  "source_commit": "ebaddd7faf7b83b257b873e8544af0fef13e670a",
+  "git_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/review182",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/182-repair-review/frozen01/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793154705.4855967,
+  "stdout.log_sha256": "b98ca7dc522d88520e249b137d85353eda08c763c65e874d3b099d7e5ca77252",
+  "stderr.log_sha256": "143e1a60b28d0321cf1cdd94ba1d83f026cab9a5cb8e1acf159ce003e6d48971"
+}

@@ -1,0 +1,32 @@
+{
+  "implementation_author": "/root/resume192",
+  "implementation_commit": "13df78f532f63874b61d56dc6067884dbac0fe9d",
+  "baseline": "40abb53527aa45c89f6249162c9a69fea5fd80ad",
+  "preflight_commit": "8402f1b812bbe416c74911f83ab4e5ac7be616a0",
+  "schema_version": 24,
+  "spec_hash": "48641079ef2ecc84aa50a0a9eafd83ae844f0d3de7924fcc8cb3e2fef3f9db5f",
+  "normative_hash": "6488fa9f20121c4268f13153c6daecbfd20da5eb5e8aa86630620413d41edadb",
+  "changed_file_sha256": {
+    "changes/194-implementation.md": "ed68f22435b99137d497774107573364938a6ce293e2666d9ad3e82a90a10909",
+    "crates/zil-driver/tests/impl103_generic_aliases.rs": "1f475d53b3e9d54afff2dbb6d075ed52dec8b759037dfa1c6245ad0ad06edf92",
+    "crates/zil-driver/tests/impl194_copy_callable.rs": "a5418f97c7513789eddb2ef2cd8d4ee13f806d23f71fa23e8b91abc5639d1649",
+    "crates/zil-driver/tests/impl194_copy_callable_raw.rs": "cf38a02b7ef30373bf4f551a2d933637534784be7567fa3c2edbad2f4e748878",
+    "crates/zil-expand/src/generic_callable.rs": "72c1df0da795ed3bd23d03ea60cbbe8c0e4b102398fb9c61e34f378329e3547a",
+    "crates/zil-expand/src/generic_check.rs": "43620b56d71ac49d31fe63cc4ad1599420cb3d14de581eb005f8632345277d5a",
+    "crates/zil-expand/src/generic_copy.rs": "9d9e85b7b6905fc0db144c6d3e217c6d728f6187fe818038df73c8391fde9d05",
+    "crates/zil-expand/src/generic_store.rs": "d2171bf15c71f34e72deb765e022696088f2be6b7dfc01ef04b32293b431f229",
+    "crates/zil-expand/src/generic_trait_bounds.rs": "ac66665b2bdd16a700a1f9c164494ded6beea69740dde099edac3cc90d0c1c7f",
+    "crates/zil-expand/src/generics.rs": "7e34351de294eb62796e2b278e226951c8d7e349ada5115a509791661b1653da",
+    "examples/mainline/generic_callbacks194/factory.zil": "485e1a4f3317929ae51bbb401cd86866eff8f375c63512f0c223ea0156e7e703",
+    "examples/mainline/generic_callbacks194/helpers.zil": "81eb9ddc6d7cd2920082f79e280d7c5df3b2231162161a61859f40fab2ad802a",
+    "examples/mainline/generic_callbacks194/main.zil": "e9fb8a4d10d2ea29f59f144a64b393ada98582e865ba7fa1437f8d89ccc78047",
+    "examples/mainline/generic_callbacks194/portable.zil": "0207374207c875a2f62b51a228832d6eec09ee3d633e9f9ea5704757e64997fa",
+    "tools/language/194/consumer.py": "7f3496e03953ad82821099493e9537ac4007244b8eaad2c4b3e373dcb768f5cb"
+  },
+  "cli_path": "/workspace/scratch/39be3faa4442/targets178/author194/debug/zil",
+  "cli_sha256": "029543198554cd97118e2f4bc4a5b75ef0767ea5cbbf872f5e4fa075439ab119",
+  "cli_bytes": 25447872,
+  "build_receipt": "runs/final-build01/command/command.json",
+  "review_status": "Pending independent review",
+  "note": "Later evidence/documentation commits do not relabel this actual clean compiler/test source."
+}

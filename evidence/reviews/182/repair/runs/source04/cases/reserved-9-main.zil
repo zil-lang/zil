@@ -1,0 +1,1 @@
+enum E{Some(i32),None}fn main(){let e=E.Some(1);if let E.Some(store_at)=e{}}

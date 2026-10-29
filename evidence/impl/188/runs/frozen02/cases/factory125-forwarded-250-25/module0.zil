@@ -1,0 +1,1 @@
+fn inner()->impl Fn()->i64{return move ()=>42}fn make()->impl Fn()->i64{return inner()}fn value()->i64{return 0}

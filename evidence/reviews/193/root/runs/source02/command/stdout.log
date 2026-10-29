@@ -1,0 +1,63 @@
+
+running 7 tests
+test explicit_mutable_arguments_do_not_upgrade_shared_inputs ... ok
+test helper_actual_capture_and_slice_backing_are_instantiated_together ... ok
+test new_parameters_do_not_open_captures_lending_nested_or_noncopy_shapes ... ok
+test current_call_checks_shared_exclusive_and_whole_backing_aliases ... ok
+test original_nineteen_preflight_inputs_now_reach_the_promised_stage_unchanged ... ok
+test slice_parameter_index_and_range_checks_reach_machine_traps ... ok
+test sequential_slice_reborrows_and_dead_last_use_preserve_backing ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+
+running 8 tests
+test a_raw_write_through_a_shared_slice_element_is_not_admitted ... ok
+test raw_parameter_count_and_slice_type_depth_exhaust_bounds_before_entry_checks ... ok
+test entry_and_actual_parent_permissions_are_checked_independently ... ok
+test raw_range_operand_types_and_hold_rows_are_independent ... ok
+test replacing_an_explicit_operand_with_its_exclusive_sibling_preserves_aliases ... ok
+test captured_desc_aliasing_is_rebuilt_from_actual_executable_backing ... ok
+test raw_unsupported_shapes_and_capture_or_lending_claims_stay_closed ... ok
+test actual_slice_work_has_measured_raw_and_wire_n_and_n_minus_one_boundaries ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+
+running 4 tests
+test two_distinct_slice_operands_cannot_relabel_one_actual_backing ... ok
+test nested_borrowed_descriptors_use_the_actual_last_call_backing ... ok
+test nested_helpers_preserve_mutable_slice_parent_and_large_copy_values ... ok
+test a_state_callback_receives_its_buffer_and_counter_siblings ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+
+running 24 tests
+test closure_body_local_slice_does_not_cross_its_callable_boundary ... ok
+test apparent_disjoint_ranges_still_use_the_whole_backing_origin ... ok
+test explicit_slice_parameters_preserve_closed_captures_and_lending_sources ... ok
+test forged_hold_claims_never_manufacture_a_slice_origin ... ok
+test both_range_endpoints_are_typed_and_the_third_operand_is_checked ... ok
+test mutable_slice_index_uses_existing_exclusive_qualification ... ok
+test length_cannot_bypass_a_live_exclusive_child_but_parent_resumes_after_use ... ok
+test mutable_slice_transfer_consumes_the_actual_carrier_once ... ok
+test projected_mutable_fat_pointer_is_a_view_not_a_second_owned_qualification ... ok
+test discarded_range_and_index_still_check_the_implicit_dynamic_length_read ... ok
+test branch_joins_preserve_all_slice_return_origins_and_mutable_carrier_state ... ok
+test ordinary_returned_slice_origins_cross_two_call_boundaries ... ok
+test shared_window_cannot_write_or_become_exclusive ... ok
+test slice_from_local_array_cannot_escape_and_late_len_keeps_storage_alive ... ok
+test review_third_range_operand_must_dominate_across_a_real_cfg_join ... ok
+test slice_profiles_reject_foreign_abi_and_ct ... ok
+test slice_projection_result_elements_permissions_and_len_type_are_rebuilt ... ok
+test slice_targets_require_the_exact_x64_profile_not_just_a_pointer_width ... ok
+test whole_unsized_reads_writes_and_non_slice_len_have_no_admission ... ok
+test unsupported_slice_storage_and_nested_elements_are_rejected_independently ... ok
+test new_wire_endpoints_reject_truncation_versions_and_stale_identity ... ok
+test range_optional_endpoints_integer_widths_and_subranges_are_not_new_loans ... ok
+test ordinary_slice_windows_admit_copy_elements_and_both_targets ... ok
+test slice_shapes_and_operations_obey_exact_work_and_depth_budgets ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

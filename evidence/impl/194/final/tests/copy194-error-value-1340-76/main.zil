@@ -1,0 +1,1 @@
+fn map<T:Copy,F:Fn(T)->T>(f:&F,x:T)->T=>f(x);fn success()->bool!i32=>7;fn main()->bool!i32{let f=move(x:bool!i32)=>x;let v=map(&f,success());return v?-7}

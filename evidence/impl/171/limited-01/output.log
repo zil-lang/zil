@@ -1,0 +1,53 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 30.69s
+     Running tests/impl171_resource_heads.rs (/workspace/scratch/39be3faa4442/targets/171-final-01/debug/deps/impl171_resource_heads-3c55f1b37cf8f614)
+
+running 13 tests
+test descriptor_capturing_callbacks_cannot_write_under_a_live_head ... ok
+test head_metadata_work_has_an_exact_finite_budget_boundary ... ok
+test original_159_resource_address_receiver_probe_is_unchanged_and_now_supported ... ok
+test raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head ... FAILED
+test active_head_prevents_write_move_replacement_and_old_address_revival ... ok
+test resource_trait_nonshared_receivers_and_head_indirect_calls_stay_closed ... ok
+test unrelated_owned_callback_and_shared_head_compose ... FAILED
+test heads_are_not_descriptors_mutable_windows_returns_or_captures ... ok
+test imported_heads_keep_nominal_identity_visibility_and_actual_storage ... ok
+test last_use_then_descriptor_write_is_allowed ... ok
+test desc_only_imported_helpers_export_writes_into_caller_head_window ... ok
+test actual_head_trait_and_inherent_methods_and_plain_parameters ... ok
+test descriptor_and_head_parameters_do_not_assume_distinct_origins ... ok
+
+failures:
+
+---- raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head stdout ----
+
+thread 'raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head' (304) panicked at crates/zil-driver/tests/impl171_resource_heads.rs:450:9:
+old-head-after-revival/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-MUTABILITY", message: "immutable local has an assignment beyond its single initialization site", span: Some(Span { file: FileId(0), start: 85, end: 86 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- unrelated_owned_callback_and_shared_head_compose stdout ----
+
+thread 'unrelated_owned_callback_and_shared_head_compose' (311) panicked at crates/zil-driver/tests/impl171_resource_heads.rs:87:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"closure value requires a finite Copy type","span":{"file":0,"start":359,"end":361},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/run-logs/171/native-final-01/resource-heads171-291-31/phases/core.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/171/native-final-01/resource-heads171-291-31/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/171/native-final-01/resource-heads171-291-31/phases/syntax.txt"},"input_fingerprint":"4bee484c2860d839a0ccd6079c457719b750cb1a060f56004562601b565558b1","seconds":0.016896297,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+
+
+failures:
+    raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head
+    unrelated_owned_callback_and_shared_head_compose
+
+test result: FAILED. 11 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s
+
+error: test failed, to rerun pass `-p zil-driver --test impl171_resource_heads`

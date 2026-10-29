@@ -1,0 +1,1 @@
+fn main()->i32{var a=[1u8];var b=[2u8];let f=(p:&mut [u8],q:&mut [u8])=>{p[0]+=1u8;q[0]+=2u8;return i32(p[0])+i32(q[0])};return f(&mut a[..],&mut b[..])-6}

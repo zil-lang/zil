@@ -1,0 +1,12 @@
+{
+  "verify_dependencies": "[package]\nname = \"zil-verify\"\nversion.workspace = true\nedition.workspace = true\nrust-version.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n\n[dependencies]\nzil-base.workspace = true\nzil-ir.workspace = true\n",
+  "production_verify_imports_types_or_analyze": [],
+  "review_branch_delta": [
+    "crates/zil-driver/tests/review176_by175.rs"
+  ],
+  "implementation_and_tested_crates_tree_equal": true,
+  "implementation_crates_tree": "0fe0f25da88ee0a22a3897544f213579899d0cde",
+  "source_field_geometry": "Scene has [i64;3] before callback, then Managed Stamp/u16/i32; native state retains sentinels and updated closure state",
+  "opaque_machine_identity": "four-module typed snapshot: @module2:function3 and @module2:function4 both return ClosureId(0); distinct source factory substitution rejects",
+  "runtime_extra_ownership": "checked emitted inline Package field GEP and recursive closure cleanup; no runtime RC/box/global table/noalias introduced"
+}

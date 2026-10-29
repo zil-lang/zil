@@ -1,0 +1,100 @@
+{
+  "reviewer": "/root/roles196_frontend",
+  "component_author": "/root",
+  "reviewed_commit": "85f01d622d9c31bffe165e5720bbf09658af5084",
+  "scope": "Read-only difference and format audit plus independent execution of the seven supplied Python packaging tests. No Cargo, compiler, generated program or full archive rerun.",
+  "verdict": "Pass within this tool-change scope; no newly introduced overwrite, byte-rewrite or restore-path regression found.",
+  "inputs": {
+    "compact_evidence.py": {
+      "bytes": 17560,
+      "sha256": "a762481953ff9aa9b0a2f2bfc3fb1219343d02931fbdf03e07ec0e6bbcc27130",
+      "original203_sha256": "ee2b3373ffd92a24e496394cba7833071b505c02423fd7bff8b529f9c92496ce"
+    },
+    "test_compact_evidence.py": {
+      "bytes": 8332,
+      "sha256": "d1fbd0775eb65fff8fc65e9b3fdd747aed80bb899c3213424d700f366937849b",
+      "original203_sha256": "610c0be198b791b567aa9e442b0590c9a8b511e44b4abc6a20188b3ebbca9615"
+    }
+  },
+  "comparison": {
+    "changed_functions": [
+      "evidence_kind"
+    ],
+    "unchanged_storage_and_path_functions": {
+      "safe_path": "d361c8ec59a0e95d07f8edf49c2dac5fc5c0cd708fb7bb8073af71f8056ee035",
+      "safe_label": "bf9e28fff66ea9b0f6ec7c1c231b6eba62073b5c21db336bbcf4d00cfc66cc56",
+      "fingerprint": "aba1f68cddc8751f86098959aaa7b2d786eb353aca48783e64d5bd1441780ec2",
+      "file_digest": "5eb17b08ac83964db4c36658850015c7128d3283430eed54bfb8a3cd49a440fb",
+      "tree_inventory": "4ace3cdb190f733e2a54e08f190c5c005e60f665afba83f7c7fc79c97d269803",
+      "restored_path": "4c8e9ed95ed5ba5db41a1d9e8258c977c29d7af8af97380660844ad896a3150e",
+      "verify": "77ea0029e4e8b5cbf2c8f7a96dae93ef6c4586d69fcf1e447a3549eb3de78fda",
+      "pack": "6b55f2405240ae8f487ed473bf80d598bd931ec38787dd92a1bb81c28ef2eb48",
+      "restore": "370fcf9e85c696046567b3e9eb601fc1e49300527c14d683bd45424f0b1b669e",
+      "main": "d1153869ab7ae3ad6232518686f87563dd1cbaacfd771b1cd66d8773e9098884"
+    },
+    "other_changes": "README describes the newly recognized binary evidence; test suite adds one binary I/O/CT/cache case and changes its temporary-directory label."
+  },
+  "producer_checks": [
+    {
+      "path": "crates/zil-ir/src/wire.rs",
+      "sha256_at_reviewed_commit": "ab4da6618b25f322103ac7e3b5bf1af61a18258f227040b90fb779596d8b11a6",
+      "finding": "encode_ct / encode_ct_program / Writer::header: exact ZILCTIR\\0 and ZILCTPG\\0 headers, followed by Wire version; raw candidates carry no executable authority."
+    },
+    {
+      "path": "crates/zil-db/src/cache.rs",
+      "sha256_at_reviewed_commit": "ff79c1b73e4e7f563e64b65ad3c7fe8f2a5bc51c8afa89fcca1a164a9511c7e2",
+      "finding": "ArtifactCache::path and write_with_hook: <key>.candidate, followed by exact ZILRAW02/key/digest/length/payload bytes."
+    },
+    {
+      "path": "crates/zil-driver/tests/impl105_ct_enum.rs",
+      "sha256_at_reviewed_commit": "d48dfa3acb824693b97e3c9be5fa986efb0b585d6226348affd6764c9af66ebe",
+      "finding": "execute: fs::write raw input to .stdin, expected output to .expected.stdout, actual stdout/stderr bytes to .stdout/.stderr."
+    },
+    {
+      "path": "crates/zil-driver/tests/impl108_foreign_binding.rs",
+      "sha256_at_reviewed_commit": "682485aadbcfa1fdf3b07c4b61362f264ea27203cc364d83f829f5608d8344f2",
+      "finding": "execute: raw input/output recorded under {label}.stdin/.stdout/.stderr; no UTF-8 conversion in recorded payloads."
+    }
+  ],
+  "classification_findings": [
+    "CTPG and CTIR match the exact actual producer prefixes; malformed payload bytes after a retained prefix are evidence, not a claim of valid IR.",
+    "Cache evidence requires both .candidate suffix and ZILRAW02 prefix. This does not admit arbitrary .bin data.",
+    "Standard-I/O suffixes come from actual test producers and deliberately precede machine magic: ELF-looking stdin is a recorded input, not an executable product.",
+    "Ordinary executables, object/library products and machine magic retain the old hash-only directory behavior; execution products inside sealed source archives still cause explicit rejection.",
+    "Unknown nontext inputs still fail packaging with a retained partial; no new catch-and-ignore or lossy text decode was added."
+  ],
+  "integrity_findings": [
+    "include hashes and stores the original data bytes; UTF-8 decode is only an old classification check and does not re-encode content.",
+    "Original source archive identity and original path mapping remain in INDEX; SHA-addressed objects deduplicate content without merging original results or paths.",
+    "pack uses an exclusive .partial, verifies it and the cap, then hardlinks without replacing any existing final output. Existing outputs/partials are rejected.",
+    "verify checks duplicate members, safe path syntax, manifest/member identity, CRC/SHA/length, exact object references and restored mappings.",
+    "restore verifies before creating a new destination, uses safe mapped relative paths and exclusive file creation; existing destination is rejected. Tests show corrupt objects and traversal inputs cannot publish/restore an accepted archive."
+  ],
+  "tests": {
+    "command": [
+      "python3",
+      "-m",
+      "unittest",
+      "-v",
+      "test_compact_evidence.py"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/run-logs/204-evidence-tool-review85",
+    "environment": {
+      "TMPDIR": "/workspace/scratch/39be3faa4442/run-logs/204-evidence-tool-review85/tmp",
+      "PYTHONDONTWRITEBYTECODE": "1"
+    },
+    "passed": 7,
+    "failed": 0,
+    "exit": 0,
+    "stderr_sha256": "a468f618fc675b04a0d020fc46711c4791c79ba1a91df3a69a1becdd6bd85a40",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command_record_sha256": "d22a00aa218d9082df611010b53d0007b6251619ce9e26c4d5fc1c3c68792c76"
+  },
+  "limits": [
+    "This is archive integrity and classification review, not validation of CT/cache candidate semantics or language acceptance.",
+    "Only configured, frozen evidence sources are covered; unsupported binary names remain explicit failures rather than being automatically included.",
+    "Original ZIP bytes are not recreated by logical restoration; original container identities are retained, as documented."
+  ],
+  "record_directory": "/workspace/scratch/39be3faa4442/run-logs/204-evidence-tool-review85",
+  "repository_production_changed": false
+}

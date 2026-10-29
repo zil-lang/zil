@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "reviewer": "/root",
+  "verdict": "Pass",
+  "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+  "crates_tree": "0388c0c9936b0e4c1747f904abd458f9e8d5b956",
+  "normative_hash": "9eeacdb5333925a084d7dc14a0c4b50b1a3d01684acb8214ea4bd381251ed666",
+  "scope": "Independent task166 finite owned error-result review; not a review of root public IR/Wire/consumer implementation. Those root writes have separate non-author reviews.",
+  "original_review": "evidence/reviews/166/review.json",
+  "original_implementation_commit": "fc03263d5fd3dfad17e3c40a28e37197bfee73ff",
+  "final_validation": {
+    "workspace_receipt": "evidence/impl/169/integration/final-workspace-03/command.json",
+    "workspace_passed": 1463,
+    "workspace_failed": 0,
+    "task166_suite_passed": 13,
+    "root_native_receipt": "evidence/reviews/166/final-consumer.json",
+    "ordinary_executions": 4,
+    "instrumented_executions": 8,
+    "native_cases": [
+      "argument_failure",
+      "error_entry"
+    ],
+    "observed_outputs": [
+      "BA",
+      "D"
+    ],
+    "actual_allocations_equal_frees": true,
+    "final_live_allocations": 0
+  },
+  "inspection": "Finite Copy/complete-Package admission, consuming tag-selected extraction, tag-dominance checks before owned transfer, ordinary argument guards, active branch cleanup and native wrapper cleanup retain their reviewed responsibilities. Integration preserves the owned-union capture and reassignment restrictions. Updated shared Package/array diagnostic changes neither category nor rejection; the exact final 13-test suite passes from a new target.",
+  "historical_failures_retained": [
+    "evidence/impl/169/integration/final-workspace-01/command.json",
+    "evidence/impl/169/integration/final-workspace-02/command.json",
+    "evidence/impl/169/integration/166-diagnostic-migration/command.json"
+  ],
+  "not_claimed": [
+    "direct Managed error alternatives",
+    "owned union whole-local reassignment",
+    "owned union captures",
+    "nested owned payloads",
+    "complete language or product acceptance"
+  ]
+}

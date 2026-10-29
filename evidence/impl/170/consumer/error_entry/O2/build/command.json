@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/170-cli-fresh/debug/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/zil-restored/wt170/examples/mainline/impl170/error_entry.zil",
+    "--opt",
+    "O2",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/170/consumer-01/error_entry/O2/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/170/consumer-01/error_entry/O2/phases",
+    "--json"
+  ],
+  "start": 1793109666.1643133,
+  "status": "Completed",
+  "exit_code": 0,
+  "stdout_sha256": "c56edb2ab21162604a704332d7b39f62bec0371703cdd9b03b039006361c7bae",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793109666.5114956
+}

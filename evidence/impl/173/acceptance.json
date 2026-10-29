@@ -1,0 +1,96 @@
+{
+  "schema": "zil-language-stage-acceptance-v1",
+  "stage": "170-173",
+  "status": "Pass",
+  "implementation_commit": "6a623edef1e8d928b5b11091a50f9319fbe6fd59",
+  "integration_commit": "2ce458178aa29fad893f69191aa5ff64f53bc108",
+  "crates_tree": "2236e0060a24fdbd45058e751722d2a3a18e3976",
+  "schema_version": 20,
+  "wire_version": 20,
+  "normative_hash": "c358b8c5e0abaf11d81b1d55e23f6896cfb485eb4291f34937fe43e9e7ea319c",
+  "full_workspace": {
+    "receipt": "final/workspace04/command.json",
+    "passed": 1526,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 153
+  },
+  "clippy": {
+    "status": "Pass",
+    "receipt": "final/clippy01/command.json"
+  },
+  "format": {
+    "status": "Pass",
+    "receipt": "final/fmt01/command.json"
+  },
+  "composed_consumer": {
+    "receipt": "final/consumer/summary.json",
+    "builds": 6,
+    "native_executions": 44,
+    "ordinary": 14,
+    "instrumented": 30,
+    "compiler_source_commit": "02cce89206e74cb5aa0050faf4885973288b9383",
+    "compiler_sha256": "623dcf1d58f4dc5c0cb02dff9c912e2a5a866d5d0c7dc9188878114e8d6e3c73",
+    "basis": "The executed compiler was built at 02cce892. Independent review checked every difference through 6a623ede: five test modules and two change notes only; production and consumer bytes are identical."
+  },
+  "original159": {
+    "receipt": "final/readiness/summary.json",
+    "script_sha256": "1acf26ce2b3b74629a4936d74ab0f943ce71d6751f1843c2a3a64d7241520f45",
+    "passed": [
+      "nested-owning-callback",
+      "generic-trait-bound",
+      "owning-method-receiver",
+      "array-of-capturing-callbacks"
+    ],
+    "still_rejected": [
+      "owned-array-elements",
+      "owned-error-result"
+    ],
+    "old164_native_executions": 4,
+    "events_per_execution": 1024
+  },
+  "independent_reviews": {
+    "170": "evidence/reviews/170/review.json",
+    "171": "evidence/reviews/171/REVIEW.json",
+    "172": "evidence/reviews/172/REVIEW.json",
+    "173_public": "evidence/reviews/173/public/REVIEW.json",
+    "173_wire": "evidence/reviews/173/wire-stack/REVIEW.json",
+    "173_composition": "evidence/reviews/173/integration/REVIEW.json"
+  },
+  "retained_prior_attempts": [
+    "workspace01: infrastructure disk exhaustion before any test",
+    "workspace02: 390 Pass / 1 Fail, unchanged original 047 head probe expectation",
+    "workspace03: 1522 Pass / 4 Fail, unchanged original 147 probe and exact diagnostic messages",
+    "preflight consumer01: invalid unsafe expression in author sample",
+    "preflight consumer02: real owned-error ordinary signature inference omission",
+    "preflight consumer03: test probe had no report for zero-allocation program",
+    "public review: reserved Store declaration/binder bypass",
+    "172: reproduced recursive Wire Writer/Reader stack overflow",
+    "171: Desc callback write-effect and mixed-capture head-window counterexamples"
+  ],
+  "default_limits_changed": false,
+  "product_profiles_changed": false,
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "parent_B0": "Doing",
+  "performance_claim": "No new comparative compiler/runtime/memory result",
+  "packaging_and_cold_recovery": "Recorded separately after final source freeze; not preclaimed here",
+  "acceptance_scope": "Limited 170-173 language implementation, exact-source tests and independent reviews only. Full language and product gates remain unmet/not run.",
+  "historical_project_gates": {
+    "handoff": {
+      "status": "Fail",
+      "receipt": "final/handoff02/command.json",
+      "errors": 1152,
+      "warnings": 0,
+      "current_170_173_errors": 0,
+      "source_commit": "d1869bbe9367f37f10e5aa6bb7be568e2f275601"
+    },
+    "plan": {
+      "status": "Fail",
+      "receipt": "final/check-plan-selftest/command.json",
+      "errors": 28,
+      "scope": "Unmodified historical B0, T01-T09, W1-W4 task spec_hash/normative_hash metadata"
+    },
+    "basis": "These historical failures are retained. They do not become Pass through the limited 170-173 acceptance."
+  }
+}

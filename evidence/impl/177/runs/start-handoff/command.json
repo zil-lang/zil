@@ -1,0 +1,21 @@
+{
+  "command": [
+    "node",
+    "tools/handoff.mjs",
+    "--check"
+  ],
+  "source_commit": "81b480be45643be9fddd3955f118c1439e195507",
+  "exit_code": 1,
+  "start": 1793114109.9473848,
+  "end": 1793114116.253444,
+  "stdout_sha256": "7d37e7dfc8e8ef51f501ac2bad62a833a1a2d02103970b8e037eac7fd87bc599",
+  "status": "Fail",
+  "errors": 1152,
+  "warnings": 0,
+  "authority": {
+    "method": "git-main-worktree",
+    "task_root": ".task",
+    "current_is_main": true,
+    "main_tree_now": "/workspace/scratch/39be3faa4442/zil-restored/compose159"
+  }
+}

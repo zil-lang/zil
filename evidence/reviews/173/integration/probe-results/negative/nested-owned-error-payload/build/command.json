@@ -1,0 +1,18 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/reference173/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-inputs/nested-owned-error-payload/main.zil",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-results/negative/nested-owned-error-payload/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-results/negative/nested-owned-error-payload/phases",
+    "--json"
+  ],
+  "controlled_environment": {},
+  "start": 1793111947.986069,
+  "end": 1793111948.0052228,
+  "exit_code": 3,
+  "stdout_sha256": "b6965bb34800f66ec9b6f994c9f9012215654e2dcd2195484620e4b943c4c260",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

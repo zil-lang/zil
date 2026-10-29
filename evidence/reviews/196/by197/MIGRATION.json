@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "task": "196",
+  "reviewer": "/root/impl197",
+  "reviewed_commit": "e9959e10d804ed60b32b5c44ef3f15fee73e7c36",
+  "original_implementation_commit": "bcb00f550aaea48a56c888245a8a3c6a7422a926",
+  "review_method": "read-only diff and affected checker-assertion inspection",
+  "new_execution": "NotRun; no additional tests or native programs executed for this follow-up",
+  "verdict": "No hidden removal or weakening of the preserved attack found in this migration",
+  "comparison": "reviewed commit relative to its first parent",
+  "production_diff": [],
+  "changed_files": [
+    "changes/196-regression-migration.md",
+    "crates/zil-driver/tests/impl182_capture_contracts.rs",
+    "crates/zil-driver/tests/impl188_nested_helpers.rs",
+    "crates/zil-driver/tests/impl190_flow_raw.rs",
+    "crates/zil-driver/tests/impl194_copy_callable.rs"
+  ],
+  "findings": [
+    {
+      "slices": "182/188",
+      "result": "only expected diagnostic substring changes; original source, rejection phase/category retained"
+    },
+    {
+      "slice": "190",
+      "result": "only the designated same-ClosureId borrowed factory substitution separately expects Analyze Unsupported; actual IR mutation, refreshed module fingerprint and Wire roundtrip retained; Verify raw and Wire still require SafeReject and E-VERIFY-CALLABLE-CONTRACT; the wrapper preserves original shared category for all other attacks; no borrowing proof is claimed from Unsupported"
+    },
+    {
+      "slice": "194",
+      "result": "the two original unused multi-role definitions remain byte-for-byte as newly admitted positive definition controls; new actual same-F and F/G invocation O0/O2 cases added; unbounded data, mixed-mode and recursive rejected cases remain"
+    }
+  ],
+  "limits": "This follow-up reviews migration semantics only; it does not claim a new full-workspace pass, re-review 199, or update the original 196 execution identity."
+}

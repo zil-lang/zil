@@ -1,0 +1,1 @@
+struct Row{store_at:i32}fn main()->i32{let row=Row{store_at:3};return row.store_at-3}

@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/author181/debug/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/language14/wt181/examples/mainline/zui_language177/field_exit.zil",
+    "--opt",
+    "O0",
+    "--clang",
+    "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/181-platform/linux02/field_exit/O0/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/181-platform/linux02/field_exit/O0/phases",
+    "--json"
+  ],
+  "status": "Completed",
+  "start": 1793151181.4643257,
+  "stdin_hex": "",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "d981fd9e0f36926bc01598e8ee71bbd71fd11288f5f517de76b2c4f17fa492da",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793151181.628008
+}

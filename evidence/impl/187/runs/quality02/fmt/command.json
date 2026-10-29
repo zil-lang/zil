@@ -1,0 +1,16 @@
+{
+  "command": [
+    "cargo",
+    "fmt",
+    "--all",
+    "--",
+    "--check"
+  ],
+  "source_commit": "3d41b36153078d8c5465e9a7cf845bd37dabc9e2",
+  "dirty": " M changes/187-local-borrowed-byte-descriptions.md\n M crates/zil-analyze/src/helpers.rs\n M crates/zil-driver/tests/impl187_borrowed_bytes.rs\n M crates/zil-types/src/helpers.rs\n M crates/zil-verify/src/borrows.rs\n M crates/zil-verify/src/borrows/buffer_effects.rs\n M crates/zil-verify/src/borrows/captures.rs\n M crates/zil-verify/src/borrows/loans.rs\n M crates/zil-verify/src/helpers.rs\n?? evidence/impl/187/\n",
+  "started": 1793157021.7247128,
+  "exit": 0,
+  "finished": 1793157023.2675164,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

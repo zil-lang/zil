@@ -1,0 +1,46 @@
+{
+  "reviewer": "/root/impl197",
+  "verdict": "Pass",
+  "archive": "/workspace/scratch/39be3faa4442/deliverables/204-delivery-tools-evidence.tar.xz",
+  "bytes": 327460,
+  "sha256": "cdddb5fcb97c0eeecea15328d142bf35a5a82bffe2b833fb479e26b7aec6d03a",
+  "regular_members": 235,
+  "manifest_bound_members": 234,
+  "statistics": {
+    "source_entries": 343,
+    "stored_regular_files": 231,
+    "stored_original_bytes": 7634664,
+    "hash_only_files": 8,
+    "hash_only_bytes": 328,
+    "metadata_only_special_entries": 6,
+    "directories_recorded": 98
+  },
+  "original_trees_unchanged": true,
+  "stored_original_files_compared_byte_for_byte": 231,
+  "extraction": false,
+  "links_followed_or_activated": false,
+  "compiler_or_tool_tests_executed": false,
+  "id": "204-delivery-tools-archive-independent-review",
+  "auditor_source_commit": "6f28f31268079575c9581567cc0f58e57928495f",
+  "auditor_path": "tools/language/204/review_by197/audit_tool_archive.py",
+  "auditor_sha256": "9379fccf9db41fda6b68e4459c45fb3417a51bf0af14f2dd524c5baf65524c19",
+  "command_receipt": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/204-container-review-by197/tool-container01/command.json",
+    "sha256": "f1bee4b938cfc8705a5885c8bcaffeee19e30c5cb1de5d6697991454237035bb"
+  },
+  "actual_outputs": {
+    "stdout.log": {
+      "bytes": 753,
+      "sha256": "3c4dc5609e39c18b5da8c046eb4ad5f37e62dba9564a6342be5ea66e87b384d3"
+    },
+    "stderr.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "tool_implementation_commit": "e3453cf0e163c6aee6bfc1b592fca27f1b600ed3",
+  "language_implementation_commit_unchanged": "85f01d622d9c31bffe165e5720bbf09658af5084",
+  "scope": "Read-only independent byte comparison with both original tool-review trees, complete tar membership/manifest/index/statistics and XZ-footer checks. Supplemental tool evidence only; final language aggregate is separate.",
+  "excluded_products": "Eight native.exe fake executable fixtures are recorded with their actual SHA/length only; all original ZIP/XZ transport-test inputs and binary stdin bytes remain stored.",
+  "special_entries": "Six original symlink fixtures retain exact target/type metadata. No link or nonregular entry is an active tar member; no source links were followed."
+}

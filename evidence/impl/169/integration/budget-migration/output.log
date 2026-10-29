@@ -1,0 +1,20 @@
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/compose159/crates/zil-analyze)
+    Finished `test` profile [unoptimized] target(s) in 0.41s
+     Running tests/budgets.rs (/workspace/scratch/39be3faa4442/targets/169/debug/deps/budgets-42f48a19e85b3ab8)
+
+running 12 tests
+test all_metadata_positions_are_bounded_before_fingerprinting ... ok
+test call_argument_visits_are_bounded_before_fingerprinting ... ok
+test callable_return_metadata_is_reserved_before_fingerprinting_or_validation ... ok
+test exact_work_budget_covers_cfg_edges_and_predecessor_visits ... ok
+test every_type_position_rejects_unknown_semantics_before_hashing ... ok
+test original_raw_reproducer_checks_each_limit_independently ... ok
+test exact_work_budget_includes_set_scans_across_functions ... ok
+test known_recursive_aggregate_shape_obeys_selected_depth ... ok
+test initialization_facts_survive_a_branch_and_backedge ... ok
+test exact_work_budget_covers_instruction_visits_and_fingerprinting ... ok
+test structural_limits_accumulate_across_functions ... ok
+test unsupported_metadata_does_not_allocate_unbounded_diagnostics ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

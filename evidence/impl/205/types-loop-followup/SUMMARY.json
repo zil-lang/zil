@@ -1,0 +1,419 @@
+{
+  "scope": "205 Types loop crosspoint followup; source/raw/counted Linux O0/O2 and exact budgets, not final workspace/task acceptance",
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "final_test_candidate": "8092faff3e17bac435d9969ae57a3290fdd0a3ad",
+  "production_checkpoint": "63d61c770e48a185f4257cafaf2882c8cd627066",
+  "production_file": {
+    "path": "crates/zil-types/src/state_origins.rs",
+    "sha256": "7f44159bf7940a45bca559d073e1ae8bf924d2d02d119650ce667d1835147091"
+  },
+  "failures": [
+    {
+      "run": "crosspoint01",
+      "identity": "1821104458406a8d10db0902a4498d018e0eef14",
+      "status": "Fail",
+      "detail": "Original 242B unused definition Verify Success/1; actual 698B instantiation Types SafeReject E-STATE-ALIAS/Verify0. Native NotRun."
+    },
+    {
+      "run": "crosspoint02",
+      "identity": "5a58c339d898d53e0cbac00bcc3e9351c560f743",
+      "status": "Fail",
+      "detail": "Raw continue positive rejected E-STATE-MOVE because saved jump flow retained body-local moved marker. Earlier same-test cases passed; cargo stopped before source target."
+    }
+  ],
+  "final_results": [
+    {
+      "run": "crosspoint04",
+      "identity": "99a553ca74ea42fd913b49ef704eb03a8a7eb330",
+      "tests_passed": 3,
+      "tests_failed": 0,
+      "native_executions": 8,
+      "scope": "Exact original 242B Verify, exact 698B O0/O2 stdout AB, same recycle definition driven by stdin for 0/1/3 iterations with observable 2/3/5 callback calls; 8 raw cases through both public Types APIs."
+    },
+    {
+      "run": "final-raw-budget01",
+      "identity": "8092faff3e17bac435d9969ae57a3290fdd0a3ad",
+      "tests_passed": 8,
+      "tests_failed": 0,
+      "scope": "6 raw groups and 2 budget groups; overlaps the raw group above."
+    },
+    {
+      "run": "final-legacy01",
+      "identity": "8092faff3e17bac435d9969ae57a3290fdd0a3ad",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "scope": "Original independent raw legacy unused alias input, both Types APIs."
+    },
+    {
+      "run": "final-clippy01",
+      "identity": "8092faff3e17bac435d9969ae57a3290fdd0a3ad",
+      "status": "Pass"
+    }
+  ],
+  "identity_notes": [
+    "Crosspoint03 is an earlier clean5a58 Pass/1 plus2 native executions, preserved separately; final unique native matrix is crosspoint04/8, not10 newly distinct cases.",
+    "8092faff changes only tests/documentation after99a553; production remains63d61. Earlier runs are not relabeled to later commits.",
+    "Original 205 author 589c 20/0 plus50 native matrix and its compact archive remain unchanged; it is not rerun or claimed under this followup candidate."
+  ],
+  "types_exact_work": {
+    "old_state": 5293,
+    "ordinary_eager": 88,
+    "replacement": 4498,
+    "loop_refresh_continue": 2935,
+    "checks": "N Success / N-1 ResourceLimit / fresh N exact Typed equality"
+  },
+  "original_sources": [
+    {
+      "path": "crosspoint01-cases/replacement205-loop-refresh-instantiated-903038-1/source.zil",
+      "bytes": 698,
+      "sha256": "a4c9bda2e53625bd14f0d0ea45c40406ade1aa78369b47f022ad9c98d7f21833"
+    },
+    {
+      "path": "crosspoint01-cases/replacement205-loop-refresh-original-unused-903038-0/source.zil",
+      "bytes": 242,
+      "sha256": "31e57e41505e9e501ec946c10354e2be3b520658315e4473a6a4f1b99cf6dc23"
+    }
+  ],
+  "counted_native_inputs": [
+    {
+      "stdin_path": "crosspoint04-cases/replacement205-loop-refresh-input-905771-1/iterations-0.stdin",
+      "stdin_hex": "0101",
+      "stdout": "CCAB",
+      "stderr_bytes": 0,
+      "native_receipt": "crosspoint04-cases/replacement205-loop-refresh-input-905771-1/iterations-0.txt"
+    },
+    {
+      "stdin_path": "crosspoint04-cases/replacement205-loop-refresh-input-905771-1/iterations-1.stdin",
+      "stdin_hex": "000101",
+      "stdout": "CCCAB",
+      "stderr_bytes": 0,
+      "native_receipt": "crosspoint04-cases/replacement205-loop-refresh-input-905771-1/iterations-1.txt"
+    },
+    {
+      "stdin_path": "crosspoint04-cases/replacement205-loop-refresh-input-905771-1/iterations-3.stdin",
+      "stdin_hex": "0000000101",
+      "stdout": "CCCCCAB",
+      "stderr_bytes": 0,
+      "native_receipt": "crosspoint04-cases/replacement205-loop-refresh-input-905771-1/iterations-3.txt"
+    },
+    {
+      "stdin_path": "crosspoint04-cases/replacement205-loop-refresh-input-905771-4/iterations-0.stdin",
+      "stdin_hex": "0101",
+      "stdout": "CCAB",
+      "stderr_bytes": 0,
+      "native_receipt": "crosspoint04-cases/replacement205-loop-refresh-input-905771-4/iterations-0.txt"
+    },
+    {
+      "stdin_path": "crosspoint04-cases/replacement205-loop-refresh-input-905771-4/iterations-1.stdin",
+      "stdin_hex": "000101",
+      "stdout": "CCCAB",
+      "stderr_bytes": 0,
+      "native_receipt": "crosspoint04-cases/replacement205-loop-refresh-input-905771-4/iterations-1.txt"
+    },
+    {
+      "stdin_path": "crosspoint04-cases/replacement205-loop-refresh-input-905771-4/iterations-3.stdin",
+      "stdin_hex": "0000000101",
+      "stdout": "CCCCCAB",
+      "stderr_bytes": 0,
+      "native_receipt": "crosspoint04-cases/replacement205-loop-refresh-input-905771-4/iterations-3.txt"
+    }
+  ],
+  "runs": [
+    {
+      "path": "crosspoint01/command.json",
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_source",
+        "refreshed_loop_alias_crosses_expand_and_types_without_changing_its_definition",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "start": 1793206072.5420172,
+      "source_commit": "1821104458406a8d10db0902a4498d018e0eef14",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/tmp/zil205-types-target",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/205-types-followup/crosspoint01-cases",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Fail",
+      "exit_code": 101,
+      "end": 1793206078.7869008,
+      "stdout.log_sha256": "ebe45e20d807249b002ac7b275d094c57ebe2d4afe1f92d809ecce075457517e",
+      "stderr.log_sha256": "e50a52f999830d4ff4bbd56fc72cb7593c83452bf92bffb1da7e82191859441d"
+    },
+    {
+      "path": "crosspoint02/command.json",
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_source",
+        "--test",
+        "impl205_raw",
+        "loop",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "start": 1793206287.4069288,
+      "source_commit": "5a58c339d898d53e0cbac00bcc3e9351c560f743",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/tmp/zil205-types-target",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/205-types-followup/crosspoint02-cases",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Fail",
+      "exit_code": 101,
+      "end": 1793206293.5046332,
+      "stdout.log_sha256": "5664fcaed1460725bffe7bf86d79babf35a785cb04e6a6bccce576f8fe0854d9",
+      "stderr.log_sha256": "7d12eacb7a699c7d33e048aef36065f486a540330d95dc8f72169dd39c499320"
+    },
+    {
+      "path": "crosspoint03/command.json",
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_source",
+        "refreshed_loop_alias_crosses_expand_and_types_without_changing_its_definition",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "start": 1793206364.8853025,
+      "source_commit": "5a58c339d898d53e0cbac00bcc3e9351c560f743",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/tmp/zil205-types-target",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/205-types-followup/crosspoint03-cases",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793206366.4773197,
+      "stdout.log_sha256": "e18562aa4e4a31a84ea9bedde290978c542bc4f1818940cfc84374f80bc7a1ed",
+      "stderr.log_sha256": "18683d4dc8aea4e8a387a3b68227a1e8dc2b45a18d4f7414579182e1f53810a6"
+    },
+    {
+      "path": "crosspoint04/command.json",
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_source",
+        "--test",
+        "impl205_raw",
+        "loop",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "start": 1793206467.18667,
+      "source_commit": "99a553ca74ea42fd913b49ef704eb03a8a7eb330",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/tmp/zil205-types-target",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/205-types-followup/crosspoint04-cases",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793206474.482021,
+      "stdout.log_sha256": "ff63eacf873653ee9d1c1483ae3dbb6e9dadaa197a1f37fa48a8581f89f76e00",
+      "stderr.log_sha256": "737a8f39b27dfed3e0685862f4b934512f4d962d730e00f40f99dfde9ea41f36"
+    },
+    {
+      "path": "final-clippy01/command.json",
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "clippy",
+        "-p",
+        "zil-types",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "--test",
+        "impl205_source",
+        "--test",
+        "impl205_raw",
+        "--test",
+        "impl205_budget",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "start": 1793206610.0287254,
+      "source_commit": "8092faff3e17bac435d9969ae57a3290fdd0a3ad",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/tmp/zil205-types-target",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/205-types-followup/final-clippy01-cases",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793206613.54151,
+      "stdout.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr.log_sha256": "1b4e88160efbcabf4f48802b654a318ec365b57c7c086b2b1b366fb699d0b44c"
+    },
+    {
+      "path": "final-legacy01/command.json",
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_independent",
+        "raw_legacy_single_state_alias_cannot_depend_on_expand_having_checked_the_body",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "start": 1793206609.3814015,
+      "source_commit": "8092faff3e17bac435d9969ae57a3290fdd0a3ad",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/tmp/zil205-types-target",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/205-types-followup/final-legacy01-cases",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793206609.98019,
+      "stdout.log_sha256": "b485ecb4971e3c12aec312c247ebaddeff1648e0267bba6379dc814b745b2127",
+      "stderr.log_sha256": "48a58492b990a5a9f2c7b557654bffcbc7e71d01b90f19b21f54acfa3789605b"
+    },
+    {
+      "path": "final-raw-budget01/command.json",
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_raw",
+        "--test",
+        "impl205_budget",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "start": 1793206608.645909,
+      "source_commit": "8092faff3e17bac435d9969ae57a3290fdd0a3ad",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/tmp/zil205-types-target",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/205-types-followup/final-raw-budget01-cases",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793206609.3344676,
+      "stdout.log_sha256": "9fd2a549ebb3f1a5563064239fbad0d1f5da9277fefb0ab41a793e727ea75fdf",
+      "stderr.log_sha256": "19e324382469be46deb7613dfaf6f055a19ed612022ae6f313a5ee81bca7109e"
+    },
+    {
+      "path": "loop-budget01/command.json",
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_budget",
+        "actual_types_boundary_covers_refreshed_alias_and_continue_snapshots",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "start": 1793206549.5819986,
+      "source_commit": "2b0a4416c621a33b22fddfdd168a159c935e6f80",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/tmp/zil205-types-target",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/205-types-followup/loop-budget01-cases",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793206550.0485306,
+      "stdout.log_sha256": "6d18be53bf572ba49139e1515e5d23693ea19a7c0d9b9dda1cb128ae5fdad401",
+      "stderr.log_sha256": "c3afda309fee8e32ceb0efb50ab1d5903214e3cda3bd5728df5f580886b06f8b"
+    },
+    {
+      "path": "raw-budget01/command.json",
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_raw",
+        "--test",
+        "impl205_budget",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "start": 1793206520.4188561,
+      "source_commit": "99a553ca74ea42fd913b49ef704eb03a8a7eb330",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/tmp/zil205-types-target",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/205-types-followup/raw-budget01-cases",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793206520.9667692,
+      "stdout.log_sha256": "2af0d0ce5547e1fe2eb01ef16ac7055d47402cb328155fb583813502a6831fe4",
+      "stderr.log_sha256": "3011be1de0a839457200e3f7f8bd3160501ff0208ad5c752690f8ff39c9b897e"
+    }
+  ]
+}

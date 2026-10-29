@@ -1,0 +1,80 @@
+{
+  "reviewer": "/root/impl197",
+  "kind": "SupplementalRegressionMigrationReview",
+  "reviewed_commit": "ebd9fbc5a410dab6fb90627c1d56d8db4e4a522e",
+  "original_implementation_commit": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+  "original_independent_review_commit": "b6a13a81d01b83dcdf38256ebae4448c55ba5a95",
+  "tested_source_commit": "ba91b148b5f814e366f04fa4a97f3088da4a1878",
+  "spec_hash": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
+  "normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+  "verdict": "Pass",
+  "scope": "Only the exact old 201 Analyze test migration and three affected regression groups; no new production acceptance or formal full-workspace result.",
+  "production_diff_from_ee0": [],
+  "reviewed_file": "crates/zil-analyze/tests/impl201_store.rs",
+  "findings": [
+    "The only promoted input is the exact original pair of distinct concrete ClosureIds 0 and 1, each empty-captured Fn with Unit result. The Package retains its Managed ByteBuffer and Copy i32 field, satisfying the finite 203 qualification. It is extracted to a named positive test without changing the raw module.",
+    "Three callbacks, missing environment, absence of a required Managed field, hidden callback under Address/Array/nested Package/OwnedStore remain original negative inputs. The missing environment retains SafeReject; the finite-shape failures retain Analyze/Unsupported/E-UNSUPPORTED.",
+    "The isolated OwnedStoreNew instruction still carries the original three-callback mutation while all other ordinary Store types stay untouched. It still rejects, and its original accepted baseline before and after the attack remains.",
+    "Only the old same-type diagnostic substring is updated for the revised public two-root gate; no production, default budget, input types, fields, capture graphs or resource instructions were changed.",
+    "The author first ran a message-only patch. Its original three-field attack passed the corrected rejection assertion; the later original heterogeneous module produced a real Ok plan and failed the obsolete unwrap_err assertion. That baseline is copied with explicit author attribution."
+  ],
+  "read_only_input_identity": [
+    {
+      "sha256": "5faa62ae0a36fa2489d873fa6aac6d38e4faefa81aedda114aa5ddafa6e82015",
+      "original_author_module": "author-legacy-analyze01/raw201-739852-1/module.txt",
+      "independent_final_module": "migration201-cases/raw201-741507-4/module.txt",
+      "original_result_sha256": "4d19c5d1b7a321d6d0056caa90d63b918c25f58c3c4c57e57a185dc7882d9c55",
+      "final_result_sha256": "4d19c5d1b7a321d6d0056caa90d63b918c25f58c3c4c57e57a185dc7882d9c55",
+      "module_bytes_unchanged": true,
+      "result_bytes_unchanged": true
+    },
+    {
+      "sha256": "e152eb7030b3944b3082d5971e3ffd961347749f0504f75bdc254eb24ec1c7bd",
+      "original_author_module": "author-legacy-analyze01/raw201-739852-0/module.txt",
+      "independent_final_module": "migration201-cases/raw201-741507-0/module.txt",
+      "original_result_sha256": "1e1c3eac7066a3922de58cd8fc5729922e67a985be849ed5e297d2be89b0a9a0",
+      "final_result_sha256": "1e1c3eac7066a3922de58cd8fc5729922e67a985be849ed5e297d2be89b0a9a0",
+      "module_bytes_unchanged": true,
+      "result_bytes_unchanged": true
+    }
+  ],
+  "independent_execution": {
+    "receipt": "migration201/command.json",
+    "git_status": "",
+    "passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_out": 7,
+    "analyze_module_records": 13,
+    "accepted_records": 5,
+    "rejected_records": 8,
+    "tests": [
+      "two_distinct_self_contained_copy_result_callbacks_are_accepted_since_203",
+      "fields_require_direct_finite_shape_and_complete_resources",
+      "store_return_error_payload_and_raw_new_metadata_are_independently_walked"
+    ],
+    "evidence_level": "Hand-built TypedIR through Analyze only. No source-lowering, Verify/raw-Wire, native or product execution is attributed to this supplemental test."
+  },
+  "prior_failures": {
+    "root_workspace01": "Root reports 1733 passed / 663 failed, with these early assertion failures separate from later environment exhaustion. This receipt does not relabel that formal run as Pass.",
+    "author_message_only": "author-legacy-analyze01/command.json, actual head c9ccbfb5e4e599cff9459575f780032a1d17ee03 with recorded fixture-only tracked patch; 0 passed / 1 failed. This was not reviewer execution."
+  },
+  "original_archive_unchanged": {
+    "filename": "203-review-by197-evidence.zip",
+    "bytes": 28868714,
+    "sha256": "9f3591d6e997c386714e0edc03b63a2e1eef76cf034c4e7ea184adea7fefc43f"
+  },
+  "formal_workspace": "NotRun by this reviewer; original root failure and subsequent full replay remain root-owned separate results",
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "external_evidence": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/203-review-migration201-evidence.zip",
+    "bytes": 37228,
+    "sha256": "064e2109a96c7c7a6ba1063580920d056876014b52283af5fa1592273d14988e",
+    "member_manifest": "ARCHIVE-MANIFEST.json",
+    "integrity": "Every included member SHA256 and ZIP CRC verified",
+    "execution_artifacts_included": false
+  }
+}

@@ -1,0 +1,31 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 5.82s
+     Running tests/impl177_state_composition.rs (/workspace/scratch/39be3faa4442/targets/177-combined/debug/deps/impl177_state_composition-343f8c8517143965)
+
+running 9 tests
+test borrowed_concrete_package_cannot_be_copied_into_a_local_give_capability ... ok
+test direct_store_builtin_in_parametric_body_remains_a_separate_closed_protocol ... ok
+test borrowed_package_array_cannot_create_a_manages_field_owner ... ok
+test generic_comparison_result_hint_does_not_retype_a_concrete_helper_operand ... ok
+test give_does_not_grant_ownership_to_copy_callable_or_descriptor_values ... ok
+test generic_state_takes_refills_and_calls_actual_callback_after_store_transfer ... ok
+test owning_state_indexed_package_transfer_waits_for_its_own_symbolic_slot_protocol ... FAILED
+test unused_templates_reject_missing_fields_and_concrete_batch_aliases ... ok
+test ordinary_generic_concrete_package_projections_and_array_take_remain_usable ... ok
+
+failures:
+
+---- owning_state_indexed_package_transfer_waits_for_its_own_symbolic_slot_protocol stdout ----
+
+thread 'owning_state_indexed_package_transfer_waits_for_its_own_symbolic_slot_protocol' (187) panicked at crates/zil-driver/tests/impl177_state_composition.rs:330:5:
+{"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"one finite Copy callable signature and one nonescaping environment parameter are implemented","span":{"file":0,"start":639,"end":794},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/run-logs/177/composition-focused05/cases/state-composition177-162-12/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/177/composition-focused05/cases/state-composition177-162-12/phases/ct-core.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/177/composition-focused05/cases/state-composition177-162-12/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/177/composition-focused05/cases/state-composition177-162-12/phases/syntax.txt"},"input_fingerprint":"fda00f02287b9d9a208aa72e21798c072a05dbe38f5ead45af511d75689f2bbe","seconds":0.025005247,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    owning_state_indexed_package_transfer_waits_for_its_own_symbolic_slot_protocol
+
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.88s
+
+error: test failed, to rerun pass `-p zil-driver --test impl177_state_composition`

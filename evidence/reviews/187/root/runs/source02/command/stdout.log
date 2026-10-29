@@ -1,0 +1,66 @@
+
+running 12 tests
+test an_uncalled_local_byte_descriptor_capture_keeps_its_owner_in_scope ... ok
+test byte_descriptions_and_borrowed_windows_preserve_actual_roots ... ok
+test byte_storage_has_real_source_operations_and_sealed_single_definition ... ok
+test create_give_and_description_parameter_window_returns_compose ... ok
+test active_windows_block_growth_push_move_and_conflicting_metadata ... ok
+test dynamic_storage_never_executes_through_compile_time_helpers ... ok
+test new_language_paths_keep_resource_limits ... ok
+test local_or_consumed_carriers_cannot_export_unowned_windows ... ok
+test ordered_alias_helpers_do_not_confuse_parameter_names_with_disjointness ... ok
+test reusable_storage_and_generic_sequence_modules_share_real_interfaces ... ok
+test parametric_windows_and_assignment_enter_full_production_verification ... ok
+test storage_heads_and_unsupported_escape_routes_fail_closed ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+
+running 23 tests
+test a_zero_call_helper_does_not_execute_its_buffer_capture_effects ... ok
+test borrowed_slices_explicit_address_arguments_and_retained_escape_stay_closed ... ok
+test every_actual_storage_write_conflicts_with_a_live_same_source_view ... ok
+test actual_readonly_capture_composes_with_a_live_shared_byte_view ... ok
+test helper_argument_views_are_checked_with_the_actual_capture_effects ... ok
+test helper_body_accesses_do_not_disappear_behind_its_callback_contract ... ok
+test independent_buffer_sources_do_not_inherit_an_unrelated_window ... ok
+test internal_capture_obligations_cross_two_ordinary_description_helpers ... ok
+test four_module_buffer_consumer_checks_runtime_input_and_cleanup_order ... ok
+test internal_window_separation_work_has_a_bounded_raw_and_wire_limit ... ok
+test live_buffer_windows_still_block_give_with_an_unused_weak_environment ... ok
+test mutable_environment_position_and_last_call_leave_separate_byte_permissions ... ok
+test ordinary_helper_layers_preserve_readonly_and_hidden_clear_effects ... ok
+test original_local_byte_description_capture_reaches_native_execution ... ok
+test raw_and_wire_cannot_capture_a_description_after_its_owner_was_given ... ok
+test raw_and_wire_cannot_forge_a_self_contained_factory_return ... ok
+test raw_and_wire_cannot_move_cleanup_before_the_last_captured_use ... ok
+test raw_and_wire_do_not_promote_weak_buffer_captures_or_erase_real_view_holds ... ok
+test raw_and_wire_reconstruct_an_inserted_storage_write_without_analyze ... ok
+test raw_and_wire_reconstruct_internal_capture_and_parameter_window_obligations ... ok
+test raw_and_wire_reconstruct_the_actual_capture_source_not_just_its_type ... ok
+test unused_capture_does_not_own_or_extend_a_buffer_after_transfer ... ok
+test internal_capture_windows_propagate_separation_to_each_actual_call ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.51s
+
+
+running 4 tests
+test a_descriptor_environment_does_not_extend_the_owners_last_use ... FAILED
+test captured_byte_fields_preserve_actual_sibling_and_alias_identity ... ok
+test raw_same_slot_retargeting_cannot_discard_a_private_separation_obligation ... ok
+test helper_capture_and_argument_constraints_reach_an_ordinary_callers_actuals ... ok
+
+failures:
+
+---- a_descriptor_environment_does_not_extend_the_owners_last_use stdout ----
+
+thread 'a_descriptor_environment_does_not_extend_the_owners_last_use' (610) panicked at crates/zil-driver/tests/review187_sources.rs:160:5:
+{"status":"SafeReject","phase":"analyze","diagnostics":[{"phase":"analyze","category":"SafeReject","code":"E-ANALYZE-IR","message":"resource closure: head transition invalidates a description required later","span":null,"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/run-logs/187-review/source02/cases/review187-609-4/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/187-review/source02/cases/review187-609-4/phases/ct-core.txt","interfaces":"/workspace/scratch/39be3faa4442/run-logs/187-review/source02/cases/review187-609-4/phases/interfaces.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/187-review/source02/cases/review187-609-4/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/187-review/source02/cases/review187-609-4/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/run-logs/187-review/source02/cases/review187-609-4/phases/typed.txt"},"input_fingerprint":"2271170ae0f1f60e48ea5bdfedf6efcabe9c64e42f2e1d25fdcbee2d48bd7421","seconds":0.012924353,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19","implementation_fingerprint":"c3eae7f16ee0830b50e7af2bd3ce2c8e752e172e1b9b72ef40fa29dc1a46902a","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_descriptor_environment_does_not_extend_the_owners_last_use
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+

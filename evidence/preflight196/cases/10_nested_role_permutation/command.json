@@ -1,0 +1,41 @@
+{
+  "case": "10_nested_role_permutation",
+  "purpose": "Proposed positive: two static child call sites require different role substitutions",
+  "source_sha256": "b35c1e18be88b16bf18e2e4ea21185b4754209cee60a976545c45a2d10a1b459",
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/10_nested_role_permutation/source.zil",
+    "--stop-after",
+    "verify",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/10_nested_role_permutation/phases",
+    "--json"
+  ],
+  "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+  "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+  "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+  "exit_code": 3,
+  "start": 1793165162.3414185,
+  "end": 1793165162.3504188,
+  "status": "Unsupported",
+  "phase": "expand",
+  "expected_current_status": "Unsupported",
+  "verification_runs": 0,
+  "diagnostics": [
+    {
+      "phase": "expand",
+      "category": "Unsupported",
+      "code": "E-UNSUPPORTED",
+      "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+      "span": {
+        "file": 0,
+        "start": 74,
+        "end": 78
+      },
+      "notes": []
+    }
+  ],
+  "stdout_sha256": "3a4b6232824b86ef653b737a5eb5b477e014abfd19bfa5d99c866a69655c5e3e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

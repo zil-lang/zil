@@ -1,0 +1,1 @@
+resource R { n:i32 } fn bad<T>(give owned:R)->i32=>owned.n; fn main() {}

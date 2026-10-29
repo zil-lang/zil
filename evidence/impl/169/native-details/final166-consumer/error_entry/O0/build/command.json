@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/zil-restored/review169-lock/examples/mainline/zui_language169/error_entry.zil",
+    "--opt",
+    "O0",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/169/final166-consumer/error_entry/O0/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/169/final166-consumer/error_entry/O0/phases",
+    "--json"
+  ],
+  "start": 1793103530.8403203,
+  "status": "Completed",
+  "exit_code": 0,
+  "stdout_sha256": "99f102895e1263b5fbaaea0b708696d8501e239f65d51efc12951b6805be89d7",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793103531.0160487
+}

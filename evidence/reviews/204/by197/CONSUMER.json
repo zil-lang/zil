@@ -1,0 +1,86 @@
+{
+  "reviewer": "/root/impl197",
+  "verdict": "Pass for the actual independent Linux execution",
+  "actual_source_commit": "694940eda0f7a9e5f9f999f8f2b107f4550d84fb",
+  "compiler_source_commit": "7abbbac1f6479c52f4967653acfab74fc56c945d",
+  "cli_sha256": "baa0b5757871b5f7bc31713f61c0a91042d1396087d9bddc65d6872c82a4312d",
+  "command": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197/consumer-linux01/command.json",
+    "sha256": "7bd64d2204c9aa0fa21b72b1ccd2daf291e738e009e358cce1f29e0690b49bee",
+    "command": [
+      "python3",
+      "tools/language/204/consumer.py",
+      "--repo",
+      ".",
+      "--cli",
+      "/tmp/zil204-cli-baa0b5757871b5f7bc31713f61c0a91042d1396087d9bddc65d6872c82a4312d",
+      "--compiler-build-receipt",
+      "/workspace/scratch/39be3faa4442/run-logs/204-root/cli05/command.json",
+      "--compiler-sha256",
+      "baa0b5757871b5f7bc31713f61c0a91042d1396087d9bddc65d6872c82a4312d",
+      "--platform",
+      "linux",
+      "--out",
+      "/tmp/zil204-review-records/consumer-linux01"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/language14/review196-by197",
+    "start": 1793199731.7115104,
+    "source_commit": "694940eda0f7a9e5f9f999f8f2b107f4550d84fb",
+    "git_status": "",
+    "environment": {
+      "CARGO_TARGET_DIR": null,
+      "CARGO_INCREMENTAL": "0",
+      "CARGO_PROFILE_DEV_DEBUG": "0",
+      "CARGO_PROFILE_TEST_DEBUG": "0",
+      "ZIL_TEST_REPORT_DIR": null,
+      "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+    },
+    "status": "Pass",
+    "exit_code": 0,
+    "end": 1793199734.1535556,
+    "stdout.log_sha256": "321b375b5e67a2c17081f16c51a02a973155f271ba7c9f8e9a10cc9d5d905c8c",
+    "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "summary_path": "/tmp/zil204-review-records/consumer-linux01/summary.json",
+  "summary_sha256": "fa742f3e90068f8030d87b7a1285b15ed6ef2c7d13c21429537403d3fa203d91",
+  "compiler_build_receipt": "/workspace/scratch/39be3faa4442/run-logs/204-root/cli05/command.json",
+  "compiler_build_receipt_sha256": "2375959adc460ad3f4d6acd47629c4dc0d30e020848697caaf9ae4fd2bb52a32",
+  "compiler_production_matches_checkout": true,
+  "normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
+  "exact_five_source_hashes": {
+    "factory.zil": "3e6326aca9ca00eea08c45edc08240bb54273870f7128e77621c9f6e50ed2e8d",
+    "main.zil": "aa47e54a06846fda761ac5e29c38fa475d57664b74a71378a1e8efed311ceb26",
+    "portable.zil": "4836185748a7c2b2200aabdc6948497250d15f219a6b992af20c948250656e9c",
+    "state.zil": "99618a828044f68b02935508c981f0e511b632f85e06879bc44ff6f6346108cd",
+    "store_helpers.zil": "53148c2f87961fe62b09b800dd6fb9f559187b3ad0f2be0cbf8a526cec7e9b1a"
+  },
+  "counts": {
+    "executions": 148,
+    "native_executions": 148,
+    "wine_executions": 0,
+    "ordinary_executions": 16,
+    "instrumented_executions": 132,
+    "actual_allocation_failures": 108
+  },
+  "allocation_observations": {
+    "all_live_zero": true,
+    "maximum_peak_live": 4,
+    "maximum_peak_bytes": 528,
+    "executions_include_O0_and_O2": true
+  },
+  "independent_oracle_review": [
+    "Five actual modules compile with Verify1 at O0 and O2. The two same-type FnMut environments each own their own Bag Store and cleanup flags.",
+    "Actual G is FnOnce, with explicit move owning its read-only Ticket; Store transfer into an internal local remains body give. PDJ4dQ orders entry, before/after transfer reserve, local drop, environment remainder, and caller marker.",
+    "State stride104, callback environments40, leaf Item stride8 are checked by exact allocator bytes and live counts in the actual compiled LLVM, not inferred solely from nominal type names.",
+    "Outer Store reserve, prefix movement, full push, pop, break/continue, ordinary complete-T identity and sibling callback fields preserve the original per-scenario expected output/exit.",
+    "Fault observations inject every planned realloc failure and an after-last no-failure control. Overflow-only source tests are not included in this allocation-failure count."
+  ],
+  "platform_boundary": {
+    "Linux": "native actual",
+    "Wine": "NotRun by this reviewer; author evidence separate",
+    "native_windows": "NotRun",
+    "full_language": "NotSatisfied",
+    "product": "NotRun",
+    "B0": "Doing"
+  }
+}

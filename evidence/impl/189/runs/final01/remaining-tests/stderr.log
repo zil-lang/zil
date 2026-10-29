@@ -1,0 +1,17 @@
+error[E0599]: no variant, associated function, or constant named `LimitReached` found for enum `ResultCategory` in the current scope
+   --> crates/zil-driver/tests/impl189_address_raw.rs:301:52
+    |
+301 |             .any(|d| d.category == ResultCategory::LimitReached),
+    |                                                    ^^^^^^^^^^^^ variant, associated function, or constant not found in `ResultCategory`
+
+For more information about this error, try `rustc --explain E0599`.
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+     Running tests/impl168_retained_composition.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/impl168_retained_composition-e15ec715193e5615)
+     Running tests/impl181_composition.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/impl181_composition-a10e3d44fd9dc26d)
+     Running tests/impl182_capture_contracts.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/impl182_capture_contracts-e0324ece1d1073c5)
+     Running tests/impl184_lending.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/impl184_lending-7eb3fbdc20edd05c)
+     Running tests/impl184_lending_raw.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/impl184_lending_raw-3cf1ecefcf76f44a)
+     Running tests/impl187_borrowed_bytes.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/impl187_borrowed_bytes-ecf8a0924fe5afd3)
+     Running tests/impl189_address.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/impl189_address-8c296929301d0e07)
+     Running tests/impl189_address_raw.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/impl189_address_raw-1b15c8f5a4c7cc1a)
+     Running tests/review181_projection.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/review181_projection-4f29afed140743de)

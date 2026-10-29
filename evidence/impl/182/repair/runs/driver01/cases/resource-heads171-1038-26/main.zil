@@ -1,0 +1,1 @@
+import model;import writer;fn main()->i32{let r=model.make(65);let p=&r;writer.relay(r);return p.n}

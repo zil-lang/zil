@@ -1,0 +1,1 @@
+fn map<T:Copy,F:Fn(T)->T>(f:&F,x:T)->T=>f(x);struct R{n:i64}fn main()->i32{let f=move(x:R)=>R{n:x.n+1};return i32(map(&f,R{n:6}).n)-7}

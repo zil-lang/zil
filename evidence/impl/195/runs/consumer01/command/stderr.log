@@ -1,0 +1,4 @@
+  File "/workspace/scratch/39be3faa4442/language14/wt195/tools/language/195/consumer.py", line 107
+    if any(marker not in typed for marker in ("traces: Flow(", "traces: Finite(", "kind: Break", "kind: Continue"))):
+                                                                                                                   ^
+SyntaxError: unmatched ')'

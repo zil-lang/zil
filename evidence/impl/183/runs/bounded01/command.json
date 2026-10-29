@@ -1,0 +1,32 @@
+{
+  "source_commit": "3d146206676fce98c53ca183aaeb4d7164fe7fbd",
+  "dirty": "",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl183_owned_resource_results",
+    "--test",
+    "impl183_raw_owned_success",
+    "--test",
+    "impl166_owned_results",
+    "--test",
+    "impl163_resource_methods",
+    "--test",
+    "impl171_resource_heads",
+    "--test",
+    "impl172_owned_store",
+    "--test",
+    "impl181_win64_store",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 9.16843295097351,
+  "status": "Pass"
+}

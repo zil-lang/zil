@@ -1,0 +1,6 @@
+{
+  "status": "InvalidEvidenceIdentity",
+  "reason": "The preceding commit process had not completed before the wrapper sampled HEAD. Logs are retained, but their recorded proposal commit b945b82 is not the executed public code tree. Do not use these receipts as exact-source acceptance. Correct rerun is public-frozen02 after confirmed commit completion.",
+  "reported_source_commit": "b945b82fb6dfa2e675c6486f32b4d95caf1b941c",
+  "actual_published_public_commit": "aa235a3379492221197b4686bec042c042c4e100"
+}

@@ -1,0 +1,48 @@
+{
+  "status": "Pass",
+  "reviewer": "/root",
+  "source_commit": "a710be769a34ac37182ced84cbaa5b44a99f7734",
+  "cli_sha256": "f51181b1c2d9efaebf4932b53841c11b6467d0bf7baa5731c954703ecc67297c",
+  "observations": [
+    {
+      "case": "branch_holes",
+      "opt": "O0",
+      "status": "Pass",
+      "stdout": "ABBA",
+      "exit": 0,
+      "verification_runs": 1
+    },
+    {
+      "case": "branch_holes",
+      "opt": "O2",
+      "status": "Pass",
+      "stdout": "ABBA",
+      "exit": 0,
+      "verification_runs": 1
+    },
+    {
+      "case": "expired_descriptor",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "code": "E-ANALYZE-IR"
+    },
+    {
+      "case": "dynamic_index",
+      "status": "Unsupported",
+      "phase": "types",
+      "code": "E-UNSUPPORTED"
+    },
+    {
+      "case": "temporary_shell",
+      "status": "Unsupported",
+      "phase": "types",
+      "code": "E-UNSUPPORTED"
+    },
+    {
+      "case": "window_after_take",
+      "status": "SafeReject",
+      "phase": "verify",
+      "code": "E-BORROW-CONFLICT"
+    }
+  ]
+}

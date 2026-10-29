@@ -1,0 +1,1 @@
+fn id<U:Copy>(x:U)->U=>x;fn bad<T>(x:T)->T=>id(x);fn main(){}

@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/author190/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/195-preflight/probes01/04-ordinary-nested-cleanup/main.zil",
+    "--json"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt190",
+  "exit_code": 0,
+  "elapsed_seconds": 0.006713390350341797,
+  "cli_sha256": "164ca2a261317c9db1c3e332aa359da765d6a9818c97cf99e1a21a74fb100a80",
+  "source_sha256": "65b64203a78cb14eaa6439dbeea3afbeb440879c1a9d5f9467573821ce3b9981"
+}

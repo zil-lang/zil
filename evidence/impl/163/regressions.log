@@ -1,0 +1,91 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.03s
+     Running tests/impl099_owned_bytes.rs (/workspace/scratch/39be3faa4442/targets/163/debug/deps/impl099_owned_bytes-34361b5e902d13fa)
+
+running 7 tests
+test live_windows_block_package_field_and_whole_transfers ... ok
+test ordinary_owned_aggregates_desc_captures_and_error_payloads_stay_closed ... ok
+test direct_and_package_owning_factories_have_real_call_modes ... ok
+test owned_views_are_grounded_in_actual_shells_and_captures ... ok
+test package_refill_keeps_fnmut_but_partial_error_is_once ... ok
+test owned_windows_retain_helper_alias_and_lifetime_boundaries ... ok
+test packages_move_return_replace_and_refill_real_byte_owners ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+
+     Running tests/impl151_closure_methods.rs (/workspace/scratch/39be3faa4442/targets/163/debug/deps/impl151_closure_methods-d5d8a077a8724262)
+
+running 7 tests
+test immutable_positions_and_shared_aliases_cannot_gain_mutable_receiver_permission ... ok
+test method_arity_and_signature_mismatch_remain_rejected ... ok
+test by_value_and_slice_len_and_function_fields_preserve_existing_resolution ... ok
+test methods_on_nested_copy_fields_and_borrowed_capture_keep_writeback ... ok
+test mutable_receiver_writes_persist_across_owned_callback_calls_and_early_returns ... ok
+test nonmove_method_mutation_updates_actual_outer_record ... ok
+test read_trait_and_inherent_methods_work_inside_shared_and_move_closures ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+
+     Running tests/impl155_managed_replace.rs (/workspace/scratch/39be3faa4442/targets/163/debug/deps/impl155_managed_replace-bd513d7d7440f883)
+
+running 12 tests
+test byte_buffer_can_be_replaced_and_refilled ... ok
+test independent_verify_rejects_omitted_or_invalid_slot_cleanup ... ok
+test give_and_refill_keep_single_obligation ... ok
+test last_use_of_old_descriptor_before_replacement_is_allowed ... ok
+test live_old_views_descriptors_and_annotation_mismatch_are_rejected ... ok
+test nested_owning_closure_remains_an_explicit_existing_language_gap ... ok
+test lexical_and_closure_shadowing_do_not_rewrite_unrelated_bindings ... ok
+test owning_fnmut_can_replace_captured_buffer_without_manual_package ... ok
+test propagated_rhs_error_preserves_old_slot_until_error_cleanup ... ok
+test replacement_through_branches_and_loops_uses_one_slot ... ok
+test replacement_keeps_slot_order_and_disposes_old_value_once ... ok
+test untouched_mutable_resources_keep_borrowed_capture_compatibility ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.90s
+
+     Running tests/impl156_module_methods.rs (/workspace/scratch/39be3faa4442/targets/163/debug/deps/impl156_module_methods-5b3ca47a50f15a54)
+
+running 8 tests
+test different_modules_with_same_spelling_keep_exact_nominal_owner ... ok
+test field_callable_precedence_is_not_reinterpreted_as_method ... ok
+test imported_methods_work_inside_returned_owned_and_nonmove_closures ... ok
+test inline_declared_public_methods_and_private_fields_compose ... ok
+test private_methods_fields_and_incorrect_permissions_remain_rejected ... ok
+test private_trait_and_private_nominal_do_not_leak_through_returned_values ... ok
+test imported_methods_work_on_locals_and_borrowed_receivers ... ok
+test public_trait_methods_from_defining_module_use_checked_signatures ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.62s
+
+     Running tests/impl163_resource_methods.rs (/workspace/scratch/39be3faa4442/targets/163/debug/deps/impl163_resource_methods-9de33583a6fbc4e1)
+
+running 24 tests
+test byte_buffer_method_writes_are_persistent_in_retained_fnmut ... ok
+test byte_storage_windows_remain_subject_to_mutation_and_transfer_checks ... ok
+test byte_buffer_methods_use_existing_descriptor_and_transfer_operations ... ok
+test callback_contracts_and_consumed_values_cannot_be_reused ... ok
+test captured_owner_is_consumed_once_by_an_explicit_give_method ... ok
+test consuming_and_refilling_a_package_method_receiver_remains_fnmut ... ok
+test descriptor_and_explicit_owned_receivers_keep_unique_cleanup ... ok
+test descriptor_method_calls_inside_effect_wrappers_keep_fnmut ... ok
+test imported_package_receiver_and_resource_nominal_identity_remain_exact ... ok
+test ordinary_call_cannot_silently_give_and_old_descriptors_cannot_survive_consumption ... ok
+test original_resource_address_receiver_probe_remains_explicitly_unsupported ... ok
+test fresh_receiver_precedes_arguments_and_failed_preparation_cleans_in_reverse_order ... ok
+test owned_group_default_can_be_overridden_with_a_descriptor ... ok
+test owned_package_method_inside_move_closure_runs_once_and_cleans_all_fields ... ok
+test package_by_value_receiver_consumes_the_whole_package ... ok
+test private_owner_private_methods_and_drop_entry_are_not_exported ... ok
+test package_receiver_error_before_refill_is_once_and_keeps_unique_cleanup ... ok
+test raw_and_wire_candidates_cannot_relabel_a_mutating_owned_method_callback_as_fn ... ok
+test public_resource_methods_cross_module_boundaries_and_retained_callbacks ... ok
+test receiver_is_staged_before_later_argument_failure_and_dropped_once ... ok
+test resource_callable_fields_keep_field_precedence_and_do_not_add_receiver_writes ... ok
+test resource_method_effects_include_arguments_after_the_receiver ... ok
+test transitively_readonly_resource_methods_keep_fn_and_borrowed_writes_remain_local ... ok
+test stored_closures_call_read_and_write_resource_methods ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.57s
+

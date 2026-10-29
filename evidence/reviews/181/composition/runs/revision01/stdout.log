@@ -1,0 +1,78 @@
+
+running 11 tests
+test borrowed_package_array_cannot_create_a_manages_field_owner ... ok
+test borrowed_concrete_package_cannot_be_copied_into_a_local_give_capability ... ok
+test generic_comparison_result_hint_does_not_retype_a_concrete_helper_operand ... ok
+test complete_local_assignment_restores_liveness_after_rhs_transfer ... ok
+test generic_store_construction_in_unused_callable_state_is_checked ... ok
+test give_does_not_grant_ownership_to_copy_callable_or_descriptor_values ... ok
+test generic_state_takes_refills_and_calls_actual_callback_after_store_transfer ... ok
+test owning_state_indexed_package_transfer_waits_for_its_own_symbolic_slot_protocol ... ok
+test partial_state_whole_overwrite_still_requires_actual_old_debt_cleanup ... ok
+test unused_templates_reject_missing_fields_and_concrete_batch_aliases ... ok
+test ordinary_generic_concrete_package_projections_and_array_take_remain_usable ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
+
+
+running 15 tests
+test bounded_element_shape_work_has_an_exact_definition_time_boundary ... ok
+test actual_generic_calls_do_not_merge_distinct_nominal_elements ... ok
+test descriptor_aliases_do_not_revive_after_give_or_replacement ... ok
+test element_bound_checks_real_shapes_and_never_grants_copy_or_members ... ok
+test cross_module_helpers_preserve_two_nominal_elements_and_failure_returns ... ok
+test generic_owning_package_and_concrete_callback_state_compose ... ok
+test fresh_store_locals_and_create_calls_remain_valid_before_and_after_instantiation ... ok
+test generic_source_still_requires_independent_raw_and_wire_ownership ... ok
+test raw_and_wire_create_mode_cannot_forge_fresh_input_resources ... ok
+test generic_prefix_drain_repeats_with_real_item_cleanup ... ok
+test real_copy_shapes_including_static_foreign_values_remain_elements ... ok
+test unused_create_results_prove_freshness_across_real_transfers_and_joins ... ok
+test unused_package_fields_keep_mode_and_instance_identity ... ok
+test unused_templates_reject_unproven_store_element_or_owner ... ok
+test two_element_shapes_use_the_same_actual_generic_helpers ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.07s
+
+
+running 19 tests
+test cross_function_aliases_cannot_hide_mutation_or_second_window ... ok
+test actual_copy_scalar_array_and_record_fields_update_in_place ... ok
+test index_evaluation_cannot_consume_the_previously_evaluated_store ... ok
+test live_exclusive_window_blocks_structure_metadata_and_responsibility_changes ... ok
+test index_effect_runs_before_window_and_error_rhs_cleans_store ... ok
+test managed_fields_whole_packages_and_escaping_windows_remain_closed ... ok
+test raw_and_wire_cannot_write_after_consistently_downgrading_the_window ... ok
+test raw_and_wire_rebuild_mutability_index_shape_and_actual_holds ... ok
+test raw_and_wire_reject_resource_projection_and_early_owner_drop ... ok
+test raw_and_wire_retargeted_structure_write_cannot_cross_exclusive_window ... ok
+test projected_copy_slice_keeps_then_releases_exclusive_permission ... ok
+test receiver_index_and_rhs_are_evaluated_once_and_in_source_order ... ok
+test rhs_and_child_capture_cannot_hide_a_live_window ... ok
+test runtime_index_traps_before_address_even_when_capacity_has_spare_slots ... ok
+test separate_store_fields_and_parameter_apart_checks_preserve_updates ... ok
+test shared_windows_cannot_be_upgraded_or_written ... ok
+test synchronous_helper_reborrows_then_last_use_allows_reserve_and_pop ... ok
+test whole_store_exclusive_loan_blocks_shared_and_other_exclusive_views ... ok
+test runtime_updates_cross_four_modules_without_moving_element_resources ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.86s
+
+
+running 4 tests
+test a_shared_window_does_not_gain_write_permission_from_generic_state ... ok
+test concrete_address_projection_is_repeatable_but_never_grants_unknown_fields_or_ownership ... ok
+test the_same_state_still_rejects_structural_store_mutation_during_the_window ... ok
+test exact_generic_state_simultaneously_uses_callback_store_window_and_copy_sibling ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+
+running 4 tests
+test reviewer_borrowed_projection_cannot_grant_managed_or_unknown_copy ... ok
+test reviewer_copy_address_projection_does_not_move_exclusive_address ... ok
+test reviewer_generic_value_projection_must_not_duplicate_unconstrained_t ... ok
+test reviewer_effectful_address_base_is_evaluated_once_per_projection ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+

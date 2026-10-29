@@ -1,0 +1,1 @@
+fn good<T>(value:T,flag:bool)->T{for index in 0..2{if flag{return value}else{break}}return value}fn main(){}

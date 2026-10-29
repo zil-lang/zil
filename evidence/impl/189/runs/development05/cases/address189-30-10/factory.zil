@@ -1,0 +1,1 @@
+pub fn make(step:i32)->impl Fn(&mut i32)->i32{return move(p:&mut i32)=>{*p+=step;return *p}}

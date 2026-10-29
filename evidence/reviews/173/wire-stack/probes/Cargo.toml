@@ -1,0 +1,10 @@
+[package]
+name = "review173-wire-probes"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+zil-base = { path = "/workspace/scratch/39be3faa4442/zil-restored/review173-wire170/crates/zil-base" }
+zil-ir = { path = "/workspace/scratch/39be3faa4442/zil-restored/review173-wire170/crates/zil-ir" }
+
+[workspace]

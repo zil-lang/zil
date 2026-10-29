@@ -1,0 +1,1 @@
+pub fn twice<F:Fn(&mut i32)->i32>(f:&F,p:&mut i32)->i32{return f(p)+f(p)}

@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use zil_ir::{CallableFlowNext, CallableTraces};
 
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span};
 use zil_ir::{Constant, InstructionKind, LocalId, Terminator, Type, TypedModule};
@@ -15,12 +16,20 @@ fn exhausted(context: &str) -> Vec<Diagnostic> {
 
 pub(super) struct Budget {
     remaining: usize,
+    pub(super) helper_nodes: usize,
+    pub(super) helper_calls: usize,
+    pub(super) helper_edges: usize,
+    pub(super) helper_depth: usize,
 }
 
 impl Budget {
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            helper_nodes: limits.max_nodes,
+            helper_calls: limits.max_instructions,
+            helper_edges: limits.max_analysis_steps,
+            helper_depth: limits.max_call_depth,
         }
     }
 
@@ -172,11 +181,24 @@ fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
     }))
 }
 
-fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
+fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
+    if matches!(ty, Type::Address { inner, .. }
+        if super::resources::product::nested(inner))
+    {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "ordinary Package Product does not grant a borrowed Package boundary",
+            Some(span),
+        )]);
+    }
     if let Type::ErrorUnion { error, result } = ty {
+        if matches!(result.as_ref(), Type::Managed(_)) {
+            scalar(error, span)?;
+            return legacy_value(result, span, module);
+        }
         for payload in [error.as_ref(), result.as_ref()] {
             if matches!(payload, Type::Package { .. }) {
-                local_value(payload, span, module)?;
+                legacy_value(payload, span, module)?;
             } else {
                 scalar(payload, span)?;
             }
@@ -186,7 +208,7 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
         && *length > 0
         && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
     {
-        local_value(element, span, module)
+        legacy_value(element, span, module)
     } else if let Type::Closure(id) = ty {
         if id.0 as usize >= module.closures.len() {
             return Err(bad("closure type references an absent environment"));
@@ -212,7 +234,7 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
     } else if crate::dynamic_store::is_carrier(ty)
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
         || ty.is_shared_resource_head_address()
-        || ty.is_shared_package_address()
+        || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
             if **inner == Type::ByteBuffer
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
@@ -223,11 +245,25 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
     }
 }
 
+// Ordinary Products never widen the old array, union or capture profile.
+fn local_value(
+    ty: &Type,
+    span: Span,
+    module: &TypedModule,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    if super::resources::product::nested(ty) {
+        super::resources::product::admit(ty, budget)
+    } else {
+        legacy_value(ty, span, module)
+    }
+}
+
 pub(super) fn preflight(
     module: &TypedModule,
     limits: &Limits,
     budget: &mut Budget,
-) -> CompileResult<Vec<bool>> {
+) -> CompileResult<(Vec<bool>, Vec<bool>)> {
     if module.schema_version != SCHEMA_VERSION {
         return Err(bad("unknown typed module schema version"));
     }
@@ -255,50 +291,101 @@ pub(super) fn preflight(
     for resource in &module.resources {
         budget.input(resource.name.len().saturating_add(1), "resource metadata")?;
     }
-    for ty in module
+    // Carry the outermost Store element through the already paid type walk.
+    // Only a real Closure occurrence allocates a new admission entry; old
+    // noncallback Store paths receive no new traversal or logical charge.
+    let mut callback_store_elements = Vec::new();
+    let mut owned_store_capture_roots = Vec::new();
+    for (ty, store_element, capture_owner, resource_head) in module
         .functions
         .iter()
         .flat_map(|f| {
             std::iter::once(&f.return_type)
                 .chain(f.locals.iter().map(|l| &l.ty))
                 .chain(f.values.iter())
+                .map(|ty| (ty, None, None, false))
                 .chain(
                     f.blocks
                         .iter()
                         .flat_map(|b| b.instructions.iter())
                         .filter_map(|i| match &i.kind {
-                            InstructionKind::ConvertInteger { target, .. } => Some(target),
-                            InstructionKind::OwnedStoreNew { element } => Some(element),
+                            InstructionKind::ConvertInteger { target, .. } => {
+                                Some((target, None, None, false))
+                            }
+                            InstructionKind::OwnedStoreNew { element } => {
+                                Some((element, Some(element), None, false))
+                            }
                             _ => None,
                         }),
                 )
         })
-        .chain(module.resources.iter().map(|r| &r.payload))
-        .chain(module.closures.iter().flat_map(|c| {
+        .chain(
+            module
+                .resources
+                .iter()
+                .map(|r| (&r.payload, None, None, true)),
+        )
+        .chain(module.closures.iter().enumerate().flat_map(|(index, c)| {
             c.captures
                 .iter()
-                .chain(c.parameters.iter())
-                .chain(std::iter::once(&c.result))
+                .map(move |ty| (ty, None, Some(zil_ir::ClosureId(index as u32)), false))
+                .chain(
+                    c.parameters
+                        .iter()
+                        .chain(std::iter::once(&c.result))
+                        .map(|ty| (ty, None, None, false)),
+                )
         }))
     {
-        let mut pending = vec![(ty, 0usize)];
-        while let Some((ty, depth)) = pending.pop() {
+        let mut pending = vec![(ty, 0usize, store_element, capture_owner, resource_head)];
+        while let Some((ty, depth, store_element, capture_owner, resource_head)) = pending.pop() {
             budget.input(1, "type shape")?;
             if depth > limits.max_call_depth {
                 return Err(exhausted("aggregate nesting"));
             }
+            if let Some(owner) = capture_owner
+                && super::dynamic_store::is_owned_carrier(ty)
+            {
+                budget.spend(
+                    owned_store_capture_roots.len().saturating_add(1),
+                    "owned Store capture root entry",
+                )?;
+                owned_store_capture_roots.push(owner);
+            }
             match ty {
                 Type::Array { element, length } => {
                     budget.input(*length as usize, "array type size")?;
-                    pending.push((element, depth + 1));
+                    pending.push((
+                        element,
+                        depth + 1,
+                        store_element,
+                        capture_owner,
+                        resource_head,
+                    ));
                 }
-                Type::Slice { element } | Type::OwnedStore { element } => {
-                    pending.push((element, depth + 1));
+                Type::Slice { element } => {
+                    pending.push((element, depth + 1, store_element, None, resource_head));
+                }
+                Type::OwnedStore { element } => {
+                    if super::resources::product::nested(element) {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "ordinary Package Product is not a Store element profile",
+                            None,
+                        )]);
+                    }
+                    pending.push((
+                        element,
+                        depth + 1,
+                        store_element.or(Some(element)),
+                        None,
+                        resource_head,
+                    ));
                 }
                 Type::Tuple(fields) => {
                     budget.input(fields.len(), "aggregate type shape")?;
                     for t in fields {
-                        pending.push((t, depth + 1));
+                        pending.push((t, depth + 1, store_element, capture_owner, resource_head));
                     }
                 }
                 Type::Record { name, fields } | Type::Package { name, fields } => {
@@ -306,7 +393,21 @@ pub(super) fn preflight(
                     budget.input(fields.len(), "record fields")?;
                     for (name, t) in fields {
                         budget.input(name.len(), "field name")?;
-                        pending.push((t, depth + 1));
+                        // Only ordinary value positions acquire the new Product
+                        // profile. Resource heads remain finite Copy, including
+                        // unused metadata. Reuse the paid field visit; the old
+                        // flat profile has no new table or logical charge.
+                        if resource_head
+                            && matches!(ty, Type::Package { .. })
+                            && matches!(t, Type::Package { .. })
+                        {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Analyze,
+                                "ordinary Package Product is not a resource payload profile",
+                                None,
+                            )]);
+                        }
+                        pending.push((t, depth + 1, store_element, capture_owner, resource_head));
                     }
                 }
                 Type::Enum { name, variants } => {
@@ -317,24 +418,55 @@ pub(super) fn preflight(
                     for (name, fields) in variants {
                         budget.input(name.len().saturating_add(fields.len()), "enum fields")?;
                         for ty in fields {
-                            pending.push((ty, depth + 1));
+                            pending.push((
+                                ty,
+                                depth + 1,
+                                store_element,
+                                capture_owner,
+                                resource_head,
+                            ));
                         }
                     }
                 }
-                Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
-                    pending.push((inner, depth + 1))
+                Type::Managed(inner) => pending.push((
+                    inner,
+                    depth + 1,
+                    store_element,
+                    capture_owner,
+                    resource_head,
+                )),
+                Type::Address { inner, .. }
+                | Type::Desc(inner)
+                | Type::Opaque { hidden: inner, .. } => {
+                    pending.push((inner, depth + 1, store_element, None, resource_head))
                 }
                 Type::FunctionPointer { parameters, result }
                 | Type::ForeignCallback { parameters, result } => {
                     budget.input(parameters.len(), "function pointer signature")?;
-                    pending.push((result, depth + 1));
+                    pending.push((result, depth + 1, store_element, None, false));
                     for parameter in parameters {
-                        pending.push((parameter, depth + 1));
+                        pending.push((parameter, depth + 1, store_element, None, false));
                     }
                 }
                 Type::ErrorUnion { error, result } => {
-                    pending.push((error, depth + 1));
-                    pending.push((result, depth + 1));
+                    pending.push((
+                        error,
+                        depth + 1,
+                        store_element,
+                        capture_owner,
+                        resource_head,
+                    ));
+                    pending.push((
+                        result,
+                        depth + 1,
+                        store_element,
+                        capture_owner,
+                        resource_head,
+                    ));
+                }
+                Type::Closure(_) if store_element.is_some() => {
+                    budget.spend(1, "callback Store admission entry")?;
+                    callback_store_elements.push(store_element.unwrap());
                 }
                 _ => {}
             }
@@ -344,6 +476,13 @@ pub(super) fn preflight(
     budget.input(module.closures.len(), "closure table preflight")?;
     for closure in &module.closures {
         count(0, closure.captures.len(), limits.max_locals, "capture")?;
+        count(
+            0,
+            closure.lending_captures.len(),
+            limits.max_locals,
+            "closure lending capture",
+        )?;
+        budget.input(closure.lending_captures.len(), "closure lending metadata")?;
         count(
             0,
             closure.parameters.len(),
@@ -356,24 +495,41 @@ pub(super) fn preflight(
             "closure signature preflight",
         )?;
         for ty in &closure.captures {
-            if ty.is_slice_address()
-                || matches!(ty, Type::Desc(inner) if **inner == Type::ByteBuffer)
-                || super::resources::owned_error(ty)
-            {
+            if ty.is_slice_address() || super::resources::owned_error(ty) {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
-                    "slice, borrowed byte storage and owned error-union captures are not implemented",
+                    "slice and owned error-union captures are not implemented",
                     None,
                 )]);
             }
-            local_value(ty, Span::default(), module)?;
+            legacy_value(ty, Span::default(), module)?;
         }
-        for ty in closure
-            .parameters
-            .iter()
-            .chain(std::iter::once(&closure.result))
+        for ty in &closure.parameters {
+            if let Type::Address { inner, .. } = ty
+                && closure.result.is_copy_value()
+            {
+                // A slice is unsized only at this pointee position; its
+                // elements remain independently restricted to finite Copy.
+                let pointee = match inner.as_ref() {
+                    Type::Slice { element } => element.as_ref(),
+                    other => other,
+                };
+                scalar(pointee, Span::default())?;
+            } else {
+                scalar(ty, Span::default())?;
+            }
+        }
+        if matches!(&closure.result, Type::Address { inner, mutable: false }
+            if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))
+            && matches!(
+                closure.kind,
+                zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
+            )
+            && !closure.lending_captures.is_empty()
         {
-            scalar(ty, Span::default())?;
+            legacy_value(&closure.result, Span::default(), module)?;
+        } else {
+            scalar(&closure.result, Span::default())?;
         }
         if closure.function.0 as usize >= module.functions.len() {
             return Err(bad("closure entry references an absent function"));
@@ -391,6 +547,12 @@ pub(super) fn preflight(
         budget.input(1, "function preflight")?;
         budget.input(function.name.len(), "function metadata")?;
         if let Some(contract) = &function.callable_return_contract {
+            count(
+                0,
+                contract.lending_captures.len(),
+                limits.max_locals,
+                "callable return lending capture",
+            )?;
             budget.input(
                 contract
                     .hold
@@ -398,26 +560,76 @@ pub(super) fn preflight(
                     .saturating_add(contract.call.len())
                     .saturating_add(contract.writes.len())
                     .saturating_add(contract.cleanup.len())
+                    .saturating_add(contract.lending_captures.len())
                     .saturating_add(2),
                 "callable return contract metadata",
             )?;
         }
         if let Some(contract) = &function.callable_contract {
+            count(0, contract.roles.len(), limits.max_locals, "callable role")?;
             budget.input(
-                contract
-                    .hold
-                    .len()
-                    .saturating_add(contract.call.len())
-                    .saturating_add(contract.writes.len())
-                    .saturating_add(contract.traces.len())
-                    .saturating_add(4),
-                "callable contract metadata",
+                contract.roles.len().saturating_add(1),
+                "callable role table",
             )?;
-            for trace in &contract.traces {
+            for role in &contract.roles {
                 budget.input(
-                    trace.calls.len().saturating_add(1),
-                    "callable trace metadata",
+                    role.hold
+                        .len()
+                        .saturating_add(role.call.len())
+                        .saturating_add(role.writes.len())
+                        .saturating_add(5),
+                    "callable role metadata",
                 )?;
+            }
+            match &contract.traces {
+                CallableTraces::Finite(traces) => {
+                    budget.input(traces.len(), "callable finite trace count")?;
+                    for trace in traces {
+                        count(
+                            0,
+                            trace.calls.len(),
+                            limits.max_instructions,
+                            "callable finite events",
+                        )?;
+                        budget.input(
+                            trace.calls.len().saturating_mul(2).saturating_add(1),
+                            "callable trace metadata",
+                        )?;
+                    }
+                }
+                CallableTraces::Flow(flow) => {
+                    count(0, flow.nodes.len(), limits.max_nodes, "callable flow node")?;
+                    budget.input(
+                        flow.nodes.len().saturating_add(1),
+                        "callable flow node metadata",
+                    )?;
+                    let (mut calls, mut edges) = (0, 0);
+                    for node in &flow.nodes {
+                        calls = count(
+                            calls,
+                            node.calls.len(),
+                            limits.max_instructions,
+                            "callable flow call",
+                        )?;
+                        budget.input(
+                            node.calls.len().saturating_mul(2).saturating_add(1),
+                            "callable flow calls and next tag",
+                        )?;
+                        match &node.next {
+                            CallableFlowNext::Edges(next) => {
+                                edges = count(
+                                    edges,
+                                    next.len(),
+                                    limits.max_analysis_steps,
+                                    "callable flow edge",
+                                )?;
+                                budget
+                                    .input(next.len().saturating_add(1), "callable flow edges")?;
+                            }
+                            CallableFlowNext::Exit(_) => budget.input(1, "callable flow exit")?,
+                        }
+                    }
+                }
             }
         }
         if let Some(foreign) = &function.foreign {
@@ -432,7 +644,7 @@ pub(super) fn preflight(
             )?;
         }
         budget.input(1, "return type preflight")?;
-        local_value(&function.return_type, function.span, module)?;
+        local_value(&function.return_type, function.span, module, budget)?;
         let scoped_aggregate = |ty: &Type| {
             matches!(ty, Type::Package { .. })
                 || super::resources::owned_error(ty)
@@ -448,6 +660,7 @@ pub(super) fn preflight(
                 &function.locals[parameter.0 as usize].ty,
                 function.span,
                 module,
+                budget,
             )?;
         }
         if function
@@ -459,12 +672,12 @@ pub(super) fn preflight(
         for local in &function.locals {
             budget.input(1, "local type preflight")?;
             budget.input(local.name.len(), "local metadata")?;
-            local_value(&local.ty, local.span, module)?;
+            local_value(&local.ty, local.span, module, budget)?;
             package |= scoped_aggregate(&local.ty);
         }
         for ty in &function.values {
             budget.input(1, "value type preflight")?;
-            local_value(ty, function.span, module)?;
+            local_value(ty, function.span, module, budget)?;
             package |= scoped_aggregate(ty);
         }
         for block in &function.blocks {
@@ -562,7 +775,14 @@ pub(super) fn preflight(
         }
         package_functions.push(package);
     }
-    Ok(package_functions)
+    // All raw type and capture trees are now bounded. Admission must include
+    // resource-only and unused Store occurrences, not just body operations.
+    let store_profiles =
+        super::dynamic_store::owned_capture_profiles(module, &owned_store_capture_roots, budget)?;
+    for element in callback_store_elements {
+        super::dynamic_store::callback_element(module, element, budget)?;
+    }
+    Ok((package_functions, store_profiles))
 }
 
 #[cfg(test)]

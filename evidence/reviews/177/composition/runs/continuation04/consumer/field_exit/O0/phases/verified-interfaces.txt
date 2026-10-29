@@ -1,0 +1,1198 @@
+[
+    ScalarInterface {
+        callable_returns: Some(
+            [],
+        ),
+        module: ModuleId(
+            0,
+        ),
+        exports: [],
+        signature_fingerprint: Fingerprint(
+            [
+                179,
+                21,
+                209,
+                138,
+                26,
+                225,
+                201,
+                207,
+                151,
+                111,
+                199,
+                21,
+                72,
+                208,
+                34,
+                176,
+                232,
+                3,
+                243,
+                219,
+                40,
+                8,
+                21,
+                19,
+                110,
+                247,
+                116,
+                42,
+                67,
+                56,
+                121,
+                66,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                213,
+                235,
+                111,
+                250,
+                34,
+                202,
+                199,
+                30,
+                25,
+                136,
+                5,
+                69,
+                161,
+                14,
+                177,
+                192,
+                23,
+                104,
+                55,
+                16,
+                163,
+                51,
+                240,
+                56,
+                51,
+                137,
+                118,
+                104,
+                229,
+                142,
+                186,
+                16,
+            ],
+        ),
+        result_origins: Some(
+            [],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    192,
+                    243,
+                    27,
+                    179,
+                    152,
+                    35,
+                    81,
+                    73,
+                    197,
+                    222,
+                    122,
+                    244,
+                    68,
+                    197,
+                    160,
+                    214,
+                    83,
+                    12,
+                    205,
+                    95,
+                    88,
+                    184,
+                    192,
+                    190,
+                    106,
+                    150,
+                    211,
+                    67,
+                    10,
+                    172,
+                    54,
+                    35,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [],
+        ),
+    },
+    ScalarInterface {
+        callable_returns: Some(
+            [],
+        ),
+        module: ModuleId(
+            1,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "create::<env0>",
+                function: FunctionId(
+                    14,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        Closure(
+                            ClosureId(
+                                0,
+                            ),
+                        ),
+                    ),
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: Package {
+                    name: "@module1:$generic_$module1_State:closure0",
+                    fields: [
+                        (
+                            "ticket",
+                            Managed(
+                                Record {
+                                    name: "@module3:$module3_Ticket",
+                                    fields: [
+                                        (
+                                            "code",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            ),
+                        ),
+                        (
+                            "children",
+                            Managed(
+                                OwnedStore {
+                                    element: Package {
+                                        name: "@module3:$module3_Item",
+                                        fields: [
+                                            (
+                                                "ticket",
+                                                Managed(
+                                                    Record {
+                                                        name: "@module3:$module3_Ticket",
+                                                        fields: [
+                                                            (
+                                                                "code",
+                                                                I32,
+                                                            ),
+                                                        ],
+                                                    },
+                                                ),
+                                            ),
+                                            (
+                                                "data",
+                                                Managed(
+                                                    ByteBuffer,
+                                                ),
+                                            ),
+                                            (
+                                                "code",
+                                                I32,
+                                            ),
+                                        ],
+                                    },
+                                },
+                            ),
+                        ),
+                        (
+                            "callback",
+                            Closure(
+                                ClosureId(
+                                    0,
+                                ),
+                            ),
+                        ),
+                        (
+                            "hits",
+                            I32,
+                        ),
+                        (
+                            "sum",
+                            I32,
+                        ),
+                        (
+                            "ready",
+                            Bool,
+                        ),
+                    ],
+                },
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "take_then_exit::<env0>",
+                function: FunctionId(
+                    15,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        Package {
+                            name: "@module1:$generic_$module1_State:closure0",
+                            fields: [
+                                (
+                                    "ticket",
+                                    Managed(
+                                        Record {
+                                            name: "@module3:$module3_Ticket",
+                                            fields: [
+                                                (
+                                                    "code",
+                                                    I32,
+                                                ),
+                                            ],
+                                        },
+                                    ),
+                                ),
+                                (
+                                    "children",
+                                    Managed(
+                                        OwnedStore {
+                                            element: Package {
+                                                name: "@module3:$module3_Item",
+                                                fields: [
+                                                    (
+                                                        "ticket",
+                                                        Managed(
+                                                            Record {
+                                                                name: "@module3:$module3_Ticket",
+                                                                fields: [
+                                                                    (
+                                                                        "code",
+                                                                        I32,
+                                                                    ),
+                                                                ],
+                                                            },
+                                                        ),
+                                                    ),
+                                                    (
+                                                        "data",
+                                                        Managed(
+                                                            ByteBuffer,
+                                                        ),
+                                                    ),
+                                                    (
+                                                        "code",
+                                                        I32,
+                                                    ),
+                                                ],
+                                            },
+                                        },
+                                    ),
+                                ),
+                                (
+                                    "callback",
+                                    Closure(
+                                        ClosureId(
+                                            0,
+                                        ),
+                                    ),
+                                ),
+                                (
+                                    "hits",
+                                    I32,
+                                ),
+                                (
+                                    "sum",
+                                    I32,
+                                ),
+                                (
+                                    "ready",
+                                    Bool,
+                                ),
+                            ],
+                        },
+                    ),
+                ],
+                result: I32,
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                7,
+                127,
+                93,
+                165,
+                86,
+                46,
+                240,
+                45,
+                192,
+                146,
+                68,
+                252,
+                33,
+                197,
+                147,
+                255,
+                169,
+                214,
+                91,
+                81,
+                244,
+                98,
+                134,
+                116,
+                36,
+                116,
+                196,
+                25,
+                70,
+                102,
+                35,
+                68,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                96,
+                173,
+                151,
+                189,
+                210,
+                186,
+                12,
+                141,
+                19,
+                187,
+                9,
+                200,
+                193,
+                104,
+                90,
+                199,
+                44,
+                44,
+                77,
+                221,
+                65,
+                37,
+                129,
+                202,
+                161,
+                196,
+                222,
+                27,
+                225,
+                170,
+                210,
+                215,
+            ],
+        ),
+        result_origins: Some(
+            [
+                FunctionResultOrigins {
+                    name: "create::<env0>",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "take_then_exit::<env0>",
+                    parameters: [],
+                },
+            ],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    37,
+                    250,
+                    100,
+                    230,
+                    215,
+                    126,
+                    9,
+                    185,
+                    53,
+                    75,
+                    210,
+                    157,
+                    139,
+                    150,
+                    140,
+                    228,
+                    195,
+                    225,
+                    60,
+                    162,
+                    69,
+                    184,
+                    129,
+                    31,
+                    61,
+                    90,
+                    60,
+                    217,
+                    13,
+                    150,
+                    246,
+                    11,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [],
+        ),
+    },
+    ScalarInterface {
+        callable_returns: Some(
+            [
+                FunctionCallableReturn {
+                    name: "make",
+                    contract: CallableReturnContract {
+                        closure: ClosureId(
+                            0,
+                        ),
+                        kind: FnMut,
+                        hold: [],
+                        call: [],
+                        writes: [],
+                        cleanup: [
+                            1,
+                        ],
+                    },
+                },
+            ],
+        ),
+        module: ModuleId(
+            2,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "make",
+                function: FunctionId(
+                    3,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: Closure(
+                    ClosureId(
+                        0,
+                    ),
+                ),
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                103,
+                168,
+                51,
+                192,
+                166,
+                31,
+                230,
+                2,
+                146,
+                218,
+                222,
+                189,
+                224,
+                170,
+                192,
+                228,
+                16,
+                60,
+                3,
+                46,
+                8,
+                140,
+                153,
+                176,
+                195,
+                89,
+                170,
+                50,
+                77,
+                223,
+                119,
+                59,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                96,
+                236,
+                160,
+                66,
+                121,
+                100,
+                79,
+                238,
+                88,
+                228,
+                182,
+                2,
+                43,
+                8,
+                25,
+                45,
+                132,
+                96,
+                223,
+                158,
+                217,
+                72,
+                151,
+                146,
+                255,
+                71,
+                44,
+                98,
+                133,
+                182,
+                186,
+                5,
+            ],
+        ),
+        result_origins: Some(
+            [
+                FunctionResultOrigins {
+                    name: "make",
+                    parameters: [],
+                },
+            ],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    158,
+                    85,
+                    15,
+                    103,
+                    173,
+                    240,
+                    80,
+                    119,
+                    222,
+                    62,
+                    154,
+                    255,
+                    181,
+                    198,
+                    82,
+                    164,
+                    149,
+                    68,
+                    190,
+                    209,
+                    103,
+                    23,
+                    208,
+                    113,
+                    190,
+                    6,
+                    34,
+                    78,
+                    227,
+                    193,
+                    51,
+                    117,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [],
+        ),
+    },
+    ScalarInterface {
+        callable_returns: Some(
+            [],
+        ),
+        module: ModuleId(
+            3,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "$module3_Controller.read",
+                function: FunctionId(
+                    7,
+                ),
+                parameters: [
+                    (
+                        Borrow,
+                        Address {
+                            mutable: false,
+                            inner: Managed(
+                                Record {
+                                    name: "@module3:$module3_Controller",
+                                    fields: [
+                                        (
+                                            "count",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            ),
+                        },
+                    ),
+                ],
+                result: I32,
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "item",
+                function: FunctionId(
+                    6,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: Package {
+                    name: "@module3:$module3_Item",
+                    fields: [
+                        (
+                            "ticket",
+                            Managed(
+                                Record {
+                                    name: "@module3:$module3_Ticket",
+                                    fields: [
+                                        (
+                                            "code",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            ),
+                        ),
+                        (
+                            "data",
+                            Managed(
+                                ByteBuffer,
+                            ),
+                        ),
+                        (
+                            "code",
+                            I32,
+                        ),
+                    ],
+                },
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                134,
+                215,
+                167,
+                102,
+                239,
+                43,
+                78,
+                115,
+                104,
+                181,
+                107,
+                212,
+                134,
+                175,
+                55,
+                248,
+                106,
+                223,
+                95,
+                130,
+                126,
+                110,
+                206,
+                145,
+                75,
+                103,
+                9,
+                232,
+                124,
+                69,
+                63,
+                55,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                99,
+                53,
+                13,
+                136,
+                61,
+                193,
+                132,
+                77,
+                135,
+                52,
+                208,
+                35,
+                55,
+                163,
+                211,
+                41,
+                109,
+                103,
+                67,
+                134,
+                69,
+                69,
+                214,
+                140,
+                44,
+                177,
+                181,
+                229,
+                5,
+                160,
+                196,
+                43,
+            ],
+        ),
+        result_origins: Some(
+            [
+                FunctionResultOrigins {
+                    name: "$module3_Controller.read",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "item",
+                    parameters: [],
+                },
+            ],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    54,
+                    26,
+                    111,
+                    15,
+                    68,
+                    92,
+                    170,
+                    80,
+                    88,
+                    21,
+                    78,
+                    107,
+                    5,
+                    252,
+                    83,
+                    6,
+                    128,
+                    47,
+                    243,
+                    52,
+                    233,
+                    176,
+                    130,
+                    165,
+                    32,
+                    244,
+                    3,
+                    4,
+                    178,
+                    216,
+                    181,
+                    72,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [],
+        ),
+    },
+    ScalarInterface {
+        callable_returns: Some(
+            [],
+        ),
+        module: ModuleId(
+            4,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "empty",
+                function: FunctionId(
+                    11,
+                ),
+                parameters: [],
+                result: Managed(
+                    OwnedStore {
+                        element: Package {
+                            name: "@module3:$module3_Item",
+                            fields: [
+                                (
+                                    "ticket",
+                                    Managed(
+                                        Record {
+                                            name: "@module3:$module3_Ticket",
+                                            fields: [
+                                                (
+                                                    "code",
+                                                    I32,
+                                                ),
+                                            ],
+                                        },
+                                    ),
+                                ),
+                                (
+                                    "data",
+                                    Managed(
+                                        ByteBuffer,
+                                    ),
+                                ),
+                                (
+                                    "code",
+                                    I32,
+                                ),
+                            ],
+                        },
+                    },
+                ),
+                result_mode: Create,
+            },
+            ScalarFunction {
+                name: "fill",
+                function: FunctionId(
+                    8,
+                ),
+                parameters: [
+                    (
+                        Describe,
+                        Desc(
+                            OwnedStore {
+                                element: Package {
+                                    name: "@module3:$module3_Item",
+                                    fields: [
+                                        (
+                                            "ticket",
+                                            Managed(
+                                                Record {
+                                                    name: "@module3:$module3_Ticket",
+                                                    fields: [
+                                                        (
+                                                            "code",
+                                                            I32,
+                                                        ),
+                                                    ],
+                                                },
+                                            ),
+                                        ),
+                                        (
+                                            "data",
+                                            Managed(
+                                                ByteBuffer,
+                                            ),
+                                        ),
+                                        (
+                                            "code",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            },
+                        ),
+                    ),
+                    (
+                        Infer,
+                        I32,
+                    ),
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: Bool,
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "grow",
+                function: FunctionId(
+                    12,
+                ),
+                parameters: [
+                    (
+                        Describe,
+                        Desc(
+                            OwnedStore {
+                                element: Package {
+                                    name: "@module3:$module3_Item",
+                                    fields: [
+                                        (
+                                            "ticket",
+                                            Managed(
+                                                Record {
+                                                    name: "@module3:$module3_Ticket",
+                                                    fields: [
+                                                        (
+                                                            "code",
+                                                            I32,
+                                                        ),
+                                                    ],
+                                                },
+                                            ),
+                                        ),
+                                        (
+                                            "data",
+                                            Managed(
+                                                ByteBuffer,
+                                            ),
+                                        ),
+                                        (
+                                            "code",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            },
+                        ),
+                    ),
+                    (
+                        Infer,
+                        I64,
+                    ),
+                ],
+                result: Bool,
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "read",
+                function: FunctionId(
+                    9,
+                ),
+                parameters: [
+                    (
+                        Borrow,
+                        Address {
+                            mutable: false,
+                            inner: Package {
+                                name: "@module3:$module3_Item",
+                                fields: [
+                                    (
+                                        "ticket",
+                                        Managed(
+                                            Record {
+                                                name: "@module3:$module3_Ticket",
+                                                fields: [
+                                                    (
+                                                        "code",
+                                                        I32,
+                                                    ),
+                                                ],
+                                            },
+                                        ),
+                                    ),
+                                    (
+                                        "data",
+                                        Managed(
+                                            ByteBuffer,
+                                        ),
+                                    ),
+                                    (
+                                        "code",
+                                        I32,
+                                    ),
+                                ],
+                            },
+                        },
+                    ),
+                ],
+                result: I32,
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "sum",
+                function: FunctionId(
+                    10,
+                ),
+                parameters: [
+                    (
+                        Describe,
+                        Desc(
+                            OwnedStore {
+                                element: Package {
+                                    name: "@module3:$module3_Item",
+                                    fields: [
+                                        (
+                                            "ticket",
+                                            Managed(
+                                                Record {
+                                                    name: "@module3:$module3_Ticket",
+                                                    fields: [
+                                                        (
+                                                            "code",
+                                                            I32,
+                                                        ),
+                                                    ],
+                                                },
+                                            ),
+                                        ),
+                                        (
+                                            "data",
+                                            Managed(
+                                                ByteBuffer,
+                                            ),
+                                        ),
+                                        (
+                                            "code",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            },
+                        ),
+                    ),
+                ],
+                result: I32,
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                113,
+                164,
+                19,
+                43,
+                91,
+                74,
+                234,
+                240,
+                15,
+                116,
+                30,
+                105,
+                95,
+                208,
+                115,
+                252,
+                140,
+                155,
+                50,
+                199,
+                137,
+                106,
+                34,
+                87,
+                64,
+                17,
+                169,
+                52,
+                32,
+                37,
+                90,
+                189,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                170,
+                133,
+                59,
+                3,
+                154,
+                145,
+                179,
+                144,
+                152,
+                48,
+                167,
+                151,
+                99,
+                125,
+                218,
+                46,
+                163,
+                206,
+                21,
+                121,
+                24,
+                201,
+                205,
+                124,
+                237,
+                86,
+                94,
+                105,
+                63,
+                189,
+                77,
+                136,
+            ],
+        ),
+        result_origins: Some(
+            [
+                FunctionResultOrigins {
+                    name: "empty",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "fill",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "grow",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "read",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "sum",
+                    parameters: [],
+                },
+            ],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    205,
+                    158,
+                    207,
+                    190,
+                    200,
+                    112,
+                    188,
+                    99,
+                    185,
+                    234,
+                    190,
+                    211,
+                    8,
+                    116,
+                    108,
+                    113,
+                    45,
+                    206,
+                    141,
+                    185,
+                    207,
+                    131,
+                    202,
+                    159,
+                    155,
+                    44,
+                    63,
+                    123,
+                    32,
+                    146,
+                    123,
+                    148,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [],
+        ),
+    },
+]

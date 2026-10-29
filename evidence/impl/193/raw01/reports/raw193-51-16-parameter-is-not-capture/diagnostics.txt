@@ -1,0 +1,22 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-CLOSURE",
+            message: "lending capture indices must be sorted, unique and within the actual environment",
+            span: None,
+            notes: [],
+        },
+    ],
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-CLOSURE",
+            message: "lending capture indices must be sorted, unique and within the actual environment",
+            span: None,
+            notes: [],
+        },
+    ],
+]

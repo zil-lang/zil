@@ -1,0 +1,101 @@
+
+running 10 tests
+test direct_store_and_existing_copy_error_inference_keep_their_meaning ... FAILED
+test error_only_create_consumes_old_success_without_claiming_a_new_resource ... FAILED
+test fresh_payload_survives_local_union_moves_and_question_rewrapping ... FAILED
+test loop_local_and_discarded_unions_clean_exactly_once ... FAILED
+test two_nominal_shapes_transfer_through_ordinary_union_values ... FAILED
+test propagated_failure_drops_incoming_element_and_earlier_store ... FAILED
+test unused_definitions_cannot_launder_old_success_into_create ... FAILED
+test unused_signatures_require_the_written_mode_and_actual_copy_error_shape ... FAILED
+test written_modes_are_checked_with_and_without_instantiation ... FAILED
+test unused_union_moves_and_descriptor_aliases_do_not_create_permissions ... FAILED
+
+failures:
+
+---- direct_store_and_existing_copy_error_inference_keep_their_meaning stdout ----
+
+thread 'direct_store_and_existing_copy_error_inference_keep_their_meaning' (326) panicked at crates/zil-driver/tests/impl186_generic_owned_success.rs:104:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"enum constructor context must be the same nominal enum","span":{"file":0,"start":430,"end":440},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/186-author/develop01/cases/impl186-inference-325-1/phases/syntax.txt"},"input_fingerprint":"06a9734dd46c4093d94fccab9deb1bcb3451b09faf4203ff72335ee071a2d95c","seconds":0.008946955,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- error_only_create_consumes_old_success_without_claiming_a_new_resource stdout ----
+
+thread 'error_only_create_consumes_old_success_without_claiming_a_new_resource' (327) panicked at crates/zil-driver/tests/impl186_generic_owned_success.rs:104:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"enum constructor context must be the same nominal enum","span":{"file":0,"start":808,"end":818},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/186-author/develop01/cases/impl186-zero-success-325-0/phases/syntax.txt"},"input_fingerprint":"ecbfd87ae52a6c23affc8c4dd5156e9dda6eaa39c77f2f00983e30141492aa83","seconds":0.01204503,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+---- fresh_payload_survives_local_union_moves_and_question_rewrapping stdout ----
+
+thread 'fresh_payload_survives_local_union_moves_and_question_rewrapping' (328) panicked at crates/zil-driver/tests/impl186_generic_owned_success.rs:104:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"enum constructor context must be the same nominal enum","span":{"file":0,"start":430,"end":440},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/186-author/develop01/cases/impl186-fresh-question-325-2/phases/syntax.txt"},"input_fingerprint":"921579c46c08aca3a9bf793be8998aae763c0af63614911c48e9c7ba9edaa286","seconds":0.011263474,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+---- loop_local_and_discarded_unions_clean_exactly_once stdout ----
+
+thread 'loop_local_and_discarded_unions_clean_exactly_once' (329) panicked at crates/zil-driver/tests/impl186_generic_owned_success.rs:104:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"enum constructor context must be the same nominal enum","span":{"file":0,"start":430,"end":440},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/186-author/develop01/cases/impl186-discard-loop-325-3/phases/syntax.txt"},"input_fingerprint":"e4d20b2ff3a567bdc12469bd807a6d531d226a4fddd649d4d46266c43a1aa659","seconds":0.008652802,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+---- two_nominal_shapes_transfer_through_ordinary_union_values stdout ----
+
+thread 'two_nominal_shapes_transfer_through_ordinary_union_values' (331) panicked at crates/zil-driver/tests/impl186_generic_owned_success.rs:104:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"enum constructor context must be the same nominal enum","span":{"file":0,"start":430,"end":440},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/186-author/develop01/cases/impl186-two-shapes-325-5/phases/syntax.txt"},"input_fingerprint":"9e62e9353408298c3f0b4220d62f1ce487a5181f4f8b3cec0c76841b93b97b6c","seconds":0.008957862,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+---- propagated_failure_drops_incoming_element_and_earlier_store stdout ----
+
+thread 'propagated_failure_drops_incoming_element_and_earlier_store' (330) panicked at crates/zil-driver/tests/impl186_generic_owned_success.rs:104:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"enum constructor context must be the same nominal enum","span":{"file":0,"start":430,"end":440},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/186-author/develop01/cases/impl186-question-failure-325-4/phases/syntax.txt"},"input_fingerprint":"34cc36a930cc37f9d280eeeea160bc938b0239d075665e90389933493146794c","seconds":0.010726869,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+---- unused_definitions_cannot_launder_old_success_into_create stdout ----
+
+thread 'unused_definitions_cannot_launder_old_success_into_create' (332) panicked at crates/zil-driver/tests/impl186_generic_owned_success.rs:75:5:
+assertion `left == right` failed: old-create: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-TERMINATOR","message":"expected a semicolon, logical newline, or closing brace after the complete statement","span":{"file":0,"start":844,"end":848},"notes":[]}],"artifacts":{},"input_fingerprint":"c6d6b75b6f5b69441cd28d1bb6772d05945650d16e6e4de92f1c44a7ff5bfb6b","seconds":0.001573419,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Parse
+ right: Expand
+
+---- unused_signatures_require_the_written_mode_and_actual_copy_error_shape stdout ----
+
+thread 'unused_signatures_require_the_written_mode_and_actual_copy_error_shape' (333) panicked at crates/zil-driver/tests/impl186_generic_owned_success.rs:74:5:
+assertion `left == right` failed: shape-mode: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-FUNCTION-BODY","message":"function requires a block, arrow expression, or declaration semicolon","span":{"file":0,"start":794,"end":795},"notes":[]}],"artifacts":{},"input_fingerprint":"6486eb0321bfe583ef7d9db35d3d453e0e9b7cc6ec81a4ba026f6af2ba12fd74","seconds":0.001660487,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Unsupported
+
+---- written_modes_are_checked_with_and_without_instantiation stdout ----
+
+thread 'written_modes_are_checked_with_and_without_instantiation' (335) panicked at crates/zil-driver/tests/impl186_generic_owned_success.rs:64:5:
+assertion `left == right` failed: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-TERMINATOR","message":"expected a semicolon, logical newline, or closing brace after the complete statement","span":{"file":0,"start":832,"end":834},"notes":[]}],"artifacts":{},"input_fingerprint":"c31c6a13242590a04d7f9a83f36eb59a4c393240a7f12fdff41f4244e2526004","seconds":0.005098745,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+---- unused_union_moves_and_descriptor_aliases_do_not_create_permissions stdout ----
+
+thread 'unused_union_moves_and_descriptor_aliases_do_not_create_permissions' (334) panicked at crates/zil-driver/tests/impl186_generic_owned_success.rs:74:5:
+assertion `left == right` failed: move-category: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-TERMINATOR","message":"expected a semicolon, logical newline, or closing brace after the complete statement","span":{"file":0,"start":844,"end":848},"notes":[]}],"artifacts":{},"input_fingerprint":"6ddb0cd2af7c91ca479e9d18f7385bf6e4c0db9047d61e953c20c16763a7cb38","seconds":0.002226691,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Unsupported
+
+
+failures:
+    direct_store_and_existing_copy_error_inference_keep_their_meaning
+    error_only_create_consumes_old_success_without_claiming_a_new_resource
+    fresh_payload_survives_local_union_moves_and_question_rewrapping
+    loop_local_and_discarded_unions_clean_exactly_once
+    propagated_failure_drops_incoming_element_and_earlier_store
+    two_nominal_shapes_transfer_through_ordinary_union_values
+    unused_definitions_cannot_launder_old_success_into_create
+    unused_signatures_require_the_written_mode_and_actual_copy_error_shape
+    unused_union_moves_and_descriptor_aliases_do_not_create_permissions
+    written_modes_are_checked_with_and_without_instantiation
+
+test result: FAILED. 0 passed; 10 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+

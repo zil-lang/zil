@@ -1,0 +1,153 @@
+{
+  "status": "Pass",
+  "source_commit": "ebaddd7faf7b83b257b873e8544af0fef13e670a",
+  "crates_tree": "8376bd904658e3a2e40fa4d035ea7ff85d18bd7d",
+  "design_sha256": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "selected": [
+    "impl182_capture_contracts",
+    "impl171_resource_heads",
+    "impl180_store_mut",
+    "impl179_field_precision",
+    "shared_addresses",
+    "impl065_helpers",
+    "borrowed_closures",
+    "impl161_nested_closures",
+    "impl072_packages",
+    "impl074_packages",
+    "impl079_package_captures",
+    "impl168_retained_composition",
+    "review182_capture_boundaries"
+  ],
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "--no-fail-fast",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl182_capture_contracts",
+    "--test",
+    "impl171_resource_heads",
+    "--test",
+    "impl180_store_mut",
+    "--test",
+    "impl179_field_precision",
+    "--test",
+    "shared_addresses",
+    "--test",
+    "impl065_helpers",
+    "--test",
+    "borrowed_closures",
+    "--test",
+    "impl161_nested_closures",
+    "--test",
+    "impl072_packages",
+    "--test",
+    "impl074_packages",
+    "--test",
+    "impl079_package_captures",
+    "--test",
+    "impl168_retained_composition",
+    "--test",
+    "review182_capture_boundaries",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt182-repair",
+  "toolchains": {
+    "rustc": {
+      "path": "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/rustc",
+      "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+      "version": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n"
+    },
+    "cargo": {
+      "path": "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+      "sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+      "version": "cargo 1.99.1 (5f94df478 2026-08-27)\n"
+    },
+    "clang": {
+      "path": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+      "sha256": "6f673bb8b459659cdefed06f2348b3ad47a13fc84e5736df38a83ffc62532e70",
+      "version": "Ubuntu clang version 17.0.6 (++20231209124227+6009708b4367-1~exp1~20231209124336.77)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin\n"
+    }
+  },
+  "target": "/workspace/scratch/39be3faa4442/targets178/author182-repair",
+  "started": 1793154589.1777723,
+  "full_workspace": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "exit_code": 0,
+  "result_groups": [
+    {
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 17,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 18,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 16,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 26,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 17,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 19,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 23,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0
+    }
+  ],
+  "stdout_sha256": "0f65ef30251446a096e77109e8bc7b198f1cb973b9b81188921e8c8d990e8fd7",
+  "stderr_sha256": "831157969f81d5b2af7e38ade04dc03f6eb2b85b1ac6c340602e20cf06442638",
+  "finished": 1793154606.1966934
+}

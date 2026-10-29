@@ -1,0 +1,137 @@
+
+running 13 tests
+test all_endpoint_forms_reborrow_and_existing_copy_shapes_are_admitted ... ok
+test closure_local_windows_do_not_escape_the_environment_boundary ... ok
+test cross_module_parameter_and_result_contracts_keep_element_identity ... ok
+test endpoint_order_is_base_then_left_then_right_without_implicit_reborrow ... ok
+test foreign_abi_captures_and_borrowed_results_remain_closed ... ok
+test one_ordinary_signature_handles_runtime_windows_and_preserves_origins ... ok
+test ordinary_len_methods_and_non_slice_closures_keep_their_meaning ... ok
+test ownership_and_whole_base_exclusivity_are_independently_verified ... ok
+test public_ct_preflight_bounds_slice_element_trees_before_copying ... ok
+test range_endpoints_are_not_erased_before_name_checking ... ok
+test scalar_ct_endpoints_work_while_ct_slice_execution_is_closed ... ok
+test suspended_parent_cannot_read_explicit_or_implicit_slice_metadata ... ok
+test views_require_real_places_integer_bounds_and_matching_mutability ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+
+running 13 tests
+test active_mutable_result_prevents_overlapping_call_or_replacement ... ok
+test borrowed_generic_helper_forwards_environment_lending_origin ... ok
+test borrowed_mutable_helper_and_whole_parent_transfer_preserve_result_loans ... ok
+test callable_field_view_keeps_its_actual_field_without_blocking_copy_sibling ... ok
+test conditional_sources_and_ordinary_parameter_forwarding_are_preserved ... ok
+test copy_environment_reads_and_address_writes_use_one_actual_slot ... ok
+test environment_results_reject_local_external_and_temporary_sources ... ok
+test inline_aggregate_projection_and_slice_results_keep_actual_environment_storage ... ok
+test live_byte_environment_views_reject_mutation_move_and_drop ... ok
+test mutable_factory_result_allows_next_call_after_last_use ... ok
+test owned_byte_environment_can_mutate_after_prior_result_last_use ... ok
+test owned_byte_environment_lends_real_storage_and_survives_factory_return ... ok
+test shared_factory_result_uses_real_stored_copy_environment ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.16s
+
+
+running 6 tests
+test analyze_bounds_both_public_lending_vectors_before_fingerprinting ... ok
+test analyzer_rejects_opaque_lending_mismatch_and_pays_nonempty_metadata ... ok
+test raw_and_wire_cannot_erase_result_hold_or_mutate_shared_entry ... ok
+test raw_and_wire_keep_owned_payload_write_and_cleanup_obligations ... ok
+test raw_and_wire_reconstruct_exact_environment_sources ... ok
+test raw_and_wire_reject_consumed_and_by_value_environment_results ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+
+running 14 tests
+test an_error_return_cuts_off_later_nested_calls_and_cleans_owned_locals ... ok
+test an_unused_recursive_definition_is_rejected_without_instantiating_it ... ok
+test branches_keep_zero_one_and_multiple_actual_calls ... ok
+test consumed_environments_are_settled_once_even_when_the_leaf_never_calls ... ok
+test cross_module_state_uses_nested_lending_helpers_and_a_disjoint_counter ... ok
+test finite_nesting_does_not_admit_recursion_loops_or_mixed_kinds ... ok
+test independent_24_layer_reproducer_uses_the_default_test_stack ... ok
+test long_alias_chain_respects_a_callback_that_shadows_a_helper_name ... ok
+test mutable_reborrows_keep_call_order_and_release_after_the_outer_call ... ok
+test nested_exhaustive_matches_keep_their_defensive_trap_prefix ... ok
+test nested_helpers_keep_current_call_and_lending_result_loans ... ok
+test owning_state_can_schedule_helpers_for_a_different_checked_factory_type ... ok
+test planning_a_known_factory_type_does_not_establish_parameter_origin ... ok
+test the_original_minimal_helper_composes_through_multiple_levels ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.18s
+
+
+running 12 tests
+test analyze_reconstructs_its_own_callee_order_and_body_counts ... ok
+test another_factory_instance_with_the_same_closure_id_is_not_the_parameter ... ok
+test dag_construction_and_trace_composition_pay_each_phase_budget ... ok
+test deep_finite_dependencies_pay_the_existing_instantiation_depth_bound ... ok
+test empty_child_traces_do_not_authorize_reusing_an_owned_environment ... ok
+test nested_result_still_requires_the_actual_environment_hold ... ok
+test raw_and_wire_check_actual_nested_edges_and_child_instructions ... ok
+test raw_and_wire_do_not_trust_parent_or_coordinated_child_traces ... ok
+test raw_and_wire_keep_zero_calls_and_stop_at_a_nested_trap ... ok
+test raw_and_wire_reject_recursive_actual_edges_despite_finite_claims ... ok
+test raw_core_dependency_cycles_do_not_rely_on_expand_or_the_host_stack ... ok
+test the_default_helper_depth_boundary_returns_a_diagnostic_without_host_recursion ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+
+running 14 tests
+test address_parameter_results_and_unsupported_shapes_remain_closed ... ok
+test byte_description_writes_are_checked_against_explicit_element_windows ... ok
+test copy_aggregate_addresses_use_actual_inline_layout ... ok
+test cross_module_opaque_factory_and_borrowed_helper_preserve_parameter_types ... ok
+test current_call_includes_captured_address_qualification ... ok
+test current_call_includes_desc_capture_and_explicit_shared_argument ... ok
+test direct_shared_and_exclusive_arguments_reborrow_the_same_input_sequentially ... ok
+test every_environment_call_form_checks_the_current_argument_window ... ok
+test helper_extra_address_arguments_and_zero_call_paths_keep_actual_effects ... ok
+test inferred_copy_projections_keep_address_shape_and_permission ... ok
+test multiple_shared_arguments_may_alias_and_exclusive_arguments_use_distinct_storage ... ok
+test mutable_and_consuming_environments_keep_their_own_independent_modes ... ok
+test one_signature_is_inferred_from_body_and_actual_address_calls ... ok
+test unused_generic_helpers_are_checked_and_shared_inputs_cannot_grant_mutability ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.96s
+
+
+running 5 tests
+test actual_address_call_work_has_a_measured_bounded_failure ... ok
+test raw_and_wire_do_not_trust_the_claimed_parameter_qualification ... ok
+test raw_and_wire_keep_explicit_parameter_holds_and_closed_shapes ... ok
+test raw_and_wire_rebuild_hidden_writes_through_a_borrowed_helper ... ok
+test raw_and_wire_reconstruct_capture_aliases_against_actual_arguments ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+
+running 7 tests
+test current_call_checks_shared_exclusive_and_whole_backing_aliases ... ok
+test explicit_mutable_arguments_do_not_upgrade_shared_inputs ... ok
+test helper_actual_capture_and_slice_backing_are_instantiated_together ... ok
+test new_parameters_do_not_open_captures_lending_nested_or_noncopy_shapes ... ok
+test original_nineteen_preflight_inputs_now_reach_the_promised_stage_unchanged ... ok
+test sequential_slice_reborrows_and_dead_last_use_preserve_backing ... ok
+test slice_parameter_index_and_range_checks_reach_machine_traps ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s
+
+
+running 8 tests
+test a_raw_write_through_a_shared_slice_element_is_not_admitted ... ok
+test actual_slice_work_has_measured_raw_and_wire_n_and_n_minus_one_boundaries ... ok
+test captured_desc_aliasing_is_rebuilt_from_actual_executable_backing ... ok
+test entry_and_actual_parent_permissions_are_checked_independently ... ok
+test raw_parameter_count_and_slice_type_depth_exhaust_bounds_before_entry_checks ... ok
+test raw_range_operand_types_and_hold_rows_are_independent ... ok
+test raw_unsupported_shapes_and_capture_or_lending_claims_stay_closed ... ok
+test replacing_an_explicit_operand_with_its_exclusive_sibling_preserves_aliases ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+

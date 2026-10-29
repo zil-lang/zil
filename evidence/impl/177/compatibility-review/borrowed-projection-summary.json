@@ -1,0 +1,171 @@
+[
+  {
+    "case": "borrowed_package_copy_field",
+    "argv": [
+      "/workspace/scratch/39be3faa4442/targets/177-combined/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/borrowed_package_copy_field/main.zil",
+      "--json"
+    ],
+    "exit_code": 3,
+    "result": {
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 106,
+            "end": 108
+          },
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "b8de5df9451b73a98a1306913b1fa6cd5d0f7dfc3ab33b69e3e1d223033014df",
+      "seconds": 0.009856274,
+      "cache_hit": false,
+      "commands": [],
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/borrowed_package_copy_field/main.zil"
+      },
+      "scalar_interfaces": []
+    }
+  },
+  {
+    "case": "borrowed_package_copy_field_control",
+    "argv": [
+      "/workspace/scratch/39be3faa4442/targets/177-combined/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/borrowed_package_copy_field_control/main.zil",
+      "--json"
+    ],
+    "exit_code": 3,
+    "result": {
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "dereference requires a finite Copy pointee",
+          "span": {
+            "file": 0,
+            "start": 103,
+            "end": 105
+          },
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "64e4bef66194c97d730c95023585fae0bf477c32ddfeddfd9e261f17e6e68081",
+      "seconds": 0.012552082,
+      "cache_hit": false,
+      "commands": [],
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/borrowed_package_copy_field_control/main.zil"
+      },
+      "scalar_interfaces": []
+    }
+  },
+  {
+    "case": "borrowed_package_copy_field_explicit_address",
+    "argv": [
+      "/workspace/scratch/39be3faa4442/targets/177-combined/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/borrowed_package_copy_field_explicit_address/main.zil",
+      "--json"
+    ],
+    "exit_code": 0,
+    "result": {
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "artifacts": {},
+      "input_fingerprint": "dac9bb76da6df78dcdc41e288ba54768c988b1119c4447b68b20860577707d20",
+      "seconds": 0.015940321,
+      "cache_hit": false,
+      "commands": [],
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/borrowed_package_copy_field_explicit_address/main.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+          "implementation_fingerprint": "7b26e7f6906467ad9a53e3d61eeefc3b5cebf2853d333968fbaccf85de293be2",
+          "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    }
+  }
+]

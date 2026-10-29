@@ -1,0 +1,1 @@
+import model;fn hidden(d:model.R){let f=()=>{d.n=43};f()}pub fn relay(d:model.R){hidden(d)}

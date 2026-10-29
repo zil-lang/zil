@@ -1,0 +1,136 @@
+
+running 18 tests
+test packages072_closure_body_owns_its_own_local_package ... ok
+test packages072_active_replacement_and_rhs_self_take ... ok
+test packages072_conditional_empty_slot_can_be_refilled_after_join ... ok
+test packages072_direct_operations_keep_defining_module_field_privacy ... ok
+test packages072_immutable_field_take_preserves_sibling_and_copy_fields ... ok
+test packages072_immutable_shell_resource_payload_writes_match_inside_closures ... ok
+test packages072_live_old_descriptors_aliases_and_captures_block_invalidation ... ok
+test packages072_loop_take_refill_reestablishes_whole_shape ... ok
+test packages072_live_sibling_descriptor_and_finished_old_descriptor_are_allowed ... ok
+test packages072_maybe_missing_field_and_loop_missing_refill_are_rejected ... ok
+test packages072_mutability_exact_resource_type_and_ownership_are_preserved ... ok
+test packages072_outer_package_owned_capture_remains_unsupported ... ok
+test packages072_prepared_owner_precedes_explicit_old_cleanup_and_commit ... ok
+test packages072_raw_field_store_cannot_skip_old_cleanup_or_change_permissions ... ok
+test packages072_partial_whole_boundary_and_repeated_take_are_rejected ... ok
+test packages072_refill_restores_whole_transfer_and_returns ... ok
+test packages072_rhs_moving_shell_cannot_commit_into_it ... ok
+test packages072_replacement_preparation_can_fail_before_or_after_self_take ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+
+running 11 tests
+test captures077_analyze_rejects_shared_alias_write_and_unrestored_fnmut ... ok
+test captures077_analyze_rebuilds_binding_and_activation_boundaries ... ok
+test captures077_error_edges_choose_once_only_when_responsibility_is_missing ... ok
+test captures077_factory_owns_package_and_shared_calls_do_not_copy_it ... ok
+test captures077_copy_payload_and_descriptor_helper_writes_are_fnmut ... ok
+test captures077_nearest_source_rejections_do_not_weaken_other_modes ... ok
+test captures077_loop_break_continue_and_lexical_shadowing_preserve_slots ... ok
+test captures077_partial_whole_and_early_return_use_once ... ok
+test captures077_repeatable_restoration_is_a_return_obligation_not_a_trap_obligation ... ok
+test captures077_refill_after_take_and_conditional_take_is_repeatable ... ok
+test captures077_type_and_analyze_work_limits_fail_closed_at_exact_boundary ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+
+running 12 tests
+test borrowed_environments_cannot_enter_retained_state ... ok
+test different_source_opaque_factories_and_moved_fields_are_rejected ... ok
+test bytebuffer_environment_survives_field_calls_and_state_transfer ... ok
+test exact_raw_and_wire_budget_boundary_is_deterministic_for_nested_callback_state ... ok
+test failed_preparation_keeps_old_field_and_unwinds_prepared_argument ... ok
+test field_take_refill_replace_and_nested_cleanup_preserve_one_environment ... ok
+test fnonce_take_consumes_and_partial_state_exit_cleans_only_remaining_fields ... ok
+test generic_state_api_can_take_call_refill_and_return_complete_state ... ok
+test raw_and_wire_cannot_publish_the_same_resource_free_callback_twice ... ok
+test raw_and_wire_reconstruct_field_permission_liveness_and_unique_publication ... ok
+test public_state_generic_api_preserves_identity_across_modules_and_composition ... ok
+test whole_state_parameters_and_results_keep_original_fnmut_environment ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.21s
+
+
+running 10 tests
+test borrowed_callback_capture_cannot_acquire_owning_field_authority ... ok
+test callback_loan_allows_actual_sibling_store_and_copy_fields ... ok
+test generic_state_body_uses_same_field_precision ... ok
+test callback_loan_survives_sibling_replacement_and_failing_preparation ... ok
+test raw_wire_cannot_hide_a_current_overlapping_callback_loan ... ok
+test raw_wire_rebuild_field_origin_and_keep_parent_hold ... ok
+test same_field_parent_movement_and_simultaneous_exclusive_use_still_reject ... ok
+test helper_effects_and_current_call_reject_real_overlap ... ok
+test store_window_keeps_its_real_field_while_copy_and_callback_are_updated ... ok
+test shared_callback_and_callback_replacement_preserve_sibling_windows ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.30s
+
+
+running 14 tests
+test address_parameter_results_and_unsupported_shapes_remain_closed ... ok
+test copy_aggregate_addresses_use_actual_inline_layout ... ok
+test cross_module_opaque_factory_and_borrowed_helper_preserve_parameter_types ... ok
+test byte_description_writes_are_checked_against_explicit_element_windows ... ok
+test current_call_includes_captured_address_qualification ... ok
+test direct_shared_and_exclusive_arguments_reborrow_the_same_input_sequentially ... ok
+test current_call_includes_desc_capture_and_explicit_shared_argument ... ok
+test helper_extra_address_arguments_and_zero_call_paths_keep_actual_effects ... ok
+test every_environment_call_form_checks_the_current_argument_window ... ok
+test inferred_copy_projections_keep_address_shape_and_permission ... ok
+test multiple_shared_arguments_may_alias_and_exclusive_arguments_use_distinct_storage ... ok
+test one_signature_is_inferred_from_body_and_actual_address_calls ... ok
+test unused_generic_helpers_are_checked_and_shared_inputs_cannot_grant_mutability ... ok
+test mutable_and_consuming_environments_keep_their_own_independent_modes ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.83s
+
+
+running 5 tests
+test raw_and_wire_do_not_trust_the_claimed_parameter_qualification ... ok
+test raw_and_wire_keep_explicit_parameter_holds_and_closed_shapes ... ok
+test raw_and_wire_rebuild_hidden_writes_through_a_borrowed_helper ... ok
+test actual_address_call_work_has_a_measured_bounded_failure ... ok
+test raw_and_wire_reconstruct_capture_aliases_against_actual_arguments ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+running 20 tests
+test actual_four_module_consumer_uses_direct_state_field_addresses ... ok
+test actual_scalar_field_reborrows_end_at_last_use_before_parent_move ... ok
+test captured_field_addresses_meet_current_callback_arguments ... ok
+test byte_owner_sibling_operations_preserve_the_copy_field_window ... ok
+test direct_reads_writes_and_other_loans_cannot_cross_the_same_field_window ... ok
+test error_and_early_exit_cleanup_never_duplicate_the_parent_owner ... ok
+test finite_field_loans_follow_branch_and_loop_last_use ... ok
+test finite_record_and_array_fields_use_actual_inline_storage ... ok
+test generic_state_calls_an_actual_callback_field_with_its_copy_sibling ... ok
+test moving_replacing_or_destroying_the_whole_parent_invalidates_its_field_address ... ok
+test ordinary_package_and_noncopy_field_addresses_remain_closed ... ok
+test helper_call_arguments_keep_field_identity_and_shared_permissions ... ok
+test original_user_resource_sibling_take_refill_preserves_the_copy_window ... ok
+test precise_resource_siblings_do_not_revive_old_descriptions_or_release_the_parent ... ok
+test owning_package_captures_borrow_the_actual_environment_field ... ok
+test shared_entry_may_borrow_a_fresh_local_package_without_mutating_its_environment ... ok
+test separate_inline_fields_have_independent_exclusive_windows ... ok
+test top_level_copy_fields_do_not_claim_new_nested_field_separation ... ok
+test whole_parent_overwrite_keeps_its_existing_unpaid_owner_gate ... ok
+test shared_fields_can_alias_without_becoming_mutable ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.96s
+
+
+running 6 tests
+test copy_field_shape_permission_parent_mutability_and_hold_are_reconstructed ... ok
+test direct_copy_reads_cannot_be_retargeted_inside_an_exclusive_field_window ... ok
+test finite_resource_sibling_roots_do_not_bypass_instance_or_nominal_checks ... ok
+test actual_copy_field_checks_have_analysis_and_verification_work_boundaries ... ok
+test parent_initialization_and_cleanup_cannot_be_skipped_by_copy_field_borrows ... ok
+test owned_package_environment_does_not_become_a_shared_entry_by_relabeling ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+

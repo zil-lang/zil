@@ -1,0 +1,1 @@
+trait Step{fn step(self:&mut Self)->i32;}struct C{n:i32}impl Step for C{fn step()->i32{.n+=1;return .n}}fn a<T:Step>(x:&mut T)->i32=>x.step();fn b<T:Step>(x:&mut T)->i32=>a(x);fn c<T:Step>(x:&mut T)->i32=>b(x);fn main()->i32{var x=C{n:40};if c(&mut x)!=41{return 1};return c(&mut x)-42}

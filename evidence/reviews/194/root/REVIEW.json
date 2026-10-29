@@ -1,0 +1,319 @@
+{
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root",
+  "implementation_author": "/root/resume192",
+  "implementation_commit": "13df78f532f63874b61d56dc6067884dbac0fe9d",
+  "source_commit": "f45462be07dc3ec09bea8f97edc0e21329025e19",
+  "schema": 24,
+  "spec_hash": "48641079ef2ecc84aa50a0a9eafd83ae844f0d3de7924fcc8cb3e2fef3f9db5f",
+  "normative_hash": "6488fa9f20121c4268f13153c6daecbfd20da5eb5e8aa86630620413d41edadb",
+  "executed": 62,
+  "final_counts": {
+    "passed": 62,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 6
+  },
+  "count_note": "Latest actual194+195 composition is62 tests. Earlier45 tests and first2/2 run remain separate; repeats are not added as new coverage.",
+  "commands": {
+    "cli-build01": {
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-cli",
+        "--bin",
+        "zil"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review194",
+      "start": 1793166448.5282817,
+      "source_commit": "f45462be07dc3ec09bea8f97edc0e21329025e19",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/review194",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": null,
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793166448.95699,
+      "stdout.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr.log_sha256": "856102774c682276c39839694784f260d722b457fcc999584338181b04c9d8cd"
+    },
+    "clippy01": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review194_composition",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review194",
+      "start": 1793166264.738224,
+      "source_commit": "dac3ce217b2c16f77eb44d387066cd200cecca34",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/review194",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": null,
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793166269.2597373,
+      "stdout.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr.log_sha256": "b8844413b4298f0b56fe791befc877cbc793c307bf9d4c6b9a34c87fbfb85c50"
+    },
+    "clippy02": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review194_composition",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review194",
+      "start": 1793166448.9940996,
+      "source_commit": "f45462be07dc3ec09bea8f97edc0e21329025e19",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/review194",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": null,
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793166450.9394424,
+      "stdout.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr.log_sha256": "d391821ab7a84121ae8c503a12bbdca8969774dfd41fa4a9ed1bca445ec09432"
+    },
+    "composed195": {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl194_copy_callable",
+        "--test",
+        "impl194_copy_callable_raw",
+        "--test",
+        "review194_composition",
+        "--test",
+        "impl195_loop_control_source",
+        "--test",
+        "impl195_loop_control_raw",
+        "--test",
+        "impl195_symbolic"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review194",
+      "start": 1793166440.3804924,
+      "source_commit": "f45462be07dc3ec09bea8f97edc0e21329025e19",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/review194",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/194-review/composed195/cases",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793166448.4830568,
+      "stdout.log_sha256": "dba323eeb1401b667a5c6fca5ceaa69b9f3211f12711f3020d4e714012418f67",
+      "stderr.log_sha256": "b18eddbc49876d48fbb69b03bf171f4947fca2f135e7cb0b0f8594f4c7f990d6",
+      "counts": {
+        "passed": 62,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 6
+      }
+    },
+    "source01": {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review194_composition"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review194",
+      "start": 1793165983.8209598,
+      "source_commit": "95eef9455a20bb097d53be50e6e52e59016c50d4",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/review194",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/194-review/source01/cases",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Fail",
+      "exit_code": 101,
+      "end": 1793165993.0164056,
+      "stdout.log_sha256": "456cffd9b8820fc5f363e4d248407a2564e27e283ce94e2de7ee7f758d56f16c",
+      "stderr.log_sha256": "ec6b91365c0d148362f1254946322ab666f7fcccd6f8581d2ec0234ce61e1e28"
+    },
+    "source02": {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl194_copy_callable",
+        "--test",
+        "impl194_copy_callable_raw",
+        "--test",
+        "review194_composition",
+        "--test",
+        "review193_slice_composition",
+        "--test",
+        "review192_field_composition",
+        "--test",
+        "review190_by193"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review194",
+      "start": 1793166257.5981216,
+      "source_commit": "dac3ce217b2c16f77eb44d387066cd200cecca34",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/review194",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/194-review/source02/cases",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+      },
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793166264.6951218,
+      "stdout.log_sha256": "c41d648dc59ef0d86b30f9f34ec64f6af0c6c937409ff831e73292eafd12b986",
+      "stderr.log_sha256": "5fc0a2d1b11f4fe08c805bb7109978b0ec0d30b9f822952554e0b76abc337d21",
+      "counts": {
+        "passed": 45,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 6
+      }
+    }
+  },
+  "reviewer_new_tests": 5,
+  "reviewer_new_native_executions_at_final": 8,
+  "independent_cases": [
+    "Four modules, two equal-spelled/equal-layout nominal Item types, transparent alias and same ClosureId: exactly two distinct helper instances, two native optimizations and raw/Wire roundtrip.",
+    "Retarget actual Call to wrong nominal instance and recompute candidate fingerprint: raw/Wire SafeReject E-VERIFY-CALL; Analyze actual untrusted result retained, not falsely claimed as type certification.",
+    "Nested helpers using i64 Copy data and exclusive slice; two native optimizations; original parent slice under live child is rejected by Verify E-BORROW-CONFLICT.",
+    "Finite Nest<Nest<i64>> alias through ordinary dup and Copy/callable helper: both native optimizations. This detected a real Copy false rejection in initial candidate.",
+    "194 Copy array data plus195 runtime for/break/continue and actual owned FnMut capture: zero/multiple iterations, expected value and single Ticket cleanup on both optimizations."
+  ],
+  "platforms": {
+    "194-review/consumer-linux": {
+      "status": "Pass",
+      "source_commit": "f45462be07dc3ec09bea8f97edc0e21329025e19",
+      "cli_sha256": "b6790e76f2dca8a55abc307e3957479dfa340e50f5700cd089b05df905146f91",
+      "platform": "linux",
+      "execution": "native",
+      "native_windows": "NotRun",
+      "full_language": "NotSatisfied",
+      "product": "NotRun",
+      "executions": 60,
+      "native_executions": 60,
+      "wine_executions": 0,
+      "ordinary_executions": 14,
+      "instrumented_executions": 46,
+      "actual_allocation_failures": 26
+    },
+    "194-review/consumer-win64": {
+      "status": "Pass",
+      "source_commit": "f45462be07dc3ec09bea8f97edc0e21329025e19",
+      "cli_sha256": "b6790e76f2dca8a55abc307e3957479dfa340e50f5700cd089b05df905146f91",
+      "platform": "win64",
+      "execution": "Wine compatibility",
+      "native_windows": "NotRun",
+      "full_language": "NotSatisfied",
+      "product": "NotRun",
+      "executions": 60,
+      "native_executions": 0,
+      "wine_executions": 60,
+      "ordinary_executions": 14,
+      "instrumented_executions": 46,
+      "actual_allocation_failures": 26
+    }
+  },
+  "production_composition": {
+    "candidate": "13df78f532f63874b61d56dc6067884dbac0fe9d",
+    "additional_production_files_from195": [
+      "crates/zil-expand/src/generic_check.rs",
+      "crates/zil-expand/src/generic_check_enum.rs",
+      "crates/zil-expand/src/generic_loop_control.rs"
+    ],
+    "candidate195": "1a890dabc4eb04b26570439718b0a9432511fa95"
+  },
+  "code_review": [
+    "Copy qualification is structural and bounded; empty trait declarations/impls do not create permission. Definition obligations and concrete actuals both checked.",
+    "Single F plus single direct Copy T is partially specialized using complete concrete T; callable bound, body, ordinary signature and result are substituted before Types normal fresh Core lowering.",
+    "Copy-only active recursion key now uses the complete charged type instance, so finite repeated nominal nesting is accepted; original Store concrete nominal activity rule and accounting remain unchanged.",
+    "True same-instance recursion and widening type growth are separately bounded; default budgets not increased. Existing raw/Wire identity and budget suites replayed.",
+    "Only private Expand production changes; no194 schema, Types/Analyze/Verify, LLVM ABI or hidden runtime allocation mechanism introduced."
+  ],
+  "preserved_failures": [
+    "source01 at95eef:2Pass/2Fail. Finite repeated nominal Copy falsely rejected due to name-only recursion activity; actual production repair a69a3/13df verified by source02 and final composition.",
+    "Other source01 failure was reviewer expecting E-VERIFY-TYPE for wrong instance; actual earlier E-VERIFY-CALL already safely rejected it. Same mutated input retained, exact expectation corrected.",
+    "Author original near-boundary/control inputs, initial fixture failures and prior successful candidates stay in author evidence; later repair never relabels earlier execution identity."
+  ],
+  "limitations": [
+    "Mixed State<T,F>, multiple callable roles/environments and mixed modes remain closed.",
+    "Direct closure as Copy T is not treated as a no-environment function pointer.",
+    "Native Windows NotRun; Wine is compatibility execution.",
+    "Combined main full-workspace gate is separate.",
+    "No comparative Rust performance or product acceptance claimed."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing"
+}

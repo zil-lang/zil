@@ -1,0 +1,1 @@
+pub fn make(v:u8)->ByteBuffer contract{result(create)}{let b=bytes_new();bytes_reserve(b,8);bytes_push(b,v);return give b}

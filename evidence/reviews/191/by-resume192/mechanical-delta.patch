@@ -1,0 +1,221 @@
+commit a00472dab7fe4368ee8b1ea6c7d96df00cb6bb31
+Author:     Codex <codex@openai.com>
+AuthorDate: Wed Oct 28 13:29:42 2026 +0900
+Commit:     Codex <codex@openai.com>
+CommitDate: Wed Oct 28 13:29:42 2026 +0900
+
+    integrate(191): preserve finite nested helper contracts after the explicit graph representation
+
+diff --git a/changes/191-callable-flow-public.md b/changes/191-callable-flow-public.md
+index 5692bea2..77c29583 100644
+--- a/changes/191-callable-flow-public.md
++++ b/changes/191-callable-flow-public.md
+@@ -21,3 +21,7 @@ Wire每个节点/调用/边向量在分配前经过count的总节点额度与剩
+ ## 非作者规范文字复核
+ 
+ /root/restore177_inventory 对0a42188只读复核发现旧interface段落仍写固定0/1/2次和导出domain2/3。已按实际Finite/Flow和domain4校正，未改生产；语义准入仍取各片真实源码与独审，不以新增结构宣称loop完成。
++
++## 与188/189组合
++
++已合实际主线6a29及独立旧基线迁移9505。188新增的子helper路径同样显式投影Finite，Flow明确Unsupported，保留原来源/已完成callee/模式检查以及每条calls检查与复制的原计费；没有把图误作空调用。188 raw夹具只作枚举机械投影，输入与反例意义不变。
+diff --git a/crates/zil-analyze/src/helpers.rs b/crates/zil-analyze/src/helpers.rs
+index 71a946bb..a8649eb4 100644
+--- a/crates/zil-analyze/src/helpers.rs
++++ b/crates/zil-analyze/src/helpers.rs
+@@ -251,7 +251,14 @@ fn forwarded<'a>(
+             "nested helper must forward its actual parameter to an independently checked matching contract",
+         ));
+     }
+-    Ok(Some(&claim.traces))
++    let finite = claim.traces.as_finite().ok_or_else(|| {
++        vec![Diagnostic::unsupported(
++            Phase::Analyze,
++            "cyclic callable Flow semantics are not implemented",
++            Some(instruction.span),
++        )]
++    })?;
++    Ok(Some(finite))
+ }
+ 
+ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
+diff --git a/crates/zil-driver/tests/impl188_nested_helpers_raw.rs b/crates/zil-driver/tests/impl188_nested_helpers_raw.rs
+index b7904ec1..d830f748 100644
+--- a/crates/zil-driver/tests/impl188_nested_helpers_raw.rs
++++ b/crates/zil-driver/tests/impl188_nested_helpers_raw.rs
+@@ -97,7 +97,9 @@ fn raw_and_wire_do_not_trust_parent_or_coordinated_child_traces() {
+         .callable_contract
+         .as_mut()
+         .unwrap()
+-        .traces[0]
++        .traces
++        .as_finite_mut()
++        .unwrap()[0]
+         .calls
+         .clear();
+     reject(
+@@ -110,7 +112,7 @@ fn raw_and_wire_do_not_trust_parent_or_coordinated_child_traces() {
+     let mut changed = m.clone();
+     for f in &mut changed.functions {
+         if let Some(c) = &mut f.callable_contract {
+-            for trace in &mut c.traces {
++            for trace in c.traces.as_finite_mut().unwrap() {
+                 trace.calls.clear();
+             }
+         }
+@@ -132,7 +134,9 @@ fn raw_and_wire_do_not_trust_parent_or_coordinated_child_traces() {
+         .callable_contract
+         .as_mut()
+         .unwrap()
+-        .traces[0]
++        .traces
++        .as_finite_mut()
++        .unwrap()[0]
+         .calls[0] = CallableKind::FnMut;
+     reject(
+         "child-kind-forgery",
+@@ -247,6 +251,8 @@ fn raw_and_wire_keep_zero_calls_and_stop_at_a_nested_trap() {
+         .as_ref()
+         .unwrap()
+         .traces
++        .as_finite()
++        .unwrap()
+         .iter()
+         .map(|t| (t.calls.len(), t.exit))
+         .collect();
+@@ -270,12 +276,16 @@ fn raw_and_wire_keep_zero_calls_and_stop_at_a_nested_trap() {
+                 .as_mut()
+                 .unwrap()
+                 .traces
++                .as_finite_mut()
++                .unwrap()
+                 .retain(|t| !(t.calls.is_empty() && t.exit == CallableExit::Return)),
+             "lost-trap-exit" => changed.functions[leaf]
+                 .callable_contract
+                 .as_mut()
+                 .unwrap()
+                 .traces
++                .as_finite_mut()
++                .unwrap()
+                 .retain(|t| t.exit != CallableExit::Trap),
+             _ => {
+                 let trace = changed.functions[middle]
+@@ -283,6 +293,8 @@ fn raw_and_wire_keep_zero_calls_and_stop_at_a_nested_trap() {
+                     .as_mut()
+                     .unwrap()
+                     .traces
++                    .as_finite_mut()
++                    .unwrap()
+                     .iter_mut()
+                     .find(|t| t.exit == CallableExit::Trap)
+                     .unwrap();
+@@ -292,6 +304,8 @@ fn raw_and_wire_keep_zero_calls_and_stop_at_a_nested_trap() {
+                     .as_mut()
+                     .unwrap()
+                     .traces
++                    .as_finite_mut()
++                    .unwrap()
+                     .sort();
+             }
+         }
+@@ -369,6 +383,8 @@ fn main()->i32{let r=R{n:4};let f=move()=>r.n;return outer(f)-1}
+             .as_ref()
+             .unwrap()
+             .traces
++            .as_finite()
++            .unwrap()
+             .iter()
+             .all(|t| t.calls.is_empty())
+     );
+@@ -438,7 +454,7 @@ fn analyze_reconstructs_its_own_callee_order_and_body_counts() {
+             "all-claims-empty" => {
+                 for f in &mut m.functions {
+                     if let Some(c) = &mut f.callable_contract {
+-                        for t in &mut c.traces {
++                        for t in c.traces.as_finite_mut().unwrap() {
+                             t.calls.clear();
+                         }
+                     }
+@@ -465,7 +481,9 @@ fn analyze_reconstructs_its_own_callee_order_and_body_counts() {
+                     .callable_contract
+                     .as_mut()
+                     .unwrap()
+-                    .traces[0]
++                    .traces
++                    .as_finite_mut()
++                    .unwrap()[0]
+                     .calls
+                     .clear();
+                 ResultCategory::SafeReject
+diff --git a/crates/zil-types/src/helpers.rs b/crates/zil-types/src/helpers.rs
+index 0583ed45..b4fe28bd 100644
+--- a/crates/zil-types/src/helpers.rs
++++ b/crates/zil-types/src/helpers.rs
+@@ -796,14 +796,25 @@ fn forwarded_traces(
+             "nested helper parameter or declared callable kind differs",
+         ));
+     }
+-    let count = contract.traces.len();
++    let count = contract
++        .traces
++        .as_finite()
++        .ok_or_else(|| {
++            unsupported(
++                instruction.span,
++                "cyclic callable Flow semantics are not implemented",
++            )
++        })?
++        .len();
+     state.snapshot(count, instruction.span)?;
+     for index in 0..count {
+         let length = state.helper_functions[position]
+             .callable_contract
+             .as_ref()
+             .unwrap()
+-            .traces[index]
++            .traces
++            .as_finite()
++            .expect("finite contract checked above")[index]
+             .calls
+             .len();
+         // Charge the following kind check and owned trace clone separately.
+@@ -812,7 +823,9 @@ fn forwarded_traces(
+             .callable_contract
+             .as_ref()
+             .unwrap()
+-            .traces[index]
++            .traces
++            .as_finite()
++            .expect("finite contract checked above")[index]
+             .calls
+             .iter()
+             .any(|mode| *mode != kind)
+@@ -829,7 +842,9 @@ fn forwarded_traces(
+             .as_ref()
+             .unwrap()
+             .traces
+-            .clone(),
++            .as_finite()
++            .expect("finite contract checked above")
++            .to_vec(),
+     ))
+ }
+ 
+diff --git a/crates/zil-verify/src/helpers.rs b/crates/zil-verify/src/helpers.rs
+index 11aee7d5..8a16b876 100644
+--- a/crates/zil-verify/src/helpers.rs
++++ b/crates/zil-verify/src/helpers.rs
+@@ -249,7 +249,13 @@ fn forwarded<'a>(
+             "nested helper must forward its actual parameter to an independently checked matching contract",
+         ));
+     }
+-    Ok(Some(&claim.traces))
++    let finite = claim.traces.as_finite().ok_or_else(|| {
++        unsupported(
++            "cyclic callable Flow semantics are not implemented",
++            Some(instruction.span),
++        )
++    })?;
++    Ok(Some(finite))
+ }
+ 
+ /// Each reachable block is processed after all its predecessors. Trace sets

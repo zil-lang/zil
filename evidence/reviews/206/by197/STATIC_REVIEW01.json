@@ -1,0 +1,106 @@
+{
+  "implementation": "206",
+  "reviewer": "/root/review205_finish",
+  "status": "ReadOnlyReviewWithConfirmedCaptureDefect",
+  "compiler_source": "daeec6a659c2a3c91fbe9ed167d7ace70dad84c6",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "files": [
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-types/src/packages/product.rs",
+      "bytes": 2867,
+      "sha256": "be15ccea3008a2154d749934cd34afca720542c9d2f59114f3c2fe9c17de812f"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-types/src/packages.rs",
+      "bytes": 20584,
+      "sha256": "596488ee456f7a677cff1fd2bed418b42ace68e138b17f0d48800c267efeac80"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-types/src/aggregates.rs",
+      "bytes": 67803,
+      "sha256": "0c6cc4126d928d2ebdc10f31b45ff69ec43307488c83635a87d58bb018a29117"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-types/src/closures.rs",
+      "bytes": 123353,
+      "sha256": "52d7824707268c121e58f07d44871b1b99cb767704ed1bd37302aeb875065eaa"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-analyze/src/budget.rs",
+      "bytes": 33889,
+      "sha256": "0cc4fab481bd83bcdca7793c908182c62c427ceb64c520b1cebda82ac610b863"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-analyze/src/resources.rs",
+      "bytes": 125458,
+      "sha256": "102c7cdb946f741d16773468fee8c7e625e38bd25567c593b7530590ec08ec39"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-analyze/src/resources/product.rs",
+      "bytes": 9083,
+      "sha256": "f34c1c5fb95595694e8ed49779d0ba335bba39a6084e7c798296e5be59fcd4b7"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-verify/src/packages.rs",
+      "bytes": 20230,
+      "sha256": "f062ec48ec440772e659b965b1acc2ab65665ccab69b1284cec1f4349060723d"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-verify/src/resources.rs",
+      "bytes": 87916,
+      "sha256": "0eb72fa4a5ce9773301ee07cf9273de74a50a3ef4ea0dfe74b77583f43a866b6"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-verify/src/resources/product.rs",
+      "bytes": 8861,
+      "sha256": "0ddc8b7502572766a701526b2baa0f3273f2926fabff9693d98ce860ed72959a"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-verify/src/closures.rs",
+      "bytes": 29550,
+      "sha256": "ed1c709dd916160dc598068cb225950e7b4d04b68747b9efedb63398175c3b49"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-verify/src/retained.rs",
+      "bytes": 8225,
+      "sha256": "95755ce283323d09f7e9ca7c9b135e1ad8546944b81dc857214d283239e336c5"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-verify/src/lib.rs",
+      "bytes": 100700,
+      "sha256": "bc73ea67b7f7c4a7b7e4b8cb22f136ea869f3dd70f2d1824648a430fd6b6c373"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-lower/src/lib.rs",
+      "bytes": 18064,
+      "sha256": "a645e11ee9050f2566cb5fecad19d162016636b4d51f59ccfcccd1277d13a959"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-backend-llvm/src/emit/packages.rs",
+      "bytes": 15919,
+      "sha256": "1f6174fa33ea8f0f7b35a35e0e34b1b23e40823f033dedf6854cb6e8d5b1142a"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-backend-llvm/src/emit/resource_closures.rs",
+      "bytes": 17563,
+      "sha256": "b323ab3311d89784e8980d819b56cd5cb97cba041313f99c30d1ea8cfdb9322b"
+    }
+  ],
+  "observations": [
+    "Types ordinary Product qualification is separate from existing flat supported qualification; aggregate children are finite complete Packages with transitive Managed ownership. Source unsupported capture remains rejected.",
+    "Analyze origins key actual Value/Local plus leaf paths, not just Type. Ordinary call outputs reset to Incoming; joins preserve possible Incoming. Existing direct Managed package fields bridge to old state without minting fresh origin.",
+    "Verify Plan allocates independent actual SSA/local intervals, not interned-by-Type state; parent field debt remains one child responsibility. Take and Store bridge actual leaf freshness into old direct Managed slots. Whole movement does not grant Created.",
+    "Verify ordinary calls fill Incoming; join uses OR per actual interval. Table/path allocation, range copying and clone/join costs are charged before growth. Old-flat functions retain empty Product plans; limited exact Types/Analyze costs remain 418/8673.",
+    "Types/Analyze and Verify unused metadata gates reject malformed ordinary Products and hidden resource payload Products. Existing source/raw tests show parent Store/array/Sum/address exclusions remain closed in their tested cases.",
+    "Lower/LLVM ordinary Package cleanup uses one direct parent flag for each complete child, then recursive declaration-order cleanup; independent native tests cover whole drop, partial child refill, child replacement and both RHS failure ownership outcomes.",
+    "A separate read-only Verify review by types205_finish on 10fd/b61 corroborated distinct actual intervals, precise direct-field bridge, call Incoming and prepaid growth; it did not independently validate their own Types/Analyze implementation.",
+    "The later raw capture probe establishes an actual missing Verify context gate. The preceding observations are limited path reviews, not a claim that all closed contexts are sound."
+  ],
+  "blocking_finding": {
+    "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/evidence/reviews/206/by197/CAPTURE_FINDING01.json",
+    "bytes": 6433,
+    "sha256": "0b4436340e3566921c6e78e3cc818b9eee4a95cb1aae0291cf99949e111fcd4d"
+  },
+  "final_review": "NotIssued",
+  "production_modified_by_reviewer": false
+}

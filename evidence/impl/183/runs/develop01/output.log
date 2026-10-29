@@ -1,0 +1,46 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-types)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-backend-llvm)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-driver)
+error[E0308]: mismatched types
+   --> crates/zil-driver/tests/impl183_owned_resource_results.rs:27:33
+    |
+ 27 |     let report = compile_source(source, &CompileOptions::default());
+    |                  -------------- ^^^^^^ expected `&SourceUnit`, found `&str`
+    |                  |
+    |                  arguments to this function are incorrect
+    |
+    = note: expected reference `&SourceUnit`
+               found reference `&str`
+note: function defined here
+   --> crates/zil-driver/src/lib.rs:234:8
+    |
+234 | pub fn compile_source(source: &SourceUnit, options: &CompileOptions) -> CompileReport {
+    |        ^^^^^^^^^^^^^^
+
+error[E0308]: mismatched types
+  --> crates/zil-driver/tests/impl183_owned_resource_results.rs:52:13
+   |
+51 |         let report = compile_project(
+   |                      --------------- arguments to this function are incorrect
+52 |             &project,
+   |             ^^^^^^^^ expected `&ProjectSources`, found `&Vec<SourceUnit>`
+   |
+   = note: expected reference `&ProjectSources`
+              found reference `&Vec<SourceUnit>`
+note: function defined here
+  --> crates/zil-driver/src/project.rs:30:8
+   |
+30 | pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> CompileReport {
+   |        ^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `zil-driver` (test "impl183_owned_resource_results") due to 2 previous errors

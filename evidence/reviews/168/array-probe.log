@@ -1,0 +1,5 @@
+   Compiling independent-review167-budget v0.0.0 (/workspace/scratch/39be3faa4442/run-logs/review168/array-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.72s
+     Running `/workspace/scratch/39be3faa4442/targets/review168/debug/independent-review167-budget`
+raw: Accepted; at least 262144 Copy-field scalar tokens copied into per-element teardown GEPs > declared analysis budget=100000
+wire: Accepted; at least 262144 Copy-field scalar tokens copied into per-element teardown GEPs > declared analysis budget=100000

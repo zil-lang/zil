@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/language14/wt192/evidence/preflight194/cases/18-mode-adaptation-control/main.zil",
+    "--stop-after",
+    "verify",
+    "--json",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/language14/wt192/evidence/preflight194/cases/18-mode-adaptation-control/phases"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt192",
+  "source_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+  "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+  "exit_code": 0,
+  "start": 1793163801.1494627,
+  "end": 1793163801.165428,
+  "input_sha256": "2d8555b70dabf502c2a9b1e3be66e106c1b627e603a380e4e7023e2b59169d54",
+  "stdout_sha256": "66025ca1d19f16680771fc62fa152679b0f2db2f77f2f838eb3462730e440ee9",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,37 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--workspace",
+    "--no-fail-fast",
+    "--offline",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/preflight173",
+  "source_commit": "6a623edef1e8d928b5b11091a50f9319fbe6fd59",
+  "crates_tree": "2236e0060a24fdbd45058e751722d2a3a18e3976",
+  "source_status": "",
+  "start": 1793112058.0161233,
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/173-final-compact",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/173-final/details04"
+  },
+  "status": "Pass",
+  "prior_attempt": "workspace03: 1522 Pass / 4 Fail; only exact legacy probe and diagnostic expectations changed afterward",
+  "exit_code": 0,
+  "end": 1793112228.8581166,
+  "log_sha256": "e54adbeb1af53f655b06529556778978373d811b3d4df480e64bccdb9357a5f1",
+  "tests": {
+    "passed": 1526,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 153
+  },
+  "ending_crates_tree": "2236e0060a24fdbd45058e751722d2a3a18e3976",
+  "ending_source_status": ""
+}

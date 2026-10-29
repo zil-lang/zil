@@ -1,0 +1,14 @@
+
+running 9 tests
+test mixed_environment_and_capture_hold_cannot_be_erased_or_forged ... ok
+test storage_end_cannot_leave_an_address_or_captured_address_live ... ok
+test every_live_address_and_mixed_closure_alias_keeps_its_source ... ok
+test bool_unit_and_i64_reference_types_preserve_operand_inference ... ok
+test mixed_move_environment_keeps_pointer_and_snapshot_distinct ... ok
+test branch_shadow_loop_and_scalar_parameter_storage ... ok
+test scalar_address_copies_overwrites_and_rhs_last_use ... ok
+test address_constraints_apply_before_ct_and_inside_closure_body ... ok
+test unsupported_reference_contracts_and_authority_remain_explicit ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+

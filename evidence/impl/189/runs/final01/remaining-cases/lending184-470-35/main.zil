@@ -1,0 +1,1 @@
+import factory;fn main()->i32{let f=factory.bytes(7u8);let a=f();let b=f();if a.len()!=1{return 1}if b.len()!=1{return 2}return i32(a[0])+i32(b[0])-14}

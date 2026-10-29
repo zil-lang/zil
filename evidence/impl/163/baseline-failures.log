@@ -1,0 +1,78 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-syntax)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-db)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-analyze)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-types)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-lower)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 20.80s
+     Running tests/impl163_resource_methods.rs (/workspace/scratch/39be3faa4442/targets/163/debug/deps/impl163_resource_methods-9de33583a6fbc4e1)
+
+running 12 tests
+test byte_buffer_methods_use_existing_descriptor_and_transfer_operations ... FAILED
+test byte_storage_windows_remain_subject_to_mutation_and_transfer_checks ... ok
+test captured_owner_is_consumed_once_by_an_explicit_give_method ... FAILED
+test descriptor_method_calls_inside_effect_wrappers_keep_fnmut ... FAILED
+test ordinary_call_cannot_silently_give_and_old_descriptors_cannot_survive_consumption ... ok
+test original_resource_address_receiver_probe_remains_explicitly_unsupported ... ok
+test descriptor_and_explicit_owned_receivers_keep_unique_cleanup ... ok
+test owned_group_default_can_be_overridden_with_a_descriptor ... ok
+test public_resource_methods_cross_module_boundaries_and_retained_callbacks ... FAILED
+test package_by_value_receiver_consumes_the_whole_package ... ok
+test stored_closures_call_read_and_write_resource_methods ... FAILED
+test receiver_is_staged_before_later_argument_failure_and_dropped_once ... ok
+
+failures:
+
+---- byte_buffer_methods_use_existing_descriptor_and_transfer_operations stdout ----
+
+thread 'byte_buffer_methods_use_existing_descriptor_and_transfer_operations' (1377) panicked at crates/zil-driver/tests/impl163_resource_methods.rs:77:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-FIELD-TYPE","message":"field access requires a record or tuple","span":{"file":0,"start":293,"end":302},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-0/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-0/phases/ct-core.txt","source-map":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-0/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-0/phases/syntax.txt"},"input_fingerprint":"de822a6bf4fe5febff7fdec5789ecdcf73b047427f29cdcd426e8f845f96eb06","seconds":0.019084385,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- captured_owner_is_consumed_once_by_an_explicit_give_method stdout ----
+
+thread 'captured_owner_is_consumed_once_by_an_explicit_give_method' (1379) panicked at crates/zil-driver/tests/impl163_resource_methods.rs:77:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-UNKNOWN-FIELD","message":"unknown field finish","span":{"file":0,"start":297,"end":312},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-3/phases/core.txt","source-map":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-3/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-3/phases/syntax.txt"},"input_fingerprint":"62427862f7ad35797c27902876f859c447dc4ac07475b7f2ebae1016dbcc6c21","seconds":0.010408154,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+---- descriptor_method_calls_inside_effect_wrappers_keep_fnmut stdout ----
+
+thread 'descriptor_method_calls_inside_effect_wrappers_keep_fnmut' (1381) panicked at crates/zil-driver/tests/impl163_resource_methods.rs:77:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-UNKNOWN-FIELD","message":"unknown field get","span":{"file":0,"start":228,"end":233},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-5/phases/core.txt","source-map":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-5/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-5/phases/syntax.txt"},"input_fingerprint":"7261cd7771a7b66c26f1773731dd2f4c443b6af8311021814cc25b631a6396c0","seconds":0.026538808,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+---- public_resource_methods_cross_module_boundaries_and_retained_callbacks stdout ----
+
+thread 'public_resource_methods_cross_module_boundaries_and_retained_callbacks' (1404) panicked at crates/zil-driver/tests/impl163_resource_methods.rs:77:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-UNKNOWN-FIELD","message":"unknown field add","span":{"file":0,"start":88,"end":93},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-15/phases/core.txt","source-map":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-15/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-15/phases/syntax.txt"},"input_fingerprint":"4c0fa574f8eb4320a33192844c8944e1ff01f6af776d13aab04e1e799acad2ef","seconds":0.00918855,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"model.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+---- stored_closures_call_read_and_write_resource_methods stdout ----
+
+thread 'stored_closures_call_read_and_write_resource_methods' (1417) panicked at crates/zil-driver/tests/impl163_resource_methods.rs:77:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-UNKNOWN-FIELD","message":"unknown field get","span":{"file":0,"start":134,"end":139},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-19/phases/core.txt","source-map":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-19/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/evidence163/baseline/resource-methods163-1376-19/phases/syntax.txt"},"input_fingerprint":"60da456686a267a8d47da03d518a5ad607754b4e38fcb82d17c5cbee5d6971e8","seconds":0.023136141,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+
+failures:
+    byte_buffer_methods_use_existing_descriptor_and_transfer_operations
+    captured_owner_is_consumed_once_by_an_explicit_give_method
+    descriptor_method_calls_inside_effect_wrappers_keep_fnmut
+    public_resource_methods_cross_module_boundaries_and_retained_callbacks
+    stored_closures_call_read_and_write_resource_methods
+
+test result: FAILED. 7 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+
+error: test failed, to rerun pass `-p zil-driver --test impl163_resource_methods`

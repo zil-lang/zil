@@ -1,0 +1,23 @@
+# 182 整仓退回后的作者修复验收
+
+源码冻结 `ebaddd7faf7b83b257b873e8544af0fef13e670a`，基线为真实整仓失败候选9ae758a；rule1.4、schema23，规范摘要1068cda3。作者限定443组通过、0失败、0忽略：13个driver目标180组，Analyze23与Verify240。独立复核、合流与正式整仓验收仍由root负责。
+
+## 修复实际语义
+
+182旧候选把弱Desc来源同时用作公开地址Hold和强失效关系，导致65个旧raw正/反例首先误触E-VERIFY-HOLD，3个原字段组合正例被全Package粗根误拒，另有错误blanket Address<Closure>门挡住168局部借入。原整仓失败和后续开发失败完整保留；以前的限定通过不覆盖这些退回事实。
+
+新实现把私有全Desc/Address来源与公开地址来源图分开。私有图继续独立重建真实效果及贷款，始终不依赖其它head语法。公开图中普通资源Desc行为空；ByteBuffer/Store Desc仅为派生窗口保留稳定来源元数据，不能当作强借用。MakeClosure公开图只合并实际地址依赖；强失效循环排除Desc载体。资源描述的实际字段实例、Move/Drop后使用与责任仍由原resources核查，不会因不发布地址Hold而免检。
+
+Verify仍精确核对候选，每个真实Address不可把Hold擦空；给弱Desc伪造地址Hold也会拒绝。两个原始入口分别验证这些篡改。原始65个raw夹具未修改；072/074/079的安全兄弟字段替换与相邻真实失效、168的局部非逃逸环境及后续替换冲突全部按旧输入旧期待重新通过。错误gate移除后，原畸形布局变异继续以精确E-VERIFY-CAPTURE拒绝；新增真正局部借入O0/O2正例和伪造factory逃逸raw/Wire反例，后者由真实self-contained retained合同拒绝。
+
+## 实测范围
+
+182自身23组，包括56次实际O0/O2构建运行（各28）、18个源码拒绝、9组raw/Wire变异。预算实际成功27284，少一步27283为ResourceLimit；没有修改默认预算。全Analyze库23组中原三个硬编码精确预算恢复通过，测试数值未改。fmt与生产lib/182测试Clippy均通过。
+
+180个driver选择包含原182邻接、072/074/079/168及root此前4个独审边界，另Verify库240组核对旧原始IR。root的schema23/诊断迁移另做非作者短审：仅审核dc294df7+bfb53c7两条测试提交，记录在review-integration-fixtures.json，保留其assertions01真实失败与assertions02通过，不把作者自审作为182独立审核。
+
+## 证据与限制
+
+run目录保存真实命令、输出和精简case，原生程序/对象/LLVM执行产物不收录；阶段产物仅保留哈希索引。旧182交付是历史记录，本修复说明与source_commit为本轮实际作者终点。元数据只吸收root授权的a7fdbf38两文件，全部规范输入重新计算一致。
+
+本片没有原生Windows执行或性能比较；强安全反例与真实机器行为支持有限修复，不构成完整语言或产品净优势。完整语言NotSatisfied、产品NotRun，正式整仓仍须由集成方复跑。

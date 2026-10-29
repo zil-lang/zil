@@ -1,0 +1,1 @@
+resource R{n:i32}package Item{manages r:R;value:i32}fn read<T>(p:&mut Item)->i32{let first=p.value;let second=p.value;return first+second}fn main()->i32{let s:Store<Item>=store_new();store_reserve(s,1);store_push(s,Item{r:R{n:0},value:7});let p=store_at_mut(s,0);return read::<i32>(p)-14}

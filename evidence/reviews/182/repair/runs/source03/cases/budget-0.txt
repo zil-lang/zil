@@ -1,0 +1,5 @@
+bytes=647
+encode_nodes=23
+decode_nodes=23
+instructions=10
+N passes, N-1 ResourceLimit in both directions

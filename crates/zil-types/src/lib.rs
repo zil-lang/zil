@@ -17,6 +17,7 @@ mod foreign;
 mod functions;
 mod helpers;
 mod inference;
+mod lending;
 mod managed_slots;
 mod names;
 mod packages;
@@ -24,14 +25,19 @@ mod program;
 mod resource_effects;
 mod resources;
 mod retained;
+mod state_origins;
+mod store_templates;
 pub use inference::{infer_program_closures, infer_source_closures};
 pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
-    id: FunctionId,
-    callable: Option<CoreCallableParameter>,
+    id: Option<FunctionId>,
+    // Effective type bindings; state_parameter keeps their distinct owning source.
+    callable: Vec<CoreCallableParameter>,
+    state_parameter: Option<CoreStateParameter>,
     callable_return: Option<CoreCallableReturn>,
+    type_parameter: Option<CoreTypeParameter>,
     template: Option<(zil_base::ModuleId, zil_base::NodeId)>,
     foreign: bool,
     cleanup: bool,
@@ -39,6 +45,17 @@ struct Signature {
     result: Type,
     public: bool,
     receiver: Option<Type>,
+}
+impl Signature {
+    fn concrete_id(&self, span: Span) -> R<FunctionId> {
+        self.id.ok_or_else(|| {
+            error(
+                "E-TYPE-APPLICATION",
+                span,
+                "a template has no concrete function identity before instantiation",
+            )
+        })
+    }
 }
 fn error(code: &str, span: Span, message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(Phase::Types, code, Some(span), message)
@@ -81,13 +98,19 @@ fn signatures(
     let mut concrete_index = 0usize;
     for f in &core.functions {
         let i = concrete_index;
-        if f.callable_parameter.is_none() {
+        if f.callable_parameters.is_empty()
+            && f.type_parameters.is_empty()
+            && f.state_parameters.is_empty()
+        {
             concrete_index += 1;
         }
         if let Err(diagnostic) = retained::validate_factory(f) {
             errors.push(diagnostic);
         }
         if let Err(diagnostic) = helpers::validate_template(f) {
+            errors.push(diagnostic);
+        }
+        if let Err(diagnostic) = store_templates::validate_header(f) {
             errors.push(diagnostic);
         }
         if let Err(diagnostic) = foreign::check_declaration(
@@ -101,24 +124,28 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
-                    callable: f.callable_parameter.clone(),
+                    callable: state_origins::bounds(f).into_owned(),
+                    state_parameter: f.state_parameters.first().cloned(),
                     callable_return: f.callable_return.clone(),
-                    template: f
-                        .callable_parameter
-                        .as_ref()
-                        .map(|_| (core.module_id, f.id)),
+                    type_parameter: f.type_parameters.first().cloned(),
+                    template: (!(f.callable_parameters.is_empty()
+                        && f.type_parameters.is_empty()
+                        && f.state_parameters.is_empty()))
+                    .then_some((core.module_id, f.id)),
                     foreign: f.foreign.is_some(),
                     cleanup: core
                         .aggregates
                         .iter()
                         .any(|a| a.teardown.as_ref() == Some(&f.name)),
-                    id: FunctionId(u32::try_from(offset + i).map_err(|_| {
-                        vec![Diagnostic::limit(
-                            Phase::Types,
-                            "function identity overflow",
-                            Some(f.span),
-                        )]
-                    })?),
+                    id: (f.type_parameters.is_empty() && f.state_parameters.is_empty()).then_some(
+                        FunctionId(u32::try_from(offset + i).map_err(|_| {
+                            vec![Diagnostic::limit(
+                                Phase::Types,
+                                "function identity overflow",
+                                Some(f.span),
+                            )]
+                        })?),
+                    ),
                     parameters: f.parameters.iter().map(|p| p.ty.clone()).collect(),
                     result: f.return_type.clone(),
                     public: exports.is_none_or(|ids| ids.contains(&f.id)),
@@ -133,99 +160,111 @@ fn signatures(
                 format!("function {} is declared twice", f.name),
             ))
         }
-        if f.return_type.is_shared_package_address() {
-            errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
+        if !f.type_parameters.is_empty() {
+            continue;
         }
-        if f.return_type.is_shared_resource_head_address()
-            || (matches!(f.return_type, Type::Address { .. })
-                && (f
-                    .parameters
-                    .iter()
-                    .any(|p| p.ty.is_shared_resource_head_address())
-                    || f.receiver
-                        .as_ref()
-                        .is_some_and(|r| r.ty.is_shared_resource_head_address())))
-        {
-            errors.push(unsupported(
-                f.span,
-                "resource-head windows are synchronous inputs; returning a head or a window derived from a head input is not implemented",
-            ));
-        }
-        if !(f.callable_return.is_some()
-            || callable_fields::template(f)
-            || f.return_type.is_copy_value()
-            || f.return_type.is_scalar_or_address()
-            || packages::supported(&f.return_type)
-            || errors::supported(&f.return_type)
-            || packages::owned_array_supported(&f.return_type)
-            || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
-        {
-            errors.push(unsupported(
-                f.span,
-                format!("return type {}", f.return_type.name()),
-            ))
-        }
-        if matches!(f.result_mode, PassingMode::Create | PassingMode::Give)
-            && !matches!(f.return_type, Type::Managed(_))
-        {
-            errors.push(error(
-                "E-RESOURCE-RESULT-MODE",
-                f.span,
-                "create/give result requires a managed resource",
-            ));
-        }
-        if f.receiver.as_ref().is_some_and(|r| {
-            !(r.ty.is_copy_value()
-                || r.ty.is_scalar_or_address()
-                || resources::supported(&r.ty)
-                || packages::supported(&r.ty)
-                || errors::supported(&r.ty))
-        }) {
-            errors.push(unsupported(f.span, "receiver capability typing"))
-        }
-        for (index, p) in f.parameters.iter().enumerate() {
-            if f.callable_parameter
-                .as_ref()
-                .is_some_and(|bound| bound.index as usize == index)
-            {
-                continue;
-            }
-            if !(p.ty.is_copy_value()
-                || p.ty.is_scalar_or_address()
-                || resources::supported(&p.ty)
-                || packages::supported(&p.ty)
-                || errors::supported(&p.ty)
-                || packages::owned_array_supported(&p.ty))
-            {
-                errors.push(unsupported(
-                    p.span,
-                    format!("parameter type {}", p.ty.name()),
-                ))
-            }
-            if matches!(
-                p.mode,
-                PassingMode::Give
-                    | PassingMode::Create
-                    | PassingMode::Describe
-                    | PassingMode::Borrow
-                    | PassingMode::BorrowMut
-            ) && !(p.mode == PassingMode::Borrow
-                && (matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee())
-                    || p.ty.is_shared_resource_head_address()
-                    || p.ty.is_shared_package_address()))
-                && !(p.mode == PassingMode::BorrowMut
-                    && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee()))
-                && !(p.mode == PassingMode::Give && matches!(p.ty, Type::Managed(_)))
-                && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))
-            {
-                errors.push(unsupported(p.span, "resource/address parameter mode"))
-            }
-        }
+        signature_errors(f, &mut errors);
     }
     if !errors.is_empty() {
         return Err(errors);
     }
     Ok(signatures)
+}
+
+fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
+    if f.return_type.is_package_address() {
+        errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
+    }
+    if f.return_type.is_shared_resource_head_address()
+        || (matches!(f.return_type, Type::Address { .. })
+            && (f
+                .parameters
+                .iter()
+                .any(|p| p.ty.is_shared_resource_head_address())
+                || f.receiver
+                    .as_ref()
+                    .is_some_and(|r| r.ty.is_shared_resource_head_address())))
+    {
+        errors.push(unsupported(
+            f.span,
+            "resource-head windows are synchronous inputs; returning a head or a window derived from a head input is not implemented",
+        ));
+    }
+    if !(f.callable_return.is_some()
+        || callable_fields::template(f)
+        || f.return_type.is_copy_value()
+        || f.return_type.is_scalar_or_address()
+        || packages::ordinary(&f.return_type)
+        || errors::supported(&f.return_type)
+        || packages::owned_array_supported(&f.return_type)
+        || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
+    {
+        errors.push(unsupported(
+            f.span,
+            format!("return type {}", f.return_type.name()),
+        ))
+    }
+    if matches!(f.result_mode, PassingMode::Create | PassingMode::Give)
+        && !matches!(f.return_type, Type::Managed(_))
+        && !errors::managed_success(&f.return_type)
+    {
+        errors.push(error(
+            "E-RESOURCE-RESULT-MODE",
+            f.span,
+            "create/give result requires a managed resource or direct owned success payload",
+        ));
+    }
+    if f.receiver.as_ref().is_some_and(|r| {
+        !(r.ty.is_copy_value()
+            || r.ty.is_scalar_or_address()
+            || resources::supported(&r.ty)
+            || packages::supported(&r.ty)
+            || errors::supported(&r.ty))
+    }) {
+        errors.push(unsupported(f.span, "receiver capability typing"))
+    }
+    for (index, p) in f.parameters.iter().enumerate() {
+        if f.state_parameters
+            .iter()
+            .any(|state| state.index as usize == index)
+            || f.callable_parameters
+                .iter()
+                .any(|bound| bound.index as usize == index)
+        {
+            continue;
+        }
+        if !(p.ty.is_copy_value()
+            || p.ty.is_scalar_or_address()
+            || resources::supported(&p.ty)
+            || packages::ordinary(&p.ty)
+            || errors::supported(&p.ty)
+            || packages::owned_array_supported(&p.ty))
+        {
+            errors.push(unsupported(
+                p.span,
+                format!("parameter type {}", p.ty.name()),
+            ))
+        }
+        if matches!(
+            p.mode,
+            PassingMode::Give
+                | PassingMode::Create
+                | PassingMode::Describe
+                | PassingMode::Borrow
+                | PassingMode::BorrowMut
+        ) && !(p.mode == PassingMode::Borrow
+            && (matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee())
+                || p.ty.is_shared_resource_head_address()
+                || p.ty.is_shared_package_address()))
+            && !(p.mode == PassingMode::BorrowMut
+                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address()))
+            && !(p.mode == PassingMode::Give
+                && (matches!(p.ty, Type::Managed(_)) || errors::managed_success(&p.ty)))
+            && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))
+        {
+            errors.push(unsupported(p.span, "resource/address parameter mode"))
+        }
+    }
 }
 
 pub fn check(
@@ -246,7 +285,11 @@ pub fn check(
     let concrete_count = core
         .functions
         .iter()
-        .filter(|f| f.callable_parameter.is_none())
+        .filter(|f| {
+            f.callable_parameters.is_empty()
+                && f.type_parameters.is_empty()
+                && f.state_parameters.is_empty()
+        })
         .count();
     let mut closure_state = closures::State::new(concrete_count, limits);
     closure_state.resource_writes =
@@ -263,7 +306,9 @@ pub fn check(
         .iter()
         .filter(|f| f.callable_return.is_some())
     {
-        let id = signatures[&f.name].id;
+        let id = signatures[&f.name]
+            .concrete_id(f.span)
+            .map_err(|e| vec![e])?;
         let dependencies =
             retained::factory_dependencies(f, &signatures, None, &closure_state, &mut work, limits)
                 .map_err(|e| vec![e])?;
@@ -274,15 +319,18 @@ pub fn check(
     let ordered = factory_order
         .into_iter()
         .map(|id| factory_functions[&id])
-        .chain(
-            core.functions
-                .iter()
-                .filter(|f| f.callable_parameter.is_none() && f.callable_return.is_none()),
-        );
+        .chain(core.functions.iter().filter(|f| {
+            (f.callable_parameters.is_empty()
+                && f.type_parameters.is_empty()
+                && f.state_parameters.is_empty())
+                && f.callable_return.is_none()
+        }));
     for f in ordered {
         match Builder::new(
             f,
-            signatures[&f.name].id,
+            signatures[&f.name]
+                .concrete_id(f.span)
+                .map_err(|e| vec![e])?,
             &signatures,
             limits,
             &mut closure_state,
@@ -314,14 +362,22 @@ pub fn check(
             return Err(errors);
         }
     }
+    let bound_elements =
+        store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
     let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
     byte_buffer::add_definition(&functions, &mut resource_definitions, limits)
         .map_err(|e| vec![e])?;
-    dynamic_store::add_definitions(&functions, &mut resource_definitions, limits)
-        .map_err(|e| vec![e])?;
-    Ok(TypedModule {
+    dynamic_store::add_definitions(
+        &functions,
+        &mut resource_definitions,
+        &closures,
+        &bound_elements,
+        limits,
+    )
+    .map_err(|e| vec![e])?;
+    let mut module = TypedModule {
         resources: resource_definitions,
         schema_version: SCHEMA_VERSION,
         module_id: core.module_id,
@@ -330,11 +386,17 @@ pub fn check(
         functions,
         closures,
         unsupported: vec![],
-    })
+    };
+    lending::populate(&mut module, limits).map_err(|e| vec![e])?;
+    Ok(module)
 }
 struct Builder<'a, 'c> {
     function: TypedFunction,
-    helper_bound: Option<CoreCallableParameter>,
+    helper_bounds: Vec<CoreCallableParameter>,
+    // Owning State specialization removes symbolic parameters, but a direct
+    // field invocation still uses the mode promised by that static interface.
+    state_callable_mode: Option<(ClosureId, CallableKind)>,
+    state_uses: Option<state_origins::Uses>,
     factory_bound: Option<CoreCallableReturn>,
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
@@ -352,6 +414,7 @@ struct Builder<'a, 'c> {
     first_closure: usize,
     borrowed_captures: BTreeMap<LocalId, Type>,
     written_captures: BTreeMap<LocalId, u32>,
+    stored_copy_captures: BTreeMap<LocalId, u32>,
     address_written_captures: BTreeMap<LocalId, u32>,
     managed_captures: BTreeMap<LocalId, (u32, Type)>,
     closure_captures: BTreeMap<LocalId, (u32, Type)>,
@@ -405,7 +468,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 entry: BlockId(0),
                 span: f.span,
             },
-            helper_bound: f.callable_parameter.clone(),
+            helper_bounds: f.callable_parameters.clone(),
+            state_callable_mode: None,
+            state_uses: None,
             factory_bound: f.callable_return.clone(),
             signatures,
             imports: None,
@@ -423,6 +488,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             first_closure,
             borrowed_captures: BTreeMap::new(),
             written_captures: BTreeMap::new(),
+            stored_copy_captures: BTreeMap::new(),
             address_written_captures: BTreeMap::new(),
             managed_captures: BTreeMap::new(),
             closure_captures: BTreeMap::new(),
@@ -547,7 +613,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 .iter()
                 .map(|local| &local.ty)
                 .chain(&self.function.values)
-                .any(Type::is_shared_package_address)
+                .any(Type::is_package_address)
             {
                 return Err(unsupported(
                     body.span,
@@ -1228,7 +1294,20 @@ impl<'a, 'c> Builder<'a, 'c> {
                 CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }
             )
         {
-            let (value, actual) = self.expr_raw(e, None)?;
+            // A sealed Store constructor has no operands from which to infer
+            // its element. A direct owned-success signature is an explicit
+            // expected resource shape, just like a direct create signature.
+            let payload_expected = match (&e.kind, union) {
+                (CoreExprKind::Call { callee, .. }, Type::ErrorUnion { result, .. })
+                    if dynamic_store::primitive(callee) == Some("store_new")
+                        && matches!(result.as_ref(), Type::Managed(payload)
+                            if matches!(payload.as_ref(), Type::OwnedStore { .. })) =>
+                {
+                    Some(result.as_ref())
+                }
+                _ => None,
+            };
+            let (value, actual) = self.expr_raw(e, payload_expected)?;
             return self.inject_error_union(value, actual, union, e.span);
         }
         self.expr_raw(e, expected)
@@ -1290,7 +1369,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                             desc,
                         ));
                     }
-                    let kind = if matches!(ty, Type::Package { .. })
+                    let kind = if let Some(index) = self.stored_copy_captures.get(&local) {
+                        InstructionKind::ReadCapture { index: *index }
+                    } else if matches!(ty, Type::Package { .. })
                         || packages::owned_array_supported(&ty)
                         || errors::owned(&ty)
                     {
@@ -1448,6 +1529,19 @@ impl<'a, 'c> Builder<'a, 'c> {
                 )
             }
             CoreExprKind::Call { callee, arguments } => {
+                if let CoreExprKind::TypeApply {
+                    callee: target,
+                    type_arguments,
+                } = &callee.kind
+                {
+                    return self.call_type_template(
+                        target,
+                        type_arguments,
+                        arguments,
+                        expected,
+                        e.span,
+                    );
+                }
                 if let Some(name) = dynamic_store::primitive(callee) {
                     return self.dynamic_store_call(name, arguments, expected, e.span);
                 }
@@ -1505,6 +1599,10 @@ impl<'a, 'c> Builder<'a, 'c> {
                     return self.call_closure(callee, arguments, expected, e.span);
                 }
                 let signature = self.resolve_callee(callee)?.clone();
+                if signature.type_parameter.is_some() {
+                    return self
+                        .call_inferred_type_template(signature, arguments, expected, e.span);
+                }
                 if signature.callable_return.is_some()
                     && matches!(signature.result, Type::Opaque { .. })
                 {
@@ -1513,7 +1611,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         "callable factory result identity has not been resolved",
                     ));
                 }
-                if signature.callable.is_some() {
+                if !signature.callable.is_empty() {
                     return self.call_helper(&signature, arguments, expected, e.span);
                 }
                 if arguments.len() != signature.parameters.len() {
@@ -1876,7 +1974,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             let function_id = pending.function;
             let function = CoreFunction {
                 callable_return: None,
-                callable_parameter: None,
+                state_parameters: Vec::new(),
+                type_parameters: Vec::new(),
+                callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
                 foreign: None,
                 id: zil_base::NodeId(0),
@@ -2018,11 +2118,25 @@ impl<'a, 'c> Builder<'a, 'c> {
             return Ok(());
         }
         let (parameters, result) = pending.inference.resolve(true, pending.span)?;
+        if pending.owns_leaf_store {
+            let span = pending.span;
+            let cost = inference::type_snapshot_work(&result, span, self.limits)?;
+            self.closures.snapshot(cost, span)?;
+            if !result.is_copy_value() {
+                return Err(unsupported(
+                    span,
+                    "owned Store capture environments require Copy results",
+                ));
+            }
+        }
+        let pending = &self.closures.pending[id.0 as usize];
         let captures = pending.captures.clone();
         let function_id = pending.function;
         let function = CoreFunction {
             callable_return: None,
-            callable_parameter: None,
+            state_parameters: Vec::new(),
+            type_parameters: Vec::new(),
+            callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,
             foreign: None,
             id: zil_base::NodeId(0),
@@ -2053,6 +2167,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         builder.imports = self.imports;
         builder.enums = self.enums;
         builder.function.environment = Some(id);
+        let lends = lending::supported_result(&function.return_type);
         for (index, capture) in captures.iter().enumerate() {
             let stored = capture.stored_type();
             if matches!(stored, Type::Package { .. }) {
@@ -2121,6 +2236,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     .insert(local, (index as u32, stored));
                 continue;
             }
+            let inline_copy = stored.is_copy_value();
             let local =
                 builder.local(&capture.name, stored.clone(), capture.written, capture.span)?;
             if capture.borrowed {
@@ -2134,9 +2250,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                 capture.span,
             )?;
             builder.store(local, value, capture.span)?;
+            if lends && inline_copy {
+                builder.stored_copy_captures.insert(local, index as u32);
+            }
             if capture.written && !capture.borrowed && capture.ty.is_copy_value() {
                 builder.written_captures.insert(local, index as u32);
-                if capture.address_written {
+                if capture.address_written && !lends {
                     builder.address_written_captures.insert(local, index as u32);
                 }
             }
@@ -2159,11 +2278,19 @@ impl<'a, 'c> Builder<'a, 'c> {
             _ => None,
         };
         let mut borrowed_callee = None;
+        let field_callee = self.package_callable_callee(callee)?;
         // An owning environment is not a Copy callee value. Shared and
         // Exclusive invocation borrow the actual local; Consume transfers it.
         let captured_once = existing_place.and_then(|local| self.closure_captures.get(&local).cloned())
             .filter(|(_, ty)| matches!(ty, Type::Closure(id) if self.closures.pending[id.0 as usize].callable_kind() == CallableKind::FnOnce));
-        let (mut callee_value, ty) = if let Some((index, ty)) = captured_once {
+        let (mut callee_value, ty) = if let Some((value, id, kind)) = field_callee {
+            if kind == CallableKind::FnOnce {
+                (Some(value), Type::Closure(id))
+            } else {
+                borrowed_callee = Some(value);
+                (None, Type::Closure(id))
+            }
+        } else if let Some((index, ty)) = captured_once {
             existing_place = None;
             (
                 Some(self.value(InstructionKind::TakeCapture { index }, ty.clone(), span)?),
@@ -2173,7 +2300,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             && let Some(id) = self.closure_slots.get(&local).copied()
         {
             existing_place = None;
-            let kind = self.closures.pending[id.0 as usize].callable_kind();
+            let kind = self
+                .declared_state_kind(callee, None, id)?
+                .unwrap_or_else(|| self.closures.pending[id.0 as usize].callable_kind());
             if kind == CallableKind::FnOnce {
                 let (value, ty) = self.take_closure_slot(local, span)?;
                 (Some(value), ty)
@@ -2186,6 +2315,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
         } else if let Some(local) = existing_place
             && (self.owned_closure(&self.function.locals[local.0 as usize].ty)
+                || self.lending_closure(&self.function.locals[local.0 as usize].ty)?
                 || matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
         {
             (None, self.function.locals[local.0 as usize].ty.clone())
@@ -2214,17 +2344,35 @@ impl<'a, 'c> Builder<'a, 'c> {
                 "called value is not a function pointer or concrete closure",
             ));
         };
-        let kind = self
-            .helper_bound
-            .as_ref()
-            .filter(|bound| {
-                existing_place == self.function.parameters.get(bound.index as usize).copied()
-            })
-            .map_or_else(
-                || self.closures.pending[id.0 as usize].callable_kind(),
-                |bound| bound.kind,
-            );
+        let declared_kind = self.declared_state_kind(callee, None, id)?;
+        let kind = declared_kind.unwrap_or_else(|| {
+            field_callee.map_or_else(
+                || {
+                    self.helper_bounds
+                        .iter()
+                        .find(|bound| {
+                            existing_place
+                                == self.function.parameters.get(bound.index as usize).copied()
+                        })
+                        .map_or_else(
+                            || self.closures.pending[id.0 as usize].callable_kind(),
+                            |bound| bound.kind,
+                        )
+                },
+                |(_, _, kind)| kind,
+            )
+        });
         let owns_resources = self.closures.pending[id.0 as usize].owns_resources();
+        let lends = self.lending_closure(&Type::Closure(id))?;
+        if lends
+            && (kind == CallableKind::FnOnce
+                || (existing_place.is_none() && borrowed_callee.is_none()))
+        {
+            return Err(unsupported(
+                span,
+                "environment lending requires a non-consuming call on an actual stored closure position",
+            ));
+        }
         if kind == CallableKind::FnOnce
             && let Some(local) = existing_place
         {
@@ -2235,7 +2383,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             )?);
         }
         let call_place = if borrowed_callee.is_none()
-            && (kind == CallableKind::FnMut || (kind == CallableKind::Fn && owns_resources))
+            && (kind == CallableKind::FnMut
+                || (kind == CallableKind::Fn && (owns_resources || lends)))
         {
             let local = if let Some(local) = existing_place {
                 if kind == CallableKind::FnMut && !self.function.locals[local.0 as usize].mutable {
@@ -2286,7 +2435,14 @@ impl<'a, 'c> Builder<'a, 'c> {
         // constrains both unified parameters to i64 without reordering values.
         for (index, argument) in arguments.iter().enumerate() {
             self.closures.snapshot(1, argument.span)?;
-            if let Some(hint) = self.range_hint(argument, 0) {
+            if let Some(hint) = self.range_hint(argument, 0)
+                && !matches!(
+                    self.closures.pending[id.0 as usize]
+                        .inference
+                        .parameter(index)?,
+                    Some(Type::Address { .. })
+                )
+            {
                 self.closures.pending[id.0 as usize].inference.argument(
                     index,
                     &hint,
@@ -2300,7 +2456,11 @@ impl<'a, 'c> Builder<'a, 'c> {
             let hint = self.closures.pending[id.0 as usize]
                 .inference
                 .parameter(index)?;
-            let (value, actual) = self.expr(argument, hint.as_ref())?;
+            let (value, actual) = if let Some(parameter) = hint.as_ref() {
+                self.argument_expr(argument, parameter)?
+            } else {
+                self.expr(argument, None)?
+            };
             self.closures.pending[id.0 as usize].inference.argument(
                 index,
                 &actual,
@@ -2333,7 +2493,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     callee: call_place.expect("exclusive environment"),
                     arguments: values,
                 },
-                CallableKind::Fn if owns_resources => InstructionKind::CallClosureShared {
+                CallableKind::Fn if owns_resources || lends => InstructionKind::CallClosureShared {
                     callee: call_place.expect("shared environment"),
                     arguments: values,
                 },
@@ -2455,7 +2615,9 @@ mod tests {
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
                 callable_return: None,
-                callable_parameter: None,
+                state_parameters: Vec::new(),
+                type_parameters: Vec::new(),
+                callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
                 foreign: None,
                 id: NodeId(0),

@@ -1,0 +1,50 @@
+[
+  {
+    "name": "same_origin_nominal_aliases_are_readonly",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/corrected/aliases/same_origin_nominal_aliases_are_readonly/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/corrected/aliases/same_origin_nominal_aliases_are_readonly/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/corrected/aliases/same_origin_nominal_aliases_are_readonly/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "",
+    "pass_result": true
+  },
+  {
+    "name": "same_origin_nominal_aliases_are_readonly",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/corrected/aliases/same_origin_nominal_aliases_are_readonly/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/corrected/aliases/same_origin_nominal_aliases_are_readonly/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/corrected/aliases/same_origin_nominal_aliases_are_readonly/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "",
+    "pass_result": true
+  }
+]

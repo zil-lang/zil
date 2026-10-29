@@ -1,0 +1,7 @@
+commit 9b22708a92dc2e5cbd231cb87a3210e7ae1a3430
+Author:     Codex <codex@openai.com>
+AuthorDate: Wed Oct 28 11:37:13 2026 +0900
+Commit:     Codex <codex@openai.com>
+CommitDate: Wed Oct 28 11:37:13 2026 +0900
+
+    docs: propose independent Package field creation provenance for 186

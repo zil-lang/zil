@@ -1,0 +1,22 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "-p",
+    "zil-cli",
+    "--offline",
+    "-j2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/preflight173",
+  "source_commit": "5c3bdb276741fe9b2d325fd9faea3d4362430448",
+  "crates_tree": "1bb0f20d5cce4d7ce634c177b9e218209a6d4028",
+  "source_status": "",
+  "start": 1793111204.4543407,
+  "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/173-combined-pre",
+  "CARGO_INCREMENTAL": "0",
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793111216.3976035,
+  "log_sha256": "d643b65ae4769be48664d4d8c00425962a15a834b5da93b9e796eec783d1ecb4",
+  "cli_sha256": "25dfce760b65b472116279d73bd3e386356aa8af9297b5b66cde56cc3c5f1673"
+}

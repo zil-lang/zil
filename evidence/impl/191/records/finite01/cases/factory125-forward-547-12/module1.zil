@@ -1,0 +1,1 @@
+pub fn apply<F:Fn(i64)->i64>(f:&F,n:i64)->i64{return f(n)}

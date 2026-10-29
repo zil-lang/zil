@@ -1,0 +1,37 @@
+{
+  "status": "Pass",
+  "checks": {
+    "all_refs_exact": true,
+    "all_commits_exact": true,
+    "all_worktrees_exact": true,
+    "crates_tree_exact": true,
+    "not_shallow": true,
+    "no_alternates": true,
+    "no_grafts": true,
+    "main_clean": true,
+    "original_worktree_commit_2447ce484ca3cabfc4c0417ad868d854b29c5a7e": true,
+    "original_worktree_commit_e158fddcfd0def1f5c365a9b83ff7cc089f5e740": true,
+    "original_worktree_commit_e21a3b95912843e7ffff0b4c3bee23e582066b55": true,
+    "original_worktree_commit_c7f8118bfdf0e971e4a76a3b3a1a8aceb969ce7e": true,
+    "original_worktree_commit_712a9602797891083fe3f549381e1e12ab34dd02": true,
+    "original_worktree_commit_757c83e052d884b9f9381535b8e8194e97a20f4e": true,
+    "original_worktree_commit_892085c5bc6d95c302e23a35a345c4b689593e95": true,
+    "original_worktree_commit_fbbdba65c30ed83c785d17e0f85de26b070f8a06": true,
+    "original_worktree_commit_956a9391bfdd485cdf91b05cb7a87d9481e5679b": true,
+    "original_worktree_commit_84af56e5185abc2fa1ac2e62f3395638fe0c3788": true,
+    "original_worktree_commit_ee2e8b04de7829491f8168eb54ccceedab72f57d": true,
+    "original_worktree_commit_f5a5b532b3410474495a43780c63d4a0dc1fbcf3": true,
+    "original_worktree_commit_ba33a4640e105ed0676e78890c4254cb3c36319b": true
+  },
+  "refs_count": 20,
+  "commits_count": 97,
+  "worktrees": {
+    "main": "e158fddcfd0def1f5c365a9b83ff7cc089f5e740",
+    "baseline159": "e9a604c80d56027a5fb6c28bcb8b58f9c9e84a7b",
+    "nested161": "84af56e5185abc2fa1ac2e62f3395638fe0c3788",
+    "bounds162": "ee2e8b04de7829491f8168eb54ccceedab72f57d",
+    "methods163": "f5a5b532b3410474495a43780c63d4a0dc1fbcf3",
+    "review163combo": "c7f8118bfdf0e971e4a76a3b3a1a8aceb969ce7e"
+  },
+  "source_tree": "26f864a23989134198d8da85f0ed585964fb76f0"
+}

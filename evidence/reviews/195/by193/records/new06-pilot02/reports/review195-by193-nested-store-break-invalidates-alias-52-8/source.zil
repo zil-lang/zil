@@ -1,0 +1,1 @@
+fn inspect<T:StoreElement>(give incoming:Store<T>,mode:i32)->i64{var current:Store<T>=store_new();let safe:Store<T>=store_new();let alias=current;for outer in 0..2{while mode>0{if mode==1{return 0}else{current=give incoming;break}}break}return store_len(alias)}fn main(){}

@@ -1,0 +1,27 @@
+
+running 22 tests
+test a_zero_call_helper_does_not_execute_its_buffer_capture_effects ... ok
+test borrowed_slices_explicit_address_arguments_and_retained_escape_stay_closed ... ok
+test every_actual_storage_write_conflicts_with_a_live_same_source_view ... ok
+test actual_readonly_capture_composes_with_a_live_shared_byte_view ... ok
+test helper_argument_views_are_checked_with_the_actual_capture_effects ... ok
+test helper_body_accesses_do_not_disappear_behind_its_callback_contract ... ok
+test independent_buffer_sources_do_not_inherit_an_unrelated_window ... ok
+test four_module_buffer_consumer_checks_runtime_input_and_cleanup_order ... ok
+test internal_window_separation_work_has_a_bounded_raw_and_wire_limit ... ok
+test live_buffer_windows_still_block_give_with_an_unused_weak_environment ... ok
+test mutable_environment_position_and_last_call_leave_separate_byte_permissions ... ok
+test ordinary_helper_layers_preserve_readonly_and_hidden_clear_effects ... ok
+test original_local_byte_description_capture_reaches_native_execution ... ok
+test raw_and_wire_cannot_capture_a_description_after_its_owner_was_given ... ok
+test raw_and_wire_cannot_forge_a_self_contained_factory_return ... ok
+test raw_and_wire_cannot_move_cleanup_before_the_last_captured_use ... ok
+test raw_and_wire_do_not_promote_weak_buffer_captures_or_erase_real_view_holds ... ok
+test raw_and_wire_reconstruct_an_inserted_storage_write_without_analyze ... ok
+test raw_and_wire_reconstruct_internal_capture_and_parameter_window_obligations ... ok
+test raw_and_wire_reconstruct_the_actual_capture_source_not_just_its_type ... ok
+test internal_capture_windows_propagate_separation_to_each_actual_call ... ok
+test unused_capture_does_not_own_or_extend_a_buffer_after_transfer ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.84s
+

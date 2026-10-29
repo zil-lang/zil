@@ -1,0 +1,12 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: ResourceLimit,
+            code: "E-RESOURCE-LIMIT",
+            message: "closure field or parameter count exceeds the selected bound",
+            span: None,
+            notes: [],
+        },
+    ],
+]

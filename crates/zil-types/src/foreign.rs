@@ -38,7 +38,7 @@ impl Signature {
     pub(super) fn foreign_callback_type(&self) -> Option<Type> {
         if self.foreign
             || self.cleanup
-            || self.callable.is_some()
+            || !self.callable.is_empty()
             || self.callable_return.is_some()
             || self.template.is_some()
             || self.receiver.is_some()
@@ -204,7 +204,7 @@ impl Builder<'_, '_> {
         let ty = signature.foreign_callback_type().ok_or_else(|| {
             error("E-FFI-CALLBACK", target.span, "C callbacks require an ordinary environment-free function with exact i32/i64/handle signature")
         })?;
-        let function = signature.id;
+        let function = signature.concrete_id(span)?;
         let value = self.value(
             InstructionKind::ForeignFunctionRef { function },
             ty.clone(),
@@ -235,13 +235,13 @@ impl Builder<'_, '_> {
                 )
             })?;
             Ok(InstructionKind::ForeignCall {
-                function: signature.id,
+                function: signature.concrete_id(span)?,
                 arguments,
                 region,
             })
         } else {
             Ok(InstructionKind::Call {
-                function: signature.id,
+                function: signature.concrete_id(span)?,
                 arguments,
             })
         }

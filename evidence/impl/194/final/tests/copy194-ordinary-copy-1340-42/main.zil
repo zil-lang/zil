@@ -1,0 +1,1 @@
+fn duplicate<T:Copy>(x:T)->(T,T)=>(x,x);fn main()->i32{let p=duplicate((7,true));return p.0.0+p.1.0-14}

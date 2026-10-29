@@ -1,0 +1,1 @@
+resource R{n:i32}fn read(r:&R)->i32=>r.n;fn main(){let f=read}

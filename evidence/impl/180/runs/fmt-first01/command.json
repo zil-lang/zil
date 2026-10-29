@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "cargo",
+    "fmt",
+    "--all",
+    "--",
+    "--check"
+  ],
+  "exit_code": 1,
+  "elapsed_seconds": 1.251765251159668,
+  "note": "initial formatting check before rustfmt; preserved without relabeling"
+}

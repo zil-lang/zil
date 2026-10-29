@@ -1,0 +1,35 @@
+
+running 10 tests
+test backedges_cannot_repeat_a_noncopy_or_once_consumption ... ok
+test original_runtime_helper_range_reaches_the_independent_contract_stage ... ok
+test loop_control_templates_keep_their_original_inputs_after_symbolic_admission ... ok
+test index_mutability_scope_widths_and_known_integer_requirements_are_checked ... ok
+test endpoint_calls_happen_once_in_order_and_the_iterator_does_not_escape ... ok
+test an_endpoint_may_consume_a_symbolic_value_once_before_the_backedge ... ok
+test empty_and_reversed_ranges_still_check_the_body_and_leave_the_outer_binding ... ok
+test range_width_hints_cover_arithmetic_calls_and_copy_projections ... ok
+test an_unconditional_return_body_keeps_the_existing_finite_once_contract ... ok
+test every_integer_width_infers_unsuffixed_bounds_without_borrowing_authority ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+
+
+running 10 tests
+test loop_control_keeps_index_mutability_and_scope_checks ... ok
+test loop_exits_do_not_supply_function_return_or_allow_unreachable_uses ... ok
+test every_break_state_participates_in_post_loop_may_move_join ... ok
+test loop_control_outside_a_loop_is_rejected_even_in_unused_templates ... ok
+test store_carriers_and_managed_fields_cannot_be_consumed_on_continue_edges ... ok
+test continuation_does_not_make_a_once_callback_repeatable ... ok
+test every_continue_path_preserves_outer_noncopy_consumption ... ok
+test break_keeps_invalidated_store_observations_and_unproven_create_origins ... ok
+test returning_paths_do_not_pollute_surviving_break_and_continue_states ... FAILED
+test loop_exit_state_collections_have_exact_existing_budget_frontiers ... ok
+
+failures:
+
+failures:
+    returning_paths_do_not_pollute_surviving_break_and_continue_states
+
+test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

@@ -1,0 +1,359 @@
+{
+  "schema_version": 1,
+  "task": "202",
+  "reviewer": "/root/impl197",
+  "verdict": "Pass",
+  "scope": "Design 8.2.1: one ordinary StoreElement binder, complete caller-scoped type application, nominal identity, bounded concrete instances, qualification carrier, actual Desc effects, CT execution boundary and the five-module Linux consumer. Not full-language or product acceptance.",
+  "implementation_commit": "b73ba8a764ee605c1ba8e3a651eb2c6baece8197",
+  "production_commit": "7698369cc8c4b6f50d5971ec975040417c92f841",
+  "tested_source_commit": "988da100191c163ed5afcd87e3186189cacaf468",
+  "compiler_source_commit": "7698369cc8c4b6f50d5971ec975040417c92f841",
+  "compiler_sha256": "0f41b91e1c34a6831b3e9a882642eef0df6c5d5b30520f76a7b9c8a77e4ecf2b",
+  "spec_hash": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+  "normative_hash": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+  "public_schema_version": 26,
+  "source_identity": {
+    "file": "SOURCE.json",
+    "accepted_candidate_basis": "Read-only exact production and declared input equivalence to the clean actual tested source. No execution is relabelled as b73.",
+    "source_file_count": 200,
+    "production_source_paths": 177,
+    "differences": {
+      "method": "git object path comparison, followed by SHA256 and working-tree byte verification for the tested source",
+      "accepted_candidate_production_and_declared_review_inputs_diff": [],
+      "compiler_production_diff": [],
+      "entire_tree_difference_from_tested_to_accepted": [
+        "tools/language/202/collect_evidence.py"
+      ],
+      "equivalence_is_read_only": true,
+      "no_execution_at_accepted_candidate_claimed": true
+    }
+  },
+  "independence": {
+    "implementation_authors": [
+      "/root",
+      "/root/bundle_sync",
+      "/root/roles196_frontend"
+    ],
+    "reviewer_wrote_202_production": false,
+    "reviewer_write_set": [
+      "crates/zil-driver/tests/impl202_independent.rs",
+      "crates/zil-driver/tests/impl202_ct_independent.rs",
+      "crates/zil-driver/tests/impl202_fixtures/03_shadow_nested.zil",
+      "evidence/reviews/202/by197/**"
+    ],
+    "prerequisite197": "Reviewer previously authored 197; unchanged old paths are compatibility controls, not a new self-review of that implementation."
+  },
+  "final_tests": {
+    "passed": 26,
+    "failed": 0,
+    "ignored": 0,
+    "groups": [
+      {
+        "name": "Independent source/raw/Wire/budget",
+        "passed": 19
+      },
+      {
+        "name": "CT controls",
+        "passed": 7,
+        "independent_added": 3,
+        "included_adapter_units": 4
+      }
+    ],
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl202_independent",
+      "--test",
+      "impl202_ct_independent",
+      "--",
+      "--nocapture"
+    ],
+    "receipt": "runs/source05/result.json",
+    "source_compile_attempts": 44,
+    "source_compile_outcomes": [
+      {
+        "phase": "expand",
+        "status": "SafeReject",
+        "count": 5
+      },
+      {
+        "phase": "expand",
+        "status": "Unsupported",
+        "count": 1
+      },
+      {
+        "phase": "link",
+        "status": "Success",
+        "count": 34
+      },
+      {
+        "phase": "verify",
+        "status": "SafeReject",
+        "count": 3
+      },
+      {
+        "phase": "verify",
+        "status": "Unsupported",
+        "count": 1
+      }
+    ],
+    "native_source_executions": 34,
+    "optimizations": [
+      "O0",
+      "O2"
+    ]
+  },
+  "raw_core": {
+    "inputs": 35,
+    "public_entries": [
+      "zil_types::check",
+      "zil_types::check_program"
+    ],
+    "outcomes_per_entry": {
+      "SafeRejectOrUnsupported": 28,
+      "Success": 6,
+      "ResourceLimit": 1
+    },
+    "checks": [
+      "Header index/count/name/exclusivity/receiver/foreign and duplicate definition identities",
+      "Free T/F in unrelated functions; unused foreign-binder identity; unused wrong TypeApply target; unearned field/call",
+      "TypeApply arity, static target, bare value, nesting and removed application",
+      "Actual same-ClosureId other nominal/phantom family",
+      "Self-recursive unfinished instance and bounded deep actual type"
+    ],
+    "boundary": "Types metadata and qualification rejection is distinguished from Analyze/Verify safety checking."
+  },
+  "typed_wire": {
+    "checks": [
+      "Source-produced raw/Wire controls retain full types and candidate round trips",
+      "No-Store identity has a canonical actual-element definition and no Store instructions",
+      "Zero actual inline layout is Verify/Unsupported through raw and Wire; nonzero neighbor passes",
+      "Wire version 25 header is rejected under schema 26",
+      "All new phase budgets use N/N-1/fresh controls"
+    ],
+    "source_equivalence_caveat": "Removing an unused source qualification from arbitrary raw memory-safe IR is not asserted to be an unsafe bypass. Verify does not prove raw/source semantic equivalence."
+  },
+  "consumer": {
+    "status": "Pass",
+    "receipt": "runs/consumer-linux02/summary.json",
+    "command_receipt": "runs/consumer-command02/result.json",
+    "compiler_receipt": "runs/compiler-build-root-cli03/command.json",
+    "source_commit": "988da100191c163ed5afcd87e3186189cacaf468",
+    "compiler_source_commit": "7698369cc8c4b6f50d5971ec975040417c92f841",
+    "cli_sha256": "0f41b91e1c34a6831b3e9a882642eef0df6c5d5b30520f76a7b9c8a77e4ecf2b",
+    "platform": "linux",
+    "native_executions": 126,
+    "ordinary_executions": 16,
+    "instrumented_executions": 110,
+    "actual_allocation_failures": 86,
+    "all_live_zero": true,
+    "max_peak_live": 3,
+    "max_peak_bytes": 269,
+    "module_count_per_build": 5,
+    "builds": [
+      {
+        "optimization": "O0",
+        "verification_runs": 1,
+        "llvm_sha256": "f2b13d4369accaf4c9de025de772baacde8b506d76a6dc880dd086f8bcea37db",
+        "executable_sha256": "f83fdb91d7e54f1cd164eb885c5fc8cd9bf1ee794e06408bf8b47e50552cffb2",
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/language14/review196-by197/examples/mainline/store_template202/main.zil",
+          "1": "/workspace/scratch/39be3faa4442/language14/review196-by197/examples/mainline/store_template202/factory.zil",
+          "2": "/workspace/scratch/39be3faa4442/language14/review196-by197/examples/mainline/store_template202/state.zil",
+          "3": "/workspace/scratch/39be3faa4442/language14/review196-by197/examples/mainline/store_template202/portable.zil",
+          "4": "/workspace/scratch/39be3faa4442/language14/review196-by197/examples/mainline/store_template202/store_helpers.zil"
+        },
+        "module_count": 5,
+        "allocation_probe_sha256": "4bd606c15b58c8483f6c5affdaf0ab40c221387ba54e97455715fd274a18eab6"
+      },
+      {
+        "optimization": "O2",
+        "verification_runs": 1,
+        "llvm_sha256": "f2b13d4369accaf4c9de025de772baacde8b506d76a6dc880dd086f8bcea37db",
+        "executable_sha256": "6893a6e3343edead8e3ae9cea9242fc5ec428330763e007e10eaacdd24cf3cca",
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/language14/review196-by197/examples/mainline/store_template202/main.zil",
+          "1": "/workspace/scratch/39be3faa4442/language14/review196-by197/examples/mainline/store_template202/factory.zil",
+          "2": "/workspace/scratch/39be3faa4442/language14/review196-by197/examples/mainline/store_template202/state.zil",
+          "3": "/workspace/scratch/39be3faa4442/language14/review196-by197/examples/mainline/store_template202/portable.zil",
+          "4": "/workspace/scratch/39be3faa4442/language14/review196-by197/examples/mainline/store_template202/store_helpers.zil"
+        },
+        "module_count": 5,
+        "allocation_probe_sha256": "4a88326046e82cb76c64f58597cc441d8557dba9cf5151d2bbcfd4099972d2e1"
+      }
+    ],
+    "source_files": {
+      "factory.zil": "e8aa8e86d30a40d2842bcdb16824eed54f032a95b6d561c481d19db05b38b234",
+      "main.zil": "ab94e0a5ca8b16e6b08c9a8595757d720667561c8ee06d56c217710e102d70b8",
+      "portable.zil": "4836185748a7c2b2200aabdc6948497250d15f219a6b992af20c948250656e9c",
+      "state.zil": "e983dadc9b42a012d2a074f169686d0918130230786fdff7d1c126654d3de9b9",
+      "store_helpers.zil": "d59bc0de7e53856bbd1df95b3a96c71ea04fa5f3cb259aa98d31a540a049905a"
+    },
+    "oracle_basis": "Source-derived stride 64, explicit ABBA traces, two independent callback buffers, Store growth/pop/full-push errors, allocation indices and declared cleanup order. No observation or LLVM was used to backfill expectations."
+  },
+  "bugs_found_and_closed": [
+    {
+      "name": "Global nominal T shadows caller callable T during expansion",
+      "original_receipt": "runs/source02/result.json",
+      "adjacent_success_receipt": "runs/no_nominal01/result.json",
+      "fix_commit": "504141f1c7de54d401c94554432485cb5eafe033",
+      "final": "The exact corrected original source and inferred variant execute O0/O2; original historical helper inputs never changed."
+    },
+    {
+      "name": "Unused raw template captures foreign T or applies a non-template target",
+      "original_receipt": "runs/unused_raw03/result.json",
+      "previous_accepted_entries": 4,
+      "fix_commit": "0098acdc239b97ed8c7c87ebf643b9a5ea47526b",
+      "final": "The exact single/program inputs reject; added unused field/call controls reject. This is a declaration/metadata contract defect, not a claimed executed memory-safety exploit."
+    },
+    {
+      "name": "Ordinary pop success payload loses helper dependency shape",
+      "original_receipt": "runs/consumer-linux01/summary.json",
+      "fix_commit": "ba4e4d07a1f14573871844f790a4daabc5efe9db",
+      "final": "Exact five-module source executes the complete Linux matrix; both error/success shapes remain distinct and Try selects success only."
+    },
+    {
+      "name": "Whole error-union return context incorrectly constrains concrete payload helper",
+      "original_receipt": "runs/pop_helper01/result.json",
+      "fix_commit": "f200d5be6a4af1facd90e95daf860464681ae714",
+      "final": "The unchanged independent nominal and phantom pop-to-helper sources execute O0/O2."
+    }
+  ],
+  "budgets": {
+    "final_new_paths": {
+      "complete_type": {
+        "expand": 10837,
+        "types": 46169,
+        "analyze": 77259,
+        "verify": 174758,
+        "checks": "N, N-1 ResourceLimit, fresh N",
+        "defaults_unchanged": true,
+        "receipt": "runs/source05/independent202-exact-full-type-budgets-647552-50/boundaries.json"
+      },
+      "qualification_only": {
+        "types": 6148,
+        "analyze": 10759,
+        "verify": 13500,
+        "checks": "N, N-1 ResourceLimit, fresh N; Types and Analyze output exactly equals default",
+        "runtime_store_operations": 0,
+        "receipt": "runs/source05/independent202-qualification-only-exact-budgets-647552-47/boundaries.json"
+      }
+    },
+    "historical_legacy_controls": {
+      "source_commit": "e08e4c618aa4ee7487fc4e1a70ceee4eb6af2ab6",
+      "state_expand_n": 1731,
+      "ordinary_eager_store_expand_n": 2255,
+      "previous_callback_store": {
+        "expand": 2871,
+        "types": 5241,
+        "analyze": 16091,
+        "verify": 29902
+      },
+      "checks": "All N, N-1 ResourceLimit and fresh N; measured prior to final pop-only fixes and not retroactively relabelled. These finite samples do not prove identical cost for every legacy input.",
+      "receipts": [
+        "runs/old_state_budget01/result.json",
+        "runs/old_eager_budget01/result.json",
+        "runs/old_callback_store_budget01/result.json"
+      ]
+    }
+  },
+  "historical_failures_preserved": [
+    {
+      "run": "source01",
+      "kind": "review fixture error",
+      "details": "Item<T,T> arose from reviewer renaming; corrected to Item<D,T>. Both historical original helper fixtures remain unchanged."
+    },
+    {
+      "run": "source02",
+      "kind": "actual lexical-name implementation failure",
+      "details": "Corrected valid source still rejected at Types; kept apart from earlier reviewer error."
+    },
+    {
+      "run": "unused_raw01",
+      "kind": "review Rust compile error",
+      "details": "Different TypedModule/TypedProgram result types were placed in one array; no ZIL execution."
+    },
+    {
+      "run": "unused_raw02",
+      "kind": "insufficient preliminary control",
+      "details": "Passing test rejected through other error-union/factory gates, so stronger isolated original inputs were added and revealed unused_raw03."
+    },
+    {
+      "run": "source03",
+      "kind": "earlier limited Pass",
+      "details": "25/0 at a4f9 preceded the consumer and new pop-to-helper test; never labelled a complete consumer Pass."
+    },
+    {
+      "run": "consumer-linux01",
+      "kind": "Types Unsupported",
+      "details": "Zero successful native executions; exact source was later reconstructed from its recorded Git object and hash-verified in consumer-input-snapshot01."
+    },
+    {
+      "run": "pop_helper01",
+      "kind": "Expand SafeReject",
+      "details": "Independent valid source reached a different earlier error; not treated as the consumer Types failure."
+    },
+    {
+      "run": "source04",
+      "kind": "component combined Pass",
+      "details": "26/0 on b2ab before parent requested complete candidate merge; source05 is the final separate receipt, not a sum of rounds."
+    }
+  ],
+  "readonly_migrations": [
+    "MIGRATION.json",
+    "CLIPPY_MIGRATION.json",
+    "CLIPPY_MIGRATION_486.json"
+  ],
+  "archive": {
+    "status": "Pass",
+    "archive_filename": "202-review-by197-evidence.zip",
+    "archive_path": "/workspace/scratch/39be3faa4442/deliverables/202-review-by197-evidence.zip",
+    "bytes": 18083149,
+    "sha256": "b29442b742d26391d2c0c722f802d74502f124642587b732d865011a3c6f827f",
+    "payload_files": 4162,
+    "manifest_sha256": "22e95cbe6867facd7ace02eddcd7ccac464dbad6ba7b3bbe72294c1f22b8d007",
+    "uncompressed_payload_bytes": 474603440,
+    "excluded_execution_products": 152,
+    "excluded_execution_product_bytes": 3050936,
+    "verification": "ZIP CRC plus every included entry length and SHA256 verified after writing",
+    "execution_artifacts_included": false,
+    "raw_wire_included": true,
+    "original_evidence_removed": false,
+    "history_runs": 22
+  },
+  "unresolved_within_scope": [],
+  "not_run_by_reviewer": [
+    "Formal full workspace",
+    "Wine",
+    "Native Windows",
+    "Product acceptance",
+    "Comparative performance benchmark"
+  ],
+  "separate_results_not_counted_as_reviewer_execution": {
+    "root_formal_workspace": {
+      "source_commit": "b73ba8a764ee605c1ba8e3a651eb2c6baece8197",
+      "reported_passed": 2319,
+      "reported_failed": 0,
+      "reported_ignored": 0,
+      "reported_groups": 241,
+      "ownership": "/root formal receipt"
+    },
+    "author_consumer": {
+      "receipt_commit": "659f7938208ce7bd23ff8a74196fbfc2342551a9",
+      "linux": 126,
+      "wine": 126,
+      "actual_allocation_failures_per_platform": 86,
+      "ownership": "/root/bundle_sync separate receipt, read-only audited; neither platform result is added to reviewer counts"
+    }
+  },
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "native_windows": "NotRun",
+  "product": "NotRun",
+  "B0_completion": "NotSatisfied"
+}

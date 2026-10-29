@@ -283,8 +283,8 @@ fn old_field_descriptions_cannot_reanimate_element_windows() {
         "stale-field-description",
         module,
         plan,
-        "E-BORROW-CONFLICT",
-        "",
+        "E-VERIFY-RESOURCE",
+        "invalidate a live description",
     );
 }
 
@@ -366,7 +366,7 @@ fn view_and_descriptor_input_aliasing_cannot_hide_a_write_inside_helper() {
         ResultCategory::SafeReject,
         zil_base::Phase::Verify,
         "E-BORROW-CONFLICT",
-        "alias",
+        "access overlaps",
     );
     let source = format!(
         "{PACKAGE}{helper}fn main()->i32{{{SETUP}let other=empty();let view=store_at(s,0);return use_pair(view,other)-65}}"
@@ -404,7 +404,7 @@ fn element_shape_mutable_owned_field_return_and_capture_guards_are_explicit() {
         ResultCategory::Unsupported,
         Types,
         "E-UNSUPPORTED",
-        "only project finite Copy fields",
+        "only project finite Copy or concrete callback fields",
     );
     reject_source(
         &format!(
@@ -415,12 +415,24 @@ fn element_shape_mutable_owned_field_return_and_capture_guards_are_explicit() {
         "E-ADDRESS-PERMISSION",
         "exclusive",
     );
+    // 180 admits the precise synchronous exclusive Package parameter shape.
+    // Preserve the original source; its old blanket Unsupported is obsolete.
+    let admitted = check(&format!("{PACKAGE} fn bad(x:&mut P){{}}fn main(){{}}"));
+    assert_eq!(
+        admitted.status,
+        ResultCategory::Success,
+        "{}",
+        admitted.to_json()
+    );
+    // The new parameter form does not upgrade an existing shared window.
     reject_source(
-        &format!("{PACKAGE} fn bad(x:&mut P){{}}fn main(){{}}"),
-        ResultCategory::Unsupported,
+        &format!(
+            "{PACKAGE} fn update(x:&mut P){{x.n=9}}fn main()->i32{{{SETUP}let view=store_at(s,0);update(view);return view.n}}"
+        ),
+        ResultCategory::SafeReject,
         Types,
-        "E-UNSUPPORTED",
-        "head addresses require",
+        "E-ADDRESS-PERMISSION",
+        "exclusive",
     );
     reject_source(
         &format!("{PACKAGE} fn main()->i32{{let value=make(65);return read(&value)}}"),

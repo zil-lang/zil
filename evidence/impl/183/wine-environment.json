@@ -1,0 +1,12 @@
+{
+  "prefix": "/workspace/scratch/39be3faa4442/toolchains178/wine-prefix183",
+  "copied_environment_from": "/workspace/scratch/39be3faa4442/toolchains178/wine-prefix-review181",
+  "symlinks_preserved": true,
+  "execution_outputs_reused": false,
+  "WINEARCH": "win64",
+  "WINEDEBUG": "-all",
+  "WINEDLLPATH": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu/wine:/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu/wine/x86_64-windows:/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu/wine/x86_64-unix:/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/x86_64-w64-mingw32/lib",
+  "wine_library_path": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu",
+  "wineserver_wrapper_sha256": "f5d142f81cc820dc109b579b163b1803ca83934a3428bc4e3f35cd778a665741",
+  "explicit_persistent_server_start": false
+}

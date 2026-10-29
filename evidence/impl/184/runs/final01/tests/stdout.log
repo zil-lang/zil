@@ -1,0 +1,144 @@
+
+running 2 tests
+test helper064_public_field_view_survives_two_calls_and_whole_package_move ... ok
+test helper064_native_owned_borrowed_adapted_and_error_paths_match_rust ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
+
+
+running 17 tests
+test helper065_analyze_reconstructs_hold_and_call_paths ... ok
+test helper065_copy_error_callbacks_are_instantiated_and_verified ... ok
+test helper065_cross_module_interfaces_include_actual_environment_layout ... ok
+test helper065_generic_body_reads_known_resource_field ... ok
+test helper065_error_callback_stops_trace_and_late_argument_is_guarded ... ok
+test helper065_instances_are_cached_and_new_identities_are_bounded ... ok
+test helper065_helper_does_not_extend_resource_or_address_lifetimes ... ok
+test helper065_mutable_borrow_updates_actual_environment ... ok
+test helper065_nearest_callable_admission_rejections ... ok
+test helper065_owned_environment_shared_borrow_and_reuse ... ok
+test helper065_owned_fn_can_adapt_to_borrowed_fnmut_then_be_reused ... ok
+test helper065_mutable_target_loan_ends_after_owned_zero_or_one_call ... ok
+test helper065_raw_callable_metadata_is_bounded_before_instantiation ... ok
+test helper065_scope_is_explicit_for_extra_borrows_and_unbounded_traces ... ok
+test helper065_shared_and_copy_arguments ... ok
+test helper065_same_name_in_distinct_modules_keeps_definition_identity ... ok
+test helper065_value_condition_and_consume_adaptation ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+
+running 1 test
+test retained070_native_factories_survive_return_move_events_and_cleanup ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.07s
+
+
+running 26 tests
+test consumed_callee_is_cleaned_when_later_argument_fails ... ok
+test consumed_persistent_slot_can_be_refilled_without_rebirth ... ok
+test consuming_subenvironment_is_taken_and_called_exactly_once ... ok
+test distinct_source_opaque_factories_cannot_mix_even_when_forwarded ... ok
+test cross_module_forwarding_preserves_public_opaque_result ... ok
+test failed_replacement_keeps_original_slot_responsibility ... ok
+test forward_factories_resolve_reverse_declarations_and_cleanup_once ... ok
+test independent_ownership_checks_run_without_nominal_resources ... ok
+test independent_raw_and_wire_bound_repeated_child_layout_expansion ... ok
+test independent_raw_and_wire_charge_wide_leaf_inside_closure_dag ... ok
+test independent_raw_and_wire_charge_wide_package_array_elements ... ok
+test independent_raw_and_wire_reject_cycles_wrong_capture_indices_and_permissions ... ok
+test independent_raw_and_wire_reject_repeated_nested_take_and_factory_cycles ... ok
+test forwarding_keeps_exact_mutable_and_consuming_factory_kinds ... ok
+test nested_error_exit_cleans_inner_activation_then_recursive_environment ... ok
+test nested_move_creation_transfers_ownership_before_any_call ... ok
+test nonmove_inner_borrow_keeps_outer_owned_callback_live ... ok
+test owned_mutable_subenvironment_updates_real_inline_storage ... ok
+test persistent_slot_cannot_replace_a_still_borrowed_element ... ok
+test owned_shared_subenvironment_is_borrowed_and_dropped_recursively ... ok
+test persistent_slot_move_capture_transfers_the_actual_element ... ok
+test persistent_slot_preserves_cleanup_birth_under_later_guard ... ok
+test recursive_factory_identity_and_escaping_nested_borrow_are_rejected ... ok
+test retained_alias_and_consuming_callback_misuse_are_rejected ... ok
+test same_factory_slot_replacement_drops_previous_after_new_is_ready ... ok
+test uncalled_subenvironment_and_siblings_follow_capture_cleanup_order ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.02s
+
+
+running 10 tests
+test borrowed_callback_capture_cannot_acquire_owning_field_authority ... ok
+test callback_loan_allows_actual_sibling_store_and_copy_fields ... ok
+test callback_loan_survives_sibling_replacement_and_failing_preparation ... ok
+test generic_state_body_uses_same_field_precision ... ok
+test raw_wire_cannot_hide_a_current_overlapping_callback_loan ... ok
+test raw_wire_rebuild_field_origin_and_keep_parent_hold ... ok
+test same_field_parent_movement_and_simultaneous_exclusive_use_still_reject ... ok
+test helper_effects_and_current_call_reject_real_overlap ... ok
+test store_window_keeps_its_real_field_while_copy_and_callback_are_updated ... ok
+test shared_callback_and_callback_replacement_preserve_sibling_windows ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.26s
+
+
+running 19 tests
+test cross_function_aliases_cannot_hide_mutation_or_second_window ... ok
+test actual_copy_scalar_array_and_record_fields_update_in_place ... ok
+test index_evaluation_cannot_consume_the_previously_evaluated_store ... ok
+test live_exclusive_window_blocks_structure_metadata_and_responsibility_changes ... ok
+test index_effect_runs_before_window_and_error_rhs_cleans_store ... ok
+test managed_fields_whole_packages_and_escaping_windows_remain_closed ... ok
+test raw_and_wire_cannot_write_after_consistently_downgrading_the_window ... ok
+test raw_and_wire_rebuild_mutability_index_shape_and_actual_holds ... ok
+test raw_and_wire_reject_resource_projection_and_early_owner_drop ... ok
+test raw_and_wire_retargeted_structure_write_cannot_cross_exclusive_window ... ok
+test projected_copy_slice_keeps_then_releases_exclusive_permission ... ok
+test receiver_index_and_rhs_are_evaluated_once_and_in_source_order ... ok
+test rhs_and_child_capture_cannot_hide_a_live_window ... ok
+test runtime_index_traps_before_address_even_when_capacity_has_spare_slots ... ok
+test separate_store_fields_and_parameter_apart_checks_preserve_updates ... ok
+test shared_windows_cannot_be_upgraded_or_written ... ok
+test synchronous_helper_reborrows_then_last_use_allows_reserve_and_pop ... ok
+test whole_store_exclusive_loan_blocks_shared_and_other_exclusive_views ... ok
+test runtime_updates_cross_four_modules_without_moving_element_resources ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.77s
+
+
+running 13 tests
+test active_mutable_result_prevents_overlapping_call_or_replacement ... ok
+test borrowed_mutable_helper_and_whole_parent_transfer_preserve_result_loans ... ok
+test borrowed_generic_helper_forwards_environment_lending_origin ... ok
+test callable_field_view_keeps_its_actual_field_without_blocking_copy_sibling ... ok
+test conditional_sources_and_ordinary_parameter_forwarding_are_preserved ... ok
+test environment_results_reject_local_external_and_temporary_sources ... ok
+test copy_environment_reads_and_address_writes_use_one_actual_slot ... ok
+test live_byte_environment_views_reject_mutation_move_and_drop ... ok
+test inline_aggregate_projection_and_slice_results_keep_actual_environment_storage ... ok
+test mutable_factory_result_allows_next_call_after_last_use ... ok
+test owned_byte_environment_can_mutate_after_prior_result_last_use ... ok
+test owned_byte_environment_lends_real_storage_and_survives_factory_return ... ok
+test shared_factory_result_uses_real_stored_copy_environment ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.11s
+
+
+running 6 tests
+test analyze_bounds_both_public_lending_vectors_before_fingerprinting ... ok
+test analyzer_rejects_opaque_lending_mismatch_and_pays_nonempty_metadata ... ok
+test raw_and_wire_cannot_erase_result_hold_or_mutate_shared_entry ... ok
+test raw_and_wire_keep_owned_payload_write_and_cleanup_obligations ... ok
+test raw_and_wire_reconstruct_exact_environment_sources ... ok
+test raw_and_wire_reject_consumed_and_by_value_environment_results ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+running 5 tests
+test both_lending_fields_survive_wire_and_change_fingerprints ... ok
+test malformed_capture_indices_are_independently_rejected ... ok
+test opaque_public_json_retains_the_lending_relation ... ok
+test oversized_lending_claims_are_bounded_before_verifier_fingerprinting ... ok
+test transport_claim_does_not_grant_a_copy_result_lending_capability ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

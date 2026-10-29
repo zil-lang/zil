@@ -1,0 +1,1 @@
+enum store_at{A}fn main(){}

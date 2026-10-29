@@ -1,0 +1,22 @@
+{
+  "source_commit": "f0b920b8ae10662075a1c17b58586f83177f7b24",
+  "dirty": "?? crates/zil-driver/tests/impl187_borrowed_bytes.rs\n",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl187_borrowed_bytes",
+    "original_local_byte_description_capture_reaches_native_execution",
+    "--",
+    "--exact",
+    "--test-threads=2"
+  ],
+  "test_source_sha256": "8bcb26986a912be545312e4ef6284e50cf44c38fe1ae38bcf94be65cbc0793df",
+  "production_state": "baseline gates unchanged; retry after prior disk-full infrastructure failure",
+  "start": 1793155271.0783622
+}

@@ -1,0 +1,30 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--test",
+    "review190_by193",
+    "--",
+    "--test-threads=1"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/review190",
+  "start": 1793164032.1155815,
+  "source_commit": "7491c212d392b12bb90f735b90f535066fa00a47",
+  "git_status": "?? crates/zil-driver/tests/review190_by193.rs\n",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/review190",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/190-review/independent02/reports",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793164033.1105335,
+  "stdout.log_sha256": "36a54cf94f794a4f985010b81fdae0163f4c10727c4b74e3e5c88cbb6be05e22",
+  "stderr.log_sha256": "246dcaac65f1c8246d84f6ec54b67f6844a1f9570cca23a74f3c999ba9de0700"
+}

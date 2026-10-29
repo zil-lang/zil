@@ -1,0 +1,70 @@
+{
+  "stage": 206,
+  "candidate": "CLI04",
+  "status": "Pass",
+  "frozen": true,
+  "source_commit": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+  "compiler_sha256": "3bc6fc0a23aee0058ebd25fb941d9110d9432252fcf5ba1d302a8e457990a491",
+  "final_identity_sha256": "03d1fd134a6ead5cf253f9c7f28df201dca87542393551bbe4f88c67e7437336",
+  "source_fixture_revision": "consumer02-parenthesized-if",
+  "source_manifest_sha256": "e691a94f6fa9ee451dee11225a45437c3aed328d9c2ebf5c8b46ce30da9e123a",
+  "predeclared_oracle_sha256": "956e2142fc79cd4ea0431c5cfecdaa8d54d47072873795e88a3c8d1df929ec6d",
+  "platforms": {
+    "linux02": {
+      "status": "Pass",
+      "execution": "native",
+      "passed": 94,
+      "failed": 0,
+      "ordinary_executions": 20,
+      "instrumented_executions": 74,
+      "actual_allocation_failures": 42,
+      "all_final_live": 0,
+      "peak_live": 4,
+      "peak_bytes": 80,
+      "bad_operations": "NotReportedByLinuxProbe",
+      "inputs_unchanged_at_end": true,
+      "end_git_status": "",
+      "summary": {
+        "path": "run-logs/206-consumer-final/linux02/summary.json",
+        "sha256": "a84eaec06e4ee82248f35af911ab67a0e26cc80f414155605c2e3a601fd389c5"
+      },
+      "command": {
+        "path": "run-logs/206-consumer-final/linux02-command/command.json",
+        "sha256": "b095cea2575b31c8f82da350dd3a3242f2fb23d6b257b8dc831614ad402f0604"
+      }
+    },
+    "wine02": {
+      "status": "Pass",
+      "execution": "Wine compatibility",
+      "passed": 94,
+      "failed": 0,
+      "ordinary_executions": 20,
+      "instrumented_executions": 74,
+      "actual_allocation_failures": 42,
+      "all_final_live": 0,
+      "peak_live": 4,
+      "peak_bytes": 80,
+      "bad_operations": 0,
+      "inputs_unchanged_at_end": true,
+      "end_git_status": "",
+      "summary": {
+        "path": "run-logs/206-consumer-final/wine02/summary.json",
+        "sha256": "217ecd9ab328065c9a83f3a386b4dd7184b040d317cdeddb7bc4b8bec9531361"
+      },
+      "command": {
+        "path": "run-logs/206-consumer-final/wine02-command/command.json",
+        "sha256": "83643e7ca5ff65781426d70e965f244e23889a1a762a546e2f3752de8f8320f3"
+      }
+    }
+  },
+  "earlier_attempts_preserved": {
+    "linux01": "Fail: dirty-worktree preflight; zero ZIL compiler/native invocations.",
+    "wine01": "Fail: dirty-worktree preflight; zero ZIL compiler/native invocations.",
+    "host_worktree_transport": "The first worktree creation tool failed before process startup; a subsequent inventory confirmed no partial worktree before the fresh successful creation."
+  },
+  "frozen_evidence_directory": "run-logs/206-consumer-final",
+  "archive": "Root integrates this directory into the final 206 evidence archive; no second author archive is created.",
+  "native_windows": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

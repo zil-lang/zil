@@ -1,0 +1,31 @@
+{
+  "command": [
+    "cargo",
+    "clippy",
+    "-p",
+    "zil-driver",
+    "--test",
+    "review177_public",
+    "--offline",
+    "-j2",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "implementation_commit": "aa235a3379492221197b4686bec042c042c4e100",
+  "review_source_commit": "ab9a2f3ca409987372644e62867a773d41698db7",
+  "source_status": "",
+  "production_difference": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/177-review-public",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/review177-public174/portable03/cases"
+  },
+  "start": 1793116049.5061893,
+  "end": 1793116049.7898262,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "bcffd4492dee0a1ea524281a583493f86a3df4a51cbfba71f5b13d33cdb04afd"
+}

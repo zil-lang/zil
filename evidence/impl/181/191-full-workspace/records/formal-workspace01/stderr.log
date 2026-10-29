@@ -1,0 +1,18 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-analyze)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-ct)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-types)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-driver)
+   Compiling zil-ide v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-ide)
+   Compiling zil-cli v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-cli)
+    Finished `test` profile [unoptimized] target(s) in 45.45s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets178/formal191/debug/deps/zil_analyze-a5dce2e7a4398044)
+     Running tests/budgets.rs (/workspace/scratch/39be3faa4442/targets178/formal191/debug/deps/budgets-42f48a19e85b3ab8)
+error: test failed, to rerun pass `-p zil-analyze --test budgets`

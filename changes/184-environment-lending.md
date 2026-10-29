@@ -1,0 +1,35 @@
+# 184：从真实闭包环境借出共享结果
+
+依据主树工单184和ZIL-LANG-1.4 §9.4、§9.7。公共schema23由185发布并独审；本片实现其真实语义，不改变默认预算或产品阈值。作者history178，root独审，一树一枝。
+
+## 本片接受性
+
+有限Copy显式参数的具体Fn/FnMut可以返回共享Address，来源必须是自包含环境中实际持有的存储。首先接通有限Copy捕获字段，支持局部、返回的opaque工厂环境以及已有的受支持借入调用路径。Address结果不因此变成Copy值；既有地址重借与Hold检查继续适用。普通函数参数来源与环境来源分开。
+
+结果必须指向实际环境槽。Copy捕获的激活期ReadCapture局部不能充当可逃出本次调用的存储；借出操作使用真实环境BorrowCapture地址。已有Package/Closure/Managed的责任路线不因新增Copy字段借出而获得新权限。若同一来源关系能够完整覆盖Owned ByteBuffer view及其reserve/push/truncate/替换失效、移动和清理，则同批开放；若不成立则保留明确Unsupported并记录差距，不能把环境存活等同于动态payload不失效。
+
+纯Copy环境的共享调用也必须借用其真实位置，不能返回指向后端隐式临时环境副本的裸地址。FnOnce和显式Consume适配均不得返回其环境内部地址。FnMut调用需要真实可写位置；存续结果与相交后续调用、写、移动、替换和清理冲突。不同已核位置和一次合法复制得到的独立环境按实际存储来源区别。
+
+## 生产和独立核验
+
+Types完整模块组装后，从实际Typed CFG产生精确的may-return捕获下标集合。有限数据流跟踪BorrowCapture、别名、投影、分支以及已核普通参数来源转发；所有遍历/集合访问受现有预算限制。ClosureDefinition和对应opaque返回合同同步填充，导出接口由既有核验后发布流程产生。
+
+Analyze为调用结果建立真实callee位置的Hold；普通函数仍通过参数来源摘要替换。Verify在自身CFG与贷款实现内独立重建实际结果来源，对定义列表和opaque合同逐项核对；不调用Types或Analyze求证函数。非Address结果的来源列表必须空。共享Address结果必须有非空、严格排序且范围合法的实际自有捕获来源，不能以外借Address/Desc捕获或本次激活局部伪装。
+
+独立核检查实际Call模式，拒绝按值临时/Consume/FnOnce环境结果借出。列表本身不授予权限，也不替代Hold、责任、效果和动态失效检查。公共field含义、Wire、指纹、schema和模块注册仍由root管理。
+
+## 验证和交付
+
+源码正例至少包含跨模块opaque工厂、有限Copy字段Fn共享结果、FnMut更新后共享结果、同一环境最后使用后的再次调用，以及真实O0/O2机器读值。最近反例覆盖ReadCapture激活局部逃逸、外借捕获冒充自有环境、环境移动/替换/析构、活动结果跨相交FnMut调用、直接临时调用、显式Consume适配和错误来源混合。若纳入Owned ByteBuffer，则另有动态view失效和失败清理实证。
+
+raw/Wire攻击必须独立篡改来源列表、调用模式、实际返回地址和Hold并仍被Verify拒绝，不能只靠Types挡住坏程序。保留每个首次失败、真实命令、阶段/接口/机器表示和限定预算边界，冻结源码后交root独审。作者不跑正式全量、不合main、不推远程。
+
+本片只证明已实现的有限lending能力；通用life/HRTB、一般动态擦除与任意拥有捕获的lending不由本片自动完成。Rust四目标、编译成本和完整语言终态均按实证单列，不以schema字段或测试数量代替产品结论。
+
+## 实施中发现及已明确的边界
+
+185的Verify/Wire入口已经对两个新向量收费，但Analyze入口遗漏了对应上界与指纹前预收费。本片在root追加授权的budget.rs/retained.rs补齐，不追溯扩大185旧独审范围。默认Limits、公开schema和产品门保持原字节；新增工作只按既有预算实际收费。
+
+早期自测发现纯Copy环境被旧贷款快速路径跳过，导致FnMut活跃结果后再次调用漏拒。本片使所有真实lending环境进入独立贷款重建，并保留原漏拒的完整输入与阶段结果。环境结果指向真实位置，Copy捕获经&mut写入后的读取同样访问该位置，不能在退出时用激活副本覆盖新值。
+
+Owned ByteBuffer view已经贯通到机器执行；reserve/push/truncate、移动、替换、作用域清理和伪装Fn共享入口的拥有写均有相邻反例。嵌套泛型callable helper仍受既有闭门限制；四模块consumer在generic State.run中直接借入实际callback字段调用，独立shared helper在主调用方使用。原嵌套尝试和源例格式修正均记录为首次失败，不算功能通过。

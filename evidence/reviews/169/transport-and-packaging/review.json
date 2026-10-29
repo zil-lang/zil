@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root/nested_closures",
+  "implementation_commit": "b0e747bd7a6553c163c6c44512d01da57da9442c",
+  "scope": "169 shared IR/Wire transport, source-only packaging, lossless visible-history restoration; not 166/167/168 semantic acceptance or full ZUI readiness",
+  "public_interface_commits": [
+    "f1b570a835c8e213138e7bfb42ab0cd221dd110a",
+    "6c3cf15c5ebf61dc8ce4200b5e2eae6558799309",
+    "bd65b66104c36b3a2f38cf2eeb7de02e5da43513",
+    "3a34bc0d70bd804e84dd461d489c69a1910fc76b",
+    "c429fcbbbfc4923b1167cf50f81abf674a71f4a7"
+  ],
+  "tested_ir_source_commit": "456e66caed9384c602b913ec241302431a0873d7",
+  "ir_tree": "9821a100a22a8cb7e98dd08dacbeadd4b353b472",
+  "ir_tree_equal_to_implementation": true,
+  "ir_lib_tests": {
+    "passed": 20,
+    "failed": 0,
+    "log": "ir-tests.log"
+  },
+  "old_smoke_archive_check": "archive-inspection.json",
+  "old_smoke_restore": {
+    "status": "Pass",
+    "worktrees": 19,
+    "visible_refs": 33,
+    "reachable_commits": 133,
+    "command_log": "restore.stdout"
+  },
+  "fixed_packaging": {
+    "status": "Pass",
+    "source_commit": "f617dd678588e91469c860cc7c54a92f1b21204c",
+    "source_files_verified": 2501,
+    "source_bytes": 4755389,
+    "source_sha256": "bb3b22b2670bf8808e028996e84121cd58db702b6684572fd5a47ed75a0c8ff2",
+    "audit_bytes": 8037868,
+    "audit_sha256": "a33d4bd5badad0ab4571b0ec1b2592ea27f055b2232d4ee25344fe9337cbd629",
+    "audit_files_verified": 4,
+    "source_has_evidence_or_build_output": false,
+    "history_commits": 157,
+    "history_refs": 39,
+    "worktree_heads": 24,
+    "audit_under_50MB": true
+  },
+  "fixed_packaging_source_commit": "f617dd678588e91469c860cc7c54a92f1b21204c",
+  "fix_regressions": {
+    "tested_tool_commit": "b0e747bd7a6553c163c6c44512d01da57da9442c",
+    "checks": {
+      "duplicate_basename": {
+        "status": "expected rejection",
+        "message": "duplicate or reserved recovery worktree alias: same"
+      },
+      "normal_distinct_aliases": {
+        "status": "Pass",
+        "worktrees": {
+          "main": "e150673b2d3d79758ee57232f564fbdde3a8a3e9",
+          "same": "83d375d78cfb9a8ea3ec35526c660524a0f543dc",
+          "distinct": "af700325d8f1f1ebb38f6048f77bcc34516777a6"
+        },
+        "all_worktree_heads_in_bundle": true
+      },
+      "conflicting_recovery_ref": {
+        "status": "expected rejection",
+        "message": "recovery ref already names another commit: refs/heads/recovery/same"
+      },
+      "same_commit_recovery_ref": {
+        "status": "Pass",
+        "worktrees": {
+          "main": "e150673b2d3d79758ee57232f564fbdde3a8a3e9",
+          "same": "83d375d78cfb9a8ea3ec35526c660524a0f543dc",
+          "distinct": "af700325d8f1f1ebb38f6048f77bcc34516777a6"
+        },
+        "all_worktree_heads_in_bundle": true
+      },
+      "reserved_main": {
+        "status": "expected rejection",
+        "message": "duplicate or reserved recovery worktree alias: main"
+      }
+    },
+    "status": "Pass"
+  },
+  "discovered_and_fixed": {
+    "original_bug": "duplicate detached worktree basename silently overwrote manifest and recovery ref, omitting the earlier detached commit",
+    "original_evidence": "collision/result.json",
+    "fix_commit": "b0e747bd7a6553c163c6c44512d01da57da9442c",
+    "original_failure_retained": true
+  },
+  "limitations": [
+    "Original archive was cold-built only for zil-ir lib tests, not a whole workspace build.",
+    "Actual old restore tested the shipped unchanged restore script; new archive independently verified all file hashes and its visible-history manifest.",
+    "Final integrated source package must be rebuilt and tied to the final root commit."
+  ],
+  "full_zui_ready": false
+}

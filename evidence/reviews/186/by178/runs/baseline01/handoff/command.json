@@ -1,0 +1,24 @@
+{
+  "command": [
+    "node",
+    "tools/handoff.mjs",
+    "--check"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/review186-by178",
+  "start": 1793155664.1135826,
+  "source_commit": "0fb8aaaeeef058ddd6420e4fc8981c3f957ea330",
+  "git_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/review186by178",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/runs178/review186by178/baseline01/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Fail",
+  "exit_code": 1,
+  "end": 1793155668.9878116,
+  "stdout.log_sha256": "ae5c7ebc0acc34cc946facaf4e43c907b83e2f08c1f18aaa53075afeb3e55269",
+  "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

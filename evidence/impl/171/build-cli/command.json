@@ -1,0 +1,22 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "--offline",
+    "-p",
+    "zil-cli",
+    "-j2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/wt171",
+  "source_commit": "2d5214b0a65a688f86736abdcf54625b5427ae9b",
+  "crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+  "source_status": "",
+  "start": 1793111168.5790954,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "61b55d2fc9f5d919e81ad1bfe6a7a7a0f342fc35fc7e1fb275c3ad6c48ec83a8",
+  "end": 1793111169.4764867,
+  "seconds": 0.8973913192749023,
+  "ending_crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+  "ending_source_status": ""
+}

@@ -1,0 +1,32 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--test",
+    "impl192_copy_fields",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt192",
+  "start": 1793159633.6338775,
+  "source_commit": "8d913eb4c5f15e748225c40e6e2b4b20ad097b37",
+  "git_status": " M crates/zil-analyze/src/resources.rs\n M crates/zil-backend-llvm/src/emit/packages.rs\n M crates/zil-types/src/addresses.rs\n M crates/zil-verify/src/borrows/loans.rs\n M crates/zil-verify/src/packages.rs\n M crates/zil-verify/src/resources.rs\n?? crates/zil-driver/tests/impl192_copy_fields.rs\n?? examples/mainline/fields192/\n?? tools/language/192/\n",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author192",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/runs178/author192/development02/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Fail",
+  "exit_code": 101,
+  "end": 1793159635.484814,
+  "stdout.log_sha256": "ebff82a1eb84bad40e12fa4407069ccde27b8e6f0cb24059da9447fa9e1f5182",
+  "stderr.log_sha256": "a83115f74a380ac9b6342b070ac4ab48a8071c7e5e05a19eacd49644ac89bf13"
+}

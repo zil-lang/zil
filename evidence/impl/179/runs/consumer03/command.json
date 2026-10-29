@@ -1,0 +1,27 @@
+{
+  "command": [
+    "python3",
+    "tools/language/179/consumer.py",
+    "--repo",
+    ".",
+    "--cli",
+    "/workspace/scratch/39be3faa4442/targets178/author179/debug/zil",
+    "--out",
+    "out/runs/179/consumer03/result"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt179",
+  "source_commit": "9b9be9b16f9d7d2e1f51daec16e67f61ce0b6dda",
+  "dirty": "M crates/zil-analyze/src/holds.rs\n M crates/zil-verify/src/borrows.rs\n M crates/zil-verify/src/borrows/loans.rs\n M crates/zil-verify/src/borrows/roots.rs\n?? crates/zil-driver/tests/impl179_field_precision.rs\n?? examples/mainline/field_views179/\n?? tools/language/179/",
+  "spec_sha256": "fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author179",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+    "ZIL_TEST_REPORT_DIR": null
+  },
+  "exit_code": 0,
+  "elapsed_seconds": 0.6841669082641602,
+  "status": "Pass"
+}

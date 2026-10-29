@@ -38,23 +38,32 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !closure.result.is_copy_value()
+        ) || !(closure.result.is_copy_value()
+            || (!closure.lending_captures.is_empty()
+                && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                && matches!(&closure.result, Type::Address { inner, mutable: false }
+                    if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
             || !closure.captures.iter().all(|ty| {
                 ty.is_copy_value()
                     || callable_parameter_type(ty, &module.closures)
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+                    // Verify already qualified the complete captured Store
+                    // leaf, canonical definition, result and actual operands.
+                    // A borrowed Store description still has no owning ABI.
                     || (resource_type(ty, &module.resources)
-                        && !matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. }))
-                        && !matches!(ty, Type::Desc(p) if p.as_ref() == &Type::ByteBuffer))
+                        && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
                     || (package_type(ty, &module.resources)
-                        && !package_array_fields(ty)
-                        && !package_store_fields(ty))
+                        && !package_array_fields(ty))
             })
-            || !closure.parameters.iter().all(Type::is_copy_value)
+            || !closure.parameters.iter().all(|ty| {
+                ty.is_copy_value()
+                    || (closure.result.is_copy_value()
+                        && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
+            })
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Lower,
-                "lowering requires a finite closure environment and Copy signature",
+                "lowering requires a finite closure environment, Copy or Copy/slice-address parameters and a verified result contract",
                 None,
             )]);
         }
@@ -63,7 +72,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
         if !(function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || resource_type(&function.return_type, &module.resources)
-            || package_type(&function.return_type, &module.resources)
+            || package_value_type(&function.return_type, &module.resources)
             || error_type(&function.return_type, &module.resources)
             || owned_array_type(&function.return_type, &module.resources)
             || (matches!(function.return_type, Type::Closure(_))
@@ -73,7 +82,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                 !(ty.is_copy_value()
                     || ty.is_scalar_or_address()
                     || resource_type(ty, &module.resources)
-                    || package_type(ty, &module.resources)
+                    || package_value_type(ty, &module.resources)
                     || error_type(ty, &module.resources)
                     || owned_array_type(ty, &module.resources)
                     || callable_parameter_type(ty, &module.closures))
@@ -96,9 +105,9 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                 && !concrete_closure
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !ty.is_shared_resource_head_address()
-                && !ty.is_shared_package_address()
+                && !ty.is_package_address()
                 && !resource_type(ty, &module.resources)
-                && !package_type(ty, &module.resources)
+                && !package_value_type(ty, &module.resources)
                 && !error_type(ty, &module.resources)
                 && !owned_array_type(ty, &module.resources)
             {
@@ -156,6 +165,34 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
         })
 }
 
+// The new recursive Product is an ordinary complete value only. Keep the
+// existing predicate above for capture, error-payload and array qualification.
+// Verify has already bounded the full inline type and its cleanup paths.
+fn package_value_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    package_type(ty, resources) || product_type(ty, resources)
+}
+
+fn product_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    let Type::Package { fields, .. } = ty else {
+        return false;
+    };
+    let mut owns = false;
+    for (_, field) in fields {
+        match field {
+            Type::Managed(payload)
+                if !matches!(payload.as_ref(), Type::OwnedStore { .. })
+                    && resource_type(field, resources) =>
+            {
+                owns = true;
+            }
+            Type::Package { .. } if product_type(field, resources) => owns = true,
+            field if field.is_copy_value() => {}
+            _ => return false,
+        }
+    }
+    owns
+}
+
 fn package_array_fields(ty: &Type) -> bool {
     matches!(ty, Type::Package { fields, .. } if fields.iter().any(|(_, ty)| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))))
 }
@@ -166,8 +203,10 @@ fn package_store_fields(ty: &Type) -> bool {
 
 fn error_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
-        if (error.is_copy_value() || package_type(error, resources))
+        if ((error.is_copy_value() || package_type(error, resources))
             && (result.is_copy_value() || package_type(result, resources)))
+            || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
+                && resource_type(result, resources)))
 }
 
 fn owned_array_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
@@ -384,6 +423,7 @@ mod tests {
             span: Span::default(),
         });
         module.closures.push(ClosureDefinition {
+            lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(1),
             captures: vec![Type::I32],

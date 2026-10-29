@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/195-author/consumer03/run/O0/program"
+  ],
+  "status": "Completed",
+  "start": 1793165570.1274762,
+  "stdin_hex": "37",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793165570.1290493
+}

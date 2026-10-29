@@ -1,0 +1,54 @@
+{
+  "id": "182",
+  "scope": "author integration-regression repair acceptance; not independent self-review",
+  "status": "Pass",
+  "source_commit": "ebaddd7faf7b83b257b873e8544af0fef13e670a",
+  "production_fix": "e7e553ae",
+  "baseline": "9ae758a950e32e43b58dc94f02eb195e607c80d9",
+  "rule_version": "1.4",
+  "schema": 23,
+  "design_sha256": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_sha256": "1068cda3fe79b906f49eeee4bd3f62863f9db4ae85e8a0dbaa3c439d310777b8",
+  "tests": {
+    "driver": 180,
+    "analyze_lib": 23,
+    "verify_lib": 240,
+    "passed": 443,
+    "failed": 0,
+    "ignored": 0,
+    "own_driver_groups": 23
+  },
+  "observations": {
+    "native": 56,
+    "O0": 28,
+    "O2": 28,
+    "raw": 9,
+    "wire": 9
+  },
+  "fixed_regressions": [
+    "ordinary resource Desc is not a public address Hold;65 original raw fixtures unchanged",
+    "weak field Desc does not prevent safe sibling replacement;072/074/079 source unchanged",
+    "local nonescaping Address<Closure> allowed again;168 source unchanged",
+    "Analyze original3 exact budgets pass unchanged after removing no-longer-needed lane setup"
+  ],
+  "proof_separation": "Private broad origins feed actual per-capture effects and independent loans; public graph tracks addresses and storage-description derivation metadata. MakeClosure public graph only carries actual address dependencies; strong invalidation does not treat Desc as a loan. Candidate equality is still exact, and raw/Wire fake weak-Desc claims or erased real address claims reject.",
+  "retained_boundaries": "Local borrowed environment accepted; forged factory escape rejected by existing self-contained retained result contract. Original malformed capture layout still rejected with exact E-VERIFY-CAPTURE; no blanket Address<Closure> gate.",
+  "quality": "fmt, changed production libs Clippy and impl182 Clippy -D warnings Pass",
+  "failed_history": [
+    "integration-return/workspace01/command.json",
+    "integration-return/workspace01/FAILURES.json",
+    "runs/driver01/summary.json",
+    "runs/driver01/stdout.log",
+    "integration-return/assertions01/command.json"
+  ],
+  "receipts": {
+    "driver": "runs/frozen01/summary.json",
+    "libs_quality": "runs/quality-frozen01/summary.json",
+    "actual_case_counts": "observations.json"
+  },
+  "full_workspace": "NotRun by author after repair; root must rerun combined main",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "native_windows": "NotRun for this repair",
+  "performance": "NotMeasured"
+}

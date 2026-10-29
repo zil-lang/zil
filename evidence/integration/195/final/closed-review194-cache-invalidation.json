@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-28T06:00:07.424170+00:00",
+  "closed_targets": [
+    "/workspace/scratch/39be3faa4442/targets178/review194"
+  ],
+  "files_invalidated": 225,
+  "logical_bytes_released": 316758322,
+  "skipped": [],
+  "scope": "Only explicitly closed Cargo target regular files; all hardlinks checked within closed set. No symlink target, source, evidence, active formal195 target or Wine prefix modified."
+}

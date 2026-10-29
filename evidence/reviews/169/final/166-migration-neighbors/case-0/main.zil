@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R}enum E{Fail}fn main(){let p=P{r:R{n:1}};let u:E!P=p;let a=u;let b=u}

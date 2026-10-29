@@ -1,0 +1,1 @@
+resource R{n:i32}fn apply<F:Fn()->i32>(f:&F,p:&i32)->i32{return f()+*p}fn outer(d:R,p:&i32)->i32{let f=()=>{d.n=9;return 1};return apply(&f,p)}fn main()->i32{let a=R{n:4};let b=R{n:4};let h=&b;let p=&h.n;return outer(a,p)-5}

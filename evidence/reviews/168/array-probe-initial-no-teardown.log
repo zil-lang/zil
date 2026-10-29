@@ -1,0 +1,13 @@
+     Locking 7 packages to highest Rust 1.99.1 compatible versions
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167-budget/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167-budget/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167-budget/crates/zil-syntax)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167-budget/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167-budget/crates/zil-types)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167-budget/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167-budget/crates/zil-analyze)
+   Compiling independent-review167-budget v0.0.0 (/workspace/scratch/39be3faa4442/run-logs/review168/array-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 20.17s
+     Running `/workspace/scratch/39be3faa4442/targets/review168/debug/independent-review167-budget`
+raw: Accepted; at least 262272 repeated Copy-leaf nodes during per-element LLVM type formatting > declared analysis budget=100000
+wire: Accepted; at least 262272 repeated Copy-leaf nodes during per-element LLVM type formatting > declared analysis budget=100000

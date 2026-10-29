@@ -1,0 +1,70 @@
+{
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "runs": {
+    "formal-workspace01": {
+      "status": "Fail",
+      "source_commit": "c860a100677c15b19ee1694aa66ddf81d8aee926",
+      "clean": true,
+      "groups": 2,
+      "passed": 32,
+      "failed": 3,
+      "ignored": 0
+    },
+    "formal-workspace02": {
+      "status": "Fail",
+      "source_commit": "ae3ac2445605c19914760fcd47c9f130700f8aac",
+      "clean": true,
+      "groups": 199,
+      "passed": 1890,
+      "failed": 8,
+      "ignored": 0
+    },
+    "legacy-fixtures01": {
+      "status": "Fail",
+      "source_commit": "68abfb67de1ebea5bbaf64810476f3737dcd0954",
+      "clean": true,
+      "groups": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    "legacy-fixtures02": {
+      "status": "Fail",
+      "source_commit": "73e0b5ddb0cc691dd9cf1425043762edaca97611",
+      "clean": true,
+      "groups": 7,
+      "passed": 109,
+      "failed": 1,
+      "ignored": 0
+    },
+    "legacy-fixtures03": {
+      "status": "Fail",
+      "source_commit": "13797c53af3cfa3154e9ab4d270bd014151e52d0",
+      "clean": true,
+      "groups": 1,
+      "passed": 8,
+      "failed": 1,
+      "ignored": 0
+    },
+    "legacy-fixtures04": {
+      "status": "Pass",
+      "source_commit": "96c83df5b4133ebfbd93402394b6633c6989be07",
+      "clean": true,
+      "groups": 1,
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0
+    },
+    "formal-workspace03": {
+      "status": "Fail",
+      "source_commit": "8ebdea24f2105e8c6f05be8197a024ef71f5345a",
+      "clean": true,
+      "groups": 199,
+      "passed": 1895,
+      "failed": 3,
+      "ignored": 0
+    }
+  },
+  "interpretation": "Preserved historical and fixture/environment failures. No false all-pass claim. Scope-specific finite gate accepted separately; later full run uses a new initially-empty TMPDIR."
+}

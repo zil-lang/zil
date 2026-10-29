@@ -1,0 +1,13 @@
+     Locking 7 packages to highest Rust 1.99.1 compatible versions
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-syntax)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-types)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-analyze)
+   Compiling independent-review168 v0.0.0 (/workspace/scratch/39be3faa4442/run-logs/review168/raw-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 19.67s
+     Running `/workspace/scratch/39be3faa4442/targets/review168/debug/independent-review168`
+raw: Accepted; expanded alignment type visits=263679 > declared analysis budget=100000
+wire: Accepted; expanded alignment type visits=263679 > declared analysis budget=100000

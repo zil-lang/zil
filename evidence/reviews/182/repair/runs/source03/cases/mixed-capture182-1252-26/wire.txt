@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "returned callable captures must be self-contained finite Copy, Managed or Package values",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 381,
+                end: 439,
+            },
+        ),
+        notes: [],
+    },
+]

@@ -1,0 +1,38 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-CALLABLE-CONTRACT",
+            message: "nested helper must forward its actual parameter to an independently checked matching contract",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 87,
+                    end: 235,
+                },
+            ),
+            notes: [],
+        },
+    ],
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-CALLABLE-CONTRACT",
+            message: "nested helper must forward its actual parameter to an independently checked matching contract",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 87,
+                    end: 235,
+                },
+            ),
+            notes: [],
+        },
+    ],
+]

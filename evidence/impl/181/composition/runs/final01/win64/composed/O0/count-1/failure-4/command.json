@@ -1,0 +1,17 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+    "/workspace/scratch/39be3faa4442/run-logs/181-composed/final01/win64/composed/O0/probe.exe"
+  ],
+  "status": "Completed",
+  "start": 1793153177.319723,
+  "stdin_hex": "31",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "4",
+    "LD_LIBRARY_PATH": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu"
+  },
+  "exit_code": 0,
+  "stdout_sha256": "26b1f9631c45805556a7e28e6393b523612ff18f30029fc40e79e3511ab18f12",
+  "stderr_sha256": "768ee3098cd82131d735a2072a6195f030fd4dc763dda663113399f20bc7b1f1",
+  "end": 1793153178.386912
+}

@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-BORROW-CONFLICT",
+        message: "access overlaps an active address window without its delegated authority",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 464,
+                end: 473,
+            },
+        ),
+        notes: [],
+    },
+]

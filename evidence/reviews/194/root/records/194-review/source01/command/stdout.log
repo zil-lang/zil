@@ -1,0 +1,46 @@
+
+running 4 tests
+test a_finite_repeated_generic_record_is_copy_but_never_a_recursive_layout ... FAILED
+test a_cross_module_wrong_instance_is_rejected_with_matching_candidate_identity ... FAILED
+test equal_spelled_nominals_from_different_modules_keep_distinct_instances ... ok
+test slice_elements_use_copy_specialization_without_copying_exclusive_windows ... ok
+
+failures:
+
+---- a_finite_repeated_generic_record_is_copy_but_never_a_recursive_layout stdout ----
+
+thread 'a_finite_repeated_generic_record_is_copy_but_never_a_recursive_layout' (325) panicked at crates/zil-driver/tests/review194_composition.rs:96:9:
+assertion `left == right` failed: finite-repeated-nominal: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"Copy bound requires a finite nonrecursive layout","span":{"file":0,"start":21,"end":22},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/194-review/source01/cases/review194-finite-repeated-nominal-323-2/phases/syntax.txt"},"input_fingerprint":"fddd3a3548e534e702509653a1607e1af7b01562043c00c307d71ecd7264bcf5","seconds":0.008334955,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- a_cross_module_wrong_instance_is_rejected_with_matching_candidate_identity stdout ----
+
+thread 'a_cross_module_wrong_instance_is_rejected_with_matching_candidate_identity' (324) panicked at crates/zil-driver/tests/review194_composition.rs:284:9:
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-CALL",
+        message: "call argument does not match the target parameter type",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 132,
+                end: 161,
+            },
+        ),
+        notes: [],
+    },
+]
+
+
+failures:
+    a_cross_module_wrong_instance_is_rejected_with_matching_candidate_identity
+    a_finite_repeated_generic_record_is_copy_but_never_a_recursive_layout
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+

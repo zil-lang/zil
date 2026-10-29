@@ -1,0 +1,72 @@
+{
+  "schema_version": 27,
+  "status": "InProgress; partial recovery checkpoint, not final acceptance",
+  "baseline": "94515c1c78c77c8bb9eb2300cdadce714fed7e19",
+  "normative_hash": "1355ae0d2351199391d65ca4faa4a84ce768ece5c8aaaca465b8de5b20aad65a",
+  "public_core": "ffb52a4c3b8004a6347891067eff9cae157ce924",
+  "types_header_only": "0b8ca48b6c05cd1e00f82367eee4155c4f594660",
+  "qualification_production": "f250342b695f8b5f5d7d8a6b38f22375c7ee01b1",
+  "actual_checks": [
+    {
+      "receipt": "skeleton01",
+      "source": "b60dca837b57e9a5ef6347c3604c32acdb6389f6",
+      "command": "cargo check -p zil-driver --offline --locked -j2",
+      "status": "Pass"
+    },
+    {
+      "receipt": "ct01",
+      "source": "d06a2217b7e94b8dfafc0f5bbe3fe44cde33e1fa",
+      "status": "Fail",
+      "cause": "New author test used contextual API pair as CoreModule; no execution. Fixed by tuple destructure."
+    },
+    {
+      "receipt": "ct02",
+      "source": "70ce00048341484ac54c177ea7e80d733f25d607",
+      "status": "Fail",
+      "passed": 6,
+      "failed": 1,
+      "cause": "New author fixture expected unsuffixed 42 instead of existing exact typed materialization 42i32; expected semantic result unchanged."
+    },
+    {
+      "receipt": "ct03",
+      "source": "1ad630b40553cc8e1afa24b071b9061b061c8115",
+      "status": "Pass",
+      "passed": 7,
+      "failed": 0,
+      "own_tests": 3,
+      "included_existing_adapter_tests": 4,
+      "new_transport_node_boundary": 30
+    },
+    {
+      "receipt": "old201-layout01",
+      "source": "f250342b695f8b5f5d7d8a6b38f22375c7ee01b1",
+      "status": "Fail",
+      "passed": 0,
+      "failed": 1,
+      "cause": "Original rejected heterogeneous two-root fixture now admitted by frozen203 contract; unchanged fixture promoted after preserving failure."
+    },
+    {
+      "receipt": "layout01",
+      "source": "1ad630b40553cc8e1afa24b071b9061b061c8115",
+      "status": "Pass",
+      "producer_private_tests": 2,
+      "verify_private_tests": 11,
+      "failed": 0,
+      "new_producer_work": 66,
+      "new_verifier_work": 223,
+      "scope": "Raw private qualification/layout only, not source or native execution"
+    }
+  ],
+  "migration_independent_review": "ac77b38c (root cherry-pick28481961); read-only fixture comparison only",
+  "pending": [
+    "Expand dual symbolic binding and complete nominal family implementation",
+    "Types per-instance declared origins, full replacement and helper/Store/error propagation",
+    "Real source/native and multi-module Linux/Wine consumers with failure cleanup",
+    "Independent final review and clean full workspace acceptance"
+  ],
+  "full_1_4": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "packaging": "Source recovery bundle only. Executables and large evidence outside Git; exact command logs preserved separately."
+}

@@ -1,0 +1,28 @@
+
+running 9 tests
+test mixed_environment_and_capture_hold_cannot_be_erased_or_forged ... ok
+test storage_end_cannot_leave_an_address_or_captured_address_live ... ok
+test every_live_address_and_mixed_closure_alias_keeps_its_source ... ok
+test mixed_move_environment_keeps_pointer_and_snapshot_distinct ... ok
+test bool_unit_and_i64_reference_types_preserve_operand_inference ... ok
+test branch_shadow_loop_and_scalar_parameter_storage ... ok
+test unsupported_reference_contracts_and_authority_remain_explicit ... FAILED
+test scalar_address_copies_overwrites_and_rhs_last_use ... ok
+test address_constraints_apply_before_ct_and_inside_closure_body ... ok
+
+failures:
+
+---- unsupported_reference_contracts_and_authority_remain_explicit stdout ----
+
+thread 'unsupported_reference_contracts_and_authority_remain_explicit' (124) panicked at crates/zil-driver/tests/shared_addresses.rs:228:13:
+assertion `left == right` failed: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"environment lending requires self-contained captures, not external Address/Desc targets","span":{"file":0,"start":40,"end":48},"notes":[]}],"artifacts":{},"input_fingerprint":"6a3e4781f8c9bdf3a5d9ab3a153f120a6f463807a8da3e1658f9181ac2c31f9a","seconds":0.001104708,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"shared.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    unsupported_reference_contracts_and_authority_remain_explicit
+
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+

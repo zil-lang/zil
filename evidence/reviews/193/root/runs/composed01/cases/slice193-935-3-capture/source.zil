@@ -1,0 +1,1 @@
+fn main()->i32{let a=[1,2];let p=&a[..];let f=()=>p[0];return f()}

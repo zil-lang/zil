@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/177-combined/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/177/readiness01/generic-trait-bound.zil",
+    "--json"
+  ],
+  "start": 1793116941.57793,
+  "status": "Completed",
+  "exit_code": 0,
+  "end": 1793116941.7205002,
+  "seconds": 0.14257025718688965
+}

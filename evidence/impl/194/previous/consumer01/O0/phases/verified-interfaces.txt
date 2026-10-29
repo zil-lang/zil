@@ -1,0 +1,1024 @@
+[
+    ScalarInterface {
+        callable_returns: Some(
+            [],
+        ),
+        module: ModuleId(
+            0,
+        ),
+        exports: [],
+        signature_fingerprint: Fingerprint(
+            [
+                214,
+                119,
+                167,
+                95,
+                80,
+                106,
+                102,
+                166,
+                4,
+                254,
+                78,
+                48,
+                74,
+                84,
+                123,
+                68,
+                110,
+                153,
+                65,
+                163,
+                170,
+                88,
+                220,
+                83,
+                192,
+                26,
+                87,
+                226,
+                51,
+                209,
+                10,
+                25,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                233,
+                251,
+                138,
+                77,
+                16,
+                210,
+                234,
+                41,
+                245,
+                159,
+                20,
+                74,
+                100,
+                179,
+                147,
+                173,
+                169,
+                133,
+                130,
+                232,
+                101,
+                186,
+                127,
+                161,
+                67,
+                127,
+                141,
+                137,
+                204,
+                199,
+                128,
+                71,
+            ],
+        ),
+        result_origins: Some(
+            [],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    178,
+                    45,
+                    232,
+                    0,
+                    154,
+                    238,
+                    82,
+                    161,
+                    99,
+                    115,
+                    67,
+                    190,
+                    76,
+                    1,
+                    87,
+                    137,
+                    181,
+                    92,
+                    202,
+                    201,
+                    22,
+                    246,
+                    112,
+                    189,
+                    197,
+                    239,
+                    46,
+                    220,
+                    217,
+                    40,
+                    0,
+                    227,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [],
+        ),
+    },
+    ScalarInterface {
+        callable_returns: Some(
+            [
+                FunctionCallableReturn {
+                    name: "make",
+                    contract: CallableReturnContract {
+                        closure: ClosureId(
+                            0,
+                        ),
+                        kind: FnMut,
+                        hold: [],
+                        call: [],
+                        writes: [],
+                        cleanup: [
+                            0,
+                            1,
+                        ],
+                        lending_captures: [],
+                    },
+                },
+            ],
+        ),
+        module: ModuleId(
+            1,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "make",
+                function: FunctionId(
+                    3,
+                ),
+                parameters: [],
+                result: Closure(
+                    ClosureId(
+                        0,
+                    ),
+                ),
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                23,
+                97,
+                3,
+                37,
+                255,
+                56,
+                246,
+                40,
+                176,
+                141,
+                94,
+                150,
+                134,
+                216,
+                86,
+                190,
+                108,
+                193,
+                102,
+                61,
+                82,
+                101,
+                99,
+                172,
+                225,
+                222,
+                255,
+                80,
+                77,
+                251,
+                162,
+                6,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                72,
+                94,
+                26,
+                79,
+                51,
+                23,
+                146,
+                154,
+                229,
+                27,
+                187,
+                64,
+                28,
+                216,
+                104,
+                102,
+                239,
+                248,
+                243,
+                117,
+                198,
+                53,
+                18,
+                240,
+                194,
+                35,
+                234,
+                1,
+                86,
+                231,
+                231,
+                3,
+            ],
+        ),
+        result_origins: Some(
+            [
+                FunctionResultOrigins {
+                    name: "make",
+                    parameters: [],
+                },
+            ],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    187,
+                    171,
+                    66,
+                    200,
+                    175,
+                    174,
+                    160,
+                    88,
+                    225,
+                    24,
+                    139,
+                    78,
+                    113,
+                    52,
+                    23,
+                    142,
+                    99,
+                    111,
+                    249,
+                    113,
+                    243,
+                    7,
+                    34,
+                    49,
+                    141,
+                    52,
+                    149,
+                    158,
+                    13,
+                    146,
+                    215,
+                    72,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [],
+        ),
+    },
+    ScalarInterface {
+        callable_returns: Some(
+            [],
+        ),
+        module: ModuleId(
+            2,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "$generic_$module2_duplicate_6",
+                function: FunctionId(
+                    6,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        Record {
+                            name: "@module2:$module2_A",
+                            fields: [
+                                (
+                                    "n",
+                                    I32,
+                                ),
+                            ],
+                        },
+                    ),
+                ],
+                result: Tuple(
+                    [
+                        Record {
+                            name: "@module2:$module2_A",
+                            fields: [
+                                (
+                                    "n",
+                                    I32,
+                                ),
+                            ],
+                        },
+                        Record {
+                            name: "@module2:$module2_A",
+                            fields: [
+                                (
+                                    "n",
+                                    I32,
+                                ),
+                            ],
+                        },
+                    ],
+                ),
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "$generic_$module2_keep_4::<env3>",
+                function: FunctionId(
+                    16,
+                ),
+                parameters: [
+                    (
+                        Borrow,
+                        Address {
+                            mutable: false,
+                            inner: Closure(
+                                ClosureId(
+                                    3,
+                                ),
+                            ),
+                        },
+                    ),
+                    (
+                        Infer,
+                        Record {
+                            name: "@module2:$module2_A",
+                            fields: [
+                                (
+                                    "n",
+                                    I32,
+                                ),
+                            ],
+                        },
+                    ),
+                ],
+                result: Record {
+                    name: "@module2:$module2_A",
+                    fields: [
+                        (
+                            "n",
+                            I32,
+                        ),
+                    ],
+                },
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "$generic_$module2_keep_5::<env3>",
+                function: FunctionId(
+                    17,
+                ),
+                parameters: [
+                    (
+                        Borrow,
+                        Address {
+                            mutable: false,
+                            inner: Closure(
+                                ClosureId(
+                                    3,
+                                ),
+                            ),
+                        },
+                    ),
+                    (
+                        Infer,
+                        Record {
+                            name: "@module2:$module2_B",
+                            fields: [
+                                (
+                                    "n",
+                                    I32,
+                                ),
+                            ],
+                        },
+                    ),
+                ],
+                result: Record {
+                    name: "@module2:$module2_B",
+                    fields: [
+                        (
+                            "n",
+                            I32,
+                        ),
+                    ],
+                },
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "$generic_$module2_map_2::<env1>",
+                function: FunctionId(
+                    13,
+                ),
+                parameters: [
+                    (
+                        Borrow,
+                        Address {
+                            mutable: false,
+                            inner: Closure(
+                                ClosureId(
+                                    1,
+                                ),
+                            ),
+                        },
+                    ),
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: I32,
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "$generic_$module2_map_3::<env2>",
+                function: FunctionId(
+                    14,
+                ),
+                parameters: [
+                    (
+                        Borrow,
+                        Address {
+                            mutable: false,
+                            inner: Closure(
+                                ClosureId(
+                                    2,
+                                ),
+                            ),
+                        },
+                    ),
+                    (
+                        Infer,
+                        I64,
+                    ),
+                ],
+                result: I64,
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "$generic_$module2_stamp_0::<env0>",
+                function: FunctionId(
+                    9,
+                ),
+                parameters: [
+                    (
+                        BorrowMut,
+                        Address {
+                            mutable: true,
+                            inner: Closure(
+                                ClosureId(
+                                    0,
+                                ),
+                            ),
+                        },
+                    ),
+                    (
+                        Infer,
+                        I32,
+                    ),
+                    (
+                        BorrowMut,
+                        Address {
+                            mutable: true,
+                            inner: Slice {
+                                element: U8,
+                            },
+                        },
+                    ),
+                ],
+                result: Tuple(
+                    [
+                        I32,
+                        I32,
+                    ],
+                ),
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "$generic_$module2_stamp_1::<env0>",
+                function: FunctionId(
+                    10,
+                ),
+                parameters: [
+                    (
+                        BorrowMut,
+                        Address {
+                            mutable: true,
+                            inner: Closure(
+                                ClosureId(
+                                    0,
+                                ),
+                            ),
+                        },
+                    ),
+                    (
+                        Infer,
+                        Record {
+                            name: "@module2:$module2_Tag",
+                            fields: [
+                                (
+                                    "sequence",
+                                    I64,
+                                ),
+                                (
+                                    "valid",
+                                    Bool,
+                                ),
+                            ],
+                        },
+                    ),
+                    (
+                        BorrowMut,
+                        Address {
+                            mutable: true,
+                            inner: Slice {
+                                element: U8,
+                            },
+                        },
+                    ),
+                ],
+                result: Tuple(
+                    [
+                        I32,
+                        Record {
+                            name: "@module2:$module2_Tag",
+                            fields: [
+                                (
+                                    "sequence",
+                                    I64,
+                                ),
+                                (
+                                    "valid",
+                                    Bool,
+                                ),
+                            ],
+                        },
+                    ],
+                ),
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "emit",
+                function: FunctionId(
+                    5,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: Unit,
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                61,
+                157,
+                172,
+                28,
+                228,
+                65,
+                10,
+                111,
+                226,
+                84,
+                189,
+                174,
+                144,
+                187,
+                175,
+                148,
+                99,
+                135,
+                73,
+                175,
+                141,
+                129,
+                7,
+                42,
+                87,
+                228,
+                231,
+                62,
+                188,
+                235,
+                36,
+                57,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                129,
+                235,
+                157,
+                220,
+                109,
+                124,
+                210,
+                146,
+                0,
+                130,
+                247,
+                158,
+                40,
+                13,
+                124,
+                93,
+                243,
+                178,
+                35,
+                17,
+                98,
+                22,
+                26,
+                97,
+                133,
+                159,
+                64,
+                250,
+                178,
+                173,
+                128,
+                42,
+            ],
+        ),
+        result_origins: Some(
+            [
+                FunctionResultOrigins {
+                    name: "$generic_$module2_duplicate_6",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "$generic_$module2_keep_4::<env3>",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "$generic_$module2_keep_5::<env3>",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "$generic_$module2_map_2::<env1>",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "$generic_$module2_map_3::<env2>",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "$generic_$module2_stamp_0::<env0>",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "$generic_$module2_stamp_1::<env0>",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "emit",
+                    parameters: [],
+                },
+            ],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    97,
+                    178,
+                    122,
+                    53,
+                    76,
+                    79,
+                    101,
+                    64,
+                    10,
+                    181,
+                    18,
+                    100,
+                    116,
+                    148,
+                    53,
+                    32,
+                    241,
+                    216,
+                    75,
+                    75,
+                    121,
+                    75,
+                    28,
+                    120,
+                    53,
+                    14,
+                    40,
+                    218,
+                    84,
+                    163,
+                    157,
+                    19,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [
+                FunctionCallableContract {
+                    name: "$generic_$module2_keep_4::<env3>",
+                    contract: CallableParameterContract {
+                        parameter: 0,
+                        closure: ClosureId(
+                            3,
+                        ),
+                        kind: Fn,
+                        hold: [],
+                        call: [],
+                        writes: [],
+                        cleanup: Borrowed,
+                        traces: Finite(
+                            [
+                                CallableTrace {
+                                    calls: [
+                                        Fn,
+                                    ],
+                                    exit: Return,
+                                },
+                            ],
+                        ),
+                    },
+                },
+                FunctionCallableContract {
+                    name: "$generic_$module2_keep_5::<env3>",
+                    contract: CallableParameterContract {
+                        parameter: 0,
+                        closure: ClosureId(
+                            3,
+                        ),
+                        kind: Fn,
+                        hold: [],
+                        call: [],
+                        writes: [],
+                        cleanup: Borrowed,
+                        traces: Finite(
+                            [
+                                CallableTrace {
+                                    calls: [
+                                        Fn,
+                                    ],
+                                    exit: Return,
+                                },
+                            ],
+                        ),
+                    },
+                },
+                FunctionCallableContract {
+                    name: "$generic_$module2_map_2::<env1>",
+                    contract: CallableParameterContract {
+                        parameter: 0,
+                        closure: ClosureId(
+                            1,
+                        ),
+                        kind: Fn,
+                        hold: [],
+                        call: [],
+                        writes: [],
+                        cleanup: Borrowed,
+                        traces: Finite(
+                            [
+                                CallableTrace {
+                                    calls: [
+                                        Fn,
+                                    ],
+                                    exit: Return,
+                                },
+                            ],
+                        ),
+                    },
+                },
+                FunctionCallableContract {
+                    name: "$generic_$module2_map_3::<env2>",
+                    contract: CallableParameterContract {
+                        parameter: 0,
+                        closure: ClosureId(
+                            2,
+                        ),
+                        kind: Fn,
+                        hold: [],
+                        call: [],
+                        writes: [],
+                        cleanup: Borrowed,
+                        traces: Finite(
+                            [
+                                CallableTrace {
+                                    calls: [
+                                        Fn,
+                                    ],
+                                    exit: Return,
+                                },
+                            ],
+                        ),
+                    },
+                },
+                FunctionCallableContract {
+                    name: "$generic_$module2_stamp_0::<env0>",
+                    contract: CallableParameterContract {
+                        parameter: 0,
+                        closure: ClosureId(
+                            0,
+                        ),
+                        kind: FnMut,
+                        hold: [],
+                        call: [],
+                        writes: [],
+                        cleanup: Borrowed,
+                        traces: Finite(
+                            [
+                                CallableTrace {
+                                    calls: [
+                                        FnMut,
+                                    ],
+                                    exit: Return,
+                                },
+                            ],
+                        ),
+                    },
+                },
+                FunctionCallableContract {
+                    name: "$generic_$module2_stamp_1::<env0>",
+                    contract: CallableParameterContract {
+                        parameter: 0,
+                        closure: ClosureId(
+                            0,
+                        ),
+                        kind: FnMut,
+                        hold: [],
+                        call: [],
+                        writes: [],
+                        cleanup: Borrowed,
+                        traces: Finite(
+                            [
+                                CallableTrace {
+                                    calls: [
+                                        FnMut,
+                                    ],
+                                    exit: Return,
+                                },
+                            ],
+                        ),
+                    },
+                },
+            ],
+        ),
+    },
+    ScalarInterface {
+        callable_returns: Some(
+            [],
+        ),
+        module: ModuleId(
+            3,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "check",
+                function: FunctionId(
+                    7,
+                ),
+                parameters: [],
+                result: I32,
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                62,
+                207,
+                66,
+                72,
+                100,
+                144,
+                84,
+                74,
+                17,
+                236,
+                51,
+                51,
+                19,
+                75,
+                128,
+                236,
+                104,
+                187,
+                141,
+                250,
+                32,
+                0,
+                167,
+                111,
+                55,
+                68,
+                230,
+                151,
+                232,
+                198,
+                135,
+                52,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                2,
+                7,
+                55,
+                66,
+                7,
+                200,
+                117,
+                162,
+                246,
+                43,
+                81,
+                162,
+                40,
+                131,
+                45,
+                110,
+                236,
+                9,
+                238,
+                61,
+                99,
+                62,
+                159,
+                158,
+                165,
+                112,
+                71,
+                87,
+                230,
+                73,
+                151,
+                250,
+            ],
+        ),
+        result_origins: Some(
+            [
+                FunctionResultOrigins {
+                    name: "check",
+                    parameters: [],
+                },
+            ],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    136,
+                    63,
+                    182,
+                    132,
+                    187,
+                    90,
+                    7,
+                    16,
+                    179,
+                    242,
+                    28,
+                    242,
+                    201,
+                    79,
+                    255,
+                    145,
+                    78,
+                    155,
+                    162,
+                    161,
+                    189,
+                    222,
+                    90,
+                    226,
+                    99,
+                    173,
+                    192,
+                    71,
+                    59,
+                    115,
+                    62,
+                    248,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [],
+        ),
+    },
+]

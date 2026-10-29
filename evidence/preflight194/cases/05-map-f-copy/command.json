@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/language14/wt192/evidence/preflight194/cases/05-map-f-copy/main.zil",
+    "--stop-after",
+    "verify",
+    "--json",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/language14/wt192/evidence/preflight194/cases/05-map-f-copy/phases"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt192",
+  "source_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+  "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+  "exit_code": 3,
+  "start": 1793163801.0538259,
+  "end": 1793163801.0599046,
+  "input_sha256": "ae103ae3eaf6fb6cc93f2b8815b6e88f627b5ccccccd356ef0c927469ff703f6",
+  "stdout_sha256": "6b55c7f8e51610910e11a8c6460b4678b2f41b7cabe56483aae05a9e482b0437",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

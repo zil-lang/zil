@@ -1,0 +1,1 @@
+fn map<T,F:Fn(T)->T>(f:&F,x:T)->T=>f(x);fn main(){}

@@ -1,0 +1,92 @@
+
+running 18 tests
+test copy_nested_instance_fix_does_not_change_the_store_element_profile ... ok
+test copy_bound_does_not_admit_other_categories_or_resource_descriptions ... ok
+test multiple_roles_unbounded_data_mixed_modes_and_recursion_remain_closed ... ok
+test closure_environment_is_not_inferred_to_be_a_copy_code_pointer ... ok
+test four_module_instantiation_retains_definition_and_nominal_types ... ok
+test explicit_result_context_can_select_copy_data_without_guessing_from_closure_layout ... ok
+test explicit_copy_addresses_and_current_capture_conflicts_use_existing_permissions ... ok
+test borrowed_lending_windows_are_not_extended_by_copy_data ... ok
+test nested_symbolic_copy_constraints_and_complete_callable_bound_are_substituted ... ok
+test copy_error_results_and_early_returns_keep_environment_and_local_cleanup_order ... ok
+test uninstantiated_templates_do_not_gain_numeric_member_or_forged_capabilities ... ok
+test same_closure_extra_data_does_not_erase_width_or_nominal_identity ... ok
+test mutable_and_consuming_environments_keep_their_real_cleanup ... ok
+test original_audit_map_and_reordered_parameters_reach_native ... ok
+test ordinary_copy_bound_duplicates_only_its_declared_structural_values ... ok
+test same_mode_finite_and_flow_nesting_preserves_copy_loop_state ... ok
+test finite_nested_same_nominal_is_not_a_recursive_layout ... ok
+test record_enum_tuple_array_error_and_function_pointer_are_real_copy_shapes ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.19s
+
+
+running 8 tests
+test full_copy_instance_keys_still_reject_cycles_and_bound_infinite_growth ... ok
+test both_callable_arguments_and_result_are_concretized_before_types ... ok
+test same_closure_has_four_data_instances_with_alias_and_repeated_type_reuse ... ok
+test raw_and_wire_reject_same_environment_wrong_scalar_instance ... ok
+test raw_and_wire_reject_same_layout_wrong_nominal_instance ... ok
+test each_data_instance_keeps_an_independently_checked_callback_contract ... ok
+test raw_and_wire_reject_forged_result_type_even_with_rebound_module_hash ... ok
+test new_instances_pay_work_nodes_depth_and_function_limits_without_budget_changes ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+
+running 8 tests
+test source_control_edges_have_real_cleanup_and_independent_wire_verification ... ok
+test actual_cyclic_control_and_callbacks_cannot_be_replaced_by_a_finite_claim ... ok
+test changed_break_or_continue_targets_invalidate_the_original_flow_claim ... ok
+test control_cleanup_cannot_leave_storage_live_or_close_the_wrong_scope ... ok
+test a_control_jump_cannot_claim_to_be_a_function_return_cleanup ... ok
+test omitting_scope_exit_after_break_or_continue_does_not_restore_entry_state ... ok
+test loop_exit_storage_markers_do_not_discharge_a_missing_owned_drop ... ok
+test independent_raw_and_wire_control_checks_keep_exact_work_frontiers ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+
+running 12 tests
+test control_flow_does_not_separate_an_explicit_argument_from_the_same_capture ... ok
+test original_once_consumption_before_continue_remains_closed ... ok
+test both_original_held_lending_inputs_reach_the_real_borrow_conflict ... ok
+test for_continue_steps_once_at_the_integer_maximum_and_keeps_outer_bindings ... ok
+test flow_children_keep_their_continuations_when_the_parent_skips_or_breaks ... ok
+test an_unconditional_break_keeps_an_actually_finite_once_contract ... ok
+test nested_while_and_for_control_only_the_nearest_loop ... ok
+test an_error_after_continue_cleans_the_live_iteration_and_outer_owners ... ok
+test mixed_match_return_break_and_continue_keep_real_cleanup_edges ... ok
+test runtime_while_control_runs_only_the_selected_callbacks ... ok
+test owned_and_borrowed_environments_cleanup_after_all_loop_exit_kinds ... ok
+test original_preflight_helper_programs_now_execute_with_their_exact_inputs ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.56s
+
+
+running 11 tests
+test a_previously_moved_generic_local_retains_its_existing_reinitialization_boundary ... ok
+test loop_control_outside_a_loop_is_rejected_even_in_unused_templates ... ok
+test loop_control_keeps_index_mutability_and_scope_checks ... ok
+test every_break_state_participates_in_post_loop_may_move_join ... ok
+test store_carriers_and_managed_fields_cannot_be_consumed_on_continue_edges ... ok
+test continuation_does_not_make_a_once_callback_repeatable ... ok
+test break_keeps_invalidated_store_observations_and_unproven_create_origins ... ok
+test loop_exits_do_not_supply_function_return_or_allow_unreachable_uses ... ok
+test loop_exit_state_collections_have_exact_existing_budget_frontiers ... ok
+test every_continue_path_preserves_outer_noncopy_consumption ... ok
+test returning_paths_do_not_pollute_surviving_break_and_continue_states ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+
+running 5 tests
+test a_cross_module_wrong_instance_is_rejected_with_matching_candidate_identity ... ok
+test finite_repeated_generic_record_preserves_copy_across_helper_boundaries ... ok
+test equal_spelled_nominals_from_different_modules_keep_distinct_instances ... ok
+test slice_elements_use_copy_specialization_without_copying_exclusive_windows ... ok
+test copy_data_and_owned_mutable_callback_survive_continue_and_break ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+

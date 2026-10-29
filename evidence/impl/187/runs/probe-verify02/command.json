@@ -1,0 +1,27 @@
+{
+  "source_commit": "f0b920b8ae10662075a1c17b58586f83177f7b24",
+  "dirty": " M crates/zil-analyze/src/budget.rs\n M crates/zil-types/src/closures.rs\n?? crates/zil-driver/tests/impl187_borrowed_bytes.rs\n",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl187_borrowed_bytes",
+    "original_local_byte_description_capture_reaches_native_execution",
+    "--",
+    "--exact",
+    "--test-threads=2"
+  ],
+  "source_hashes": {
+    "crates/zil-driver/tests/impl187_borrowed_bytes.rs": "3ba1fba72e2486c18be15039445d1222bb511835870c77c311bd5861cdd9e527",
+    "crates/zil-types/src/closures.rs": "035a9c05ceb90a499a7b85f240a8f7c2aadb84e48aa95e02211d4b00ff5cb010",
+    "crates/zil-analyze/src/budget.rs": "18139f0dc147575ed7538bc9799a13c69cf6585963c062a06fa4af392af4c9ed",
+    "crates/zil-verify/src/closures.rs": "683ce3424c86f712d81957f8094fce7a55c246f5903d46266f43d481dee2f3a4"
+  },
+  "production_state": "Types and authorized Analyze capture shape open; original Verify gate remains",
+  "start": 1793155426.1941752
+}

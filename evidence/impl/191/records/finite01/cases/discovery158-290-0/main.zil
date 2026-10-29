@@ -1,0 +1,1 @@
+import leaf; fn main()->i32=>leaf.answer()-42

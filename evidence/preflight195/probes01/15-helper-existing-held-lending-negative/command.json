@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/author190/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/195-preflight/probes01/15-helper-existing-held-lending-negative/main.zil",
+    "--json"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt190",
+  "exit_code": 1,
+  "elapsed_seconds": 0.00801229476928711,
+  "cli_sha256": "164ca2a261317c9db1c3e332aa359da765d6a9818c97cf99e1a21a74fb100a80",
+  "source_sha256": "b075f283565ececa72eb64113ca6b64748942aaf33c6ce1646fd50b0802b27a2"
+}

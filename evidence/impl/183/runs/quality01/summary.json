@@ -1,0 +1,76 @@
+{
+  "source_commit": "3d146206676fce98c53ca183aaeb4d7164fe7fbd",
+  "dirty": "",
+  "results": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--check",
+        "-p",
+        "zil-types",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-verify",
+        "-p",
+        "zil-lower",
+        "-p",
+        "zil-backend-llvm",
+        "-p",
+        "zil-driver"
+      ],
+      "exit_code": 0,
+      "status": "Pass",
+      "elapsed_seconds": 0.9423489570617676
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-types",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-verify",
+        "-p",
+        "zil-lower",
+        "-p",
+        "zil-backend-llvm",
+        "--lib",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "status": "Pass",
+      "elapsed_seconds": 2.4793455600738525
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl183_owned_resource_results",
+        "--test",
+        "impl183_raw_owned_success",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 101,
+      "status": "Fail",
+      "elapsed_seconds": 1.538269281387329
+    }
+  ],
+  "status": "Fail"
+}

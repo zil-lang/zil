@@ -1,0 +1,1 @@
+fn make()->impl FnMut()->&i32{var n=6;return move()=>{n+=1;return &n}}fn read<T:Copy,F:FnMut()->&i32>(f:&mut F,x:T)->&i32=>f();fn main()->i32{var f=make();let p=read(&mut f,0);let n=*p;let q=read(&mut f,i64(0));return n+*q-15}

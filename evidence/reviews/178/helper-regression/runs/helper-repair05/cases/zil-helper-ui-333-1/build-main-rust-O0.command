@@ -1,0 +1,1 @@
+"rustc" "/workspace/scratch/39be3faa4442/language14/review178/crates/zil-driver/../../examples/mainline/helper_ui/main.rs" "--edition=2024" "-C" "opt-level=0" "-C" "overflow-checks=yes" "-D" "warnings" "-o" "/workspace/scratch/39be3faa4442/run-logs/178-reviewroot/helper-repair05/cases/zil-helper-ui-333-1/main-rust-O0"

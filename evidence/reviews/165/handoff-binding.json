@@ -1,0 +1,15 @@
+{
+  "task": "165",
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root/nested_closures",
+  "implementation_commit": "a821e945143e19b23a0fff8896bd80759f582652",
+  "original_review": "evidence/reviews/165/review.json",
+  "original_review_sha256": "494e2af04051dd8a437c50247ec0da67f84dcc4fa476834879a90e793050c7e2",
+  "normalization_author": "/root",
+  "scope": "Schema field normalization of the existing exact non-author approval; no new approval or expanded scope",
+  "original_identity_field": "delivered_commit",
+  "test_scope": null,
+  "original_verdict_field": "status",
+  "reviewer_confirmed_field_normalization": true
+}

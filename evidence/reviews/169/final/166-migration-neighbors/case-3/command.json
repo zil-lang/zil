@@ -1,0 +1,35 @@
+{
+  "case": 3,
+  "status": "Pass",
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-3/main.zil",
+    "--json"
+  ],
+  "exit_code": 3,
+  "expected": {
+    "category": "Unsupported",
+    "phase": "types",
+    "code": "E-UNSUPPORTED",
+    "message_contains": "finite Copy values or complete owned Packages"
+  },
+  "observed": {
+    "category": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "error union payloads require finite Copy values or complete owned Packages",
+        "span": {
+          "file": 0,
+          "start": 51,
+          "end": 73
+        },
+        "notes": []
+      }
+    ]
+  }
+}

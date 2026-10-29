@@ -1,0 +1,26 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-syntax)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-db)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-analyze)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.30s
+     Running tests/impl161_nested_closures.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl161_nested_closures-20120c609671266b)
+
+running 7 tests
+test nested_transfer_and_shared_alias_misuse_are_rejected ... ok
+test nested_move_transfers_outer_owned_capture_once ... ok
+test nested_signatures_infer_across_three_lexical_layers ... ok
+test activation_local_managed_owner_moves_into_inner_environment ... ok
+test inner_unused_environment_and_outer_unused_environment_drop_once ... ok
+test nested_move_snapshot_is_distinct_from_borrowed_writeback ... ok
+test nested_owning_buffer_replacement_cleans_real_slots ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+

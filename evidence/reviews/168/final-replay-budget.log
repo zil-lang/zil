@@ -1,0 +1,13 @@
+     Locking 3 packages to highest Rust 1.99.1 compatible versions
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-verify)
+   Compiling independent-review168-replay v0.0.0 (/workspace/scratch/39be3faa4442/run-logs/review168/replay-probe)
+    Finished `dev` profile [unoptimized] target(s) in 5.35s
+     Running `/workspace/scratch/39be3faa4442/targets/review168-final/debug/independent-review168-replay`
+closure-wide-leaf raw: {"phase":"verify","category":"ResourceLimit","code":"E-RESOURCE-LIMIT","message":"closure layout expansion budget exceeded","span":null,"notes":[]}
+closure-wide-leaf wire: {"phase":"verify","category":"ResourceLimit","code":"E-RESOURCE-LIMIT","message":"closure layout expansion budget exceeded","span":null,"notes":[]}
+closure-wide-leaf narrow(4 Copy fields) raw+wire: Accepted under same 100000 budget
+package-array-wide-leaf raw: {"phase":"verify","category":"ResourceLimit","code":"E-RESOURCE-LIMIT","message":"independent verification work budget exhausted","span":null,"notes":[]}
+package-array-wide-leaf wire: {"phase":"verify","category":"ResourceLimit","code":"E-RESOURCE-LIMIT","message":"independent verification work budget exhausted","span":null,"notes":[]}
+package-array-wide-leaf narrow(4 Copy fields) raw+wire: Accepted under same 100000 budget

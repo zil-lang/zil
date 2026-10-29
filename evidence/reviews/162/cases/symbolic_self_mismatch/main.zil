@@ -1,0 +1,1 @@
+trait Combine{fn add(self:&Self,other:Self)->i32;}fn broken<T:Combine,U:Combine>(x:&T,y:U)->i32=>x.add(y);fn main(){}

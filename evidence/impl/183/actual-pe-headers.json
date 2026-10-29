@@ -1,0 +1,37 @@
+{
+  "method": "Python stdlib reads of the actual executed ordinary/probe files; files themselves excluded.",
+  "results": [
+    {
+      "path": "win64-final01/O0/program.exe",
+      "sha256": "12de3a7e34f668efa9979084b383d24d58b1a20d2f95153711c8b8be7f8cef41",
+      "size_bytes": 11776,
+      "pe_signature_hex": "50450000",
+      "machine": "0x8664",
+      "optional_header_magic": "0x20b"
+    },
+    {
+      "path": "win64-final01/O0/probe.exe",
+      "sha256": "1bef154c3ddbf900dcecaff4388be564797eeb47b65f694caf79527e3800261a",
+      "size_bytes": 14336,
+      "pe_signature_hex": "50450000",
+      "machine": "0x8664",
+      "optional_header_magic": "0x20b"
+    },
+    {
+      "path": "win64-final01/O2/program.exe",
+      "sha256": "dc084c929127fa7981d1362d7ee28560b91d283c44393f2feb006721e220ecde",
+      "size_bytes": 4096,
+      "pe_signature_hex": "50450000",
+      "machine": "0x8664",
+      "optional_header_magic": "0x20b"
+    },
+    {
+      "path": "win64-final01/O2/probe.exe",
+      "sha256": "4a42fa97a84ba0d94b4163d1a0779b87d1add2b6222f2d1c372bc5b62e1965ab",
+      "size_bytes": 9728,
+      "pe_signature_hex": "50450000",
+      "machine": "0x8664",
+      "optional_header_magic": "0x20b"
+    }
+  ]
+}

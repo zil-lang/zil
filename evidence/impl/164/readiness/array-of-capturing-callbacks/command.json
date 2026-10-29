@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/164/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/164-final-readiness/array-of-capturing-callbacks.zil",
+    "--json"
+  ],
+  "start": 1793097527.5632741,
+  "status": "Completed",
+  "exit_code": 3,
+  "end": 1793097527.5669882,
+  "seconds": 0.0037140846252441406
+}

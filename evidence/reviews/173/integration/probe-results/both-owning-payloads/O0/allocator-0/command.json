@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-results/both-owning-payloads/O0/probe"
+  ],
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "0"
+  },
+  "start": 1793111947.579081,
+  "end": 1793111947.5819323,
+  "exit_code": 0,
+  "stdout_sha256": "a04f893c18b79818433e25b2552c303cb68eb0a4bd09dbc8be97982fed8ed4ac",
+  "stderr_sha256": "c8c982d493d330c574bca535e6f5942c69b029c7686a93d1bd0e27dd20d40224"
+}

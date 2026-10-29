@@ -1,0 +1,31 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl172_owned_store",
+    "-j2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads",
+  "source_commit": "69882483d6b29bee8d831386325da739ac915fd4",
+  "crates_tree": "118e246b47beb9e027d656a09ebbd411191a0fff",
+  "source_status": "",
+  "start": 1793111408.6722095,
+  "status": "Fail",
+  "exit_code": 101,
+  "log_sha256": "5a796e53fee84075d73ba2adfa2a2434f5480cdce5cca1b17e297cdf823c715d",
+  "end": 1793111451.8992703,
+  "seconds": 43.22706079483032,
+  "tests": {
+    "passed": 14,
+    "failed": 1,
+    "ignored": 0,
+    "groups": 1
+  },
+  "error": "required test run has no passing tests or contains failures",
+  "ending_crates_tree": "118e246b47beb9e027d656a09ebbd411191a0fff",
+  "ending_source_status": ""
+}

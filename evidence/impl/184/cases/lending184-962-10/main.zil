@@ -1,0 +1,1 @@
+fn make(start:i32)->impl FnMut()->&i32{var n=start;return move()=>{let p=&mut n;*p+=1;let fresh=n;n=fresh+1;return &n}}fn main()->i32{var f=make(4);var g=f;let a=f();let b=g();return *a+*b-12}

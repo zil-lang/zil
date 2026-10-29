@@ -21,11 +21,15 @@ pub struct SourceEvaluationUsage {
     pub nodes: usize,
 }
 
-/// A bounded index of raw serializable-value headers. These are type hints, not permissions:
+/// A bounded index of raw value and runtime-template headers. These are type hints, not permissions:
 /// types still checks visibility, aliases, argument types and arity afterwards.
 /// No dependency body is copied or executed while constructing or using it.
 pub struct SourceProgramContext<'a> {
     functions: BTreeMap<(zil_base::ModuleId, &'a str), Option<&'a CoreFunction>>,
+    // Explicit runtime type applications only target ordinary templates.
+    // Bare calls also use their bounded headers through `functions`; neither
+    // lookup authorizes CT execution or supplies a missing type argument.
+    type_templates: BTreeMap<(zil_base::ModuleId, &'a str), Option<&'a CoreFunction>>,
     imports: BTreeMap<(zil_base::ModuleId, &'a str), Option<zil_base::ModuleId>>,
 }
 impl<'a> SourceProgramContext<'a> {
@@ -44,6 +48,7 @@ impl<'a> SourceProgramContext<'a> {
         let mut work = limits.max_analysis_steps;
         let mut count = limits.max_functions;
         let mut functions = BTreeMap::new();
+        let mut type_templates = BTreeMap::new();
         let mut imports = BTreeMap::new();
         let mut ids = BTreeSet::new();
         for module in &program.modules {
@@ -65,6 +70,7 @@ impl<'a> SourceProgramContext<'a> {
                 .checked_sub(module.core.functions.len())
                 .ok_or_else(limit)?;
             for function in &module.core.functions {
+                let header_work = work;
                 work = work
                     .checked_sub(function.name.len())
                     .and_then(|n| n.checked_sub(function.parameters.len()))
@@ -77,6 +83,77 @@ impl<'a> SourceProgramContext<'a> {
                 for p in &function.parameters {
                     work = work.checked_sub(p.name.len()).ok_or_else(limit)?;
                     usable &= hint_type(&p.ty, 0, &mut nodes, &mut work, limits)?;
+                }
+                if !function.type_parameters.is_empty() {
+                    ordinary_template_shape(function)?;
+                    nodes = nodes
+                        .checked_add(1)
+                        .filter(|n| *n <= limits.max_nodes)
+                        .ok_or_else(limit)?;
+                    work = work
+                        .checked_sub(1)
+                        .and_then(|n| n.checked_sub(function.type_parameters[0].name.len()))
+                        .ok_or_else(limit)?;
+                    type_templates
+                        .entry((id, function.name.as_str()))
+                        .and_modify(|entry| *entry = None)
+                        .or_insert(Some(function));
+                    // Full value inference is checked later by Types. Known
+                    // scalar positions still provide runtime argument hints.
+                    usable = true;
+                }
+                if !function.state_parameters.is_empty() {
+                    state_template_shape(function)?;
+                    nodes = nodes
+                        .checked_add(1)
+                        .filter(|n| *n <= limits.max_nodes)
+                        .ok_or_else(limit)?;
+                    work = work.checked_sub(1).ok_or_else(limit)?;
+                    for bound in &function.state_parameters[0].bindings {
+                        if bound.parameters.len() > limits.max_locals {
+                            return Err(limit());
+                        }
+                        nodes = nodes
+                            .checked_add(1 + bound.fields.len())
+                            .filter(|n| *n <= limits.max_nodes)
+                            .ok_or_else(limit)?;
+                        work = work
+                            .checked_sub(1 + bound.fields.len())
+                            .and_then(|n| n.checked_sub(bound.generic_name.len()))
+                            .ok_or_else(limit)?;
+                        hint_type(&bound.result, 0, &mut nodes, &mut work, limits)?;
+                        for ty in &bound.parameters {
+                            hint_type(ty, 0, &mut nodes, &mut work, limits)?;
+                        }
+                    }
+                    if !function.callable_parameters.is_empty() {
+                        // The finite mixed shape has one separate direct head.
+                        // Bound both sides before any signature/type equality.
+                        let bound = &function.callable_parameters[0];
+                        if bound.parameters.len() > limits.max_locals {
+                            return Err(limit());
+                        }
+                        nodes = nodes
+                            .checked_add(1)
+                            .filter(|n| *n <= limits.max_nodes)
+                            .ok_or_else(limit)?;
+                        work = work
+                            .checked_sub(1)
+                            .and_then(|n| n.checked_sub(bound.generic_name.len()))
+                            .ok_or_else(limit)?;
+                        hint_type(&bound.result, 0, &mut nodes, &mut work, limits)?;
+                        for ty in &bound.parameters {
+                            hint_type(ty, 0, &mut nodes, &mut work, limits)?;
+                        }
+                        // A second header-sized charge prepays the subsequent
+                        // equality and selector scan. Old profiles pay none.
+                        work = work.checked_sub(header_work - work).ok_or_else(limit)?;
+                        mixed_state_signature(function)?;
+                    }
+                    // The State binding table has now been bounded as well.
+                    // Preserve scalar hints without treating State as an
+                    // explicit ordinary type-application target.
+                    usable = true;
                 }
                 functions
                     .entry((id, function.name.as_str()))
@@ -91,10 +168,18 @@ impl<'a> SourceProgramContext<'a> {
                     .or_insert(Some(import.module));
             }
         }
-        Ok(Self { functions, imports })
+        Ok(Self {
+            functions,
+            type_templates,
+            imports,
+        })
     }
 
     fn function(&self, module: zil_base::ModuleId, callee: &CoreExpr) -> Option<&'a CoreFunction> {
+        let (callee, template) = match &callee.kind {
+            CoreExprKind::TypeApply { callee, .. } => (callee.as_ref(), true),
+            _ => (callee, false),
+        };
         let (module, name) = match &callee.kind {
             CoreExprKind::Name(name) => (module, name.as_str()),
             CoreExprKind::Member { object, member } => {
@@ -110,8 +195,190 @@ impl<'a> SourceProgramContext<'a> {
             }
             _ => return None,
         };
-        self.functions.get(&(module, name)).copied().flatten()
+        let table = if template {
+            &self.type_templates
+        } else {
+            &self.functions
+        };
+        table.get(&(module, name)).copied().flatten()
     }
+}
+
+fn ordinary_template_shape(function: &CoreFunction) -> CompileResult<()> {
+    if function.type_parameters.is_empty() {
+        return Ok(());
+    }
+    if function.type_parameters.len() != 1
+        || function.type_parameters[0].index != 0
+        || function.type_parameters[0].name.is_empty()
+        || !function.callable_parameters.is_empty()
+        || !function.state_parameters.is_empty()
+        || function.callable_return.is_some()
+        || function.receiver.is_some()
+        || function.foreign.is_some()
+    {
+        return Err(unsupported(
+            function.span,
+            "ordinary StoreElement template metadata requires one lexical binder and no callable, receiver or foreign role",
+        ));
+    }
+    Ok(())
+}
+
+// This only bounds transport metadata. Types checks actual symbolic fields and
+// declaration capabilities; preserving this table never permits CT execution.
+fn state_template_shape(function: &CoreFunction) -> CompileResult<()> {
+    if function.state_parameters.is_empty() {
+        return Ok(());
+    }
+    if !function.callable_parameters.is_empty() {
+        return mixed_state_shape(function);
+    }
+    let invalid = || {
+        unsupported(
+            function.span,
+            "independent State metadata requires one owner and two ordered field bindings",
+        )
+    };
+    if function.state_parameters.len() != 1
+        || !function.type_parameters.is_empty()
+        || !function.callable_parameters.is_empty()
+        || function.callable_return.is_some()
+        || function.receiver.is_some()
+        || function.foreign.is_some()
+    {
+        return Err(invalid());
+    }
+    let state = &function.state_parameters[0];
+    if state.bindings.len() != 2
+        || !function
+            .parameters
+            .get(state.index as usize)
+            .is_some_and(|p| {
+                matches!(
+                    p.mode,
+                    PassingMode::Infer | PassingMode::Move | PassingMode::Give
+                )
+            })
+    {
+        return Err(invalid());
+    }
+    for (index, bound) in state.bindings.iter().enumerate() {
+        if bound.generic_index as usize != index
+            || bound.generic_name.is_empty()
+            || bound.kind == CallableKind::FunctionPointer
+            || bound.fields.len() != 1
+        {
+            return Err(invalid());
+        }
+    }
+    if state.bindings[0].fields[0] == state.bindings[1].fields[0] {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+// Constant-sized structure only. Names and Type trees are checked for exact
+// equality by mixed_state_signature after each caller has prepaid both heads.
+fn mixed_state_shape(function: &CoreFunction) -> CompileResult<()> {
+    let invalid = || mixed_state_error(function);
+    if function.state_parameters.len() != 1
+        || function.callable_parameters.len() != 1
+        || !function.type_parameters.is_empty()
+        || function.callable_return.is_some()
+        || function.receiver.is_some()
+        || function.foreign.is_some()
+    {
+        return Err(invalid());
+    }
+    let owner = &function.state_parameters[0];
+    let direct = &function.callable_parameters[0];
+    if owner.bindings.len() != 1 || owner.index == direct.index {
+        return Err(invalid());
+    }
+    for index in [owner.index, direct.index] {
+        if !function
+            .parameters
+            .get(index as usize)
+            .is_some_and(|parameter| {
+                matches!(
+                    parameter.mode,
+                    PassingMode::Infer | PassingMode::Move | PassingMode::Give
+                )
+            })
+        {
+            return Err(invalid());
+        }
+    }
+    let bound = &owner.bindings[0];
+    if bound.generic_index != 0
+        || direct.generic_index != 0
+        || bound.generic_name.is_empty()
+        || direct.generic_name.is_empty()
+        || bound.kind == CallableKind::FunctionPointer
+        || direct.kind != bound.kind
+        || !(1..=2).contains(&bound.fields.len())
+        || (bound.fields.len() == 2 && bound.fields[0] >= bound.fields[1])
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn mixed_state_error(function: &CoreFunction) -> Vec<Diagnostic> {
+    vec![Diagnostic::unsupported(
+        Phase::Ct,
+        "mixed State metadata requires one owned State, one identical F replacement and complete field selectors",
+        Some(function.span),
+    )]
+}
+
+// Transport consistency only: no source move/alias or concrete ownership proof.
+// Call only after shape validation and a full bounded traversal of both heads.
+fn mixed_state_signature(function: &CoreFunction) -> CompileResult<()> {
+    let owner = &function.state_parameters[0];
+    let bound = &owner.bindings[0];
+    let direct = &function.callable_parameters[0];
+    let state = &function.parameters[owner.index as usize].ty;
+    if bound.generic_name != direct.generic_name
+        || bound.parameters != direct.parameters
+        || bound.result != direct.result
+        || !matches!(&function.parameters[direct.index as usize].ty,
+            Type::Named(name) if name == &bound.generic_name)
+        || state != &function.return_type
+    {
+        return Err(mixed_state_error(function));
+    }
+    let Type::Package { fields, .. } = state else {
+        return Err(mixed_state_error(function));
+    };
+    let mut selectors = bound.fields.iter();
+    for (index, (_, ty)) in fields.iter().enumerate() {
+        if matches!(ty, Type::Named(name) if name == &bound.generic_name)
+            && selectors.next().copied().map(|field| field as usize) != Some(index)
+        {
+            return Err(mixed_state_error(function));
+        }
+    }
+    if selectors.next().is_some() {
+        return Err(mixed_state_error(function));
+    }
+    Ok(())
+}
+
+fn static_type_callee(callee: &CoreExpr) -> bool {
+    matches!(&callee.kind, CoreExprKind::Name(_))
+        || matches!(&callee.kind, CoreExprKind::Member { object, .. }
+            if matches!(&object.kind, CoreExprKind::Name(_)))
+}
+
+fn forbidden_type_application(span: Span) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        Phase::Ct,
+        "E-CT-FORBIDDEN",
+        Some(span),
+        "ordinary StoreElement templates and type applications cannot execute in compile-time queries",
+    )]
 }
 
 // Borrowed header preflight precedes any use that clones a type hint. Unknown
@@ -291,7 +558,9 @@ fn evaluate_with_context(
         walker.scopes.push(scope);
         functions.push(CoreFunction {
             callable_return: f.callable_return.clone(),
-            callable_parameter: f.callable_parameter.clone(),
+            state_parameters: f.state_parameters.clone(),
+            type_parameters: f.type_parameters.clone(),
+            callable_parameters: f.callable_parameters.clone(),
             result_mode: f.result_mode,
             foreign: f.foreign.clone(),
             id: f.id,
@@ -374,8 +643,26 @@ impl<'a> Walker<'a> {
             )]);
         }
         for f in &core.functions {
+            let header_work = self.work_left;
             self.charge(0, f.span)?;
             self.text(&f.name, Some(f.span))?;
+            ordinary_template_shape(f)?;
+            if !f.state_parameters.is_empty() {
+                state_template_shape(f)?;
+                self.charge(0, f.span)?;
+                for bound in &f.state_parameters[0].bindings {
+                    self.charge(0, f.span)?;
+                    self.text(&bound.generic_name, Some(f.span))?;
+                    self.parameters(&bound.parameters, &bound.result, f.span)?;
+                    for _ in &bound.fields {
+                        self.charge(0, f.span)?;
+                    }
+                }
+            }
+            for parameter in &f.type_parameters {
+                self.charge(0, f.span)?;
+                self.text(&parameter.name, Some(f.span))?;
+            }
             if f.parameters.len() > self.limits.max_locals {
                 return Err(vec![Diagnostic::limit(
                     Phase::Ct,
@@ -395,10 +682,23 @@ impl<'a> Walker<'a> {
                 self.charge(0, f.span)?;
                 self.parameters(&contract.parameters, &contract.result, f.span)?;
             }
-            if let Some(contract) = &f.callable_parameter {
+            for contract in &f.callable_parameters {
                 self.charge(0, f.span)?;
                 self.text(&contract.generic_name, Some(f.span))?;
                 self.parameters(&contract.parameters, &contract.result, f.span)?;
+            }
+            if !f.state_parameters.is_empty() && !f.callable_parameters.is_empty() {
+                self.work_left = self
+                    .work_left
+                    .checked_sub(header_work - self.work_left)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Ct,
+                            "mixed State header comparison budget exceeded",
+                            Some(f.span),
+                        )]
+                    })?;
+                mixed_state_signature(f)?;
             }
             if let Some(foreign) = &f.foreign {
                 self.charge(0, f.span)?;
@@ -774,6 +1074,24 @@ impl<'a> Walker<'a> {
                     value: Box::new(self.expr(value, Some(ty), depth + 1)?),
                 }
             }
+            CoreExprKind::TypeApply {
+                callee,
+                type_arguments,
+            } => {
+                if type_arguments.len() != 1 || !static_type_callee(callee) {
+                    return Err(unsupported(
+                        e.span,
+                        "type application requires one complete type and a static function callee",
+                    ));
+                }
+                // Bound metadata before copying either the vector or callee.
+                // Types still checks placement and actual complete identity.
+                self.pattern_type_shape(&type_arguments[0], depth + 1, e.span)?;
+                CoreExprKind::TypeApply {
+                    callee: Box::new(self.expr(callee, None, depth + 1)?),
+                    type_arguments: type_arguments.clone(),
+                }
+            }
             CoreExprKind::CompileTime(inner) => {
                 let (value, ty) = self.query(inner, expected, e.span)?;
                 if let crate::CompileTimeValue::Scalar(c) = value {
@@ -846,6 +1164,14 @@ impl<'a> Walker<'a> {
                 }
             }
             CoreExprKind::Call { callee, arguments } => {
+                // A new application carries raw type metadata. Bound it before
+                // using its static header or normalizing any argument query.
+                // Ordinary calls retain their original order and exact work.
+                let application = if matches!(&callee.kind, CoreExprKind::TypeApply { .. }) {
+                    Some(self.expr(callee, None, depth + 1)?)
+                } else {
+                    None
+                };
                 let core = self.core;
                 let mut hints = Vec::new();
                 if let Some(f) = self.function(callee) {
@@ -889,7 +1215,10 @@ impl<'a> Walker<'a> {
                     args.push(self.expr(a, hints.get(i), depth + 1)?);
                 }
                 CoreExprKind::Call {
-                    callee: Box::new(self.expr(callee, None, depth + 1)?),
+                    callee: Box::new(match application {
+                        Some(callee) => callee,
+                        None => self.expr(callee, None, depth + 1)?,
+                    }),
                     arguments: args,
                 }
             }
@@ -1157,6 +1486,9 @@ impl<'a> Walker<'a> {
                 )]);
             }
             match &e.kind {
+                CoreExprKind::TypeApply { .. } => {
+                    return Err(forbidden_type_application(e.span));
+                }
                 CoreExprKind::Slice { .. } => {
                     return Err(unsupported(e.span, "borrowed slices are runtime-only"));
                 }
@@ -1236,6 +1568,11 @@ impl<'a> Walker<'a> {
             .collect()
     }
     fn function(&self, callee: &CoreExpr) -> Option<&'a CoreFunction> {
+        let original = callee;
+        let (callee, template) = match &callee.kind {
+            CoreExprKind::TypeApply { callee, .. } => (callee.as_ref(), true),
+            _ => (callee, false),
+        };
         let name = match &callee.kind {
             CoreExprKind::Name(name) => name,
             CoreExprKind::Member { object, .. } => {
@@ -1255,9 +1592,12 @@ impl<'a> Walker<'a> {
             return None;
         }
         if let Some(context) = self.context {
-            context.function(self.core.module_id, callee)
+            context.function(self.core.module_id, original)
         } else if matches!(callee.kind, CoreExprKind::Name(_)) {
-            self.core.functions.iter().find(|f| &f.name == name)
+            self.core
+                .functions
+                .iter()
+                .find(|f| &f.name == name && (!template || !f.type_parameters.is_empty()))
         } else {
             None
         }
@@ -1390,6 +1730,9 @@ fn scalar_hints(
         if !reduce {
             work.push((expression, depth, true));
             match &expression.kind {
+                CoreExprKind::TypeApply { .. } => {
+                    return Err(forbidden_type_application(expression.span));
+                }
                 CoreExprKind::Unary { operand, .. } | CoreExprKind::CompileTime(operand) => {
                     work.push((operand, depth + 1, false))
                 }
@@ -1510,6 +1853,12 @@ impl CtBuilder<'_> {
             )]);
         }
         match &e.kind {
+            CoreExprKind::TypeApply { .. } => Err(forbidden_type_application(e.span)),
+            CoreExprKind::Call { callee, .. }
+                if matches!(&callee.kind, CoreExprKind::TypeApply { .. }) =>
+            {
+                Err(forbidden_type_application(e.span))
+            }
             CoreExprKind::IntegerConvert { value, target } => {
                 if !target.is_integer() {
                     return Err(unsupported(
@@ -1679,7 +2028,9 @@ mod tests {
             unsupported: vec![],
             functions: vec![CoreFunction {
                 callable_return: None,
-                callable_parameter: None,
+                state_parameters: Vec::new(),
+                type_parameters: Vec::new(),
+                callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
                 foreign: None,
                 id: NodeId(0),
@@ -1887,5 +2238,272 @@ mod tests {
             e.kind,
             CoreExprKind::Integer("-9223372036854775808i64".into())
         );
+    }
+
+    fn runtime_template202() -> CoreModule {
+        let application = expr(CoreExprKind::TypeApply {
+            callee: Box::new(expr(CoreExprKind::Name("reserve".into()))),
+            type_arguments: vec![Type::Package {
+                name: "Item".into(),
+                fields: vec![("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer)))],
+            }],
+        });
+        let call = expr(CoreExprKind::Call {
+            callee: Box::new(application),
+            arguments: vec![
+                expr(CoreExprKind::Name("items".into())),
+                expr(CoreExprKind::CompileTime(Box::new(number("4294967296")))),
+            ],
+        });
+        let mut core = module(expr(CoreExprKind::Unit), Type::Bool);
+        core.functions[0].body.statements[0].kind = CoreStatementKind::Return(Some(call));
+        let mut template = core.functions[0].clone();
+        template.id = NodeId(20);
+        template.name = "reserve".into();
+        template.type_parameters = vec![CoreTypeParameter {
+            index: 0,
+            name: "T".into(),
+            bound: CoreTypeBound::StoreElement,
+        }];
+        template.parameters = vec![
+            CoreParameter {
+                name: "items".into(),
+                ty: Type::Desc(Box::new(Type::OwnedStore {
+                    element: Box::new(Type::Named("T".into())),
+                })),
+                mode: PassingMode::Describe,
+                span: template.span,
+            },
+            CoreParameter {
+                name: "count".into(),
+                ty: Type::I64,
+                mode: PassingMode::Copy,
+                span: template.span,
+            },
+        ];
+        template.body.statements[0].kind =
+            CoreStatementKind::Return(Some(expr(CoreExprKind::Bool(true))));
+        core.functions.push(template);
+        core
+    }
+
+    #[test]
+    fn ct202_runtime_application_preserves_metadata_and_scalar_argument_context() {
+        // Raw Core normalization only: this does not claim the raw fixture is
+        // independently typechecked or that its runtime call has executed.
+        let core = runtime_template202();
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let program = CoreProgram {
+            root: core.module_id,
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![ProgramModule {
+                core: core.clone(),
+                imports: vec![],
+                exports: vec![],
+            }],
+        };
+        let context = SourceProgramContext::new(&program, &limits).unwrap();
+        for context in [None, Some(&context)] {
+            let (normalized, usage) =
+                evaluate_with_context(&core, &target, &limits, context, None).unwrap();
+            assert_eq!(
+                normalized.functions[1].type_parameters,
+                core.functions[1].type_parameters
+            );
+            let CoreStatementKind::Return(Some(call)) =
+                &normalized.functions[0].body.statements[0].kind
+            else {
+                panic!()
+            };
+            let CoreExprKind::Call { callee, arguments } = &call.kind else {
+                panic!()
+            };
+            let CoreStatementKind::Return(Some(original)) =
+                &core.functions[0].body.statements[0].kind
+            else {
+                panic!()
+            };
+            let CoreExprKind::Call {
+                callee: original, ..
+            } = &original.kind
+            else {
+                panic!()
+            };
+            assert_eq!(callee, original);
+            assert_eq!(
+                arguments[1].kind,
+                CoreExprKind::Integer("4294967296i64".into())
+            );
+            assert!(usage.steps > 0);
+        }
+    }
+
+    fn assert_runtime_bare_hint203(state: bool, indexed: bool) {
+        // Raw runtime-call normalization only. A scalar argument hint must not
+        // authorize executing either kind of generic template during CT.
+        let mut core = runtime_template202();
+        let CoreStatementKind::Return(Some(call)) = &mut core.functions[0].body.statements[0].kind
+        else {
+            panic!()
+        };
+        let CoreExprKind::Call { callee, .. } = &mut call.kind else {
+            panic!()
+        };
+        **callee = expr(CoreExprKind::Name("reserve".into()));
+        if state {
+            let function = &mut core.functions[1];
+            function.type_parameters.clear();
+            function.parameters[0].ty = Type::Package {
+                name: "State".into(),
+                fields: vec![
+                    ("first".into(), Type::Named("F".into())),
+                    ("second".into(), Type::Named("G".into())),
+                ],
+            };
+            function.parameters[0].mode = PassingMode::Infer;
+            function.state_parameters = vec![CoreStateParameter {
+                index: 0,
+                bindings: vec![
+                    CoreStateBinding {
+                        generic_index: 0,
+                        generic_name: "F".into(),
+                        kind: CallableKind::Fn,
+                        parameters: vec![],
+                        result: Type::I32,
+                        fields: vec![0],
+                    },
+                    CoreStateBinding {
+                        generic_index: 1,
+                        generic_name: "G".into(),
+                        kind: CallableKind::FnOnce,
+                        parameters: vec![],
+                        result: Type::I32,
+                        fields: vec![1],
+                    },
+                ],
+            }];
+        }
+        let program = CoreProgram {
+            root: core.module_id,
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![ProgramModule {
+                core: core.clone(),
+                imports: vec![],
+                exports: vec![],
+            }],
+        };
+        let limits = Limits::default();
+        let context = SourceProgramContext::new(&program, &limits).unwrap();
+        let (normalized, usage) = evaluate_with_context(
+            &core,
+            &TargetProfile::default(),
+            &limits,
+            indexed.then_some(&context),
+            None,
+        )
+        .unwrap();
+        assert_eq!(normalized.functions[1], core.functions[1]);
+        let CoreStatementKind::Return(Some(call)) =
+            &normalized.functions[0].body.statements[0].kind
+        else {
+            panic!()
+        };
+        let CoreExprKind::Call { callee, arguments } = &call.kind else {
+            panic!()
+        };
+        assert_eq!(callee.kind, CoreExprKind::Name("reserve".into()));
+        assert_eq!(
+            arguments[1].kind,
+            CoreExprKind::Integer("4294967296i64".into())
+        );
+        assert!(usage.steps > 0);
+    }
+
+    #[test]
+    fn ct203_runtime_bare_ordinary_scalar_hint_plain() {
+        assert_runtime_bare_hint203(false, false);
+    }
+
+    #[test]
+    fn ct203_runtime_bare_ordinary_scalar_hint_indexed() {
+        assert_runtime_bare_hint203(false, true);
+    }
+
+    #[test]
+    fn ct203_runtime_bare_state_scalar_hint_plain() {
+        assert_runtime_bare_hint203(true, false);
+    }
+
+    #[test]
+    fn ct203_runtime_bare_state_scalar_hint_indexed() {
+        assert_runtime_bare_hint203(true, true);
+    }
+
+    #[test]
+    fn ct202_template_metadata_and_type_arguments_are_bounded_before_copy() {
+        let mut core = runtime_template202();
+        let limits = Limits {
+            max_analysis_steps: 128,
+            ..Limits::default()
+        };
+        let target = TargetProfile::default();
+        core.functions[1].type_parameters[0].name = "T".repeat(4096);
+        let errors = evaluate_source_constants(&core, &target, &limits).unwrap_err();
+        assert_eq!(errors[0].category, zil_base::ResultCategory::ResourceLimit);
+        assert_eq!(errors[0].phase, Phase::Ct);
+        core.functions[1].type_parameters[0].name = "T".into();
+        let CoreStatementKind::Return(Some(call)) = &mut core.functions[0].body.statements[0].kind
+        else {
+            panic!()
+        };
+        let CoreExprKind::Call { callee, .. } = &mut call.kind else {
+            panic!()
+        };
+        let CoreExprKind::TypeApply { type_arguments, .. } = &mut callee.kind else {
+            panic!()
+        };
+        type_arguments[0] = Type::Named("large".repeat(4096));
+        let errors = evaluate_source_constants(&core, &target, &limits).unwrap_err();
+        assert_eq!(errors[0].category, zil_base::ResultCategory::ResourceLimit);
+        assert_eq!(errors[0].phase, Phase::Ct);
+        let CoreStatementKind::Return(Some(call)) = &mut core.functions[0].body.statements[0].kind
+        else {
+            panic!()
+        };
+        let CoreExprKind::Call { callee, .. } = &mut call.kind else {
+            panic!()
+        };
+        let CoreExprKind::TypeApply { type_arguments, .. } = &mut callee.kind else {
+            panic!()
+        };
+        type_arguments.clear();
+        let errors = evaluate_source_constants(&core, &target, &Limits::default()).unwrap_err();
+        assert_eq!(errors[0].category, zil_base::ResultCategory::Unsupported);
+        assert_eq!(errors[0].phase, Phase::Ct);
+    }
+
+    #[test]
+    fn ct202_type_application_is_forbidden_in_direct_scalar_query() {
+        let application = expr(CoreExprKind::TypeApply {
+            callee: Box::new(expr(CoreExprKind::Name("template".into()))),
+            type_arguments: vec![Type::I32],
+        });
+        for query in [
+            application.clone(),
+            expr(CoreExprKind::Call {
+                callee: Box::new(application),
+                arguments: vec![],
+            }),
+        ] {
+            let errors = evaluate_source_constants(
+                &module(query, Type::I32),
+                &TargetProfile::default(),
+                &Limits::default(),
+            )
+            .unwrap_err();
+            assert_eq!(errors[0].phase, Phase::Ct);
+            assert_eq!(errors[0].code, "E-CT-FORBIDDEN");
+        }
     }
 }

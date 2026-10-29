@@ -1,0 +1,19 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl182_capture_contracts",
+    "--",
+    "--test-threads=2"
+  ],
+  "exit": 0,
+  "head": "251d468a7203cb3a0fff50227a7806c646243133",
+  "dirty": " M crates/zil-analyze/src/holds.rs\n M crates/zil-driver/tests/impl171_resource_heads.rs\n M crates/zil-driver/tests/impl180_store_mut.rs\n M crates/zil-verify/src/borrows.rs\n M crates/zil-verify/src/borrows/buffer_effects.rs\n M crates/zil-verify/src/borrows/loans.rs\n M crates/zil-verify/src/borrows/roots.rs\n?? crates/zil-driver/tests/impl182_capture_contracts.rs\n?? crates/zil-verify/src/borrows/captures.rs\n?? examples/mainline/mixed_capture182/\n?? tools/language/182/\n",
+  "time": 1793151915.0861874
+}

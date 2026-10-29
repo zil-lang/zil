@@ -1,0 +1,13 @@
+    Checking zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-base)
+    Checking zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-ir)
+    Checking zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-syntax)
+    Checking zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-db)
+    Checking zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-verify)
+    Checking zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-types)
+    Checking zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-analyze)
+    Checking zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-expand)
+    Checking zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-backend-llvm)
+    Checking zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-lower)
+    Checking zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-ct)
+    Checking zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-driver)
+    Finished `dev` profile [unoptimized] target(s) in 7.94s

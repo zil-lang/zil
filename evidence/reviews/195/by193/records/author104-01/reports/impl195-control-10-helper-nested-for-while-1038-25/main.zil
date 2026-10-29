@@ -1,0 +1,1 @@
+fn run<F:FnMut()->i32>(f:&mut F,n:i32)->i32{var total=0;for outer in 0..n{var inner=0;while inner<3{inner+=1;if inner==1{continue};if inner==3{break};total+=f()}}return total}fn main()->i32{var value=0;var f=move()=>{value+=1;return value};return run(&mut f,2)-3}

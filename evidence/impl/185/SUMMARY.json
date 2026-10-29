@@ -1,0 +1,40 @@
+{
+  "status": "Pass",
+  "implementation_author": "/root",
+  "implementation_commit": "6f0c77612b504de74e50ee147d124eb303b4ff6a",
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "c060b7bdfa530c7ceff9801c0415c300036a0a3d13cae9de441282d07df696f0",
+  "scope": "Schema23 raw concrete and opaque lending capture sources, bounded wire, explicit fingerprint identity, exported verified JSON and closed production admission. Actual language lending is184, not this slice.",
+  "executed": 36,
+  "assertions": 36,
+  "checks": {
+    "ir": {
+      "passed": 31,
+      "failed": 0,
+      "record": "runs/final03-ir/command.json",
+      "tested_source": "0bb75c0d71c806738989b3447999db88677a864e"
+    },
+    "driver": {
+      "passed": 5,
+      "failed": 0,
+      "record": "runs/final04-driver/command.json",
+      "tested_source": "6f0c77612b504de74e50ee147d124eb303b4ff6a"
+    },
+    "production_clippy": "runs/final03-clippy/command.json",
+    "test_clippy": "runs/final04-test-clippy/command.json"
+  },
+  "source_equivalence": "0bb to6f modifies only exported JSON test input from single compile_source (no module interfaces) to actual two-module compile_project. Production bytes unchanged.",
+  "failures_preserved": [
+    {
+      "record": "runs/ir02/command.json",
+      "reason": "31 IR tests included one old hard-coded next-version23 expectation after publishing23. Original rejection input family kept and version boundary migrated."
+    },
+    {
+      "record": "runs/final03-driver/command.json",
+      "reason": "Single-source fixture has no scalar_interfaces; changed to two actual modules, preserving first failure. No production change."
+    }
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing"
+}

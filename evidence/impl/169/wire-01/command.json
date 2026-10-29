@@ -1,0 +1,25 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-ir",
+    "-j",
+    "2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/compose159",
+  "source_commit": "0d9cb552bee7cbfd22a7f85aa1b633ec5dcf975f",
+  "crates_tree": "9e93937240242990f5319492c520b070c8ef9798",
+  "source_status": "",
+  "start": 1793099977.1883287,
+  "status": "Fail",
+  "exit_code": 101,
+  "log_sha256": "693c034315d2a0118a635df52c8d30a6e88ff520d1c9120917033c5ddce7b459",
+  "end": 1793099979.909798,
+  "seconds": 2.7214691638946533,
+  "error": "required test run has no passing tests or contains failures",
+  "ending_crates_tree": "9e93937240242990f5319492c520b070c8ef9798",
+  "ending_source_status": ""
+}

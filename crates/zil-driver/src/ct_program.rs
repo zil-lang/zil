@@ -125,7 +125,9 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         strip_expr(&mut query);
         let function = CoreFunction {
             callable_return: None,
-            callable_parameter: None,
+            state_parameters: Vec::new(),
+            type_parameters: Vec::new(),
+            callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,
             foreign: None,
             id: NodeId(u32::MAX),
@@ -396,6 +398,94 @@ fn resolve<'a>(
         _ => None,
     }
 }
+// Constant-sized structure only. Names and Type trees are checked for exact
+// equality by mixed_state_signature after each caller has prepaid both heads.
+fn mixed_state_shape(function: &CoreFunction) -> CompileResult<()> {
+    let invalid = || mixed_state_error(function);
+    if function.state_parameters.len() != 1
+        || function.callable_parameters.len() != 1
+        || !function.type_parameters.is_empty()
+        || function.callable_return.is_some()
+        || function.receiver.is_some()
+        || function.foreign.is_some()
+    {
+        return Err(invalid());
+    }
+    let owner = &function.state_parameters[0];
+    let direct = &function.callable_parameters[0];
+    if owner.bindings.len() != 1 || owner.index == direct.index {
+        return Err(invalid());
+    }
+    for index in [owner.index, direct.index] {
+        if !function
+            .parameters
+            .get(index as usize)
+            .is_some_and(|parameter| {
+                matches!(
+                    parameter.mode,
+                    PassingMode::Infer | PassingMode::Move | PassingMode::Give
+                )
+            })
+        {
+            return Err(invalid());
+        }
+    }
+    let bound = &owner.bindings[0];
+    if bound.generic_index != 0
+        || direct.generic_index != 0
+        || bound.generic_name.is_empty()
+        || direct.generic_name.is_empty()
+        || bound.kind == CallableKind::FunctionPointer
+        || direct.kind != bound.kind
+        || !(1..=2).contains(&bound.fields.len())
+        || (bound.fields.len() == 2 && bound.fields[0] >= bound.fields[1])
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn mixed_state_error(function: &CoreFunction) -> Vec<Diagnostic> {
+    vec![Diagnostic::unsupported(
+        Phase::Ct,
+        "mixed State metadata requires one owned State, one identical F replacement and complete field selectors",
+        Some(function.span),
+    )]
+}
+
+// Transport consistency only: no source move/alias or concrete ownership proof.
+// Call only after shape validation and a full bounded traversal of both heads.
+fn mixed_state_signature(function: &CoreFunction) -> CompileResult<()> {
+    let owner = &function.state_parameters[0];
+    let bound = &owner.bindings[0];
+    let direct = &function.callable_parameters[0];
+    let state = &function.parameters[owner.index as usize].ty;
+    if bound.generic_name != direct.generic_name
+        || bound.parameters != direct.parameters
+        || bound.result != direct.result
+        || !matches!(&function.parameters[direct.index as usize].ty,
+            Type::Named(name) if name == &bound.generic_name)
+        || state != &function.return_type
+    {
+        return Err(mixed_state_error(function));
+    }
+    let Type::Package { fields, .. } = state else {
+        return Err(mixed_state_error(function));
+    };
+    let mut selectors = bound.fields.iter();
+    for (index, (_, ty)) in fields.iter().enumerate() {
+        if matches!(ty, Type::Named(name) if name == &bound.generic_name)
+            && selectors.next().copied().map(|field| field as usize) != Some(index)
+        {
+            return Err(mixed_state_error(function));
+        }
+    }
+    if selectors.next().is_some() {
+        return Err(mixed_state_error(function));
+    }
+    Ok(())
+}
+
 struct Collector<'a> {
     program: &'a CoreProgram,
     selected: BTreeSet<(ModuleId, String)>,
@@ -452,9 +542,114 @@ impl Collector<'_> {
         }
         self.ty(result, 0)
     }
+    // Independently preflight all retained State data before the collector
+    // clones even an unused declaration into the runtime normalized program.
+    fn state_header(&mut self, function: &CoreFunction) -> CompileResult<()> {
+        if !function.callable_parameters.is_empty() {
+            mixed_state_shape(function)?;
+            self.charge(0)?;
+            let bound = &function.state_parameters[0].bindings[0];
+            self.charge(0)?;
+            self.text(&bound.generic_name)?;
+            self.parameters(&bound.parameters, &bound.result)?;
+            for _ in &bound.fields {
+                self.charge(0)?;
+            }
+            return Ok(());
+        }
+        let invalid = || {
+            vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "independent State metadata requires one owner and two ordered field bindings",
+                Some(function.span),
+            )]
+        };
+        if function.state_parameters.len() != 1
+            || !function.type_parameters.is_empty()
+            || !function.callable_parameters.is_empty()
+            || function.callable_return.is_some()
+            || function.receiver.is_some()
+            || function.foreign.is_some()
+        {
+            return Err(invalid());
+        }
+        let state = &function.state_parameters[0];
+        if state.bindings.len() != 2
+            || !function
+                .parameters
+                .get(state.index as usize)
+                .is_some_and(|p| {
+                    matches!(
+                        p.mode,
+                        PassingMode::Infer | PassingMode::Move | PassingMode::Give
+                    )
+                })
+        {
+            return Err(invalid());
+        }
+        self.charge(0)?;
+        for (index, bound) in state.bindings.iter().enumerate() {
+            if bound.generic_index as usize != index
+                || bound.generic_name.is_empty()
+                || bound.kind == CallableKind::FunctionPointer
+                || bound.fields.len() != 1
+            {
+                return Err(invalid());
+            }
+            self.charge(0)?;
+            self.text(&bound.generic_name)?;
+            self.parameters(&bound.parameters, &bound.result)?;
+            for _ in &bound.fields {
+                self.charge(0)?;
+            }
+        }
+        if state.bindings[0].fields[0] == state.bindings[1].fields[0] {
+            return Err(invalid());
+        }
+        Ok(())
+    }
     fn header(&mut self, function: &CoreFunction) -> CompileResult<()> {
+        let header_work = self.work_left;
         self.charge(0)?;
         self.text(&function.name)?;
+        if !function.state_parameters.is_empty() {
+            if self.query {
+                return Err(vec![Diagnostic::error(
+                    Phase::Ct,
+                    "E-CT-FORBIDDEN",
+                    Some(function.span),
+                    "independent State templates cannot execute in compile-time queries",
+                )]);
+            }
+            self.state_header(function)?;
+        }
+        if !function.type_parameters.is_empty() {
+            if self.query {
+                return Err(vec![Diagnostic::error(
+                    Phase::Ct,
+                    "E-CT-FORBIDDEN",
+                    Some(function.span),
+                    "ordinary StoreElement templates cannot execute in compile-time queries",
+                )]);
+            }
+            if function.type_parameters.len() != 1
+                || function.type_parameters[0].index != 0
+                || function.type_parameters[0].name.is_empty()
+                || !function.callable_parameters.is_empty()
+                || !function.state_parameters.is_empty()
+                || function.callable_return.is_some()
+                || function.receiver.is_some()
+                || function.foreign.is_some()
+            {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "ordinary StoreElement template metadata requires one lexical binder",
+                    Some(function.span),
+                )]);
+            }
+            self.charge(0)?;
+            self.text(&function.type_parameters[0].name)?;
+        }
         if function.parameters.len() > self.limits.max_locals {
             return Err(vec![Diagnostic::limit(
                 Phase::Ct,
@@ -474,10 +669,16 @@ impl Collector<'_> {
             self.charge(0)?;
             self.parameters(&contract.parameters, &contract.result)?;
         }
-        if let Some(contract) = &function.callable_parameter {
+        for contract in &function.callable_parameters {
             self.charge(0)?;
             self.text(&contract.generic_name)?;
             self.parameters(&contract.parameters, &contract.result)?;
+        }
+        if !function.state_parameters.is_empty() && !function.callable_parameters.is_empty() {
+            // Both raw heads and actual parameter/return types were bounded.
+            // Prepay the full equality and selector scan before using them.
+            self.text_len(header_work - self.work_left)?;
+            mixed_state_signature(function)?;
         }
         if let Some(foreign) = &function.foreign {
             self.charge(0)?;
@@ -597,6 +798,31 @@ impl Collector<'_> {
     fn expression(&mut self, module: ModuleId, e: &CoreExpr, depth: usize) -> CompileResult<()> {
         self.charge(depth)?;
         match &e.kind {
+            CoreExprKind::TypeApply {
+                callee,
+                type_arguments,
+            } => {
+                if self.query {
+                    return Err(vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-FORBIDDEN",
+                        Some(e.span),
+                        "type applications cannot execute in compile-time queries",
+                    )]);
+                }
+                let static_callee = matches!(&callee.kind, CoreExprKind::Name(_))
+                    || matches!(&callee.kind, CoreExprKind::Member { object, .. }
+                        if matches!(&object.kind, CoreExprKind::Name(_)));
+                if type_arguments.len() != 1 || !static_callee {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "type application requires one complete type and a static function callee",
+                        Some(e.span),
+                    )]);
+                }
+                self.ty(&type_arguments[0], depth + 1)?;
+                self.expression(module, callee, depth + 1)?;
+            }
             CoreExprKind::Literal(_) if self.query => {
                 return Err(vec![Diagnostic::error(
                     Phase::Ct,
@@ -856,6 +1082,7 @@ fn strip_expr(e: &mut CoreExpr) {
         return;
     }
     match &mut e.kind {
+        CoreExprKind::TypeApply { callee, .. } => strip_expr(callee),
         CoreExprKind::Ascribed { value, .. } | CoreExprKind::IntegerConvert { value, .. } => {
             strip_expr(value)
         }
@@ -1218,5 +1445,126 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn ct202_collector_rejects_bare_template_and_indirect_wrapper_before_execution() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "template202-ct.zil",
+            "fn pure()->i64{return 42}fn wrapper()->i64{return pure()}",
+        );
+        let ast = zil_syntax::parse(&source).into_result().unwrap();
+        let core = zil_expand::expand(&source, &ast).unwrap();
+        let span = core.functions[0].span;
+        let mut program = CoreProgram {
+            root: ModuleId(0),
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![ProgramModule {
+                core,
+                imports: vec![],
+                exports: vec![],
+            }],
+        };
+        let target = TargetProfile::default();
+        let query = |name: &str| CoreExpr {
+            id: NodeId(800),
+            span,
+            kind: CoreExprKind::Call {
+                callee: Box::new(CoreExpr {
+                    id: NodeId(801),
+                    span,
+                    kind: CoreExprKind::Name(name.into()),
+                }),
+                arguments: vec![],
+            },
+        };
+        let control = Compiler {
+            program: &program,
+            module: ModuleId(0),
+            target: &target,
+        }
+        .compile(&query("wrapper"), Some(&Type::I64), &Limits::default())
+        .unwrap();
+        let verified = zil_verify::verify_ct_program(control, &target, &Limits::default()).unwrap();
+        assert_eq!(
+            zil_ct::evaluate_program(&verified).unwrap().value,
+            zil_ct::CompileTimeValue::Scalar(Constant::I64(42))
+        );
+        program.modules[0]
+            .core
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "pure")
+            .unwrap()
+            .type_parameters = vec![CoreTypeParameter {
+            index: 0,
+            name: "T".into(),
+            bound: CoreTypeBound::StoreElement,
+        }];
+        for name in ["pure", "wrapper"] {
+            let errors = Compiler {
+                program: &program,
+                module: ModuleId(0),
+                target: &target,
+            }
+            .compile(&query(name), Some(&Type::I64), &Limits::default())
+            .unwrap_err();
+            assert_eq!(errors[0].phase, Phase::Ct);
+            assert_eq!(errors[0].code, "E-CT-FORBIDDEN");
+        }
+        let mut wrapped = query("pure");
+        let CoreExprKind::Call { callee, .. } = &mut wrapped.kind else {
+            panic!()
+        };
+        **callee = CoreExpr {
+            id: NodeId(802),
+            span,
+            kind: CoreExprKind::TypeApply {
+                callee: callee.clone(),
+                type_arguments: vec![Type::Named("T".into())],
+            },
+        };
+        let errors = Compiler {
+            program: &program,
+            module: ModuleId(0),
+            target: &target,
+        }
+        .compile(&wrapped, Some(&Type::I64), &Limits::default())
+        .unwrap_err();
+        assert_eq!(errors[0].code, "E-CT-FORBIDDEN");
+    }
+
+    #[test]
+    fn ct202_collector_bounds_unused_template_names_before_whole_program_copy() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "template202-shape.zil",
+            "fn f()->i32{return 42}",
+        );
+        let ast = zil_syntax::parse(&source).into_result().unwrap();
+        let mut core = zil_expand::expand(&source, &ast).unwrap();
+        core.functions[0].type_parameters = vec![CoreTypeParameter {
+            index: 0,
+            name: "T".repeat(8192),
+            bound: CoreTypeBound::StoreElement,
+        }];
+        let errors = single(
+            &core,
+            &TargetProfile::default(),
+            &Limits {
+                max_analysis_steps: 256,
+                ..Limits::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+        assert_eq!(errors[0].phase, Phase::Ct);
+        core.functions[0].type_parameters[0].index = 1;
+        let errors = single(&core, &TargetProfile::default(), &Limits::default()).unwrap_err();
+        assert_eq!(errors[0].category, ResultCategory::Unsupported);
+        assert_eq!(errors[0].phase, Phase::Ct);
     }
 }

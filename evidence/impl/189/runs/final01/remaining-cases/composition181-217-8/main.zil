@@ -1,0 +1,1 @@
+resource R{n:i32}package Item{manages r:R;value:i32}struct Holder<T>{value:T}fn bad<T>(holder:Holder<T>)->(T,T){return (holder.value,holder.value)};fn main(){}

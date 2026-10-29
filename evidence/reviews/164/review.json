@@ -1,0 +1,223 @@
+{
+  "task": "164",
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root/trait_bounds",
+  "implementation_author": "/root",
+  "implementation_commit": "712a9602797891083fe3f549381e1e12ab34dd02",
+  "tested_source_commit": "712a9602797891083fe3f549381e1e12ab34dd02",
+  "crates_tree": "42bafd5f66e49c0e6e077ed793fe78327b43558f",
+  "source_modification_by_reviewer": false,
+  "reviewed_at_utc": "2026-10-27T10:41:06.246830+00:00",
+  "scope": "Independent task164 tooling and four-module source composition review; additional nested receiver argument-failure consumer.",
+  "source_sha256": {
+    "examples/mainline/zui_language164/adapter.zil": "8a7ecd3c86ff2015065016014fe0d098400db004a94acf489c9eebfe7bb0f495",
+    "examples/mainline/zui_language164/main.zil": "5d77a8d8e0531e100a87808e23eac9d1bb46ddef8de50559425ba33691f6eb90",
+    "examples/mainline/zui_language164/model.zil": "b21fa6e1683ad311cea8f4a377f786cbccfd456d4cc5413ae3051ee768955fd8",
+    "examples/mainline/zui_language164/ticket.zil": "7586585505ca5165bb9d712c015c9acccea025387948d02013ad32985564d225",
+    "tools/language/164/readiness.py": "1149604c5b50209139176f267da35b5bedca796e744972ade70314532fd2aada",
+    "tools/language/164/record.py": "c05fce72aaaa8eb3321b7cc87b3532c3ab6cb5ffecbf6d25e939ff148699d739",
+    "tools/language/164/restore.py": "6660fdc694431d6d9106a6b81bb4af429279354080d4034c49ddf66ca6b1c664",
+    "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5",
+    "tools/research/159/readiness.py": "1acf26ce2b3b74629a4936d74ab0f943ce71d6751f1843c2a3a64d7241520f45"
+  },
+  "independent_build": {
+    "target": "/workspace/scratch/39be3faa4442/targets/review164",
+    "worktree": "/workspace/scratch/39be3faa4442/zil-restored/review164",
+    "receipt": "build/command.json",
+    "cli_sha256": "40d203b2aaf0dc5bc7bd345b17615e1efe80d3235c403cdde6a95ced490c5154",
+    "compiler_and_consumer_sources_unchanged_during_run": true
+  },
+  "tool_controls": {
+    "kind": "Synthetic metadata-tool checks, not language tests",
+    "reviewed_commit": "e08ee25ff7471640708acfc2ceef83d7ba484bae",
+    "unchanged_at_tested_commit": true,
+    "passed": 8,
+    "results": "controls/fixed.json",
+    "original_failure_evidence": "controls/initial.json",
+    "checks": [
+      "synthetic_zero_tests_with_require_tests",
+      "dirty_source_rejects_before_execution",
+      "ordinary_exit0_command_not_requiring_tests",
+      "wrong-source",
+      "empty-worktrees",
+      "missing-retained-ref",
+      "valid-complete",
+      "empty_corpus_rejects_and_records_fail"
+    ]
+  },
+  "tool_source_review": [
+    "Fresh output directories reject artifact reuse; incomplete subprocesses do not produce a final Pass.",
+    "record --require-tests rejects absent/zero-pass/failing test summaries; ordinary build success does not claim test execution. Dirty crates reject before execution; ending changes reject the receipt.",
+    "restore binds a nonempty source_commit to main worktree and main ref, verifies bundle SHA and complete restored refs, fsck and each worktree HEAD.",
+    "readiness uses all six unchanged159 sources, checks process/status consistency, rejects Parse failures, requires exactly one Verify for every Success and records failures.",
+    "The 1024-event source checks each route result and byte, while its only putchar is Ticket.Drop. Actual output and allocation counts agree."
+  ],
+  "language_validation": {
+    "original_probes": [
+      {
+        "capability": "nested-owning-callback",
+        "status": "Success",
+        "phase": "verify",
+        "exit_code": 0,
+        "verification_runs": 1
+      },
+      {
+        "capability": "owned-array-elements",
+        "status": "SafeReject",
+        "phase": "types",
+        "exit_code": 1,
+        "verification_runs": 0
+      },
+      {
+        "capability": "owned-error-result",
+        "status": "Unsupported",
+        "phase": "types",
+        "exit_code": 3,
+        "verification_runs": 0
+      },
+      {
+        "capability": "generic-trait-bound",
+        "status": "Success",
+        "phase": "verify",
+        "exit_code": 0,
+        "verification_runs": 1
+      },
+      {
+        "capability": "owning-method-receiver",
+        "status": "Unsupported",
+        "phase": "types",
+        "exit_code": 3,
+        "verification_runs": 0
+      },
+      {
+        "capability": "array-of-capturing-callbacks",
+        "status": "Unsupported",
+        "phase": "types",
+        "exit_code": 3,
+        "verification_runs": 0
+      }
+    ],
+    "original159_source_unchanged_from_baseline": "git diff e9a604c80d56027a5fb6c28bcb8b58f9c9e84a7b 712a9602797891083fe3f549381e1e12ab34dd02 -- tools/research/159/readiness.py: empty",
+    "native_builds": 4,
+    "each_native_build_verification_runs": 1,
+    "native_executions": 8,
+    "normal_consumer": {
+      "results": "consumer/summary.json",
+      "native_executions": 4,
+      "optimization_profiles": [
+        "O0",
+        "O2"
+      ],
+      "executions_per_profile": 2,
+      "events_per_execution": 1024,
+      "expected_exit": 0,
+      "drop_observations_per_execution": 1024,
+      "each_probe_allocation": {
+        "allocated": 1,
+        "frees": 1,
+        "live": 0
+      }
+    },
+    "argument_failure_consumer": {
+      "results": "error/summary.json",
+      "source": "error-source/main.zil",
+      "native_executions": 4,
+      "optimization_profiles": [
+        "O0",
+        "O2"
+      ],
+      "executions_per_profile": 2,
+      "expected_exit": 1,
+      "drop_observations_per_execution": 1,
+      "each_probe_allocation": {
+        "allocated": 1,
+        "frees": 1,
+        "live": 0
+      },
+      "coverage": "A public nominal trait adapter runs inside two owning closure levels; an explicit give method receiver is prepared before a later fail()? argument. The sole Ticket debt is cleaned exactly once on error, and the outer ByteBuffer is freed during propagation."
+    }
+  },
+  "resolved_findings": [
+    {
+      "finding": "Zero executed tests and preexisting dirty source could appear Pass in the original recorder.",
+      "resolution": "Fixed by e08ee25; explicit --require-tests zero-pass control and dirty-start prevention independently reproduced and passed."
+    },
+    {
+      "finding": "Restore originally accepted mismatched source identity or empty/subset manifest refs.",
+      "resolution": "Fixed by e08ee25; mismatches, empty worktrees and missing retained ref reject; complete valid tiny bundle restores."
+    },
+    {
+      "finding": "Readiness needed fixed corpus membership, universal successful Verify counts and durable exceptional failure state.",
+      "resolution": "Fixed by e08ee25; source inspected and empty-corpus control records Fail."
+    }
+  ],
+  "open_blocking_findings": [],
+  "remaining_original_probes": [
+    "owned-array-elements",
+    "owned-error-result",
+    "owning-method-receiver",
+    "array-of-capturing-callbacks"
+  ],
+  "limits": [
+    "StagePass_FullZuiNotReady: owned arrays, owned error results, resource/Package head-address receivers and arrays of capturing callbacks remain outside this completed stage.",
+    "The new Desc/give resource methods do not satisfy the original owning-method-receiver probe, which still requires unavailable resource head addresses.",
+    "No complete workspace, performance benchmark or additional raw/wire mutation suite was run by this164 reviewer. The integrator owns workspace gates;161/163 independent reviews remain separate evidence.",
+    "Synthetic metadata-tool controls and the valid tiny restoration fixture are not counted as language execution or restoration of the final delivery bundle.",
+    "No B0 or full-ZUI completion is asserted."
+  ],
+  "toolchain": {
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "1.99.1 (5f94df478 2026-08-27)",
+    "clang": "17.0.6",
+    "inherited159_clang": "17.0.0"
+  },
+  "commands": [
+    {
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review164",
+      "argv": [
+        "python3",
+        "tools/language/164/record.py",
+        "--out",
+        "/workspace/scratch/39be3faa4442/run-logs/review164/build712a960",
+        "--",
+        "cargo",
+        "build",
+        "-p",
+        "zil-cli"
+      ],
+      "exit": 0
+    },
+    {
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review164",
+      "argv": [
+        "python3",
+        "tools/language/164/readiness.py",
+        "--repo",
+        "/workspace/scratch/39be3faa4442/zil-restored/review164",
+        "--cli",
+        "/workspace/scratch/39be3faa4442/targets/review164/debug/zil",
+        "--out",
+        "/workspace/scratch/39be3faa4442/run-logs/review164/consumer712a960"
+      ],
+      "exit": 0
+    },
+    {
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review164",
+      "argv": [
+        "python3",
+        "/workspace/scratch/39be3faa4442/run-logs/review164/error-consumer/run.py",
+        "--repo",
+        "/workspace/scratch/39be3faa4442/zil-restored/review164",
+        "--cli",
+        "/workspace/scratch/39be3faa4442/targets/review164/debug/zil",
+        "--out",
+        "/workspace/scratch/39be3faa4442/run-logs/review164/error712a960"
+      ],
+      "exit": 0
+    }
+  ],
+  "evidence_manifest": "artifact-manifest.json",
+  "full_local_evidence_root": "/workspace/scratch/39be3faa4442/run-logs/review164",
+  "evidence_manifest_sha256": "be038986eaa815684062389e87c617af7aa9dc7ca3e27ab8d6ec8debba213638"
+}

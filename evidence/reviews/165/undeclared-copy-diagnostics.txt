@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Expand,
+        category: SafeReject,
+        code: "E-GENERIC-ARGUMENT",
+        message: "generic bound Copy is not a declared nominal trait",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 9,
+                end: 13,
+            },
+        ),
+        notes: [],
+    },
+]

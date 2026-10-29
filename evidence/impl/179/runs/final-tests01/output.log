@@ -1,0 +1,25 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-lower)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-backend-llvm)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-analyze)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-types)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-driver)
+error: found crates (`zil_expand` and `zil_expand`) with colliding StableCrateId values
+   --> crates/zil-driver/tests/impl175_store_views.rs:507:16
+    |
+507 |     let core = zil_expand::expand(&source, &syntax).unwrap();
+    |                ^^^^^^^^^^
+
+error: crate `zil_ct` required to be available in rlib format, but was not found in this form
+
+error: crate `zil_expand` required to be available in rlib format, but was not found in this form
+
+error: could not compile `zil-driver` (test "impl120_field_backing_native") due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `zil-driver` (test "impl175_store_views") due to 1 previous error

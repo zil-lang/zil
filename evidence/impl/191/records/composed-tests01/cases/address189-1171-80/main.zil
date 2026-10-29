@@ -1,0 +1,1 @@
+resource R{n:i32}fn eat(give r:R){}fn main()->i32{let r=R{n:42};let d=r;let other=42;let q=&other;let f=(p:&i32)=>{d.n=43;return *p};let borrowed=&f;return borrowed(q)-42}

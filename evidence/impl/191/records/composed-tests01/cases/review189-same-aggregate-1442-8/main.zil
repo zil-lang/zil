@@ -1,0 +1,1 @@
+struct Pair{x:i32;y:i32}fn pass(p:&mut Pair)->&mut Pair{return p}fn main()->i32{var a=Pair{x:2,y:3};let pa=pass(&mut a);let edit=(p:&mut Pair,q:&mut Pair)=>{p.x+=1;q.y+=1};edit(pa,pa);return 0}

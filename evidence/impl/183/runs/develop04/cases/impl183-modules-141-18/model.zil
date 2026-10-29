@@ -1,0 +1,1 @@
+extern "C" fn putchar(n:i32)->i32;pub enum E{Fail}pub resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}pub fn read(r:R)->i32=>r.code

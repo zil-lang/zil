@@ -1,0 +1,31 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl171_resource_heads",
+    "--test",
+    "impl172_owned_store",
+    "--offline",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "source_commit": "1e5352cd89d97c252f1f5e74c9a1fbcd5862568d",
+  "crates_tree": "a5ccae6cfb949fcb5cf4b75645a884e384b72ea5",
+  "source_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/175",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/175/regression-cases01"
+  },
+  "start": 1793115152.6297946,
+  "exit_code": 0,
+  "status": "Pass",
+  "end": 1793115158.7125168,
+  "log_sha256": "9b4587e0db535841bb707e73bca4fe70d6587eab71eb1a391782e6ce09874581"
+}

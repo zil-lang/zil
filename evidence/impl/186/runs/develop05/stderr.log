@@ -1,0 +1,4 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.39s
+     Running tests/impl186_generic_owned_success.rs (/workspace/scratch/39be3faa4442/targets178/author186/debug/deps/impl186_generic_owned_success-3e00fa64064fdc70)
+     Running tests/impl186_raw_owned_success.rs (/workspace/scratch/39be3faa4442/targets178/author186/debug/deps/impl186_raw_owned_success-6cd987e2e27b3d8c)

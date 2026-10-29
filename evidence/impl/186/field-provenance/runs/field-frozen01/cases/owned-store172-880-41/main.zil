@@ -1,0 +1,1 @@
+fn main()->i32{let s:Store<i32>=store_new();return 0}

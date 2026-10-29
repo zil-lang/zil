@@ -77,6 +77,59 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 
 097完成固定四臂真实生产比较，A/B/AB按原规则全部NoGo，生产crate净恢复，研究/失败与原候选历史保留。098把独立C字节参考、Rust模型与ZIL/C各O0/O2接入原Roam队列；099在schema17完成ByteBuffer直接拥有Package字段和可保存拥有闭包的完整纵切。100以已合入098/099为强基线，独立检验按收敛状态切换调度；440进程/1760请求虽有反向链收益，三个API单元触发原冻结退化条件，生产NoGo并恢复，研究交付按精确提交独审。四目标产品状态、规范与正式父任务保持。
 
-## 209：GitHub主线整合与研发默认策略
+## 2026-10-28：1.4 / Ante-R1 语言接续
 
-用户授权将LLVM API作为研发主路线，不等待整个Builder迁移完成才整合。标准CLI默认启用API，Clang为显式差分对照；默认单模块保持。直接Builder、稳定编译身份、结构化CGU与对象缓存继续沿同一生产接口逐片替换，不能登记为已完成。远端同步必须由真实push与SHA回读确认；没有写权限不得宣称GitHub已更新。
+用户指定的1.4已采用，规范输入及编号标识校准见changes/178-181-ante-r1-adoption.md。以177精确源码继续，178–181首次派工；不是沿用设计文件中的173旧实现声明。当前并行泛型Store协议、实际字段借用精度、受限独占元素窗口，181承担公共接口、平台与组合。新的投影/失效/捕获义务逐项以源码和独立验收关闭；完整规范剩余项不因本组通过取消。LLVM API、查询/SCC、稳定编译身份和机器缓存由独立编译专项接续，本语言线不合并其未审核快照。
+
+## 2026-10-28：178–195验收收口
+
+当前17个有限切片已合入，181组合总片与B0继续施工；194结构Copy与195循环控制收口后，全仓2063/0，实际受测身份及未完成义务见docs/LANGUAGE-195.md和evidence/integration/195/final/RESULT.json。优先197单State+CopyT，196多角色公共合同并行准备；两者仍是提案，后续拥有组合、保留窗口、卫生UI DSL及异步/并发义务不取消。完整语言NotSatisfied、产品NotRun，编译专项独立。
+
+## 2026-10-28：196–198验收与199–200继续
+
+196角色表/联合事件、197混合拥有State及198离线bundle均经非作者审核合入；公开schema25，精确7fef1779全仓2138/0。完整1.4与产品门保持。199直接字段调用位置正在独审；200按三个原始探针继续同F双持久字段与双输入拥有构造，前端/独立Analyze/Verify并行。callback Store清理、不同F/G State、一般trait/lending、卫生Syntax、挂起并发等按changes/200-proposal.md真实缺口另承接，不从终态删除。
+
+## 2026-10-28：196–200 检查点接受
+
+199真实字段调用和200同F双字段/双输入构造现已非作者审核并合入；最终clean b9c006b0完整工作区2198/0/0。原失败、旧预算1731→1807→1731的实际对照、仅文本迁移以及同源基础设施失败重试均按原身份保留。当前报告见docs/LANGUAGE-200.md，实际受测身份见evidence/integration/200/final/RESULT.json。标准完整main bundle支持用户线下明确合并编译支线；不自动合并或重标速度成绩。下一201优先回调Store的真实元素资格、窗口、布局和逐元素清理，再推进F/G持久State及其余1.4义务。完整语言NotSatisfied、产品NotRun、B0 Doing保持。
+
+## 2026-10-28：201 callback Store接受，完整T绑定接续
+
+201有限同F回调元素的真实拥有、字段窗口、前缀清理与allocator故障已非作者验收；最终clean893ea73e全仓2250/0/0。原始02晋升成功、零payload Package捕获误拒修复和旧175/180诊断迁移均保留精确收据。见docs/LANGUAGE-201.md。下一202优先普通T:StoreElement模板的完整类型绑定；不同F/G持久State、一般抽象/卫生Syntax/保留与挂起并发义务不删除。完整语言NotSatisfied、产品NotRun、B0 Doing；编译专项独立。
+
+## 2026-10-28：202 完整普通T模板接受
+
+202的caller词法作用域、完整名义T实例、未用定义检查、真实Desc效果、无Store操作的资格核、CT边界和IDE失效均完成有限验收。最终clean b73ba8a7全仓2319/0/0；五模块Linux/Wine各126/0、各86真实分配失败，非作者另行Linux126通过。原四类实现缺陷、夹具/环境失败与迁移按原身份保留，详见docs/LANGUAGE-202.md。下一203同批推进F/G持久State、声明模式来源与最多两种具体callback的有限Store资格，使普通T组合继续按声明约束检查。完整1.4 NotSatisfied、产品/原生Windows NotRun、B0 Doing，编译专项独立。
+
+## 2026-10-28：203 独立State绑定施工
+
+依据§8.2.2并行实施Core独立State声明表、F/G模式来源和有限双环境Store资格；真实完整T及字段/元素责任保真。202已接受记录保持；203登记不计实现完成，验收需精确候选与独立证据，完整1.4及产品状态保持。
+
+## 2026-10-28：203 独立State绑定接受
+
+203在schema/Wire27贯通两个独立声明F/G、真实字段/名义身份、有限双实际环境Store与裸普通T值推导。原未用定义的move/alias/exclusive/loop-condition漏检及CT上下文缺陷按原输入闭合；两次旧测试迁移与两次全量Fail均保留。最终clean2e58整仓2404/0/0、247组，同源Clippy通过；五模块Linux/Wine各128次、各88真实分配失败，live0，非作者另行Linux128通过。详见docs/LANGUAGE-203.md及精确集成收据。下一204优先有限叶子Store与完整Package拥有捕获，保留§9.1既有拥有推导、真实模式、独立资格与失败清理；其它终态义务不删除。完整1.4 NotSatisfied、产品/原生Windows NotRun、B0 Doing，编译支线独立。
+
+## 2026-10-28 204施工
+
+203已验收后继续有限叶Store拥有捕获，正式范围见设计§9.1.1及主树204工单；Types、Analyze、Verify/LLVM和非作者审核并行。登记不计通过，完整1.4/B0/产品/原生Windows状态保持，编译速度支线独立。
+
+## 2026-10-28：204 有限叶Store拥有捕获接受
+
+204在schema/Wire27贯通实际拥有推断、Fn/FnMut/FnOnce、完整Package及当前State/外层Store组合。TakeCapture后旧元素窗口的真实source/raw/Wire误接受已由Analyze/Verify独立修复；非法输入未native，原失败和阶段迁移保留。最终clean85f01d62整仓2469/0/0、252组及同源Clippy通过；作者Linux/Wine与独立Linux各148/108真分配失败，live0，计数分列。详见docs/LANGUAGE-204.md。下一205优先一个State<T,F>与独立replacement:F的普通更新入口，具体合同待正式派工；其它1.4终态义务不删。完整语言NotSatisfied、产品/原生Windows NotRun、B0 Doing，编译支线独立。
+
+
+## 2026-10-28：205施工
+
+205以204精确冻结交付继续一个完整State与独立同F替换值的普通更新入口。Types、Expand/消费者、CT/独立核与非作者审核并行；保留实际3位置、未用定义与失败清理。完整1.4/B0/产品状态不变，编译支线独立。
+
+## 2026-10-28：205 State与独立替换值接受
+
+205在schema/Wire27贯通一个完整State与独立同F replacement的普通更新、实际三位置责任和失败清理。未用旧定义别名、真实循环刷新、单F完整T推导和旧合法整值转交四类缺陷已有原输入闭环。最终clean2db3c090全仓2552/0/0、259组及同源Clippy通过；作者Linux/Wine与独立Linux各140/0、各88真分配失败，live0，原失败和不同执行身份保留。详见docs/LANGUAGE-205.md。下一206优先有限完整嵌套拥有Product及逐叶来源，不删除其余1.4目标。完整语言NotSatisfied、产品/原生Windows NotRun、B0 Doing，编译支线独立。
+
+## 2026-10-28：206施工
+
+以205最终61c2d252为基线，正式并行完整嵌套Package Product、独立逐叶来源与机器清理。原120B和child-only等9源在旧CLI04实际Unsupported；新规范登记与预声明oracle不计实现。Types/Analyze、Verify、Lower/LLVM消费者及独审独立，完整1.4/B0/产品状态保持。
+
+## 2026-10-28：206普通完整Product接受
+
+206将普通完整Package递归到完整child，父单责任、独立逐叶Created/Incoming和递归声明序清理已贯通。clean bf44fb1e全仓2615/0/0、Clippy和最终Linux/Wine消费者经非作者6bc19f7a核回；原full Fail和局部raw捕获资格漏洞及修复完整保留。详见docs/LANGUAGE-206.md。207继续完整Product拥有捕获、默认真实消费推导与持久环境，不混入编译速度支线；完整1.4 NotSatisfied、B0 Doing、产品/原生Windows NotRun。

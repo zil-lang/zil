@@ -1,0 +1,30 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--manifest-path",
+    "/workspace/scratch/39be3faa4442/run-logs/review171-package170/probes/Cargo.toml",
+    "--offline",
+    "-j2",
+    "--",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review171-package170",
+  "source_commit": "2d5214b0a65a688f86736abdcf54625b5427ae9b",
+  "crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+  "source_status": "",
+  "start": 1793111540.2763867,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "aaa6c37029194efe698588b8de1fccbb3573b0b50504f03a9f589310373cdd16",
+  "end": 1793111542.0528607,
+  "seconds": 1.7764739990234375,
+  "tests": {
+    "passed": 5,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 2
+  },
+  "ending_crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+  "ending_source_status": ""
+}

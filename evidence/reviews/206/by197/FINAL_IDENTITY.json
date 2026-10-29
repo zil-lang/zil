@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "task": "206",
+  "reviewer": "/root/review205_finish",
+  "status": "Pass",
+  "implementation_commit": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+  "implementation_tree": "fdde3a8af3a4ce916a493ff4c9e5b9f160df06c9",
+  "review_checkout_before_record": "0a19cf525cdc61fc1b02cc1486aa23238f53f818",
+  "spec_hash": "f26a0d8701b9a00a38286f486b7bcae1b96cf1d9254add7c48d395bb3e6ccbc3",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "compiler_build": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/cli04/binary.json",
+    "bytes": 31666,
+    "sha256": "fa3cffd01551ed6fa3dfba94a005fbf1d83434864435b71e6439a141278b0d41"
+  },
+  "cli_bytes": 28941608,
+  "cli_sha256": "3bc6fc0a23aee0058ebd25fb941d9110d9432252fcf5ba1d302a8e457990a491",
+  "complete_compiler_input_set": 182,
+  "all_compiler_inputs_equal_candidate": true,
+  "test_fixture_and_legacy_inputs_equal_candidate": 44,
+  "test_identity_receipt": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/206-review-final/STATIC_DRAFT01.json",
+    "bytes": 11498,
+    "sha256": "27dba63d8ec5a9bf72f71dafa601d54a0ab5ff56045487a7227f277217df9ef3"
+  },
+  "metadata_only_differences": [
+    "changes/206-machine-product.md",
+    "evidence/impl/206/consumer/ARCHIVE.json",
+    "evidence/impl/206/consumer/RESULT.json",
+    "evidence/impl/206/consumer/SOURCE-OBSERVATIONS.json",
+    "evidence/impl/206/machine/CLI03.json",
+    "evidence/reviews/206/by197/CAPTURE_REPAIR01.json",
+    "evidence/reviews/206/by197/MIGRATION_REVIEW01.json"
+  ],
+  "root_workspace": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/workspace02/command.json",
+      "bytes": 910,
+      "sha256": "ab90da6b6e7831942450d5a1844a72894dee33fbd09541c735053e2f7c3eb9e2"
+    },
+    "stdout": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/workspace02/stdout.log",
+      "bytes": 232385,
+      "sha256": "3a7c611b369d4b0f70a00747e6a379674393c24bb60f64d59eb93dd3d561cc79"
+    },
+    "stderr": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/workspace02/stderr.log",
+      "bytes": 30344,
+      "sha256": "30f6fd878dee8a0348f8b7230a82e7a2d401226ce7bab725a6cbb3a64507a135"
+    },
+    "counts": {
+      "passed": 2615,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 266
+    },
+    "counts_receipt": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/workspace02/COUNTS.json",
+      "bytes": 379,
+      "sha256": "c148636349fb494924fbe18a1d7e16d28720a47c4fe61f323b438cce388245c2"
+    },
+    "seconds": 184.6501214504242
+  },
+  "root_clippy": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/clippy-final01/command.json",
+      "bytes": 910,
+      "sha256": "71d84b547e7a41ea249f1f86f6479f04ba75b7959a4bb285ac9ff07600435429"
+    },
+    "stdout": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/clippy-final01/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderr": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/clippy-final01/stderr.log",
+      "bytes": 1487,
+      "sha256": "659f32d1d1603218959752fd7da9cbaca67e444b71af10bfdc6f408eabd433e0"
+    }
+  },
+  "author_linux": {
+    "summary": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-consumer-final/linux02/summary.json",
+      "bytes": 55267,
+      "sha256": "a84eaec06e4ee82248f35af911ab67a0e26cc80f414155605c2e3a601fd389c5"
+    },
+    "executions": 94,
+    "ordinary": 20,
+    "instrumented": 74,
+    "actual_allocation_failures": 42,
+    "all_live_zero": true,
+    "actual_records_rechecked": 94,
+    "platform": "linux",
+    "execution": "native",
+    "native_windows": "NotRun"
+  },
+  "author_wine_compatibility": {
+    "summary": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-consumer-final/wine02/summary.json",
+      "bytes": 58031,
+      "sha256": "217ecd9ab328065c9a83f3a386b4dd7184b040d317cdeddb7bc4b8bec9531361"
+    },
+    "executions": 94,
+    "ordinary": 20,
+    "instrumented": 74,
+    "actual_allocation_failures": 42,
+    "all_live_zero": true,
+    "actual_records_rechecked": 94,
+    "platform": "win64",
+    "execution": "Wine compatibility",
+    "native_windows": "NotRun"
+  },
+  "independent_linux_records": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/206-review-final/LINUX_RECORDS.json",
+    "bytes": 111891,
+    "sha256": "5a4a5c167c4da93537b9e8ae9f437bcf1571a2bca9ca832a5a1353c2dcc42975"
+  },
+  "audit_script": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/206-review-final/final_review.py",
+    "bytes": 13300,
+    "sha256": "212adf0682fd333dcfff086f60da5766bea8d0687a0b507fb18af91beb1e7dec"
+  },
+  "audit_command": "/workspace/scratch/39be3faa4442/run-logs/206-review-final/final-review-command/command.json"
+}

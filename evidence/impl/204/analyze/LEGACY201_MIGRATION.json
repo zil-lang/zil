@@ -1,0 +1,86 @@
+{
+  "status": "Pass",
+  "source_commit": "fd6de26275e84e9a15b0546a245f4ebba35d4cbf",
+  "before_kind": "Original strict assertions; catch-unwind only continues to freeze all six original modules; overall 0/1 Fail retained with three diagnostic mismatches.",
+  "after_kind": "Only exact named diagnostic expectations migrated; original five negative modules and last positive unchanged.",
+  "cases": [
+    {
+      "case": "borrowed-desc",
+      "module_sha256": "96f4e9198944bc52c8a35551d73491d66c48de0421fb3c7e15b6c1f81233e427",
+      "result_sha256": "5ce534ca4bb0aaa5fd3bcf0b37e59ccb65cdaf9be1e82d3df7dad03b6a62764c",
+      "bytes": 8317,
+      "module_and_actual_result_unchanged": true,
+      "actual": "Analyze Unsupported",
+      "messages": [
+        "callback State requires a self-contained environment with supported owned captures"
+      ],
+      "before_path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-before01/cases/raw201-843059-0",
+      "after_path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-after01/cases/raw201-843505-0"
+    },
+    {
+      "case": "direct-store-conflicting-canonical",
+      "module_sha256": "b6ffddb47fa00797aa8eb9af138b9af1b9fe1e86bb2a284c369fa20a6bbf1b62",
+      "result_sha256": "043659eadce448cba74a66e47ddfb76f1f133262349416fbba4f461a88d4141e",
+      "bytes": 8939,
+      "module_and_actual_result_unchanged": true,
+      "actual": "Analyze Unsupported",
+      "messages": [
+        "captured Store Item cannot contain callbacks, addresses, descriptions, nested Store or unresolved types"
+      ],
+      "before_path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-before01/cases/raw201-843059-1",
+      "after_path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-after01/cases/raw201-843505-1"
+    },
+    {
+      "case": "package-store-conflicting-canonical",
+      "module_sha256": "304f421b40eb42a5e3e34e7769b7f5bfd4297df987708010924e321654870598",
+      "result_sha256": "043659eadce448cba74a66e47ddfb76f1f133262349416fbba4f461a88d4141e",
+      "bytes": 9395,
+      "module_and_actual_result_unchanged": true,
+      "actual": "Analyze Unsupported",
+      "messages": [
+        "captured Store Item cannot contain callbacks, addresses, descriptions, nested Store or unresolved types"
+      ],
+      "before_path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-before01/cases/raw201-843059-2",
+      "after_path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-after01/cases/raw201-843505-2"
+    },
+    {
+      "case": "nested-callback-package",
+      "module_sha256": "c2eb0115a4084981de20171527757aa53195b28f2d1b9e2d62659f6cd5d08f9a",
+      "result_sha256": "8152c7f33c88e4efc9cfcb7a5b8dc65d2e6021981cf1805a0ce6c5e440bf1329",
+      "bytes": 8989,
+      "module_and_actual_result_unchanged": true,
+      "actual": "Analyze Unsupported",
+      "messages": [
+        "captured Store Package requires direct owned Store, supported Managed and finite Copy fields"
+      ],
+      "before_path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-before01/cases/raw201-843059-3",
+      "after_path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-after01/cases/raw201-843505-3"
+    },
+    {
+      "case": "child-desc",
+      "module_sha256": "bbcc1520c11fe85209f99a5331c9b1e130a3535dab18c3d10b74a8071a9dd9d5",
+      "result_sha256": "5ce534ca4bb0aaa5fd3bcf0b37e59ccb65cdaf9be1e82d3df7dad03b6a62764c",
+      "bytes": 9769,
+      "module_and_actual_result_unchanged": true,
+      "actual": "Analyze Unsupported",
+      "messages": [
+        "callback State requires a self-contained environment with supported owned captures"
+      ],
+      "before_path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-before01/cases/raw201-843059-4",
+      "after_path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-after01/cases/raw201-843505-4"
+    },
+    {
+      "case": "child-copy-positive",
+      "module_sha256": "3cc24c5e0d83223e8c12d1176ca4f4dabb1a4c486aae0f2d6af8ccae3e89471a",
+      "result_sha256": "60ef4b1e5433d41fbe61964da3b9f473e7a057f011469a95c535e5c2e36fe91e",
+      "bytes": 9717,
+      "module_and_actual_result_unchanged": true,
+      "actual": "Success",
+      "messages": [],
+      "before_path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-before01/cases/raw201-843059-5",
+      "after_path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-after01/cases/raw201-843505-5"
+    }
+  ],
+  "production_changed": false,
+  "default_limits_changed": false
+}

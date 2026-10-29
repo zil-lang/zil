@@ -1,0 +1,307 @@
+{
+  "implementation_commit": "55a59cdfcfc78dc85d9ac631e51d9105ee750c79",
+  "crates_tree": "0fe0f25da88ee0a22a3897544f213579899d0cde",
+  "schema": 21,
+  "normative_hash": "8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be",
+  "test_files": 9,
+  "tests_passed": 127,
+  "tests_failed": 0,
+  "impl176_tests": 12,
+  "impl176_native_executions": 18,
+  "verification_runs_per_native": 1,
+  "raw_wire_negative_variants": 8,
+  "budget_boundary": {
+    "raw": {
+      "minimum_success": 15478,
+      "nearest_reject": 15477
+    },
+    "wire": {
+      "minimum_success": 15478,
+      "nearest_reject": 15477
+    },
+    "repetitions": 2
+  },
+  "cases": [
+    {
+      "case": "callable-fields176-1083-0",
+      "status": "SafeReject",
+      "phase": "types",
+      "source_fingerprint": "b28deeb696b2338e77c5a35a09f3a28ba27a04545331449c10ab67a9c7a96736",
+      "source_sha256": {
+        "main.zil": "de418bf7e0977d8c8f12a4fd7b150a9dadb580dd8902d5c2af177969d7dd0bc2"
+      },
+      "native_ran": false
+    },
+    {
+      "case": "callable-fields176-1083-1",
+      "status": "Unsupported",
+      "phase": "types",
+      "source_fingerprint": "7433e00a1766ae1e805774615ec4812c4acccdff7118027697f6bf8cddcb990b",
+      "source_sha256": {
+        "main.zil": "f606bc494aaf8029d67c658bad096b094be9fc7dfe853a1c3ef30cf82de7aeb4"
+      },
+      "native_ran": false
+    },
+    {
+      "case": "callable-fields176-1083-10",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "source_fingerprint": "5faed5567d59b3a4a29daf33c2d604b5f8fc527543bb0dd100b637455f8aac5c",
+      "source_sha256": {
+        "main.zil": "c41c3be45ce07581373af5a3345c5e460651969990c2996c46e4885bf59d148b"
+      },
+      "native_ran": false
+    },
+    {
+      "case": "callable-fields176-1083-11",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "46868409bcf188fb277db3d47f828bfea1c8fb61f78f8a86f05cf6a51e3899b9",
+      "source_sha256": {
+        "main.zil": "b9aafe27f286fdea5b8e93c258f8919ce10daa230f19b65fd6b2b0501c6f3c29"
+      },
+      "native_ran": true,
+      "stdout_hex": "415442"
+    },
+    {
+      "case": "callable-fields176-1083-12",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "2da85c6c5f8de6bd431b5ca96e04d622697b0c5d8a6649726e642d2f5c497734",
+      "source_sha256": {
+        "main.zil": "de144b3aa822889e7fd1c30f83ce90c013a4ce6a0e3405c7c5f37917bdb12302"
+      },
+      "native_ran": true,
+      "stdout_hex": "4154"
+    },
+    {
+      "case": "callable-fields176-1083-13",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "a77d71e74b4a09589f394f8bb10849193cbb8d669fda3447a8b7a940f1a1ee4b",
+      "source_sha256": {
+        "main.zil": "6009205813142a46108ee774f2b261d61bfe4e224f200e2fa23401f58e55fdfd"
+      },
+      "native_ran": true,
+      "stdout_hex": "5441"
+    },
+    {
+      "case": "callable-fields176-1083-14",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "e3001c2f823a28d13b06f6c1f124d0278c9d03b98d66137636993affa42ba3b7",
+      "source_sha256": {
+        "main.zil": "1f0526b3348b794392fde66e90fc98309c17e6089dc77c106b4da9c199a5be64",
+        "model.zil": "cfb4b59df3c64bf752049fd55ebacf664afd10ae9126c0e19cb7d1c0b2ee6d67"
+      },
+      "native_ran": true,
+      "stdout_hex": "41"
+    },
+    {
+      "case": "callable-fields176-1083-15",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "8dceb519beb07c7fa6a8fc59e87f2ea80a14ad9e1b22dcf34ae6343288e50c86",
+      "source_sha256": {
+        "main.zil": "42f900af3cccfb8565714d932738d21673ae780fae6141c1e0c18713600abc98"
+      },
+      "native_ran": true,
+      "stdout_hex": "5441"
+    },
+    {
+      "case": "callable-fields176-1083-16",
+      "status": "SafeReject",
+      "phase": "verify",
+      "source_fingerprint": "46445c3d4ac44fe0cdf6e7b75c4a75e481880985eae1b715202a8964a6b7509d",
+      "source_sha256": {
+        "main.zil": "6dcad5242b830964cf05ba255608d64cd39e44c30d3f44e72930cb7a71bc01c1"
+      },
+      "native_ran": false
+    },
+    {
+      "case": "callable-fields176-1083-17",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "d8b6d9b973bf680da3cf13ef4e36f89c09259c4b46c5b7a1dec9d7520dff31bd",
+      "source_sha256": {
+        "main.zil": "476f35b7905da4a9043f245ef3ace9dc6a6226552966060f66805db253dfd6da"
+      },
+      "native_ran": true,
+      "stdout_hex": "54"
+    },
+    {
+      "case": "callable-fields176-1083-18",
+      "status": "SafeReject",
+      "phase": "types",
+      "source_fingerprint": "75e1c5418e3b278012ec238317b8059f13558981e8a5037102fe901f1da0d5c8",
+      "source_sha256": {
+        "main.zil": "e79a88589d9249090f5e75636e8e67c033a7464a55c4688f729008d241eea62e"
+      },
+      "native_ran": false
+    },
+    {
+      "case": "callable-fields176-1083-2",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "d8b6d9b973bf680da3cf13ef4e36f89c09259c4b46c5b7a1dec9d7520dff31bd",
+      "source_sha256": {
+        "main.zil": "476f35b7905da4a9043f245ef3ace9dc6a6226552966060f66805db253dfd6da"
+      },
+      "native_ran": true,
+      "stdout_hex": "54"
+    },
+    {
+      "case": "callable-fields176-1083-20",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "source_fingerprint": "086770f90f075330b6a430047d6493b38a90e55885eed9236318bbccc8ea590e",
+      "source_sha256": {
+        "main.zil": "5d746f16bdd4a5ee530da83caca432f6bf3d52986e04dd0b089fc8f31cad4a65"
+      },
+      "native_ran": false
+    },
+    {
+      "case": "callable-fields176-1083-29",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "ec457718091cc253b4a26e50affc9ca3516b407b969be15bb83244e335d4bba5",
+      "source_sha256": {
+        "main.zil": "d33f7ffe86b8fd9432e8036b0295d58782570de281cda50bd33d1c1f64679038"
+      },
+      "native_ran": true,
+      "stdout_hex": "41"
+    },
+    {
+      "case": "callable-fields176-1083-3",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "2da85c6c5f8de6bd431b5ca96e04d622697b0c5d8a6649726e642d2f5c497734",
+      "source_sha256": {
+        "main.zil": "de144b3aa822889e7fd1c30f83ce90c013a4ce6a0e3405c7c5f37917bdb12302"
+      },
+      "native_ran": true,
+      "stdout_hex": "4154"
+    },
+    {
+      "case": "callable-fields176-1083-30",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "5da52d009eaccb0d09964f95569fc886480eefb9d716c9865c46e8f9f0b5f899",
+      "source_sha256": {
+        "main.zil": "cde41a68bd3c54a41ab2f24e553dea2ba3a4081139e7b4988706e51e74b2ecda"
+      },
+      "native_ran": true,
+      "stdout_hex": "41"
+    },
+    {
+      "case": "callable-fields176-1083-31",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "b40ae7adc27eee4b47cac38e6d5a572bdf4eb03c62aa7db4c5396ed97011e025",
+      "source_sha256": {
+        "main.zil": "51f824b830c8b51850862d2d02187a2a1cbe11507fb3556788c5dc54875c267a"
+      },
+      "native_ran": true,
+      "stdout_hex": "415442"
+    },
+    {
+      "case": "callable-fields176-1083-32",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "ec457718091cc253b4a26e50affc9ca3516b407b969be15bb83244e335d4bba5",
+      "source_sha256": {
+        "main.zil": "d33f7ffe86b8fd9432e8036b0295d58782570de281cda50bd33d1c1f64679038"
+      },
+      "native_ran": true,
+      "stdout_hex": "41"
+    },
+    {
+      "case": "callable-fields176-1083-33",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "5da52d009eaccb0d09964f95569fc886480eefb9d716c9865c46e8f9f0b5f899",
+      "source_sha256": {
+        "main.zil": "cde41a68bd3c54a41ab2f24e553dea2ba3a4081139e7b4988706e51e74b2ecda"
+      },
+      "native_ran": true,
+      "stdout_hex": "41"
+    },
+    {
+      "case": "callable-fields176-1083-34",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "b40ae7adc27eee4b47cac38e6d5a572bdf4eb03c62aa7db4c5396ed97011e025",
+      "source_sha256": {
+        "main.zil": "51f824b830c8b51850862d2d02187a2a1cbe11507fb3556788c5dc54875c267a"
+      },
+      "native_ran": true,
+      "stdout_hex": "415442"
+    },
+    {
+      "case": "callable-fields176-1083-4",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "a77d71e74b4a09589f394f8bb10849193cbb8d669fda3447a8b7a940f1a1ee4b",
+      "source_sha256": {
+        "main.zil": "6009205813142a46108ee774f2b261d61bfe4e224f200e2fa23401f58e55fdfd"
+      },
+      "native_ran": true,
+      "stdout_hex": "5441"
+    },
+    {
+      "case": "callable-fields176-1083-5",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "46868409bcf188fb277db3d47f828bfea1c8fb61f78f8a86f05cf6a51e3899b9",
+      "source_sha256": {
+        "main.zil": "b9aafe27f286fdea5b8e93c258f8919ce10daa230f19b65fd6b2b0501c6f3c29"
+      },
+      "native_ran": true,
+      "stdout_hex": "415442"
+    },
+    {
+      "case": "callable-fields176-1083-6",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "8dceb519beb07c7fa6a8fc59e87f2ea80a14ad9e1b22dcf34ae6343288e50c86",
+      "source_sha256": {
+        "main.zil": "42f900af3cccfb8565714d932738d21673ae780fae6141c1e0c18713600abc98"
+      },
+      "native_ran": true,
+      "stdout_hex": "5441"
+    },
+    {
+      "case": "callable-fields176-1083-7",
+      "status": "SafeReject",
+      "phase": "types",
+      "source_fingerprint": "4032bfa38ac59a599c0992bb7e4448cdffc407443cf01aac363a1668f7ef9c09",
+      "source_sha256": {
+        "main.zil": "fd9d8f95a8b1ebb858fac9ca31402f9f469e1842df61222ffbd7b432ed1cee5f"
+      },
+      "native_ran": false
+    },
+    {
+      "case": "callable-fields176-1083-8",
+      "status": "Success",
+      "phase": "link",
+      "source_fingerprint": "e3001c2f823a28d13b06f6c1f124d0278c9d03b98d66137636993affa42ba3b7",
+      "source_sha256": {
+        "main.zil": "1f0526b3348b794392fde66e90fc98309c17e6089dc77c106b4da9c199a5be64",
+        "model.zil": "cfb4b59df3c64bf752049fd55ebacf664afd10ae9126c0e19cb7d1c0b2ee6d67"
+      },
+      "native_ran": true,
+      "stdout_hex": "41"
+    },
+    {
+      "case": "callable-fields176-1083-9",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "source_fingerprint": "2ba7ce9ed3c55348197e43251e47ff1d978462243a77a6032614e1519fff242e",
+      "source_sha256": {
+        "main.zil": "bdae4dc716e643c32e3ad7d807cde304e541c0622298228a4f99f4fcabca9a0d"
+      },
+      "native_ran": false
+    }
+  ],
+  "scope": "author limited checks only; independent review and integration not claimed"
+}

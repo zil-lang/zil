@@ -1,0 +1,34 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "--manifest-path",
+    "/workspace/scratch/39be3faa4442/zil-restored/review167/Cargo.toml",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl167_owned_arrays",
+    "-j",
+    "2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/compose159",
+  "source_commit": "6d871bc6b97a179bac0546830f39604297f577b7",
+  "crates_tree": "bb746529420730739025cf1a0fd47bcd32c9e753",
+  "source_status": "",
+  "start": 1793100772.3913608,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "b5b0c2da4247f3c7675aed0cb00a921a474259f9420f594207418d3805ebe93e",
+  "end": 1793100810.0443566,
+  "seconds": 37.65299582481384,
+  "tests": {
+    "passed": 19,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 1
+  },
+  "ending_crates_tree": "bb746529420730739025cf1a0fd47bcd32c9e753",
+  "ending_source_status": ""
+}

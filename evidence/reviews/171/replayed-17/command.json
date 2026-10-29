@@ -1,0 +1,30 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl171_resource_heads",
+    "--offline",
+    "-j2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review171-package170",
+  "source_commit": "2d5214b0a65a688f86736abdcf54625b5427ae9b",
+  "crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+  "source_status": "",
+  "start": 1793111227.9197571,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "632c63fd80d07ad472cd7066df75c3453c796f6050d132c5ee1e475a76ed3fcc",
+  "end": 1793111257.708153,
+  "seconds": 29.788395881652832,
+  "tests": {
+    "passed": 17,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 1
+  },
+  "ending_crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+  "ending_source_status": ""
+}

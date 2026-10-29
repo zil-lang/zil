@@ -1,0 +1,193 @@
+{
+  "status": "FunctionalSlicePass",
+  "implementation_commit": "02040876a7f56f14b2058b91f6277b9db86ec393",
+  "crates_tree": "2f7c79feb7bafdf826bf3ce5d31beff1df9da232",
+  "implementation_author": "/root/source_inventory",
+  "independent_review": "pending root exact-source review; public interfaces authored by root",
+  "commits_to_integrate": [
+    "a710be769a34ac37182ced84cbaa5b44a99f7734",
+    "a030e7bf72de65376574be4a53d147f73cd82d7b",
+    "02040876a7f56f14b2058b91f6277b9db86ec393"
+  ],
+  "source_dependencies": [
+    "6a7ce70",
+    "a3bf9197589b047529a626d0bdc1e1365a27e15b"
+  ],
+  "tests": {
+    "specialized_passed": 33,
+    "specialized_failed": 0,
+    "ignored": 0,
+    "native_executions": 36,
+    "native_optimizations": [
+      "O0",
+      "O2"
+    ],
+    "raw_rejections": 21,
+    "wire_rejections": 21,
+    "source_rejections": 27,
+    "migrated_array_negative_and_retained_neighbor_tests": 2
+  },
+  "receipts": {
+    "locked": {
+      "status": "Pass",
+      "sha256": "5d279a92b31f2176d2ad5df7b927c4ab33ffdcb04193c150eb3cd0a482141e08",
+      "source_commit": "02040876a7f56f14b2058b91f6277b9db86ec393",
+      "tests": {
+        "passed": 33,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 2
+      },
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl167_owned_arrays",
+        "--test",
+        "impl167_array_capture_boundary",
+        "-j2",
+        "--",
+        "--test-threads=1"
+      ]
+    },
+    "package-relabel": {
+      "status": "Pass",
+      "sha256": "4651b1ddcc95b573d00e39bcbe669fef7a6ece79cc5ffa29258ec79fb6a74ed1",
+      "source_commit": "02040876a7f56f14b2058b91f6277b9db86ec393",
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 7
+      },
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-verify",
+        "package_array_relabel_cannot_replace_required_owned_array_operations",
+        "-j2",
+        "--",
+        "--test-threads=1"
+      ]
+    },
+    "package-reject-neighbors": {
+      "status": "Pass",
+      "sha256": "e13be2d518c613411de8e3af52b77548bc8d64abf6a82304f5a6f223e3980168",
+      "source_commit": "02040876a7f56f14b2058b91f6277b9db86ec393",
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 7
+      },
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-verify",
+        "package_cannot_hide_inside_copy_containers_or_indirect_signatures",
+        "-j2",
+        "--",
+        "--test-threads=1"
+      ]
+    },
+    "clippy": {
+      "status": "Pass",
+      "sha256": "00f9bcb7fc129bfa1b1d8d8e4ee6676ce390d1ef55cef525fede5bbe9736b92d",
+      "source_commit": "02040876a7f56f14b2058b91f6277b9db86ec393",
+      "tests": null,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl167_owned_arrays",
+        "--test",
+        "impl167_array_capture_boundary",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ]
+    },
+    "format": {
+      "status": "Pass",
+      "sha256": "8566618f54ead689796637e6960719439af328c6641fb38e0e6dc01671445af8",
+      "source_commit": "02040876a7f56f14b2058b91f6277b9db86ec393",
+      "tests": null,
+      "command": [
+        "rustfmt",
+        "--check",
+        "--edition",
+        "2024",
+        "crates/zil-types/src/packages.rs",
+        "crates/zil-types/src/aggregates.rs",
+        "crates/zil-types/src/addresses.rs",
+        "crates/zil-types/src/inference.rs",
+        "crates/zil-types/src/closures.rs",
+        "crates/zil-analyze/src/budget.rs",
+        "crates/zil-analyze/src/holds.rs",
+        "crates/zil-analyze/src/resources.rs",
+        "crates/zil-verify/src/resources.rs",
+        "crates/zil-verify/src/resources/arrays.rs",
+        "crates/zil-verify/src/borrows.rs",
+        "crates/zil-verify/src/borrows/loans.rs",
+        "crates/zil-verify/src/closures.rs",
+        "crates/zil-verify/src/cleanup.rs",
+        "crates/zil-verify/src/package_tests.rs",
+        "crates/zil-lower/src/lib.rs",
+        "crates/zil-backend-llvm/src/emit/arrays.rs",
+        "crates/zil-driver/tests/impl167_owned_arrays.rs",
+        "crates/zil-driver/tests/impl167_array_capture_boundary.rs"
+      ]
+    }
+  },
+  "original159": {
+    "array-of-capturing-callbacks": "Exact source preserved; O0/O2 Pass",
+    "owned-array-elements": "Not closed: explicit [R;2] retains Desc element meaning; owning Package wrapper arrays are newly supported"
+  },
+  "remaining_boundaries": [
+    "dynamic owning indices and containers",
+    "nested owning arrays and owning slices",
+    "whole-array captures",
+    "direct Managed array spelling",
+    "different factory opaque identities do not unify",
+    "whole-array conservative borrowing does not prove disjoint slots"
+  ],
+  "open_review_followup": {
+    "owner": "/root/nested_closures with root coordination",
+    "issue": "expanded layout/cleanup work must include wide Copy leaf types and full Package element width, not only direct capture/field counts",
+    "status": "Follow-up required; current huge length tests do not close width-times-length cases"
+  },
+  "validation_environment": {
+    "rust": "1.99.1",
+    "clang": "17.0.6",
+    "target": "/workspace/scratch/39be3faa4442/targets/167-clean5",
+    "CARGO_INCREMENTAL": "0",
+    "reason": "prior target produced rustc StableCrateId/metadata dependency errors; final fresh isolated target passed"
+  },
+  "preserved_first_failures": [
+    "source-first.log and source-second.log: corrected test fixtures for explicit reserve, declaration semicolon and slice access",
+    "closure-check-first.log: corrected backend closure table key type",
+    "closure-source-second.log through closure-source-fourth.log: host rustc metadata/StableCrateId failures; replaced target and disabled host incremental"
+  ],
+  "rust_goals": {
+    "safety": "Finite source/raw/wire/native obligations exercised; not a complete language proof",
+    "runtime_memory": "Inline storage and real cleanup; no comparative runtime/RSS measurement",
+    "expression_maintenance": "Ordinary array/index/borrow syntax now composes same-factory callbacks; comparative maintenance cost unmeasured",
+    "compilation_cost": "No compile-speed benchmark or performance claim in this language slice",
+    "breakthrough": "Functional closure-array gap closed for exact original probe; product-level Rust advantage unproven"
+  }
+}

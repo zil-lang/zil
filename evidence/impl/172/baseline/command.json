@@ -1,0 +1,34 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/reference170/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/zil-restored/wt172/examples/mainline/impl172/main.zil",
+    "--opt",
+    "O0",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/172-final-baseline/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/172-final-baseline/phases",
+    "--json"
+  ],
+  "start": 1793111114.7087617,
+  "end": 1793111114.774225,
+  "exit_code": 1,
+  "compiler_identity": {
+    "source_commit": "ec233ed4bcb827c0a9388f3641ffb410bc4effb6",
+    "cli": "/workspace/scratch/39be3faa4442/targets/reference170/zil",
+    "sha256": "f128bd2f1d95649b73bbe3fdcca9e742e39125b913d87209ed1ab5874d33aabf",
+    "original_path": "/workspace/scratch/39be3faa4442/targets/170-cli-fresh/debug/zil",
+    "source_build_receipt": "/workspace/scratch/39be3faa4442/zil-restored/wt170/evidence/impl/170/build-cli-fresh/command.json"
+  },
+  "cli_sha256": "f128bd2f1d95649b73bbe3fdcca9e742e39125b913d87209ed1ab5874d33aabf",
+  "consumer_commit": "69882483d6b29bee8d831386325da739ac915fd4",
+  "sources": {
+    "main.zil": "f4abc21fbf3183af8e9b4dd577c2b5c038e3b24c4a06f8985819fd69e438963d",
+    "work.zil": "1486c0502d07f998ccc5d0b06930ee65ae0dc38fe5be2f8d3d0c1b6db412e011",
+    "full_push.zil": "ca3195079027c849449b6507d467836b7bef8eda37f5d5d882eb24ab640ac8c9",
+    "storage.zil": "2277fcb524c540abac7543e3ca9146954db0d4c85f3aa20165f8cf8fc21acd19",
+    "reserve_recovery.zil": "33c880921ee8e04409edb9570ba46d7df5093300f4dccefe85eba5c699671f2c",
+    "model.zil": "0726178ed806852f2c3042443260cc40880e3aede8594f704c90a0f8ea4e7771"
+  }
+}

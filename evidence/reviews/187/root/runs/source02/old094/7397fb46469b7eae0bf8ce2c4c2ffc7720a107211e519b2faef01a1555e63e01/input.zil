@@ -1,0 +1,1 @@
+fn tail<T>(p:&[T])->&[T]{return &p[1..];}fn mutable_tail<T>(p:&mut[T])->&mut[T]{return &mut p[1..];}fn put<T>(p:&mut[T],v:T){p[0]=v;}fn replace<T>(p:&mut T,v:T){*p=v;}fn length<T>(p:&[T])->i64{return p.len();}fn result()->i64{var a=[1,2,3];put::<i32>(mutable_tail::<i32>(&mut a[..]),7);replace::<i32>(&mut a[0],8);return length(tail(&a[..]))+i64(a[0]+a[1]);}

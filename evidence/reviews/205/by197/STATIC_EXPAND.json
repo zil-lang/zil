@@ -1,0 +1,32 @@
+{
+  "reviewer": "/root/impl197",
+  "reviewed_commit": "4511b0e72593277e13c2aca3d85c3ac3ac214d14",
+  "production_commits": [
+    "f6500e4ea9b1064998dc997a0c3decb77d7e145f",
+    "7a980267b62454e5bc5e1c27157991f6de8000e2"
+  ],
+  "scope": "Read-only invariant and prepayment review of definition-time State alias checking; no new execution claimed",
+  "files": [
+    "crates/zil-expand/src/generic_aliases.rs",
+    "crates/zil-expand/src/generic_check.rs",
+    "crates/zil-expand/src/generic_loop_control.rs",
+    "crates/zil-expand/src/generic_places.rs"
+  ],
+  "invariants": [
+    "Alias facts are private, not raw Core-supplied IDs. Every held active entry comes from a result loan already present in the current AliasState.",
+    "A successful Call expression captures the active-prefix base before evaluating its body, then alias_call_end truncates only its own suffix. A reference result becomes a new recorded loan after suffix truncation. Errors exit the checker rather than join a half-prepared call.",
+    "Branch states clone all prior loans. Local rebinding removes or changes local lookup entries but never deletes loan records. Thus outer callee and already-prepared argument IDs occur in every reachable branch that can join.",
+    "Multi-branch joins pin each active loan ID and its full ancestor list. Nested joins therefore cannot rename/drop an outer prepared prefix. Single-branch joins copy the complete exact state. Consequently first.loans[active.loan] is total for constructed states.",
+    "Parent chains are built from an existing loan full ancestor list plus that loan ID, all in the same state. A branch mapping is completed for every loan key before any loan, parent or local is reconstructed; those three use the same mapping. Consequently mapping[parent] and mapping[local_loan] are total.",
+    "Branch-distinct unpinned records receive separate new IDs with their original position, invalid bit and born generation. Stale records are retained. The original born generation, not remapped ID, controls loop backedge freshness.",
+    "Prepared-window conflicts are rejected immediately by alias_access. Joining pinned records cannot erase a conflict by choosing a branch whose invalid bit is clear.",
+    "Conditional expression aliases are copied before either next branch changes the shared result slot, then remapped through the corresponding complete branch map after join."
+  ],
+  "prepayment": [
+    "clone_state calls alias_clone_fee before cloning; loan ancestors and local vectors are included.",
+    "Borrow origins, local/parent vectors, loan maps and active/results growth are charged before allocations or clones; depth and identity overflow stay bounded by existing limits.",
+    "Join reserves branch maps after billing branch count; each source map key is charged before insertion, ancestor lookup/reconstruction before Vec allocation, and local alternative scans before append.",
+    "New loop join work uses the same Budget; no reset or default limit increase. Actual independent same-source Expand boundary changed from 2340 at source03 to 2369 at source04, while its other phase boundaries stayed unchanged."
+  ],
+  "limits_of_review": "This does not certify the separate Types MoveWalk. Its instantiated-loop false rejection is independently retained as the current blocker. Definition qualification is not a substitute for Analyze/Verify runtime provenance."
+}

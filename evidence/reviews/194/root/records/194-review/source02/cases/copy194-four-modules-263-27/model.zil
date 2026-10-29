@@ -1,0 +1,1 @@
+pub struct A{pub n:i32}pub struct B{pub n:i32}

@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-ERROR",
+        message: "error-union payload does not match its selected arm",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 162,
+                end: 168,
+            },
+        ),
+        notes: [],
+    },
+]

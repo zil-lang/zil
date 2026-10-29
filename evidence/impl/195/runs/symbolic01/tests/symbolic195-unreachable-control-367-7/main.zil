@@ -1,0 +1,1 @@
+fn bad<T>(value:T){for index in 0..2{break;let lost=value}}fn main(){}

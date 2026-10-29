@@ -1,0 +1,31 @@
+
+running 12 tests
+test active_mutable_result_prevents_overlapping_call_or_replacement ... ok
+test borrowed_mutable_helper_and_whole_parent_transfer_preserve_result_loans ... ok
+test callable_field_view_keeps_its_actual_field_without_blocking_copy_sibling ... FAILED
+test borrowed_generic_helper_forwards_environment_lending_origin ... ok
+test conditional_sources_and_ordinary_parameter_forwarding_are_preserved ... ok
+test environment_results_reject_local_external_and_temporary_sources ... ok
+test copy_environment_reads_and_address_writes_use_one_actual_slot ... ok
+test live_byte_environment_views_reject_mutation_move_and_drop ... ok
+test mutable_factory_result_allows_next_call_after_last_use ... ok
+test owned_byte_environment_can_mutate_after_prior_result_last_use ... ok
+test owned_byte_environment_lends_real_storage_and_survives_factory_return ... ok
+test shared_factory_result_uses_real_stored_copy_environment ... ok
+
+failures:
+
+---- callable_field_view_keeps_its_actual_field_without_blocking_copy_sibling stdout ----
+
+thread 'callable_field_view_keeps_its_actual_field_without_blocking_copy_sibling' (60) panicked at crates/zil-driver/tests/impl184_lending.rs:29:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-FIELD-PRIVATE","message":"record field is private to its declaring module","span":{"file":0,"start":100,"end":116},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/runs178/author184/development09/cases/lending184-52-6/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/runs178/author184/development09/cases/lending184-52-6/phases/ct-core.txt","source-map":"/workspace/scratch/39be3faa4442/runs178/author184/development09/cases/lending184-52-6/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/runs178/author184/development09/cases/lending184-52-6/phases/syntax.txt"},"input_fingerprint":"8a1ad8f40bdbe64e3c0a214b94085eebda1f68ec35869d8133e57336d6f16405","seconds":0.015945217,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"factory.zil","2":"state.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    callable_field_view_keeps_its_actual_field_without_blocking_copy_sibling
+
+test result: FAILED. 11 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.75s
+

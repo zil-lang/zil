@@ -1,0 +1,37 @@
+{
+  "task": "168",
+  "reviewer": "/root/trait_bounds",
+  "verdict": "Pass",
+  "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+  "implementation_crates_tree": "0388c0c9936b0e4c1747f904abd458f9e8d5b956",
+  "normative_hash": "9eeacdb5333925a084d7dc14a0c4b50b1a3d01684acb8214ea4bd381251ed666",
+  "current_normative_registry_sha256": "f7aa3794fac6219874b73221951acac15d5d83a6ef17177b3fe0630024e3d6ed",
+  "normative_registry_actual_files_verified": true,
+  "scope": "Final binding of task168 closure composition, persistent slots, complete layout work and helper order; task166 excluded.",
+  "basis": "Prior exact febc071 closure review preserves all original failures and fixed wide-leaf raw/wire replays. Final combined main additionally retains independently guarded owned-union capture boundaries from task166, authored by this reviewer and requiring a different independent reviewer; this receipt does not approve task166 itself. On this exact final main, 26 task168 plus13 task125 tests and62 native executions were rerun, plus reviewer2 native declaration-context controls. The new helper scheduling change has an independent code review and real before/after source witness.",
+  "original_review_path": "run-logs/review168/review.json",
+  "original_review_sha256": "671e6d3dc40e46fdd5e8edf3701f5858f38d58bf3b1a588f35882412493ace20",
+  "original_review_bytes_unchanged": true,
+  "final_helper_order_review_path": "run-logs/review168-helper/review.json",
+  "final_helper_order_review_sha256": "d18cf4b33136b91857dacd16bbfba56c2a89869cbb7a619cf7f84b484d1819a2",
+  "production_diff_from_33ac_to_final": [
+    "crates/zil-types/src/lib.rs",
+    "crates/zil-types/src/program.rs",
+    "crates/zil-types/src/retained.rs"
+  ],
+  "final_exact_candidate_execution": {
+    "commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+    "suites": [
+      "impl125_factory_helpers",
+      "impl168_retained_composition"
+    ],
+    "passed": 39,
+    "failed": 0,
+    "specialized_native": 62,
+    "independent_native": 2
+  },
+  "root_full_workspace_result_used": false,
+  "root_full_workspace_note": "Root is running the full workspace separately. This Pass relies only on the stated exact executions and scoped production comparison; no pending result is counted.",
+  "self_review_166": false,
+  "created_utc": "2026-10-27T12:19:08.980797+00:00"
+}

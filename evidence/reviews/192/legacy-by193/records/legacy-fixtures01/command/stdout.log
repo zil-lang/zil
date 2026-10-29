@@ -1,0 +1,34 @@
+
+running 8 tests
+test public_hold_remains_coarse_and_raw_wire_cannot_forge_apartness ... ok
+test independent_field_take_preserves_a_live_sibling_window ... ok
+test branch_origins_preserve_all_possible_fields_and_finite_resource_siblings_are_apart ... ok
+test changed_root_work_remains_bounded_at_exact_analysis_and_verify_limits ... ok
+test owning_fnmut_and_fnonce_keep_precise_fields ... ok
+test helper_returns_and_required_apart_substitute_actual_fields ... ok
+test independent_mutation_refill_and_two_exclusive_windows ... ok
+test same_field_ancestor_and_replacement_do_not_revive_old_views ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+
+running 7 tests
+test independent_raw_and_wire_reject_pure_callback_published_twice_without_addresses ... ok
+test independent_raw_and_wire_reject_parent_drop_with_only_field_window_remaining ... ok
+test independent_raw_and_wire_check_real_field_and_call_permission ... ok
+test independently_reject_equal_layout_opaque_forwarder_and_live_parent_move ... ok
+test independent_failure_after_new_owned_argument_and_before_field_publication ... ok
+test independent_nonzero_field_offset_and_four_module_f_g_h_state_chain ... ok
+test independent_fnonce_double_take_call_and_no_resource_closure_uniqueness ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+
+running 4 tests
+test reviewer_raw_wire_whole_parent_cleanup_cannot_cross_live_callback_loan ... ok
+test reviewer_raw_wire_valid_copy_index_cannot_masquerade_as_callback ... ok
+test reviewer_copy_aggregate_replacement_preserves_callback_and_store_windows ... ok
+test reviewer_raw_wire_current_argument_cannot_alias_a_transitive_helper_write ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+

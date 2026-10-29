@@ -1,0 +1,31 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl166_owned_results",
+    "--offline",
+    "-j2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/compose159",
+  "source_commit": "7179b49ca556479acbd53c1ae4566f63970f31cf",
+  "crates_tree": "162b46a99cc3ed908b25fc3d91226862fdd2de6d",
+  "source_status": "",
+  "start": 1793102741.1922836,
+  "status": "Fail",
+  "exit_code": 101,
+  "log_sha256": "ce164f7b8298dae8e111813291abe4a21a37dc9df28f3bce1fa3de723e32540f",
+  "end": 1793102750.214527,
+  "seconds": 9.02224326133728,
+  "tests": {
+    "passed": 12,
+    "failed": 1,
+    "ignored": 0,
+    "groups": 1
+  },
+  "error": "required test run has no passing tests or contains failures",
+  "ending_crates_tree": "162b46a99cc3ed908b25fc3d91226862fdd2de6d",
+  "ending_source_status": ""
+}

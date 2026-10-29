@@ -1,0 +1,16 @@
+{
+  "implementation_commit": "19f58c16ed800b0cee5a8afcc11908925920cd63",
+  "review_commit": "f35a8be1d092ade47a5b9a20e3af273a457b682d",
+  "command": [
+    "cargo",
+    "build",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-cli"
+  ],
+  "exit": 0,
+  "status": "Pass",
+  "time": 1793153820.4422388
+}

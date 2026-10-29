@@ -1,0 +1,55 @@
+     Locking 12 packages to highest Rust 1.99.1 compatible versions
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-types)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-lower)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-driver)
+   Compiling review171-package170-probes v0.1.0 (/workspace/scratch/39be3faa4442/run-logs/review171-package170/probes)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 47.96s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/review171-package170/debug/deps/review171_package170_probes-f5d2215231f3430d)
+
+running 5 tests
+
+thread 'final_mixed_capture_multilevel_reborrow_is_explicitly_closed_only_in_head_lane' (249) panicked at src/lib.rs:29:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"recursive or nested callable helper contracts are not implemented","span":{"file":0,"start":203,"end":211},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/review171-package170/independent-cases/mixed-head-closed-0/phases/syntax.txt"},"input_fingerprint":"2c95d59d04d466fccc0e1a336e85df2e197c5e6e35f350dcc9c069f765b39775","seconds":0.01465683,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Expand
+ right: Verify
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test final_mixed_capture_multilevel_reborrow_is_explicitly_closed_only_in_head_lane ... FAILED
+projected-window: Verify SafeReject [("E-BORROW-CONFLICT", "access overlaps an active address window without its delegated authority")]
+projected-head budget raw N=4392: Pass
+projected-head budget wire N=4392: Pass
+projected-head budget raw N=4391: ResourceLimit
+projected-head budget wire N=4391: ResourceLimit
+drop while only projected child survives/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-BORROW-CONFLICT", message: "write or storage change overlaps a shared address still required by a later use", span: Some(Span { file: FileId(0), start: 62, end: 65 }), notes: [] }]
+drop while only projected child survives/wire: [Diagnostic { phase: Verify, category: SafeReject, code: "E-BORROW-CONFLICT", message: "write or storage change overlaps a shared address still required by a later use", span: Some(Span { file: FileId(0), start: 62, end: 65 }), notes: [] }]
+test raw_and_wire_projected_roots_and_exact_verification_budget_are_independent ... ok
+
+thread 'branching_internal_descriptor_callback_exports_effect_to_other_module' (248) panicked at src/lib.rs:28:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"verify","diagnostics":[{"phase":"verify","category":"Unsupported","code":"E-UNSUPPORTED","message":"mixed descriptor/address callback captures with resource-head windows require a per-capture effect contract","span":null,"notes":[]}],"artifacts":{"candidate":"/workspace/scratch/39be3faa4442/run-logs/review171-package170/independent-cases/branch-helper-1/phases/candidate.txt","core":"/workspace/scratch/39be3faa4442/run-logs/review171-package170/independent-cases/branch-helper-1/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/review171-package170/independent-cases/branch-helper-1/phases/ct-core.txt","interfaces":"/workspace/scratch/39be3faa4442/run-logs/review171-package170/independent-cases/branch-helper-1/phases/interfaces.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/review171-package170/independent-cases/branch-helper-1/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/review171-package170/independent-cases/branch-helper-1/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/run-logs/review171-package170/independent-cases/branch-helper-1/phases/typed.txt"},"input_fingerprint":"cafe592cc99955f4cf1f62cc6036e6a481e4801c122befc0c223331280f41989","seconds":0.041434557,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"main.zil","1":"model.zil","2":"writer.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"29c2c86bb8ae68a4564171b1f2746a26869d89b5d81dbb9e3b991f066b5ff1de","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]},{"module":1,"signature_fingerprint":"25fa4ff3d603fb6d280c809368c428ec8eeeb6a7c9a48c403f0b85ad94f6d1e2","implementation_fingerprint":"96ebc107718d17602e8fb49e1621083ffb7c6b598d229506fb50a4c2716a7ae9","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":["make"]},{"module":2,"signature_fingerprint":"54b6460d4d6456124ef79b5a428e4a3672242e1db4f2e6adc8f17787bf5e596e","implementation_fingerprint":"8ceb41390b9011a73d22e23048139d16c36ede84c5b406a95d48b9cc32287583","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":["relay"]}]}
+  left: Unsupported
+ right: SafeReject
+test branching_internal_descriptor_callback_exports_effect_to_other_module ... FAILED
+projected-last-use/O0: exit0 stdout="A"
+nested-layout/O0: exit0 stdout="A"
+nested-layout/O2: exit0 stdout="A"
+test nested_copy_payload_head_uses_natural_field_offsets ... ok
+projected-last-use/O2: exit0 stdout="A"
+test projected_field_keeps_head_window_until_its_actual_last_use ... ok
+
+failures:
+
+failures:
+    branching_internal_descriptor_callback_exports_effect_to_other_module
+    final_mixed_capture_multilevel_reborrow_is_explicitly_closed_only_in_head_lane
+
+test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+
+error: test failed, to rerun pass `--lib`

@@ -1,0 +1,1 @@
+resource R{n:i32}fn main()->i32{let r=R{n:42};let p=&r;let q=&p.n;return *q-42}

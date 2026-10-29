@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-28T06:10:28.351471+00:00",
+  "archive": "/workspace/scratch/39be3faa4442/run-logs/archived-185/formal195-infra02-tmp.zip",
+  "archive_bytes": 42527450,
+  "archive_sha256": "42f023b0619aee0a8a619d5ffd2b37339709ad7edff7ba66183629c4c9efc389",
+  "source": "/workspace/scratch/39be3faa4442/zil195-formal02-tmp-Cmwk80",
+  "files_reclaimed": 14119,
+  "bytes_reclaimed": 919187102,
+  "scope": "Only the complete, closed, infrastructure-failed195 formal02 temporary tree. ZIP CRC and member SHA verified first; no symlinks/hardlinks followed. All non-build bytes retained; machine files hashed, not shipped. Formal02 command/env/logs untouched."
+}

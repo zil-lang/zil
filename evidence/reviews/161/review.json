@@ -1,0 +1,417 @@
+{
+  "task": "161",
+  "reviewer": "/root/trait_bounds",
+  "verdict": "Pass",
+  "implementation_author": "/root/nested_closures",
+  "implementation_commit": "84af56e5185abc2fa1ac2e62f3395638fe0c3788",
+  "tested_source_commit": "f3570f1ea07440ed8f0c23903248ead78cf5f789",
+  "source_equivalence": "git diff --quiet f3570f1 84af56e -- crates: exit0; delivery adds only evidence documents",
+  "reviewed_at_utc": "2026-10-27T10:30:27.380321+00:00",
+  "source_sha256": {
+    "crates/zil-types/src/closures.rs": "236a985a3039b0cb8351b7679a348ee3ef28df3f9e6013ef686d12f98decf920",
+    "crates/zil-types/src/closures/package_effects.rs": "542eae5857331950de69f299232b10ed511c0f70eb8a467f7ca91bd83243d66e",
+    "crates/zil-types/src/inference.rs": "cd8e1a248201dd9c163c22ce12039764b3c1eddee1017a66bd702b0edc72c3df",
+    "crates/zil-types/src/lib.rs": "db32b930b6cdfe03f0ee81c6b1c882267ece9a8ba0407de9091a33b749b862d5"
+  },
+  "independent_checks": {
+    "native_executions": 14,
+    "positive_source_cases": 7,
+    "optimization_profiles": [
+      "O0",
+      "O2"
+    ],
+    "each_native_build_verification_runs": 1,
+    "negative_source_cases": 5,
+    "raw_wire_rejections": 6,
+    "raw_wire_mutations": [
+      "remove actual DropClosure for unused owning inner environment",
+      "replace TakeCapture by copying ReadCapture of owned payload",
+      "replace TakeCapture by DescribeCapture while claiming Managed result"
+    ],
+    "new_findings": []
+  },
+  "positive_rows": [
+    {
+      "name": "triple_nonmove_to_deep_move",
+      "opt": "O0",
+      "kind": "positive",
+      "compile": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "stdout": "A",
+      "pass_result": true
+    },
+    {
+      "name": "triple_nonmove_to_deep_move",
+      "opt": "O2",
+      "kind": "positive",
+      "compile": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "stdout": "A",
+      "pass_result": true
+    },
+    {
+      "name": "resource_shadow_does_not_steal_outer",
+      "opt": "O0",
+      "kind": "positive",
+      "compile": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "stdout": "BBA",
+      "pass_result": true
+    },
+    {
+      "name": "resource_shadow_does_not_steal_outer",
+      "opt": "O2",
+      "kind": "positive",
+      "compile": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "stdout": "BBA",
+      "pass_result": true
+    },
+    {
+      "name": "middle_snapshot_deep_borrowed_write",
+      "opt": "O0",
+      "kind": "positive",
+      "compile": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "stdout": "",
+      "pass_result": true
+    },
+    {
+      "name": "middle_snapshot_deep_borrowed_write",
+      "opt": "O2",
+      "kind": "positive",
+      "compile": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "stdout": "",
+      "pass_result": true
+    },
+    {
+      "name": "deep_unused_environment",
+      "opt": "O0",
+      "kind": "positive",
+      "compile": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "stdout": "A",
+      "pass_result": true
+    },
+    {
+      "name": "deep_unused_environment",
+      "opt": "O2",
+      "kind": "positive",
+      "compile": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "stdout": "A",
+      "pass_result": true
+    },
+    {
+      "name": "descriptor_three_levels_repeat",
+      "opt": "O0",
+      "kind": "positive",
+      "compile": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "stdout": "A",
+      "pass_result": true
+    },
+    {
+      "name": "descriptor_three_levels_repeat",
+      "opt": "O2",
+      "kind": "positive",
+      "compile": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "stdout": "A",
+      "pass_result": true
+    },
+    {
+      "name": "triple_package_nonmove_transfer",
+      "opt": "O0",
+      "kind": "positive",
+      "compile": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "stdout": "A",
+      "pass_result": true
+    },
+    {
+      "name": "triple_package_nonmove_transfer",
+      "opt": "O2",
+      "kind": "positive",
+      "compile": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "stdout": "A",
+      "pass_result": true
+    },
+    {
+      "name": "inner_prepare_error_drop_order_explicit_result",
+      "opt": "O0",
+      "status": "Success",
+      "verification_runs": 1,
+      "exit_code": 1,
+      "stdout": "CAB",
+      "pass_result": true
+    },
+    {
+      "name": "inner_prepare_error_drop_order_explicit_result",
+      "opt": "O2",
+      "status": "Success",
+      "verification_runs": 1,
+      "exit_code": 1,
+      "stdout": "CAB",
+      "pass_result": true
+    }
+  ],
+  "negative_rows": [
+    {
+      "name": "late_descriptor_after_deep_drop",
+      "kind": "negative",
+      "compile": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: head transition invalidates a description required later",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "pass_result": true
+    },
+    {
+      "name": "late_slice_after_deep_drop",
+      "kind": "negative",
+      "compile": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "write or storage change overlaps a shared address still required by a later use",
+          "span": {
+            "file": 0,
+            "start": 129,
+            "end": 130
+          },
+          "notes": []
+        }
+      ],
+      "pass_result": true
+    },
+    {
+      "name": "deep_consumed_outer_in_loop",
+      "kind": "negative",
+      "compile": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 2 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 226,
+            "end": 229
+          },
+          "notes": []
+        }
+      ],
+      "pass_result": true
+    },
+    {
+      "name": "conditional_package_refill_is_once",
+      "kind": "negative",
+      "compile": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 4 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 273,
+            "end": 280
+          },
+          "notes": []
+        }
+      ],
+      "pass_result": true
+    },
+    {
+      "name": "move_snapshot_cannot_grant_write_to_shared_address",
+      "kind": "negative",
+      "compile": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-OPERATOR-TYPE",
+          "message": "dereference requires a shared address",
+          "span": {
+            "file": 0,
+            "start": 62,
+            "end": 64
+          },
+          "notes": []
+        }
+      ],
+      "pass_result": true
+    }
+  ],
+  "review_fixture_correction": {
+    "original_case": "inner_prepare_error_drop_order",
+    "issue": "Reviewer omitted explicit enclosing E!i32 result; existing ? rule safely rejected at Types before Verify. Original failures retained.",
+    "corrected_case": "inner_prepare_error_drop_order_explicit_result",
+    "observed": "O0/O2 return error exit1, Drop bytes CAB, each Verify once",
+    "compiler_source_changed": false
+  },
+  "commands": [
+    "source toolchains/env.sh; CARGO_TARGET_DIR=targets/review161 cargo build --locked --offline -p zil-cli",
+    "python3 run-logs/review161/probes.py (first batch: reviewer fixture assertion fails for omitted explicit error return; 12 native and 5 negative pass)",
+    "explicit-error-result correction: build and execute two native O0/O2 cases",
+    "CARGO_TARGET_DIR=targets/review161 cargo run --offline --manifest-path run-logs/review161/raw/Cargo.toml (exit0, six rejection checks)"
+  ],
+  "artifacts_sha256": {
+    "probes.py": "8c3652ef60e9e8475a83566e59051533f20ee3add01fbfeb3eda45a9ff34f369",
+    "probes.log": "ade95af02004256ba9a0dcb5cc7f1727af6d42a7595ce75129a3253b437580da",
+    "probes-result.json": "f292b574c5172dd7c8413dfefa6e848dbfc7eacfcd656515d6c780bc4c58556b",
+    "raw.log": "1946aac14269b9c918534285d88acba8a797a7b504810c482c53e3025a82968f",
+    "deep_consumed_outer_in_loop/main.zil": "6628b59888f2f915279d2f61b12c53546d635fb76fc7ec21ede97b79f212a337",
+    "deep_consumed_outer_in_loop/check.stdout": "2570c2fdabddb0b8d580b707692e812224867ffc3f9e115e070438bff61ef352",
+    "deep_consumed_outer_in_loop/check.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "resource_shadow_does_not_steal_outer/main.zil": "a9b6011dbfdc2bc2d288e863569a4c4b594c9075a5c4a3055c5cf377f7712465",
+    "resource_shadow_does_not_steal_outer/O2-build.stdout": "5bb6531ec5c60e2896781fb76a00764f825129c7cc974d80492c83e75eeab1b5",
+    "resource_shadow_does_not_steal_outer/O0-stdout": "735ff2109a063ee1178abd3203153f92f8dc83a9ae7c93b7a77fce34372c65a8",
+    "resource_shadow_does_not_steal_outer/O2-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "resource_shadow_does_not_steal_outer/O0-build.stdout": "8aab44322b17c3d2596f153581ff570f50a8563b7b104cc8ecbc6a78748c7f22",
+    "resource_shadow_does_not_steal_outer/O2-stdout": "735ff2109a063ee1178abd3203153f92f8dc83a9ae7c93b7a77fce34372c65a8",
+    "resource_shadow_does_not_steal_outer/O2-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "resource_shadow_does_not_steal_outer/O0-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "resource_shadow_does_not_steal_outer/O0-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "late_descriptor_after_deep_drop/main.zil": "c0faacd9f1d36c6a405043bf230c034686b51cee9d98f8f2f8c0d3853d790949",
+    "late_descriptor_after_deep_drop/check.stdout": "d89fb76e66177b53b902c28c3f1a8cd98154f3a88f156bda87e0c4c86400933c",
+    "late_descriptor_after_deep_drop/check.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "late_slice_after_deep_drop/main.zil": "8523dfefd93e4db674088b66cc0f225eef2c2db86744892ab5eae0288c65d96c",
+    "late_slice_after_deep_drop/check.stdout": "57c4cd9bc3a1c6baed7162f54d337014db48bdb3e4a127caaf63aee4d55402b9",
+    "late_slice_after_deep_drop/check.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "triple_nonmove_to_deep_move/main.zil": "70ddb2005d04703b563ef969c9f75aeffb375f6079c7c0e3fd566865bad6870e",
+    "triple_nonmove_to_deep_move/O2-build.stdout": "553a7adba76d679b0aab688771b75b59c7f4437a1d9edaf4c41c39326027df54",
+    "triple_nonmove_to_deep_move/O0-stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+    "triple_nonmove_to_deep_move/O2-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "triple_nonmove_to_deep_move/O0-build.stdout": "04ee0f74c4143c331fab90d4f6dee9208403ac487f733005acb173d4a6095392",
+    "triple_nonmove_to_deep_move/O2-stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+    "triple_nonmove_to_deep_move/O2-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "triple_nonmove_to_deep_move/O0-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "triple_nonmove_to_deep_move/O0-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "conditional_package_refill_is_once/main.zil": "b6ed60ae86c3b7a10c09809b230729e2cc6d2066b6139717199227e14598106e",
+    "conditional_package_refill_is_once/check.stdout": "ab11e67146656e6fb2001725b2c013c087cc6241d1518347c438c8b5100eccd3",
+    "conditional_package_refill_is_once/check.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "descriptor_three_levels_repeat/main.zil": "5058de4c76f94cd904982f0948e1b81b352efb67b34ee679a046c712a78aa2ec",
+    "descriptor_three_levels_repeat/O2-build.stdout": "b5f5a8f76e2ea1d6bde65b40fa4413be33e1b4acbbb00cddb91571416a24a457",
+    "descriptor_three_levels_repeat/O0-stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+    "descriptor_three_levels_repeat/O2-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "descriptor_three_levels_repeat/O0-build.stdout": "d6880b54a4e8b074337c343a6068e5676909412c2e6fd2ba6091bcb4c31acf0b",
+    "descriptor_three_levels_repeat/O2-stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+    "descriptor_three_levels_repeat/O2-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "descriptor_three_levels_repeat/O0-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "descriptor_three_levels_repeat/O0-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "deep_unused_environment/main.zil": "03a7969ebe30549cd6382e0714b95ecfea3a97d30baf4d4e52cefdf095d28f49",
+    "deep_unused_environment/O2-build.stdout": "ecff58061079457719371fe2101ba350f969dbc4afc75a19d58c1e920c765e96",
+    "deep_unused_environment/O0-stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+    "deep_unused_environment/O2-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "deep_unused_environment/O0-build.stdout": "8f8df2518b873246d4d641d9234b6977b15e26e5cf976475c9569730256d4a4a",
+    "deep_unused_environment/O2-stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+    "deep_unused_environment/O2-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "deep_unused_environment/O0-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "deep_unused_environment/O0-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "middle_snapshot_deep_borrowed_write/main.zil": "6adbf2c48c91921144488152e4395a3cae03e310830fbe531196fff322f15ee9",
+    "middle_snapshot_deep_borrowed_write/O2-build.stdout": "27efed160c5ab9949fa1fd6e928ed9b76e05c12bed1a8b39f152f2c85f4cef90",
+    "middle_snapshot_deep_borrowed_write/O0-stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "middle_snapshot_deep_borrowed_write/O2-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "middle_snapshot_deep_borrowed_write/O0-build.stdout": "444625843d7382565c5d6d91e990ea0cc22318850acf9b7d480af78db0209253",
+    "middle_snapshot_deep_borrowed_write/O2-stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "middle_snapshot_deep_borrowed_write/O2-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "middle_snapshot_deep_borrowed_write/O0-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "middle_snapshot_deep_borrowed_write/O0-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inner_prepare_error_drop_order/main.zil": "e47bbca829dcdcdeed7b48fa17bd3650128108cc4b5fab39b181ae32bff01469",
+    "inner_prepare_error_drop_order/O2-build.stdout": "753b7875f9ed18f2bb1de53ded130a1d753efa1871c0ce993c112ae4f0d5e559",
+    "inner_prepare_error_drop_order/O2-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inner_prepare_error_drop_order/O0-build.stdout": "0251a225b28b486e9b13084dc75b84bdb27197c4c8c3b6ac763669ebb8800b49",
+    "inner_prepare_error_drop_order/O0-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "triple_package_nonmove_transfer/main.zil": "8a43eff2168297d9982130cc62fb83d39580e4a7dc1d092c1dcdda55829c53ee",
+    "triple_package_nonmove_transfer/O2-build.stdout": "4b1b68311e81244e19c9619a52586ac5ea4926d841ea1957f2f748779f0a3684",
+    "triple_package_nonmove_transfer/O0-stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+    "triple_package_nonmove_transfer/O2-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "triple_package_nonmove_transfer/O0-build.stdout": "712e4ef7b423ad549c9b64d160562c8b68a90d797c11b0b40dc77befb99acabb",
+    "triple_package_nonmove_transfer/O2-stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+    "triple_package_nonmove_transfer/O2-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "triple_package_nonmove_transfer/O0-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "triple_package_nonmove_transfer/O0-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inner_prepare_error_drop_order_explicit_result/main.zil": "4c25e77ae84235a73fd2d2dada60fb0307a12a373a1e8a9f42978dbdf96b9a64",
+    "inner_prepare_error_drop_order_explicit_result/O2-build.stdout": "86dfe6cadb1f4bf28a5bdc8caeebb89aa020802385405bca9813f38352dcb6c8",
+    "inner_prepare_error_drop_order_explicit_result/O0-stdout": "362d88818ef27ef22e88e457338bbaf00ae52c3f370211e0f33b7d0303d6b135",
+    "inner_prepare_error_drop_order_explicit_result/O2-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inner_prepare_error_drop_order_explicit_result/O0-build.stdout": "3359b9497e5565291f101f6b780ce504a38b41fcc14e80aee5abae43081ae077",
+    "inner_prepare_error_drop_order_explicit_result/result.json": "e1467e6a3155590b8dc068ea4c997a2ddebb74cbf5e0c2769153ee9a5a62bcd1",
+    "inner_prepare_error_drop_order_explicit_result/O2-stdout": "362d88818ef27ef22e88e457338bbaf00ae52c3f370211e0f33b7d0303d6b135",
+    "inner_prepare_error_drop_order_explicit_result/O2-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inner_prepare_error_drop_order_explicit_result/O0-stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inner_prepare_error_drop_order_explicit_result/O0-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "raw/Cargo.toml": "c2ecbe9032365880df7dc11f995dd32a7e6d98c1730c2444f159faef7c1809a4",
+    "move_snapshot_cannot_grant_write_to_shared_address/main.zil": "b97fc20862f0751a697b346b31ce94535e755966fe211f20c1419fa9cb45940b",
+    "move_snapshot_cannot_grant_write_to_shared_address/check.stdout": "b9f18aaa6dba9a4166e74ca92b37aa146663dcdd1451a6c4edf54462c1ec267d",
+    "move_snapshot_cannot_grant_write_to_shared_address/check.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "raw/src/main.rs": "722e638a75bb324bb91849ec2522245f23c03d49cef54b791201aa7ac0c6a04f"
+  },
+  "limits": [
+    "Bounded independent review, not full-language proof",
+    "No full-workspace or performance run",
+    "Existing explicit enclosing E!T annotation required for ? in reviewed source",
+    "Nested closure-valued captures and dynamically stored callback containers remain outside161",
+    "164 consumer reviewed source only; runtime validation remains integrator responsibility"
+  ],
+  "readiness164_source_review": [
+    "1024Drop bytes and in-language byte checks correspond to consumer loop; no mistaken queue or window claim",
+    "Original owning-method-receiver probe exercises resource &Self trait;163Desc/give methods must not be counted as making that exact original probe pass",
+    "Recommended consistent check returncode/status, reject Parse failures in original corpus, and bind repo commit plus all four source hashes"
+  ]
+}

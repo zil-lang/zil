@@ -1,0 +1,17 @@
+     Locking 7 packages to highest Rust 1.99.1 compatible versions
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-syntax)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-analyze)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-types)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-verify)
+   Compiling review161 v0.0.0 (/workspace/scratch/39be3faa4442/run-logs/review161/raw)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.29s
+     Running `/workspace/scratch/39be3faa4442/targets/review161/debug/review161`
+omit-unused-inner-cleanup/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-RESOURCE", message: "storage ends or restarts with an outstanding resource responsibility", span: Some(Span { file: FileId(0), start: 74, end: 82 }), notes: [] }]
+omit-unused-inner-cleanup/wire: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-RESOURCE", message: "storage ends or restarts with an outstanding resource responsibility", span: Some(Span { file: FileId(0), start: 74, end: 82 }), notes: [] }]
+copy-owned-capture/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-CAPTURE", message: "owned captures require their explicit resource or Package view operations, never copying ReadCapture", span: Some(Span { file: FileId(0), start: 70, end: 71 }), notes: [] }]
+copy-owned-capture/wire: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-CAPTURE", message: "owned captures require their explicit resource or Package view operations, never copying ReadCapture", span: Some(Span { file: FileId(0), start: 70, end: 71 }), notes: [] }]
+describe-as-owned-capture/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-TYPE", message: "instruction result presence or type is incorrect", span: Some(Span { file: FileId(0), start: 70, end: 71 }), notes: [] }]
+describe-as-owned-capture/wire: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-TYPE", message: "instruction result presence or type is incorrect", span: Some(Span { file: FileId(0), start: 70, end: 71 }), notes: [] }]

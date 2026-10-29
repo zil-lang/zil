@@ -1,0 +1,5 @@
+# 206 局部capture资格复核
+
+206合同只开放普通完整Product，旧Closure capture资格仍闭。207只读准备发现Verify closure definitions复用了check_local_type，而该入口已增加ordinary Product；原definitions只额外排array/callable字段。返回Closure的retained旧gate不覆盖所有局部未返回环境。源码Types与Analyze的拒绝不能替代独立raw/Wire检查，LLVM现有capture字段flag/Drop仍只支持旧flat资格。
+
+先由非作者在独立测试文件固定合法flat控制、协调后的完整Product raw/Wire及原始结果，再按实测决定修复。预计把closure capture的Package资格明确路由回旧packages::check_type_for，而普通local/SSA保持206入口；不通过开放机器capture能力掩盖206合同的闭界。本提案登记不等于漏洞实证或修复通过。

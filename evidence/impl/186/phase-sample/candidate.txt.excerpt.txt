@@ -1,0 +1,17 @@
+EXCERPT ONLY; full original SHA256 is indexed in SOURCE.json. Line numbers refer to original.
+1: CandidatePlan {
+2:     schema_version: 22,
+3:     module_fingerprint: Fingerprint(
+4:         [
+5:             174,
+6:             207,
+7:             240,
+8:             85,
+9:             78,
+10:             38,
+11:             156,
+12:             206,
+13:             157,
+14:             113,
+15:             78,
+16:             184,

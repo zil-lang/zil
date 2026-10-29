@@ -1,0 +1,1 @@
+fn both<F:Fn()->i32,G:Fn()->i32>(f:&F,g:&G)->i32=>f()+g();fn main(){}

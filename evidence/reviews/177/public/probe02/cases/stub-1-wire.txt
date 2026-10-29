@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "State field/window semantics are not yet implemented",
+        span: Some(
+            Span {
+                file: FileId(
+                    336794129,
+                ),
+                start: 404166165,
+                end: 471538201,
+            },
+        ),
+        notes: [],
+    },
+]

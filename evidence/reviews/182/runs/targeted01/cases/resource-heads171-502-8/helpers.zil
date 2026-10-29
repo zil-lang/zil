@@ -1,0 +1,1 @@
+import model;fn inner(r:model.R){r.n=43}pub fn write(r:model.R){inner(r)}

@@ -1,0 +1,1 @@
+extern "C" fn putchar(x:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}fn eat(give r:R)->i32{return r.code}fn make(n:i32)->impl FnOnce()->i32{let r=R{code:n};return move ()=>eat(give r)}fn main()->i32{var f=make(65);let guard=R{code:90};let first=f();f=make(66);return first-65}

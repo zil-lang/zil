@@ -1,0 +1,1 @@
+trait Peek{fn get(self:&Self)->i32;}fn broken<T:Peek+Peek>(x:&T)->i32=>x.get();fn main(){}

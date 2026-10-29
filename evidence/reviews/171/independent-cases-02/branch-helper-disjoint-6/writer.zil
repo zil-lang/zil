@@ -1,0 +1,1 @@
+import model;fn hidden(d:model.R,flag:bool){if flag{let callback=()=>{d.n=43};callback()}else{let callback=()=>{d.n=44};callback()}}pub fn relay(d:model.R,flag:bool){hidden(d,flag)}

@@ -1,0 +1,72 @@
+{
+  "scope": "205 Expand author evidence; not independent review or full-workspace acceptance",
+  "schema": 27,
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "final_expand_production": "f62b75ac06b843c5cb1683790a7946eff403e765",
+  "baseline_compiler_source": "7abbbac1f6479c52f4967653acfab74fc56c945d",
+  "baseline": {
+    "original_mixed_header": "Unsupported (not an alias safety proof)",
+    "single_state_with_unused_copy_T": "Success Verify1 but bad body omitted before Core; only main verified; no native",
+    "single_state_without_T": "Success Verify1 but body not instantiated in Typed; only main verified; no native",
+    "original_inputs": "impl205_fixtures plus baseline01/baseline-non-t01 original reports"
+  },
+  "production_changes": [
+    "separate one real State owner and one replacement with one F binding",
+    "track real Position and fresh borrow generations in all finite owning State definitions with actual address operations",
+    "retain per-branch loan/local/parent versions and original loop birth generations; preserve prepared callee and earlier arguments",
+    "propagate genuine single-F complete State producer facts to ordinary bare StoreElement calls only when the prepaid table contains a real ordinary StoreElement template"
+  ],
+  "last_limited_test": {
+    "run": "producer03/run/command.json",
+    "run_head": "dc1530234b9bed694526ddbbc3d4ef3b895b48f0",
+    "git_clean": false,
+    "source_patch_snapshotted_before_execution": true,
+    "files_match_final_production": [
+      {
+        "path": "crates/zil-expand/src/generics.rs",
+        "sha256": "e0f6a4d6b679568cf48abfb05501786d4231bb413caf0f407720d03083b758af",
+        "bytes": 100895,
+        "matches_frozen_git_blob": true
+      },
+      {
+        "path": "crates/zil-expand/src/generic_store_templates.rs",
+        "sha256": "a987ed0e1acbcefd215c847fd1826c5000f8b603d50c247a24ce708ecf27f563",
+        "bytes": 15171,
+        "matches_frozen_git_blob": true
+      },
+      {
+        "path": "crates/zil-expand/tests/impl205_state_replace.rs",
+        "sha256": "3eadeca1773b19766d87bbc625779b91b70f351a42f9f6c112e48722533f826e",
+        "bytes": 15359,
+        "matches_frozen_git_blob": true
+      }
+    ],
+    "tests_passed": 30,
+    "tests_failed": 0,
+    "groups": {
+      "impl202_store_templates": 17,
+      "impl205_state_replace": 13
+    }
+  },
+  "clean_lint": {
+    "run": "clippy02/command.json",
+    "source_commit": "f62b75ac06b843c5cb1683790a7946eff403e765",
+    "status": "Pass",
+    "scope": "cargo clippy -p zil-expand --all-targets -- -D warnings"
+  },
+  "measured_expand_steps": {
+    "original_header": 503,
+    "unused_alias_last_use": 688,
+    "legacy_state_alias_old": 1731,
+    "legacy_state_alias_new": 1938,
+    "ordinary_store_unchanged": 2255,
+    "single_f_complete_value_new": 3877
+  },
+  "budget_evidence": "Each latest boundary includes N success, N-1 ResourceLimit, fresh N; old1731 baseline and its later actual failure are preserved separately. Defaults unchanged.",
+  "early_failures": "header01 test compilation, alias01/03 and join01 refinement failures, original producer01 rejection, producer02 diagnostic expectation mismatch remain original records. Earliest diagnostic dirty rounds without full patch snapshots are not relabeled clean final runs.",
+  "run_index_sha256": "fdf6a612f94d1aa5be4dba735aa0f581ed45e41fe6fd98bc6772032625cf302e",
+  "native_execution": "Expand component does not claim native executions; see separate five-module consumer receipt.",
+  "product": "NotRun",
+  "full_language": "NotSatisfied",
+  "native_windows": "NotRun"
+}

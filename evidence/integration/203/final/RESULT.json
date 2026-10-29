@@ -1,0 +1,170 @@
+{
+  "status": "Pass",
+  "scope": "203 finite independent State declaration bindings and at-most-two concrete callback Store roots, including value-inferred complete ordinary T; not complete1.4 or product acceptance",
+  "source_commit": "2e58ed38825fb87970982c93e0a674067a0f75a5",
+  "source_clean": true,
+  "source_objects": {
+    "crates": "2c884d05cbb3330761591feba63c65bfd932a4c0",
+    "examples": "023ceebd3579a47b5895a4643319fac541b1c16c",
+    "tools": "7c91c1a7ed7a11a2df29c7c1a825b135440f25cd",
+    "Cargo.toml": "71adfaea2deb83d99a108a0aa43e6c47937fe3b5",
+    "Cargo.lock": "38a62627c9e74866270068f2594959001ee00fe3",
+    "_zil_design.md": "a2b441c540ddd758a5570476859fdc5a472cc582",
+    "spec": "c6439c3f1c70bcdae8a73ba7401ff07e13af6159",
+    "policy/dependencies.json": "59fbacb84e9daa791c501fa94eac41ff01cdb7e4",
+    "validation/product-gates.json": "14d352d66503ba948a55b673ccb913ffb3e5842e"
+  },
+  "integration_merge": "dd8364a38f52b2b69ae05bef1efe20b71df14c81",
+  "production_freeze": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+  "production_domain_equal_to_frozen_cli_and_independent_review": true,
+  "spec_hash": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
+  "normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+  "schema_version": 27,
+  "wire_version": 27,
+  "command": [
+    "cargo",
+    "test",
+    "--workspace",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--no-fail-fast"
+  ],
+  "passed": 2404,
+  "failed": 0,
+  "ignored": 0,
+  "test_result_groups": 247,
+  "duration_seconds": 114.7177004814148,
+  "stdout_log_sha256": "1c266dc70c6d214321419150a883e628a274a9ea363979d6aca761e3aae5a385",
+  "stderr_log_sha256": "794082d6047c00d8b94aaefef9064fef97751538f0e73cb33f22fa31de6ebf46",
+  "clippy": {
+    "source_commit": "2e58ed38825fb87970982c93e0a674067a0f75a5",
+    "status": "Pass",
+    "command": [
+      "cargo",
+      "clippy",
+      "--workspace",
+      "--all-targets",
+      "--offline",
+      "--locked",
+      "-j2",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "receipt": "clippy07/command.json",
+    "stderr_sha256": "114500c13d2a495442de439458dac3694b29c491328f751138733e8a3b7493b2"
+  },
+  "compiler": {
+    "path": "/tmp/zil203-cli-6044e4b5e5551302f3452b50759bda54cde8f65cab7c4d8237c4e4243481a187",
+    "sha256": "6044e4b5e5551302f3452b50759bda54cde8f65cab7c4d8237c4e4243481a187",
+    "bytes": 28075768,
+    "source_commit": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+    "build_receipt": "/workspace/scratch/39be3faa4442/run-logs/203-root/cli06/command.json",
+    "status": "FrozenFinalCandidate",
+    "acceptance": "Pending final source-matched matrices and workspace"
+  },
+  "independent_review": {
+    "reviewer": "/root/impl197",
+    "implementation_commit": "2e58ed38825fb87970982c93e0a674067a0f75a5",
+    "final_receipt": "evidence/reviews/203/by197/FINAL_REVIEW.json",
+    "original_receipt": "evidence/reviews/203/by197/REVIEW.json",
+    "original_implementation_commit": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+    "actual_source_run": "4eb8e4fba59bf424b02a84fd16b95ba2f6dae798",
+    "actual_consumer_run": "c3b8964c9771baf5a90880cc2927f80afc3194c9",
+    "source_raw_wire_ct_groups": 32,
+    "condition_group": 1,
+    "native_source_executions": 54,
+    "linux_consumer_executions": 128,
+    "actual_allocation_failures": 88,
+    "counts_not_summed_with_author_or_full_workspace": true,
+    "review_commit": "66a449452e76433a997b4ca7e12d5abf4f521697"
+  },
+  "author_evidence": {
+    "frontend": "evidence/impl/203/frontend/SUMMARY.json",
+    "expand": [
+      "evidence/impl/203/expand/RESULT.json",
+      "evidence/impl/203/expand/VALUE_RESULT.json"
+    ],
+    "consumer": "evidence/impl/203/consumer/RESULT.json",
+    "types_final_groups": 66,
+    "types_native_executions": 22,
+    "expand_final_groups": 33,
+    "linux_consumer_executions": 128,
+    "wine_consumer_executions": 128,
+    "ordinary_executions_per_platform": 16,
+    "instrumented_executions_per_platform": 112,
+    "actual_allocation_failures_per_platform": 88,
+    "all_live_zero": true,
+    "wine_bad_operations_zero": true,
+    "element_stride_bytes": 72,
+    "maximum_requested_live_payload_bytes": 301,
+    "peak_is_not_process_RSS": true,
+    "counts_overlap_and_are_not_summed": true
+  },
+  "test_migrations": {
+    "review_receipts": [
+      "evidence/reviews/203/by197/MIGRATION-202.json",
+      "evidence/reviews/203/by197/MIGRATION-201-ANALYZE.json",
+      "evidence/reviews/203/by197/MIGRATION-200.json"
+    ],
+    "author_receipts": [
+      "evidence/impl/203/frontend/LEGACY_ANALYZE_MIGRATION.json",
+      "evidence/impl/203/frontend/LEGACY_CONSTRUCTOR_MIGRATION.json"
+    ],
+    "old201_exact_raw_sha256": "5faa62ae0a36fa2489d873fa6aac6d38e4faefa81aedda114aa5ddafa6e82015",
+    "old200_exact_source_sha256": "d05800ba09cf1c06878bb83d8914a97e31ebbba8fb0215db4b44d7ba78a4fd92",
+    "old200_original_evidence_limit": "workspace02 did not set ZIL_TEST_REPORT_DIR; Case::Drop removed the temporary two-types source/IR before residual-directory archival. Original Git source and full stdout actual report are retained. No missing IR was reconstructed or claimed preserved.",
+    "old200_author_13_group_run": "13/0 with empty tracked diff but a transient untracked duplicate receipt; strict clean 2/0 listed separately; root final clean full03 includes entire target"
+  },
+  "prior_full_runs": [
+    {
+      "run": "workspace01",
+      "source": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+      "status": "Fail",
+      "exit_code": 101,
+      "passed": 1733,
+      "failed": 663,
+      "ignored": 0,
+      "groups": 234,
+      "causes": "two legacy201 expectation failures, E0463 synchronized Cargo-cache failure, then temporary/disk exhaustion; later attacks in a failing group were not credited",
+      "archive": "203-root-workspace01-evidence-compact.zip",
+      "archive_sha256": "3f2a6a74f81d8ed75abf1f9c83783c489e5f9c4f683b4f262c5281eb1f303b71"
+    },
+    {
+      "run": "workspace02",
+      "source": "81b860cc00750633d220ffc8ae4db95a29604044",
+      "status": "Fail",
+      "exit_code": 101,
+      "passed": 2402,
+      "failed": 1,
+      "ignored": 0,
+      "groups": 247,
+      "cause": "old200 unused two-binder constructor expectation; no compiler-cache or temporary-storage error",
+      "archive": "203-root-workspace02-evidence-compact.zip",
+      "archive_sha256": "32034a6224d1763332757b10cca59aeebbbf7b0cc79d61286e588c667c9e217f"
+    }
+  ],
+  "failure_policy": "Original move/alias/exclusive/loop-condition/CT defects and fixture/infrastructure failures retain their actual identities. Existing unsafe used counterparts already rejected by Verify are not called executable safety bypasses. No earlier Fail is relabeled.",
+  "evidence_delivery": "Source Git includes compact receipts only; original source/raw/Wire/IR/commands/results are in separately bounded content-deduplicated archives. Actual final archive hash is in ARCHIVE.json.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing",
+  "native_windows": "NotRun",
+  "formal_draft_product_pipeline": "NotRun",
+  "compiler_speed_claim": "None; separate workstream",
+  "remaining_priority": "204 finite owned leaf Store capture and complete Package capture under existing ownership inference; all other full1.4 obligations retained",
+  "formal_plan_check": {
+    "status": "Pass",
+    "source_commit": "0f16704c1ed9b6410523829fbb1b30f160abbebb",
+    "receipt": "plan01/command.json",
+    "scope": "plan consistency and self-tests only"
+  },
+  "historical_handoff": {
+    "status": "Fail",
+    "errors": 1138,
+    "new_slice_errors_178_through_203": 0,
+    "receipt": "handoff01/command.json",
+    "note": "Inherited historical missing commits/evidence remain Fail; no fabricated repair or language-correctness claim."
+  }
+}

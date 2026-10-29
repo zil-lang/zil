@@ -473,7 +473,7 @@ fn check_module(
         retained::check_body(module, function, &graph, &mut budget)?;
         graphs.push(graph);
     }
-    helpers::check_module(module, &graphs, &mut budget)?;
+    helpers::check_module(module, &graphs, limits, &mut budget)?;
     borrows::check_module(module, plan, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
     Ok(fingerprint)
@@ -655,14 +655,14 @@ fn check_function_signature_type(
     budget: &mut Budget,
 ) -> Check<()> {
     match ty {
-        Type::Address { inner, .. } if ty.is_shared_package_address() => {
+        Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
         Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
             resources::check_type_for(module, inner, span, budget)
         }
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
-        Type::Package { .. } => packages::check_type_for(module, ty, span, budget),
+        Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
         ty if resources::arrays::is_owned_type(ty) => {
             resources::arrays::check_type_for(module, ty, span, budget)
@@ -684,7 +684,7 @@ fn check_local_type(
             span,
             "local closure type references an absent environment",
         )),
-        Type::Address { inner, .. } if ty.is_shared_package_address() => {
+        Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
         Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
@@ -695,7 +695,7 @@ fn check_local_type(
             _ => slices::check_pointee(inner, span),
         },
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
-        Type::Package { .. } => packages::check_type_for(module, ty, span, budget),
+        Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
         ty if resources::arrays::is_owned_type(ty) => {
             resources::arrays::check_type_for(module, ty, span, budget)
@@ -761,13 +761,13 @@ fn check_function(
     }
     if matches!(function.return_type, Type::Address { .. }) {
         budget.spend(function.locals.len().saturating_add(function.values.len()))?;
-        if function.return_type.is_shared_package_address()
+        if function.return_type.is_package_address()
             || function
                 .locals
                 .iter()
                 .map(|local| &local.ty)
                 .chain(&function.values)
-                .any(Type::is_shared_package_address)
+                .any(Type::is_package_address)
         {
             return Err(unsupported(
                 "Store element windows are synchronous inputs; address results derived from element windows are not implemented",
@@ -1047,7 +1047,8 @@ fn check_instruction(
         | InstructionKind::OwnedStorePop { .. }
         | InstructionKind::OwnedStoreLen { .. }
         | InstructionKind::OwnedStoreCapacity { .. }
-        | InstructionKind::OwnedStoreBorrow { .. } => {
+        | InstructionKind::OwnedStoreBorrow { .. }
+        | InstructionKind::OwnedStoreBorrowMut { .. } => {
             dynamic_store::check_instruction(module, function, instruction, budget)?
         }
         InstructionKind::ByteBufferNew
@@ -1308,7 +1309,7 @@ fn check_instruction(
             let field = match projected {
                 Type::Tuple(fields) => fields.get(*index as usize),
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
-                Type::Package { fields, .. } if !*mutable => {
+                Type::Package { fields, .. } => {
                     dynamic_store::check_element(module, projected, span, budget)?;
                     fields.get(*index as usize).map(|(_, ty)| ty)
                 }
@@ -1321,7 +1322,16 @@ fn check_instruction(
                     "field projection index outside its record or tuple",
                 )
             })?;
-            check_type(field, span)?;
+            if matches!(projected, Type::Package { .. })
+                && let Type::Closure(id) = field
+            {
+                // The real Package element was independently admitted above.
+                // Projection borrows its actual field; it grants neither a
+                // Copy read nor a consuming/replacing indirect operation.
+                closures::definition(module, *id, span)?;
+            } else {
+                check_type(field, span)?;
+            }
             Some(Type::Address {
                 mutable: *mutable,
                 inner: Box::new(field.clone()),
@@ -2209,7 +2219,10 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
             ([Some(*store), Some(*capacity)], &[])
         }
         InstructionKind::OwnedStorePush { store, value } => ([Some(*store), Some(*value)], &[]),
-        InstructionKind::OwnedStoreBorrow { store, index } => ([Some(*store), Some(*index)], &[]),
+        InstructionKind::OwnedStoreBorrow { store, index }
+        | InstructionKind::OwnedStoreBorrowMut { store, index } => {
+            ([Some(*store), Some(*index)], &[])
+        }
         InstructionKind::OwnedStorePop { store }
         | InstructionKind::OwnedStoreLen { store }
         | InstructionKind::OwnedStoreCapacity { store } => ([Some(*store), None], &[]),

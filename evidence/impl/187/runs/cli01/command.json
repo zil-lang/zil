@@ -1,0 +1,16 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-cli"
+  ],
+  "source_commit": "c8594514faa1de65672a0e944dfd0ea2b8f97460",
+  "start": 1793156172.9348736,
+  "finish": 1793156173.3183923,
+  "exit": 0,
+  "cli_sha256": "b53fd1e9c4f6ec75cb5099c82bca95409f9d4f6dc9d065f836f59716ec87ac72"
+}

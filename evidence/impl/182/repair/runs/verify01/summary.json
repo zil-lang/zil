@@ -1,0 +1,20 @@
+{
+  "head": "31e3ab0900afdec0847b834799c98895588830b6",
+  "dirty": " M crates/zil-analyze/src/holds.rs\n M crates/zil-verify/src/borrows.rs\n M crates/zil-verify/src/closures.rs\n",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "--no-fail-fast",
+    "-j2",
+    "-p",
+    "zil-verify",
+    "--lib",
+    "--",
+    "--test-threads=2"
+  ],
+  "start": 1793154303.059544,
+  "exit": 0,
+  "finish": 1793154307.1068683
+}

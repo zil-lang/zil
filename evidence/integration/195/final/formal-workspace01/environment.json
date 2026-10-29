@@ -1,0 +1,12 @@
+{
+  "start_utc": "2026-10-28T05:58:38.826966+00:00",
+  "source_commit": "7d8cea72460d059f76987f076afa147ed68184eb",
+  "git_status": "",
+  "TMPDIR": "/workspace/scratch/39be3faa4442/zil195-formal-tmp-sA1esH",
+  "tmp_initially_empty": true,
+  "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/formal195",
+  "target_initially_empty": true,
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+  "clang": "Ubuntu clang version 17.0.6 (++20231209124227+6009708b4367-1~exp1~20231209124336.77)"
+}

@@ -135,13 +135,23 @@ fn symbolic_result_and_nested_calls_do_not_collapse_distinct_parameters() {
     }
 }
 #[test]
-fn generic_arity_constraints_and_bounds_fail_closed() {
-    for text in [
+fn generic_arity_constraints_and_structural_copy_bound() {
+    for (index, text) in [
         "fn id<T>(x:T)->T=>x\nfn result()->i32=>id::<i32,i64>(1)",
         "fn choose<T>(x:T,y:T)->T=>x\nfn result()->i32 {let x:i32=1;let y:i64=2;return choose(x,y)}",
         "fn id<T: Copy>(x:T)->T=>x\nfn result()->i32=>1",
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let report = compile_source(&source(text), &CompileOptions::default());
+        if index == 2 {
+            // 194 admits this exact previously unused structural Copy bound.
+            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
+            assert_eq!(report.verification_runs, 1);
+            continue;
+        }
         assert_ne!(
             report.status,
             ResultCategory::Success,

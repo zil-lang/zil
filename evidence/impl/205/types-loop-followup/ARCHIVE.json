@@ -1,0 +1,71 @@
+{
+  "format": "zil-evidence-sha256-v1",
+  "archive": "/workspace/scratch/39be3faa4442/deliverables/205-types-loop-followup-evidence-compact.zip",
+  "bytes": 315885,
+  "sha256": "56c77143233650b33caf0e00bd733ae530aa5b8d7a442ca1ba9b39126aa11877",
+  "originals_unchanged": true,
+  "compiler_tests_executed_by_packaging": false,
+  "pack": {
+    "command": [
+      "python3",
+      "tools/language/204/compact_evidence.py",
+      "pack",
+      "/workspace/scratch/39be3faa4442/run-logs/205-types-followup-pack/INPUTS.json",
+      "/workspace/scratch/39be3faa4442/deliverables/205-types-loop-followup-evidence-compact.zip"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+    "start": 1793206676.3985686,
+    "source_commit": "8092faff3e17bac435d9969ae57a3290fdd0a3ad",
+    "git_status": "",
+    "environment": {
+      "CARGO_TARGET_DIR": null,
+      "CARGO_INCREMENTAL": null,
+      "CARGO_PROFILE_DEV_DEBUG": null,
+      "CARGO_PROFILE_TEST_DEBUG": null,
+      "ZIL_TEST_REPORT_DIR": null,
+      "ZIL_CLANG": null
+    },
+    "status": "Pass",
+    "exit_code": 0,
+    "end": 1793206677.019926,
+    "stdout.log_sha256": "75eaa44a1802dffcd941bde1decad04dc42216191b111870c189e5d3b27c355d",
+    "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "verify": {
+    "command": [
+      "python3",
+      "tools/language/204/compact_evidence.py",
+      "verify",
+      "/workspace/scratch/39be3faa4442/deliverables/205-types-loop-followup-evidence-compact.zip"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+    "start": 1793206692.534681,
+    "source_commit": "8092faff3e17bac435d9969ae57a3290fdd0a3ad",
+    "git_status": "",
+    "environment": {
+      "CARGO_TARGET_DIR": null,
+      "CARGO_INCREMENTAL": null,
+      "CARGO_PROFILE_DEV_DEBUG": null,
+      "CARGO_PROFILE_TEST_DEBUG": null,
+      "ZIL_TEST_REPORT_DIR": null,
+      "ZIL_CLANG": null
+    },
+    "status": "Pass",
+    "exit_code": 0,
+    "end": 1793206692.940449,
+    "stdout.log_sha256": "9b259a4e5ea3955eb31d41867c2273f706dfae45448a8b389cf5b544157df758",
+    "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "statistics": {
+    "logical_files": 494,
+    "logical_bytes": 11782049,
+    "unique_contents": 182,
+    "unique_bytes": 3957455,
+    "excluded_execution_products": 6
+  },
+  "excluded_execution_products": 6,
+  "primary_archive_unchanged": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/205-types-evidence-compact.zip",
+    "sha256": "b99d72a9957836f61d955153d645f871e17dde2f3fc002e99adc57e7da1209d0"
+  }
+}

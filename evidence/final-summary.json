@@ -1,0 +1,10 @@
+{
+  "source_commit": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+  "result_path": "evidence/integration/206/final/RESULT.json",
+  "draft_gate": "NotRun",
+  "full_workspace_gate": "Pass",
+  "full_language_gate": "NotSatisfied",
+  "product_gate": "NotRun",
+  "schema_version": 27,
+  "note": "206 clean workspace2615/0/0 and same-source Clippy; complete recursive ordinary Product and independent per-leaf origins/cleanup accepted. Local raw/Wire capture admission defect repaired without opening capture. First full2612/2 and all original failures retained. 207 owned capture follows; full1.4/B0/product/native Windows remain incomplete."
+}

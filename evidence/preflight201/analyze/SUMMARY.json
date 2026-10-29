@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "task": "preflight201",
+  "component": "Analyze",
+  "author": "/root/bundle_sync",
+  "preflight_execution": "Completed",
+  "implementation_status": "NotStarted",
+  "production_changed": false,
+  "normative_changed": false,
+  "baseline": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+  "proposal_main_commit": "f27357e097174f19567e25d0f078214a9c11b97c",
+  "fixture_commit": "94105de0136abab5777b1cc2cd2e7a3447f18f7e",
+  "audit_snapshot": "9b8328042ea0e426b74543f2684016617806d850",
+  "compiler_source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+  "compiler_sha256": "4eaf5291d867f0ebc64390f5ab3850ea6726570216ab688ae971c44e457a2fc9",
+  "compiler_build_clean": true,
+  "spec_hash": "13ea0962a2bf73893a0b03eac133456216856f3748152392c925e95028059c7d",
+  "normative_hash": "4402e04fd45551cbdd8dff92c4ac51af8d8ddd6f87296c17ce3690f55359bff3",
+  "public_schema_version": 25,
+  "original02": {
+    "bytes": 626,
+    "sha256": "23faee6a4575e6c522fa8ffed71d929dfd8463241197c7760cbe670f11f65fa8",
+    "equal_to_historical_preflight_and_200_fixture": true
+  },
+  "executed_cli_checks": 3,
+  "compilation_successes": 0,
+  "verification_runs": 0,
+  "native_executions": 0,
+  "wine_executions": 0,
+  "native_windows": "NotRun",
+  "rust_tests": "NotRun",
+  "performance": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "probe_results": [
+    {
+      "fixture_path": "evidence/preflight201/analyze/cases/00_original02_store_of_callback_state.zil",
+      "fixture_sha256": "23faee6a4575e6c522fa8ffed71d929dfd8463241197c7760cbe670f11f65fa8",
+      "fixture_bytes": 626,
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets200/frontend/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review195/evidence/preflight201/analyze/cases/00_original02_store_of_callback_state.zil",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/run-logs/201-analyze/probes01/00_original02_store_of_callback_state/phases",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "StoreElement fields require finite Copy or explicit direct manages resources",
+          "span": {
+            "file": 0,
+            "start": 58,
+            "end": 59
+          },
+          "notes": []
+        }
+      ],
+      "command_receipt": "runs/00_original02_store_of_callback_state/command.json"
+    },
+    {
+      "fixture_path": "evidence/preflight201/analyze/cases/01_split_pair_two_elements.zil",
+      "fixture_sha256": "003e862d7741c0a7cdfc47b6263860c73641c912d69ec7a55a23d9840eeea5bf",
+      "fixture_bytes": 1157,
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets200/frontend/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review195/evidence/preflight201/analyze/cases/01_split_pair_two_elements.zil",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/run-logs/201-analyze/probes01/01_split_pair_two_elements/phases",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "StoreElement fields require finite Copy or explicit direct manages resources",
+          "span": {
+            "file": 0,
+            "start": 136,
+            "end": 137
+          },
+          "notes": []
+        }
+      ],
+      "command_receipt": "runs/01_split_pair_two_elements/command.json"
+    },
+    {
+      "fixture_path": "evidence/preflight201/analyze/cases/02_package_store_capture.zil",
+      "fixture_sha256": "5d430f79813e995268368bcbe3c3918e1de093007e5802f79d4f88f196905853",
+      "fixture_bytes": 484,
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets200/frontend/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review195/evidence/preflight201/analyze/cases/02_package_store_capture.zil",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/run-logs/201-analyze/probes01/02_package_store_capture/phases",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Package capture with Store fields requires a retained storage protocol",
+          "span": {
+            "file": 0,
+            "start": 394,
+            "end": 397
+          },
+          "notes": []
+        }
+      ],
+      "command_receipt": "runs/02_package_store_capture/command.json"
+    }
+  ],
+  "limits_of_evidence": [
+    "Both callback Store probes stop at Expand StoreElement qualification. Their later Analyze, Verify, error-payload, callback and cleanup behavior was not reached.",
+    "The Package-with-Store capture probe reaches the existing Types retained-storage Unsupported gate, not an independent cycle or loan checker.",
+    "Window callback projection and hidden type dependency conclusions are source audits only; no callback Store raw/Wire or native positive is claimed.",
+    "Preserving current Store-capture restrictions is a proposed finite boundary, not a new implementation permission."
+  ],
+  "external_evidence": {
+    "file": "201-analyze-preflight-evidence.zip",
+    "bytes": 48914,
+    "sha256": "f72cf4b84609c6bc4b094fdb8e3288b2e663a1017dd85b088a303b71b09636b7",
+    "payload_files": 24,
+    "execution_artifacts_included": 0,
+    "crc_and_payload_sha256_checked": true
+  }
+}

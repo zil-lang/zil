@@ -1,0 +1,7 @@
+# 185：当前规范索引与正式任务摘要校准
+
+运行既有tools/update-indexes.py，按当前1.4/schema23内容重新生成data索引，并同步14个当前正式任务的spec_hash与normative_hash。任务状态、依赖和Done条件不变；已完成编号实施切片的历史摘要不重写。
+
+生成器对spec/diagnostics.json仅做既有项目的确定排序（phases/requirements并集排序及entries按code排序），未添加或删除诊断语义。其字节摘要变化进入当前规范束，新的normative为1068cda3fe79b906f49eeee4bd3f62863f9db4ae85e8a0dbaa3c439d310777b8；185实际受测6f保留当时c060摘要。此次运行解除继承的14个正式任务摘要过期，不消除旧Git提交或外置历史证据缺失，不声称完整语言/产品完成。
+
+此为索引/格式刷新，无编译器生产源码、预算或产品阈值变化。

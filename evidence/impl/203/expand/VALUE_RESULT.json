@@ -1,0 +1,47 @@
+{
+  "status": "Pass",
+  "production_commit": "fe10218aaa9e0413eb150510dce1f4b8e32062b1",
+  "tested_commit": "1a8ac748afad7a99cdf272b8d4340d2c1189b3ab",
+  "normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+  "clean_inferred_freeze02": {
+    "state_tests": 15,
+    "multimodule_expand": 1,
+    "previous202": 17,
+    "failed": 0
+  },
+  "clean_clippy02": "Pass on production fe10218a with -D warnings",
+  "new_exact_N": {
+    "original01_dual": 3814,
+    "original04_marker": 4181,
+    "inferred_ordinary_call": 4070
+  },
+  "legacy_N": {
+    "197": 1731,
+    "ordinary": 2255,
+    "202_deferred": 8399,
+    "202_shadow": 12755,
+    "202_pop": 12291
+  },
+  "earlier_norm1355_N": {
+    "dual": 3753,
+    "marker": 4120,
+    "unchanged_receipt": "RESULT.json"
+  },
+  "native_fault_matrix": "NotRun by this author; complete consumer still needs integrated Types/safety/native stages",
+  "prior_failures_preserved": [
+    "union01 integer payload context",
+    "union03 author invalid literal spelling fixed to legal i64(0)",
+    "inferred01 implicit metadata assertion concretely migrated under new bareCall contract",
+    "consumer expand01 author missing give",
+    "consumer expand02 actual producer complete-T eager specialization gate",
+    "collector no-final-control01 exit1 NotSealed; no archive produced"
+  ],
+  "archive": {
+    "file": "203-expand-supplement-evidence.zip",
+    "size": 1420001,
+    "sha256": "a8417c5d68d6259ac7f79383244bcd8e37de8de77d30f668cd70616ec540706e",
+    "members": 508,
+    "crc_and_member_sha256": "Pass",
+    "executable_artifacts": false
+  }
+}

@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Expand,
+        category: SafeReject,
+        code: "E-OWNED-STORE-NAME",
+        message: "Store and bare owned storage primitives cannot be rebound",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 0,
+                end: 16,
+            },
+        ),
+        notes: [],
+    },
+]

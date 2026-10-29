@@ -1,0 +1,51 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review180-by179/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.25s
+     Running tests/review180_by179.rs (/workspace/scratch/39be3faa4442/targets178/review180-by179/debug/deps/review180_by179-25ce595f11dc19f5)
+
+running 5 tests
+test escaping_mutable_window_or_child_address_remains_closed ... ok
+test current_call_reborrows_and_hidden_callback_writes_keep_actual_aliases ... FAILED
+test raw_call_retargeting_cannot_claim_two_unique_actual_sources ... ok
+test raw_copy_projection_does_not_authorize_package_or_resource_access ... FAILED
+test raw_unique_window_cannot_be_copied_or_manufactured_from_access_load ... ok
+
+failures:
+
+---- current_call_reborrows_and_hidden_callback_writes_keep_actual_aliases stdout ----
+
+thread 'current_call_reborrows_and_hidden_callback_writes_keep_actual_aliases' (117) panicked at crates/zil-driver/tests/review180_by179.rs:51:5:
+assertion `left == right` failed: captured-store-mut-borrow: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"Store capture requires a separate retained storage profile","span":{"file":0,"start":473,"end":474},"notes":[]}],"artifacts":{},"input_fingerprint":"f9e63473cd0665f519f1bf440998c26d3112c7b24c553a39f72834fbbd2b3277","seconds":0.002868703,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: SafeReject
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- raw_copy_projection_does_not_authorize_package_or_resource_access stdout ----
+
+thread 'raw_copy_projection_does_not_authorize_package_or_resource_access' (120) panicked at crates/zil-driver/tests/review180_by179.rs:92:9:
+load-entire-package/raw: [
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-ADDRESS",
+        message: "ReadAddress requires a shared address to a finite Copy value",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 439,
+                end: 446,
+            },
+        ),
+        notes: [],
+    },
+]
+
+
+failures:
+    current_call_reborrows_and_hidden_callback_writes_keep_actual_aliases
+    raw_copy_projection_does_not_authorize_package_or_resource_access
+
+test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p zil-driver --test review180_by179`

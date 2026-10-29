@@ -1,0 +1,33 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl184_lending",
+    "--offline",
+    "--locked",
+    "--no-fail-fast",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt184",
+  "start": 1793154235.0041907,
+  "source_commit": "087020115beca4cde72ae3302f58a398652188a8",
+  "git_status": " M crates/zil-analyze/src/holds.rs\n M crates/zil-analyze/src/resources.rs\n M crates/zil-backend-llvm/src/emit/resource_closures.rs\n M crates/zil-types/src/addresses.rs\n M crates/zil-types/src/closures.rs\n M crates/zil-types/src/helpers.rs\n M crates/zil-types/src/inference.rs\n M crates/zil-types/src/lending.rs\n M crates/zil-types/src/lib.rs\n M crates/zil-types/src/program.rs\n M crates/zil-types/src/retained.rs\n M crates/zil-verify/src/borrows.rs\n M crates/zil-verify/src/borrows/loans.rs\n M crates/zil-verify/src/closures.rs\n M crates/zil-verify/src/helpers.rs\n M crates/zil-verify/src/resources.rs\n M crates/zil-verify/src/retained.rs\n?? crates/zil-driver/tests/impl184_lending.rs\n",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author184",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/runs178/author184/development03/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Fail",
+  "exit_code": 101,
+  "end": 1793154243.2178261,
+  "stdout.log_sha256": "72bbaf65c2e6f2f3c333045a51402c6422bec2243e47df8b4bd1c9686ad21244",
+  "stderr.log_sha256": "9dbf372206c8e8981144e0ba4306bb2bf12cc89dc87b584cee4fd7e8a2d0e6a8"
+}

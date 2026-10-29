@@ -1,0 +1,1 @@
+This first command used --manifest-path review167 but record.py ran from compose159. Its recorded source_commit/crates_tree identify the recorder CWD, not the compiled candidate. Do not count this receipt as exact-candidate review. The subsequent locked-suite runs from review167 and is the authoritative bound review. Original output is retained without rewriting.

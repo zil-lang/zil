@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-28T05:57:24.072388+00:00",
+  "closed_targets": [
+    "/workspace/scratch/39be3faa4442/targets178/review193",
+    "/workspace/scratch/39be3faa4442/targets178/review195",
+    "/workspace/scratch/39be3faa4442/targets178/review191final",
+    "/workspace/scratch/39be3faa4442/targets178/author193",
+    "/workspace/scratch/39be3faa4442/targets178/author194",
+    "/workspace/scratch/39be3faa4442/targets178/author195",
+    "/workspace/scratch/39be3faa4442/targets178/audit14",
+    "/workspace/scratch/39be3faa4442/targets178/author184fresh",
+    "/workspace/scratch/39be3faa4442/targets178/review191-baseline"
+  ],
+  "files_invalidated": 1717,
+  "logical_bytes_released": 2106427726,
+  "skipped": [],
+  "scope": "Only explicitly closed Cargo target regular files; all hardlinks checked within closed set. No symlink target, source, evidence, active review194 target or Wine prefix modified."
+}

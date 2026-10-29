@@ -1,0 +1,13 @@
+{
+  "status": "Pass",
+  "source_commit": "1bf8cf548a4648c597a67bf54b09f6200520e4e2",
+  "recorder_exit_code": 0,
+  "counts": {
+    "passed": 2063,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 216
+  },
+  "temporary_root": "/dev/shm/zil195-formal04-y_cq5eve/tmp",
+  "code_unchanged_at_exit": true
+}

@@ -1,0 +1,73 @@
+{
+  "status": "Pass",
+  "scope": "Analyze component plus five source-derived cross-stage tests; not complete task196 acceptance",
+  "implementation_author": "/root/bundle_sync",
+  "implementation_commit": "40ed70fc4d41e19092c61cdebd9447d9c5662fa1",
+  "analyze_production_commit": "2e7bbce3cfec567f2952e7bacdd8ade191db846e",
+  "composed_frontend_commit": "f4a00bc70676d87c1c98b88e76da90325a56dc65",
+  "composed_public_verify_commit": "4b07d41b",
+  "spec_hash": "09ef7fcdf2e71c2de38456d45d911aadc02dec3f355c4edaf8b51f2feb689c51",
+  "normative_hash": "a7f030e1f008799712cc3410c492719f64a3bf86d8079251327b8e8a869736fe",
+  "schema": 25,
+  "analyze_crate_tree": "9b66978d3381a4019f92028195303116a535f37c",
+  "results": {
+    "analyze_crate": {
+      "passed": 50,
+      "failed": 0,
+      "ignored": 0,
+      "new_raw_tests": 10,
+      "receipt": "commands/final-crate/command.json"
+    },
+    "source_analyze_raw_wire": {
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "source_baselines": 5,
+      "coordinated_raw_attacks": 5,
+      "raw_verify_accepts": 5,
+      "wire_verify_accepts": 5,
+      "raw_verify_rejects": 5,
+      "wire_verify_rejects": 5,
+      "receipt": "commands/source02/command.json"
+    }
+  },
+  "budget_frontiers": {
+    "raw_nested": 1258,
+    "raw_branch": 847,
+    "raw_flow": 845,
+    "source_derived_nested": 2551,
+    "assertion": "For every reported frontier: N accepts, N-1 is Analyze ResourceLimit, fresh N accepts; default limits unchanged"
+  },
+  "retained_failures": [
+    {
+      "receipt": "commands/attempt01/command.json",
+      "passed": 32,
+      "failed": 3,
+      "reason": "New role-table charge erroneously applied to ordinary functions; production corrected, original scalar exact-budget assertions unchanged; new raw suite was not yet executed in this stopped Cargo command."
+    },
+    {
+      "receipt": "commands/source01/command.json",
+      "passed": 4,
+      "failed": 1,
+      "reason": "Nested local closure address inference rejected &first in preserved second-role write source; frontend author corrected f4a00bc7, same source now passes."
+    }
+  ],
+  "replays_not_new_coverage": [
+    "commands/attempt02",
+    "commands/once-raw01"
+  ],
+  "environment": {
+    "platform": "Linux x86_64",
+    "TMPDIR": "/dev/shm/zil196-analyze",
+    "toolchain_env": "/workspace/scratch/39be3faa4442/toolchains178/env.sh",
+    "native_windows": "NotRun",
+    "native_executions_by_this_component": 0
+  },
+  "independence": "Analyze role origins, per-static-child substitutions, ordered finite paths/Flow and resource effects are implemented here without calling Types or Verify proof functions.",
+  "limits": [
+    "This receipt is author evidence; requires independent review and integrated task196 acceptance.",
+    "Raw constructed TypedIR tests do not establish source-language acceptance.",
+    "Compiler source tests execute Analyze, raw Verify and Wire Verify, but no native programs in this component.",
+    "Full language NotSatisfied; product gate NotRun; no Rust speed/memory comparison."
+  ]
+}

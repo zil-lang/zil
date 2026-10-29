@@ -1,0 +1,428 @@
+{
+  "stage": "161-165",
+  "status": "StagePass_FullZuiNotReady",
+  "created_at_utc": "2026-10-27T10:51:19.522942+00:00",
+  "restored_baseline": "e9a604c80d56027a5fb6c28bcb8b58f9c9e84a7b",
+  "language_commit": "712a9602797891083fe3f549381e1e12ab34dd02",
+  "final_workspace_source_commit": "03aa25206fbf4c5d783c5fe0ecc4078fbe628b73",
+  "final_crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+  "production_source_unchanged_after_language_commit": true,
+  "only_crates_difference_since_language_commit": [
+    "crates/zil-expand/tests/generics.rs"
+  ],
+  "protected_paths_unchanged_from159": [
+    "_zil_design.md",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml",
+    "policy/dependencies.json",
+    "validation/product-gates.json",
+    "spec/interfaces.json",
+    "crates/zil-analyze",
+    "crates/zil-verify",
+    "crates/zil-ir",
+    "crates/zil-lower",
+    "crates/zil-backend-llvm"
+  ],
+  "spec_sha256": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+  "new_baseline_run": {
+    "source_commit": "e9a604c80d56027a5fb6c28bcb8b58f9c9e84a7b",
+    "restored_archive_sha256": "189890c75518ad61c66f6438053032299abbdc1b288529256547dc7a32d84919",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "--workspace",
+      "--no-fail-fast",
+      "-j",
+      "2",
+      "--",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "passed": 1328,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 140,
+    "scope": "New execution of restored159 production bytes; dispatch and task documents differed, crates were unchanged",
+    "toolchain": {
+      "rust": "1.99.1",
+      "clang": "17.0.6",
+      "previous_clang": "17.0.0",
+      "note": "New local installation; LLVM17 patch version differs from slice159 evidence. Re-run native tests; do not reuse historical measurement results.",
+      "versions": {
+        "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+        "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+        "rustfmt": "rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13)",
+        "clippy": "clippy 0.1.99 (58cf8f9c35 2026-10-13)",
+        "clang": "Ubuntu clang version 17.0.6 (++20240501091250+6009708b4367-1~exp1~20240501211359.8)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin",
+        "llvm-as": "Ubuntu LLVM version 17.0.6\n  Optimized build.",
+        "lld": "Ubuntu LLD 17.0.6 (compatible with GNU linkers)"
+      }
+    }
+  },
+  "initial_workspace_failure": {
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "--workspace",
+      "--no-fail-fast",
+      "-j",
+      "2",
+      "--",
+      "--test-threads=1"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/zil-restored/compose159",
+    "source_commit": "712a9602797891083fe3f549381e1e12ab34dd02",
+    "crates_tree": "42bafd5f66e49c0e6e077ed793fe78327b43558f",
+    "source_status": "",
+    "start": 1793097527.5165324,
+    "status": "Fail",
+    "exit_code": 101,
+    "log_sha256": "c6983dd4ca7fb2f2bbc3e4a05453518d7d0db49768c9543c6fe6f1c9f98b3d93",
+    "end": 1793097733.532445,
+    "seconds": 206.0159125328064,
+    "tests": {
+      "passed": 1381,
+      "failed": 1,
+      "ignored": 0,
+      "groups": 143
+    },
+    "error": "required test run has no passing tests or contains failures",
+    "ending_crates_tree": "42bafd5f66e49c0e6e077ed793fe78327b43558f",
+    "ending_source_status": ""
+  },
+  "final_validation": {
+    "165-final-workspace": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--no-fail-fast",
+        "-j",
+        "2",
+        "--",
+        "--test-threads=1"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/compose159",
+      "source_commit": "03aa25206fbf4c5d783c5fe0ecc4078fbe628b73",
+      "crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+      "source_status": "",
+      "start": 1793098065.0296168,
+      "status": "Pass",
+      "exit_code": 0,
+      "log_sha256": "9f1d7ff66cc45fa5a27c3ed2175d2ad8c761467d7095273f105dad012c620d38",
+      "end": 1793098244.6043806,
+      "seconds": 179.57476377487183,
+      "tests": {
+        "passed": 1384,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 143
+      },
+      "ending_crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+      "ending_source_status": ""
+    },
+    "165-final-clippy": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "-j",
+        "2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/compose159",
+      "source_commit": "03aa25206fbf4c5d783c5fe0ecc4078fbe628b73",
+      "crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+      "source_status": "",
+      "start": 1793098096.2654228,
+      "status": "Pass",
+      "exit_code": 0,
+      "log_sha256": "ba5eff45ae37b959e6fbde697860b1a6acabc6cfe67b41c33a84d9fbda8fcf34",
+      "end": 1793098112.2460988,
+      "seconds": 15.98067593574524,
+      "ending_crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+      "ending_source_status": ""
+    },
+    "165-final-fmt": {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/compose159",
+      "source_commit": "03aa25206fbf4c5d783c5fe0ecc4078fbe628b73",
+      "crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+      "source_status": "",
+      "start": 1793098096.2550828,
+      "status": "Pass",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "end": 1793098097.9759653,
+      "seconds": 1.7208824157714844,
+      "ending_crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+      "ending_source_status": ""
+    }
+  },
+  "readiness": {
+    "status": "StagePass_FullZuiNotReady",
+    "cli_sha256": "d68bc0b124c8471b48ca97ec902417faa17268445761c71eba702caeb18b0837",
+    "original_probe_sha256": "1acf26ce2b3b74629a4936d74ab0f943ce71d6751f1843c2a3a64d7241520f45",
+    "source_commit": "712a9602797891083fe3f549381e1e12ab34dd02",
+    "crates_tree": "42bafd5f66e49c0e6e077ed793fe78327b43558f",
+    "consumer_sources": {
+      "examples/mainline/zui_language164/adapter.zil": "8a7ecd3c86ff2015065016014fe0d098400db004a94acf489c9eebfe7bb0f495",
+      "examples/mainline/zui_language164/main.zil": "5d77a8d8e0531e100a87808e23eac9d1bb46ddef8de50559425ba33691f6eb90",
+      "examples/mainline/zui_language164/model.zil": "b21fa6e1683ad311cea8f4a377f786cbccfd456d4cc5413ae3051ee768955fd8",
+      "examples/mainline/zui_language164/ticket.zil": "7586585505ca5165bb9d712c015c9acccea025387948d02013ad32985564d225"
+    },
+    "baseline": false,
+    "gaps": [
+      {
+        "capability": "nested-owning-callback",
+        "source_sha256": "1d3d4a6c1e95f83be56272efa9e03bc1a6d180c0da7f8257b18b4f908816adb4",
+        "exit_code": 0,
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "verification_runs": 1
+      },
+      {
+        "capability": "owned-array-elements",
+        "source_sha256": "13235ee9abcef54c95747b149c958f8a79802fb04e45857e1e221c4190dd04fe",
+        "exit_code": 1,
+        "status": "SafeReject",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-TYPE-MISMATCH",
+            "message": "expected Desc(Record { name: \"@module0:$module0_R\", fields: [(\"n\", I32)] }), found Managed(Record { name: \"@module0:$module0_R\", fields: [(\"n\", I32)] })",
+            "span": {
+              "file": 0,
+              "start": 46,
+              "end": 52
+            },
+            "notes": []
+          }
+        ],
+        "verification_runs": 0
+      },
+      {
+        "capability": "owned-error-result",
+        "source_sha256": "14097787d937f7e719603d3d197f135b4d0b8093245ae725c8a1cb6919835483",
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "error union payloads require finite Copy values",
+            "span": {
+              "file": 0,
+              "start": 13,
+              "end": 79
+            },
+            "notes": []
+          }
+        ],
+        "verification_runs": 0
+      },
+      {
+        "capability": "generic-trait-bound",
+        "source_sha256": "0b94e8932d0836bfdb82e9caa855e9c91b651e8f0afcd0f10693366a621e27b1",
+        "exit_code": 0,
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "verification_runs": 1
+      },
+      {
+        "capability": "owning-method-receiver",
+        "source_sha256": "a299701c52efbbfd9d6fa36f51e412495fd03ccb3a6e07e769a9df6f900cf14e",
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "addresses to resource or package heads are not implemented",
+            "span": {
+              "file": 0,
+              "start": 19,
+              "end": 29
+            },
+            "notes": []
+          }
+        ],
+        "verification_runs": 0
+      },
+      {
+        "capability": "array-of-capturing-callbacks",
+        "source_sha256": "ccb66b5bbcfb231a4477ca7ee9e227fdff2c2e2f709c01d97cb57f64b79877c8",
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "array element requires a Copy value",
+            "span": {
+              "file": 0,
+              "start": 101,
+              "end": 118
+            },
+            "notes": []
+          }
+        ],
+        "verification_runs": 0
+      }
+    ],
+    "native": [
+      {
+        "optimization": "O0",
+        "executions": 2,
+        "events_per_execution": 1024,
+        "drop_observations_per_execution": 1024,
+        "llvm_sha256": "1f700b7a96e5364e85a069a28b4ca8f78627f7d2b6f532a8be9b7f728fcf1a6e",
+        "allocation": {
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "peak_bytes": 1024
+        }
+      },
+      {
+        "optimization": "O2",
+        "executions": 2,
+        "events_per_execution": 1024,
+        "drop_observations_per_execution": 1024,
+        "llvm_sha256": "1f700b7a96e5364e85a069a28b4ca8f78627f7d2b6f532a8be9b7f728fcf1a6e",
+        "allocation": {
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "peak_bytes": 1024
+        }
+      }
+    ],
+    "remaining_original_probes": [
+      "owned-array-elements",
+      "owned-error-result",
+      "owning-method-receiver",
+      "array-of-capturing-callbacks"
+    ]
+  },
+  "reviews": {
+    "161": "evidence/reviews/161/review.json",
+    "162": "evidence/reviews/162/review.json",
+    "163": "evidence/reviews/163/review.json",
+    "164": "evidence/reviews/164/review.json",
+    "165": "evidence/reviews/165/review.json"
+  },
+  "cold_candidate": {
+    "status": "CandidatePass_FinalPackagePending",
+    "reviewer": "/root/source_inventory",
+    "scope": "Independent review of parent-authored packaging/restoration; rerun of 161/162/163 in fresh restored checkout and empty target. Source semantics independent reviews are separate.",
+    "source_commit": "e158fddcfd0def1f5c365a9b83ff7cc089f5e740",
+    "source_tree": "26f864a23989134198d8da85f0ed585964fb76f0",
+    "crates_tree": "42bafd5f66e49c0e6e077ed793fe78327b43558f",
+    "restored_destination": "/workspace/scratch/39be3faa4442/cold164",
+    "target": "/workspace/scratch/39be3faa4442/targets/cold164",
+    "target_absent_before_test": true,
+    "offline_locked": true,
+    "refs_count": 20,
+    "reachable_commits_count": 97,
+    "worktree_count": 6,
+    "all_original_worktree_heads_preserved": true,
+    "source_zip": {
+      "status": "Pass",
+      "sha256": "962aa0c6c19ce2996223ba78df1ccb0dc3718a75130507eac6bfe5e569bc6e40",
+      "files": 2701,
+      "file_bytes": 14009218,
+      "exclusions": [],
+      "generated_substitutions": [],
+      "git_mode_check": "Pass",
+      "actual_unzip_mode_and_bytes_check": "Pass"
+    },
+    "tests": {
+      "passed": 53,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 3
+    },
+    "first_auditor_failure": {
+      "path": "source-zip-check.json",
+      "classification": "AuditorFormatAssumption",
+      "reason": "Initial header checker required Unix mode for every ZIP entry. Git archive encodes ordinary 100644 entries as DOS-default mode=0. A real local Git archive control with 100644, 100755 and 120000 verified its encodings and unzip results.",
+      "control": "zip-mode-control/control.json",
+      "corrected_check": "source-zip-canonical-check.json",
+      "actual_extraction_check": "source-unzip-check.json",
+      "production_changed": false
+    },
+    "163_boundaries": [
+      "Public resource factories with result(create), default Desc read receivers and explicit give consuming receivers are supported and used consistently by consumer164.",
+      "Public resource/Package names and public methods cross modules; private owners/methods and Drop remain hidden.",
+      "Local ByteBuffer methods and whole-Package value methods are supported. Whole-Package refill uses exit flow to preserve FnMut only when all exits restore responsibility.",
+      "Original159 resource trait receiver self:&Self remains Unsupported. Desc/give support does not close that address-semantics probe.",
+      "ByteBuffer extension lookup remains local; no cross-module extension registry is claimed."
+    ],
+    "limits": [
+      "97 reachable commits from current complete ref snapshot; this does not restore historical commits absent from159.",
+      "Historical snapshot-only/Fail handoff status is inherited, not rewritten.",
+      "Toolchains are separate local installations: Rust1.99.1 and Clang17.0.6; no toolchain archive implied.",
+      "Final package will add docs/evidence and a migrated generics regression. Final refs/ZIP/source identity and that test remain to be checked; current53 results retain e158fdd identity."
+    ],
+    "evidence": {
+      "preflight.json": "9f42a986bbd652b0dc89a0435cd0fca292e80cb97d434cb875f7dd6072b78c5a",
+      "restore-command.json": "36ade7cdbb7f52beb5983c04e5e2298fd319bc41a6ef5ce5d3804ca6d5c7f233",
+      "restore.log": "72664c35939176477107742ca491ed860810e62bd576b64146466841a1658425",
+      "restored-identity.json": "4a8379a360d3717080d2a98d1c3a8a60da316c1d1188086685ef6edfd708171e",
+      "source-zip-check.json": "4bcdd9b350a561738d81a67e042236b5572f759f04e3a6596d30e89ef7eafe7f",
+      "source-zip-canonical-check.json": "7050e454bb5e1a1775520105a774655702521377fc304d6efebbeeb811904f42",
+      "source-unzip-check.json": "df47734f00052a9e7a897a70fefae787fde1e246d245f39e4feaf243431b9925",
+      "targeted-tests/command.json": "33298fd23a03d58dce84ca7523df070b1af575613b4e2dc33764c24f4f3cd209",
+      "targeted-tests/output.log": "b4f47014daac1ab5ed38d84b5d02f54271f479a091c8b9576bd92ac82b0cc66d",
+      "check_source_zip.py": "cbdcd665e6a725ffb8b317535a51f56738d6b35fc94bfef3d65b06868e29f002",
+      "toolchain.json": "ce6ec022d2c518d58fd1a9235590fbbe5955cc8a8c46854c6e2035ca0c1e2ab0",
+      "zip-mode-control/control.json": "e3cdf26f4a4e17b265e91a57dd0df7c8298dddc005f01b83c847698fd8b40def"
+    }
+  },
+  "final_delivery_identity_check": "See outer package DELIVERY-VERIFY.json; do not reuse the candidate identity for the final package",
+  "formal_status": {
+    "B0": "Doing",
+    "complete_language": "NotSatisfied",
+    "product": "NotRun",
+    "old_35_gate_suite": "NotRun",
+    "historical_handoff": "inherited snapshot_only/Fail; not rewritten"
+  },
+  "runtime_memory_comparison": "NotMeasured",
+  "compilation_speed_research": "Outside this language-only workstream",
+  "github_sync": false
+}

@@ -1,0 +1,392 @@
+[
+  {
+    "case": "owned-arrays167-265-0",
+    "status": "Unsupported",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "ab6e58487b090c78c6271da7c4c68baa918ad18ebd59cd9e228eb7b1fe634281",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "capture requires a finite Copy value, finite resource, explicit-move Package or one address layer"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-1",
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "report_sha256": "af9b65077d0266f9ff732505b14ae159771a77c3290f8cd78c8a8ecb4fdd26f7",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-11",
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "report_sha256": "e9d4ac8fd39d26522fd5ab7720a8ea655c1613de5a0201f6eb0c3bcb846ddc49",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-12",
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "report_sha256": "c4637933e781816626b14cc6be732698c057a5db4b5bf2c9819d28982af4d41f",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-13",
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "report_sha256": "5c83787b6d5e2a556817633f762e90f67a268ef660ffd660a26d87d2ed693498",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-14",
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "report_sha256": "73e9b6d6591a7cd540475134e1e5b25940afca71d7b0d02e64def7e1b18d8703",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-15",
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "report_sha256": "b02f543772d426c376a08d99beea9222809114f7fb90e99765f786973f48ba52",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-17",
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "report_sha256": "62aea7c82439201554899f9752f045b7ac43d19034e5525091b97c363e443d8c",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-18",
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "report_sha256": "6b9e7a6f01dc32ad6337265886c70f4df93aa8c4fe4510f0a6d3d9c4c6d1f86a",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-20",
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "5201c02597a7d08ecb966d6270aeacdd0dfac10063dffc8d242f0152230b3dcb",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-IMMUTABLE-ASSIGNMENT",
+        "message": "exclusive callback element borrow requires a mutable array"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-29",
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "report_sha256": "cf7a822f0a4ad5ec1e3ab05bb75f1e8288941aad8d8c4a505d2a032ae77f8481",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: owning array take requires a live element on every path"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-32",
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "b730fedb82c5bc09aa8564cb99ee0aa03b939b41580e728f905f62484d9277dd",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-FIELD-PRIVATE",
+        "message": "record field is private to its declaring module"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-33",
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "report_sha256": "67adbd5819327232e01a408eda106570af83d9b568360330a66c5b48bbb45003",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: whole aggregate move requires every owned element or field live"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-40",
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "report_sha256": "1abb91f0be6d93a83b168902e9006e66a3745bba23850fc700a5b18bb2990918",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: head transition invalidates a description required later"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-43",
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "report_sha256": "6cf1e572a5c1f87381cb90ee30ce2df1e6f78e92b3c9e67ae2655d0a52c1bb3e",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: head transition invalidates a description required later"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-46",
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "c2c89355df59b46f5b5bddd6a0c73f9f605cbae12e8378956cc25d7754551f2b",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-IMMUTABLE-ASSIGNMENT",
+        "message": "owning array element assignment requires a mutable local shell"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-56",
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "05b3e33d27f8fafe8780199ae091e1cf3427657eaef4eb80aabfd97cbb3723ba",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-INDEX-BOUNDS",
+        "message": "owning array index is outside its fixed length"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-6",
+    "status": "Unsupported",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "373359dec193351b44dda54f1fad5df15c4861ed3f3f591ac61eeadddf6de173",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "owning array indices require a fixed integer literal; dynamic locations are not exact slots"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-60",
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "12e079eba29ce2b64b0245af66b1cd513fed8355f779595cf8b3974411b9f4e8",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-INDEX-BOUNDS",
+        "message": "owning array index is outside its fixed length"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-65",
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "report_sha256": "a28ddcbbfdfa4d1d6af9ff0945941b061b434b3fe1428cacfb774ac6d64ca7d4",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 0 is not initialized on every incoming path"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-68",
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "report_sha256": "e50f57a16547f0fee7150474d53acb227caad0450481e5cc628eab7b7e3b8e38",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 1 is not initialized on every incoming path"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-69",
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "report_sha256": "f9525b4a61486b3dd242779c88cc2438415b1b24da7c4898a9024e225445cd0a",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: owning array take requires a live element on every path"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-70",
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "3050bb7988fde59902f638782ec7f0118092092e5f126494bf49d531e53b7d50",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "different closure expressions have different concrete types"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-72",
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "5c3f8f53eba52606e0835bf30b3f3799403891dc89c01292dd7ede7741416c63",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "different closure expressions have different concrete types"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-73",
+    "status": "Unsupported",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "535a7fa800bb0c4af5960c341405331b1cb06261122aab61df08848be1c437bb",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "owning callback array elements require self-contained environments"
+      }
+    ]
+  },
+  {
+    "case": "owned-arrays167-265-9",
+    "status": "Unsupported",
+    "phase": "types",
+    "verification_runs": 0,
+    "report_sha256": "4d50860870d160edbdb101310f3b0338a56ab662e7b938cb5023c20bf0be6bd0",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array"
+      }
+    ]
+  }
+]

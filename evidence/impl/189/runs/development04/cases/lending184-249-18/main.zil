@@ -1,0 +1,1 @@
+fn main(){var n=3;let f=move()=>&mut n;}

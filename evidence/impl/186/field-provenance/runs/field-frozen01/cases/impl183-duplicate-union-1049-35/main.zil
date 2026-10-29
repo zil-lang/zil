@@ -1,0 +1,1 @@
+resource R{n:i32}enum E{Fail}fn make()->E!R contract{result(create)}=>R{n:1};fn wrap(give r:R)->E!R contract{result(give)}=>give r;fn main(){let u=make();let a=u;let b=u}

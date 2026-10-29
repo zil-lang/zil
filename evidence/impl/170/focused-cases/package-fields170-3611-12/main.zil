@@ -1,0 +1,1 @@
+import model;import flow;fn main()->i32{var s=flow.relay(model.make());let old=s.items;s.items=[model.item(67),model.item(68)];return old[0].n+old[1].n-131}

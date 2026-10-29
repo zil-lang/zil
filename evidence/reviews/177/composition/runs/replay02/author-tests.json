@@ -1,0 +1,30 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl177_state_composition",
+    "--offline",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "implementation_commit": "605bed2ad33e9c99e867636bcbbbcff90da3e867",
+  "source_commit": "605bed2ad33e9c99e867636bcbbbcff90da3e867",
+  "source_status": "",
+  "crates_tree": "9fdac9e816d6c883b746cf770ab3dafaa54212c2",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/177-review-composition",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/review177-composition174/replay02/cases"
+  },
+  "start": 1793117379.1590047,
+  "end": 1793117382.950835,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "a97264539dead78823502676fad2be708b33f3da3812e897abbfab3e08f93a17"
+}

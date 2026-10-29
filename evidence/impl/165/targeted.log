@@ -1,0 +1,31 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt165/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt165/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt165/crates/zil-syntax)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt165/crates/zil-expand)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.56s
+     Running tests/attributes.rs (/workspace/scratch/39be3faa4442/targets/165/debug/deps/attributes-64ba4ad06d63be2e)
+
+running 1 test
+test unexecuted_attributes_cannot_disappear_from_core_parameters_or_fields ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/generics.rs (/workspace/scratch/39be3faa4442/targets/165/debug/deps/generics-b0545091d805d05b)
+
+running 4 tests
+test unused_generic_declaration_attributes_are_not_erased ... ok
+test unused_generic_bounds_require_declared_nominal_traits ... ok
+test unused_generic_with_declared_bound_checks_its_symbolic_method_body ... ok
+test generic_records_use_structural_arguments_and_fresh_source_inexpressible_names ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/impl094_generic_places.rs (/workspace/scratch/39be3faa4442/targets/165/debug/deps/impl094_generic_places-979a10ba83acda35)
+
+running 3 tests
+test reserved_byte_storage_names_survive_erased_declarations ... ok
+test unused_templates_cannot_invent_mutability_copy_or_index_types ... ok
+test unused_parametric_places_have_real_symbolic_rules ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

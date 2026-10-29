@@ -1,0 +1,75 @@
+{
+  "status": "ScopedPass",
+  "implementation_author": "/root/resume192",
+  "source_commit": "9cf4d846698ef4c21711da73ecf5db44c9799df1",
+  "schema": 23,
+  "normative_hash": "1068cda3fe79b906f49eeee4bd3f62863f9db4ae85e8a0dbaa3c439d310777b8",
+  "spec_sha256": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "authority_commit": "89b1d7adea261d0596f988fa442d6c1cec38f14f",
+  "authority_note": "Read current main Task192 exact added scope; no main schema24 metadata transplanted into this schema23 author tree.",
+  "production_change": "borrows/roots.rs::field_root admits only Managed(inner) with finite Copy Record inner, after existing charge_payload; no resource-address admission, public Hold or invalidation check changed.",
+  "production_sha256": "972d1662dba801ca972161ff3e8e8322c64946bbc8fa20ca8a01d2eb2bf0a692",
+  "original_review": {
+    "source_commit": "cbeb1bcb6c660a6b9733a8a2d6d5787eed21201e",
+    "source_sha256": "07692eefb7250c55e6f40d2124ff8bb0a4a745c3f69ec146242fb2241ec4dc7f",
+    "failure": "Verify E-BORROW-CONFLICT at232..248 give state.owner; no DescribePackageField exists in this input.",
+    "root_cause": "count was actual Field(local4,1), while finite user-resource owner take invalidated coarse Local4 because the179 whitelist omitted user Managed Record."
+  },
+  "original_retest": {
+    "source_bytes_unchanged": true,
+    "native_executions": 2,
+    "stdout": "AB",
+    "exit_code": 0,
+    "cases": [
+      "runs/repair-frozen01/cases/fields192-586-35",
+      "runs/repair-frozen01/cases/fields192-586-33"
+    ]
+  },
+  "commands": {
+    "tests": {
+      "source_commit": "9cf4d846698ef4c21711da73ecf5db44c9799df1",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "receipt": "runs/repair-frozen01/tests/command.json"
+    },
+    "fmt": {
+      "source_commit": "9cf4d846698ef4c21711da73ecf5db44c9799df1",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "receipt": "runs/repair-frozen01/fmt/command.json"
+    },
+    "clippy": {
+      "source_commit": "9cf4d846698ef4c21711da73ecf5db44c9799df1",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "receipt": "runs/repair-frozen01/clippy/command.json"
+    }
+  },
+  "scoped_tests": {
+    "passed": 96,
+    "failed": 0,
+    "ignored": 0,
+    "suites": 8,
+    "source192": 20,
+    "raw192": 6
+  },
+  "source192_native_executions": 30,
+  "new_controls": {
+    "source": "Old R Desc retained across take/refill is rejected by earlier Analyze E-ANALYZE-IR; exact same Copy-field and parent whole-move conflicts still Verify-reject.",
+    "raw_wire": "Additional valid sibling pair; stale R Desc across take/refill independently Verify E-VERIFY-RESOURCE, absent nominal definition E-VERIFY-RESOURCE, nonCopy payload E-UNSUPPORTED. Three invalid pairs/six independent rejections.",
+    "closed": "Resource field addresses remain Unsupported under the unchanged source and raw controls."
+  },
+  "first_author_failure": {
+    "run": "repair01",
+    "passed": 19,
+    "failed": 1,
+    "meaning": "New stale Desc test expected Verify but actual existing Analyze rejected earlier. Original source unchanged; expected phase/code corrected, no production change."
+  },
+  "consumer": "NotRerunByAuthorAtRepairFreeze; prior e36250/32 retained under its actual source. Root separately retests schema24 composition and platform.",
+  "review": "AwaitingIndependentRootRetest",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

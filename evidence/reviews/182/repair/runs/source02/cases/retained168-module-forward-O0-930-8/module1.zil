@@ -1,0 +1,1 @@
+import b;pub fn outer(n:i32)->impl Fn()->i32{return b.make(n)}

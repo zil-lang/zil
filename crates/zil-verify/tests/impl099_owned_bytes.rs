@@ -365,6 +365,7 @@ fn captured(body: Body, result: ValueId, kind: CallableKind, package_capture: bo
     let result_type = body.f.return_type.clone();
     let mut t = case(vec![body.finish(Some(result))]);
     t.module.closures.push(ClosureDefinition {
+        lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(0),
         kind,
@@ -618,7 +619,8 @@ fn owned_package_slice_escape_is_rejected_and_lending_captures_remain_closed() {
             f.capture()
         };
         let view = f.view(d, false);
-        // Closure result shapes intentionally remain the finite Copy profile.
-        captured(f, view, CallableKind::Fn, is_package).reject("E-UNSUPPORTED");
+        // 184 requires explicit lending_capture sources. The original claim
+        // remains empty, so the window is still rejected independently.
+        captured(f, view, CallableKind::Fn, is_package).reject("E-VERIFY-LENDING");
     }
 }

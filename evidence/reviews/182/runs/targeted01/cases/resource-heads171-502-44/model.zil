@@ -1,0 +1,1 @@
+pub resource R{secret:i32}pub fn make()->R contract{result(create)}{return R{secret:42}}

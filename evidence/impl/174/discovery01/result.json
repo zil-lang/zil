@@ -1,0 +1,146 @@
+{
+  "status": "Fail",
+  "scope": "Initial author discovery before Analyze Store field admission; not an accepted implementation",
+  "base_commit": "4783a44c6e5bdbfc2d95ac58e785de5aefbb8c0c",
+  "working_patch_sha256": "4c635242d306b55e278df6435826131c13c73614e91f9d8e197ee0883b4acb4f",
+  "new_test_sha256": "d267c3af3e058f0c5a47bf758a093dacdd3bb858045a174e48b3a44e1a24678a",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl174_store_fields",
+    "--offline",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "exit_code": 101,
+  "passed": 0,
+  "failed": 6,
+  "ignored": 0,
+  "compiler_reports": [
+    {
+      "receipt": "cases/store-fields174-235-0/compile.json",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "package requires finite Copy/complete array fields and at least one explicit Managed resource",
+          "span": {
+            "file": 0,
+            "start": 359,
+            "end": 560
+          },
+          "notes": []
+        }
+      ],
+      "sha256": "f91f0773c44bd24892d4cee5abb64f6695cf37f1f9b9890d8befc1fd1ce58314"
+    },
+    {
+      "receipt": "cases/store-fields174-235-1/compile.json",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "package requires finite Copy/complete array fields and at least one explicit Managed resource",
+          "span": {
+            "file": 0,
+            "start": 359,
+            "end": 560
+          },
+          "notes": []
+        }
+      ],
+      "sha256": "2e49533c649c2f51dcc59dc003335a95aed468c9587d13d3e2749a0b2882836c"
+    },
+    {
+      "receipt": "cases/store-fields174-235-2/compile.json",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "package requires finite Copy/complete array fields and at least one explicit Managed resource",
+          "span": {
+            "file": 0,
+            "start": 170,
+            "end": 199
+          },
+          "notes": []
+        }
+      ],
+      "sha256": "a55ca6631a1e50df4858cd6c6eec8b0dc1080e1c4548d872a7533148569fe79a"
+    },
+    {
+      "receipt": "cases/store-fields174-235-3/compile.json",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "package requires finite Copy/complete array fields and at least one explicit Managed resource",
+          "span": {
+            "file": 0,
+            "start": 359,
+            "end": 560
+          },
+          "notes": []
+        }
+      ],
+      "sha256": "a561d092b8e38ae5aeb587c93685103f0b87d3f2f314494d7b0d579a5406ab31"
+    },
+    {
+      "receipt": "cases/store-fields174-235-4/compile.json",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "package requires finite Copy/complete array fields and at least one explicit Managed resource",
+          "span": {
+            "file": 0,
+            "start": 359,
+            "end": 560
+          },
+          "notes": []
+        }
+      ],
+      "sha256": "d1102aabc76764e33220e9bdd1489517013f5ef8ed5d11b6f502b0776e245924"
+    },
+    {
+      "receipt": "cases/store-fields174-235-5/compile.json",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "package requires finite Copy/complete array fields and at least one explicit Managed resource",
+          "span": {
+            "file": 0,
+            "start": 359,
+            "end": 560
+          },
+          "notes": []
+        }
+      ],
+      "sha256": "a1f79b37d1d51358d48f50c18c22b2d3836bc53aa3f03aa346f656b8e421f475"
+    }
+  ],
+  "console_capture": "Per-case original compiler JSON and phase artifacts retained; initial aggregate console was tool-captured rather than redirected."
+}

@@ -1,0 +1,6 @@
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets196/analyze/debug/deps/zil_analyze-a5dce2e7a4398044)
+     Running tests/budgets.rs (/workspace/scratch/39be3faa4442/targets196/analyze/debug/deps/budgets-42f48a19e85b3ab8)
+     Running tests/impl196_roles.rs (/workspace/scratch/39be3faa4442/targets196/analyze/debug/deps/impl196_roles-9d7706eaf481dbfd)
+     Running tests/package_budgets.rs (/workspace/scratch/39be3faa4442/targets196/analyze/debug/deps/package_budgets-84792b760e803f13)
+   Doc-tests zil_analyze

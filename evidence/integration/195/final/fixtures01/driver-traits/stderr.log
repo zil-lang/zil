@@ -1,0 +1,3 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.29s
+     Running tests/impl147_static_traits.rs (/workspace/scratch/39be3faa4442/targets178/formal195/debug/deps/impl147_static_traits-3c2cfe3e43b024f1)

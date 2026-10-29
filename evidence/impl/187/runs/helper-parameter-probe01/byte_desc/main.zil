@@ -1,0 +1,1 @@
+fn inspect<F:Fn()->i32>(f:&F,b:ByteBuffer)->i32{return f()+i32(bytes_len(b))}fn main()->i32{let b=bytes_new();let f=()=>i32(bytes_len(b));return inspect(&f,b)}

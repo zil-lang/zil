@@ -1,0 +1,33 @@
+{
+  "command": [
+    "python3",
+    "tools/language/177/consumer.py",
+    "--repo",
+    "/workspace/scratch/39be3faa4442/zil-restored/review177-composition174",
+    "--cli",
+    "/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/zil",
+    "--out",
+    "/workspace/scratch/39be3faa4442/run-logs/review177-composition174/continuation04/consumer",
+    "--source-commit",
+    "aef8c2e7e7d6b81e6b9dad0dac9655d380a28d68",
+    "--compiler-commit",
+    "8abc75bbc1f98450a16efde00539d753fb836551"
+  ],
+  "implementation_commit": "8abc75bbc1f98450a16efde00539d753fb836551",
+  "review_source_commit": "aef8c2e7e7d6b81e6b9dad0dac9655d380a28d68",
+  "source_status": "",
+  "production_difference": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/177-review-composition",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/review177-composition174/continuation04/cases"
+  },
+  "cli_sha256": "50aa6fd19475e3a1bd23edf6d2bfb57ff5743381f65bb499da99a251a3a4a4ee",
+  "start": 1793118092.4235857,
+  "end": 1793118135.5056353,
+  "exit_code": 0,
+  "status": "Pass",
+  "log_sha256": "ae692d761962f4c856ff8887fe64284e38a6537a411d046c4800529d0f5ca959"
+}

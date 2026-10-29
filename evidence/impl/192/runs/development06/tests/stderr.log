@@ -1,0 +1,9 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt192/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt192/crates/zil-analyze)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt192/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt192/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt192/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt192/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 4.47s
+     Running tests/impl192_copy_fields.rs (/workspace/scratch/39be3faa4442/targets178/author192/debug/deps/impl192_copy_fields-b52d00061320b098)
+     Running tests/impl192_copy_fields_raw.rs (/workspace/scratch/39be3faa4442/targets178/author192/debug/deps/impl192_copy_fields_raw-edf011083debc866)

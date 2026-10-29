@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "task": "206",
+  "reviewer": "/root/review205_finish",
+  "implementation_author": "/root",
+  "production_authorship": "None by independent reviewer",
+  "implementation_commit": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+  "implementation_tree": "fdde3a8af3a4ce916a493ff4c9e5b9f160df06c9",
+  "verdict": "Pass",
+  "scope": "Finite complete ordinary nested Package Product and independent per-leaf origin contract in design §8.1.1; not full ZIL1.4, B0 or ZUI product completion. Product Closure capture stays closed in206.",
+  "spec_hash": "f26a0d8701b9a00a38286f486b7bcae1b96cf1d9254add7c48d395bb3e6ccbc3",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "identity": {
+    "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/evidence/reviews/206/by197/FINAL_IDENTITY.json",
+    "bytes": 4883,
+    "sha256": "6b1f4b450d954efb10d5beab1283c04845c85097ca3747d0e86c0fe019324d19"
+  },
+  "findings": [
+    "Complete recursive children retain one direct parent debt. Taking a complete child precedes independent partial movement/refill; incomplete parent or child cannot be transferred whole.",
+    "Analyze and independent Verify track actual SSA/local leaf origins. Same-type instances do not share state; ordinary Package calls yield Incoming, joins preserve possible Incoming, and whole/child movement does not invent Created.",
+    "Native source controls preserve recursive declaration-order cleanup, child replacement, failed RHS retention and non-rollback of explicit earlier movement. Copy companions and nominal shapes retain the declared boundaries.",
+    "Independent raw/Wire capture probe found a real Verify gap after the original45 tests. Exact1807B hostile input was accepted before修复; final capture-specific old Package gate now rejects both APIs with exact Verify Unsupported/E-UNSUPPORTED/non-Copy type requires another checker, while the original legal flat control still passes. No hostile native execution occurred.",
+    "The two legacy raw negatives are preserved. Only exact diagnostic selection changes: Nested+Closure Store is still Analyze Unsupported; relabeled nested local with original flat SSA is Verify SafeReject/E-VERIFY-TYPE. All neighboring old assertions remain. Exact205 serialized Analyze input and original Fail retained; older Verify fixture identity is constructor-file identity because no older serialization existed.",
+    "Growth costs are prepaid; N/N−1/fresh output-equality checks retain default limits. No public schema/Wire27 or expanded legacy container/capture permission is introduced."
+  ],
+  "independent_execution": {
+    "source_and_raw": {
+      "original45_commit": "16dea787b04473b5e13e2697ca0dc5c9e3a240af",
+      "tests_passed": 45,
+      "tests_failed": 0,
+      "native_runs": 12,
+      "raw_wire_pairs": 29,
+      "capture_exact_commit": "ff3652dea5146eb4aa9169468538338f6e3cba28",
+      "capture_exact_tests_passed": 1,
+      "capture_exact_tests_failed": 0,
+      "additional_capture_raw_wire_pairs": 2,
+      "legacy_clean_exact_functions": [
+        1,
+        1
+      ],
+      "receipt": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/REPAIR_RESULTS.json",
+        "bytes": 21348,
+        "sha256": "86a8955d4245ae225848c6872459fe9fe2c741f078d1f3d17c26f04772cce09d"
+      },
+      "binding": "All production inputs and the relevant exact test bytes equal final candidate; final capture assertion is separately rerun. Counts are not added to workspace totals."
+    },
+    "cli04_linux": {
+      "executions": 94,
+      "ordinary": 20,
+      "instrumented": 74,
+      "actual_allocation_failures": 42,
+      "all_live_zero": true,
+      "peak_live": 4,
+      "peak_requested_payload_bytes": 80,
+      "summary": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/206-review-final/linux01/summary.json",
+        "bytes": 55517,
+        "sha256": "b6e37ea1ff6a381bc4fbd648b18820033b85bdb732655cc78164b0cdf4a6a16c"
+      },
+      "actual94_records": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/206-review-final/LINUX_RECORDS.json",
+        "bytes": 111891,
+        "sha256": "5a4a5c167c4da93537b9e8ae9f437bcf1571a2bca9ca832a5a1353c2dcc42975"
+      }
+    },
+    "budgets": {
+      "new_nested": {
+        "expand": 6,
+        "types": 1114,
+        "analyze": 56389,
+        "verify": 66568,
+        "wire": 66568
+      },
+      "old_flat_types": 418,
+      "old_flat_analyze": 8673,
+      "old_flat_verify_author_fixed": 10398,
+      "protocol": "N/N−1 ResourceLimit/fresh N and exact output equality; prior measured values retained, not guessed."
+    }
+  },
+  "root_workspace": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/workspace02/command.json",
+      "bytes": 910,
+      "sha256": "ab90da6b6e7831942450d5a1844a72894dee33fbd09541c735053e2f7c3eb9e2"
+    },
+    "stdout": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/workspace02/stdout.log",
+      "bytes": 232385,
+      "sha256": "3a7c611b369d4b0f70a00747e6a379674393c24bb60f64d59eb93dd3d561cc79"
+    },
+    "stderr": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/workspace02/stderr.log",
+      "bytes": 30344,
+      "sha256": "30f6fd878dee8a0348f8b7230a82e7a2d401226ce7bab725a6cbb3a64507a135"
+    },
+    "counts": {
+      "passed": 2615,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 266
+    },
+    "counts_receipt": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/workspace02/COUNTS.json",
+      "bytes": 379,
+      "sha256": "c148636349fb494924fbe18a1d7e16d28720a47c4fe61f323b438cce388245c2"
+    },
+    "seconds": 184.6501214504242
+  },
+  "root_clippy": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/clippy-final01/command.json",
+      "bytes": 910,
+      "sha256": "71d84b547e7a41ea249f1f86f6479f04ba75b7959a4bb285ac9ff07600435429"
+    },
+    "stdout": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/clippy-final01/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderr": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/clippy-final01/stderr.log",
+      "bytes": 1487,
+      "sha256": "659f32d1d1603218959752fd7da9cbaca67e444b71af10bfdc6f408eabd433e0"
+    }
+  },
+  "author_cli04_consumers": {
+    "linux": {
+      "summary": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/206-consumer-final/linux02/summary.json",
+        "bytes": 55267,
+        "sha256": "a84eaec06e4ee82248f35af911ab67a0e26cc80f414155605c2e3a601fd389c5"
+      },
+      "executions": 94,
+      "ordinary": 20,
+      "instrumented": 74,
+      "actual_allocation_failures": 42,
+      "all_live_zero": true,
+      "actual_records_rechecked": 94,
+      "platform": "linux",
+      "execution": "native",
+      "native_windows": "NotRun"
+    },
+    "wine_compatibility": {
+      "summary": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/206-consumer-final/wine02/summary.json",
+        "bytes": 58031,
+        "sha256": "217ecd9ab328065c9a83f3a386b4dd7184b040d317cdeddb7bc4b8bec9531361"
+      },
+      "executions": 94,
+      "ordinary": 20,
+      "instrumented": 74,
+      "actual_allocation_failures": 42,
+      "all_live_zero": true,
+      "actual_records_rechecked": 94,
+      "platform": "win64",
+      "execution": "Wine compatibility",
+      "native_windows": "NotRun"
+    }
+  },
+  "retained_failures": [
+    "Original root workspace01:2612/2/0,265groups; no relabel.",
+    "Independent capture01:0/1 actual Verify raw/Wire erroneous acceptance; original inputs and outputs kept.",
+    "Independent source01:35/8 due seven lexical fixture mistakes and one overly late diagnostic expectation; corrected without changing output oracle.",
+    "Independent source02:39/6 due LLVM loader InfraError, no native run; environment corrected separately.",
+    "Independent legacy01 real Pass with transient untracked metadata status; original records preserved, exact clean legacy02 reruns Pass; collector01 Fail preserved.",
+    "Author original consumer multiline-if Parse failure and Wine TMPDIR infrastructure failures retained with their source identities; final-author dirty-preflight failures had zero compiler/native invocations and remain Fail.",
+    "Author misplaced test-local variable compile failure in legacy migration retained."
+  ],
+  "environment_note": "Formal workspace02 uses standard CARGO_PROFILE_TEST_STRIP=symbols, unoptimized/debug0, same as workspace01 per actual plan. No language oracle, default limit or performance claim changes. Independent runs retain their recorded environments.",
+  "source_fixture_note": "Consumer02 differs from predeclared source only by parentheses around one multiline leaf condition; all5 actual source hashes and unchanged originalORACLE are checked. Original syntax failure is preserved.",
+  "limitations": {
+    "full_language_1_4": "NotSatisfied",
+    "parent_B0": "Doing",
+    "zui_product": "NotRun",
+    "native_windows": "NotRun",
+    "wine": "Compatibility execution, not native Windows",
+    "performance_claim": false,
+    "207_Product_capture": "Not authorized by206; any future promotion of the exact1807B input requires a new formal contract and preserved migration identity."
+  },
+  "final_review_pass": true
+}

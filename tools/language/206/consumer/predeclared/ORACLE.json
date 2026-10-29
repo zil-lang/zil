@@ -1,0 +1,659 @@
+{
+  "schema_version": 1,
+  "status": "PredeclaredModelOnly",
+  "language_compilation": "NotRun",
+  "language_execution": "NotRun",
+  "model_is_not_language_safety_evidence": true,
+  "platform_plan": [
+    "Linux native",
+    "Win64/Wine compatibility"
+  ],
+  "native_windows": "NotRun",
+  "optimization_plan": [
+    "O0",
+    "O2"
+  ],
+  "planned_executions_per_platform": {
+    "ordinary": 20,
+    "instrumented": 74,
+    "total": 94,
+    "actual_allocation_failures": 42
+  },
+  "allocation_scope": "Requested live ByteBuffer payload; excludes stack/inline ABI and process RSS",
+  "expected_windows_bad_operations": 0,
+  "oracles": [
+    {
+      "name": "whole-three-level-close",
+      "input": "0",
+      "stdout": "PIAJBK",
+      "exit": 0,
+      "probes": [
+        {
+          "name": "allocation",
+          "fail_at": 0,
+          "stdout": "PIAJBK",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 24
+          }
+        },
+        {
+          "name": "failure-1",
+          "fail_at": 1,
+          "stdout": "FA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "name": "failure-2",
+          "fail_at": 2,
+          "stdout": "FBA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 8
+          }
+        },
+        {
+          "name": "after-last-allocation",
+          "fail_at": 3,
+          "stdout": "PIAJBK",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 24
+          }
+        }
+      ]
+    },
+    {
+      "name": "take-refill-independent-leaf",
+      "input": "1",
+      "stdout": "tAPIXJBK",
+      "exit": 0,
+      "probes": [
+        {
+          "name": "allocation",
+          "fail_at": 0,
+          "stdout": "tAPIXJBK",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 24
+          }
+        },
+        {
+          "name": "failure-1",
+          "fail_at": 1,
+          "stdout": "FA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "name": "failure-2",
+          "fail_at": 2,
+          "stdout": "FBA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 8
+          }
+        },
+        {
+          "name": "after-last-allocation",
+          "fail_at": 3,
+          "stdout": "tAPIXJBK",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 24
+          }
+        }
+      ]
+    },
+    {
+      "name": "replace-complete-middle",
+      "input": "2",
+      "stdout": "IAJBKPLCMDN",
+      "exit": 0,
+      "probes": [
+        {
+          "name": "allocation",
+          "fail_at": 0,
+          "stdout": "IAJBKPLCMDN",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 4,
+            "allocated": 4,
+            "frees": 4,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 4,
+            "peak_bytes": 80
+          }
+        },
+        {
+          "name": "failure-1",
+          "fail_at": 1,
+          "stdout": "FA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "name": "failure-2",
+          "fail_at": 2,
+          "stdout": "FBA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 8
+          }
+        },
+        {
+          "name": "failure-3",
+          "fail_at": 3,
+          "stdout": "FCIAJBK",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 3,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 24
+          }
+        },
+        {
+          "name": "failure-4",
+          "fail_at": 4,
+          "stdout": "FDCIAJBK",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 4,
+            "allocated": 3,
+            "frees": 3,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 3,
+            "peak_bytes": 48
+          }
+        },
+        {
+          "name": "after-last-allocation",
+          "fail_at": 5,
+          "stdout": "IAJBKPLCMDN",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 4,
+            "allocated": 4,
+            "frees": 4,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 4,
+            "peak_bytes": 80
+          }
+        }
+      ]
+    },
+    {
+      "name": "rhs-last-copy-argument-failure",
+      "input": "3",
+      "stdout": "EDCIAJBK",
+      "exit": 1,
+      "probes": [
+        {
+          "name": "allocation",
+          "fail_at": 0,
+          "stdout": "EDCIAJBK",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 4,
+            "allocated": 4,
+            "frees": 4,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 4,
+            "peak_bytes": 80
+          }
+        },
+        {
+          "name": "failure-1",
+          "fail_at": 1,
+          "stdout": "FA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "name": "failure-2",
+          "fail_at": 2,
+          "stdout": "FBA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 8
+          }
+        },
+        {
+          "name": "failure-3",
+          "fail_at": 3,
+          "stdout": "FCIAJBK",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 3,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 24
+          }
+        },
+        {
+          "name": "failure-4",
+          "fail_at": 4,
+          "stdout": "FDCIAJBK",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 4,
+            "allocated": 3,
+            "frees": 3,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 3,
+            "peak_bytes": 48
+          }
+        },
+        {
+          "name": "after-last-allocation",
+          "fail_at": 5,
+          "stdout": "EDCIAJBK",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 4,
+            "allocated": 4,
+            "frees": 4,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 4,
+            "peak_bytes": 80
+          }
+        }
+      ]
+    },
+    {
+      "name": "take-child-early-return",
+      "input": "4",
+      "stdout": "QIAJBK",
+      "exit": 0,
+      "probes": [
+        {
+          "name": "allocation",
+          "fail_at": 0,
+          "stdout": "QIAJBK",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 24
+          }
+        },
+        {
+          "name": "failure-1",
+          "fail_at": 1,
+          "stdout": "FA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "name": "failure-2",
+          "fail_at": 2,
+          "stdout": "FBA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 8
+          }
+        },
+        {
+          "name": "after-last-allocation",
+          "fail_at": 3,
+          "stdout": "QIAJBK",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 24
+          }
+        }
+      ]
+    },
+    {
+      "name": "partial-child-early-return",
+      "input": "5",
+      "stdout": "RAIJBK",
+      "exit": 0,
+      "probes": [
+        {
+          "name": "allocation",
+          "fail_at": 0,
+          "stdout": "RAIJBK",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 24
+          }
+        },
+        {
+          "name": "failure-1",
+          "fail_at": 1,
+          "stdout": "FA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "name": "failure-2",
+          "fail_at": 2,
+          "stdout": "FBA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 8
+          }
+        },
+        {
+          "name": "after-last-allocation",
+          "fail_at": 3,
+          "stdout": "RAIJBK",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 24
+          }
+        }
+      ]
+    },
+    {
+      "name": "whole-parent-relay-reassignment",
+      "input": "6",
+      "stdout": "HPIAJBK",
+      "exit": 0,
+      "probes": [
+        {
+          "name": "allocation",
+          "fail_at": 0,
+          "stdout": "HPIAJBK",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 24
+          }
+        },
+        {
+          "name": "failure-1",
+          "fail_at": 1,
+          "stdout": "FA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "name": "failure-2",
+          "fail_at": 2,
+          "stdout": "FBA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 8
+          }
+        },
+        {
+          "name": "after-last-allocation",
+          "fail_at": 3,
+          "stdout": "HPIAJBK",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 24
+          }
+        }
+      ]
+    },
+    {
+      "name": "replace-child-in-independent-local",
+      "input": "7",
+      "stdout": "APICJBK",
+      "exit": 0,
+      "probes": [
+        {
+          "name": "allocation",
+          "fail_at": 0,
+          "stdout": "APICJBK",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 3,
+            "allocated": 3,
+            "frees": 3,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 3,
+            "peak_bytes": 48
+          }
+        },
+        {
+          "name": "failure-1",
+          "fail_at": 1,
+          "stdout": "FA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "name": "failure-2",
+          "fail_at": 2,
+          "stdout": "FBA",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 8
+          }
+        },
+        {
+          "name": "failure-3",
+          "fail_at": 3,
+          "stdout": "FCIAJBK",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 3,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 24
+          }
+        },
+        {
+          "name": "after-last-allocation",
+          "fail_at": 4,
+          "stdout": "APICJBK",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 3,
+            "allocated": 3,
+            "frees": 3,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 3,
+            "peak_bytes": 48
+          }
+        }
+      ]
+    },
+    {
+      "name": "invalid-input",
+      "input": "9",
+      "stdout": "",
+      "exit": 9,
+      "probes": []
+    },
+    {
+      "name": "eof",
+      "input": "",
+      "stdout": "",
+      "exit": 9,
+      "probes": []
+    }
+  ]
+}

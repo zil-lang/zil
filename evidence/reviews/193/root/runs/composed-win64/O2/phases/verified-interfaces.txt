@@ -1,0 +1,915 @@
+[
+    ScalarInterface {
+        callable_returns: Some(
+            [],
+        ),
+        module: ModuleId(
+            0,
+        ),
+        exports: [],
+        signature_fingerprint: Fingerprint(
+            [
+                199,
+                143,
+                252,
+                241,
+                185,
+                150,
+                245,
+                28,
+                117,
+                138,
+                240,
+                234,
+                29,
+                210,
+                88,
+                237,
+                171,
+                186,
+                218,
+                4,
+                58,
+                205,
+                203,
+                45,
+                130,
+                11,
+                242,
+                247,
+                38,
+                86,
+                1,
+                104,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                174,
+                38,
+                2,
+                161,
+                175,
+                217,
+                209,
+                78,
+                251,
+                18,
+                44,
+                175,
+                180,
+                84,
+                102,
+                254,
+                227,
+                220,
+                129,
+                196,
+                93,
+                197,
+                103,
+                67,
+                78,
+                224,
+                239,
+                111,
+                190,
+                166,
+                106,
+                247,
+            ],
+        ),
+        result_origins: Some(
+            [],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    65,
+                    123,
+                    34,
+                    79,
+                    38,
+                    206,
+                    118,
+                    170,
+                    200,
+                    190,
+                    160,
+                    166,
+                    196,
+                    130,
+                    83,
+                    107,
+                    72,
+                    62,
+                    247,
+                    114,
+                    255,
+                    252,
+                    225,
+                    198,
+                    242,
+                    85,
+                    26,
+                    155,
+                    109,
+                    67,
+                    14,
+                    12,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [],
+        ),
+    },
+    ScalarInterface {
+        callable_returns: Some(
+            [
+                FunctionCallableReturn {
+                    name: "make",
+                    contract: CallableReturnContract {
+                        closure: ClosureId(
+                            0,
+                        ),
+                        kind: FnMut,
+                        hold: [],
+                        call: [],
+                        writes: [],
+                        cleanup: [
+                            0,
+                            1,
+                        ],
+                        lending_captures: [],
+                    },
+                },
+            ],
+        ),
+        module: ModuleId(
+            1,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "make",
+                function: FunctionId(
+                    3,
+                ),
+                parameters: [],
+                result: Closure(
+                    ClosureId(
+                        0,
+                    ),
+                ),
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                132,
+                164,
+                138,
+                61,
+                82,
+                143,
+                151,
+                158,
+                83,
+                156,
+                158,
+                70,
+                63,
+                155,
+                11,
+                44,
+                163,
+                232,
+                96,
+                167,
+                101,
+                18,
+                220,
+                239,
+                229,
+                104,
+                41,
+                25,
+                45,
+                29,
+                109,
+                182,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                215,
+                29,
+                35,
+                94,
+                29,
+                56,
+                254,
+                204,
+                181,
+                183,
+                6,
+                0,
+                145,
+                113,
+                194,
+                100,
+                207,
+                207,
+                224,
+                82,
+                196,
+                14,
+                192,
+                150,
+                118,
+                249,
+                200,
+                0,
+                194,
+                253,
+                245,
+                54,
+            ],
+        ),
+        result_origins: Some(
+            [
+                FunctionResultOrigins {
+                    name: "make",
+                    parameters: [],
+                },
+            ],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    226,
+                    61,
+                    60,
+                    174,
+                    32,
+                    57,
+                    201,
+                    236,
+                    80,
+                    68,
+                    13,
+                    200,
+                    147,
+                    238,
+                    54,
+                    182,
+                    26,
+                    160,
+                    141,
+                    126,
+                    66,
+                    74,
+                    150,
+                    151,
+                    216,
+                    208,
+                    252,
+                    11,
+                    195,
+                    142,
+                    179,
+                    122,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [],
+        ),
+    },
+    ScalarInterface {
+        callable_returns: Some(
+            [],
+        ),
+        module: ModuleId(
+            2,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "make::<env0>",
+                function: FunctionId(
+                    7,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        Closure(
+                            ClosureId(
+                                0,
+                            ),
+                        ),
+                    ),
+                ],
+                result: Package {
+                    name: "@module2:$generic_$module2_State:closure0",
+                    fields: [
+                        (
+                            "observed",
+                            Managed(
+                                ByteBuffer,
+                            ),
+                        ),
+                        (
+                            "callback",
+                            Closure(
+                                ClosureId(
+                                    0,
+                                ),
+                            ),
+                        ),
+                        (
+                            "counter",
+                            I32,
+                        ),
+                    ],
+                },
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "run::<env0>",
+                function: FunctionId(
+                    10,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        Package {
+                            name: "@module2:$generic_$module2_State:closure0",
+                            fields: [
+                                (
+                                    "observed",
+                                    Managed(
+                                        ByteBuffer,
+                                    ),
+                                ),
+                                (
+                                    "callback",
+                                    Closure(
+                                        ClosureId(
+                                            0,
+                                        ),
+                                    ),
+                                ),
+                                (
+                                    "counter",
+                                    I32,
+                                ),
+                            ],
+                        },
+                    ),
+                    (
+                        Infer,
+                        I64,
+                    ),
+                ],
+                result: I32,
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                60,
+                193,
+                236,
+                67,
+                80,
+                125,
+                8,
+                229,
+                16,
+                43,
+                149,
+                153,
+                13,
+                115,
+                16,
+                34,
+                0,
+                53,
+                105,
+                79,
+                75,
+                93,
+                231,
+                83,
+                48,
+                83,
+                66,
+                133,
+                128,
+                132,
+                42,
+                203,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                51,
+                42,
+                51,
+                47,
+                182,
+                150,
+                168,
+                176,
+                223,
+                104,
+                210,
+                170,
+                137,
+                232,
+                48,
+                17,
+                177,
+                3,
+                116,
+                172,
+                240,
+                147,
+                160,
+                17,
+                62,
+                146,
+                132,
+                8,
+                117,
+                209,
+                61,
+                149,
+            ],
+        ),
+        result_origins: Some(
+            [
+                FunctionResultOrigins {
+                    name: "make::<env0>",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "run::<env0>",
+                    parameters: [],
+                },
+            ],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    145,
+                    204,
+                    107,
+                    167,
+                    145,
+                    26,
+                    80,
+                    133,
+                    150,
+                    184,
+                    229,
+                    217,
+                    90,
+                    130,
+                    194,
+                    84,
+                    201,
+                    109,
+                    191,
+                    199,
+                    232,
+                    110,
+                    8,
+                    129,
+                    111,
+                    183,
+                    6,
+                    36,
+                    246,
+                    127,
+                    82,
+                    223,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [],
+        ),
+    },
+    ScalarInterface {
+        callable_returns: Some(
+            [],
+        ),
+        module: ModuleId(
+            3,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "append::<env0>",
+                function: FunctionId(
+                    8,
+                ),
+                parameters: [
+                    (
+                        BorrowMut,
+                        Address {
+                            mutable: true,
+                            inner: Closure(
+                                ClosureId(
+                                    0,
+                                ),
+                            ),
+                        },
+                    ),
+                    (
+                        BorrowMut,
+                        Address {
+                            mutable: true,
+                            inner: Slice {
+                                element: U8,
+                            },
+                        },
+                    ),
+                    (
+                        BorrowMut,
+                        Address {
+                            mutable: true,
+                            inner: I32,
+                        },
+                    ),
+                ],
+                result: I32,
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "emit",
+                function: FunctionId(
+                    5,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: Unit,
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "repeat::<env0>",
+                function: FunctionId(
+                    9,
+                ),
+                parameters: [
+                    (
+                        BorrowMut,
+                        Address {
+                            mutable: true,
+                            inner: Closure(
+                                ClosureId(
+                                    0,
+                                ),
+                            ),
+                        },
+                    ),
+                    (
+                        BorrowMut,
+                        Address {
+                            mutable: true,
+                            inner: Slice {
+                                element: U8,
+                            },
+                        },
+                    ),
+                    (
+                        BorrowMut,
+                        Address {
+                            mutable: true,
+                            inner: I32,
+                        },
+                    ),
+                    (
+                        Infer,
+                        I64,
+                    ),
+                ],
+                result: I32,
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                89,
+                166,
+                209,
+                233,
+                38,
+                112,
+                72,
+                245,
+                59,
+                225,
+                82,
+                249,
+                244,
+                132,
+                99,
+                158,
+                155,
+                29,
+                8,
+                144,
+                206,
+                11,
+                97,
+                151,
+                199,
+                235,
+                94,
+                140,
+                179,
+                116,
+                49,
+                159,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                66,
+                96,
+                69,
+                107,
+                186,
+                195,
+                35,
+                106,
+                135,
+                109,
+                239,
+                96,
+                142,
+                6,
+                218,
+                28,
+                235,
+                125,
+                169,
+                196,
+                14,
+                4,
+                160,
+                245,
+                89,
+                136,
+                237,
+                79,
+                52,
+                92,
+                147,
+                39,
+            ],
+        ),
+        result_origins: Some(
+            [
+                FunctionResultOrigins {
+                    name: "append::<env0>",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "emit",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "repeat::<env0>",
+                    parameters: [],
+                },
+            ],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    209,
+                    141,
+                    251,
+                    37,
+                    154,
+                    150,
+                    119,
+                    231,
+                    120,
+                    132,
+                    30,
+                    126,
+                    5,
+                    54,
+                    114,
+                    225,
+                    24,
+                    164,
+                    186,
+                    74,
+                    64,
+                    230,
+                    121,
+                    37,
+                    168,
+                    134,
+                    17,
+                    55,
+                    223,
+                    145,
+                    133,
+                    209,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [
+                FunctionCallableContract {
+                    name: "append::<env0>",
+                    contract: CallableParameterContract {
+                        parameter: 0,
+                        closure: ClosureId(
+                            0,
+                        ),
+                        kind: FnMut,
+                        hold: [],
+                        call: [],
+                        writes: [],
+                        cleanup: Borrowed,
+                        traces: Finite(
+                            [
+                                CallableTrace {
+                                    calls: [
+                                        FnMut,
+                                    ],
+                                    exit: Return,
+                                },
+                            ],
+                        ),
+                    },
+                },
+                FunctionCallableContract {
+                    name: "repeat::<env0>",
+                    contract: CallableParameterContract {
+                        parameter: 0,
+                        closure: ClosureId(
+                            0,
+                        ),
+                        kind: FnMut,
+                        hold: [],
+                        call: [],
+                        writes: [],
+                        cleanup: Borrowed,
+                        traces: Flow(
+                            CallableFlow {
+                                entry: 0,
+                                nodes: [
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Edges(
+                                            [
+                                                1,
+                                            ],
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Edges(
+                                            [
+                                                2,
+                                                3,
+                                            ],
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Edges(
+                                            [
+                                                4,
+                                            ],
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Exit(
+                                            Return,
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Edges(
+                                            [
+                                                5,
+                                            ],
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [
+                                            FnMut,
+                                        ],
+                                        next: Edges(
+                                            [
+                                                6,
+                                            ],
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Edges(
+                                            [
+                                                7,
+                                                8,
+                                            ],
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Exit(
+                                            Return,
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Edges(
+                                            [
+                                                9,
+                                            ],
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Edges(
+                                            [
+                                                10,
+                                                11,
+                                            ],
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Exit(
+                                            Return,
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Edges(
+                                            [
+                                                12,
+                                            ],
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Edges(
+                                            [
+                                                13,
+                                                14,
+                                            ],
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Exit(
+                                            Return,
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Edges(
+                                            [
+                                                15,
+                                            ],
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Edges(
+                                            [
+                                                16,
+                                            ],
+                                        ),
+                                    },
+                                    CallableFlowNode {
+                                        calls: [],
+                                        next: Edges(
+                                            [
+                                                1,
+                                            ],
+                                        ),
+                                    },
+                                ],
+                            },
+                        ),
+                    },
+                },
+            ],
+        ),
+    },
+]

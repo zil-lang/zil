@@ -1,0 +1,18 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.23s
+     Running tests/impl179_field_precision.rs (/workspace/scratch/39be3faa4442/targets178/author179/debug/deps/impl179_field_precision-b8aa0a896a16c234)
+
+running 10 tests
+test borrowed_callback_capture_cannot_acquire_owning_field_authority ... ok
+test callback_loan_allows_actual_sibling_store_and_copy_fields ... ok
+test generic_state_body_uses_same_field_precision ... ok
+test callback_loan_survives_sibling_replacement_and_failing_preparation ... ok
+test raw_wire_cannot_hide_a_current_overlapping_callback_loan ... ok
+test raw_wire_rebuild_field_origin_and_keep_parent_hold ... ok
+test same_field_parent_movement_and_simultaneous_exclusive_use_still_reject ... ok
+test helper_effects_and_current_call_reject_real_overlap ... ok
+test store_window_keeps_its_real_field_while_copy_and_callback_are_updated ... ok
+test shared_callback_and_callback_replacement_preserve_sibling_windows ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.17s
+

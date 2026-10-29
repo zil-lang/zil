@@ -1,0 +1,11 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt190/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt190/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.36s
+     Running tests/generics.rs (/workspace/scratch/39be3faa4442/targets178/author190/debug/deps/generics-0665cd470979d094)
+     Running tests/impl030.rs (/workspace/scratch/39be3faa4442/targets178/author190/debug/deps/impl030-6df51d349b21775b)
+     Running tests/impl032.rs (/workspace/scratch/39be3faa4442/targets178/author190/debug/deps/impl032-a798f3a6b36154b2)
+     Running tests/impl090_slices.rs (/workspace/scratch/39be3faa4442/targets178/author190/debug/deps/impl090_slices-42c3b4c7774139e7)
+     Running tests/impl178_generic_store.rs (/workspace/scratch/39be3faa4442/targets178/author190/debug/deps/impl178_generic_store-eea2fb8f5cc12906)
+     Running tests/impl178_helper_give.rs (/workspace/scratch/39be3faa4442/targets178/author190/debug/deps/impl178_helper_give-e728c84151563936)
+     Running tests/generics.rs (/workspace/scratch/39be3faa4442/targets178/author190/debug/deps/generics-bf546739529b01c4)
+     Running tests/impl094_generic_places.rs (/workspace/scratch/39be3faa4442/targets178/author190/debug/deps/impl094_generic_places-f61328e1a87422e0)

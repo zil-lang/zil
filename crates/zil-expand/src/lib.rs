@@ -45,6 +45,7 @@ fn owned_store_name(name: &str) -> bool {
     matches!(
         name,
         "Store"
+            | "StoreElement"
             | "store_new"
             | "store_reserve"
             | "store_push"
@@ -52,6 +53,7 @@ fn owned_store_name(name: &str) -> bool {
             | "store_len"
             | "store_capacity"
             | "store_at"
+            | "store_at_mut"
     )
 }
 fn primitive_name(name: &str) -> bool {
@@ -972,8 +974,37 @@ impl Expander<'_> {
                 } else if arguments.iter().any(|a| a.spread) {
                     CoreExprKind::Unsupported("tuple argument expansion".into())
                 } else {
+                    let callee = if let s::ExprKind::TypeApply {
+                        callee: target,
+                        arguments: types,
+                    } = &callee.kind
+                    {
+                        let static_path = matches!(&target.kind, s::ExprKind::Name(_))
+                            || matches!(&target.kind, s::ExprKind::Member { object, member: s::MemberName::Name(_) }
+                                if matches!(&object.kind, s::ExprKind::Name(_)));
+                        if !static_path
+                            || types.len() != 1
+                            || !matches!(types.first(), Some(s::GenericArg::Type(_)))
+                        {
+                            return self.expr_node(CoreExprKind::Unsupported("ordinary type application needs one type and a static direct callee".into()), e.span);
+                        }
+                        let s::GenericArg::Type(ty) = &types[0] else {
+                            unreachable!()
+                        };
+                        let target = self.expr(target);
+                        let argument = self.type_ref(ty);
+                        self.expr_node(
+                            CoreExprKind::TypeApply {
+                                callee: Box::new(target),
+                                type_arguments: vec![argument],
+                            },
+                            callee.span,
+                        )
+                    } else {
+                        self.expr(callee)
+                    };
                     CoreExprKind::Call {
-                        callee: Box::new(self.expr(callee)),
+                        callee: Box::new(callee),
                         arguments: arguments.iter().map(|a| self.expr(&a.value)).collect(),
                     }
                 }

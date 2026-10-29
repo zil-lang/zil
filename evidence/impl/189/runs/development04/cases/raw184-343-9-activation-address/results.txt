@@ -1,0 +1,38 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-BORROW-ESCAPE",
+            message: "lending result must borrow actual environment storage, not an activation local or explicit parameter",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 45,
+                    end: 66,
+                },
+            ),
+            notes: [],
+        },
+    ],
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-BORROW-ESCAPE",
+            message: "lending result must borrow actual environment storage, not an activation local or explicit parameter",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 45,
+                    end: 66,
+                },
+            ),
+            notes: [],
+        },
+    ],
+]

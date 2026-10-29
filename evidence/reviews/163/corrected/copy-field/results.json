@@ -1,0 +1,50 @@
+[
+  {
+    "name": "package_callable_copy_field_remains_shared_fn",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/corrected/copy-field/package_callable_copy_field_remains_shared_fn/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/corrected/copy-field/package_callable_copy_field_remains_shared_fn/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/corrected/copy-field/package_callable_copy_field_remains_shared_fn/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "A",
+    "pass_result": true
+  },
+  {
+    "name": "package_callable_copy_field_remains_shared_fn",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/corrected/copy-field/package_callable_copy_field_remains_shared_fn/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/corrected/copy-field/package_callable_copy_field_remains_shared_fn/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/corrected/copy-field/package_callable_copy_field_remains_shared_fn/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "A",
+    "pass_result": true
+  }
+]

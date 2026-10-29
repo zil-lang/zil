@@ -1,0 +1,53 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt166/crates/zil-verify)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.32s
+     Running tests/impl095_byte_buffers.rs (/workspace/scratch/39be3faa4442/targets/166/debug/deps/impl095_byte_buffers-16d8cdfe458663b0)
+
+running 29 tests
+test byte_borrow_wire_boolean_and_fingerprint_are_not_trusted ... ok
+test byte_storage_remains_outside_compile_time_and_aggregate_profiles ... ok
+test byte_storage_profile_is_checked_independently_of_the_raw_type_tag ... ok
+test create_and_give_factories_preserve_unique_responsibility ... ok
+test canonical_definition_is_required_and_cannot_replace_its_cleanup ... ok
+test all_byte_storage_operations_round_trip_raw_and_wire ... ok
+test description_and_slice_parameters_cannot_hide_aliasing_at_call_entry ... ok
+test live_window_cannot_cross_give_or_discharge ... ok
+test exclusive_child_reborrow_suspends_its_byte_window_parent ... ok
+test description_parameter_can_return_shared_or_exclusive_slice ... ok
+test exact_operand_types_are_checked_for_every_new_operation ... ok
+test description_and_borrow_origin_claims_are_independently_rebuilt ... ok
+test ordinary_helper_effects_conflict_with_live_caller_windows ... ok
+test exclusive_window_blocks_metadata_and_other_windows_until_last_use ... ok
+test necessary_apart_comes_from_live_windows_not_different_parameter_names ... ok
+test ordinary_managed_constructor_and_field_access_cannot_forge_the_head ... ok
+test package_and_capture_cannot_hide_borrowed_byte_storage ... ok
+test owned_load_and_duplicate_ssa_store_cannot_copy_responsibility ... ok
+test reserve_capacity_must_dominate_a_real_control_flow_join ... ok
+test recursive_no_return_prefix_keeps_required_parameter_separation ... ok
+test owned_parameter_or_local_storage_cannot_escape_as_a_bare_slice ... ok
+test same_source_description_read_write_without_live_windows_remains_legal ... ok
+test recursive_write_prefix_is_visible_to_the_callers_live_window ... ok
+test separation_obligations_propagate_through_forwarding_helpers ... ok
+test shared_and_exclusive_views_from_unknown_parameters_require_real_separation ... ok
+test unknown_operands_and_wrong_byte_storage_result_do_not_reach_lowering ... ok
+test shared_window_allows_metadata_reads_but_blocks_reserve_and_push ... ok
+test wire_truncation_and_preceding_version_cannot_admit_byte_storage ... ok
+095 byte storage exact verification budget: 1806
+test verification_budget_boundary_is_deterministic_for_raw_and_wire ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/impl099_owned_bytes.rs (/workspace/scratch/39be3faa4442/targets/166/debug/deps/impl099_owned_bytes-c510688778a9c147)
+
+running 9 tests
+test owned_package_slice_escape_is_rejected_and_lending_captures_remain_closed ... ok
+test duplicate_managed_ssa_cannot_be_hidden_in_distinct_package_fields ... ok
+test direct_and_package_capture_roots_are_independently_reconstructed ... ok
+test helper_actual_aliases_are_checked_against_package_and_capture_roots ... ok
+test capture_views_stay_live_across_owner_consumption ... ok
+test live_field_window_rejects_take_replace_and_whole_transfer ... ok
+test package_field_backing_is_reconstructed_from_raw_and_wire ... ok
+test checked_owned_fields_separate_but_same_field_requires_last_use ... ok
+test owning_capture_mode_cannot_hide_a_backing_write ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

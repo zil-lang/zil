@@ -1,0 +1,37 @@
+{
+  "source_commit": "e9a604c80d56027a5fb6c28bcb8b58f9c9e84a7b",
+  "restored_archive_sha256": "189890c75518ad61c66f6438053032299abbdc1b288529256547dc7a32d84919",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "--workspace",
+    "--no-fail-fast",
+    "-j",
+    "2",
+    "--",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "passed": 1328,
+  "failed": 0,
+  "ignored": 0,
+  "groups": 140,
+  "scope": "New execution of restored159 production bytes; dispatch and task documents differed, crates were unchanged",
+  "toolchain": {
+    "rust": "1.99.1",
+    "clang": "17.0.6",
+    "previous_clang": "17.0.0",
+    "note": "New local installation; LLVM17 patch version differs from slice159 evidence. Re-run native tests; do not reuse historical measurement results.",
+    "versions": {
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+      "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+      "rustfmt": "rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13)",
+      "clippy": "clippy 0.1.99 (58cf8f9c35 2026-10-13)",
+      "clang": "Ubuntu clang version 17.0.6 (++20240501091250+6009708b4367-1~exp1~20240501211359.8)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin",
+      "llvm-as": "Ubuntu LLVM version 17.0.6\n  Optimized build.",
+      "lld": "Ubuntu LLD 17.0.6 (compatible with GNU linkers)"
+    }
+  }
+}

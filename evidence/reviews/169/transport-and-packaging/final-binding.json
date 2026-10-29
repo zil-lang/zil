@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/nested_closures",
+  "verdict": "Pass",
+  "status": "Pass",
+  "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+  "scope": "Final identity binding for root task169 public IR/Wire allocations and source/audit packaging only",
+  "covered_files": [
+    "crates/zil-ir/**",
+    "crates/zil-base/src/lib.rs: SCHEMA_VERSION",
+    "spec/interfaces.json: schema19 public operation signatures/tags and documented no-opcode80 boundary",
+    "tools/language/169/package.py"
+  ],
+  "excluded_review_scope": [
+    "Task168 Types/Analyze/Verify/Lower/backend implementation authored by this reviewer; independently reviewed by /root/trait_bounds.",
+    "Task166 and task167 production semantics.",
+    "Final source ZIP static inspection and final cold build/history restoration, which require the final published archive."
+  ],
+  "ir_tree": "9821a100a22a8cb7e98dd08dacbeadd4b353b472",
+  "base_tree": "8d54ea7389f4ca2ef5ae897a0eb6a2bdd6ef4d5d",
+  "cargo_lock_blob": "38a62627c9e74866270068f2594959001ee00fe3",
+  "prior_tested_identities": {
+    "456e66caed9384c602b913ec241302431a0873d7": {
+      "ir_tree": "9821a100a22a8cb7e98dd08dacbeadd4b353b472",
+      "base_tree": "8d54ea7389f4ca2ef5ae897a0eb6a2bdd6ef4d5d",
+      "cargo_lock": "38a62627c9e74866270068f2594959001ee00fe3"
+    },
+    "c429fcbbbfc4923b1167cf50f81abf674a71f4a7": {
+      "ir_tree": "9821a100a22a8cb7e98dd08dacbeadd4b353b472",
+      "base_tree": "8d54ea7389f4ca2ef5ae897a0eb6a2bdd6ef4d5d",
+      "cargo_lock": "38a62627c9e74866270068f2594959001ee00fe3"
+    }
+  },
+  "reuse_basis": "The complete zil-ir tree, zil-base tree and Cargo.lock are byte-identical to the prior cold archive and public-test commit; no test was rerun or newly claimed. Prior run passed 20 zil-ir lib tests.",
+  "wire_version": 19,
+  "schema_version_ir": 19,
+  "documented_operations": {
+    "70": "TakeErrorUnion { value: ValueId, is_error: bool }",
+    "71": "DropErrorUnion { local: LocalId }",
+    "72": "MakeOwnedArray { elements: Vec<ValueId> }",
+    "73": "ProjectOwnedArrayField { local: LocalId, index: u32, field: u32 }",
+    "74": "TakeOwnedArrayElement { local: LocalId, index: u32 }",
+    "75": "DropOwnedArrayElement { local: LocalId, index: u32 }",
+    "76": "StoreOwnedArrayElement { local: LocalId, index: u32, value: ValueId }",
+    "77": "DropOwnedArray { local: LocalId }",
+    "79": "BorrowOwnedArrayElement { local: LocalId, index: u32, mutable: bool }",
+    "78": "BorrowCapture { index: u32, mutable: bool }"
+  },
+  "operation_tags_match_declarations_encoder_decoder_and_fingerprint": true,
+  "opcode80_present": false,
+  "package_blob": "2ce6952c696e82368a81ce234d997f726c258cc8",
+  "package_equal_to_reviewed_commit": "1ca4cfecdd3c149e85680fa6f1c54a68c7aa0b8e",
+  "packaging_scope_preserved": [
+    "Collision rejection before recovery ref mutation; all visible commit history remains available.",
+    "Exact 13 generated receipt/plot exclusions in addition to excluded roots.",
+    "Retained source/test files preserve Git blobs and executable modes; no native outputs added."
+  ],
+  "normative_hash": "9eeacdb5333925a084d7dc14a0c4b50b1a3d01684acb8214ea4bd381251ed666",
+  "normative_registry_hashes_recomputed": true,
+  "prior_reviews": {
+    "review.json": "267493859ffdd1087ae5d625c0c37274a7e1afa8a1d199299f67a5404ecca2a8",
+    "source-filter-audit.json": "cda47cc8121312ecf89c1cfe674d0f342013d64d39f5b93c8f1fc239787ecd89",
+    "source-filter-review.json": "5504f74c8f3521ca88d399203fc77e5d7dc78305461a28ac916de40b3733019b",
+    "collision-fixed.json": "8843c197505a7bc864aeabe25254b81153015e5619b83d552a33cafc739fef84"
+  },
+  "final_archive_static_check": "Pending final source/audit ZIP and exact source commit",
+  "final_cold_build_and_restore": "Delegated to source_inventory by root, outside this binding",
+  "full_zui_ready": false
+}

@@ -1,0 +1,103 @@
+{
+  "source_commit": "febc071cae01ea328d6aa9d8595937cb03d1291e",
+  "crates_tree": "8de7e0ad93a4c99f62a9ed4865f99d8cfbde8ad2",
+  "dirty": false,
+  "toolchain": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+    "clang": "Ubuntu clang version 17.0.6 (++20240501091250+6009708b4367-1~exp1~20240501211359.8)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin\n"
+  },
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/168-slot",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/168/slot-final/native"
+  },
+  "commands": [
+    {
+      "name": "driver",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl168_retained_composition",
+        "--test",
+        "impl167_owned_arrays",
+        "--test",
+        "impl167_array_capture_boundary",
+        "--test",
+        "impl161_nested_closures",
+        "--test",
+        "impl155_managed_replace",
+        "--test",
+        "impl069_retained"
+      ],
+      "exit": 0,
+      "seconds": 15.945977926254272,
+      "log": "/workspace/scratch/39be3faa4442/run-logs/168/slot-final/driver.log"
+    },
+    {
+      "name": "verify",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-verify",
+        "--lib"
+      ],
+      "exit": 0,
+      "seconds": 4.961166620254517,
+      "log": "/workspace/scratch/39be3faa4442/run-logs/168/slot-final/verify.log"
+    },
+    {
+      "name": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-types",
+        "-p",
+        "zil-verify",
+        "-p",
+        "zil-driver",
+        "--tests",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "seconds": 8.055584907531738,
+      "log": "/workspace/scratch/39be3faa4442/run-logs/168/slot-final/clippy.log"
+    },
+    {
+      "name": "format",
+      "argv": [
+        "rustfmt",
+        "--edition",
+        "2024",
+        "--check",
+        "crates/zil-types/src/addresses.rs",
+        "crates/zil-types/src/aggregates.rs",
+        "crates/zil-types/src/closures.rs",
+        "crates/zil-types/src/closures/slots.rs",
+        "crates/zil-types/src/lib.rs",
+        "crates/zil-types/src/packages.rs",
+        "crates/zil-verify/src/closures.rs",
+        "crates/zil-verify/src/resources/arrays.rs",
+        "crates/zil-driver/tests/impl168_retained_composition.rs"
+      ],
+      "exit": 0,
+      "seconds": 0.7558894157409668,
+      "log": "/workspace/scratch/39be3faa4442/run-logs/168/slot-final/format.log"
+    }
+  ]
+}

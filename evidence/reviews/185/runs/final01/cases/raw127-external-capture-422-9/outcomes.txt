@@ -1,0 +1,3 @@
+analyze=Err([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "callable result captures an external address or description", span: None, notes: [] }])
+raw=Err([Diagnostic { phase: Verify, category: Unsupported, code: "E-UNSUPPORTED", message: "returned callable captures must be self-contained finite Copy, Managed or Package values", span: Some(Span { file: FileId(0), start: 0, end: 1 }), notes: [] }])
+wire=Err([Diagnostic { phase: Verify, category: Unsupported, code: "E-UNSUPPORTED", message: "returned callable captures must be self-contained finite Copy, Managed or Package values", span: Some(Span { file: FileId(0), start: 0, end: 1 }), notes: [] }])

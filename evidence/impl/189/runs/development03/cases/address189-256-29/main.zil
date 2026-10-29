@@ -1,0 +1,1 @@
+fn main()->i32{var a=20;let b=2;let sum=(p:&i32,q:&i32)=>*p+*q;let add=(p:&mut i32,q:&i32)=>{*p+=*q};let before=sum(&a,&a);add(&mut a,&b);return before+a-62}

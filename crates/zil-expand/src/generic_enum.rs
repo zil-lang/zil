@@ -570,7 +570,9 @@ impl Engine<'_> {
             })
             .collect::<R<Vec<_>>>()?;
         Ok(Some(CallHints {
-            callable: callable::template(f)?.map(|bound| bound.index),
+            callable: callable::template(f)?.map_or_else(Vec::new, |bounds| {
+                bounds.roles.into_iter().map(|role| role.index).collect()
+            }),
             parameters,
             variables,
             found,
@@ -586,6 +588,9 @@ pub(super) fn contains(ty: &TypeRef, variable: &str) -> bool {
                     .any(|a| matches!(a,GenericArg::Type(t) if contains(t,variable)))
         }
         TypeKind::Tuple(ts) => ts.iter().any(|t| contains(t, variable)),
+        TypeKind::Error { error, result } => {
+            contains(error, variable) || contains(result, variable)
+        }
         TypeKind::Array { element, .. }
         | TypeKind::Group(element)
         | TypeKind::Optional(element)
@@ -595,7 +600,7 @@ pub(super) fn contains(ty: &TypeRef, variable: &str) -> bool {
 }
 
 pub(super) struct CallHints {
-    callable: Option<usize>,
+    callable: Vec<usize>,
     parameters: Vec<TypeRef>,
     variables: BTreeSet<String>,
     found: BTreeMap<String, TypeRef>,
@@ -604,16 +609,27 @@ impl CallHints {
     pub(super) fn symbolic_result(
         &self,
         result: &TypeRef,
-        binder: &str,
+        bindings: &callable::CallableTemplates,
         budget: &mut Budget<'_>,
     ) -> R<Option<TypeRef>> {
         // The type engine owns concrete opaque identities. Only propagate a
         // lexical generic variable through State<F> here, never instantiate a
         // nominal from the visible Fn signature of an opaque factory.
-        if self.found.get(binder).is_some_and(|ty| {
-            matches!(&grouped(ty).kind,
+        let symbolic = |binder: &str| {
+            self.found.get(binder).is_some_and(|ty| {
+                matches!(&grouped(ty).kind,
             TypeKind::Named { path, args } if path.len()==1 && args.is_empty())
-        }) {
+            })
+        };
+        let ready = if let Some(binder) = bindings.single_generic() {
+            symbolic(binder)
+        } else if let Some(names) = bindings.dual_names() {
+            budget.node(result.span, 0)?;
+            symbolic(names[0]) && symbolic(names[1])
+        } else {
+            false
+        };
+        if ready {
             Ok(Some(substituted(result, &self.found, budget)?))
         } else {
             Ok(None)
@@ -638,7 +654,11 @@ impl CallHints {
         span: Span,
         budget: &mut Budget<'_>,
     ) -> R<()> {
-        if self.callable == Some(index) && callable::opaque_signature(actual).is_some() {
+        let environment = match &grouped(actual).kind {
+            TypeKind::Reference { inner, .. } => inner.as_ref(),
+            _ => actual,
+        };
+        if self.callable.contains(&index) && callable::opaque_signature(environment).is_some() {
             // A source factory identity is not an enumerable generic type key.
             // Types binds its opaque origin to the callback State independently.
             return Ok(());

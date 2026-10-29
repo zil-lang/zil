@@ -1,0 +1,23 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/review184/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/review184/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/review184/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/review184/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/review184/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/review184/crates/zil-lower)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/review184/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/review184/crates/zil-ct)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/review184/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/review184/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/review184/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review184/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 9.26s
+     Running tests/impl090_slices.rs (/workspace/scratch/39be3faa4442/targets178/review184/debug/deps/impl090_slices-42c3b4c7774139e7)
+     Running tests/impl099_owned_bytes_native.rs (/workspace/scratch/39be3faa4442/targets178/review184/debug/deps/impl099_owned_bytes_native-0ac95dd40ff651fc)
+     Running tests/impl179_field_precision.rs (/workspace/scratch/39be3faa4442/targets178/review184/debug/deps/impl179_field_precision-b8aa0a896a16c234)
+     Running tests/impl180_store_mut.rs (/workspace/scratch/39be3faa4442/targets178/review184/debug/deps/impl180_store_mut-756b4c4683bfaceb)
+     Running tests/impl184_lending.rs (/workspace/scratch/39be3faa4442/targets178/review184/debug/deps/impl184_lending-7eb3fbdc20edd05c)
+     Running tests/impl184_lending_raw.rs (/workspace/scratch/39be3faa4442/targets178/review184/debug/deps/impl184_lending_raw-3cf1ecefcf76f44a)
+     Running tests/review184_storage.rs (/workspace/scratch/39be3faa4442/targets178/review184/debug/deps/review184_storage-f3e6e4a6da6ca075)
+error: test failed, to rerun pass `-p zil-driver --test review184_storage`
+error: 1 target failed:
+    `-p zil-driver --test review184_storage`

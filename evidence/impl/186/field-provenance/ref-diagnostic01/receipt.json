@@ -1,0 +1,12 @@
+{
+  "head": "a55d0dc475318878d154569f8d83ad7ba2acbc9e",
+  "proposal_object": "9b22708a92dc2e5cbd231cb87a3210e7ae1a3430",
+  "status": "A  changes/186-package-field-creation-provenance.md\n M crates/zil-analyze/src/resources.rs\n M crates/zil-driver/tests/impl186_generic_owned_success.rs\n M crates/zil-verify/src/resources.rs\n",
+  "files": {
+    "crates/zil-analyze/src/resources.rs": "b4bcdb1fbe70d19e9837c1991990541a524cb3c7e2f7e8dfb4767b8fea1eea1d",
+    "crates/zil-verify/src/resources.rs": "7abd413bfe8555eff47b2825a02c9f74abb5ec7232338a4efce2e7770f9c583d",
+    "crates/zil-driver/tests/impl186_generic_owned_success.rs": "18fed7c7f8e88a52981e7105bfb7e6cfd4c92143adb81ebecaf4260127af91b6",
+    "changes/186-package-field-creation-provenance.md": "9b4f93add76e918aeb471d710d5e6378b4610d7e48da567a1bcd6e30fbdc6433"
+  },
+  "disk_free_bytes": 4601982976
+}

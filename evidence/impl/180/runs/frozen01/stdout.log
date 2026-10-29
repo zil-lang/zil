@@ -1,0 +1,57 @@
+
+running 13 tests
+test complete_store_fields_construct_move_and_drop_prefix_in_field_order ... ok
+test raw_wire_reconstruct_sealed_store_definition_even_for_state_only_signature ... ok
+test raw_wire_reject_double_take_unpaid_replace_and_wrong_field_projection ... ok
+test raw_wire_store_bearing_capture_remains_closed ... ok
+test replacing_store_field_drops_old_prefix_before_new_publication ... ok
+test sealed_definitions_are_discovered_from_state_only_signatures ... ok
+test source_rejects_borrowed_store_fields_and_unsupported_nested_storage ... ok
+test source_rejects_missing_field_double_take_and_old_description_retargeting ... ok
+test store_field_raw_and_wire_budget_has_an_exact_boundary ... ok
+test cross_module_state_owns_runtime_replacement_and_partial_exit ... ok
+test taken_store_field_early_error_cleans_only_live_shell_fields ... ok
+test store_state_in_owned_error_and_fixed_array_recursively_cleans_prefix ... ok
+test whole_field_take_refill_and_state_transfer_have_one_responsibility ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.51s
+
+
+running 20 tests
+test actual_field_windows_block_mutation_take_replace_and_whole_parent_move ... ok
+test copy_child_address_keeps_a_live_window_through_local_callback ... ok
+test actual_store_fields_preserve_separation_and_last_use_before_parent_move ... ok
+test element_read_respects_actual_package_field_visibility ... ok
+test element_shape_mutable_owned_field_return_and_capture_guards_are_explicit ... FAILED
+test direct_projection_and_last_use_allow_later_reserve_and_pop ... ok
+test every_intersecting_container_mutation_is_rejected_while_view_is_live ... ok
+test failed_argument_preparation_ends_element_window_and_cleans_prefix_once ... ok
+test old_field_descriptions_cannot_reanimate_element_windows ... ok
+test raw_and_wire_rebuild_element_type_index_and_hold_origins ... ok
+test indirect_alias_contract_is_instantiated_from_real_store_roots ... ok
+test raw_and_wire_reject_container_drop_during_an_active_element_window ... ok
+test raw_and_wire_reject_write_retargeted_behind_an_active_window ... ok
+test raw_and_wire_rebuild_field_separation_and_parent_invalidation ... ok
+test runtime_negative_empty_and_end_indices_trap_before_element_access ... ok
+test shared_element_windows_cross_functions_and_keep_one_owner ... ok
+test shared_views_allow_len_capacity_and_unrelated_address_return ... ok
+test verify_window_budget_has_an_exact_n_and_n_minus_one_boundary ... ok
+test view_and_descriptor_input_aliasing_cannot_hide_a_write_inside_helper ... ok
+test runtime_index_reads_real_metadata_through_four_source_modules ... ok
+
+failures:
+
+---- element_shape_mutable_owned_field_return_and_capture_guards_are_explicit stdout ----
+
+thread 'element_shape_mutable_owned_field_return_and_capture_guards_are_explicit' (462) panicked at crates/zil-driver/tests/impl175_store_views.rs:299:5:
+assertion `left == right` failed: {"status":"Success","phase":"verify","diagnostics":[],"artifacts":{"candidate":"/workspace/scratch/39be3faa4442/run-logs/180-author/frozen01/cases/store-views175-428-22/phases/candidate.txt","core":"/workspace/scratch/39be3faa4442/run-logs/180-author/frozen01/cases/store-views175-428-22/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/180-author/frozen01/cases/store-views175-428-22/phases/ct-core.txt","interfaces":"/workspace/scratch/39be3faa4442/run-logs/180-author/frozen01/cases/store-views175-428-22/phases/interfaces.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/180-author/frozen01/cases/store-views175-428-22/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/180-author/frozen01/cases/store-views175-428-22/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/run-logs/180-author/frozen01/cases/store-views175-428-22/phases/typed.txt","verified":"/workspace/scratch/39be3faa4442/run-logs/180-author/frozen01/cases/store-views175-428-22/phases/verified.txt","verified-interfaces":"/workspace/scratch/39be3faa4442/run-logs/180-author/frozen01/cases/store-views175-428-22/phases/verified-interfaces.txt"},"input_fingerprint":"b43e1cf5099752c51b4479f1d79089c66b209fdb1a60b24c069cfd57c97eb6ae","seconds":0.014215921,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19","implementation_fingerprint":"ee4752620430ad5b4e9aa7a185370c6455a1cd2d0b047bdff3b319facfe2b3d9","contract_fingerprint":"41679486d9468a355b3174ba8615c044bd9cde52d31e30f14891df77583a2cad","result_origins":[],"callable_contracts":[],"callable_returns":[],"exports":[]}]}
+  left: Success
+ right: Unsupported
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    element_shape_mutable_owned_field_return_and_capture_guards_are_explicit
+
+test result: FAILED. 19 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.94s
+

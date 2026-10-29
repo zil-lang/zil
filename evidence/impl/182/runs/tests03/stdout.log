@@ -1,0 +1,20 @@
+
+running 15 tests
+test conditional_and_looping_callback_effects_cover_every_reachable_path ... ok
+test copy_argument_preparation_still_observes_the_captured_shared_window ... ok
+test callback_error_and_late_argument_failure_cleanup_once ... ok
+test current_explicit_arguments_do_not_end_before_a_direct_helper_returns ... ok
+test final_call_cannot_use_its_shared_capture_as_desc_write_permission ... ok
+test each_desc_capture_keeps_its_own_read_or_write_origin ... ok
+test mutable_address_capture_reborrows_and_releases_after_last_call ... ok
+test owning_once_cleanup_and_error_exit_keep_other_capture_dependencies ... ok
+test raw_and_wire_preserve_capture_indices_hold_and_public_upper_bounds ... ok
+test raw_and_wire_reconstruct_new_desc_writes_in_the_actual_entry ... ok
+test original_probes_keep_inputs_and_remove_the_unrelated_head_switch ... ok
+test same_origin_shared_desc_and_copy_address_read_on_the_final_call ... ok
+test two_layers_of_desc_helpers_export_internal_callback_accesses ... ok
+test unused_cleanup_does_not_turn_a_desc_into_a_strong_hold ... ok
+test zero_call_contract_does_not_execute_a_captured_write ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.97s
+

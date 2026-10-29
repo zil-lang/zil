@@ -1,0 +1,29 @@
+{
+  "actor": "/root",
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/wt177",
+  "source_commit": "f7110edf43281cc6202ab7b5e127870deb48b7d1",
+  "crates_tree": "903a1c2fe42634a052e276be13be7bcffe9e3779",
+  "source_clean": true,
+  "command": [
+    "python3",
+    "tools/language/173/consumer.py",
+    "--repo",
+    ".",
+    "--cli",
+    "/workspace/scratch/39be3faa4442/targets/177-combined/debug/zil",
+    "--out",
+    "/workspace/scratch/39be3faa4442/run-logs/177/consumer173-01"
+  ],
+  "environment": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/177/consumer173-command01/cases"
+  },
+  "start": 1793116941.3624046,
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793116947.5538661,
+  "log_sha256": "6a3e3f6bd043353fe90aab3013a63cf7fc4efd2a39fe727a14a7832e02fa6fae",
+  "test_groups": []
+}

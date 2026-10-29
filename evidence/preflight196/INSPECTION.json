@@ -1,0 +1,144 @@
+{
+  "kind": "ReadOnlyImplementationLocation",
+  "main_inspection_commit": "5604bebecfa0b67fecffa1c7be3808a5b374084f",
+  "compiler_is_not_main_build": true,
+  "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+  "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+  "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+  "compiler_build_receipt": [
+    {
+      "path": "compiler-provenance/command.json",
+      "original": "/workspace/scratch/39be3faa4442/run-logs/193-author/final-build01/command/command.json",
+      "sha256": "450db221064ea7d66257cc216339d436bb11dd5d7eb223f740c4d0846f284aca",
+      "bytes": 857
+    },
+    {
+      "path": "compiler-provenance/stdout.log",
+      "original": "/workspace/scratch/39be3faa4442/run-logs/193-author/final-build01/command/stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "compiler-provenance/stderr.log",
+      "original": "/workspace/scratch/39be3faa4442/run-logs/193-author/final-build01/command/stderr.log",
+      "sha256": "8f3ae2616dd1e18d0fe1f4076d35b698a81fb5dae3fa8b45c2750e9a19508e5e",
+      "bytes": 60
+    }
+  ],
+  "main_files": [
+    {
+      "path": "_zil_design.md",
+      "sha256": "48641079ef2ecc84aa50a0a9eafd83ae844f0d3de7924fcc8cb3e2fef3f9db5f",
+      "bytes": 114278
+    },
+    {
+      "path": "crates/zil-ir/src/lib.rs",
+      "sha256": "daa04f69b3055165e64e08828510b624c7b7b2995a5b4407f51472a397ce1597",
+      "bytes": 71959
+    },
+    {
+      "path": "crates/zil-ir/src/program.rs",
+      "sha256": "faf6d430a202892500079a03048269c46370a63b54ec81309a50a2f732f9c0d2",
+      "bytes": 2196
+    },
+    {
+      "path": "crates/zil-ir/src/wire.rs",
+      "sha256": "51b9992106d3d543b4fc6c9dd7d98681d03eb81e3ab7a7cad5216a5476fac0fe",
+      "bytes": 100644
+    },
+    {
+      "path": "crates/zil-expand/src/generic_callable.rs",
+      "sha256": "edd2cf0b39974ca1c7c56bcda207f3d76c6ec9e3bf15c7e2f077e504c8dbabf0",
+      "bytes": 10007
+    },
+    {
+      "path": "crates/zil-expand/src/generic_check.rs",
+      "sha256": "0bf8dcf6084226449c858d255be3a8e04e8418244d735f72c925d4a204c7d7f4",
+      "bytes": 105397
+    },
+    {
+      "path": "crates/zil-types/src/helpers.rs",
+      "sha256": "2ab6ddd45c4441443c2693aaca8e737d21caa0243ff981048ffd0da25da951d9",
+      "bytes": 30751
+    },
+    {
+      "path": "crates/zil-types/src/helper_plan.rs",
+      "sha256": "0e06cf3b68cf84e152a6cca9a8013e8775c9151d281030ae75ec2b7007c24270",
+      "bytes": 23682
+    },
+    {
+      "path": "crates/zil-types/src/helper_flow.rs",
+      "sha256": "80e1b872630d131dfcaa3cf99848de2c753f246f013e94d130c837a0aa9fd668",
+      "bytes": 18272
+    },
+    {
+      "path": "crates/zil-analyze/src/helpers.rs",
+      "sha256": "f4f215da440db91503c406e777ec766f4754253338e17a79fd3ed4ad214f6a45",
+      "bytes": 16343
+    },
+    {
+      "path": "crates/zil-analyze/src/helper_flow.rs",
+      "sha256": "abd52846a5bea3ca5d3e58725baa16fa1f4248ba4d57fe1fefe2f785b45c74d5",
+      "bytes": 16367
+    },
+    {
+      "path": "crates/zil-analyze/src/resources.rs",
+      "sha256": "6f3b50798333b1efa14bc527de968c14037f5884d212e72904346f1fc2bfdc03",
+      "bytes": 117237
+    },
+    {
+      "path": "crates/zil-verify/src/helpers.rs",
+      "sha256": "4980f24e17f6096eb937db4a7c7bf844f8b3dce2729a44295d2cd09b2540d03a",
+      "bytes": 18707
+    },
+    {
+      "path": "crates/zil-verify/src/helper_flow.rs",
+      "sha256": "edc73a7c4b93a72a127c444c4033a19a18a57473a455934998e246825c887774",
+      "bytes": 17639
+    },
+    {
+      "path": "crates/zil-verify/src/borrows/loans.rs",
+      "sha256": "a9ab82c8f3674c83933bc4ce26e93310ca696211b13c6672792495b076c1f201",
+      "bytes": 44535
+    },
+    {
+      "path": "crates/zil-verify/src/resources.rs",
+      "sha256": "877088fa3459159aebd7da76683fd8518e60b23b23f1288b49f7e14c10c38634",
+      "bytes": 86226
+    },
+    {
+      "path": "crates/zil-driver/src/contracts.rs",
+      "sha256": "0956f6bab2a53715cb76d0b233139e2eec2d9815b8c3404323adca7b3298ee49",
+      "bytes": 6739
+    }
+  ],
+  "same_factory_actual_typed_locals": [
+    {
+      "local_id": 0,
+      "name": "left",
+      "closure_id": 0
+    },
+    {
+      "local_id": 1,
+      "name": "right",
+      "closure_id": 0
+    }
+  ],
+  "actual_results": {
+    "inputs": 12,
+    "Success_Verify_1": 2,
+    "Unsupported_Expand_Verify_0": 10,
+    "same_F_occurrence_gate": 7,
+    "F_G_type_parameter_gate": 3
+  },
+  "deferred_safety_checks": [
+    "exclusive same actual",
+    "once same owned actual",
+    "role two captured Desc versus live view"
+  ],
+  "new_raw_wire_executions": 0,
+  "new_native_consumer_executions": 0,
+  "production_schema_or_normative_changes": false,
+  "proposal": "changes/196-proposal.md",
+  "scope_not_included": "194 single F plus Copy T remains independent"
+}

@@ -1,0 +1,71 @@
+{
+  "task": "204",
+  "scope": "Author Analyze and five-module consumer evidence archive only; does not perform compiler execution or formal acceptance",
+  "source_metadata_commit": "291b2980b0d5156f04ad1828ba8a3ea489df616c",
+  "spec_hash": "6975c100e3ae6905adc147828c7be0899d727adc5c6764462bc28ec5db8b55b0",
+  "normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
+  "archive": {
+    "integrity": "Pass",
+    "path": "/workspace/scratch/39be3faa4442/deliverables/204-analyze-consumer-evidence-compact.zip",
+    "bytes": 1746774,
+    "sha256": "e7e93e2fda3df7f5890011d6f77d3ab391bf11176708da3f1ae87c1a86e266a4",
+    "statistics": {
+      "logical_files": 3112,
+      "logical_bytes": 91709931,
+      "unique_contents": 867,
+      "unique_bytes": 28243078,
+      "excluded_execution_products": 30
+    },
+    "test_execution": "NotRun by packager"
+  },
+  "input_configuration": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/204-packaging/analyze-consumer-inputs.json",
+    "bytes": 1862,
+    "sha256": "b80c29b143767d60a90e87f7dafff5de2dfe4449e97715a74ce913fad79b4c95"
+  },
+  "packaging_tool": {
+    "path": "/workspace/scratch/39be3faa4442/language14/review195/tools/language/203/compact_evidence.py",
+    "bytes": 16953,
+    "sha256": "ee2b3373ffd92a24e496394cba7833071b505c02423fd7bff8b529f9c92496ce"
+  },
+  "packaging_command": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/204-packaging/analyze-consumer01/command.json",
+    "bytes": 922,
+    "sha256": "4769b95d5e30f2ea415bdc0e442d5472d25c9354857a62c7dd42e3b54fea3c35"
+  },
+  "packaging_execution_status": "Pass",
+  "integrity_checks": [
+    "all included ZIP members read with CRC verification",
+    "all manifest SHA256 and byte counts verified",
+    "all logical original paths and content references verified",
+    "all source fingerprints checked before/after packaging",
+    "exclusive no-overwrite publication after byte cap verification"
+  ],
+  "logical_component_files": {
+    "analyze": 2073,
+    "consumer": 1020,
+    "author-metadata": 19
+  },
+  "wire_semantic_files_preserved": 478,
+  "machine_products": "30 original executable/build files excluded with byte counts and SHA256 in INDEX.json; no machine products included",
+  "known_original_failures_preserved": [
+    "raw01 invalid hand-built capture-view fixtures (2 failures, no production change)",
+    "windows-before01 real live element window incorrectly accepted before Analyze/Verify fixes",
+    "legacy201-before01 three original message mismatches; all six original module/result pairs preserved",
+    "wine01 first launch denied by sandbox local IPC; no successful Wine program observation"
+  ],
+  "actual_success_sources": {
+    "consumer_cli_source": "7abbbac1f6479c52f4967653acfab74fc56c945d",
+    "consumer_checkout": "7bf69fe193d0e6f6bcfc62e9d1fa955afb26c61c",
+    "linux": "148 actual executions including 108 injected allocator failures; final live blocks zero",
+    "win64_wine": "148 actual executions including 108 injected allocator failures; final live blocks zero",
+    "analyze_final": "See RESULT.json for per-run original source/cleanliness and stage-specific results",
+    "legacy201_migration": "fd6de26275e84e9a15b0546a245f4ebba35d4cbf; six module/result pairs unchanged, named diagnostics only"
+  },
+  "limits": [
+    "Native Windows NotRun",
+    "Language/product/performance acceptance not established by this archive",
+    "Original run directories and all previous component archives are unchanged",
+    "Restoration tool included; no fresh restoration or compiler test claimed by packaging"
+  ]
+}

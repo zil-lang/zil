@@ -1,0 +1,342 @@
+{
+  "status": "Fail",
+  "source_commit": "2978ef94600597ea58947452b4e65646d0409e7e",
+  "cli_sha256": "ce756a21ab82ff8a06a000b0e7d765c7b608b2657b1674e906426d6d79df7066",
+  "sources": {
+    "main.zil": "b61172393ae06151e9f99953b85acdb863bb241cf34e347be228c077c68a2a03",
+    "model.zil": "9b98d325e24b607927668eac626ace9227ffc1afb588c9ee4f502e5d86af4a3f",
+    "operations.zil": "7fb594a9e6c49a8a4f23c950cf9996f91f3074a6e1a332f0d4da9d57d0abd7ef",
+    "visits.zil": "66b1130d6d17e24d19e4f098077039d50a2d42601ebed2ad80ee53b431f4f08f"
+  },
+  "allocator_sources": {
+    "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+    "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5"
+  },
+  "oracles": [
+    {
+      "name": "count-0",
+      "input": "0",
+      "stdout": "TSZ",
+      "exit": 0,
+      "probes": [
+        {
+          "name": "allocation",
+          "fail_at": 0,
+          "stdout": "TSZ",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 1
+          }
+        },
+        {
+          "name": "failure-1",
+          "fail_at": 1,
+          "stdout": "Z",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "name": "after-last-allocation",
+          "fail_at": 2,
+          "stdout": "TSZ",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "count-1",
+      "input": "1",
+      "stdout": "1FTSZ",
+      "exit": 0,
+      "probes": [
+        {
+          "name": "allocation",
+          "fail_at": 0,
+          "stdout": "1FTSZ",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 2
+          }
+        },
+        {
+          "name": "failure-1",
+          "fail_at": 1,
+          "stdout": "Z",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "name": "failure-2",
+          "fail_at": 2,
+          "stdout": "FTSZ",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 1
+          }
+        },
+        {
+          "name": "after-last-allocation",
+          "fail_at": 3,
+          "stdout": "1FTSZ",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "count-2",
+      "input": "2",
+      "stdout": "1F2FTSZ",
+      "exit": 0,
+      "probes": [
+        {
+          "name": "allocation",
+          "fail_at": 0,
+          "stdout": "1F2FTSZ",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 3,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 3
+          }
+        },
+        {
+          "name": "failure-1",
+          "fail_at": 1,
+          "stdout": "Z",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "name": "failure-2",
+          "fail_at": 2,
+          "stdout": "FTSZ",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 1
+          }
+        },
+        {
+          "name": "failure-3",
+          "fail_at": 3,
+          "stdout": "1FFTSZ",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 3,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 2
+          }
+        },
+        {
+          "name": "after-last-allocation",
+          "fail_at": 4,
+          "stdout": "1F2FTSZ",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 3,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 3
+          }
+        }
+      ]
+    },
+    {
+      "name": "count-3",
+      "input": "3",
+      "stdout": "1F2F3FTSZ",
+      "exit": 0,
+      "probes": [
+        {
+          "name": "allocation",
+          "fail_at": 0,
+          "stdout": "1F2F3FTSZ",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 4,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 4
+          }
+        },
+        {
+          "name": "failure-1",
+          "fail_at": 1,
+          "stdout": "Z",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "name": "failure-2",
+          "fail_at": 2,
+          "stdout": "FTSZ",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 1
+          }
+        },
+        {
+          "name": "failure-3",
+          "fail_at": 3,
+          "stdout": "1FFTSZ",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 3,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 2
+          }
+        },
+        {
+          "name": "failure-4",
+          "fail_at": 4,
+          "stdout": "1F2FFTSZ",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 4,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 3
+          }
+        },
+        {
+          "name": "after-last-allocation",
+          "fail_at": 5,
+          "stdout": "1F2F3FTSZ",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 4,
+            "allocated": 2,
+            "frees": 2,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 2,
+            "peak_bytes": 4
+          }
+        }
+      ]
+    },
+    {
+      "name": "invalid-input",
+      "input": "9",
+      "stdout": "",
+      "exit": 9,
+      "probes": []
+    },
+    {
+      "name": "eof",
+      "input": "",
+      "stdout": "",
+      "exit": 9,
+      "probes": []
+    }
+  ],
+  "builds": [],
+  "observations": [],
+  "platform": "linux",
+  "execution": "native",
+  "native_windows": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "error_type": "UnboundLocalError",
+  "error": "cannot access local variable 'command' where it is not associated with a value"
+}

@@ -8,6 +8,7 @@ pub(super) type Bounds = BTreeMap<String, Vec<String>>;
 pub(super) struct Index<'a> {
     declarations: BTreeMap<&'a str, (&'a Item, &'a TraitDecl)>,
     implementations: BTreeSet<(&'a str, &'a str)>,
+    nominals: BTreeMap<String, &'a Item>,
 }
 
 pub(super) fn plain(ty: &TypeRef) -> Option<&str> {
@@ -21,9 +22,24 @@ impl<'a> Index<'a> {
     pub(super) fn new(module: &'a Module, budget: &mut Budget<'_>) -> R<Self> {
         let mut declarations = BTreeMap::new();
         let mut implementations = BTreeSet::new();
+        let mut nominals = BTreeMap::new();
         for item in &module.items {
             budget.node(item.span, 0)?;
+            if matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_)) {
+                nominals.insert(name(item).expect("nominal name").to_owned(), item);
+            }
             match &item.kind {
+                ItemKind::Impl(implementation)
+                    if implementation
+                        .trait_type
+                        .as_ref()
+                        .is_some_and(stores::is_bound) =>
+                {
+                    return Err(error(
+                        item.span,
+                        "StoreElement is a compiler shape bound and cannot be implemented",
+                    ));
+                }
                 ItemKind::Trait(declaration) => {
                     if declarations
                         .insert(declaration.name.as_str(), (item, declaration))
@@ -57,6 +73,7 @@ impl<'a> Index<'a> {
         Ok(Self {
             declarations,
             implementations,
+            nominals,
         })
     }
 
@@ -120,18 +137,58 @@ impl<'a> Index<'a> {
     }
 
     pub(super) fn bounds(&self, function: &Function, budget: &mut Budget<'_>) -> R<Bounds> {
-        if callable::template(function)?.is_some() {
-            return Ok(Bounds::new());
-        }
+        let callable = callable::template(function)?;
+        self.parameter_bounds_except(&function.generics, budget, callable.as_ref())
+    }
+
+    pub(super) fn parameter_bounds(
+        &self,
+        parameters: &[GenericParam],
+        budget: &mut Budget<'_>,
+    ) -> R<Bounds> {
+        self.parameter_bounds_except(parameters, budget, None)
+    }
+
+    fn parameter_bounds_except(
+        &self,
+        parameters: &[GenericParam],
+        budget: &mut Budget<'_>,
+        retained: Option<&callable::CallableTemplates>,
+    ) -> R<Bounds> {
         let mut result = Bounds::new();
-        for parameter in &function.generics {
+        for parameter in parameters {
+            if retained.is_some_and(|roles| roles.contains_generic(&parameter.name)) {
+                continue;
+            }
             let GenericParamKind::Type(bounds) = &parameter.kind else {
                 continue;
             };
             let mut names = Vec::new();
             for bound in bounds {
+                if copy::is_bound(bound) {
+                    budget.ty(bound)?;
+                    if parameters.iter().any(|p| p.name == copy::BOUND) {
+                        return Err(error(
+                            bound.span,
+                            "Copy bound resolves to a shadowing type parameter",
+                        ));
+                    }
+                    if names.iter().any(|name| name == copy::BOUND) {
+                        return Err(error(bound.span, "duplicate Copy bound"));
+                    }
+                    names.push(copy::BOUND.to_owned());
+                    continue;
+                }
+                if stores::is_bound(bound) {
+                    budget.ty(bound)?;
+                    if names.iter().any(|name| name == stores::BOUND) {
+                        return Err(error(bound.span, "duplicate StoreElement bound"));
+                    }
+                    names.push(stores::BOUND.to_owned());
+                    continue;
+                }
                 let declaration = self.declaration(bound, budget)?;
-                if function.generics.iter().any(|p| p.name == declaration.name) {
+                if parameters.iter().any(|p| p.name == declaration.name) {
                     return Err(error(
                         bound.span,
                         "trait bound resolves to a shadowing type parameter",
@@ -155,16 +212,37 @@ impl<'a> Index<'a> {
         &self,
         parameters: &[GenericParam],
         found: &BTreeMap<String, TypeRef>,
-        available: &Bounds,
-        variables: &BTreeSet<String>,
+        (available, variables, callback): (
+            &Bounds,
+            &BTreeSet<String>,
+            callable::StoreCallbacks<'_>,
+        ),
         budget: &mut Budget<'_>,
         span: Span,
+        retained: Option<&callable::CallableTemplates>,
     ) -> R<()> {
         for parameter in parameters {
+            if retained.is_some_and(|roles| roles.contains_generic(&parameter.name)) {
+                continue;
+            }
             let GenericParamKind::Type(bounds) = &parameter.kind else {
                 continue;
             };
             for bound in bounds {
+                if copy::is_bound(bound) {
+                    let actual = found
+                        .get(&parameter.name)
+                        .ok_or_else(|| error(span, "Copy argument has no unique symbolic type"))?;
+                    copy::require(actual, &self.nominals, available, variables, budget)?;
+                    continue;
+                }
+                if stores::is_bound(bound) {
+                    let actual = found.get(&parameter.name).ok_or_else(|| {
+                        error(span, "StoreElement argument has no unique symbolic type")
+                    })?;
+                    self.store_element(actual, available, variables, budget, callback)?;
+                    continue;
+                }
                 let declaration = self.declaration(bound, budget)?;
                 let actual = found.get(&parameter.name).ok_or_else(|| {
                     error(span, "trait-bound argument has no unique symbolic type")
@@ -208,6 +286,9 @@ impl<'a> Index<'a> {
         let mut selected = None;
         for trait_name in bounds.get(variable).into_iter().flatten() {
             budget.node(span, 0)?;
+            if trait_name == stores::BOUND || trait_name == copy::BOUND {
+                continue;
+            }
             let (_, declaration) = self.declarations[trait_name.as_str()];
             for member in &declaration.members {
                 budget.node(member.span, 0)?;
@@ -230,5 +311,95 @@ impl<'a> Index<'a> {
                 format!("method {name} is not provided by the declared trait bounds of {variable}"),
             )
         })
+    }
+
+    pub(super) fn store_element(
+        &self,
+        ty: &TypeRef,
+        available: &Bounds,
+        variables: &BTreeSet<String>,
+        budget: &mut Budget<'_>,
+        callback: callable::StoreCallbacks<'_>,
+    ) -> R<()> {
+        budget.ty(ty)?;
+        if let Some(variable) = plain(ty).filter(|name| variables.contains(*name)) {
+            if available
+                .get(variable)
+                .is_some_and(|bounds| bounds.iter().any(|bound| bound == stores::BOUND))
+            {
+                return Ok(());
+            }
+            return Err(error(
+                ty.span,
+                "Store<T> requires a declared StoreElement bound; nominal traits do not grant element ownership",
+            ));
+        }
+        stores::concrete_element(ty, &self.nominals, budget, (available, variables, callback))
+    }
+
+    /// Validate written Store applications even in unused templates. A plain
+    /// T or user nominal trait never gains its category from an eventual call.
+    pub(super) fn store_types(
+        &self,
+        ty: &TypeRef,
+        available: &Bounds,
+        variables: &BTreeSet<String>,
+        budget: &mut Budget<'_>,
+        callback: callable::StoreCallbacks<'_>,
+    ) -> R<()> {
+        budget.ty(ty)?;
+        let mut pending = vec![ty];
+        while let Some(ty) = pending.pop() {
+            budget.node(ty.span, 0)?;
+            match &grouped(ty).kind {
+                TypeKind::Named { path, args } => {
+                    if path.as_slice() == [stores::BOUND] {
+                        return Err(error(ty.span, "StoreElement is a bound, not a value type"));
+                    }
+                    if path.as_slice() == ["Store"] {
+                        let element = stores::element(ty).ok_or_else(|| {
+                            error(ty.span, "Store requires exactly one element type")
+                        })?;
+                        self.store_element(element, available, variables, budget, callback)?;
+                    }
+                    if let Some(Item {
+                        kind: ItemKind::Aggregate(declaration),
+                        ..
+                    }) = self.nominals.get(&path.join("."))
+                    {
+                        for (parameter, argument) in declaration.generics.iter().zip(args) {
+                            if let GenericParamKind::Type(bounds) = &parameter.kind
+                                && bounds.iter().any(stores::is_bound)
+                                && let GenericArg::Type(actual) = argument
+                            {
+                                self.store_element(actual, available, variables, budget, callback)?;
+                            }
+                        }
+                    }
+                    for argument in args {
+                        if let GenericArg::Type(ty) = argument {
+                            pending.push(ty);
+                        }
+                    }
+                }
+                TypeKind::Reference { inner, .. }
+                | TypeKind::Optional(inner)
+                | TypeKind::ForLifetime { inner, .. } => pending.push(inner),
+                TypeKind::Tuple(types) | TypeKind::Union(types) | TypeKind::Impl(types) => {
+                    pending.extend(types)
+                }
+                TypeKind::Array { element, .. } => pending.push(element),
+                TypeKind::Error { error, result } => {
+                    pending.extend([error.as_ref(), result.as_ref()])
+                }
+                TypeKind::Function { params, result }
+                | TypeKind::ForeignFunction { params, result, .. } => {
+                    pending.extend(params);
+                    pending.push(result);
+                }
+                _ => {}
+            }
+        }
+        Ok(())
     }
 }

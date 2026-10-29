@@ -1,0 +1,1 @@
+fn map<T:Copy,F:Fn(T)->T>(f:&F,x:T)->T=>f(x);fn plus(x:i32)->i32=>x+1;fn main()->i32{let p:fn(i32)->i32=plus;let f=move(x:fn(i32)->i32)=>x;let v=map(&f,p);return v(6)-7}

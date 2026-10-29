@@ -1,0 +1,1 @@
+fn main(){for store_at in 0..1{}}

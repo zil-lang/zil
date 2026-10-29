@@ -1,0 +1,373 @@
+{
+  "reviewer": "/root/dynamic_store",
+  "implementation_author": "/root",
+  "implementation_commit": "02cce89206e74cb5aa0050faf4885973288b9383",
+  "scope": "173 ordinary owned-error helper inference and closed adjacent capture/callable contracts; no approval of reviewer-authored 172",
+  "cli_sha256": "623dcf1d58f4dc5c0cb02dff9c912e2a5a866d5d0c7dc9188878114e8d6e3c73",
+  "input_files": {
+    "reused-owned-error-value/main.zil": "002471e6baaf603c3ff9dd7add925483d9394d26a822ea6291fd70b7dea4ee31",
+    "both-owning-payloads/main.zil": "a948237d0b0e178ab500e4418e97f77b155e3604083bc9a821f22204b8ef075c",
+    "borrow-owned-error-capture/main.zil": "5d62aab40eb029c39ac79480559d824e9b61bcce6c55a2d7bdbf852fb4cc2312",
+    "array-with-owned-error-capture/main.zil": "45cfad0bb41440e7208888581b8fd6bfcf7d28f80edced6a12f81fd08c5f5526",
+    "borrowed-error-payload/main.zil": "feef8b1d1e55f790d1f5a690c81d229d77a778f2e0d4a26b0f334078ac607f97",
+    "ordinary-abi/main.zil": "dc8dfd7901edaecc9acda41ed12761fae596e76893d018bdcbc9b4db5567bdbd",
+    "ordinary-abi/callbacks.zil": "43e1d624af10f478dd01f04413e7091f13e9e33b4a45f4976f12934b39eb801b",
+    "ordinary-abi/relay.zil": "72bd087d0ca0a361967d1cedfb9c5bcdb5b7050f23cac6c54fcdf50b031cdcf4",
+    "ordinary-abi/model.zil": "89c2f281070c4da6d38609c4149825372f4a078b21381c9511d384dec5442b15",
+    "owned-error-callable-parameter/main.zil": "7aa6229732dbcb91af1a2c90092234808d8cf43faa41ec8038d64e8ac3c44afc",
+    "nested-owned-error-payload/main.zil": "c4a019e68e51caa3686c3063f7e105fc33433415d31c4b3ababb84a781a5897d",
+    "owned-error-callable-result/main.zil": "72508981c58d0c8cb326f2f0ada0f40068585aabfc1e6c6eac81466ec60b73be",
+    "move-owned-error-capture/main.zil": "df610535b8bcd33503821ee811fef4bfc91c97ae32f736a0b4a85601dfd6b5f1"
+  },
+  "native": [
+    {
+      "case": "ordinary-abi",
+      "opt": "O0",
+      "probe": false,
+      "stdout": "ABC",
+      "exit": 0,
+      "llvm_sha256": "ce94d93b2e068edaf45a8f57eeca4bba01e4bba99bddbd15d337527ae41d7d6f"
+    },
+    {
+      "case": "ordinary-abi",
+      "opt": "O0",
+      "probe": true,
+      "failure_index": 0,
+      "stdout": "ABC",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "case": "ordinary-abi",
+      "opt": "O0",
+      "probe": true,
+      "failure_index": 1,
+      "stdout": "ABC",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "case": "ordinary-abi",
+      "opt": "O0",
+      "probe": true,
+      "failure_index": 2,
+      "stdout": "ABC",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "case": "ordinary-abi",
+      "opt": "O2",
+      "probe": false,
+      "stdout": "ABC",
+      "exit": 0,
+      "llvm_sha256": "ce94d93b2e068edaf45a8f57eeca4bba01e4bba99bddbd15d337527ae41d7d6f"
+    },
+    {
+      "case": "ordinary-abi",
+      "opt": "O2",
+      "probe": true,
+      "failure_index": 0,
+      "stdout": "ABC",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "case": "ordinary-abi",
+      "opt": "O2",
+      "probe": true,
+      "failure_index": 1,
+      "stdout": "ABC",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "case": "ordinary-abi",
+      "opt": "O2",
+      "probe": true,
+      "failure_index": 2,
+      "stdout": "ABC",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "case": "both-owning-payloads",
+      "opt": "O0",
+      "probe": false,
+      "stdout": "DEC",
+      "exit": 0,
+      "llvm_sha256": "fdaefbf84ebee525004abcf8ef62edf8845e50b47287feb7ee2ba2f4993286b2"
+    },
+    {
+      "case": "both-owning-payloads",
+      "opt": "O0",
+      "probe": true,
+      "failure_index": 0,
+      "stdout": "DEC",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "case": "both-owning-payloads",
+      "opt": "O2",
+      "probe": false,
+      "stdout": "DEC",
+      "exit": 0,
+      "llvm_sha256": "fdaefbf84ebee525004abcf8ef62edf8845e50b47287feb7ee2ba2f4993286b2"
+    },
+    {
+      "case": "both-owning-payloads",
+      "opt": "O2",
+      "probe": true,
+      "failure_index": 0,
+      "stdout": "DEC",
+      "exit": 0,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    }
+  ],
+  "negative": [
+    {
+      "case": "array-with-owned-error-capture",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "capture requires a finite Copy value, finite resource, explicit-move Package or one address layer",
+          "span": {
+            "file": 0,
+            "start": 237,
+            "end": 242
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "borrow-owned-error-capture",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "capture requires a finite Copy value, finite resource, explicit-move Package or one address layer",
+          "span": {
+            "file": 0,
+            "start": 223,
+            "end": 228
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "borrowed-error-payload",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values or complete owned Packages",
+          "span": {
+            "file": 0,
+            "start": 178,
+            "end": 211
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "move-owned-error-capture",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "capture requires a finite Copy value, finite resource, explicit-move Package or one address layer",
+          "span": {
+            "file": 0,
+            "start": 228,
+            "end": 233
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "nested-owned-error-payload",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values or complete owned Packages",
+          "span": {
+            "file": 0,
+            "start": 178,
+            "end": 212
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "owned-error-callable-parameter",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "non-Copy aggregate, address, opaque, and resource analysis is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "owned-error-callable-result",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "non-Copy aggregate, address, opaque, and resource analysis is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "reused-owned-error-value",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 1 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 244,
+            "end": 249
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 1,
+      "native_commands": []
+    }
+  ],
+  "status": "ProbeObservationsComplete",
+  "native_executions": 12,
+  "negative_cases": 8
+}

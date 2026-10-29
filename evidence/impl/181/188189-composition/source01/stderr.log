@@ -1,0 +1,19 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-expand)
+error[E0428]: the name `helper_graph` is defined multiple times
+  --> crates/zil-expand/src/generics.rs:24:1
+   |
+20 | mod helper_graph;
+   | ----------------- previous definition of the module `helper_graph` here
+...
+24 | mod helper_graph;
+   | ^^^^^^^^^^^^^^^^^ `helper_graph` redefined here
+   |
+   = note: `helper_graph` must be defined only once in the type namespace of this module
+
+For more information about this error, try `rustc --explain E0428`.
+error: could not compile `zil-expand` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

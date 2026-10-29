@@ -1,0 +1,1 @@
+fn bad<T>(x:T)->(T,T)=>(x,x);fn main(){}

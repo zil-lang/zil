@@ -1,0 +1,147 @@
+{
+  "task": "175",
+  "implementation_author": "/root/store_view175",
+  "status": "AuthorPass",
+  "review": "NotRun",
+  "tested_implementation_commit": "fd69ff6c7cbbc95fcd395d5dbe11fb3c3c85790d",
+  "crates_tree": "6937ecf38b4bf300df400ec462772b60b30ea73a",
+  "test_source_status": "",
+  "public_schema_commit": "aa235a3379492221197b4686bec042c042c4e100",
+  "dependency_174_source_commit": "9a878f2f91aae4efd4b851eeb8979cacc21ffdd1",
+  "spec_hash": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+  "normative_hash": "8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be",
+  "schema_wire_version": 21,
+  "target": "x86_64-unknown-linux-gnu",
+  "profile": "default features; independent target175; incremental=0; debug symbols=0",
+  "limited_tests": {
+    "command": "commands/focused05/command.json",
+    "log": "commands/focused05/output.log",
+    "selected": 66,
+    "passed": 66,
+    "failed": 0,
+    "ignored": 0,
+    "by_target": {
+      "impl175_store_views": 20,
+      "impl171_resource_heads": 17,
+      "impl172_owned_store": 16,
+      "impl174_store_fields": 13
+    },
+    "full_workspace": "NotRun"
+  },
+  "new_slice_observations": {
+    "case_directories": 72,
+    "recorded_source_compilations": 61,
+    "compile_statuses": {
+      "Success": 36,
+      "SafeReject": 18,
+      "Unsupported": 7
+    },
+    "native_executions": 36,
+    "ordinary_or_error_return_executions": 30,
+    "defined_traps": 6,
+    "raw_and_wire_mutations": 10,
+    "raw_and_wire_rejections": 20,
+    "extra_visibility_case": "source lives in the committed Rust test; result is asserted in focused05, without separate case-directory receipt",
+    "verify_budget": [
+      {
+        "pass_n": 18472,
+        "resource_limit_n_minus_1": 18471,
+        "default_limits_changed": false
+      }
+    ]
+  },
+  "consumer": {
+    "summary": "consumer/summary.json",
+    "cli_build": "commands/cli-build02/command.json",
+    "command": "commands/consumer-command02/command.json",
+    "status": "Pass",
+    "native_executions": 50,
+    "ordinary_executions": 12,
+    "instrumented_executions": 38,
+    "injected_allocation_failures": 28,
+    "all_instrumented_allocations_freed": true,
+    "optimization_levels": [
+      "O0",
+      "O2"
+    ],
+    "verification_runs_each_build": [
+      1,
+      1
+    ]
+  },
+  "discoveries": [
+    {
+      "command": "commands/focused01/command.json",
+      "status": "Fail",
+      "passed": 5,
+      "failed": 9,
+      "cause": "three LLVM pointer representation guards and two author source fixtures; corrected before 1e5352c"
+    },
+    {
+      "command": "commands/focused03/command.json",
+      "status": "InfrastructureFailure",
+      "executed_tests": 0,
+      "cause": "rustc colliding StableCrateId for zil_verify; own target cache cleared, no source change"
+    },
+    {
+      "command": "commands/focused04/command.json",
+      "status": "Fail",
+      "passed": 19,
+      "failed": 1,
+      "cause": "raw parent-drop fixture hit initialization rejection first; isolated live-window counterexample, retaining exact Borrow conflict expectation"
+    }
+  ],
+  "source_and_tool_sha256": {
+    "changes/175-store-element-windows.md": "059ce4fa5eed9a71148f5ee955db326f547761bf234bee2042015bdca3f269d4",
+    "crates/zil-analyze/src/budget.rs": "9dca9065051d1b2db204b19368c0bd9d6f9ae236b07872e48d2122603285385a",
+    "crates/zil-analyze/src/dynamic_store.rs": "8389d4208b3be369e5ebcd9676bc29059d3dd6df38452483e187f775cd01ac40",
+    "crates/zil-analyze/src/holds.rs": "c7d338a3ea17b68df2ae41fcb947809e73f7c8039496aee1573bea139adf4ec4",
+    "crates/zil-backend-llvm/src/emit.rs": "81153b20af1166ee906727378ee16ba67a3e833221e8612033923bdc31073533",
+    "crates/zil-backend-llvm/src/emit/dynamic_store.rs": "03975add7b7b0155fdc021155a7f93db265ebe2c9f4314a9b5cc3d2aac7a9075",
+    "crates/zil-driver/tests/impl175_store_views.rs": "c796798845fdff0e655004c16fc9802242f89d9ce8bc0ab4a47f5e1e5b3d7698",
+    "crates/zil-lower/src/lib.rs": "bbb9f790435bf7e97823e68d36b51165bf24c2e323bd723b20d52dee3bd95224",
+    "crates/zil-types/src/addresses.rs": "8fac73ba7b08d604c2205f81498ea1810e0aced908f7e47cb1510987b871bb71",
+    "crates/zil-types/src/aggregates.rs": "9041f7b9f0a6a443e0e8ce0e34e632b1c008cb66d9a7686dd3b603b7ed31f810",
+    "crates/zil-types/src/closures.rs": "f15984a1f723ba218b905163e1ef82849537912d04f202767aedfdade82a611d",
+    "crates/zil-types/src/dynamic_store.rs": "88016762f0643cb1409aa412c5e5968f157b241c3e063120012932f3d92027cb",
+    "crates/zil-types/src/inference.rs": "cba75a7b2982adf07dc64d87e6b2ecf1aab4cfb6a97bd342fb602fee69fc2d15",
+    "crates/zil-types/src/lib.rs": "ea0c837b72a40020682daaa4054792f7694660136a3f0872471674dadce871aa",
+    "crates/zil-verify/src/borrows.rs": "eb73cb7fc995390f52fd32ede3cb6c1cce0b7b6b889b98c1a8b065a3a0636fbd",
+    "crates/zil-verify/src/borrows/buffer_effects.rs": "d4a717328ec52ce8830ce73d219d6bea00857540f0734db57333d6f635fec17e",
+    "crates/zil-verify/src/borrows/loans.rs": "3a1691283852e9ddce6c5fca6da3774785a6f1b35b5f8b32e21f84b6b4b42d83",
+    "crates/zil-verify/src/borrows/roots.rs": "528c62b150160bdb990a0b7d2496204ea67209cff9c4880f10015f2b7f28b70d",
+    "crates/zil-verify/src/closures.rs": "087f18e6c93c1b6b9726e29f4194ec240f320e7b22a601da670870945011828b",
+    "crates/zil-verify/src/dynamic_store.rs": "629e4a8947457f27e7eb1f440b3ffd53c65f30948e1925d2dfd161072f92697d",
+    "crates/zil-verify/src/lib.rs": "c88fc70834a375eb9538b1145187421b11720bf9b532abd0d06b260d79a3f5a9",
+    "examples/mainline/impl175/README.md": "89bfdc680e94c6a56e39aff5d642f6804df9dbeea4c98a3b8aee58d28fd0de2e",
+    "examples/mainline/impl175/inspection.zil": "0f5be35f16a3e33439d49fb87dc0d59ae3a727adddb918caa42104ce281bce8c",
+    "examples/mainline/impl175/main.zil": "c32f846137214e4ee6c23b8accd4d0d0b5493c8c9c023b801808a8c4aa3ff054",
+    "examples/mainline/impl175/model.zil": "53c8148bcb42ac270d1b960d0f8f225364522d4a85600f96e7447874211970e0",
+    "examples/mainline/impl175/storage.zil": "597c16d5af44e6e963ca3f4be3bc263a02ccde2525206755d5451906b6e6d37c",
+    "tools/language/175/consumer.py": "2d1ee535d0eb42b840de6b880b457eb31ac1f1e813993171a41b828e236e2634"
+  },
+  "safety_contract": [
+    "runtime signed i64 index checked against actual len before element GEP",
+    "shared actual Package address; Copy projections only",
+    "independent real Store/field origins, loans, effects and caller apart obligations",
+    "active window prevents intersecting reserve/push/pop/give/drop/field replace/whole parent move",
+    "unrelated address-return function remains supported; window-derived Address returns conservatively closed",
+    "no mutable view, whole Package/Managed copy, direct view capture, hidden RC/box/global table/noalias"
+  ],
+  "remaining": [
+    "Linux x64 only; Win64 is not established",
+    "mutable or escaping views and general lending remain unsupported",
+    "direct Store capture and mixed Desc+Address callback in window-bearing modules remain bounded by existing profile",
+    "independent review and root integration pending"
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "b0": "Doing",
+  "rust_four_goals": {
+    "safety": "finite profile source/raw/Wire and invalidation/error paths observed; no general language proof",
+    "runtime_memory": "actual pointer layout and allocation/free balance observed; no equivalent Rust time/RSS comparison",
+    "expression_maintenance": "cross-module runtime traversal and State field composition observed; maintenance cost advantage unmeasured",
+    "compile_cost": "not measured; speed branch kept separate",
+    "breakthrough": "finite non-consuming dynamic prefix traversal implemented; no product-level net breakthrough or four-goal conjunction claimed"
+  }
+}

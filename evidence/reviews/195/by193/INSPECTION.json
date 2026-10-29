@@ -1,0 +1,49 @@
+{
+  "implementation_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
+  "reviewed_test_source": "597f4a730d417c7652487f4c4fa3d6aa57bf025a",
+  "implementation_baseline": "40abb53527aa45c89f6249162c9a69fea5fd80ad",
+  "spec_hash": "48641079ef2ecc84aa50a0a9eafd83ae844f0d3de7924fcc8cb3e2fef3f9db5f",
+  "normative_hash": "6488fa9f20121c4268f13153c6daecbfd20da5eb5e8aa86630620413d41edadb",
+  "candidate_to_test_source_changed_files": [
+    "crates/zil-driver/tests/review195_by193.rs"
+  ],
+  "production": [
+    {
+      "path": "crates/zil-expand/src/generic_check.rs",
+      "bytes": 106040,
+      "sha256": "ddf80913db38faf4563d53ca05cf6c68ba045ef0f602082af94169c52f9ddf2c",
+      "same_as_candidate": true
+    },
+    {
+      "path": "crates/zil-expand/src/generic_check_enum.rs",
+      "bytes": 14214,
+      "sha256": "2c7e823f82a6dcd1bd883769de6d2f0af9a93b696f6626fac03f903c72e955db",
+      "same_as_candidate": true
+    },
+    {
+      "path": "crates/zil-expand/src/generic_loop_control.rs",
+      "bytes": 4553,
+      "sha256": "98aedf0ba66d9046859b7eb70a09c45cd097de2b4326ca7573062a86aa7935de",
+      "same_as_candidate": true
+    }
+  ],
+  "default_limits_changed": false,
+  "schema_changed": false,
+  "checker_dependencies_changed": false,
+  "failed_pilot_sources_preserved_exactly": [
+    {
+      "pilot": "new06-pilot01",
+      "old": "records/new06-pilot01/reports/review195-by193-shadowed-id-budget-default-51-10/source.zil",
+      "current_negative": "records/new06-final01/reports/review195-by193-shadowed-id-scalar-store-remains-closed-30-10/source.zil",
+      "sha256": "410843639c8b09ffcaffb1332760d7c5533113c69f5b686ebcf6972d6497eb5f",
+      "byte_identical": true
+    },
+    {
+      "pilot": "new06-pilot02",
+      "old": "records/new06-pilot02/reports/review195-by193-shadowed-id-budget-default-52-11/source.zil",
+      "current_negative": "records/new06-final01/reports/review195-by193-shadowed-id-resource-store-remains-closed-30-11/source.zil",
+      "sha256": "38326e4ae11a42da40ec69d44e585bb176166d02705e7604391b4d7824e65258",
+      "byte_identical": true
+    }
+  ]
+}

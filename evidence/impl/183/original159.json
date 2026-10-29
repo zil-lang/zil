@@ -1,0 +1,48 @@
+{
+  "source": "tools/research/159/readiness.py:gaps[owned-error-result]",
+  "sha256": "14097787d937f7e719603d3d197f135b4d0b8093245ae725c8a1cb6919835483",
+  "input_bytes_unchanged": true,
+  "actual_result": {
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "artifacts": {},
+    "input_fingerprint": "14097787d937f7e719603d3d197f135b4d0b8093245ae725c8a1cb6919835483",
+    "seconds": 0.00107837,
+    "cache_hit": false,
+    "commands": [],
+    "disk_cache": "disabled",
+    "query_events": [
+      {
+        "phase": "parse",
+        "disposition": "executed"
+      },
+      {
+        "phase": "expand",
+        "disposition": "executed"
+      },
+      {
+        "phase": "ct",
+        "disposition": "executed"
+      },
+      {
+        "phase": "types",
+        "disposition": "executed"
+      },
+      {
+        "phase": "analyze",
+        "disposition": "executed"
+      },
+      {
+        "phase": "verify",
+        "disposition": "executed"
+      }
+    ],
+    "verification_runs": 1,
+    "source_files": {
+      "0": "main.zil"
+    },
+    "scalar_interfaces": []
+  },
+  "implementation_commit": "19f58c16ed800b0cee5a8afcc11908925920cd63"
+}

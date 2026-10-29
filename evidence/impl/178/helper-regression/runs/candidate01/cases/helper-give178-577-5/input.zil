@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R}fn bad<F:Fn()->i32>(f:&F,give item:P)->i32=>f();fn main(){}

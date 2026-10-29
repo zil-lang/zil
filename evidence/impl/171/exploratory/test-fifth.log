@@ -1,0 +1,22 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.53s
+     Running tests/impl171_resource_heads.rs (/workspace/scratch/39be3faa4442/targets/171-final-01/debug/deps/impl171_resource_heads-3c55f1b37cf8f614)
+
+running 13 tests
+test head_metadata_work_has_an_exact_finite_budget_boundary ... ok
+test descriptor_capturing_callbacks_cannot_write_under_a_live_head ... ok
+test original_159_resource_address_receiver_probe_is_unchanged_and_now_supported ... ok
+test raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head ... ok
+test active_head_prevents_write_move_replacement_and_old_address_revival ... ok
+test heads_are_not_descriptors_mutable_windows_returns_or_captures ... ok
+test resource_trait_nonshared_receivers_and_head_indirect_calls_stay_closed ... ok
+test desc_only_imported_helpers_export_writes_into_caller_head_window ... ok
+test imported_heads_keep_nominal_identity_visibility_and_actual_storage ... ok
+test last_use_then_descriptor_write_is_allowed ... ok
+test unrelated_owned_callback_and_shared_head_compose ... ok
+test actual_head_trait_and_inherent_methods_and_plain_parameters ... ok
+test descriptor_and_head_parameters_do_not_assume_distinct_origins ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s
+

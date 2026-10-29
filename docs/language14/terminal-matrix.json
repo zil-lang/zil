@@ -1,0 +1,6 @@
+{
+  "kind": "audit-reference",
+  "frozen_observations": "../../evidence/audits/14/terminal-matrix.json",
+  "interpretation": "terminal-matrix.md",
+  "note": "Detailed observed results are stored outside source-only delivery; current slice status is authoritative in .task/impl."
+}

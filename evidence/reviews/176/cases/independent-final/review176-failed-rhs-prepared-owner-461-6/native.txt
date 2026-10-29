@@ -1,0 +1,2 @@
+optimization=O2
+Output { status: ExitStatus(unix_wait_status(256)), stdout: "BAT", stderr: "" }

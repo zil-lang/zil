@@ -1,0 +1,338 @@
+[
+  {
+    "path": "specialized-native/array-capture-boundary167-263/raw.txt",
+    "phase": "Verify",
+    "category": "Unsupported",
+    "code": "E-UNSUPPORTED",
+    "message": "owned array capture requires a separate retained array protocol",
+    "sha256": "d63047948fa1aa537c3c99063e597048806e5bd7235672c3e2ae8df9fcb8a103"
+  },
+  {
+    "path": "specialized-native/array-capture-boundary167-263/wire.txt",
+    "phase": "Verify",
+    "category": "Unsupported",
+    "code": "E-UNSUPPORTED",
+    "message": "owned array capture requires a separate retained array protocol",
+    "sha256": "d63047948fa1aa537c3c99063e597048806e5bd7235672c3e2ae8df9fcb8a103"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-35/stale-callback-address-after-refill-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-BORROW-CONFLICT",
+    "message": "write or storage change overlaps a shared address still required by a later use",
+    "sha256": "bae8e595d36b138acf1c5be43742a4d0a12517d6eb26820ce252cf9049deda9c"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-35/stale-callback-address-after-refill-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-BORROW-CONFLICT",
+    "message": "write or storage change overlaps a shared address still required by a later use",
+    "sha256": "bae8e595d36b138acf1c5be43742a4d0a12517d6eb26820ce252cf9049deda9c"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-37/forged-callback-borrow-permission-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-TYPE",
+    "message": "instruction result presence or type is incorrect",
+    "sha256": "40ba02a6a58f138e97b2539ecc90487d6c6702d981de5383476124b3dffdc05e"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-37/forged-callback-borrow-permission-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-TYPE",
+    "message": "instruction result presence or type is incorrect",
+    "sha256": "40ba02a6a58f138e97b2539ecc90487d6c6702d981de5383476124b3dffdc05e"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-38/callback-borrow-index-outside-array-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-OWNED-ARRAY",
+    "message": "owning array element index is outside the declared fixed length",
+    "sha256": "1773b2ec346b2b5bac4af1a04c7f4f2be32d131eed9c32212734e903b029ccff"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-38/callback-borrow-index-outside-array-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-OWNED-ARRAY",
+    "message": "owning array element index is outside the declared fixed length",
+    "sha256": "1773b2ec346b2b5bac4af1a04c7f4f2be32d131eed9c32212734e903b029ccff"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-39/load-cannot-publish-callback-slot-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-MOVE",
+    "message": "Load/projection is an access view; transfer requires TakeLocal or an explicit child reborrow",
+    "sha256": "d5cd94e037902ccbbd89614bd56260d1e984e76b3a3f002690f609f6b9278c0d"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-39/load-cannot-publish-callback-slot-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-MOVE",
+    "message": "Load/projection is an access view; transfer requires TakeLocal or an explicit child reborrow",
+    "sha256": "d5cd94e037902ccbbd89614bd56260d1e984e76b3a3f002690f609f6b9278c0d"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-41/same-callback-local-moved-twice-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-INITIALIZATION",
+    "message": "load may read a local before initialization",
+    "sha256": "a555a1fb5d8aa0b885a2989046ea4836507ca2fc53de21d6a2e6c75fcaf27389"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-41/same-callback-local-moved-twice-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-INITIALIZATION",
+    "message": "load may read a local before initialization",
+    "sha256": "a555a1fb5d8aa0b885a2989046ea4836507ca2fc53de21d6a2e6c75fcaf27389"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-42/duplicate-element-ssa-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-RESOURCE",
+    "message": "managed SSA value was not available exactly once",
+    "sha256": "95b5a8e31e22d1974b27e5ab65cd545cb39ac23c937efee9197f75726cbd734f"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-42/duplicate-element-ssa-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-RESOURCE",
+    "message": "managed SSA value was not available exactly once",
+    "sha256": "95b5a8e31e22d1974b27e5ab65cd545cb39ac23c937efee9197f75726cbd734f"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-44/second-take-same-slot-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-RESOURCE",
+    "message": "owning array take requires a complete live element on every path",
+    "sha256": "13d0eb7f103bb108cb77f2b93cd7b2573d88230db3be32b1e8d647c9564b8a24"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-44/second-take-same-slot-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-RESOURCE",
+    "message": "owning array take requires a complete live element on every path",
+    "sha256": "13d0eb7f103bb108cb77f2b93cd7b2573d88230db3be32b1e8d647c9564b8a24"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-45/copy-construct-owned-array-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-OWNED-ARRAY",
+    "message": "Copy aggregate construction cannot create an owning array",
+    "sha256": "d7e4c46ac3cc0264beb2357dd6f1ce1699d840d22fddc83842f6eb68df627f7a"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-45/copy-construct-owned-array-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-OWNED-ARRAY",
+    "message": "Copy aggregate construction cannot create an owning array",
+    "sha256": "d7e4c46ac3cc0264beb2357dd6f1ce1699d840d22fddc83842f6eb68df627f7a"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-47/copy-field-from-owned-array-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-OWNED-ARRAY",
+    "message": "Copy field operations cannot access owning array elements",
+    "sha256": "9bd09dd9f1d534b348ea35c1912f228a99c51b4aaabe0e2ac8d4403bac02c389"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-47/copy-field-from-owned-array-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-OWNED-ARRAY",
+    "message": "Copy field operations cannot access owning array elements",
+    "sha256": "9bd09dd9f1d534b348ea35c1912f228a99c51b4aaabe0e2ac8d4403bac02c389"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-48/expanded-callback-array-budget-raw.txt",
+    "phase": "Verify",
+    "category": "ResourceLimit",
+    "code": "E-RESOURCE-LIMIT",
+    "message": "independent verification work budget exhausted",
+    "sha256": "01e1354f20e169b6c175725adaa62fb331e165d174d243f156cce120e4e68b85"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-48/expanded-callback-array-budget-wire.txt",
+    "phase": "Verify",
+    "category": "ResourceLimit",
+    "code": "E-RESOURCE-LIMIT",
+    "message": "independent verification work budget exhausted",
+    "sha256": "01e1354f20e169b6c175725adaa62fb331e165d174d243f156cce120e4e68b85"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-49/index-outside-fixed-array-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-OWNED-ARRAY",
+    "message": "owning array element index is outside the declared fixed length",
+    "sha256": "906e6b121cd0d50ddce4679b0ece0b70885cbcb13458a4f548541cb2ec0f5d0e"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-49/index-outside-fixed-array-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-OWNED-ARRAY",
+    "message": "owning array element index is outside the declared fixed length",
+    "sha256": "906e6b121cd0d50ddce4679b0ece0b70885cbcb13458a4f548541cb2ec0f5d0e"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-50/field-outside-package-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-OWNED-ARRAY",
+    "message": "owning array field index is outside its Package declaration",
+    "sha256": "7de207ad8e8f6dcc870b49563122f7eb9b78deccb65e056ab595bf1ca28906e1"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-50/field-outside-package-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-OWNED-ARRAY",
+    "message": "owning array field index is outside its Package declaration",
+    "sha256": "7de207ad8e8f6dcc870b49563122f7eb9b78deccb65e056ab595bf1ca28906e1"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-51/oversized-array-metadata-raw.txt",
+    "phase": "Verify",
+    "category": "ResourceLimit",
+    "code": "E-RESOURCE-LIMIT",
+    "message": "independent verification work budget exhausted",
+    "sha256": "01e1354f20e169b6c175725adaa62fb331e165d174d243f156cce120e4e68b85"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-51/oversized-array-metadata-wire.txt",
+    "phase": "Verify",
+    "category": "ResourceLimit",
+    "code": "E-RESOURCE-LIMIT",
+    "message": "independent verification work budget exhausted",
+    "sha256": "01e1354f20e169b6c175725adaa62fb331e165d174d243f156cce120e4e68b85"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-52/duplicate-pure-callback-ssa-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-MOVE",
+    "message": "non-Copy SSA carrier was already transferred",
+    "sha256": "550a21b96e5fdabd5eaff87cd27c398b53ff31c16b31d9aceb87960144232e67"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-52/duplicate-pure-callback-ssa-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-MOVE",
+    "message": "non-Copy SSA carrier was already transferred",
+    "sha256": "550a21b96e5fdabd5eaff87cd27c398b53ff31c16b31d9aceb87960144232e67"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-53/reuse-taken-callback-after-store-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-MOVE",
+    "message": "non-Copy SSA carrier was already transferred",
+    "sha256": "602d444be7c1a8dc659b66c5df5199799457ad503c8be8f6bab6c0c6e1103b42"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-53/reuse-taken-callback-after-store-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-MOVE",
+    "message": "non-Copy SSA carrier was already transferred",
+    "sha256": "602d444be7c1a8dc659b66c5df5199799457ad503c8be8f6bab6c0c6e1103b42"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-54/borrow-relabelled-as-owned-environment-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-TYPE",
+    "message": "instruction result presence or type is incorrect",
+    "sha256": "742edf59920629e8f62b7cea9559331f464945f224f47a8e73ddec9369b73ca3"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-54/borrow-relabelled-as-owned-environment-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-TYPE",
+    "message": "instruction result presence or type is incorrect",
+    "sha256": "742edf59920629e8f62b7cea9559331f464945f224f47a8e73ddec9369b73ca3"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-55/wrong-slot-cleanup-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-RESOURCE",
+    "message": "owning array refill would overwrite an outstanding element responsibility",
+    "sha256": "74a87a51bb666e26afb825a66051b53794e4c2a2314f480b943117efb89bcb3b"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-55/wrong-slot-cleanup-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-RESOURCE",
+    "message": "owning array refill would overwrite an outstanding element responsibility",
+    "sha256": "74a87a51bb666e26afb825a66051b53794e4c2a2314f480b943117efb89bcb3b"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-57/missing-refill-before-move-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-RESOURCE",
+    "message": "whole package transfer requires every managed field live on every incoming path",
+    "sha256": "1b80ce1643f359bae399788469e3491dd02ad7204d020ff642253b101aa6afc3"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-57/missing-refill-before-move-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-RESOURCE",
+    "message": "whole package transfer requires every managed field live on every incoming path",
+    "sha256": "1b80ce1643f359bae399788469e3491dd02ad7204d020ff642253b101aa6afc3"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-58/copy-load-owned-array-raw.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-PACKAGE",
+    "message": "a non-Copy package requires field projection or whole TakeLocal, never Load",
+    "sha256": "639b17b9929208d25b0f4452863b1412d403e8fb797de7593dc3ba9c57c7d139"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-58/copy-load-owned-array-wire.txt",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-PACKAGE",
+    "message": "a non-Copy package requires field projection or whole TakeLocal, never Load",
+    "sha256": "639b17b9929208d25b0f4452863b1412d403e8fb797de7593dc3ba9c57c7d139"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-8/closed-callback-array-capture-raw.txt",
+    "phase": "Verify",
+    "category": "Unsupported",
+    "code": "E-UNSUPPORTED",
+    "message": "owned array capture requires a separate retained array protocol",
+    "sha256": "d63047948fa1aa537c3c99063e597048806e5bd7235672c3e2ae8df9fcb8a103"
+  },
+  {
+    "path": "specialized-native/owned-arrays167-265-8/closed-callback-array-capture-wire.txt",
+    "phase": "Verify",
+    "category": "Unsupported",
+    "code": "E-UNSUPPORTED",
+    "message": "owned array capture requires a separate retained array protocol",
+    "sha256": "d63047948fa1aa537c3c99063e597048806e5bd7235672c3e2ae8df9fcb8a103"
+  }
+]

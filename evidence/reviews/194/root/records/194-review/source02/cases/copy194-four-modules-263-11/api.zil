@@ -1,0 +1,1 @@
+pub fn keep<T:Copy,F:Fn()->i32>(f:&F,x:T)->T{f();return x}

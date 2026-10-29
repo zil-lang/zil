@@ -1,0 +1,22 @@
+{
+  "commit": "02cce89206e74cb5aa0050faf4885973288b9383",
+  "crates_tree": "901eafb22dcfad61848da795146deef7d5ff5717",
+  "files": {
+    "crates/zil-types/src/inference.rs": "693b0d51009649b88b70c1a7e993c7b8bea5a63552db8ac3042c1f4aae62e9e3",
+    "crates/zil-analyze/src/budget.rs": "d0ab5d5fc7154ee31f674a7f46f355afd6af9f299128613357874262f23f76ee",
+    "crates/zil-types/src/closures.rs": "450810eb9514e5a981919cba57b3aaa5d5d68021ddc889e7a027b5999f59c19f",
+    "crates/zil-verify/src/closures.rs": "bfa5f0a4ce19711fd28c1e90fc67f48a38dc7e71cabac084e007b75798a304c0",
+    "crates/zil-driver/tests/review173_composition.rs": "1e5f950d845140e5377541486025375ce5066ae81757694206ca444f5b63e204",
+    "crates/zil-driver/tests/impl163_resource_methods.rs": "bc3585bbec508d232b154ae73da33aae66e9f4e8f63cfe561c7ca4f39ae3392c",
+    "tools/language/173/consumer.py": "0d492772db2be4ebc3e54d6025d6234411a8ed5fbd7ed74e9630eb7cfd20c726",
+    "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+    "examples/mainline/zui_language173/callbacks.zil": "70966581e5d0450d002d8cb3241ac24d6f0037ad552841df8e8a201d7504ffae",
+    "examples/mainline/zui_language173/collection.zil": "511c58f20177af6c96703c962883f0a6e4b62c6efe662240e6d557142edeb137",
+    "examples/mainline/zui_language173/field_exit.zil": "1375bbcdabb6ab73982d1177878d82209a42926a3c9846716eb4604fc62aeed9",
+    "examples/mainline/zui_language173/main.zil": "2232b23d155f0831d11b731797048cd101ed62058a40eba5d2c1372486142c63",
+    "examples/mainline/zui_language173/model.zil": "ff9a1098a882d061de98122b089b708bbe493a65147e6dc6bff7110c67852285",
+    "examples/mainline/zui_language173/panel.zil": "db3aab60c1e55a0f314b34c682e73da33859e24986f53bc734198c0ffb554978",
+    "examples/mainline/zui_language173/prepare_failure.zil": "40805f24e89f606f77b8041e36fc2f3b0b64e5b10a5bbb5162264bae5719b813"
+  },
+  "worktree_status": ""
+}

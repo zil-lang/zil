@@ -1,0 +1,104 @@
+{
+  "schema": "zil-independent-slice-review-v1",
+  "reviewer": "/root/package_fields",
+  "implementation_author": "/root",
+  "implementation_commit": "38516c4f30a488639e0bd04ab3726acf08310b62",
+  "crates_tree": "840c189fe9dafea6b1ef760d38c6ed8d063becde",
+  "scope": "173 public IR/Wire/schema/Expand and metadata preflight only; not 171 or 172 executable semantics and not an author review of 170",
+  "verdict": "NeedsFix",
+  "findings": [
+    {
+      "id": "R173-1",
+      "severity": "blocking",
+      "summary": "Store and owned storage primitive names escape nominal and generic binder reservation before alias normalization.",
+      "locations": [
+        "crates/zil-expand/src/generics.rs::specialize (declarations and params)",
+        "crates/zil-expand/src/generic_alias.rs::normalize (alias params)"
+      ],
+      "consequence": "type Store=i32 is erased into I32, hijacking a sealed primitive family name; unused generic binders also escape the intended reserved-name contract.",
+      "expected": "Reject Store/owned-store primitive declarations and binders before any erasure, retaining legal member names and existing local Types phase ownership."
+    }
+  ],
+  "confirmed": [
+    "Type tag 25 and instruction tags 80 through 85 preserve every element/operand in wire and typed fingerprint.",
+    "Raw OwnedStoreNew embedded element deep and wide metadata is bounded before stale plan identity fingerprint; wire decode/check also ResourceLimit.",
+    "Tiny stale plan gets E-VERIFY-PLAN-IDENTITY; correctly rebound tiny Store operation remains explicitly Unsupported before 172 checker.",
+    "Shared-head structural helper does not widen general address pointees; mutable, Desc, ByteBuffer and OwnedStore heads remain excluded.",
+    "Wire versions 0 through 19, 21 and u32max reject; writer/reader depth and opcode rejection tests pass.",
+    "Store<T> Expand becomes Desc<OwnedStore<T>>; invalid type arity stays explicit Unsupported raw metadata for downstream admission.",
+    "Top-level function reserve checks reject all seven names; member method same-spelling stays legal. Local binding checks are correctly deferred to 172 Types names."
+  ],
+  "verification": {
+    "author_tests_independently_rerun": {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-ir",
+        "-p",
+        "zil-expand",
+        "--offline",
+        "-j2"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review173-public170",
+      "source_commit": "38516c4f30a488639e0bd04ab3726acf08310b62",
+      "crates_tree": "840c189fe9dafea6b1ef760d38c6ed8d063becde",
+      "source_status": "",
+      "start": 1793109864.8482966,
+      "status": "Pass",
+      "exit_code": 0,
+      "log_sha256": "1dd9ca116231ef57d1194ee49467ea2ad128bea534e89495d7d65865746fcf5a",
+      "end": 1793109883.147644,
+      "seconds": 18.299347400665283,
+      "tests": {
+        "passed": 59,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 13
+      },
+      "ending_crates_tree": "840c189fe9dafea6b1ef760d38c6ed8d063becde",
+      "ending_source_status": ""
+    },
+    "independent_probes": {
+      "manifest": "/workspace/scratch/39be3faa4442/run-logs/review173-public170/probes/Cargo.toml",
+      "source": "/workspace/scratch/39be3faa4442/run-logs/review173-public170/probes/src/lib.rs",
+      "source_sha256": "1a1a3cb880e020ec0af8b68b4270b1ec3b13ebdfcaba0808c33d92ef216a2c4b",
+      "log": "/workspace/scratch/39be3faa4442/run-logs/review173-public170/probes-nominal-finding.log",
+      "log_sha256": "ca032a200d170594e21bf43b7fc86a781edddc8a685425655bd0542d218de1b4",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "/workspace/scratch/39be3faa4442/run-logs/review173-public170/probes/Cargo.toml",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "passed": 3,
+      "failed": 1,
+      "failing_matrix_cases": 7
+    }
+  },
+  "retained_exploration": [
+    {
+      "log": "/workspace/scratch/39be3faa4442/run-logs/review173-public170/probes.log",
+      "kind": "review harness incorrectly expected non-generic local reservation in Expand; source corrected to respect Types stage, production unchanged"
+    },
+    {
+      "log": "/workspace/scratch/39be3faa4442/run-logs/review173-public170/probes-final.log",
+      "kind": "first confirmed product failure on struct Store declaration; retained without rewriting"
+    }
+  ],
+  "nonblocking_notes": [
+    "Type::Package doc comment still describes only finite Copy non-Managed fields although 170 permits owning arrays.",
+    "is_scalar_or_shared_address doc comment does not mention exact shared resource-head addresses."
+  ],
+  "not_claimed": [
+    "Store runtime capability before 172 implementation",
+    "171 address safety approval from raw structural classification",
+    "whole-language completion or ZUI readiness",
+    "performance improvement"
+  ]
+}

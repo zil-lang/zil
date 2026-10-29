@@ -1,0 +1,76 @@
+
+running 2 tests
+test helper064_public_field_view_survives_two_calls_and_whole_package_move ... ok
+test helper064_native_owned_borrowed_adapted_and_error_paths_match_rust ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.98s
+
+
+running 17 tests
+test helper065_analyze_reconstructs_hold_and_call_paths ... ok
+test helper065_copy_error_callbacks_are_instantiated_and_verified ... ok
+test helper065_cross_module_interfaces_include_actual_environment_layout ... ok
+test helper065_generic_body_reads_known_resource_field ... ok
+test helper065_helper_does_not_extend_resource_or_address_lifetimes ... ok
+test helper065_instances_are_cached_and_new_identities_are_bounded ... ok
+test helper065_mutable_borrow_updates_actual_environment ... ok
+test helper065_mutable_target_loan_ends_after_owned_zero_or_one_call ... ok
+test helper065_nearest_callable_admission_rejections ... ok
+test helper065_owned_environment_shared_borrow_and_reuse ... ok
+test helper065_owned_fn_can_adapt_to_borrowed_fnmut_then_be_reused ... ok
+test helper065_raw_callable_metadata_is_bounded_before_instantiation ... ok
+test helper065_same_name_in_distinct_modules_keeps_definition_identity ... ok
+test helper065_scope_is_explicit_for_extra_borrows_and_unbounded_traces ... ok
+test helper065_shared_and_copy_arguments ... ok
+test helper065_value_condition_and_consume_adaptation ... ok
+test helper065_error_callback_stops_trace_and_late_argument_is_guarded ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+
+running 1 test
+test retained070_native_factories_survive_return_move_events_and_cleanup ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.13s
+
+
+running 15 tests
+test bounded_element_shape_work_has_an_exact_definition_time_boundary ... ok
+test actual_generic_calls_do_not_merge_distinct_nominal_elements ... ok
+test descriptor_aliases_do_not_revive_after_give_or_replacement ... ok
+test element_bound_checks_real_shapes_and_never_grants_copy_or_members ... ok
+test cross_module_helpers_preserve_two_nominal_elements_and_failure_returns ... ok
+test fresh_store_locals_and_create_calls_remain_valid_before_and_after_instantiation ... ok
+test generic_owning_package_and_concrete_callback_state_compose ... ok
+test generic_source_still_requires_independent_raw_and_wire_ownership ... ok
+test raw_and_wire_create_mode_cannot_forge_fresh_input_resources ... ok
+test generic_prefix_drain_repeats_with_real_item_cleanup ... ok
+test real_copy_shapes_including_static_foreign_values_remain_elements ... ok
+test unused_create_results_prove_freshness_across_real_transfers_and_joins ... ok
+test unused_package_fields_keep_mode_and_instance_identity ... ok
+test unused_templates_reject_unproven_store_element_or_owner ... ok
+test two_element_shapes_use_the_same_actual_generic_helpers ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.15s
+
+
+running 2 tests
+test concrete_byte_buffer_uses_existing_helper_owned_parameter_contract ... FAILED
+test give_does_not_turn_unknown_or_copy_values_into_resources ... ok
+
+failures:
+
+---- concrete_byte_buffer_uses_existing_helper_owned_parameter_contract stdout ----
+
+thread 'concrete_byte_buffer_uses_existing_helper_owned_parameter_contract' (578) panicked at crates/zil-driver/tests/impl178_helper_give.rs:27:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-ENTRY-SIGNATURE","message":"native main must take no parameters and return unit or i32, or a supported error union","span":{"file":0,"start":84,"end":169},"notes":[]}],"artifacts":{},"input_fingerprint":"41139771f9793e7c2e92d5e2c8f74fc1d7e98b8df48d0f9cc56b053fe20f592f","seconds":0.001747917,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"helper178.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    concrete_byte_buffer_uses_existing_helper_owned_parameter_contract
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

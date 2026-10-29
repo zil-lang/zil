@@ -1,0 +1,10 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/177/readiness01/O0-probe"
+  ],
+  "start": 1793116942.5042918,
+  "status": "Completed",
+  "exit_code": 0,
+  "end": 1793116942.690664,
+  "seconds": 0.1863722801208496
+}

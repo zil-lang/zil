@@ -1,0 +1,44 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-order/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.98s
+     Running tests/impl125_factory_helpers.rs (/workspace/scratch/39be3faa4442/targets/168-order/debug/deps/impl125_factory_helpers-458f153cbbbf0c6d)
+
+running 13 tests
+test helper_factory_dependencies_respect_local_shadowing ... FAILED
+test helper_factory_dependencies_use_definition_module_and_imports ... FAILED
+test independent_raw_and_wire_checks_reject_both_helper_and_factory_forgery ... ok
+test invalid_escape_modes_and_factory_dependencies_stay_rejected ... ok
+test new_composition_still_pays_types_and_verify_budgets ... ok
+test module_local_factory_and_helper_names_keep_definition_identity ... ok
+test mutable_preparation_then_retained_component_events ... ok
+test helper_warms_the_returned_handler_and_two_instances_remain_independent ... ok
+test shared_initialization_helper_then_owned_snapshot_handler ... ok
+test checked_in_component_prepares_warms_and_retains_two_owned_handlers ... ok
+test initializer_error_value_and_returned_environment_cleanup_are_preserved ... ok
+test consuming_initialization_and_consumed_or_unused_returned_handler ... ok
+test helper_factory_dependencies_resolve_in_either_order_but_reject_cycles ... ok
+
+failures:
+
+---- helper_factory_dependencies_respect_local_shadowing stdout ----
+
+thread 'helper_factory_dependencies_respect_local_shadowing' (74) panicked at crates/zil-driver/tests/impl125_factory_helpers.rs:108:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"this generic expression requires additional symbolic checking","span":{"file":0,"start":43,"end":48},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/168/order/targeted/factory125-helper-shadow-O0-70-3/phases/syntax.txt"},"input_fingerprint":"39be32a6820f8ce7f0d36baef50245e39bf8eb271c7cf44909957e17724e7564","seconds":0.008991845,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- helper_factory_dependencies_use_definition_module_and_imports stdout ----
+
+thread 'helper_factory_dependencies_use_definition_module_and_imports' (75) panicked at crates/zil-driver/tests/impl125_factory_helpers.rs:108:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"helper callable origin is unknown, mixed, or a borrowed local factory result","span":{"file":2,"start":108,"end":121},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/run-logs/168/order/targeted/factory125-helper-definition-context-O0-70-4/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/168/order/targeted/factory125-helper-definition-context-O0-70-4/phases/ct-core.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/168/order/targeted/factory125-helper-definition-context-O0-70-4/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/168/order/targeted/factory125-helper-definition-context-O0-70-4/phases/syntax.txt"},"input_fingerprint":"a29ba4e75ca6a0150f00baaae520d8be21c6f97f3caca5dcda8e57c90d194802","seconds":0.026879871,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"factory.zil","2":"helpers.zil","3":"dep.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+
+
+failures:
+    helper_factory_dependencies_respect_local_shadowing
+    helper_factory_dependencies_use_definition_module_and_imports
+
+test result: FAILED. 11 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.81s
+
+error: test failed, to rerun pass `-p zil-driver --test impl125_factory_helpers`

@@ -1,0 +1,9 @@
+
+running 4 tests
+test raw_and_wire_reject_two_current_exclusive_parameters_pointing_at_one_value ... ok
+test descriptor_capture_is_substituted_at_ordinary_caller_with_extra_reference ... ok
+test reborrowed_aggregate_arguments_keep_actual_parent_and_restore_after_call ... ok
+test consuming_error_callback_settles_owned_capture_after_mutating_argument ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+

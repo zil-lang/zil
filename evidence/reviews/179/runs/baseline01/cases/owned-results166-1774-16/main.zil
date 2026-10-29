@@ -1,0 +1,1 @@
+import model;import adapter;fn main()->model.E!i32{let p=adapter.forward(model.make())?;return model.read(p)-65}

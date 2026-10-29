@@ -1,0 +1,36 @@
+    Checking zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-base)
+    Checking zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-ir)
+    Checking zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-syntax)
+    Checking zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-db)
+    Checking zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-verify)
+    Checking zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-types)
+    Checking zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-ct)
+    Checking zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-backend-llvm)
+    Checking zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-lower)
+    Checking zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-expand)
+    Checking zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-analyze)
+    Checking zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-driver)
+error: this `if` statement can be collapsed
+   --> crates/zil-driver/tests/review193_slice_composition.rs:153:9
+    |
+153 | /         if let I::BorrowLocalMut { local } = &mut i.kind {
+154 | |             if *local == origins[1] {
+155 | |                 *local = origins[0];
+156 | |                 changed += 1;
+157 | |             }
+158 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+153 ~         if let I::BorrowLocalMut { local } = &mut i.kind
+154 ~             && *local == origins[1] {
+155 |                 *local = origins[0];
+156 |                 changed += 1;
+157 ~             }
+    |
+
+error: could not compile `zil-driver` (test "review193_slice_composition") due to 1 previous error

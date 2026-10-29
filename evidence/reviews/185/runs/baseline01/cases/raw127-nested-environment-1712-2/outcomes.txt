@@ -1,0 +1,3 @@
+analyze=Err([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "helper-local nested environments require an additional contract", span: None, notes: [] }])
+raw=Err([Diagnostic { phase: Verify, category: Unsupported, code: "E-UNSUPPORTED", message: "helper-local nested environments require an additional contract", span: Some(Span { file: FileId(0), start: 0, end: 1 }), notes: [] }])
+wire=Err([Diagnostic { phase: Verify, category: Unsupported, code: "E-UNSUPPORTED", message: "helper-local nested environments require an additional contract", span: Some(Span { file: FileId(0), start: 0, end: 1 }), notes: [] }])

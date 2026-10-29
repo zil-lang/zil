@@ -1,0 +1,5 @@
+{
+  "source": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/x86_64-w64-mingw32/lib/zlib1.dll",
+  "destination": "/workspace/scratch/39be3faa4442/toolchains178/wine-prefix181/drive_c/windows/system32/zlib1.dll",
+  "sha256": "f66de1d6324848c68bb45a808882e396cee910b0c561e848bee9ed26558a3a50"
+}

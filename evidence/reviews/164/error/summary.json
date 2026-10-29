@@ -1,0 +1,50 @@
+{
+  "status": "Pass",
+  "scope": "Independent four-module nested receiver argument-preparation error path",
+  "source_commit": "712a9602797891083fe3f549381e1e12ab34dd02",
+  "crates_tree": "42bafd5f66e49c0e6e077ed793fe78327b43558f",
+  "source_status": "",
+  "cli_sha256": "40d203b2aaf0dc5bc7bd345b17615e1efe80d3235c403cdde6a95ced490c5154",
+  "sources_sha256": {
+    "adapter.zil": "8a7ecd3c86ff2015065016014fe0d098400db004a94acf489c9eebfe7bb0f495",
+    "main.zil": "7566c1b843936a7dfe5e0984f1336cba0f1ff284b5f86f71e416f300274d0f24",
+    "model.zil": "b21fa6e1683ad311cea8f4a377f786cbccfd456d4cc5413ae3051ee768955fd8",
+    "ticket.zil": "8e712f022dc586c0a5bf1f484faea9043c815503ad0ec833be7d0baad625e25d"
+  },
+  "native": [
+    {
+      "optimization": "O0",
+      "native_executions": 2,
+      "expected_error_exit": 1,
+      "ticket_drop_observations_per_execution": 1,
+      "verification_runs": 1,
+      "llvm_sha256": "aa8483a391e12f68d9b5bbe7edecbd2439a9570ef9b91ae4bafbad8a6aa87ae0",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 64
+      }
+    },
+    {
+      "optimization": "O2",
+      "native_executions": 2,
+      "expected_error_exit": 1,
+      "ticket_drop_observations_per_execution": 1,
+      "verification_runs": 1,
+      "llvm_sha256": "aa8483a391e12f68d9b5bbe7edecbd2439a9570ef9b91ae4bafbad8a6aa87ae0",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 64
+      }
+    }
+  ]
+}

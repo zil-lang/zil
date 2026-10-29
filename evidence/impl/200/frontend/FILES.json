@@ -1,0 +1,34 @@
+{
+  "files": [
+    {
+      "path": "evidence/impl/200/frontend/SOURCE.json",
+      "bytes": 10065,
+      "sha256": "73f0a00bc0c950d07d730b701e1c509af6f7eb16dd533dd17b5fb0920890eeeb"
+    },
+    {
+      "path": "evidence/impl/200/frontend/SUMMARY.json",
+      "bytes": 5948,
+      "sha256": "92579fc0d03e0efe412f299e44a44d9600c89d97933cbe9de3b2ec6a1e6db61c"
+    },
+    {
+      "path": "changes/200-frontend-result.md",
+      "bytes": 8920,
+      "sha256": "7c2b57873dd90c1ac037be9575fae7757aa8861c18bd095a3f0bdd5ba48c5b58"
+    },
+    {
+      "path": "changes/200-frontend-validation-corrections.md",
+      "bytes": 4608,
+      "sha256": "527b14a5b8178a4e6ad438f7265731930bb9638f922d49fd0bf7727182c4c7f0"
+    }
+  ],
+  "external_archive": {
+    "archive_path": "/workspace/scratch/39be3faa4442/run-logs/200-frontend/200-author-evidence.zip",
+    "archive_bytes": 17319983,
+    "archive_sha256": "2ea3e332e54e79d6036e550d529e3e6e6fc5fcf7933a165fbb13da0cedca844f",
+    "members": 7259,
+    "every_member_hash_checked": true,
+    "excluded_execution_artifacts": 318,
+    "source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+    "compiler_cli_sha256": "4eaf5291d867f0ebc64390f5ab3850ea6726570216ab688ae971c44e457a2fc9"
+  }
+}

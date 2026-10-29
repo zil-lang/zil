@@ -1,0 +1,12 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt195/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt195/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 3.39s
+     Running tests/generic_regressions.rs (/workspace/scratch/39be3faa4442/targets178/author195/debug/deps/generic_regressions-8dd137fa1a3d7efa)
+     Running tests/generics.rs (/workspace/scratch/39be3faa4442/targets178/author195/debug/deps/generics-0665cd470979d094)
+     Running tests/impl178_generic_store.rs (/workspace/scratch/39be3faa4442/targets178/author195/debug/deps/impl178_generic_store-eea2fb8f5cc12906)
+     Running tests/impl186_generic_owned_success.rs (/workspace/scratch/39be3faa4442/targets178/author195/debug/deps/impl186_generic_owned_success-3e00fa64064fdc70)
+     Running tests/impl190_flow_source.rs (/workspace/scratch/39be3faa4442/targets178/author195/debug/deps/impl190_flow_source-31dbe9461daa6858)
+     Running tests/impl190_for_ranges.rs (/workspace/scratch/39be3faa4442/targets178/author195/debug/deps/impl190_for_ranges-657e44f524b32c96)
+     Running tests/impl195_loop_control_raw.rs (/workspace/scratch/39be3faa4442/targets178/author195/debug/deps/impl195_loop_control_raw-8976dd459426336d)
+     Running tests/impl195_loop_control_source.rs (/workspace/scratch/39be3faa4442/targets178/author195/debug/deps/impl195_loop_control_source-bd84e41436bd6321)
+     Running tests/impl195_symbolic.rs (/workspace/scratch/39be3faa4442/targets178/author195/debug/deps/impl195_symbolic-4d6de1d6769d326d)

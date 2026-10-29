@@ -1,0 +1,109 @@
+CoreModule {
+    schema_version: 18,
+    module_id: ModuleId(
+        0,
+    ),
+    source_fingerprint: Fingerprint(
+        [
+            165,
+            15,
+            101,
+            69,
+            156,
+            168,
+            28,
+            152,
+            139,
+            28,
+            170,
+            108,
+            120,
+            20,
+            251,
+            155,
+            57,
+            78,
+            190,
+            113,
+            222,
+            87,
+            157,
+            218,
+            66,
+            13,
+            205,
+            154,
+            227,
+            184,
+            46,
+            74,
+        ],
+    ),
+    functions: [
+        CoreFunction {
+            callable_return: None,
+            id: NodeId(
+                0,
+            ),
+            name: "sample",
+            callable_parameter: None,
+            foreign: None,
+            parameters: [],
+            return_type: I32,
+            result_mode: Infer,
+            body: CoreBlock {
+                statements: [
+                    CoreStatement {
+                        id: NodeId(
+                            2,
+                        ),
+                        kind: Return(
+                            Some(
+                                CoreExpr {
+                                    id: NodeId(
+                                        1,
+                                    ),
+                                    kind: Integer(
+                                        "0",
+                                    ),
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 94,
+                                        end: 95,
+                                    },
+                                },
+                            ),
+                        ),
+                        span: Span {
+                            file: FileId(
+                                0,
+                            ),
+                            start: 94,
+                            end: 95,
+                        },
+                    },
+                ],
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 94,
+                    end: 95,
+                },
+            },
+            receiver: None,
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 76,
+                end: 95,
+            },
+        },
+    ],
+    aggregates: [],
+    enums: [],
+    unsupported: [],
+}

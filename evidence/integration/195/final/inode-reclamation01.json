@@ -1,0 +1,17 @@
+{
+  "scope": "Only two closed temporary trees already archived and member-verified. No current code, committed evidence, active target, Wine prefix or incomplete formal02 output changed.",
+  "trees": [
+    {
+      "removed_closed_temporary_tree": "/workspace/scratch/39be3faa4442/run-logs/192-integration/formal-workspace01/tmp",
+      "archive": "/workspace/scratch/39be3faa4442/run-logs/archived-185/formal192-unique-tmp.zip",
+      "archive_sha256": "6aec96128a76570df601ae5e184c585020f885669d8ac49b62c4b32c013dba01",
+      "entries": 24415
+    },
+    {
+      "removed_closed_temporary_tree": "/workspace/scratch/39be3faa4442/zil195-formal-tmp-sA1esH",
+      "archive": "/workspace/scratch/39be3faa4442/run-logs/archived-185/formal195-failed01-tmp.zip",
+      "archive_sha256": "bdd719fd04be5bf04605278d41923790cd1e8d145c2f6b2b10661879669e8be4",
+      "entries": 28475
+    }
+  ]
+}

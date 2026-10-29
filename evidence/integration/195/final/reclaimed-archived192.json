@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-28T06:02:04.758944+00:00",
+  "archive": "/workspace/scratch/39be3faa4442/run-logs/archived-185/formal192-unique-tmp.zip",
+  "source": "/workspace/scratch/39be3faa4442/run-logs/192-integration/formal-workspace01/tmp",
+  "files_reclaimed": 18890,
+  "bytes_reclaimed": 1205704587,
+  "skipped": [],
+  "scope": "Only closed192 temporary files whose complete exact bytes are in existing SHA-verified ZIP; every member CRC, byte count, SHA and current file SHA checked before in-place truncation. No symlink or external hardlink followed. Current195 run untouched."
+}

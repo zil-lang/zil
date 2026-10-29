@@ -1,0 +1,1 @@
+fn bad<T>(give item:T){}fn main(){}

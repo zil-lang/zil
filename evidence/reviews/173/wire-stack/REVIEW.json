@@ -1,0 +1,121 @@
+{
+  "schema": "zil-independent-slice-review-v1",
+  "reviewer": "/root/package_fields",
+  "implementation_author": "/root",
+  "implementation_commit": "bf2280d8ef53ed234f0605e10a55d7741b914b3e",
+  "crates_tree": "156521437fb96fc057560e23c6205cdbf89c676a",
+  "wire_blob": "7763220ff6fffb820b0749a8b2ce62d94ea603a0",
+  "source_status": "",
+  "normative_hash": "c358b8c5e0abaf11d81b1d55e23f6896cfb485eb4291f34937fe43e9e7ea319c",
+  "verdict": "Pass",
+  "scope": "173 explicit-stack Writer::ty and Reader::ty traversal repair, legacy schema20 format and default bounded metadata behavior only.",
+  "findings": [],
+  "static_review": [
+    "Writer sequences one borrowed child at a time using continuations; Record field names precede each child, Enum variant counts precede fields, Array length follows its child, and function result follows all parameters.",
+    "Reader continuation stacks isolate nested values, field names and enum variants. Finishing a nested record/enum splits only its saved suffix; parent state remains intact.",
+    "Both sides check depth before charging each node and charge collection size before scheduling traversal. The implementation does not pre-expand an uncharged collection into task entries.",
+    "Node and collection accounting, type tags 0 through 25, public protocol version20 and typed-schema fingerprint domain are unchanged by this patch.",
+    "No raw input becomes trusted: decode still returns public candidate types and independent Verify remains mandatory."
+  ],
+  "independent_oracle": {
+    "method": "Independent handwritten legacy type byte encoder and node-cost counter, obtained from the pre-rewrite schema20 layout at 893b625; production Writer/Reader do not call it.",
+    "fixtures": 36,
+    "all_type_tags": [
+      0,
+      25
+    ],
+    "special_cases": [
+      "empty tuples/records/packages/enums/variant fields",
+      "both address mutabilities",
+      "zero-parameter function and foreign callback",
+      "UTF-8 identifiers",
+      "Array length suffix",
+      "nested enum inside record inside enum with later sibling variants",
+      "mixed tuple/record/Package/Store trees"
+    ],
+    "exact_node_boundary": "For each fixture, both Writer and Reader pass at 2 CT list entries + oracle type cost, and both ResourceLimit at N-1.",
+    "truncated_type_record_rejections": 1442,
+    "malformed_rejections": [
+      "tags 26 and255 E-WIRE-TYPE",
+      "address boolean2 E-WIRE-BOOL",
+      "invalid UTF-8 E-WIRE-UTF8",
+      "u32max collection count ResourceLimit"
+    ],
+    "stack_probes": {
+      "thread_stack_bytes": 131072,
+      "tuple_layers255": "Writer+Reader Pass",
+      "tuple_layers256": "Writer+Reader ResourceLimit",
+      "tuple_layers258": "Writer+Reader ResourceLimit",
+      "reader_bytes": "Handwritten Tuple tag4/count1 stream; not produced by the new Writer."
+    },
+    "source": "probes/src/lib.rs",
+    "source_sha256": "c9b0ea819eba0de7a985643825ecef69cd35125d568992db69f61e7572a7aa64"
+  },
+  "commands": {
+    "independent": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "/workspace/scratch/39be3faa4442/run-logs/review173-wire170/probes/Cargo.toml",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review173-wire170",
+      "source_commit": "bf2280d8ef53ed234f0605e10a55d7741b914b3e",
+      "crates_tree": "156521437fb96fc057560e23c6205cdbf89c676a",
+      "source_status": "",
+      "start": 1793110981.9279099,
+      "status": "Pass",
+      "exit_code": 0,
+      "log_sha256": "d8fb51d7e7497a81aa946d6ba4205c8996e8fab59c419d13d816fa465a7e9d95",
+      "end": 1793110982.8682406,
+      "seconds": 0.9403307437896729,
+      "tests": {
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 2
+      },
+      "ending_crates_tree": "156521437fb96fc057560e23c6205cdbf89c676a",
+      "ending_source_status": ""
+    },
+    "existing_ir_suite": {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-ir",
+        "--offline",
+        "-j2"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review173-wire170",
+      "source_commit": "bf2280d8ef53ed234f0605e10a55d7741b914b3e",
+      "crates_tree": "156521437fb96fc057560e23c6205cdbf89c676a",
+      "source_status": "",
+      "start": 1793110933.8149827,
+      "status": "Pass",
+      "exit_code": 0,
+      "log_sha256": "4ca6ac11c5ae76c8620d04acbe9070047ed58f5c955e0a2743a8e595818c7b7f",
+      "end": 1793110937.663545,
+      "seconds": 3.848562240600586,
+      "tests": {
+        "passed": 35,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 5
+      },
+      "ending_crates_tree": "156521437fb96fc057560e23c6205cdbf89c676a",
+      "ending_source_status": ""
+    }
+  },
+  "unchanged_defaults": true,
+  "production_files_modified_by_reviewer": false,
+  "not_claimed": [
+    "No unbounded custom max_call_depth stack-safety promise for recursive Rust Type clone/drop/fingerprint outside these walkers",
+    "No executable Store or 171 head-address semantics approval",
+    "No performance or whole-language completion claim"
+  ]
+}

@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-HOLD",
+        message: "Hold candidate differs from independently reconstructed provenance",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 120,
+                end: 276,
+            },
+        ),
+        notes: [],
+    },
+]

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/reference173/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-inputs/ordinary-abi/main.zil",
+    "--opt",
+    "O0",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-results/ordinary-abi/O0/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-results/ordinary-abi/O0/phases",
+    "--json"
+  ],
+  "controlled_environment": {},
+  "start": 1793111945.148242,
+  "end": 1793111945.8810978,
+  "exit_code": 0,
+  "stdout_sha256": "b8b1f3322d8de9cf1dc9128017f9a792d51d6210f9a87ef37c478e2c919351fb",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

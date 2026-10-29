@@ -1,0 +1,14 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review180-by179/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.31s
+     Running tests/review180_by179.rs (/workspace/scratch/39be3faa4442/targets178/review180-by179/debug/deps/review180_by179-25ce595f11dc19f5)
+
+running 6 tests
+test direct_and_mixed_store_capture_remain_explicitly_unsupported ... ok
+test escaping_mutable_window_or_child_address_remains_closed ... ok
+test current_call_reborrows_keep_actual_aliases ... ok
+test raw_copy_projection_does_not_authorize_package_or_resource_access ... ok
+test raw_call_retargeting_cannot_claim_two_unique_actual_sources ... ok
+test raw_unique_window_cannot_be_copied_or_manufactured_from_access_load ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+

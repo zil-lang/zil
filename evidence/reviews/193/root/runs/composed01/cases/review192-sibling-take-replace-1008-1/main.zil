@@ -1,0 +1,1 @@
+extern "C" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package P{manages owner:R;count:i64}fn main()->i32{var state=P{owner:R{n:65},count:2};let p=&mut state.count;if true{let old=give state.owner;state.owner=R{n:66};*p+=i64(old.n)}return i32(*p)-67}

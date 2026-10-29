@@ -1,0 +1,1 @@
+fn run<F:Fn(&mut i32)->i32>(f:&F,p:&mut i32,n:i32)->i32{var total=0;var i=0;while i<n{total+=f(p);i+=1}return total}fn main()->i32{var value=1;let f=(p:&mut i32)=>{*p+=1;return value};return run(&f,&mut value,2)}

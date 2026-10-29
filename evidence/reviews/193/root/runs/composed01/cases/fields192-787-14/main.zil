@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R;x:i32;y:i32}fn make()->P{return P{r:R{n:1},x:20,y:1}}fn read(p:&i32)->i32=>*p;fn bump(p:&mut i32)->i32{*p+=1;return *p}fn main()->i32{var state=make();let p=&mut state.x;let old=read(p);let a=bump(p);let b=bump(p);state.y+=old;let moved=state;return moved.x+moved.y+old+a+b-106}

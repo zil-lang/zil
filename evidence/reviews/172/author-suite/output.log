@@ -1,0 +1,49 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-verify)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-syntax)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-lower)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 41.46s
+     Running tests/impl172_owned_store.rs (/workspace/scratch/39be3faa4442/targets/review172-resourceheads/debug/deps/impl172_owned_store-303df5d675b7019b)
+
+running 15 tests
+test raw_wire_constructor_depth_is_bounded_before_identity ... ok
+test raw_wire_actual_inline_size_product_is_bounded ... ok
+test raw_wire_store_is_not_byte_storage_and_pop_result_keeps_cleanup_debt ... ok
+test raw_wire_forbidden_store_composition_and_head_access_are_independently_rejected ... ok
+test raw_wire_reject_forged_heads_bad_elements_and_double_transfer ... ok
+test exact_verify_budget_boundary_and_untrusted_constructor_metadata_are_bounded ... ok
+test source_guards_reject_missing_context_store_fields_and_capture ... ok
+test source_neighbours_preserve_transfer_and_nested_composition_boundaries ... ok
+test empty_pop_propagates_unit_error_without_an_element_obligation ... ok
+test whole_give_roundtrip_preserves_ascending_prefix_cleanup ... ok
+test empty_context_and_factory_own_a_real_allocation_free_head ... ok
+test reserved_prefix_push_pop_and_drop_transfer_each_package_once ... ok
+test full_push_returns_the_uninserted_package_to_native_error_cleanup ... ok
+test negative_and_overflow_capacity_requests_preserve_populated_prefix ... ok
+test runtime_count_crosses_four_modules_then_drains_real_prefix ... FAILED
+
+failures:
+
+---- runtime_count_crosses_four_modules_then_drains_real_prefix stdout ----
+
+thread 'runtime_count_crosses_four_modules_then_drains_real_prefix' (269) panicked at crates/zil-driver/tests/impl172_owned_store.rs:91:9:
+assertion `left == right` failed: {"status":"InfraError","phase":"link","diagnostics":[{"phase":"link","category":"InfraError","code":"E-LLVM-COMPILE","message":"native build tool failed with exit status: 1","span":null,"notes":["/usr/bin/ld: final link failed: No space left on device\nclang: error: linker command failed with exit code 1 (use -v to see invocation)\n"]}],"artifacts":{"candidate":"/workspace/scratch/39be3faa4442/run-logs/review172-resourceheads/author-cases/owned-store172-255-58/phases/candidate.txt","core":"/workspace/scratch/39be3faa4442/run-logs/review172-resourceheads/author-cases/owned-store172-255-58/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/review172-resourceheads/author-cases/owned-store172-255-58/phases/ct-core.txt","interfaces":"/workspace/scratch/39be3faa4442/run-logs/review172-resourceheads/author-cases/owned-store172-255-58/phases/interfaces.txt","lir":"/workspace/scratch/39be3faa4442/run-logs/review172-resourceheads/author-cases/owned-store172-255-58/phases/lir.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/review172-resourceheads/author-cases/owned-store172-255-58/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/review172-resourceheads/author-cases/owned-store172-255-58/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/run-logs/review172-resourceheads/author-cases/owned-store172-255-58/phases/typed.txt","verified":"/workspace/scratch/39be3faa4442/run-logs/review172-resourceheads/author-cases/owned-store172-255-58/phases/verified.txt","verified-interfaces":"/workspace/scratch/39be3faa4442/run-logs/review172-resourceheads/author-cases/owned-store172-255-58/phases/verified-interfaces.txt"},"input_fingerprint":"75ff70e2dfcb6dbb218017027d8a5cf44b303acf49df457c87b9585c15bac610","seconds":0.355265816,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"},{"phase":"lower","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"main.zil","1":"model.zil","2":"storage.zil","3":"work.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"f4abc21fbf3183af8e9b4dd577c2b5c038e3b24c4a06f8985819fd69e438963d","contract_fingerprint":"c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623","result_origins":[],"callable_contracts":[],"callable_returns":[],"exports":[]},{"module":1,"signature_fingerprint":"6cbda083beddc0db63ca4c66d8bbc7fdae108c43f9943bcc5a829c595cb09056","implementation_fingerprint":"0726178ed806852f2c3042443260cc40880e3aede8594f704c90a0f8ea4e7771","contract_fingerprint":"c226020c861a9496fafcee805fa1e11640a9796d9b536d568072b9bccbddbf4a","result_origins":[{"name":"checked_code","parameters":[]},{"name":"lossy","parameters":[]},{"name":"make","parameters":[]}],"callable_contracts":[],"callable_returns":[],"exports":["checked_code","lossy","make"]},{"module":2,"signature_fingerprint":"88bf5183a16c21ed24a06c1905c6b5d476605367e4c7bf6e3f47511f92b37ca7","implementation_fingerprint":"2277fcb524c540abac7543e3ca9146954db0d4c85f3aa20165f8cf8fc21acd19","contract_fingerprint":"919d084712e7a5fc20584ca5cfa0ec9180810ba990b9aa0c6b367d50bbde9c97","result_origins":[{"name":"append","parameters":[]},{"name":"empty","parameters":[]},{"name":"relay","parameters":[]},{"name":"tail","parameters":[]}],"callable_contracts":[],"callable_returns":[],"exports":["append","empty","relay","tail"]},{"module":3,"signature_fingerprint":"df15d0c26d3851164c4dfbcb207a58caddcdcae0cb4bebde1d11956dc030c888","implementation_fingerprint":"1486c0502d07f998ccc5d0b06930ee65ae0dc38fe5be2f8d3d0c1b6db412e011","contract_fingerprint":"fbd6d2371335716992b727d13dc95de2becaab5682ddeeb581e4db3d4433b6d3","result_origins":[{"name":"drain","parameters":[]},{"name":"fill","parameters":[]}],"callable_contracts":[],"callable_returns":[],"exports":["drain","fill"]}]}
+  left: InfraError
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    runtime_count_crosses_four_modules_then_drains_real_prefix
+
+test result: FAILED. 14 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.65s
+
+error: test failed, to rerun pass `-p zil-driver --test impl172_owned_store`

@@ -1,0 +1,29 @@
+{
+  "time": 1793118289.5793624,
+  "removed": [
+    {
+      "target": "/workspace/scratch/39be3faa4442/targets/177-combined",
+      "files": 873,
+      "bytes": 2000758192,
+      "reason": "Completed root-owned reproducible build cache; no running process uses this target; run receipts and sources retained."
+    },
+    {
+      "target": "/workspace/scratch/39be3faa4442/targets/177-public",
+      "files": 258,
+      "bytes": 148238503,
+      "reason": "Completed root-owned reproducible build cache; no running process uses this target; run receipts and sources retained."
+    },
+    {
+      "target": "/workspace/scratch/39be3faa4442/targets/177-lint",
+      "files": 1006,
+      "bytes": 3444285,
+      "reason": "Completed root-owned reproducible build cache; no running process uses this target; run receipts and sources retained."
+    },
+    {
+      "target": "/workspace/scratch/39be3faa4442/targets/review174-root",
+      "files": 101,
+      "bytes": 109294895,
+      "reason": "Completed root-owned reproducible build cache; no running process uses this target; run receipts and sources retained."
+    }
+  ]
+}

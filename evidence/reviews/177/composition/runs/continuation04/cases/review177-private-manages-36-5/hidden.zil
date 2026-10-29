@@ -1,0 +1,1 @@
+pub resource Token{n:i32}pub package Bag{manages token:Token}

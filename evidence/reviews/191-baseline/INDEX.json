@@ -1,0 +1,80 @@
+{
+  "files": [
+    {
+      "path": "records/baseline01/command/stderr.log",
+      "bytes": 581,
+      "sha256": "4b4f9f1195178c68977845e5dee228abe729c0f1d6ba4cd2f1a63c04965769ab"
+    },
+    {
+      "path": "records/baseline01/command/command.json",
+      "bytes": 922,
+      "sha256": "3dacd973938b2855b54d5ec3c514c841b1b6817ed0ee6f1fe53756e705c0daef"
+    },
+    {
+      "path": "records/baseline01/command/stdout.log",
+      "bytes": 28035,
+      "sha256": "8c35b25957f973fddc641b923fde5203b3a482442814a0a96aabe1e0020244dc"
+    },
+    {
+      "path": "records/measure01/command/stderr.log",
+      "bytes": 811,
+      "sha256": "11c586f552215cdbbe52163a9149faa531f83ca4fe7759f40c17930faedf78e9"
+    },
+    {
+      "path": "records/measure01/command/command.json",
+      "bytes": 1024,
+      "sha256": "f615221f1722f76490f2f65a8faab2841a57b2888fbb0006f9017e9c384c6d1d"
+    },
+    {
+      "path": "records/measure01/command/stdout.log",
+      "bytes": 338,
+      "sha256": "4f3e541f500285cfacc14ac9e891145d4b6dd90dae3cb123dab1a2a328c4840a"
+    },
+    {
+      "path": "records/final01/command/stderr.log",
+      "bytes": 311,
+      "sha256": "ea876c103580659430e67cfa58688f85ed46afe88c9aaea1db29c2a30e47e300"
+    },
+    {
+      "path": "records/final01/command/command.json",
+      "bytes": 918,
+      "sha256": "16f309340b93e5af90fcfbb7b2037cc613d59d893eb6c17cfc0667bff519d0ea"
+    },
+    {
+      "path": "records/final01/command/stdout.log",
+      "bytes": 21724,
+      "sha256": "ec28d230ff636a09ddf1b36877716b3c2757a04844b97687fe43c9012279535c"
+    },
+    {
+      "path": "records/quality01/command/stderr.log",
+      "bytes": 387,
+      "sha256": "81a641b8da72c8133fdd1cac15986fb8c351a77e98f0e29c1368bb369c2ca54c"
+    },
+    {
+      "path": "records/quality01/command/command.json",
+      "bytes": 973,
+      "sha256": "98b8b536528c29472f95365c042d7d77b5eb4327544375c36b3b0645175d72ed"
+    },
+    {
+      "path": "records/quality01/command/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "records/fmt01/command/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "records/fmt01/command/command.json",
+      "bytes": 909,
+      "sha256": "6920c8157071431cb1e18e2d5f1d302c6499ab3d26391ee2df9d923211493402"
+    },
+    {
+      "path": "records/fmt01/command/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "executables_included": false
+}

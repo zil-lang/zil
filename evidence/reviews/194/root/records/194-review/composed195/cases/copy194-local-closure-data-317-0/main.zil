@@ -1,0 +1,1 @@
+fn id<T:Copy>(x:T)->T=>x;fn main()->i32{let n=7;let f=move()=>n;let g=id(f);return g()-7}

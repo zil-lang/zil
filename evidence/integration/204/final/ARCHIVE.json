@@ -1,0 +1,161 @@
+{
+  "status": "Pass",
+  "scope": "Exact 204 evidence transport; not a new language acceptance or test execution",
+  "language_implementation_commit": "85f01d622d9c31bffe165e5720bbf09658af5084",
+  "normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
+  "tools_source_commit": "8524e0eddac480e65c6bb6efe5e3283b585346ac",
+  "archive": {
+    "integrity": "Pass",
+    "path": "/workspace/scratch/39be3faa4442/deliverables/204-all-components-evidence-compact.tar.xz",
+    "bytes": 22216240,
+    "sha256": "58d3bfe6b16d4ab0793f85df2978fd480fae7b71637b31ec297a3e95c29f788a",
+    "source_sha256": "d46fb4dd5a72877810e3e6ec730d2d1ee20ebff233f1e943988b20e0276828dd",
+    "members_compared_byte_for_byte": 29927,
+    "decoded_member_bytes": 1500394040,
+    "statistics": {
+      "logical_files": 111728,
+      "logical_bytes": 5430720495,
+      "unique_contents": 29920,
+      "unique_bytes": 1433504308,
+      "excluded_execution_products": 4428
+    },
+    "compression": "standard tar.xz, solid LZMA preset 6",
+    "member_content_changed": false,
+    "test_execution": "NotRun by converter"
+  },
+  "supplemental_delivery_tools": {
+    "integrity": "Pass",
+    "path": "/workspace/scratch/39be3faa4442/deliverables/204-delivery-tools-evidence.tar.xz",
+    "bytes": 327460,
+    "sha256": "cdddb5fcb97c0eeecea15328d142bf35a5a82bffe2b833fb479e26b7aec6d03a",
+    "regular_tar_members": 235,
+    "statistics": {
+      "source_entries": 343,
+      "stored_regular_files": 231,
+      "stored_original_bytes": 7634664,
+      "hash_only_files": 8,
+      "hash_only_bytes": 328,
+      "metadata_only_special_entries": 6,
+      "directories_recorded": 98
+    },
+    "nested_inputs_extracted": false,
+    "special_entries_activated": false,
+    "compiler_or_tool_tests_executed": false
+  },
+  "intermediate_zip": {
+    "integrity": "Pass",
+    "path": "/workspace/scratch/39be3faa4442/run-logs/204-packaging/204-all-components-intermediate.zip",
+    "bytes": 77001270,
+    "sha256": "d46fb4dd5a72877810e3e6ec730d2d1ee20ebff233f1e943988b20e0276828dd",
+    "statistics": {
+      "logical_files": 111728,
+      "logical_bytes": 5430720495,
+      "unique_contents": 29920,
+      "unique_bytes": 1433504308,
+      "excluded_execution_products": 4428
+    },
+    "test_execution": "NotRun by packager"
+  },
+  "sources": [
+    {
+      "component": "root",
+      "id": "root-workspace01",
+      "kind": "compact",
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-packaging/204-root-workspace01-evidence-lzma.zip",
+      "bytes": 53700158,
+      "sha256": "31eb5e8f1c12db56fcf9c36ffd04a530bdf6db97c4a795820464824278d8efe6"
+    },
+    {
+      "component": "root",
+      "id": "root-workspace02",
+      "kind": "directory",
+      "path": "/dev/shm/zil204-root-workspace02"
+    },
+    {
+      "component": "root",
+      "id": "root-parent01",
+      "kind": "directory",
+      "path": "/dev/shm/zil204-root-parent01"
+    },
+    {
+      "component": "root",
+      "id": "root-commands",
+      "kind": "directory",
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-root"
+    },
+    {
+      "component": "types",
+      "id": "types-original",
+      "kind": "zip",
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-types/204-types-evidence-compact.zip",
+      "bytes": 2353257,
+      "sha256": "0b94722749323c1e394d5ad1d408adb4a5b2940960834dfeeb1f16d7f36a1fb0"
+    },
+    {
+      "component": "review",
+      "id": "independent-original",
+      "kind": "compact",
+      "path": "/workspace/scratch/39be3faa4442/deliverables/204-review-by197-evidence.zip",
+      "bytes": 3063026,
+      "sha256": "37e81d0261b6a1d9078502c8e4d7afe97b7b3122b0ac7c11f60e99b7c310df50"
+    },
+    {
+      "component": "analyze-consumer",
+      "id": "analyze-consumer-original",
+      "kind": "compact",
+      "path": "/workspace/scratch/39be3faa4442/deliverables/204-analyze-consumer-evidence-compact.zip",
+      "bytes": 1746774,
+      "sha256": "e7e93e2fda3df7f5890011d6f77d3ab391bf11176708da3f1ae87c1a86e266a4"
+    },
+    {
+      "component": "tools",
+      "id": "review85",
+      "kind": "directory",
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-evidence-tool-review85"
+    }
+  ],
+  "commands": {
+    "aggregate": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-packaging/aggregate01/command.json",
+      "bytes": 963,
+      "sha256": "321f5870884ac55343f930eb12b86e7b831932b87d5eb649ccdf968554ad1dcf"
+    },
+    "solid": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-packaging/solid01/command.json",
+      "bytes": 936,
+      "sha256": "f70ed33275517f84d703e5b1d00256728e8dfe46ef687e7f81d738530d55dbf3"
+    }
+  },
+  "independent_review": {
+    "verdict": "Pass",
+    "reviewer": "/root/impl197",
+    "review_commit": "981445abd92404c2f3aec800e3bb59303f80730c",
+    "evidence": "evidence/reviews/204/by197/DELIVERY_FINAL.json",
+    "actual_container_receipts": [
+      "evidence/reviews/204/by197/DELIVERY_LANGUAGE_ARCHIVE.json",
+      "evidence/reviews/204/by197/DELIVERY_TOOL_ARCHIVE.json"
+    ],
+    "language_review_unchanged": "evidence/reviews/204/by197/REVIEW.json"
+  },
+  "format_and_recovery": [
+    "Standard tar.xz; all outer members are ordinary files. Extract to a new directory with standard tar.",
+    "Extracted main evidence directory contains compact_evidence.py, directory_evidence.py, solid_evidence.py, README, INDEX, INPUTS and MANIFEST. Run the shipped compact_evidence.py verify against that directory, then optional restore to another new directory.",
+    "Main tar expands to about 1.50 GB of unique members. Full logical restore is about 5.43 GB. Select one component to avoid materializing all duplicate files.",
+    "Frontend custom original INDEX/objects/helper is preserved verbatim as a nested evidence component, including its 4235 original logical paths and separate executable exclusion list. It is not relabeled as the common compact format.",
+    "Execution products are hash-only. The aggregate flat count is 4428; the frontend original nested exclusions remain in its exact original metadata.",
+    "The supplemental delivery-tools tar keeps 231 original regular files and metadata for eight .exe test substitutes and six links. Malicious archive test inputs remain unopened original payloads; active links and special members are not packaged."
+  ],
+  "preservation": [
+    "Original Fail/Pass/NotRun receipts and actual author/reviewer/root source and compiler identities are unchanged.",
+    "The first complete workspace01 ZIP failed only its 50MB publication cap; its entire payload, original INDEX/MANIFEST and exact-member LZMA recontainer identity are retained.",
+    "Earlier classifier failure and the first real workspace failure remain distinct original records.",
+    "Only compression/container representation changes; this does not reconstruct original ZIP compressed encoding from the new outer container.",
+    "No compiler or packaged program executed during archive verification."
+  ],
+  "product_status": {
+    "full_1_4": "NotSatisfied",
+    "B0": "Doing",
+    "product": "NotRun",
+    "native_windows": "NotRun"
+  }
+}

@@ -1,0 +1,1 @@
+fn put<T>(p:&mut[T],v:T){p[0]=v;}fn length<T>(p:&[T])->i64{return p.len();}fn work<T>(p:&mut[T],v:T)->i64{put(p,v);return length(p)+p.len();}fn result()->i64{let b=bytes_new();bytes_reserve(b,2);bytes_push(b,5u8);let n=work(bytes_view_mut(b),9u8);return n+length(bytes_view(b));}

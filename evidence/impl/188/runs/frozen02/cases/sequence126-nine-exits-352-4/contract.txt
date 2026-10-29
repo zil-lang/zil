@@ -1,0 +1,107 @@
+CallableParameterContract {
+    parameter: 0,
+    closure: ClosureId(
+        0,
+    ),
+    kind: Fn,
+    hold: [
+        0,
+    ],
+    call: [
+        0,
+    ],
+    writes: [],
+    cleanup: Borrowed,
+    traces: [
+        CallableTrace {
+            calls: [
+                Fn,
+            ],
+            exit: Return,
+        },
+        CallableTrace {
+            calls: [
+                Fn,
+                Fn,
+            ],
+            exit: Return,
+        },
+        CallableTrace {
+            calls: [
+                Fn,
+                Fn,
+                Fn,
+            ],
+            exit: Return,
+        },
+        CallableTrace {
+            calls: [
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+            ],
+            exit: Return,
+        },
+        CallableTrace {
+            calls: [
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+            ],
+            exit: Return,
+        },
+        CallableTrace {
+            calls: [
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+            ],
+            exit: Return,
+        },
+        CallableTrace {
+            calls: [
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+            ],
+            exit: Return,
+        },
+        CallableTrace {
+            calls: [
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+            ],
+            exit: Return,
+        },
+        CallableTrace {
+            calls: [
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+                Fn,
+            ],
+            exit: Return,
+        },
+    ],
+}

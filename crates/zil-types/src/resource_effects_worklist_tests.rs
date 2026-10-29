@@ -64,7 +64,9 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
                     id: NodeId(index as u32),
                     name: format!("f{index}"),
                     callable_return: None,
-                    callable_parameter: None,
+                    state_parameters: Vec::new(),
+                    type_parameters: Vec::new(),
+                    callable_parameters: Vec::new(),
                     foreign: None,
                     parameters: ["a", "b"]
                         .map(|name| CoreParameter {
@@ -98,9 +100,11 @@ fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
             (
                 f.name.clone(),
                 Signature {
-                    id: FunctionId(i as u32),
-                    callable: None,
+                    id: Some(FunctionId(i as u32)),
+                    callable: Vec::new(),
+                    state_parameter: None,
                     callable_return: None,
+                    type_parameter: None,
                     template: None,
                     foreign: false,
                     cleanup: false,
@@ -319,7 +323,10 @@ fn shadowed_calls_remain_conservative_and_imports_register_real_ids() {
         actual,
         solve_sweeps(&inputs(&core, &signatures), None, &enough()).unwrap()
     );
-    assert_eq!(actual[&FunctionId(0)], Origins::from([0, 1]));
+    assert_eq!(
+        actual[&Target::Concrete(FunctionId(0))],
+        Origins::from([0, 1])
+    );
     core.functions[0].body.statements = vec![call(
         expr(CoreExprKind::Member {
             object: Box::new(name("dep")),
@@ -348,7 +355,7 @@ fn shadowed_calls_remain_conservative_and_imports_register_real_ids() {
         actual,
         solve_sweeps(&make_inputs(), Some(&tables), &enough()).unwrap()
     );
-    assert_eq!(actual[&FunctionId(0)], Origins::from([0]));
+    assert_eq!(actual[&Target::Concrete(FunctionId(0))], Origins::from([0]));
 }
 fn all_summary_values(core: &CoreModule) -> Vec<Writes> {
     (0..1usize << (2 * core.functions.len()))
@@ -357,7 +364,7 @@ fn all_summary_values(core: &CoreModule) -> Vec<Writes> {
                 .filter_map(|f| {
                     let set: Origins = (0..2).filter(|p| mask & (1 << (2 * f + p)) != 0).collect();
                     // Also test a genuinely missing entry, not just empty sets.
-                    (!set.is_empty()).then_some((FunctionId(f as u32), set))
+                    (!set.is_empty()).then_some((Target::Concrete(FunctionId(f as u32)), set))
                 })
                 .collect()
         })
@@ -388,12 +395,15 @@ fn compare_transfers(core: &CoreModule, label: &str) -> usize {
             );
             for callee in 0..core.functions.len() {
                 let mut changed = summaries.clone();
-                changed.insert(FunctionId(callee as u32), Origins::from([0, 1]));
+                changed.insert(
+                    Target::Concrete(FunctionId(callee as u32)),
+                    Origins::from([0, 1]),
+                );
                 let (next, _) =
                     scan_once::<Untracked>(input, None, &changed, &mut work, &enough()).unwrap();
                 if next != actual {
                     assert!(
-                        dependencies.contains(&FunctionId(callee as u32)),
+                        dependencies.contains(&Target::Concrete(FunctionId(callee as u32))),
                         "missing edge: {label}"
                     );
                 }
@@ -469,6 +479,7 @@ fn expression_variant(kind: &CoreExprKind) -> &'static str {
         Unary { .. } => "Unary",
         Binary { .. } => "Binary",
         Call { .. } => "Call",
+        TypeApply { .. } => "TypeApply",
         Tuple(_) => "Tuple",
         Array(_) => "Array",
         Index { .. } => "Index",
@@ -534,6 +545,10 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
             right: Box::new(name("b")),
         },
         call_expr().kind,
+        CoreExprKind::TypeApply {
+            callee: Box::new(call_expr()),
+            type_arguments: vec![desc()],
+        },
         CoreExprKind::Tuple(vec![name("a"), call_expr()]),
         CoreExprKind::Array(vec![name("a"), call_expr()]),
         CoreExprKind::Index {
@@ -589,7 +604,7 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
             .map(expression_variant)
             .collect::<BTreeSet<_>>()
             .len(),
-        25
+        26
     );
     let mut compared = 0;
     for kind in expressions {
@@ -690,7 +705,7 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
         ]);
         compared += compare_transfers(&core, label);
     }
-    assert_eq!(compared, (25 + 16) * 16 * 2);
+    assert_eq!(compared, (26 + 16) * 16 * 2);
 }
 
 #[test]

@@ -1,0 +1,317 @@
+{
+  "status": "Pass",
+  "compiler_source_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+  "cli_sha256": "c560729e97c45d03063e717708ee4fadfd0fcd018c97e92c97b265200f6ad371",
+  "scope": "Resolve actual assertion status of historical166 diagnostic-migration failure on finalCLI; no production edits",
+  "cases": [
+    {
+      "case": 0,
+      "status": "Pass",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-0/main.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "expected": {
+        "category": "SafeReject",
+        "phase": "analyze",
+        "code": "E-UNINITIALIZED",
+        "message_contains": "not initialized"
+      },
+      "observed": {
+        "category": "SafeReject",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-UNINITIALIZED",
+            "message": "local 4 is not initialized on every incoming path",
+            "span": {
+              "file": 0,
+              "start": 105,
+              "end": 106
+            },
+            "notes": []
+          }
+        ]
+      }
+    },
+    {
+      "case": 1,
+      "status": "Pass",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-1/main.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "expected": {
+        "category": "SafeReject",
+        "phase": "analyze",
+        "code": "E-ANALYZE-IR",
+        "message_contains": "every owned element or field live"
+      },
+      "observed": {
+        "category": "SafeReject",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: whole aggregate move requires every owned element or field live",
+            "span": null,
+            "notes": []
+          }
+        ]
+      }
+    },
+    {
+      "case": 2,
+      "status": "Pass",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-2/main.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "expected": {
+        "category": "SafeReject",
+        "phase": "analyze",
+        "code": "E-ANALYZE-IR",
+        "message_contains": "invalidates a description"
+      },
+      "observed": {
+        "category": "SafeReject",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: head transition invalidates a description required later",
+            "span": null,
+            "notes": []
+          }
+        ]
+      }
+    },
+    {
+      "case": 3,
+      "status": "Pass",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-3/main.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "expected": {
+        "category": "Unsupported",
+        "phase": "types",
+        "code": "E-UNSUPPORTED",
+        "message_contains": "finite Copy values or complete owned Packages"
+      },
+      "observed": {
+        "category": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "error union payloads require finite Copy values or complete owned Packages",
+            "span": {
+              "file": 0,
+              "start": 51,
+              "end": 73
+            },
+            "notes": []
+          }
+        ]
+      }
+    },
+    {
+      "case": 4,
+      "status": "Pass",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-4/main.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "expected": {
+        "category": "SafeReject",
+        "phase": "types",
+        "code": "E-GIVE-TYPE",
+        "message_contains": "managed resource carrier"
+      },
+      "observed": {
+        "category": "SafeReject",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-GIVE-TYPE",
+            "message": "give requires a managed resource carrier",
+            "span": {
+              "file": 0,
+              "start": 89,
+              "end": 95
+            },
+            "notes": []
+          }
+        ]
+      }
+    },
+    {
+      "case": 5,
+      "status": "Pass",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-5/main.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "expected": {
+        "category": "SafeReject",
+        "phase": "types",
+        "code": "E-ERROR-INJECTION-AMBIGUOUS",
+        "message_contains": "matches both error and success"
+      },
+      "observed": {
+        "category": "SafeReject",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-ERROR-INJECTION-AMBIGUOUS",
+            "message": "the value matches both error and success; equal payload types need an explicit tagged value",
+            "span": {
+              "file": 0,
+              "start": 66,
+              "end": 77
+            },
+            "notes": []
+          }
+        ]
+      }
+    },
+    {
+      "case": 6,
+      "status": "Pass",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-6/main.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "expected": {
+        "category": "SafeReject",
+        "phase": "types",
+        "code": "E-TRY-ERROR-TYPE",
+        "message_contains": "exactly the enclosing error type"
+      },
+      "observed": {
+        "category": "SafeReject",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-TRY-ERROR-TYPE",
+            "message": "? requires exactly the enclosing error type; error conversion is explicit",
+            "span": {
+              "file": 0,
+              "start": 113,
+              "end": 120
+            },
+            "notes": []
+          }
+        ]
+      }
+    },
+    {
+      "case": 7,
+      "status": "Pass",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-7/main.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "expected": {
+        "category": "Unsupported",
+        "phase": "types",
+        "code": "E-UNSUPPORTED",
+        "message_contains": "finite Copy type"
+      },
+      "observed": {
+        "category": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "closure value requires a finite Copy type",
+            "span": {
+              "file": 0,
+              "start": 71,
+              "end": 82
+            },
+            "notes": []
+          }
+        ]
+      }
+    },
+    {
+      "case": 8,
+      "status": "Pass",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-8/main.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "expected": {
+        "category": "SafeReject",
+        "phase": "ct",
+        "code": "E-CT-FORBIDDEN",
+        "message_contains": "serializable pure Copy values"
+      },
+      "observed": {
+        "category": "SafeReject",
+        "phase": "ct",
+        "diagnostics": [
+          {
+            "phase": "ct",
+            "category": "SafeReject",
+            "code": "E-CT-FORBIDDEN",
+            "message": "CT program supports serializable pure Copy values only",
+            "span": {
+              "file": 0,
+              "start": 51,
+              "end": 79
+            },
+            "notes": []
+          }
+        ]
+      }
+    }
+  ],
+  "passed": 9,
+  "failed": 0
+}

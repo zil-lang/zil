@@ -1,0 +1,1 @@
+import factory;import helper;fn main()->i32{let f=factory.make(41);let a=helper.peek(&f);return *a-41}

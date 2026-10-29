@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/author190/debug/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/run-logs/195-preflight/probes01/04-ordinary-nested-cleanup/main.zil",
+    "--opt",
+    "O2",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/195-preflight/probes01/04-ordinary-nested-cleanup/O2/program",
+    "--json"
+  ],
+  "exit_code": 0
+}

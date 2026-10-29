@@ -1,0 +1,154 @@
+{
+  "reviewer": "/root/impl197",
+  "implementation_author": "/root with /root/roles196_frontend and /root/bundle_sync",
+  "reviewer_is_production_author": false,
+  "verdict": "Pass",
+  "implementation_commit": "85f01d622d9c31bffe165e5720bbf09658af5084",
+  "tested_source_commit": "694940eda0f7a9e5f9f999f8f2b107f4550d84fb",
+  "compiler_source_commit": "7abbbac1f6479c52f4967653acfab74fc56c945d",
+  "compiler_sha256": "baa0b5757871b5f7bc31713f61c0a91042d1396087d9bddc65d6872c82a4312d",
+  "spec_hash": "6975c100e3ae6905adc147828c7be0899d727adc5c6764462bc28ec5db8b55b0",
+  "normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
+  "schema_version": 27,
+  "scope": "204 finite owned capture of leaf Store<Item> or complete Package containing it, existing ownership inference and Fn/FnMut/FnOnce, Copy/Unit results, actual per-value responsibility, State/outer Store composition, independent raw/Wire qualification and lifetime checks, bounded work and cleanup. This is not completion of the full1.4 language or product gates.",
+  "identity_proof": "CANDIDATE85_EQUIVALENCE.json",
+  "actual_evidence": {
+    "independent_suite": {
+      "receipt": "SOURCE06.json",
+      "command": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197/source06/command.json",
+      "source_commit": "694940eda0f7a9e5f9f999f8f2b107f4550d84fb",
+      "clean": true,
+      "passed": 21,
+      "failed": 0,
+      "native_executions": 46,
+      "source_rejections": 7,
+      "raw_wire_pairs": 33,
+      "positive_pairs": 15,
+      "attack_pairs": 18
+    },
+    "independent_linux_consumer": {
+      "receipt": "CONSUMER.json",
+      "command": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197/consumer-linux01/command.json",
+      "source_commit": "694940eda0f7a9e5f9f999f8f2b107f4550d84fb",
+      "compiler_source_commit": "7abbbac1f6479c52f4967653acfab74fc56c945d",
+      "clean": true,
+      "executions": 148,
+      "ordinary_executions": 16,
+      "instrumented_executions": 132,
+      "actual_allocation_failures": 108,
+      "all_allocation_live_zero": true,
+      "maximum_peak_live": 4,
+      "maximum_peak_bytes": 528
+    },
+    "legacy_source_metadata_migration": {
+      "receipt": "MIGRATION01.json",
+      "actual_source_commit": "f341e418f9c1938ff2895380f5dc1f8bc5153d17",
+      "passed": 9,
+      "failed": 0,
+      "native_executions": 6,
+      "note": "Earlier narrow execution identity is retained; this is not added to the final21 count or relabeled with final production."
+    },
+    "legacy_analyze_diagnostic_migration": {
+      "receipt": "MIGRATION02.json",
+      "reviewed_commit": "fd6de26275e84e9a15b0546a245f4ebba35d4cbf",
+      "reviewer_execution": "NotRun; independent read-only code, all six actual module/result byte hashes and author command/output hashes were checked",
+      "unchanged_raw_results": "Five Analyze Unsupported; one original child-Copy Success"
+    },
+    "external_archive": "ARCHIVE.json"
+  },
+  "core_review_findings": [
+    "The real source control must pass Types, Analyze and both verifier routes before deriving each raw attack. Source-derived unused metadata controls are explicitly labeled; no early Types Unsupported is counted as loan safety.",
+    "Store and Package capture qualification traverses complete inner leaf types and actual canonical resources, including hidden FunctionPointer/ForeignCallback in Copy structures or Managed headers. Ordinary Store Copy callback fields and captured-Package Copy companions remain separate positive controls.",
+    "Owning capture follows actual body effects, including body give without an outer move. Early branches before a take, local cleanup after a take, argument failure and Package sibling flags keep their actual owners.",
+    "Same Type/ClosureId never substitutes for runtime identity: two captured Stores, two outer-Store callback values and same-actual-Fn fields with different declared Fn/FnOnce modes have independent cleanup and parent roots.",
+    "Analyze70678 reconstructs strong Address liveness and private Capture/Field/Local roots before exported Hold coarsening. New-profile detection comes from its bounded actual capture walk. Reserve/push/pop and ownership transitions test actual live roots; ordinary weak Desc is not promoted to a loan.",
+    "Verify separately checks exact capture operands, resource debts, canonical definitions, finite layout and both TakeCapture parent invalidation and active-access exclusion. Rejected Analyze inputs still reach independent raw/Wire Verify using explicitly untrusted complete candidate claims.",
+    "Lower and LLVM accept only the exact VerifiedModule-bound owning Store representation, retain the Desc exclusion, use actual Store alignment, and clear existing environment/Package flags before canonical Store cleanup. Real output traces and allocation probes verify the resulting order.",
+    "Default limits and product thresholds were not changed. New scans reserve bounded work before tables/sets and comparisons; new Store-take work has an exact fresh boundary. The measured old ByteBuffer profile retains its exact four-stage vector."
+  ],
+  "resolved_real_defect": {
+    "original_receipt": "TAKE_WINDOW01_FAILURE.json",
+    "original_source_commit": "ea65faed5a9cc38779755f36147d403a07319509",
+    "description": "Element view survived TakeCapture and then actual reserve on the new local. SourceVerify, fresh Analyze candidate plus rawVerify and WireVerify all incorrectly accepted. Invalid inputs were never executed as native.",
+    "nearest_positive": "Read the element before taking; then reserve via the new local. Actual O0/O2 control prints A.",
+    "verify_only_replay": "take-window02@f5ad8ef82384d9325def9e521daa8788ec47c8a8:2/0; raw/Wire E-BORROW-CONFLICT with the then-fresh Analyze candidate.",
+    "final_behavior": "Same bad source now Analyze/SafeReject/E-ANALYZE-IR. The identical hostile raw operation ordering, with original complete untrusted candidate, independently remains Verify/SafeReject/E-BORROW-CONFLICT through raw and Wire.",
+    "repair_commits": [
+      "eac981270c6b488d108f8fdbc9a18eac69e646e2",
+      "6654830229e1351fa03c9a1fa8cfc5b55cf84da5",
+      "70678a8dbad7f1da27730fec301712a36b851520"
+    ]
+  },
+  "exact_budget_boundaries": {
+    "method": "Each N succeeds, N-1 is ResourceLimit, fresh N succeeds; fresh Types/Analyze outputs equal the control. Source hashes and complete records are in SOURCE06 and the external archive.",
+    "old_byte_capture": {
+      "Expand": 2,
+      "Types": 196,
+      "Analyze": 2230,
+      "Verify": 2490,
+      "scope": "One frozen pre204 source; no blanket claim about every old profile."
+    },
+    "new_two_store_capture": {
+      "Expand": 8,
+      "Types": 2692,
+      "Analyze": 21195,
+      "Verify": 52430
+    },
+    "new_store_take_window": {
+      "Expand": 8,
+      "Types": 1691,
+      "Analyze": 12981,
+      "Verify": 27265
+    },
+    "unused_no_store_op_no_makeclosure": {
+      "Analyze": 3252,
+      "Verify_raw": 5658,
+      "Verify_wire": 5658
+    }
+  },
+  "preserved_history": [
+    "Source01 real Lower blockers, Source02 real LLVM representation blockers, Source03 reviewer diagnostic/complete-candidate adjustments, and their original inputs remain unchanged.",
+    "Source04 genuine earlier19/0 and44native is retained as its own scope, not a final acceptance result after the later window defect.",
+    "Take-window01 original0/2 with actual false acceptance remains. Take-window02 Verify-only2/0 remains separate.",
+    "Source05 original17/4 remains: two exact source stages and two fresh-candidate expectations had to migrate after the producer correctly rejected the same windows earlier. No bad source or raw operation was removed.",
+    "Root workspace01@057 actual2468/1/0 remains Fail. Six legacy raw modules/results remain byte-identical before and after the precise diagnostic migration."
+  ],
+  "formal_root_boundary": {
+    "owner": "/root",
+    "reviewer_formal_workspace": "NotRun",
+    "workspace01": {
+      "source_commit": "057e7f67cd6fee9dc80c9cf31fe7af5cbc6bf1b3",
+      "status": "Fail",
+      "passed": 2468,
+      "failed": 1,
+      "ignored": 0
+    },
+    "workspace02": {
+      "source_commit": "85f01d622d9c31bffe165e5720bbf09658af5084",
+      "status": "Pass",
+      "passed": 2469,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 252,
+      "owner": "/root; this reviewer only read the completed receipt and verified its output hashes/counts, did not execute the full workspace",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/204-root/workspace02/command.json",
+      "command_receipt_sha256": "2f711b91f238544b63c1184eeebd64b2c79012954ffdfd60996f180636195e13"
+    },
+    "clippy": "Root owns the same-source formal gate; not counted as reviewer execution"
+  },
+  "limits_and_goals": {
+    "native_windows": "NotRun",
+    "Wine": "Author Linux/Wine results remain separately attributed; reviewer executed Linux only.",
+    "full_language": "NotSatisfied",
+    "B0": "Doing",
+    "B0_completion": "NotSatisfied",
+    "product": "NotRun",
+    "Rust_safety_goal": "Finite actual source/raw/Wire lifetime and responsibility evidence, including a found-and-repaired defect; no whole-language proof.",
+    "Rust_runtime_memory_goal": "Actual allocation, representation and cleanup checked for these programs; no new same-semantics Rust runtime/RSS comparison.",
+    "Rust_expression_maintenance_goal": "Ordinary Store-owning callback and five-module composition gains are demonstrated; no complete framework or maintenance-cost advantage claimed.",
+    "Rust_compile_cost_goal": "Old exact work budget retained and new work bounded; no compilation-speed result or merge of the independent compiler-performance branch.",
+    "product_net_breakthrough": "NotEstablished. No product gate thresholds lowered or new approval gates added."
+  },
+  "unresolved_in_204_review": [],
+  "final_verdict_boundary": "Pass for this finite204 delivery candidate and exact independent evidence. Formal full-workspace acceptance and file delivery remain root responsibilities."
+}

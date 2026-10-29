@@ -1,0 +1,208 @@
+{
+  "schema": "zil-independent-review-v1",
+  "task": "172",
+  "reviewer": "/root/resource_heads",
+  "implementation_author": "/root/dynamic_store",
+  "implementation_commit": "69882483d6b29bee8d831386325da739ac915fd4",
+  "crates_tree": "118e246b47beb9e027d656a09ebbd411191a0fff",
+  "author_evidence_commit": "b0173a393752dbaa061d2ac33cbfb2f73430f9b3",
+  "probe_commit": "48df93b1199b5487693c450a79b12c4f479adf7a",
+  "status": "Pass",
+  "verdict": "Pass",
+  "scope": "Finite direct-Managed Package dynamic initialized prefix on Linux x64; independent source, raw, wire, LLVM/native and allocator-failure review",
+  "blocking_findings": [],
+  "static_checks": [
+    "Types context selects concrete Store<Package>; whole Package transfer uses existing ownership flow. Actual Store descriptor is materialized before RHS, and independent Analyze/Verify inspect liveness at the operation.",
+    "Verify reconstructs sealed resource definition name, complete nominal element, no user teardown, target gate, operand/result equality, prefix operation responsibility and actual inline byte extent; no producer proof grants permission.",
+    "Push takes complete input responsibility and produces a complete owning error result; pop produces a checked owning result. Store descriptor mutation effects are added independently in Analyze and Verify.",
+    "Runtime reserve rejects negative/overflow before allocation or publication; realloc failure preserves the old pointer/capacity. Push stores a complete element before len increment; pop reduces len before publishing the former tail; no element address escapes this profile.",
+    "DropManaged clears the outer live flag; Store drop clears len, walks only [0,old_len) in index order, invokes direct Managed field cleanup in declaration order, then frees once.",
+    "Package, nested owning array, owning error payload, closure, Lower and backend classifications exclude Store compositions not yet implemented. Cross-review S172-1 late classification concern is closed in this frozen candidate.",
+    "Metadata traversal charges include OwnedStore element subtrees. The author suite independently rerun here includes N/N-1 raw/wire budget and deep/wide constructor metadata checks against unchanged defaults.",
+    "The public iterative Wire implementation remains the previously independently reviewed bf2280d version; this review does not replace that public review."
+  ],
+  "executed": {
+    "author_suite": {
+      "receipt": "author-suite-02/command.json",
+      "passed": 15,
+      "failed": 0,
+      "ignored": 0
+    },
+    "independent_suite": {
+      "receipt": "independent-02/command.json",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0
+    },
+    "native_executions": 4,
+    "allocator_probe_executions": 4,
+    "source_rejections": 2,
+    "raw_rejections": 3,
+    "wire_rejections": 3,
+    "source_neighbours": [
+      "prepared Store Desc invalidated by RHS give of that Store: Analyze/E-ANALYZE-IR/head transition invalidates a description required later",
+      "partial Package input to store_push: Analyze/E-ANALYZE-IR/whole aggregate move requires every owned element or field live"
+    ],
+    "raw_wire_neighbours": [
+      "original valid DropManaged moved before final StoreLen: Verify/E-VERIFY-RESOURCE/invalidate a live description",
+      "canonical sealed Store definition removed: Verify/E-VERIFY-OWNED-STORE/lacks its canonical sealed definition",
+      "raw candidate retargeted consistently to Windows x64: Verify/E-UNSUPPORTED/requires checked Linux x64 LLVM"
+    ],
+    "native_cases": [
+      "mixed u8/i32/i64/u16/Copy-array layout and two Managed fields; failed full push returns original wide item; successful and injected-failed reserve preserve prior prefix; output CcBbAa",
+      "zero-sized Managed marker with nonzero Copy tag retains two actual destructor calls; output ZZ"
+    ],
+    "observations": [
+      {
+        "opt": "O0",
+        "exit": 0,
+        "stdout": "CcBbAa",
+        "case": "probe-78-0",
+        "allocations": [
+          {
+            "fail_at": 0,
+            "counts": {
+              "alloc_calls": 2,
+              "allocated": 1,
+              "frees": 1,
+              "failures": 0,
+              "live": 0,
+              "peak_live": 1,
+              "peak_bytes": 320
+            },
+            "stdout": "CcBbAa"
+          },
+          {
+            "fail_at": 2,
+            "counts": {
+              "alloc_calls": 2,
+              "allocated": 1,
+              "frees": 1,
+              "failures": 1,
+              "live": 0,
+              "peak_live": 1,
+              "peak_bytes": 80
+            },
+            "stdout": "CcBbAa"
+          }
+        ]
+      },
+      {
+        "opt": "O0",
+        "exit": 0,
+        "stdout": "ZZ",
+        "case": "probe-78-3",
+        "allocations": []
+      },
+      {
+        "opt": "O2",
+        "exit": 0,
+        "stdout": "ZZ",
+        "case": "probe-78-7",
+        "allocations": []
+      },
+      {
+        "opt": "O2",
+        "exit": 0,
+        "stdout": "CcBbAa",
+        "case": "probe-78-8",
+        "allocations": [
+          {
+            "fail_at": 0,
+            "counts": {
+              "alloc_calls": 2,
+              "allocated": 1,
+              "frees": 1,
+              "failures": 0,
+              "live": 0,
+              "peak_live": 1,
+              "peak_bytes": 320
+            },
+            "stdout": "CcBbAa"
+          },
+          {
+            "fail_at": 2,
+            "counts": {
+              "alloc_calls": 2,
+              "allocated": 1,
+              "frees": 1,
+              "failures": 1,
+              "live": 0,
+              "peak_live": 1,
+              "peak_bytes": 80
+            },
+            "stdout": "CcBbAa"
+          }
+        ]
+      }
+    ]
+  },
+  "preserved_failures": [
+    {
+      "receipt": "author-suite/command.json",
+      "classification": "Infrastructure: 14 passed / 1 failed only because native linker reported No space left on device during root full build. Cleaned completed disposable targets and reran with Rust debug info disabled; source/LLVM optimization/limits unchanged."
+    },
+    {
+      "receipt": "independent-01/command.json",
+      "classification": "Reviewer fixture: 2 passed / 3 failed because shared expression-bodied fixture lacked terminating semicolon; real native cases passed. Fixed only reviewer input, preserved failed receipts, exact semantic gates then passed."
+    }
+  ],
+  "environment": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)\n",
+    "clang": "Ubuntu clang version 17.0.6 (++20240501091250+6009708b4367-1~exp1~20240501211359.8)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin\n",
+    "cargo_incremental": "0",
+    "cargo_profile_dev_debug": "0",
+    "cargo_profile_test_debug": "0",
+    "jobs": 2,
+    "target": "/workspace/scratch/39be3faa4442/targets/review172-nodebug"
+  },
+  "schema_version": 20,
+  "normative_hash": "c358b8c5e0abaf11d81b1d55e23f6896cfb485eb4291f34937fe43e9e7ea319c",
+  "defaults_changed": false,
+  "production_files_modified": false,
+  "formal_full_workspace_run_by_reviewer": false,
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "not_claimed": [
+    "general Store field/capture or recursive containers",
+    "element borrowing across reserve",
+    "async/concurrent or Windows native completion",
+    "Rust runtime/memory/compiler-cost parity or product-level breakthrough"
+  ],
+  "production_file_hashes": {
+    "crates/zil-analyze/src/budget.rs": "bf380c7eabf4a762afe13e648ddd8620fd941eccb45feb7b4fb7a4003913e0ca",
+    "crates/zil-analyze/src/dynamic_store.rs": "038efaea5eb968ac2440f02f7ad9888a5a6a7c60980403491e8f7cca01c7f839",
+    "crates/zil-analyze/src/lib.rs": "1491553619d7f5bc9416f4a894e6f4f0915b23fdc5d38cef6ee6fcab391f04fa",
+    "crates/zil-analyze/src/resources.rs": "c01830962ffbf0f16a8418842bf17a24398a50db98d9955fac5e9b26edc254a9",
+    "crates/zil-backend-llvm/src/emit.rs": "d59948a5ceedcb9f287bcf9614e5f5984149f4120f4b2cf990469d1913ed2814",
+    "crates/zil-backend-llvm/src/emit/byte_buffer.rs": "afc95e6c656aa33ca9ea468fe4c2c1488c466e663a4d73832a0a877f98a28093",
+    "crates/zil-backend-llvm/src/emit/dynamic_store.rs": "246f2dcd560f781d5e36bf47ed1f15c0ba8fa8088de20d0dca6ef4652fea2038",
+    "crates/zil-backend-llvm/src/emit/packages.rs": "c3479ce78e7e4fb31696c70dacc47170feb0e4491f598ab07b7c183abde1a27d",
+    "crates/zil-backend-llvm/src/emit/resource_closures.rs": "32bc08701e1b35ed7878d7ade84db50693326b7787c40f0b0f7ea5948313d028",
+    "crates/zil-backend-llvm/src/emit/resources.rs": "ffd49f2a61fe2daf9a2c52677dfeb1b4a9cd0dea48ef4924fcf203e63051ec52",
+    "crates/zil-driver/tests/impl172_owned_store.rs": "ce94e5d3a035d1ecd743ea6a98259aa9e6188099539ed56422a197f88c7bd4e2",
+    "crates/zil-lower/src/lib.rs": "de75d37b0d52973f4d74e1685d5750cd7c0a0a965571ff15692b7d2bcbcf9e80",
+    "crates/zil-types/src/aggregates.rs": "b1cb20ce6d9cd64f4f8e12eea85cf18c6d256873d6ffd00ac57c47c9dca5ee4c",
+    "crates/zil-types/src/byte_buffer.rs": "6ac5e25aad0e46fa302cfed652571e05adc88449a28d293ff97c05c893ce9870",
+    "crates/zil-types/src/closures.rs": "7d01c2b1b3910f2d1febb63460f38b29c2046f7b0b35d82c2cb3d340fad6b13f",
+    "crates/zil-types/src/dynamic_store.rs": "3dea54e3e18375a595950e646366e735ec0b647bd26da24a28145e3a5d174f63",
+    "crates/zil-types/src/inference.rs": "6f5d21e027af369e5c1e0945c52887309dbe13ea5a4a5d86da34e25432378067",
+    "crates/zil-types/src/lib.rs": "1d088a6fd22852410eaa619f52475b2cb79c765d2c628644c43f8d829dbfa7e6",
+    "crates/zil-types/src/names.rs": "621040e9213bfd68b49f8bb93c90712d4fe339336664a8ed8dd037d6e3f84379",
+    "crates/zil-types/src/packages.rs": "f95842c118dfd2ed00609b3a90b8970c66955d2a2e1e8fb1decd7a16fa8bce8c",
+    "crates/zil-types/src/program.rs": "d4ba7565401e60ee7331e17d15dca2ca0326ca69c84455501cba60263bf6eefa",
+    "crates/zil-types/src/resource_effects.rs": "cdbb6ed1527ac7ec26429d595417d395603ed5f03a44417cc1d2fc63f21e8c34",
+    "crates/zil-types/src/resources.rs": "3f63da5547ae7c188af8fd1efaaa2f84af989f4cca7c13d3bcf7c7e318dedbd1",
+    "crates/zil-verify/src/closures.rs": "f180ae2c0fe493aa5d578135fcf98a7b77f36b5e0fd81a18158d3dfa1340e059",
+    "crates/zil-verify/src/dynamic_store.rs": "9914ab809f31300fcb0372f54b62be896f52079bde8fd107589f5c6d87f6223f",
+    "crates/zil-verify/src/lib.rs": "76e18048da3fb9a0fe4ac41853be5e193615e53c6070dd858ec1f4810d470c12",
+    "crates/zil-verify/src/packages.rs": "208eb2713c721375f048e019603c3a63252955fda5840408e9518a5039e90968",
+    "crates/zil-verify/src/resources.rs": "9eda91b2f9bee8a0559d8e955a26d729f76d6623483eddb46539227b8f8fc04b"
+  },
+  "prior_cross_review_identity": {
+    "implementation_commit": "c80cadd52d2ed1e41bfb9d7926411ef2489636cb",
+    "sha256": "9f29a725da304e48c2539602524d39ec1dc34e1f9affafe5338e83116bd7ab2e",
+    "usage": "read-only reference, not treated as final executable review"
+  }
+}

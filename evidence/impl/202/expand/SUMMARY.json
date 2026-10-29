@@ -1,0 +1,197 @@
+{
+  "task": "202 Expand",
+  "phase": "Expand only",
+  "baseline": "9f60fb1fb1c22ecb2fdaf81d9d287fbeca54e11e",
+  "production_commit": "0f1c761dca20687ede4fe969db9277ec762caa25",
+  "test_commit": "806c3d9db0a5bd89c490044ec9679a6286c51f2e",
+  "spec_hash": "6dcf6c58d126bc7922cee8102bb4b44ca91c9acd6e1ef476fb3bcfc80f2399a6",
+  "normative_hash": "9bb84f09971a522cb8ffc3808829d3aa05744dac1e8871c3914e7a2a0635aec6",
+  "schema": 26,
+  "wire": 26,
+  "production_files_sha256": {
+    "crates/zil-expand/src/generics.rs": "23790ef56c9df7784ffbcd172ed125c8fa865bc519c519465902db76cb3145f6",
+    "crates/zil-expand/src/generic_store_templates.rs": "1abf039a6ad3c0bc79e146924cad75642d6d69388fbcc1d8ce1c87658da6e7be",
+    "crates/zil-expand/src/lib.rs": "1f603275893e29b62758d50807ece94b159905fc85cac268d43302add28bf769",
+    "crates/zil-expand/src/receivers.rs": "1abad0baced02314f78362676292a2e0f4ce64799a38afac9c34adbb03c2ebcd"
+  },
+  "runs": [
+    {
+      "run": "crate01",
+      "status": "Pass",
+      "source_commit": "1df616ed474cf3ae802f96c604aecf7417adf7a3",
+      "clean": true,
+      "passed_tests": 44,
+      "failed_tests": 0,
+      "command_receipt_sha256": "a0c4503f698dd1d372cfc165c964ea72f8c03c2123f4ffe5aa721d232865e1cb"
+    },
+    {
+      "run": "crate02",
+      "status": "Pass",
+      "source_commit": "0f1c761dca20687ede4fe969db9277ec762caa25",
+      "clean": true,
+      "passed_tests": 44,
+      "failed_tests": 0,
+      "command_receipt_sha256": "65e0ee933c04604957e63629371bdd07f9d08170519b7f96623ceb1903e4fc59"
+    },
+    {
+      "run": "legacy-before01",
+      "status": "Pass",
+      "source_commit": "9bc570bc9a33258a186abfc9bb8bcc9196cc20da",
+      "clean": true,
+      "passed_tests": 2,
+      "failed_tests": 0,
+      "command_receipt_sha256": "35845011118ff22ab52570b12359926d52631148910680f3c06e21e09cdf7592"
+    },
+    {
+      "run": "source01",
+      "status": "Fail",
+      "source_commit": "9f60fb1fb1c22ecb2fdaf81d9d287fbeca54e11e",
+      "clean": false,
+      "passed_tests": 5,
+      "failed_tests": 1,
+      "command_receipt_sha256": "bcf8a493818197d0afe86809297fa94cd10e5e65ba9ef493df9c600d15913674"
+    },
+    {
+      "run": "source02",
+      "status": "Pass",
+      "source_commit": "9f60fb1fb1c22ecb2fdaf81d9d287fbeca54e11e",
+      "clean": false,
+      "passed_tests": 6,
+      "failed_tests": 0,
+      "command_receipt_sha256": "5babcd6ab42d885d8a274182e78fa0a32dfe11bb1c614dd287ef1f5c2d33b96a"
+    },
+    {
+      "run": "source03",
+      "status": "Pass",
+      "source_commit": "ac89fd720c1f902c077ec5542fac4c4617914a1a",
+      "clean": true,
+      "passed_tests": 6,
+      "failed_tests": 0,
+      "command_receipt_sha256": "88987e467743455e199007864695800041611afc3ae6ca1f17bbd30d5dd39f8a"
+    },
+    {
+      "run": "source04",
+      "status": "Pass",
+      "source_commit": "ac89fd720c1f902c077ec5542fac4c4617914a1a",
+      "clean": false,
+      "passed_tests": 10,
+      "failed_tests": 0,
+      "command_receipt_sha256": "4f6d190f636b7310b2eb74b00ed92ff41dff350f62695e6e8d11019c8570275a"
+    },
+    {
+      "run": "source05",
+      "status": "Pass",
+      "source_commit": "ac89fd720c1f902c077ec5542fac4c4617914a1a",
+      "clean": false,
+      "passed_tests": 13,
+      "failed_tests": 0,
+      "command_receipt_sha256": "45677a78dcdc4cb97a933852a1f8541b05fddbfb50a855f0ee5e66d234c62225"
+    },
+    {
+      "run": "source06",
+      "status": "Pass",
+      "source_commit": "1df616ed474cf3ae802f96c604aecf7417adf7a3",
+      "clean": true,
+      "passed_tests": 13,
+      "failed_tests": 0,
+      "command_receipt_sha256": "c6a25a407ac3e1edf336411a4bcf79c844b962423a13aaa71a7d1c756dbed7dd"
+    },
+    {
+      "run": "source07",
+      "status": "Pass",
+      "source_commit": "806c3d9db0a5bd89c490044ec9679a6286c51f2e",
+      "clean": true,
+      "passed_tests": 13,
+      "failed_tests": 0,
+      "command_receipt_sha256": "38aea0f422a0d15202f7571e1dd160a54846b3c3cbd8410c90852aa29d9a53da"
+    }
+  ],
+  "actual_sources": [
+    {
+      "source": "actual-source07/expand202-136-101580f8d78e661011d3b73f731c4f2f2ae376a408c1cc02c8aa072d4f627bf9/main.zil",
+      "sha256": "101580f8d78e661011d3b73f731c4f2f2ae376a408c1cc02c8aa072d4f627bf9",
+      "bytes": 1655,
+      "core_sha256": "25aae2f106953f288bea6d072ca6a5b149ddb1437d8803741faee112e279dfd1",
+      "source_map_sha256": "1d556ba754b54397ea1c69fe86a4d4a75600a225502979860cc6ce4a699a7a4b"
+    },
+    {
+      "source": "actual-source07/expand202-136-24837dd8072221b31dddf42f6612a18ef42ddde9884fe8e38b8a846ff54f4449/main.zil",
+      "sha256": "24837dd8072221b31dddf42f6612a18ef42ddde9884fe8e38b8a846ff54f4449",
+      "bytes": 1754,
+      "core_sha256": "226a141fc23a091b355d4facdd03c0f629d07b3069c23c0647d171a91c1eab35",
+      "source_map_sha256": "a8f2c10549fef825bff102d708587d92f575263e9958306b265eb20a17c78748"
+    },
+    {
+      "source": "actual-source07/expand202-136-6a4ed12974406d327efde749d540b4aa5dbada7f7bad33da6f01af3a718b8bc4/main.zil",
+      "sha256": "6a4ed12974406d327efde749d540b4aa5dbada7f7bad33da6f01af3a718b8bc4",
+      "bytes": 1754,
+      "core_sha256": "c2614ec871869e78fbfeb1aa11bb5059785a3e20add8acf3f3964c51256d8251",
+      "source_map_sha256": "a8f2c10549fef825bff102d708587d92f575263e9958306b265eb20a17c78748"
+    },
+    {
+      "source": "actual-source07/expand202-136-9eaf8c186d40d8ac81f5077fd67d5a554c6f047edb8c053ee4ea9463f410d862/main.zil",
+      "sha256": "9eaf8c186d40d8ac81f5077fd67d5a554c6f047edb8c053ee4ea9463f410d862",
+      "bytes": 1759,
+      "core_sha256": "d8a0516ecfee4a8c10c63ffa9f379e1444014bbaea0228786aa6944b32b1c335",
+      "source_map_sha256": "8ccdb259fe591d27fb6bb3eed395e9badfcf3577e2b8e2e9a7b2924edda8ce2c"
+    },
+    {
+      "source": "actual-source07/expand202-136-b5dd536e19547e35af64545a817c44e6daece0f6be372d2d554979446e361bab/main.zil",
+      "sha256": "b5dd536e19547e35af64545a817c44e6daece0f6be372d2d554979446e361bab",
+      "bytes": 602,
+      "core_sha256": "b36a59ccf937828e67b63c0ca3277a50c87252cd4a23b9e61007f05693620520",
+      "source_map_sha256": "98e6b63f976c0076e946e767a010091743cec499013741c0577306c4cbe3ec3e"
+    },
+    {
+      "source": "actual-source07/expand202-136-d58290021e1786eac6675e3e0bd19ce7aa9c8d5e44d563baae0eb6286d572ea2/main.zil",
+      "sha256": "d58290021e1786eac6675e3e0bd19ce7aa9c8d5e44d563baae0eb6286d572ea2",
+      "bytes": 708,
+      "core_sha256": "202a533354f4ba52f92024b2d60b95f675ca8698fb5501ae5c29d4915fb00b1f",
+      "source_map_sha256": "afa501a08126e477160bc698a96ab38a675765d0688670e69d907bfa675a4248"
+    },
+    {
+      "source": "actual-source07/expand202-136-d8fd10675872542e99533ee23957db2c3150760a2f71ea8ff28150ad6c3a7a55/main.zil",
+      "sha256": "d8fd10675872542e99533ee23957db2c3150760a2f71ea8ff28150ad6c3a7a55",
+      "bytes": 1657,
+      "core_sha256": "1bd280c7495cf83039771f78f50c10f6e6b0fcd56f58f2e57989513a9b4b1eb3",
+      "source_map_sha256": "fd657a220c0d930c9e8d3d3faaeb259de671fd6961342be8f33a1e25ed4d3988"
+    },
+    {
+      "source": "actual-source07/expand202-136-f332ea1b159d5373650540f1e1c32a1e197df9390aa3de8258511f2a040a441a/main.zil",
+      "sha256": "f332ea1b159d5373650540f1e1c32a1e197df9390aa3de8258511f2a040a441a",
+      "bytes": 1687,
+      "core_sha256": "69f2602eeddb023abe2777fe28064670eafe219f7e6dd1abe61bb8356e359389",
+      "source_map_sha256": "a74a474e8aee2348d3efe0dd7fb2560769fcb3c9cb810659e38f831d85a4ee57"
+    }
+  ],
+  "budgets": {
+    "legacy197": {
+      "before": 1731,
+      "after": 1731
+    },
+    "ordinary_store_eager": {
+      "before": 2255,
+      "after": 2255
+    },
+    "deferred_helpers01_factory": {
+      "after": 8399
+    },
+    "baseline_test_commit": "9bc570bc9a33258a186abfc9bb8bcc9196cc20da",
+    "final_test_commit": "806c3d9db0a5bd89c490044ec9679a6286c51f2e",
+    "checks": "N success; N-1 ResourceLimit; fresh N success; unchanged defaults"
+  },
+  "initial_failure": "source01 5/1: unused opaque-field access correctly returned existing Unsupported; test incorrectly expected SafeReject. Source snapshot and actual failure retained. Production was not weakened. source02 corrected only category expectation.",
+  "limitations": [
+    "No new Types/Analyze/Verify/Wire/native execution by this Expand author.",
+    "Dirty exploratory runs retain their original source_commit and git_status; only clean source03/source06/source07/crate01/crate02 and legacy-before01 support frozen-commit claims.",
+    "The full 1.4 language goal is not closed by these Expand tests."
+  ],
+  "archive": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/202-expand-evidence.zip",
+    "bytes": 177159,
+    "sha256": "485cea7ca262f67815b5429ebbef0a0c22ed6caba6209a2abd18ea2b7758da8c",
+    "payload_files": 69,
+    "integrity": "ZIP CRC plus each member SHA256 checked",
+    "execution_artifacts": false
+  }
+}

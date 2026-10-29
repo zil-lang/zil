@@ -1,0 +1,10 @@
+{
+  "archive": "/workspace/scratch/39be3faa4442/run-logs/archived-185/formal191-tmp-before-isolation.zip",
+  "archive_bytes": 69682668,
+  "archive_sha256": "a41191063d5a504953cb11da26cb514e96816b5115bfe9d4385951e1f3750b36",
+  "removed_generated_test_dirs": 1858,
+  "reclaimed_bytes": 1486929388,
+  "crc_verified": true,
+  "symlink_targets_untouched": true,
+  "scope": "Only timestamp-bound /tmp PID/sequence test dirs containing actual .zil source; no active190/192/193 run dirs touched"
+}

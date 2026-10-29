@@ -1,0 +1,124 @@
+{
+  "status": "Pass",
+  "verdict": "Pass",
+  "review_kind": "ReadOnlySourceAndReceiptReview",
+  "reviewer": "/root/resume190",
+  "implementation_author": "/root",
+  "implementation_commit": "0a42188b9d94d3fff582c9a16511708a9959dc22",
+  "reviewed_document_commit": "2b5f8bf1383df91350f94978d71d05e22e7a066e",
+  "normative_hash_after_document_fix": "1f847737718bca55856287ea124f8c9084a4f5d838f466c0d6da5a04594b1113",
+  "production_identical_between_commits": true,
+  "executed": 0,
+  "new_machine_tests_executed": 0,
+  "review_checks": [
+    "CallableTraces has explicit Finite and Flow variants; as_finite/as_finite_mut return None for Flow and cannot silently fabricate an empty finite contract.",
+    "CallableFlow is flat: entry u32, ordered nodes, per-node ordered calls, and explicit Edges/Exit. It carries no recursive AST, FunctionId graph reference, verified bit, or source proof.",
+    "Typed module V24, Wire24, parameter contract domain2 and verified interface domain4 agree. Return contract domain2 and lending_capture identity remain unchanged.",
+    "Both contract and module identity encode the variant, entry, node count, calls, edge order/targets and Exit discriminator. ScalarInterface clones verified full contracts, retaining None versus verified empty exports.",
+    "Wire Reader checks each vector count, whole-message node allowance and minimum remaining bytes before allocation. Per-contract cumulative call and edge limits are checked before their Vec allocation.",
+    "Wire Writer uses matching variants and cumulative limits. Unknown representation, next-kind, exit and call-mode tags fail; truncation and old headers stay rejected.",
+    "Analyze preflight accounts every graph node/call/edge before fingerprinting. Verify check_claim_shape independently accounts the same raw input classes before module identity; count arithmetic is checked or conservatively saturating.",
+    "The graph canonical-order specification is not treated as validated by transport. Both semantic helper checkers explicitly return Unsupported for Flow, and both resource consumers contain explicit Unsupported branches instead of no-op paths.",
+    "Finite candidates retain sorted exact traces, old modes and exits; fixture changes only wrap/project the explicit Finite variant. Graph presence cannot authorize source loops in191.",
+    "Driver JSON includes explicit Finite/Flow and Edges/Exit fields. No successor or exit field is omitted; exporter only receives VerifiedModule.",
+    "Normative legacy paragraphs were corrected in2b5f8bf to remove fixed0/1/2 count and v2/v3 exporter descriptions; current normative digest is checked against the exact committed file.",
+    "No Analyze or Verify safety solver was imported into the other. Public transport and identity are shared data only."
+  ],
+  "source_files": [
+    {
+      "path": "crates/zil-base/src/lib.rs",
+      "sha256": "b1e8b7d58220a9b06dc30a935c8fa895f269fd64d6591a9aa6b940679424068b",
+      "bytes": 13543
+    },
+    {
+      "path": "crates/zil-ir/src/lib.rs",
+      "sha256": "daa04f69b3055165e64e08828510b624c7b7b2995a5b4407f51472a397ce1597",
+      "bytes": 71959
+    },
+    {
+      "path": "crates/zil-ir/src/wire.rs",
+      "sha256": "51b9992106d3d543b4fc6c9dd7d98681d03eb81e3ab7a7cad5216a5476fac0fe",
+      "bytes": 100644
+    },
+    {
+      "path": "crates/zil-driver/src/contracts.rs",
+      "sha256": "0956f6bab2a53715cb76d0b233139e2eec2d9815b8c3404323adca7b3298ee49",
+      "bytes": 6739
+    },
+    {
+      "path": "crates/zil-analyze/src/budget.rs",
+      "sha256": "eb61f79ff22d8787b656e99997aa746ae02e8b130b26f80e4dd4d74b87ee6686",
+      "bytes": 26924
+    },
+    {
+      "path": "crates/zil-analyze/src/helpers.rs",
+      "sha256": "a2895d2eff2d80164cfb8e77341304e78cea7cb3db2ce9e5f944ceaf7a13b970",
+      "bytes": 16947
+    },
+    {
+      "path": "crates/zil-verify/src/helpers.rs",
+      "sha256": "2befb9bdf1432a410b942fffd9b42c53f728cf676c53b62099ef4fafb9218897",
+      "bytes": 19694
+    },
+    {
+      "path": "crates/zil-analyze/src/resources.rs",
+      "sha256": "0a3ba6f1c6f046038180336e50a84d1e105952bafa64e82a94aadb77d74c12cb",
+      "bytes": 116252
+    },
+    {
+      "path": "crates/zil-verify/src/resources.rs",
+      "sha256": "4620c091f2029ea877d84567b03eb916d18862654587b3d68bcd5b474640ab98",
+      "bytes": 85049
+    }
+  ],
+  "observed_author_receipts": {
+    "source01": {
+      "source_commit": "0a42188b9d94d3fff582c9a16511708a9959dc22",
+      "status": "Pass",
+      "category": "AuthorCommandReceiptReviewedNotReexecuted",
+      "counts": {
+        "passed": 63,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 3
+      },
+      "command_sha256": "05518dbcd49bf86ddf4ef31c72c29b76dfb8fe0a702dd94f57cb3c2a635b859b",
+      "stdout_sha256": "012a41f77e48495e5261236941704fd4b933ba053b8db08769835e49b83229d2",
+      "stderr_sha256": "c21c99b3693fc33937a816f42bf69af02657c1e1e2b671b66dbe42a732202a0d"
+    },
+    "finite01": {
+      "source_commit": "0a42188b9d94d3fff582c9a16511708a9959dc22",
+      "status": "Fail",
+      "category": "AuthorCommandReceiptReviewedNotReexecuted",
+      "counts": {
+        "passed": 371,
+        "failed": 3,
+        "ignored": 0,
+        "groups": 11
+      },
+      "command_sha256": "5248dd4de8e9494b28d8fc6dab291922c64f1f5e0ccb27cff5437e8f718a2c5d",
+      "stdout_sha256": "258487908299781efd2a9e6b10168e15185d87a67443ef0c0365a31b28ac2c60",
+      "stderr_sha256": "0b81bab035dedd2dce1d19649b77b37b47fbb621a7b349bda0db99bd7a5c00fa"
+    },
+    "clippy01": {
+      "source_commit": "0a42188b9d94d3fff582c9a16511708a9959dc22",
+      "status": "Pass",
+      "category": "AuthorCommandReceiptReviewedNotReexecuted",
+      "counts": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 0
+      },
+      "command_sha256": "20681a6abb824f618786370333526c704a552b31ea7bb12af0b38d74ecc2ab72",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "d80265a09c668b3199ed72349d6da93f36a8564878471ef119827f8f027bb56c"
+    }
+  },
+  "limitations": [
+    "This is an independent code/receipt review, not a rerun of author tests.",
+    "Finite01 has three Verify failures. Their baseline diagnosis remains pending with the separate acceptance agent; they are not marked passed by this review.",
+    "Pass applies only to explicit public transport, identity and continued semantic refusal. Runtime cyclic helper construction/verification, graph canonicalization and actual loop execution belong to190 and remain incomplete.",
+    "Full language NotSatisfied; native Windows and ZUI product NotRun."
+  ]
+}

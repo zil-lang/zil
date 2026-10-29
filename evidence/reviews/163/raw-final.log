@@ -1,0 +1,7 @@
+   Compiling independent-review163 v0.0.0 (/workspace/scratch/39be3faa4442/run-logs/review163/raw)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.33s
+     Running `/workspace/scratch/39be3faa4442/targets/review163/debug/independent-review163`
+duplicate-owned-method-call/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-RESOURCE", message: "managed SSA value was not available exactly once", span: Some(Span { file: FileId(0), start: 106, end: 123 }), notes: [] }]
+duplicate-owned-method-call/wire: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-RESOURCE", message: "managed SSA value was not available exactly once", span: Some(Span { file: FileId(0), start: 106, end: 123 }), notes: [] }]
+descriptor-fed-to-owned-method/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-CALL", message: "call argument does not match the target parameter type", span: Some(Span { file: FileId(0), start: 97, end: 105 }), notes: [] }]
+descriptor-fed-to-owned-method/wire: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-CALL", message: "call argument does not match the target parameter type", span: Some(Span { file: FileId(0), start: 97, end: 105 }), notes: [] }]

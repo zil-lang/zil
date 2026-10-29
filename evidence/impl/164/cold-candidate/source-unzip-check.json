@@ -1,0 +1,15 @@
+{
+  "status": "Pass",
+  "command": [
+    "unzip",
+    "-q",
+    "/workspace/scratch/39be3faa4442/delivery164/candidate/zil-language164-source.zip",
+    "-d",
+    "/workspace/scratch/39be3faa4442/cold164/source-zip"
+  ],
+  "umask": "0022",
+  "expected_file_count": 2701,
+  "actual_file_count": 2701,
+  "errors": [],
+  "note": "Initial ZIP header check was overstrict for git archive regular DOS-default entries. This compares actual extraction permissions and bytes, not inferred permissions."
+}

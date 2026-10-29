@@ -1,0 +1,1 @@
+package P{manages b:ByteBuffer;manages c:ByteBuffer}fn make()->P{return P{b:bytes_new(),c:bytes_new()}}enum Fault{Stop}fn fail()->Fault!i64{return Fault.Stop}fn factory()->impl FnOnce()->Fault!i64{let p=make();return move()=>{let s=bytes_view(p.b);let c=give p.c;let n=s.len();return fail()?+n+bytes_len(c)}}fn value()->Fault!i64{let f=factory();return f()}

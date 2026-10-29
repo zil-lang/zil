@@ -1,0 +1,12 @@
+{
+  "time": 1793118862.8857014,
+  "removed": [
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/177/workspace02/cases",
+      "reason": "completed whole-workspace generated cases; original command/log and exact source history retained; targeted failures and reviewer cases remain separately preserved",
+      "command_sha256": "de986cca7d1add3713eb1e904a1fe087e88a1aec07bf985a8fa762bef4dc9682",
+      "log_sha256": "57986bb7765c6e6bf994ca98171d887496a967abda617c36e713acb41010b3b5"
+    }
+  ],
+  "free_after_bytes": 1454231552
+}

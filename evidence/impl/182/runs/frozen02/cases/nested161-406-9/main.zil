@@ -1,0 +1,1 @@
+fn main()->i32{var x=40;let f=()=>{var g=move()=>{x+=1;return x};return g()+g()};if f()!=83||f()!=83||x!=40{return 1};var h=()=>{var g=()=>{x+=1;return x};return g()};if h()!=41||h()!=42{return 2};return x-42}

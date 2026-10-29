@@ -1,0 +1,18 @@
+
+running 10 tests
+test missing_duplicate_reordered_and_false_cleanup_roles_are_rejected ... ok
+test each_static_child_call_uses_its_own_actual_role_substitution ... ok
+test mixed_same_type_origins_do_not_guess_one_role ... ok
+test branches_preserve_joint_correlation_instead_of_role_cross_product ... ok
+test same_closure_roles_keep_actual_parameter_positions_and_order ... ok
+test an_unused_once_role_still_keeps_a_cyclic_helper_closed ... ok
+test second_role_envelope_is_checked_even_when_only_that_role_is_invoked ... ok
+test finite_once_consumption_is_per_actual_role_even_if_the_claim_matches_a_bad_body ... ok
+test flow_checks_role_events_and_backedges_not_only_call_counts ... ok
+Analyze196 exact frontier: 1258, N-1 rejected, fresh N accepted
+Analyze196 exact frontier: 847, N-1 rejected, fresh N accepted
+Analyze196 exact frontier: 845, N-1 rejected, fresh N accepted
+test ordered_child_and_branch_sequences_have_exact_budget_failure_and_fresh_retry ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

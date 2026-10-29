@@ -1,0 +1,1 @@
+fn a()->impl Fn()->i32{return ()=>1}fn b()->impl Fn()->i32{return a()}fn choose(yes:bool)->impl Fn()->i32{if yes{return a()}return b()}fn main()->i32{return 0}

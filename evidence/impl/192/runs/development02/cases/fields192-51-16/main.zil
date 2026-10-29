@@ -1,0 +1,1 @@
+import factory import model fn main()->i32{return model.run(model.make(factory.make()),3)-7}

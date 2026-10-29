@@ -1,0 +1,1 @@
+extern "C" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package P{manages r:R;x:i32}fn run(fail:bool)->bool!i32{var state=P{r:R{n:65},x:40};let p=&mut state.x;*p+=2;if fail{return true}return *p}fn main()->i32{let first=run(true);let second=run(false);return 0}

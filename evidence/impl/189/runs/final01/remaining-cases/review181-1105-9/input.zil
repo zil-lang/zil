@@ -1,0 +1,1 @@
+struct Holder<T>{value:T}fn bad<T>(holder:Holder<T>)->(T,T){return (holder.value,holder.value)}fn main(){}

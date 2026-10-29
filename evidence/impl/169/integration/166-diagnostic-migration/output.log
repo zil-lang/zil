@@ -1,0 +1,33 @@
+    Finished `test` profile [unoptimized] target(s) in 0.03s
+     Running tests/impl166_owned_results.rs (/workspace/scratch/39be3faa4442/targets/169/debug/deps/impl166_owned_results-c517e595343f1e06)
+
+running 13 tests
+test raw_and_wire_do_not_extend_ordinary_union_admission_to_closure_capture ... ok
+test raw_and_wire_reconstruct_union_debt_and_exact_active_tag ... ok
+test source_cannot_reuse_partial_or_aliased_payloads_or_infer_resource_mode ... FAILED
+test native_entry_keeps_void_or_i32_success_boundary ... ok
+test continue_and_break_discharge_each_actual_loop_union ... ok
+test whole_local_reassignment_is_explicitly_outside_first_owned_union_profile ... ok
+test public_owned_result_crosses_module_boundaries ... ok
+test failed_binding_cleans_partial_preparation_then_existing_union_in_order ... ok
+test stored_and_discarded_unions_drop_active_payloads_in_lexical_order ... ok
+test named_success_payload_crosses_two_ordinary_functions_then_cleans_once ... ok
+test failing_later_argument_cleans_staged_union_before_earlier_local ... ok
+test both_owned_arms_propagate_and_native_boundary_cleans_only_returned_error ... ok
+test success_and_returned_error_buffers_are_really_freed_before_later_fields ... ok
+
+failures:
+
+---- source_cannot_reuse_partial_or_aliased_payloads_or_infer_resource_mode stdout ----
+
+thread 'source_cannot_reuse_partial_or_aliased_payloads_or_infer_resource_mode' (37) panicked at crates/zil-driver/tests/impl166_owned_results.rs:419:9:
+{"status":"SafeReject","phase":"analyze","diagnostics":[{"phase":"analyze","category":"SafeReject","code":"E-ANALYZE-IR","message":"resource closure: whole aggregate move requires every owned element or field live","span":null,"notes":[]}],"artifacts":{"core":"/tmp/owned-results166-25-17/phases/core.txt","ct-core":"/tmp/owned-results166-25-17/phases/ct-core.txt","interfaces":"/tmp/owned-results166-25-17/phases/interfaces.txt","source-map":"/tmp/owned-results166-25-17/phases/source-map.txt","syntax":"/tmp/owned-results166-25-17/phases/syntax.txt","typed":"/tmp/owned-results166-25-17/phases/typed.txt"},"input_fingerprint":"bbb48cec1ebb8529d244ab42d35fa1624a7db5a474dd73eb9a186c4a4927ec51","seconds":0.011621567,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"a29612ed1cb04dd8742bb91ba7cea889c4d3b973017bfa61ee90073e94faf866","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    source_cannot_reuse_partial_or_aliased_payloads_or_infer_resource_mode
+
+test result: FAILED. 12 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.49s
+
+error: test failed, to rerun pass `-p zil-driver --test impl166_owned_results`

@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "cargo",
+    "check",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "-p",
+    "zil-cli"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 3.639381170272827,
+  "source_commit": "f67953cf3e44e44b53140b70d15e0d9481d7f017",
+  "source_dirty": true
+}

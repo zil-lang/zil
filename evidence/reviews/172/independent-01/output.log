@@ -1,0 +1,50 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-syntax)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-db)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-analyze)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/crates/zil-driver)
+   Compiling review172-independent v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads/evidence/reviews/172/probes)
+    Finished `test` profile [unoptimized] target(s) in 17.76s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/review172-nodebug/debug/deps/review172_independent-9a583e57effc8518)
+
+running 5 tests
+test tests::raw_wire_reconstruct_stale_descriptors_definition_presence_and_target_gate ... FAILED
+test tests::rhs_transfer_cannot_invalidate_prepared_store_descriptor ... FAILED
+test tests::partially_moved_package_cannot_be_published_as_complete_element ... FAILED
+test tests::zero_sized_managed_field_with_nonzero_copy_payload_keeps_real_drop_count ... ok
+test tests::mixed_alignment_full_error_and_failed_reallocation_preserve_prefix ... ok
+
+failures:
+
+---- tests::raw_wire_reconstruct_stale_descriptors_definition_presence_and_target_gate stdout ----
+
+thread 'tests::raw_wire_reconstruct_stale_descriptors_definition_presence_and_target_gate' (313) panicked at src/lib.rs:232:63:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Parse, category: SafeReject, code: "E-PARSE-TERMINATOR", message: "expected a semicolon, logical newline, or closing brace after the complete statement", span: Some(Span { file: FileId(0), start: 159, end: 161 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- tests::rhs_transfer_cannot_invalidate_prepared_store_descriptor stdout ----
+
+thread 'tests::rhs_transfer_cannot_invalidate_prepared_store_descriptor' (314) panicked at src/lib.rs:197:9:
+{"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-TERMINATOR","message":"expected a semicolon, logical newline, or closing brace after the complete statement","span":{"file":0,"start":159,"end":161},"notes":[]}],"artifacts":{},"input_fingerprint":"13fe4b288ceb78428bd7074af75072293634a39447f7727e2ab3b0d8cfe556fb","seconds":0.001337634,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+
+---- tests::partially_moved_package_cannot_be_published_as_complete_element stdout ----
+
+thread 'tests::partially_moved_package_cannot_be_published_as_complete_element' (312) panicked at src/lib.rs:219:9:
+{"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-TERMINATOR","message":"expected a semicolon, logical newline, or closing brace after the complete statement","span":{"file":0,"start":159,"end":161},"notes":[]}],"artifacts":{},"input_fingerprint":"a169bf7784071184058850c7d169fb52aab8ce4dae653a5c3292340982c7209e","seconds":0.002409745,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+
+
+failures:
+    tests::partially_moved_package_cannot_be_published_as_complete_element
+    tests::raw_wire_reconstruct_stale_descriptors_definition_presence_and_target_gate
+    tests::rhs_transfer_cannot_invalidate_prepared_store_descriptor
+
+test result: FAILED. 2 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.73s
+
+error: test failed, to rerun pass `--lib`

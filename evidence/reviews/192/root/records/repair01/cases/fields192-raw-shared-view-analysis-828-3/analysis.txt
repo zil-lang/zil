@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Analyze,
+        category: SafeReject,
+        code: "E-ANALYZE-IR",
+        message: "resource closure: Shared entry cannot change a Package capture payload or responsibility",
+        span: None,
+        notes: [],
+    },
+]

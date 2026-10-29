@@ -1,0 +1,9 @@
+[package]
+name = "independent-review165"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+zil-base = {path = "/workspace/scratch/39be3faa4442/zil-restored/review165/crates/zil-base"}
+zil-syntax = {path = "/workspace/scratch/39be3faa4442/zil-restored/review165/crates/zil-syntax"}
+zil-expand = {path = "/workspace/scratch/39be3faa4442/zil-restored/review165/crates/zil-expand"}

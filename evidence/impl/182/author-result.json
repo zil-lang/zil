@@ -1,0 +1,75 @@
+{
+  "id": "182",
+  "scope": "author bounded implementation acceptance; independent review and main integration are separate",
+  "status": "Pass",
+  "source_commit": "22a91edab6f0cf2017d6258874db3b19ae940c85",
+  "crates_tree": "6fc33e86d970c7f4092335175666df816a0bd2a8",
+  "baseline": "aba4ef758cd34944bf44674d8ffa895b61582450",
+  "preparation_baseline": "4e45dd4",
+  "rule_version": "1.4",
+  "schema": 22,
+  "design_sha256": "fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2",
+  "normative_sha256": "1cf7aadb8800c31436f158ee3cdf78bcea330ed2bfafc29112b8d11211655a6e",
+  "tests": {
+    "own": 21,
+    "adjacent": 101,
+    "passed": 122,
+    "failed": 0,
+    "ignored": 0
+  },
+  "observations": {
+    "source_SafeReject": 16,
+    "rejection_phase_verify": 15,
+    "native_executions": 54,
+    "O0": 27,
+    "source_Success": 54,
+    "O2": 27,
+    "raw_rejections": 6,
+    "wire_rejections": 6,
+    "source_Unsupported": 2,
+    "rejection_phase_types": 1,
+    "rejection_phase_expand": 1,
+    "rejection_phase_analyze": 1
+  },
+  "budget": {
+    "raw_success": 27220,
+    "wire_success": 27220,
+    "raw_ResourceLimit": 27219,
+    "wire_ResourceLimit": 27219,
+    "default_budget_modified": false
+  },
+  "public_contract_changes": false,
+  "proof_source": "Verify independently reconstructs origins, capture slots, access effects and loan permissions from actual CFG; Analyze publishes the existing coarse Hold projection only",
+  "receipts": {
+    "frozen": "runs/frozen03/summary.json",
+    "quality": "runs/quality-final02/summary.json",
+    "machine": "machine-observations.json",
+    "cases": "observations.json",
+    "phase_hashes": "phase-artifacts.json"
+  },
+  "retained_failed_runs": {
+    "tests01": "real prototype loan reconstruction defects, subsequently fixed",
+    "tests04": "example unsafe expression rejected; source corrected",
+    "consumer01": "duplicate external declaration rejected; source corrected",
+    "adjacent01": "original180 illegal source kept; exact Verify conflict code replaces unstable message substring under authorization",
+    "frozen01": "118/120, original065 callable give R regression fixed in separately reviewed178 commit6b2a700; no expectations weakened",
+    "returned-reborrow01": "old1e611912 production plus minimal independent-review regression: actual0/1false rejection; actual environment access fixed at22a91ed",
+    "frozen02": "old candidate121/0does not supersede later independent-review failure"
+  },
+  "limitations": {
+    "full_workspace": "NotRun",
+    "full_language": "NotSatisfied",
+    "product": "NotRun",
+    "native_windows": "NotRun for182",
+    "performance_comparison": "NotRun",
+    "unsupported_shapes": [
+      "explicit callback Address argument",
+      "helper additional Address argument",
+      "direct resource head or Store Package window capture",
+      "borrowed ByteBuffer or Slice capture",
+      "nested borrowed Address<Closure> capture",
+      "escaping borrowed environment",
+      "asynchronous Resume"
+    ]
+  }
+}

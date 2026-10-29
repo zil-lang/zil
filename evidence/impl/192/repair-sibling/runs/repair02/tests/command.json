@@ -1,0 +1,34 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl192_copy_fields",
+    "--test",
+    "impl192_copy_fields_raw",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt192",
+  "start": 1793162723.124849,
+  "source_commit": "4af0a1055160f2e92a15fc6f45bd6ad28e9bd1bf",
+  "git_status": " M changes/192-copy-field-address.md\n M crates/zil-driver/tests/impl192_copy_fields.rs\n M crates/zil-driver/tests/impl192_copy_fields_raw.rs\n M crates/zil-verify/src/borrows/roots.rs\n",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author192",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/runs178/author192/repair02/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793162726.141012,
+  "stdout.log_sha256": "9621a70a786b0e3cd685f8b8924e92d82deee926ed963de39c35a495f3b05bf8",
+  "stderr.log_sha256": "aa147ce0f5a9c6358e317d135c634fae27e80fe8da3caf4bdd438957d43ca967"
+}

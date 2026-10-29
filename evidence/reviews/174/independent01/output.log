@@ -1,0 +1,12 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-driver)
+error[E0026]: variant `zil_ir::Type::Managed` does not have a field named `payload`
+   --> crates/zil-driver/tests/review174_store_fields.rs:240:150
+    |
+240 | ...value.0 as usize],Type::Managed{payload,..} if matches!(payload.as_ref(),Type::OwnedStore{..})).then_some(index)).collect();
+    |                                    ^^^^^^^
+    |                                    |
+    |                                    variant `zil_ir::Type::Managed` does not have this field
+    |                                    help: `zil_ir::Type::Managed` has a field named `0`
+
+For more information about this error, try `rustc --explain E0026`.
+error: could not compile `zil-driver` (test "review174_store_fields") due to 1 previous error

@@ -1,0 +1,23 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-cli",
+    "-j2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review169-lock",
+  "source_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+  "crates_tree": "0388c0c9936b0e4c1747f904abd458f9e8d5b956",
+  "source_status": "",
+  "start": 1793103364.914832,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "4dcb6dadde95d5333255714ebb084b200f212424118ed1d2575a36decd2cc40d",
+  "end": 1793103404.2154088,
+  "seconds": 39.30057668685913,
+  "ending_crates_tree": "0388c0c9936b0e4c1747f904abd458f9e8d5b956",
+  "ending_source_status": ""
+}

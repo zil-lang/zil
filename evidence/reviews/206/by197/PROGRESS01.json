@@ -1,0 +1,95 @@
+{
+  "implementation": "206",
+  "reviewer": "/root/review205_finish",
+  "status": "LimitedGatesRecordedNotFinalReview",
+  "source_test_commit": "10fd8eab2b2ba213b78a1c9ad8064847171eba95",
+  "consumer_checkout": "c60cb7ebe6b113bbb7fae463931abb22238e0ae2",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "limited_collector": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/LIMITED_RESULTS.json",
+    "bytes": 26633,
+    "sha256": "5936634804874733faed2a30ce7b01582ed1d85fc8c040cc048d9e4e658ab572"
+  },
+  "collector_command": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/collect-limited-command/command.json",
+    "bytes": 773,
+    "sha256": "98adc50a8b04653fa13cda3ecf6d8f7df67009fed2e9e58595756d08c2d1e663"
+  },
+  "source_raw_wire_tests": {
+    "pass": 45,
+    "fail": 0,
+    "native_runs": 12,
+    "unique_hostile_typed_mutations": 18,
+    "raw_wire_positive_pairs": 10,
+    "raw_wire_rejection_pairs": 19,
+    "scope": "The original 45 frozen tests; separate new capture probe is additional and fails."
+  },
+  "budgets": {
+    "new_nested": {
+      "expand": 6,
+      "types": 1114,
+      "analyze": 56389,
+      "verify": 66568,
+      "wire": 66568,
+      "method": "measured N; N-1 ResourceLimit; fresh N; exact Core/Typed/Candidate equality; unchanged defaults"
+    },
+    "new_nested_receipt": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/source03/cases/independent206-nested-phase-boundaries-995544-4/boundaries.json",
+      "bytes": 177,
+      "sha256": "bad39ccfc3868a70a25d64f761100add6698b9b31f1c9fad500e21f2a534e5c2"
+    },
+    "old_flat": {
+      "types": 418,
+      "analyze": 8673,
+      "protocol": "N / N-1 ResourceLimit / fresh N exact output equality"
+    },
+    "old_flat_receipt": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/old-flat01/cases/product206-budget-old-flat-996477/boundary.json",
+      "bytes": 96,
+      "sha256": "fa81d800c29bee2b5644685c0bd13ecf0f55799140804b4c7ba225d2a0a98789"
+    }
+  },
+  "linux_consumer": {
+    "executions": 94,
+    "ordinary": 20,
+    "instrumented": 74,
+    "actual_failures": 42,
+    "all_live_zero": true,
+    "peak_live": 4,
+    "peak_bytes": 80,
+    "summary": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/linux01/summary.json",
+      "bytes": 55529,
+      "sha256": "b2aeaa12b4a3ce4e2a3fb04d17d04fa42eb3bdc58607b4c216bc24084b36979d"
+    }
+  },
+  "cli_identity": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/CONSUMER_IDENTITY.json",
+    "bytes": 34471,
+    "sha256": "2e82e5a988186e8ce72a76adb7f96f8d241674fd2296b3dd9705b421835770d4"
+  },
+  "limited_clippy": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/clippy01/command.json",
+    "bytes": 932,
+    "sha256": "da466046fac9442cd0bb0d29b56617c1dfff1648a25e976ff8361696b777ee88"
+  },
+  "retained_failed_runs": {
+    "source01": "35/8: seven lexical fixture errors and one overstrict diagnostic stage. No native execution.",
+    "source02": "39/6: actual Link InfraError due missing LLVM shared-library path; all original reports retained; source03 only fixes environment.",
+    "preparation": "Historic120 reconstruction omitted LF; identity assertion failed before writing fixture or running compiler; final exact original bytes are used."
+  },
+  "later_evidence": {
+    "capture_boundary": {
+      "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/evidence/reviews/206/by197/CAPTURE_FINDING01.json",
+      "bytes": 6433,
+      "sha256": "0b4436340e3566921c6e78e3cc818b9eee4a95cb1aae0291cf99949e111fcd4d"
+    },
+    "root_workspace01": "Parent reports original d078 actual 2612/2/0; two legacy exact diagnostic migrations pending; no final result inferred."
+  },
+  "final_review": "Pending capture repair and independent regression, exact registered legacy migrations, final root full and Clippy, final CLI/consumer identity.",
+  "native_windows": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "performance_claim": false,
+  "production_modified_by_reviewer": false
+}

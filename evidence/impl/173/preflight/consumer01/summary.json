@@ -1,0 +1,26 @@
+{
+  "status": "Fail",
+  "source_commit": "7b11de8cc53ead6a1b9893676c3b32b38893a20c",
+  "compiler_source_commit": "7b11de8cc53ead6a1b9893676c3b32b38893a20c",
+  "cli_sha256": "494160460a66708051131ff85c68468564e75e37e1f12bcce7bedc324170c87c",
+  "selected": [
+    "main",
+    "prepare_failure",
+    "field_exit"
+  ],
+  "sources": {
+    "callbacks.zil": "70966581e5d0450d002d8cb3241ac24d6f0037ad552841df8e8a201d7504ffae",
+    "collection.zil": "511c58f20177af6c96703c962883f0a6e4b62c6efe662240e6d557142edeb137",
+    "field_exit.zil": "1375bbcdabb6ab73982d1177878d82209a42926a3c9846716eb4604fc62aeed9",
+    "main.zil": "0e0c3f8d7f45498053c84a2ef795cedad848262c1433a74a76796f7aedbcecda",
+    "model.zil": "ff9a1098a882d061de98122b089b708bbe493a65147e6dc6bff7110c67852285",
+    "panel.zil": "db3aab60c1e55a0f314b34c682e73da33859e24986f53bc734198c0ffb554978",
+    "prepare_failure.zil": "40805f24e89f606f77b8041e36fc2f3b0b64e5b10a5bbb5162264bae5719b813"
+  },
+  "builds": [],
+  "observations": [],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "error_type": "RuntimeError",
+  "error": "main/O0: {'status': 'SafeReject', 'phase': 'parse', 'diagnostics': [{'phase': 'parse', 'category': 'SafeReject', 'code': 'E-PARSE-IDENTIFIER', 'message': 'expected an identifier', 'span': {'file': 0, 'start': 284, 'end': 290}, 'notes': []}], 'artifacts': {}, 'input_fingerprint': '0e0c3f8d7f45498053c84a2ef795cedad848262c1433a74a76796f7aedbcecda', 'seconds': 0.001375078, 'cache_hit': False, 'commands': [], 'disk_cache': 'disabled', 'query_events': [], 'verification_runs': 0, 'source_files': {'0': '/workspace/scratch/39be3faa4442/zil-restored/preflight173/examples/mainline/zui_language173/main.zil'}, 'scalar_interfaces': []}"
+}

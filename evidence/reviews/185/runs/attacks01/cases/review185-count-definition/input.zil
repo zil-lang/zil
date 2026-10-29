@@ -1,0 +1,1 @@
+fn make(a:i32,b:i32)->impl Fn()->i32{return move()=>a+b}fn main()->i32{let f=make(2,3);return f()-5}

@@ -1,17 +1,58 @@
 //! Bounded concrete instantiation of a retained callable template. Bodies are
 //! checked in the defining module; consumers receive a normal direct call.
 use super::*;
+
+#[path = "helper_flow.rs"]
+mod flow;
+#[path = "helper_plan.rs"]
+pub(super) mod plan;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 use zil_base::{ModuleId, NodeId};
 
 pub(super) type TemplateKey = (ModuleId, NodeId);
 pub(super) type Tables = BTreeMap<ModuleId, BTreeMap<String, Signature>>;
+/// The finite two-type profile uses a fixed ordered binding vector. Empty
+/// entries are part of identity; runtime values never enter this type key.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) struct Bindings(pub [Option<ClosureId>; 2]);
+pub(super) type Instance = (TemplateKey, Bindings);
+impl Bindings {
+    pub(super) fn bind(&mut self, index: u32, id: ClosureId, span: Span) -> R<()> {
+        let slot = self.0.get_mut(index as usize).ok_or_else(|| {
+            unsupported(span, "callable type index is outside the finite profile")
+        })?;
+        if slot.is_some_and(|prior| prior != id) {
+            return Err(error(
+                "E-TYPE-MISMATCH",
+                span,
+                "one callable type parameter requires one concrete closure identity",
+            ));
+        }
+        *slot = Some(id);
+        Ok(())
+    }
+    pub(super) fn get(self, index: u32, span: Span) -> R<ClosureId> {
+        self.0
+            .get(index as usize)
+            .and_then(|id| *id)
+            .ok_or_else(|| unsupported(span, "concrete callable type binding is absent"))
+    }
+    fn label(self) -> String {
+        self.0
+            .iter()
+            .flatten()
+            .map(|id| id.0.to_string())
+            .collect::<Vec<_>>()
+            .join("_")
+    }
+}
 
 #[derive(Clone)]
 pub(super) struct Template {
     pub function: Rc<CoreFunction>,
     pub snapshot_work: usize,
+    pub store_shapes: bool,
     pub context: Rc<Context>,
     pub public: bool,
 }
@@ -38,64 +79,116 @@ pub(super) fn parameter_mode(ty: &Type, name: &str) -> Option<Option<bool>> {
 }
 
 pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
-    let Some(bound) = &function.callable_parameter else {
+    if !function.state_parameters.is_empty() {
+        return state_origins::validate_shape(function);
+    }
+    let bounds = &function.callable_parameters;
+    if bounds.is_empty() {
         return Ok(());
-    };
+    }
     let reject = || {
         unsupported(
             function.span,
-            "one finite Copy callable signature and one nonescaping environment parameter are implemented",
+            "one or two finite nonescaping callable roles, a single lending role, or a bounded same-F owning State constructor are implemented",
         )
     };
-    let owned_state = callable_fields::template(function);
-    if function.foreign.is_some()
+    if bounds.len() > 2
+        || function.foreign.is_some()
         || function.receiver.is_some()
-        || bound.generic_name.is_empty()
-        || bound.kind == CallableKind::FunctionPointer
-        || !bound.parameters.iter().all(Type::is_copy_value)
-        || !bound.result.is_copy_value()
-        || !(function.return_type.is_copy_value()
-            || (owned_state
-                && callable_fields::placeholder_package(
-                    &function.return_type,
-                    &bound.generic_name,
-                )))
+        || bounds.windows(2).any(|pair| pair[0].index >= pair[1].index)
     {
         return Err(reject());
     }
-    let parameter = function
-        .parameters
-        .get(bound.index as usize)
-        .ok_or_else(reject)?;
-    let mode = parameter_mode(&parameter.ty, &bound.generic_name);
-    if (mode.is_none()
-        && !(owned_state
-            && callable_fields::placeholder_package(&parameter.ty, &bound.generic_name)))
-        || function.parameters.iter().enumerate().any(|(i, p)| {
-            i != bound.index as usize
-                && !(p.ty.is_copy_value()
-                    || packages::supported(&p.ty)
-                    || matches!(p.ty, Type::Managed(_)))
+    let owned_state = callable_fields::template(function);
+    if !(function.return_type.is_copy_value()
+        || (bounds.len() == 1 && lending::supported_result(&function.return_type))
+        || (owned_state
+            && callable_fields::placeholder_package(
+                &function.return_type,
+                &bounds[0].generic_name,
+            )))
+    {
+        return Err(reject());
+    }
+    let mut present = [false; 2];
+    for bound in bounds {
+        if bound.generic_index >= 2
+            || bound.generic_name.is_empty()
+            || bound.kind == CallableKind::FunctionPointer
+            || !closures::supported_signature(&bound.parameters, &bound.result)
+            || (bounds.len() > 1 && !owned_state && !bound.result.is_copy_value())
+        {
+            return Err(reject());
+        }
+        present[bound.generic_index as usize] = true;
+        let parameter = function
+            .parameters
+            .get(bound.index as usize)
+            .ok_or_else(reject)?;
+        let mode = parameter_mode(&parameter.ty, &bound.generic_name);
+        if mode.is_none()
+            && !(owned_state
+                && callable_fields::placeholder_package(&parameter.ty, &bound.generic_name))
+        {
+            return Err(reject());
+        }
+        for prior in bounds.iter().take_while(|prior| prior.index < bound.index) {
+            if (prior.generic_index == bound.generic_index)
+                != (prior.generic_name == bound.generic_name)
+                || (prior.generic_index == bound.generic_index
+                    && (prior.kind != bound.kind
+                        || prior.parameters != bound.parameters
+                        || prior.result != bound.result
+                        || parameter_mode(
+                            &function.parameters[prior.index as usize].ty,
+                            &prior.generic_name,
+                        ) != mode))
+            {
+                return Err(reject());
+            }
+        }
+        match (bound.kind, mode.unwrap_or(None)) {
+            (CallableKind::FnMut, None) if !owned_state => {
+                return Err(unsupported(
+                    parameter.span,
+                    "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
+                ));
+            }
+            (CallableKind::FnMut, Some(false)) | (CallableKind::FnOnce, Some(_)) => {
+                return Err(error(
+                    "E-CLOSURE-MODE",
+                    parameter.span,
+                    "callable bound requires its matching mutable or owned environment passing mode",
+                ));
+            }
+            _ => {}
+        }
+    }
+    if !present[0] {
+        return Err(reject());
+    }
+    if owned_state
+        && bounds.len() == 2
+        && function.parameters.iter().enumerate().any(|(index, parameter)| {
+            !bounds.iter().any(|bound| bound.index as usize == index)
+                && !(parameter.ty.is_copy_value()
+                    || matches!(&parameter.ty, Type::Managed(_) if resources::supported(&parameter.ty)))
         })
     {
-        return Err(reject());
+        return Err(unsupported(
+            function.span,
+            "two-input owning State constructors require finite Copy or direct Managed ordinary parameters",
+        ));
     }
-    match (bound.kind, mode.unwrap_or(None)) {
-        (CallableKind::FnMut, None) if !owned_state => {
-            return Err(unsupported(
-                parameter.span,
-                "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
-            ));
-        }
-        (CallableKind::FnMut, Some(false)) | (CallableKind::FnOnce, Some(_)) => {
-            return Err(error(
-                "E-CLOSURE-MODE",
-                parameter.span,
-                "callable bound requires its matching mutable or owned environment passing mode",
-            ));
-        }
-        _ => {}
-    }
+    if function.parameters.iter().enumerate().any(|(i,p)|
+        !bounds.iter().any(|bound| bound.index as usize == i)
+        && !(p.ty.is_copy_value()
+            || matches!(&p.ty, Type::Address { inner, .. } if inner.is_copy_value()
+                || (function.return_type.is_copy_value() && matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())))
+            || packages::supported(&p.ty)
+            || matches!(&p.ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
+            || matches!(p.ty, Type::Managed(_))))
+    { return Err(reject()); }
     Ok(())
 }
 
@@ -106,11 +199,11 @@ pub(super) fn install_single(
     state: &mut closures::State,
     limits: &Limits,
 ) -> R<()> {
-    if core
-        .functions
-        .iter()
-        .all(|f| f.callable_parameter.is_none())
-    {
+    if core.functions.iter().all(|f| {
+        f.callable_parameters.is_empty()
+            && f.type_parameters.is_empty()
+            && f.state_parameters.is_empty()
+    }) {
         return Ok(());
     }
     let span = core.functions[0].span;
@@ -180,15 +273,24 @@ pub(super) fn install(
     limits: &Limits,
 ) -> R<()> {
     for function in &core.functions {
-        if function.callable_parameter.is_some() {
+        if !function.callable_parameters.is_empty()
+            || !function.type_parameters.is_empty()
+            || !function.state_parameters.is_empty()
+        {
             validate_template(function)?;
-            let snapshot_work = inference::helper_snapshot_work(function, limits)?;
+            store_templates::validate_header(function)?;
+            let (snapshot_work, store_shapes) = inference::helper_snapshot_work(function, limits)?;
             state.snapshot(snapshot_work.saturating_mul(2), function.span)?;
+            // New State declaration bodies are constrained even when no
+            // concrete instance is requested. No concrete ClosureId is needed
+            // for lexical origins, mode checks or the bounded Once paths.
+            state_origins::collect(function, Bindings::default(), &context, state, limits)?;
             state.helper_templates.insert(
                 (core.module_id, function.id),
                 Template {
                     function: Rc::new(function.clone()),
                     snapshot_work,
+                    store_shapes,
                     public: state.helper_tables[&context.module][&function.name].public,
                     context: context.clone(),
                 },
@@ -219,13 +321,12 @@ impl Builder<'_, '_> {
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        if self.helper_bound.is_some() {
+        if signature.callable.is_empty() {
             return Err(unsupported(
                 span,
-                "recursive or nested callable helper contracts are not implemented",
+                "template signature has no callable roles",
             ));
         }
-        let bound = signature.callable.as_ref().expect("template signature");
         let owned_state = callable_fields::signature(signature);
         if !owned_state && let Some(expected) = expected {
             self.same(&signature.result, expected, span)?;
@@ -238,18 +339,91 @@ impl Builder<'_, '_> {
             ));
         }
         let mut staged = Vec::new();
-        let mut environment = None;
+        let mut environments = Bindings::default();
+        self.closures.snapshot(
+            arguments.len().saturating_add(signature.callable.len()),
+            span,
+        )?;
         for (index, (argument, ty)) in arguments.iter().zip(&signature.parameters).enumerate() {
-            let (value, actual) = if index == bound.index as usize {
+            let (value, actual) = if signature
+                .state_parameter
+                .as_ref()
+                .is_some_and(|state| state.index as usize == index)
+            {
+                // One actual Package value supplies two type bindings. Evaluate
+                // and stage that owning parameter exactly once.
+                let (value, actual) = self.owned_array_input(argument, None)?;
+                let work =
+                    inference::type_snapshot_work(ty, argument.span, self.limits)?.saturating_add(
+                        inference::type_snapshot_work(&actual, argument.span, self.limits)?,
+                    );
+                self.closures
+                    .snapshot(work.saturating_mul(2), argument.span)?;
+                let matched =
+                    state_origins::match_type(ty, &actual, &signature.callable, argument.span)?;
+                if state_origins::replacement_signature(signature) {
+                    let state = signature.state_parameter.as_ref().expect("State source");
+                    let declaration = &state.bindings[0];
+                    self.closures.snapshot(
+                        signature
+                            .callable
+                            .len()
+                            .saturating_add(declaration.fields.len()),
+                        argument.span,
+                    )?;
+                    let bound = signature
+                        .callable
+                        .iter()
+                        .find(|bound| bound.index == state.index)
+                        .expect("validated State source");
+                    let closure = matched.get(bound.generic_index, argument.span)?;
+                    environments.bind(bound.generic_index, closure, argument.span)?;
+                    for field in &declaration.fields {
+                        self.require_state_kind(argument, Some(*field), closure, bound.kind)?;
+                    }
+                    self.validate_bound(closure, bound, true, argument.span)?;
+                } else {
+                    environments = matched;
+                    for bound in &signature.callable {
+                        let state = signature.state_parameter.as_ref().expect("State source");
+                        let field = state
+                            .bindings
+                            .iter()
+                            .find(|binding| binding.generic_index == bound.generic_index)
+                            .expect("validated binding")
+                            .fields[0];
+                        self.require_state_kind(
+                            argument,
+                            Some(field),
+                            environments.get(bound.generic_index, argument.span)?,
+                            bound.kind,
+                        )?;
+                        self.validate_bound(
+                            environments.get(bound.generic_index, argument.span)?,
+                            bound,
+                            true,
+                            argument.span,
+                        )?;
+                    }
+                }
+                (value, actual)
+            } else if let Some(bound) = signature
+                .callable
+                .iter()
+                .find(|bound| bound.index as usize == index)
+            {
                 let mode = if owned_state {
                     None
                 } else {
                     parameter_mode(ty, &bound.generic_name)
                         .ok_or_else(|| unsupported(span, "invalid callable template parameter"))?
                 };
-                let (mut value, mut actual) = if owned_state {
+                let (mut value, mut actual) = if owned_state && signature.callable.len() == 1 {
                     self.owned_array_input(argument, None)?
                 } else if mode.is_none() {
+                    // A constructor receives ordinary values. Structural Copy
+                    // environments may be copied into distinct inputs; owning
+                    // environments transfer once through the ordinary path.
                     self.transfer_expr(argument, None)?
                 } else {
                     self.expr(argument, None)?
@@ -298,56 +472,36 @@ impl Builder<'_, '_> {
                         }
                     }
                 };
-                if owned_state {
-                    let mut work = self.limits.max_analysis_steps;
-                    retained::self_contained(
-                        &self.closures.pending,
-                        closure,
-                        &mut work,
-                        argument.span,
-                    )?;
-                    self.closures
-                        .snapshot(self.limits.max_analysis_steps - work, argument.span)?;
-                }
-                let pending = self
-                    .closures
-                    .pending
-                    .get_mut(closure.0 as usize)
-                    .ok_or_else(|| unsupported(span, "absent concrete closure"))?;
-                if !compatible(pending.callable_kind(), bound.kind) {
-                    return Err(error(
-                        "E-CLOSURE-MODE",
-                        argument.span,
-                        "concrete environment does not implement the requested callable mode",
-                    ));
-                }
-                if pending.inference.arity() != bound.parameters.len() {
-                    return Err(error(
-                        "E-CALL-ARITY",
-                        argument.span,
-                        "concrete environment signature differs from callable bound",
-                    ));
-                }
-                for (i, ty) in bound.parameters.iter().enumerate() {
-                    pending.inference.argument(i, ty, argument.span)?;
-                }
-                pending
-                    .inference
-                    .expect_result(&bound.result, argument.span)?;
-                self.materialize_closure(closure)?;
-                environment = Some(closure);
+                self.require_state_kind(argument, None, closure, bound.kind)?;
+                self.validate_bound(closure, bound, owned_state, argument.span)?;
+                environments.bind(bound.generic_index, closure, argument.span)?;
                 (value, actual)
             } else {
                 let (value, actual) = self.argument_expr(argument, ty)?;
                 self.same(&actual, ty, argument.span)?;
                 (value, actual)
             };
-            staged.push(self.stage_argument(value, &actual, argument.span)?);
+            let mut prepared = self.stage_argument(value, &actual, argument.span)?;
+            if owned_state
+                && signature.callable.len() == 2
+                && matches!(actual, Type::Closure(_))
+                && prepared.1.is_none()
+            {
+                // A structural Copy environment is first copied to its own
+                // real temporary. Publication into an owning State still
+                // takes that distinct position; a Load view is not an owned
+                // input and the independent verifier must keep rejecting it.
+                let local = self.temp(actual.clone(), argument.span)?;
+                self.store(local, value, argument.span)?;
+                prepared.1 = Some(local);
+            }
+            staged.push(prepared);
         }
-        let closure =
-            environment.ok_or_else(|| unsupported(span, "missing concrete helper environment"))?;
-        let instance =
-            self.instantiate_helper(signature.template.expect("template key"), closure, span)?;
+        let instance = self.instantiate_helper(
+            signature.template.expect("template key"),
+            environments,
+            span,
+        )?;
         let result = if owned_state {
             self.closures
                 .snapshot(self.closures.helper_functions.len(), span)?;
@@ -378,22 +532,100 @@ impl Builder<'_, '_> {
         }
     }
 
+    fn validate_bound(
+        &mut self,
+        closure: ClosureId,
+        bound: &CoreCallableParameter,
+        owned_state: bool,
+        span: Span,
+    ) -> R<()> {
+        if owned_state {
+            let mut work = self.limits.max_analysis_steps;
+            retained::self_contained(&self.closures.pending, closure, &mut work, span)?;
+            self.closures
+                .snapshot(self.limits.max_analysis_steps - work, span)?;
+        }
+        let pending = self
+            .closures
+            .pending
+            .get_mut(closure.0 as usize)
+            .ok_or_else(|| unsupported(span, "absent concrete closure"))?;
+        if !compatible(pending.callable_kind(), bound.kind) {
+            return Err(error(
+                "E-CLOSURE-MODE",
+                span,
+                "concrete environment does not implement the requested callable mode",
+            ));
+        }
+        if pending.inference.arity() != bound.parameters.len() {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "concrete environment signature differs from callable bound",
+            ));
+        }
+        for (i, ty) in bound.parameters.iter().enumerate() {
+            pending.inference.argument(i, ty, span)?;
+        }
+        pending.inference.expect_result(&bound.result, span)?;
+        self.materialize_closure(closure)?;
+        Ok(())
+    }
+
     fn instantiate_helper(
         &mut self,
         key: TemplateKey,
-        closure: ClosureId,
+        bindings: Bindings,
         span: Span,
     ) -> R<FunctionId> {
-        if let Some(id) = self.closures.helper_instances.get(&(key, closure)) {
+        self.closures
+            .snapshot(plan::tree_work(self.closures.helper_instances.len()), span)?;
+        if let Some(id) = self.closures.helper_instances.get(&(key, bindings)) {
             return Ok(*id);
         }
-        if self.closures.active_helpers.len() >= self.limits.max_call_depth {
-            return Err(Diagnostic::limit(
-                Phase::Types,
-                "callable State helper nesting exceeds selected bound",
-                Some(span),
+        if !self.closures.active_helpers.is_empty() {
+            return Err(unsupported(
+                span,
+                "actual helper instance is not available from the finite dependency plan",
             ));
         }
+        self.instantiate_plan(plan::Node::Callable((key, bindings)), span)?;
+        self.closures
+            .snapshot(plan::tree_work(self.closures.helper_instances.len()), span)?;
+        self.closures
+            .helper_instances
+            .get(&(key, bindings))
+            .copied()
+            .ok_or_else(|| unsupported(span, "completed helper instance is absent from its plan"))
+    }
+
+    pub(super) fn instantiate_plan(&mut self, root: plan::Node, span: Span) -> R<()> {
+        if !self.closures.active_helpers.is_empty() {
+            return Err(unsupported(
+                span,
+                "actual template instance is absent from the finite dependency plan",
+            ));
+        }
+        let order = plan::order(root, self.closures, self.limits, span)?;
+        for node in order {
+            match node {
+                plan::Node::Callable((key, bindings)) => {
+                    self.instantiate_ready_helper(key, bindings, span)?;
+                }
+                plan::Node::Store(index) => {
+                    self.instantiate_ready_store(index, span)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn instantiate_ready_helper(
+        &mut self,
+        key: TemplateKey,
+        bindings: Bindings,
+        span: Span,
+    ) -> R<FunctionId> {
         let template = self
             .closures
             .helper_templates
@@ -401,34 +633,68 @@ impl Builder<'_, '_> {
             .cloned()
             .ok_or_else(|| unsupported(span, "callable template definition is absent"))?;
         self.closures.snapshot(template.snapshot_work, span)?;
+        let state_uses = state_origins::collect(
+            &template.function,
+            bindings,
+            &template.context,
+            self.closures,
+            self.limits,
+        )?;
         let mut function = template.function.as_ref().clone();
-        let bound = function
-            .callable_parameter
-            .as_ref()
-            .expect("validated template")
-            .clone();
+        let bounds_view = state_origins::bounds(&template.function);
+        let bounds = bounds_view.as_ref();
         let owned_state = callable_fields::template(&function);
-        let mode = parameter_mode(
-            &function.parameters[bound.index as usize].ty,
-            &bound.generic_name,
-        )
-        .unwrap_or(None);
         if owned_state {
-            callable_fields::specialize(&mut function, &bound.generic_name, closure);
-            function.callable_parameter = None;
-        } else {
-            let concrete = Type::Closure(closure);
-            function.parameters[bound.index as usize].ty = if let Some(mutable) = mode {
-                Type::Address {
-                    mutable,
-                    inner: Box::new(concrete),
-                }
+            if (template.function.state_parameters.is_empty()
+                && bounds
+                    .iter()
+                    .all(|b| b.generic_index == bounds[0].generic_index))
+                || state_origins::replacement(&template.function)
+            {
+                let bound = &bounds[0];
+                callable_fields::specialize(
+                    &mut function,
+                    &bound.generic_name,
+                    bindings.get(bound.generic_index, span)?,
+                );
             } else {
-                concrete
-            };
+                self.closures
+                    .snapshot(bounds.len().saturating_mul(3), span)?;
+                let replacements = bounds
+                    .iter()
+                    .map(|bound| {
+                        Ok((
+                            bound.generic_name.as_str(),
+                            bindings.get(bound.generic_index, span)?,
+                        ))
+                    })
+                    .collect::<R<Vec<_>>>()?;
+                callable_fields::specialize_all(&mut function, &replacements);
+            }
+            function.callable_parameters.clear();
+            function.state_parameters.clear();
+        } else {
+            for bound in bounds {
+                let mode = parameter_mode(
+                    &function.parameters[bound.index as usize].ty,
+                    &bound.generic_name,
+                )
+                .ok_or_else(|| unsupported(span, "invalid concrete helper parameter"))?;
+                let concrete = Type::Closure(bindings.get(bound.generic_index, span)?);
+                function.parameters[bound.index as usize].ty = if let Some(mutable) = mode {
+                    Type::Address {
+                        mutable,
+                        inner: Box::new(concrete),
+                    }
+                } else {
+                    concrete
+                };
+            }
         }
+        self.closures.snapshot(24, span)?;
+        let label = bindings.label();
         let id = self.closures.allocate_function(span)?;
-        function.name = format!("{}::<env{}>", function.name, closure.0);
+        function.name = format!("{}::<env{}>", function.name, label);
         let tables = self.closures.helper_tables.clone();
         for alias in template.context.imports.keys() {
             self.closures
@@ -451,6 +717,13 @@ impl Builder<'_, '_> {
             self.limits,
             self.closures,
         )?;
+        builder.state_uses = state_uses;
+        if owned_state && builder.state_uses.is_none() {
+            builder.closures.snapshot(1, span)?;
+            let bound = &bounds[0];
+            builder.state_callable_mode =
+                Some((bindings.get(bound.generic_index, span)?, bound.kind));
+        }
         builder.imports = Some(&imports);
         builder.enums = Some(&template.context.enums);
         let typed_result = builder.finish(&function.body);
@@ -460,42 +733,55 @@ impl Builder<'_, '_> {
         // label includes definition identity, independently of caller order.
         typed.name = format!(
             "@module{}:helper{}:env{}",
-            template.context.module.0, function.id.0, closure.0
+            template.context.module.0, function.id.0, label
         );
-        let capture_count = self.closures.pending[closure.0 as usize].captures.len();
-        self.closures.snapshot(capture_count, span)?;
-        let mut hold = Vec::new();
-        let mut call = Vec::new();
-        let mut writes = Vec::new();
-        for index in 0..capture_count {
-            let capture = &self.closures.pending[closure.0 as usize].captures[index];
-            let work = inference::type_snapshot_work(&capture.ty, span, self.limits)?;
-            self.closures.snapshot(work.saturating_mul(2), span)?;
-            let ty = self.closures.pending[closure.0 as usize].captures[index].stored_type();
-            if matches!(ty, Type::Address { .. }) {
-                hold.push(index as u32);
-            }
-            if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
-                call.push(index as u32);
-            }
-            if matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_)) {
-                writes.push(index as u32);
-            }
-        }
         if !owned_state {
+            self.closures.snapshot(bounds.len(), span)?;
+            let mut roles = Vec::new();
+            for bound in bounds {
+                let closure = bindings.get(bound.generic_index, span)?;
+                let capture_count = self.closures.pending[closure.0 as usize].captures.len();
+                self.closures
+                    .snapshot(capture_count.saturating_mul(4), span)?;
+                let mut hold = Vec::new();
+                let mut call = Vec::new();
+                let mut writes = Vec::new();
+                for index in 0..capture_count {
+                    let capture = &self.closures.pending[closure.0 as usize].captures[index];
+                    let work = inference::type_snapshot_work(&capture.ty, span, self.limits)?;
+                    self.closures.snapshot(work.saturating_mul(2), span)?;
+                    let ty =
+                        self.closures.pending[closure.0 as usize].captures[index].stored_type();
+                    if matches!(ty, Type::Address { .. }) {
+                        hold.push(index as u32);
+                    }
+                    if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+                        call.push(index as u32);
+                    }
+                    if matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_)) {
+                        writes.push(index as u32);
+                    }
+                }
+                roles.push(CallableRole {
+                    parameter: bound.index,
+                    closure,
+                    kind: bound.kind,
+                    hold,
+                    call,
+                    writes,
+                    cleanup: if matches!(
+                        &function.parameters[bound.index as usize].ty,
+                        Type::Address { .. }
+                    ) {
+                        CallableCleanup::Borrowed
+                    } else {
+                        CallableCleanup::Owned
+                    },
+                });
+            }
             typed.callable_contract = Some(CallableParameterContract {
-                parameter: bound.index,
-                closure,
-                kind: bound.kind,
-                hold,
-                call,
-                writes,
-                cleanup: if mode.is_some() {
-                    CallableCleanup::Borrowed
-                } else {
-                    CallableCleanup::Owned
-                },
-                traces: traces(&typed, &bound, self.closures, span)?,
+                roles,
+                traces: flow::contract(&typed, bounds, self.closures, self.limits, span)?,
             });
         }
         self.closures.helper_exports.push(Export {
@@ -514,7 +800,7 @@ impl Builder<'_, '_> {
             },
         });
         self.closures.helper_functions.push(typed);
-        self.closures.helper_instances.insert((key, closure), id);
+        self.closures.helper_instances.insert((key, bindings), id);
         Ok(id)
     }
 
@@ -551,19 +837,24 @@ impl Builder<'_, '_> {
             ));
         };
         let parameter_bound = self
-            .helper_bound
-            .as_ref()
-            .filter(|bound| {
+            .helper_bounds
+            .iter()
+            .find(|bound| {
                 matches!(&callee.kind, CoreExprKind::Name(name)
                 if self.lookup(name) == self.function.parameters.get(bound.index as usize).copied())
             })
             .cloned();
+        let declared = self.declared_state_kind(callee, None, id)?;
         let (kind, parameters, result) = if let Some(bound) = parameter_bound {
             (bound.kind, bound.parameters, bound.result)
         } else {
             let pending = &mut self.closures.pending[id.0 as usize];
             let (parameters, result) = pending.inference.resolve(false, span)?;
-            (pending.callable_kind(), parameters, result)
+            (
+                declared.unwrap_or_else(|| pending.callable_kind()),
+                parameters,
+                result,
+            )
         };
         if kind == CallableKind::FnOnce || (kind == CallableKind::FnMut && !mutable) {
             return Err(error(
@@ -591,7 +882,7 @@ impl Builder<'_, '_> {
         }
         let mut values = Vec::new();
         for (argument, parameter) in arguments.iter().zip(&parameters) {
-            let (value, actual) = self.expr(argument, Some(parameter))?;
+            let (value, actual) = self.argument_expr(argument, parameter)?;
             self.same(&actual, parameter, argument.span)?;
             values.push(value);
         }
@@ -620,7 +911,7 @@ fn environment_type(ty: &Type) -> bool {
 /// deliberately rejects a slot that can carry both origins.
 fn environment_origins(
     function: &TypedFunction,
-    parameter: LocalId,
+    bounds: &[CoreCallableParameter],
     state: &mut closures::State,
     span: Span,
 ) -> R<(Vec<u8>, Vec<u8>)> {
@@ -630,7 +921,11 @@ fn environment_origins(
     )?;
     let mut locals = vec![0u8; function.locals.len()];
     let mut values = vec![0u8; function.values.len()];
-    locals[parameter.0 as usize] = 1;
+    state.snapshot(bounds.len(), span)?;
+    for (role, bound) in bounds.iter().enumerate() {
+        let parameter = function.parameters[bound.index as usize];
+        locals[parameter.0 as usize] = 1 << role;
+    }
     let tables = Rc::clone(&state.helper_tables);
     for block in &function.blocks {
         state.snapshot(1, span)?;
@@ -663,7 +958,7 @@ fn environment_origins(
                         state.snapshot(1, instruction.span)?;
                         for signature in table.values() {
                             state.snapshot(1, instruction.span)?;
-                            if signature.id == *callee {
+                            if signature.id == Some(*callee) {
                                 factory = signature.callable_return.is_some()
                                     && matches!(signature.result, Type::Closure(_))
                                     && &signature.result == ty;
@@ -671,9 +966,9 @@ fn environment_origins(
                             }
                         }
                     }
-                    if factory { 2 } else { 4 }
+                    if factory { 4 } else { 8 }
                 }
-                _ => 4,
+                _ => 8,
             };
         }
     }
@@ -711,115 +1006,95 @@ fn environment_origins(
     Ok((locals, values))
 }
 
-fn traces(
+struct Forwarded {
+    position: usize,
+    /// Child actual parameter position -> current actual parameter position.
+    roles: Vec<(u32, u32)>,
+}
+fn forwarded_contract(
     function: &TypedFunction,
-    bound: &CoreCallableParameter,
+    instruction: &Instruction,
+    origins: &[u8],
+    bounds: &[CoreCallableParameter],
     state: &mut closures::State,
-    span: Span,
-) -> R<Vec<CallableTrace>> {
-    let parameter = function.parameters[bound.index as usize];
-    let (locals, values) = environment_origins(function, parameter, state, span)?;
-    // Only actual parameter invocations enter this trace. Local self-contained
-    // factories keep their own kinds and ordinary resource checks. A count is
-    // exact for the resulting single-kind parameter sequence.
-    let mut pending = vec![(function.entry, 0usize, BTreeSet::new())];
-    let mut result = BTreeSet::new();
-    while let Some((block, mut calls, mut active)) = pending.pop() {
-        state.snapshot(active.len().saturating_add(1), span)?;
-        if !active.insert(block) {
+) -> R<Option<Forwarded>> {
+    let InstructionKind::Call {
+        function: callee,
+        arguments,
+    } = &instruction.kind
+    else {
+        return Ok(None);
+    };
+    state.snapshot(arguments.len(), instruction.span)?;
+    if !arguments
+        .iter()
+        .any(|value| environment_type(&function.values[value.0 as usize]))
+    {
+        return Ok(None);
+    }
+    state.snapshot(state.helper_functions.len(), instruction.span)?;
+    let position = state
+        .helper_functions
+        .iter()
+        .position(|f| f.id == *callee)
+        .ok_or_else(|| {
+            unsupported(
+                instruction.span,
+                "nested helper has no completed callable contract",
+            )
+        })?;
+    let contract = state.helper_functions[position]
+        .callable_contract
+        .as_ref()
+        .ok_or_else(|| unsupported(instruction.span, "nested helper contract is absent"))?;
+    let role_count = contract.roles.len();
+    state.snapshot(
+        role_count.saturating_mul(3).saturating_add(arguments.len()),
+        instruction.span,
+    )?;
+    let contract = state.helper_functions[position]
+        .callable_contract
+        .as_ref()
+        .unwrap();
+    let mut roles = Vec::with_capacity(role_count);
+    for (parameter, value) in arguments.iter().enumerate() {
+        if !environment_type(&function.values[value.0 as usize]) {
+            continue;
+        }
+        let child = contract
+            .roles
+            .iter()
+            .find(|role| role.parameter as usize == parameter)
+            .ok_or_else(|| {
+                unsupported(instruction.span, "nested helper environment role is absent")
+            })?;
+        let mask = origins[value.0 as usize];
+        let caller = if mask == 1 {
+            bounds.first()
+        } else if mask == 2 {
+            bounds.get(1)
+        } else {
+            None
+        }
+        .ok_or_else(|| {
+            unsupported(
+                instruction.span,
+                "nested helper environment is not one actual supplied role",
+            )
+        })?;
+        if child.kind != caller.kind {
             return Err(unsupported(
-                span,
-                "cyclic callable helper trace requires a loop contract",
+                instruction.span,
+                "nested helper role has a different declared callable kind",
             ));
         }
-        let block = &function.blocks[block.0 as usize];
-        for instruction in &block.instructions {
-            state.snapshot(1, instruction.span)?;
-            let invocation = match instruction.kind {
-                InstructionKind::CallClosure { callee, .. } => {
-                    Some((values[callee.0 as usize], CallableKind::Fn, false))
-                }
-                InstructionKind::CallClosureShared { callee, .. } => {
-                    Some((locals[callee.0 as usize], CallableKind::Fn, false))
-                }
-                InstructionKind::CallClosureMut { callee, .. } => {
-                    Some((locals[callee.0 as usize], CallableKind::FnMut, false))
-                }
-                InstructionKind::CallClosureOnce { callee, .. } => {
-                    Some((values[callee.0 as usize], CallableKind::FnOnce, false))
-                }
-                InstructionKind::CallClosureBorrowed { callee, kind, .. } => {
-                    Some((values[callee.0 as usize], kind, true))
-                }
-                _ => None,
-            };
-            if let Some((origin, mode, borrowed)) = invocation {
-                if origin == 2 && !borrowed {
-                    continue;
-                }
-                if origin != 1 {
-                    return Err(unsupported(
-                        instruction.span,
-                        "helper callable origin is unknown, mixed, or a borrowed local factory result",
-                    ));
-                }
-                if mode != bound.kind {
-                    return Err(error(
-                        "E-CLOSURE-MODE",
-                        instruction.span,
-                        "helper callback mode differs from its bound",
-                    ));
-                }
-                calls = calls.saturating_add(1);
-                if bound.kind == CallableKind::FnOnce && calls > 1 {
-                    return Err(unsupported(
-                        span,
-                        "finite helper supports at most one consumed call",
-                    ));
-                }
-            }
-        }
-        match block.terminator {
-            Terminator::Return(_) => {
-                state.snapshot(
-                    result.len().checked_ilog2().map_or(1, |n| n as usize + 2),
-                    span,
-                )?;
-                result.insert((calls, CallableExit::Return));
-            }
-            Terminator::Trap => {
-                state.snapshot(
-                    result.len().checked_ilog2().map_or(1, |n| n as usize + 2),
-                    span,
-                )?;
-                result.insert((calls, CallableExit::Trap));
-            }
-            Terminator::Jump(target) => pending.push((target, calls, active)),
-            Terminator::Branch {
-                then_block,
-                else_block,
-                ..
-            } => {
-                state.snapshot(active.len().saturating_add(1), span)?;
-                pending.push((then_block, calls, active.clone()));
-                pending.push((else_block, calls, active));
-            }
-            Terminator::Unreachable => {
-                return Err(error(
-                    "E-HELPER-TRACE",
-                    span,
-                    "reachable helper path has no defined exit",
-                ));
-            }
-        }
+        roles.push((child.parameter, caller.index));
     }
-    let mut traces = Vec::new();
-    for (count, exit) in result {
-        state.snapshot(count.saturating_add(1), span)?;
-        traces.push(CallableTrace {
-            calls: vec![bound.kind; count],
-            exit,
-        });
+    if roles.len() != role_count {
+        return Err(unsupported(
+            instruction.span,
+            "nested helper role mapping is incomplete",
+        ));
     }
-    Ok(traces)
+    Ok(Some(Forwarded { position, roles }))
 }

@@ -1,0 +1,134 @@
+{
+  "status": "StagePass_FullZuiNotReady",
+  "cli_sha256": "623dcf1d58f4dc5c0cb02dff9c912e2a5a866d5d0c7dc9188878114e8d6e3c73",
+  "original_probe_sha256": "1acf26ce2b3b74629a4936d74ab0f943ce71d6751f1843c2a3a64d7241520f45",
+  "source_commit": "76f87af71b8d6e47db3a3cda9856ba244f5935ad",
+  "crates_tree": "97e0ff183e64304e9765ec9c75dd0abaf4358087",
+  "consumer_sources": {
+    "examples/mainline/zui_language164/adapter.zil": "8a7ecd3c86ff2015065016014fe0d098400db004a94acf489c9eebfe7bb0f495",
+    "examples/mainline/zui_language164/main.zil": "5d77a8d8e0531e100a87808e23eac9d1bb46ddef8de50559425ba33691f6eb90",
+    "examples/mainline/zui_language164/model.zil": "b21fa6e1683ad311cea8f4a377f786cbccfd456d4cc5413ae3051ee768955fd8",
+    "examples/mainline/zui_language164/ticket.zil": "7586585505ca5165bb9d712c015c9acccea025387948d02013ad32985564d225"
+  },
+  "baseline": false,
+  "gaps": [
+    {
+      "capability": "nested-owning-callback",
+      "source_sha256": "1d3d4a6c1e95f83be56272efa9e03bc1a6d180c0da7f8257b18b4f908816adb4",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "capability": "owned-array-elements",
+      "source_sha256": "13235ee9abcef54c95747b149c958f8a79802fb04e45857e1e221c4190dd04fe",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-TYPE-MISMATCH",
+          "message": "expected Desc(Record { name: \"@module0:$module0_R\", fields: [(\"n\", I32)] }), found Managed(Record { name: \"@module0:$module0_R\", fields: [(\"n\", I32)] })",
+          "span": {
+            "file": 0,
+            "start": 46,
+            "end": 52
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "capability": "owned-error-result",
+      "source_sha256": "14097787d937f7e719603d3d197f135b4d0b8093245ae725c8a1cb6919835483",
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values or complete owned Packages",
+          "span": {
+            "file": 0,
+            "start": 13,
+            "end": 79
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "capability": "generic-trait-bound",
+      "source_sha256": "0b94e8932d0836bfdb82e9caa855e9c91b651e8f0afcd0f10693366a621e27b1",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "capability": "owning-method-receiver",
+      "source_sha256": "a299701c52efbbfd9d6fa36f51e412495fd03ccb3a6e07e769a9df6f900cf14e",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "capability": "array-of-capturing-callbacks",
+      "source_sha256": "ccb66b5bbcfb231a4477ca7ee9e227fdff2c2e2f709c01d97cb57f64b79877c8",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    }
+  ],
+  "native": [
+    {
+      "optimization": "O0",
+      "executions": 2,
+      "events_per_execution": 1024,
+      "drop_observations_per_execution": 1024,
+      "llvm_sha256": "330dff2ddf081384ba0161e8b7824debc2f60893cd682a62ba4033db109a45f0",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1024
+      }
+    },
+    {
+      "optimization": "O2",
+      "executions": 2,
+      "events_per_execution": 1024,
+      "drop_observations_per_execution": 1024,
+      "llvm_sha256": "330dff2ddf081384ba0161e8b7824debc2f60893cd682a62ba4033db109a45f0",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1024
+      }
+    }
+  ],
+  "remaining_original_probes": [
+    "owned-array-elements",
+    "owned-error-result"
+  ]
+}

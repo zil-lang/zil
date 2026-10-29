@@ -1,0 +1,51 @@
+{
+  "status": "Pass",
+  "source_commit": "2d5214b0a65a688f86736abdcf54625b5427ae9b",
+  "compiler_source_commit": "2d5214b0a65a688f86736abdcf54625b5427ae9b",
+  "cli_sha256": "d9fc93f7368d4299716ae05a5a43dc493eac02acc8907a4063c74238743ac581",
+  "runner_sha256": "e55ffeb4aa6d71e203ec42e620e02da7f9b636bd7fad02158cb8f69ab74ab96a",
+  "utility_sha256": "9dc18f4bccb99aee46afe4d1bd6c3b6f2c398f9d5d234ae137672a732ca0fb84",
+  "sources": {
+    "main.zil": "51656931d5c91322972a94670a52c352e89a882853d1a4eb5426bf2fc08ad2c2",
+    "model.zil": "28bfb580968a38b08a804e9256ced97b393ef341be538480571b66d43fc7f01c",
+    "prepare_failure.zil": "e2b89d7dba36d936cde95cf2716926680d9f0d98b49d1268e0fa44efe4c47894",
+    "user.zil": "10dc408c914950ad019c6bcc90017220c8a655ad3f9a79d260855fd2adf67cdf"
+  },
+  "observations": [
+    {
+      "case": "main",
+      "optimization": "O0",
+      "stdout": "A",
+      "exit_code": 0,
+      "input_fingerprint": "837bca5672fb9dd36201fc371b5cdd944d4b51c6b7f09d87711a5cd073e10618",
+      "llvm_sha256": "00ad2b30ab4a2d95d6cf9bfe3302e4d73deedc2e9e1359119896c7a768965c89"
+    },
+    {
+      "case": "main",
+      "optimization": "O2",
+      "stdout": "A",
+      "exit_code": 0,
+      "input_fingerprint": "837bca5672fb9dd36201fc371b5cdd944d4b51c6b7f09d87711a5cd073e10618",
+      "llvm_sha256": "00ad2b30ab4a2d95d6cf9bfe3302e4d73deedc2e9e1359119896c7a768965c89"
+    },
+    {
+      "case": "prepare_failure",
+      "optimization": "O0",
+      "stdout": "A",
+      "exit_code": 1,
+      "input_fingerprint": "b6bdae27bc54f900415efbb84bd28398849a2aa39bd8e08750fe45526f456a67",
+      "llvm_sha256": "fb1799e71a261ea799df5e380f2dab6224cbc350de0404042bc5edd7491a62ba"
+    },
+    {
+      "case": "prepare_failure",
+      "optimization": "O2",
+      "stdout": "A",
+      "exit_code": 1,
+      "input_fingerprint": "b6bdae27bc54f900415efbb84bd28398849a2aa39bd8e08750fe45526f456a67",
+      "llvm_sha256": "fb1799e71a261ea799df5e380f2dab6224cbc350de0404042bc5edd7491a62ba"
+    }
+  ],
+  "native_executions": 4,
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

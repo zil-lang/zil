@@ -1,0 +1,84 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/cold164/main/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/cold164/main/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/cold164/main/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/cold164/main/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/cold164/main/crates/zil-types)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/cold164/main/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/cold164/main/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/cold164/main/crates/zil-lower)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/cold164/main/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/cold164/main/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/cold164/main/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/cold164/main/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 37.89s
+     Running tests/impl161_nested_closures.rs (/workspace/scratch/39be3faa4442/targets/cold164/debug/deps/impl161_nested_closures-20120c609671266b)
+
+running 16 tests
+test activation_local_managed_owner_moves_into_inner_environment ... ok
+test capturing_a_callable_environment_and_function_pointer_captures_remain_rejected ... ok
+test independent_verify_rejects_forged_shared_kind_and_second_capture_transfer ... ok
+test inner_borrowed_writes_persist_in_outer_owned_copy_capture ... ok
+test inner_move_promotes_an_outer_nonmove_managed_capture ... ok
+test inner_unused_environment_and_outer_unused_environment_drop_once ... ok
+test nested_closure_function_and_depth_budgets_remain_enforced ... ok
+test nested_error_exit_cleans_only_actual_remaining_owners ... ok
+test nested_move_snapshot_is_distinct_from_borrowed_writeback ... ok
+test nested_move_transfers_outer_owned_capture_once ... ok
+test nested_owning_buffer_replacement_cleans_real_slots ... ok
+test nested_package_move_and_inner_refill_keep_distinct_responsibilities ... ok
+test nested_shadowed_parameters_and_locals_do_not_capture_outer_names ... ok
+test nested_signatures_infer_across_three_lexical_layers ... ok
+test nested_transfer_and_shared_alias_misuse_are_rejected ... ok
+test outer_package_refill_after_nested_move_keeps_fnmut ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.85s
+
+     Running tests/impl162_trait_bounds.rs (/workspace/scratch/39be3faa4442/targets/cold164/debug/deps/impl162_trait_bounds-97198dc1c84f2e92)
+
+running 12 tests
+test actual_impl_signatures_and_independent_loan_checks_still_run ... ok
+test borrowed_receivers_do_not_gain_mutation_or_move_permissions ... ok
+test bound_method_named_len_and_self_parameters_are_symbolic ... ok
+test forwarding_requires_a_prior_bound_even_when_unused ... ok
+test imported_public_bounds_keep_definition_and_nominal_module_identity ... ok
+test missing_trait_wrong_arguments_and_ambiguous_bounds_reject_before_specialization ... ok
+test mutable_multiple_bounds_and_value_receiver_keep_passing_modes ... ok
+test private_and_same_spelling_foreign_traits_cannot_satisfy_bound ... ok
+test same_named_inherent_method_does_not_satisfy_nominal_bound ... ok
+test shared_bounds_dispatch_for_multiple_nominal_types_and_forward_symbolically ... ok
+test trait_bound_scans_obey_actual_work_budget ... ok
+test unused_definitions_cannot_gain_members_types_or_copy_from_instances ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.17s
+
+     Running tests/impl163_resource_methods.rs (/workspace/scratch/39be3faa4442/targets/cold164/debug/deps/impl163_resource_methods-9de33583a6fbc4e1)
+
+running 25 tests
+test byte_buffer_method_writes_are_persistent_in_retained_fnmut ... ok
+test byte_buffer_methods_use_existing_descriptor_and_transfer_operations ... ok
+test byte_storage_windows_remain_subject_to_mutation_and_transfer_checks ... ok
+test callback_contracts_and_consumed_values_cannot_be_reused ... ok
+test captured_owner_is_consumed_once_by_an_explicit_give_method ... ok
+test consuming_and_refilling_a_package_method_receiver_remains_fnmut ... ok
+test descriptor_and_explicit_owned_receivers_keep_unique_cleanup ... ok
+test descriptor_method_calls_inside_effect_wrappers_keep_fnmut ... ok
+test fresh_receiver_precedes_arguments_and_failed_preparation_cleans_in_reverse_order ... ok
+test imported_package_receiver_and_resource_nominal_identity_remain_exact ... ok
+test method_effect_dependencies_wake_earlier_callers_in_the_worklist_path ... ok
+test ordinary_call_cannot_silently_give_and_old_descriptors_cannot_survive_consumption ... ok
+test original_resource_address_receiver_probe_remains_explicitly_unsupported ... ok
+test owned_group_default_can_be_overridden_with_a_descriptor ... ok
+test owned_package_method_inside_move_closure_runs_once_and_cleans_all_fields ... ok
+test package_by_value_receiver_consumes_the_whole_package ... ok
+test package_receiver_error_before_refill_is_once_and_keeps_unique_cleanup ... ok
+test private_owner_private_methods_and_drop_entry_are_not_exported ... ok
+test public_resource_methods_cross_module_boundaries_and_retained_callbacks ... ok
+test raw_and_wire_candidates_cannot_relabel_a_mutating_owned_method_callback_as_fn ... ok
+test receiver_is_staged_before_later_argument_failure_and_dropped_once ... ok
+test resource_callable_fields_keep_field_precedence_and_do_not_add_receiver_writes ... ok
+test resource_method_effects_include_arguments_after_the_receiver ... ok
+test stored_closures_call_read_and_write_resource_methods ... ok
+test transitively_readonly_resource_methods_keep_fn_and_borrowed_writes_remain_local ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.44s
+

@@ -1,0 +1,93 @@
+diff --git a/crates/zil-analyze/src/helpers.rs b/crates/zil-analyze/src/helpers.rs
+index 71a946bb..a8649eb4 100644
+--- a/crates/zil-analyze/src/helpers.rs
++++ b/crates/zil-analyze/src/helpers.rs
+@@ -251,7 +251,14 @@ fn forwarded<'a>(
+             "nested helper must forward its actual parameter to an independently checked matching contract",
+         ));
+     }
+-    Ok(Some(&claim.traces))
++    let finite = claim.traces.as_finite().ok_or_else(|| {
++        vec![Diagnostic::unsupported(
++            Phase::Analyze,
++            "cyclic callable Flow semantics are not implemented",
++            Some(instruction.span),
++        )]
++    })?;
++    Ok(Some(finite))
+ }
+ 
+ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
+diff --git a/crates/zil-types/src/helpers.rs b/crates/zil-types/src/helpers.rs
+index 0583ed45..b4fe28bd 100644
+--- a/crates/zil-types/src/helpers.rs
++++ b/crates/zil-types/src/helpers.rs
+@@ -796,14 +796,25 @@ fn forwarded_traces(
+             "nested helper parameter or declared callable kind differs",
+         ));
+     }
+-    let count = contract.traces.len();
++    let count = contract
++        .traces
++        .as_finite()
++        .ok_or_else(|| {
++            unsupported(
++                instruction.span,
++                "cyclic callable Flow semantics are not implemented",
++            )
++        })?
++        .len();
+     state.snapshot(count, instruction.span)?;
+     for index in 0..count {
+         let length = state.helper_functions[position]
+             .callable_contract
+             .as_ref()
+             .unwrap()
+-            .traces[index]
++            .traces
++            .as_finite()
++            .expect("finite contract checked above")[index]
+             .calls
+             .len();
+         // Charge the following kind check and owned trace clone separately.
+@@ -812,7 +823,9 @@ fn forwarded_traces(
+             .callable_contract
+             .as_ref()
+             .unwrap()
+-            .traces[index]
++            .traces
++            .as_finite()
++            .expect("finite contract checked above")[index]
+             .calls
+             .iter()
+             .any(|mode| *mode != kind)
+@@ -829,7 +842,9 @@ fn forwarded_traces(
+             .as_ref()
+             .unwrap()
+             .traces
+-            .clone(),
++            .as_finite()
++            .expect("finite contract checked above")
++            .to_vec(),
+     ))
+ }
+ 
+diff --git a/crates/zil-verify/src/helpers.rs b/crates/zil-verify/src/helpers.rs
+index 11aee7d5..8a16b876 100644
+--- a/crates/zil-verify/src/helpers.rs
++++ b/crates/zil-verify/src/helpers.rs
+@@ -249,7 +249,13 @@ fn forwarded<'a>(
+             "nested helper must forward its actual parameter to an independently checked matching contract",
+         ));
+     }
+-    Ok(Some(&claim.traces))
++    let finite = claim.traces.as_finite().ok_or_else(|| {
++        unsupported(
++            "cyclic callable Flow semantics are not implemented",
++            Some(instruction.span),
++        )
++    })?;
++    Ok(Some(finite))
+ }
+ 
+ /// Each reachable block is processed after all its predecessors. Trace sets

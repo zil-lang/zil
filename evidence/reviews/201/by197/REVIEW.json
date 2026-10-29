@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "task": "201",
+  "reviewer": "/root/impl197",
+  "verdict": "Pass",
+  "scope": "Finite complete Store elements with one or two direct self-contained same-environment callback fields, actual Fn/FnMut windows, pop-owned FnOnce, real layout/cleanup, raw/Wire rejection and bounded work. This is not full-language, product or formal integration acceptance.",
+  "implementation_commit": "7d690f67d76d665bf2e383ffab2c071d05685ecd",
+  "tested_source_commit": "7d690f67d76d665bf2e383ffab2c071d05685ecd",
+  "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
+  "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
+  "public_schema_version": 25,
+  "source_identity": "SOURCE.json records actual normative hashes, production components, exact source/fixture identities and scoped object equivalence. Every final command ran on clean 7d690f67. Later reviewer documents are not retroactively treated as tested commits.",
+  "independence": {
+    "implementation_authors": ["/root", "/root/roles196_frontend", "/root/bundle_sync"],
+    "reviewer_wrote_201_production": false,
+    "reviewer_write_set": ["crates/zil-driver/tests/impl201_independent.rs", "evidence/reviews/201/by197/**"],
+    "prerequisite197": "Reviewer previously authored 197. This review does not independently reapprove it; its unchanged source is only a 201 budget compatibility guard."
+  },
+  "final_tests": {
+    "passed": 46,
+    "failed": 0,
+    "ignored": 0,
+    "groups": [
+      {"name": "Independent source/raw/Wire/budget", "passed": 13, "receipt": "raw/final01/result.json"},
+      {"name": "Author frontend source replay", "passed": 13, "receipt": "raw/final01/result.json"},
+      {"name": "Author source-derived Analyze/raw/Wire replay", "passed": 7, "receipt": "raw/final01/result.json"},
+      {"name": "Author Analyze raw and legacy Store budget replay", "passed": 9, "receipt": "raw/analyze-final01/result.json"},
+      {"name": "Three unchanged original probes, Types and native", "passed": 2, "receipt": "raw/legacy-originals01/result.json"},
+      {"name": "Legacy single-State exact Expand budget", "passed": 1, "receipt": "raw/legacy-state-budget01/result.json"},
+      {"name": "Existing 178 definition-time Store boundary", "passed": 1, "receipt": "raw/legacy-store-guard01/result.json"}
+    ],
+    "independent_compile_reports": 35,
+    "independent_compile_outcomes": [
+      {"status": "Success", "phase": "link", "count": 24},
+      {"status": "SafeReject", "phase": "verify", "count": 9},
+      {"status": "SafeReject", "phase": "expand", "count": 1},
+      {"status": "Unsupported", "phase": "verify", "count": 1}
+    ],
+    "author_source_compile_reports_replayed": 40,
+    "author_source_compile_outcomes_replayed": [
+      {"status": "Success", "phase": "link", "count": 24},
+      {"status": "Success", "phase": "types", "count": 2},
+      {"status": "SafeReject", "phase": "verify", "count": 7},
+      {"status": "SafeReject", "phase": "expand", "count": 5},
+      {"status": "SafeReject", "phase": "types", "count": 1},
+      {"status": "Unsupported", "phase": "types", "count": 1}
+    ],
+    "native_source_executions": {"independent": 24, "author_replay": 24, "three_originals_replay": 6, "total": 54, "optimizations": ["O0", "O2"]},
+    "not_run": "No formal full workspace, native Windows, Wine or comparative benchmark is attributed to this reviewer."
+  },
+  "independent_raw_wire": {
+    "source_produced_controls": 6,
+    "source_derived_unused_definition_positive_extension": 1,
+    "attack_inputs": 6,
+    "routes_per_input": 2,
+    "attacks": [
+      {"name": "live-lending-parent-reserve", "mutation": "Insert a real parent Store reserve after the borrowed callback call and before the last lending read.", "analyze": "Success; fresh candidate required", "raw_and_wire": "SafeReject/E-BORROW-CONFLICT"},
+      {"name": "same-type-right-reserve-retargeted-to-live-left", "mutation": "Retarget an actual right Store reserve to the simultaneously live left Store with exactly the same complete type and ClosureId.", "analyze": "Success; fresh candidate required", "raw_and_wire": "SafeReject/E-BORROW-CONFLICT"},
+      {"name": "second-push-duplicates-first-value", "mutation": "Redirect the second actual element push to the first already-pushed SSA value.", "analyze": "SafeReject/E-ANALYZE-IR", "raw_and_wire": "SafeReject/E-VERIFY-RESOURCE", "candidate": "Original source plan with attacked module fingerprint; not described as fresh Analyze success."},
+      {"name": "direct-store-capture-cycle", "mutation": "Replace a real capture with the actual Store whose element refers back to that ClosureId.", "analyze": "Unsupported/E-UNSUPPORTED", "raw_and_wire": "Unsupported/E-UNSUPPORTED: finite owning environment profile", "boundary": "Qualification rejection before layout, not lending-safety acceptance."},
+      {"name": "package-store-capture-cycle", "mutation": "Wrap the same real cycle-producing Store in a captured Package.", "analyze": "Unsupported/E-UNSUPPORTED", "raw_and_wire": "Unsupported/E-UNSUPPORTED: finite owning environment profile", "boundary": "Qualification rejection before layout, not lending-safety acceptance."},
+      {"name": "unused-definition-has-three-callbacks", "mutation": "After validating an unused source-derived Store definition, add two fields of its actual callback type, producing three fields.", "analyze": "Unsupported/E-UNSUPPORTED", "raw_and_wire": "Unsupported/E-UNSUPPORTED", "boundary": "The positive extension is raw source-derived metadata, not a newly source-produced nominal declaration."}
+    ]
+  },
+  "production_bug_found_and_closed": {
+    "name": "Captured zero-payload Package mistaken for a zero-size Store element",
+    "original_commit": "86e710c9d9187d825e50d7fd561eec1b739227ba",
+    "original_receipt": "raw/zero_capture01/result.json",
+    "original_direct_state": "O0/O2 Success, stdout A, exit 0",
+    "original_store_variant": "Types/Unsupported, verification_runs=0; failure source and IR retained",
+    "direct_source_sha256": "631ef8e58acace091f13e060ffdd9804e959d43847916eec75d037223b8773f4",
+    "store_source_sha256": "422ccc5343e405fda9cadd0b73bd803a62c8059f10222d9ebfa53da7aaf7ec5c",
+    "cause": "Types reused complete-element nonzero eligibility for a captured Package, despite real shell/field flags making its closure environment nonzero.",
+    "fix_commit": "66c1d1de0f507ff15f8448e898999182194d6062",
+    "fix": "Separate finite captured fields from complete-element nonzero eligibility; Verify still independently computes actual layout.",
+    "independent_final": "Both byte-identical variants execute O0/O2 with stdout A and exit 0 at the exact tested commit.",
+    "author_and_root_units": "Separate results, not counted as this reviewer's executions."
+  },
+  "budgets": {
+    "new_independent_lending_source": {"expand": 2871, "types": 5241, "analyze": 16091, "verify": 29902, "checks": "N succeeds, N-1 ResourceLimit, fresh N succeeds separately for each phase; defaults unchanged", "receipt_glob": "raw/final01/independent201-exact-budgets-*/boundaries.json"},
+    "same_new_source_earlier_types": {"types": 5245, "commit": "249719e61250d64fdabdf8eadb5fc2979bbed1ed", "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c", "scope": "Early new-201 path, not an old-profile baseline or final-source result."},
+    "legacy_single_state_expand": {"actual": 1731, "historical_independent_baseline": 1731, "historical_test_branch": "review/200-legacy-budget-by197", "receipt": "raw/legacy-state-budget01/result.json"},
+    "legacy_noncallback_store_analyze": {"actual": 561, "historical_author_baseline": 561, "receipt": "raw/analyze-final01/result.json"},
+    "existing_178_boundary_guard": {"status": "Pass", "receipt": "raw/legacy-store-guard01/result.json", "boundary": "Current-source dynamic N/N-1 only; no historical ordinary-Store Expand/Types fixed N was measured by this reviewer."},
+    "source_derived_analyze_replay": {"original02": 14578, "split": 51708, "lending": 15633},
+    "default_limits_changed": false,
+    "claim_limit": "No claim that every prior ordinary Store phase cost has been compared with a historical baseline."
+  },
+  "consumer": {
+    "status": "Pass",
+    "platform": "Linux native",
+    "source_commit": "7d690f67d76d665bf2e383ffab2c071d05685ecd",
+    "cli_sha256": "e49b7fb470835f6a759978191c061cc33b61ee268ac8d53fcd6368bce218eb7c",
+    "build_receipt": "raw/build-cli01/result.json",
+    "command_receipt": "raw/consumer-command01/result.json",
+    "summary": "raw/consumer-linux01/summary.json",
+    "modules": 4,
+    "optimizations": ["O0", "O2"],
+    "executions": 118,
+    "ordinary_executions": 14,
+    "instrumented_executions": 104,
+    "actual_allocation_failures": 84,
+    "all_instrumented_final_live_allocations": 0,
+    "all_instrumented_allocations_equal_frees": true,
+    "maximum_observed_live_allocations": 3,
+    "maximum_observed_live_bytes": 269,
+    "oracle_review": [
+      "Counts 0, 1, 2, 3 and 7 exercise no calls, repeated ABBA actual-element calls, continue, break, grow, pop and final owned callback invocation; invalid input and EOF are separate controls.",
+      "Two actual same-type environment buffers advance independently, including reversed call order. Ordinary Tag crosses four modules; callback body receives a real mutable slice.",
+      "Expected allocator sequence is Store capacity 2, actual callback buffer growth, Store capacity 4, then popped callback growth. Item stride 64 follows declared source fields and frozen 64-bit layout, not observations or emitted LLVM.",
+      "Every real allocation ordinal fails separately; after-last controls remain successful. Exact output accounts for initialized prefix, popped owner and remaining Pair marker cleanup.",
+      "The C shim only observes and faults allocator calls; it does not implement the ZIL program."
+    ],
+    "wine": "NotRun by this reviewer; author compatibility results are separate.",
+    "native_windows": "NotRun"
+  },
+  "read_only_reviews": [
+    {"receipt": "MIGRATION.json", "reviewed_commit": "b2ed3f9d469860e43e0ca9edd7278f4341997d93", "scope": "Three unchanged original probes gain real success assertions; no production change."},
+    {"receipt": "MIGRATION-175.json", "reviewed_commit": "a3440b3122b678a98a3d5134e1c5d3b8bfbd08d9", "scope": "One diagnostic substring; rejected Managed field source preserved."},
+    {"receipt": "MIGRATION-180.json", "reviewed_commit": "1adf94568e701ec66bfae119bfa83106cef11c4f", "scope": "One diagnostic substring; Managed field, capture and escape inputs preserved."},
+    {"reviewed_commit": "f484589dc4c08ee695f93d36171542482b113134", "scope": "New same-element two-FnMut/two-FnOnce controls, full push/empty pop/overflow cleanup and four-source exact budgets are coherent. Existing negatives are tightened to actual Verify/message.", "execution": "Read-only after tested freeze; its three new groups were not executed by this reviewer."}
+  ],
+  "earlier_runs_retained": [
+    {"directory": "raw/prepare01", "commit": "3a0d9cbf290d0428ad5d738ac72d655dfd3a8cd7", "result": "Compilation with --no-run only; not a test pass."},
+    {"directory": "raw/source01", "commit": "81f0ad7d44800f9d665902aafd88c477c87465d5", "passed": 6, "failed": 4, "cause": "Three fixture integer-literal syntax failures and one wrong expected borrowed-FnOnce category; originals retained."},
+    {"directory": "raw/source02", "commit": "827885ca3a9fde142f7f94067509a706ea1f1234", "passed": 8, "failed": 2, "cause": "Independent sum oracle 352 was wrong (252); duplicated SSA rejection is E-VERIFY-RESOURCE rather than expected E-VERIFY-MOVE. Neither correction changed production."},
+    {"directory": "raw/source03", "commit": "249719e61250d64fdabdf8eadb5fc2979bbed1ed", "passed": 10, "failed": 0},
+    {"directory": "raw/capture01", "commit": "869c15968a5df7e8894be45478c72bd2acee925a", "passed": 1, "failed": 0},
+    {"directory": "raw/unused01", "commit": "86e710c9d9187d825e50d7fd561eec1b739227ba", "passed": 1, "failed": 0},
+    {"directory": "raw/zero_capture01", "commit": "86e710c9d9187d825e50d7fd561eec1b739227ba", "passed": 0, "failed": 1, "cause": "Real capture-eligibility production bug, separately preserved from fixture mistakes."}
+  ],
+  "remaining_boundaries": [
+    "Explicit Store<State<F>> callable generic inputs/results and ordinary T:StoreElement helpers whose actual T depends on F remain a 202 complete-type binding gap. Qualification failures are not borrowed-call safety evidence.",
+    "No different-index or sibling-field apartness: actual Store parent windows remain conservative. Borrowed FnOnce is rejected at Expand; owning pop is the successful path.",
+    "Whole owning Package/Closure copy or replacement through Store addresses, direct Store capture, Package-with-Store capture, unsupported nested callable Package capture, heterogeneous persistent F/G, recursive owning elements, dyn and async remain outside this finite slice."
+  ],
+  "unresolved_safety_findings": [],
+  "rust_goals": {
+    "safety": "Finite source/raw/Wire and cleanup evidence; not full-language safety.",
+    "runtime_and_memory": "Actual layout and exact allocation/cleanup evidence; no same-semantics Rust runtime or RSS comparison.",
+    "expression_and_maintenance": "Store callbacks and synchronous helpers compose across four modules; complete generic binding remains open. No whole-framework maintenance advantage demonstrated.",
+    "compilation": "Deterministic work bounds and selected legacy guards; no speed comparison.",
+    "reproducible_product_breakthrough": "NotEstablished; product-gates unchanged."
+  },
+  "formal_workspace": "NotRun by this reviewer; root owns the distinct formal integration record.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "evidence_archive": "201-review-by197-evidence.zip; separate archive. MANIFEST.json contains size/hash; raw failures, inputs, phases and commands are retained without executable/object payloads."
+}

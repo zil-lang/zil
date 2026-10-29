@@ -1,0 +1,17 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review182/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.41s
+     Running tests/impl072_packages.rs (/workspace/scratch/39be3faa4442/targets178/review182/debug/deps/impl072_packages-039cb512bb22b1b8)
+     Running tests/impl074_packages.rs (/workspace/scratch/39be3faa4442/targets178/review182/debug/deps/impl074_packages-06c7cb3062067979)
+     Running tests/impl079_package_captures.rs (/workspace/scratch/39be3faa4442/targets178/review182/debug/deps/impl079_package_captures-6412df9069b3b5ed)
+     Running tests/impl168_retained_composition.rs (/workspace/scratch/39be3faa4442/targets178/review182/debug/deps/impl168_retained_composition-e15ec715193e5615)
+     Running tests/impl171_resource_heads.rs (/workspace/scratch/39be3faa4442/targets178/review182/debug/deps/impl171_resource_heads-eb5aeb3f3386f885)
+     Running tests/impl175_store_views.rs (/workspace/scratch/39be3faa4442/targets178/review182/debug/deps/impl175_store_views-2b21878bd7a24e97)
+     Running tests/impl179_field_precision.rs (/workspace/scratch/39be3faa4442/targets178/review182/debug/deps/impl179_field_precision-b8aa0a896a16c234)
+     Running tests/impl180_store_mut.rs (/workspace/scratch/39be3faa4442/targets178/review182/debug/deps/impl180_store_mut-756b4c4683bfaceb)
+     Running tests/impl182_capture_contracts.rs (/workspace/scratch/39be3faa4442/targets178/review182/debug/deps/impl182_capture_contracts-e0324ece1d1073c5)
+     Running tests/review177_public.rs (/workspace/scratch/39be3faa4442/targets178/review182/debug/deps/review177_public-5a5287b1a3a86651)
+     Running tests/review181_by179.rs (/workspace/scratch/39be3faa4442/targets178/review182/debug/deps/review181_by179-810defe3a4e2005c)
+     Running tests/review182_capture_boundaries.rs (/workspace/scratch/39be3faa4442/targets178/review182/debug/deps/review182_capture_boundaries-6abc2f60d2bca570)
+error: test failed, to rerun pass `-p zil-driver --test review182_capture_boundaries`
+error: 1 target failed:
+    `-p zil-driver --test review182_capture_boundaries`

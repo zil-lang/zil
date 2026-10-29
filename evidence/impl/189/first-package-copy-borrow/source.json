@@ -1,0 +1,9 @@
+{
+  "source_commit": "7e7aba613d382f6d0102a02fb8666987b64c8612",
+  "command": "../runs/development10/consumer-command/command.json",
+  "result": "../runs/development10/consumer/summary.json",
+  "status": "Unsupported",
+  "phase": "types",
+  "retained_gap": "Package Copy sibling address acquisition; independent Task192",
+  "current_consumer": "Read Copy field, borrow a mutable local, then write the value back. No claim of two Package field addresses."
+}

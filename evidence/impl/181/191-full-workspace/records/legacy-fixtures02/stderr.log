@@ -1,0 +1,13 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-driver)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-verify)
+    Finished `test` profile [unoptimized] target(s) in 0.61s
+     Running tests/budgets.rs (/workspace/scratch/39be3faa4442/targets178/formal191/debug/deps/budgets-42f48a19e85b3ab8)
+     Running tests/impl042.rs (/workspace/scratch/39be3faa4442/targets178/formal191/debug/deps/impl042-4df2e31282d6fd44)
+     Running tests/impl099_owned_bytes.rs (/workspace/scratch/39be3faa4442/targets178/formal191/debug/deps/impl099_owned_bytes-ca18ea3e28820a9d)
+     Running tests/shared_addresses.rs (/workspace/scratch/39be3faa4442/targets178/formal191/debug/deps/shared_addresses-d13aab5638b5a57a)
+error: test failed, to rerun pass `-p zil-driver --test shared_addresses`
+     Running tests/impl091_slices.rs (/workspace/scratch/39be3faa4442/targets178/formal191/debug/deps/impl091_slices-482f46f5d017f92a)
+     Running tests/impl095_byte_buffers.rs (/workspace/scratch/39be3faa4442/targets178/formal191/debug/deps/impl095_byte_buffers-4815f7fa627449ff)
+     Running tests/impl099_owned_bytes.rs (/workspace/scratch/39be3faa4442/targets178/formal191/debug/deps/impl099_owned_bytes-6be06f2d1683c992)
+error: 1 target failed:
+    `-p zil-driver --test shared_addresses`

@@ -1,0 +1,1 @@
+resource R{n:i32} fn main()->i32{let a=R{n:3};let f=move()->i32=>{let g=move()->i32=>a.n;return g()};return f()-3}

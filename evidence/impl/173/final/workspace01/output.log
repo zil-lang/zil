@@ -1,0 +1,34 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-analyze)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-lower)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-types)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-driver)
+   Compiling zil-ide v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-ide)
+   Compiling zil-cli v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-cli)
+error: linking with `cc` failed: exit status: 1
+  |
+  = note:  "cc" "-m64" "/workspace/scratch/39be3faa4442/targets/173-final/debug/deps/rustcJBWeOj/symbols.o" "<3 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*}.rlib" "/workspace/scratch/39be3faa4442/targets/173-final/debug/deps/{libzil_driver-96cd3d11bf870d2b,libzil_lower-090f9c4836196a6f,libzil_expand-606088f77c5f93be,libzil_analyze-6951b36221a8c497,libzil_types-3d0290c51a951723,libzil_ct-9c944d6c5ac7e4b7,libzil_syntax-7b043bbd47b235fd,libzil_db-4348a29017d760cd,libzil_backend_llvm-e5b47988b2f5356f,libzil_verify-ac3c8fca255285be,libzil_ir-3313242dcd4742e0,libzil_base-87408cad5aeccb2a}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/workspace/scratch/39be3faa4442/targets/173-final/debug/deps/rustcJBWeOj/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/workspace/scratch/39be3faa4442/targets/173-final/debug/deps/impl096_byte_buffer_native-c6abb6ee312824f6" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-nodefaultlibs"
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: collect2: fatal error: ld terminated with signal 7 [Bus error]
+          compilation terminated.
+          
+
+error: could not compile `zil-driver` (test "impl096_byte_buffer_native") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: linking with `cc` failed: exit status: 1
+  |
+  = note:  "cc" "-m64" "/workspace/scratch/39be3faa4442/targets/173-final/debug/deps/rustcrbCHc7/symbols.o" "<4 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*}.rlib" "/workspace/scratch/39be3faa4442/targets/173-final/debug/deps/{libzil_driver-96cd3d11bf870d2b,libzil_lower-090f9c4836196a6f,libzil_expand-606088f77c5f93be,libzil_analyze-6951b36221a8c497,libzil_types-3d0290c51a951723,libzil_ct-9c944d6c5ac7e4b7,libzil_syntax-7b043bbd47b235fd,libzil_db-4348a29017d760cd,libzil_backend_llvm-e5b47988b2f5356f,libzil_verify-ac3c8fca255285be,libzil_ir-3313242dcd4742e0,libzil_base-87408cad5aeccb2a}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/workspace/scratch/39be3faa4442/targets/173-final/debug/deps/rustcrbCHc7/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/workspace/scratch/39be3faa4442/targets/173-final/debug/deps/impl126_helper_sequences-275ef6c7b31a773f" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-nodefaultlibs"
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace and instructions to reproduce the bug.
+          LLVM ERROR: IO failure on output stream: No space left on device
+          collect2: error: ld returned 1 exit status
+          
+
+error: could not compile `zil-driver` (test "impl126_helper_sequences") due to 1 previous error

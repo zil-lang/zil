@@ -1,0 +1,36 @@
+{
+  "tested_tool_commit": "b0e747bd7a6553c163c6c44512d01da57da9442c",
+  "checks": {
+    "duplicate_basename": {
+      "status": "expected rejection",
+      "message": "duplicate or reserved recovery worktree alias: same"
+    },
+    "normal_distinct_aliases": {
+      "status": "Pass",
+      "worktrees": {
+        "main": "e150673b2d3d79758ee57232f564fbdde3a8a3e9",
+        "same": "83d375d78cfb9a8ea3ec35526c660524a0f543dc",
+        "distinct": "af700325d8f1f1ebb38f6048f77bcc34516777a6"
+      },
+      "all_worktree_heads_in_bundle": true
+    },
+    "conflicting_recovery_ref": {
+      "status": "expected rejection",
+      "message": "recovery ref already names another commit: refs/heads/recovery/same"
+    },
+    "same_commit_recovery_ref": {
+      "status": "Pass",
+      "worktrees": {
+        "main": "e150673b2d3d79758ee57232f564fbdde3a8a3e9",
+        "same": "83d375d78cfb9a8ea3ec35526c660524a0f543dc",
+        "distinct": "af700325d8f1f1ebb38f6048f77bcc34516777a6"
+      },
+      "all_worktree_heads_in_bundle": true
+    },
+    "reserved_main": {
+      "status": "expected rejection",
+      "message": "duplicate or reserved recovery worktree alias: main"
+    }
+  },
+  "status": "Pass"
+}

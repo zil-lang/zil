@@ -1,0 +1,117 @@
+{
+  "schema": "zil-independent-slice-review-v1",
+  "reviewer": "/root/package_fields",
+  "implementation_author": "/root",
+  "implementation_commit": "893b625c18f8cb8776b14b945333f53d8d68c014",
+  "crates_tree": "a7a5f8efa682a8c7e08d2508c392f36de1bc5b0b",
+  "reviewed_trees": {
+    "zil-ir": "9c34d8f7bed703daf71f2bf83de04619fe2d3dc7",
+    "zil-expand": "d474b53bda0235586076d45007ef4f36f7f162fe",
+    "zil-base": "3d80cb3d854b92e3c3cb2df222122f743ab959e6"
+  },
+  "source_status": "",
+  "scope": "173 public IR/Wire/schema/Expand and metadata preflight only; not 171 or 172 executable semantics and not an author review of 170",
+  "verdict": "Pass",
+  "findings": [
+    {
+      "id": "R173-1",
+      "severity": "blocking",
+      "summary": "Store and owned storage primitive names escape nominal and generic binder reservation before alias normalization.",
+      "locations": [
+        "crates/zil-expand/src/generics.rs::specialize (declarations and params)",
+        "crates/zil-expand/src/generic_alias.rs::normalize (alias params)"
+      ],
+      "consequence": "type Store=i32 is erased into I32, hijacking a sealed primitive family name; unused generic binders also escape the intended reserved-name contract.",
+      "expected": "Reject Store/owned-store primitive declarations and binders before any erasure, retaining legal member names and existing local Types phase ownership.",
+      "status": "FixedAndIndependentlyRetested",
+      "fix_commit": "893b625c18f8cb8776b14b945333f53d8d68c014"
+    }
+  ],
+  "confirmed": [
+    "Type tag 25 and instruction tags 80 through 85 preserve every element/operand in wire and typed fingerprint.",
+    "Raw OwnedStoreNew embedded element deep and wide metadata is bounded before stale plan identity fingerprint; wire decode/check also ResourceLimit.",
+    "Tiny stale plan gets E-VERIFY-PLAN-IDENTITY; correctly rebound tiny Store operation remains explicitly Unsupported before 172 checker.",
+    "Shared-head structural helper does not widen general address pointees; mutable, Desc, ByteBuffer and OwnedStore heads remain excluded.",
+    "Wire versions 0 through 19, 21 and u32max reject; writer/reader depth and opcode rejection tests pass.",
+    "Store<T> Expand becomes Desc<OwnedStore<T>>; invalid type arity stays explicit Unsupported raw metadata for downstream admission.",
+    "Top-level function reserve checks reject all seven names; member method same-spelling stays legal. Local binding checks are correctly deferred to 172 Types names."
+  ],
+  "independent_probes": {
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "/workspace/scratch/39be3faa4442/run-logs/review173-public170/probes/Cargo.toml",
+      "--offline",
+      "-j2",
+      "--",
+      "--nocapture"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review173-public170",
+    "source_commit": "893b625c18f8cb8776b14b945333f53d8d68c014",
+    "crates_tree": "a7a5f8efa682a8c7e08d2508c392f36de1bc5b0b",
+    "source_status": "",
+    "start": 1793110334.2699087,
+    "status": "Pass",
+    "exit_code": 0,
+    "log_sha256": "be5792605bddfd44d52e03bdf96c0a77a16bc5c3e675a50847db5a45a28812e3",
+    "end": 1793110341.1567945,
+    "seconds": 6.88688588142395,
+    "tests": {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 2
+    },
+    "ending_crates_tree": "a7a5f8efa682a8c7e08d2508c392f36de1bc5b0b",
+    "ending_source_status": ""
+  },
+  "regression_tests": {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "zil-ir",
+      "-p",
+      "zil-expand",
+      "--offline",
+      "-j2"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review173-public170",
+    "source_commit": "893b625c18f8cb8776b14b945333f53d8d68c014",
+    "crates_tree": "a7a5f8efa682a8c7e08d2508c392f36de1bc5b0b",
+    "source_status": "",
+    "start": 1793110347.6709309,
+    "status": "Pass",
+    "exit_code": 0,
+    "log_sha256": "5840c66ce86ac57d1b260734828d0501f4bfd32a65faadd22db685fff22f3983",
+    "end": 1793110354.5335937,
+    "seconds": 6.8626627922058105,
+    "tests": {
+      "passed": 61,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 14
+    },
+    "ending_crates_tree": "a7a5f8efa682a8c7e08d2508c392f36de1bc5b0b",
+    "ending_source_status": ""
+  },
+  "original_probe_source_sha256": "1a1a3cb880e020ec0af8b68b4270b1ec3b13ebdfcaba0808c33d92ef216a2c4b",
+  "original_probe_source_unchanged_after_author_fix": true,
+  "initial_review": "REVIEW-initial.json",
+  "resolved_nonblocking_notes": [
+    "Type::Package doc comment still describes only finite Copy non-Managed fields although 170 permits owning arrays.",
+    "is_scalar_or_shared_address doc comment does not mention exact shared resource-head addresses."
+  ],
+  "not_claimed": [
+    "Store runtime capability before 172 implementation",
+    "171 address safety approval from raw structural classification",
+    "whole-language completion or ZUI readiness",
+    "performance improvement"
+  ],
+  "limits": [
+    "Only root-owned public IR/Wire/schema/Expand/preflight semantic regions were reviewed. Included 170 implementation was independently reviewed by /root and is not counted as this reviewer own-work approval.",
+    "No executable Store support is claimed from this public transport review. At this commit correctly bound Store instructions deliberately remain Unsupported.",
+    "Store local/parameter/closure binder restrictions are a 172 Types::names obligation, distinct from 173 declaration and alias preflight."
+  ]
+}

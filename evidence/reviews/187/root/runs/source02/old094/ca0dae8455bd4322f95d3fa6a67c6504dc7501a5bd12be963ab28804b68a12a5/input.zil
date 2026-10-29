@@ -1,0 +1,1 @@
+fn storage(b:ByteBuffer)->i64{return bytes_len(b);}fn pure()->u8{return 12u8;}fn result()->u8{return #(pure());}

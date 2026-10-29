@@ -1,4 +1,4 @@
-//! Finite Copy/complete-Package error unions and synchronous propagation. The operand is one
+//! Finite Copy/complete-Package/owned-success error unions. The operand is one
 //! SSA value; cleanup on the failure edge never mutates the success-edge
 //! builder state or turns a recoverable failure into a trap.
 use super::*;
@@ -6,13 +6,21 @@ use super::*;
 pub(super) fn owned(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
         if matches!(error.as_ref(), Type::Package { .. })
-            || matches!(result.as_ref(), Type::Package { .. }))
+            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_)))
+}
+
+/// Structural classification only. `supported` separately admits the finite
+/// Copy error and the actual direct resource payload.
+pub(super) fn managed_success(ty: &Type) -> bool {
+    matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Managed(_)))
 }
 
 pub(super) fn supported(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
-        if (error.is_copy_value() || packages::supported(error))
+        if ((error.is_copy_value() || packages::supported(error))
             && (result.is_copy_value() || packages::supported(result)))
+            || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
+                && resources::supported(result)))
 }
 
 pub(super) fn injection(actual: &Type, union: &Type, span: Span) -> R<Option<bool>> {

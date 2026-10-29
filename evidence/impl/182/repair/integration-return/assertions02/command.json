@@ -1,0 +1,38 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "review177_public",
+    "--test",
+    "review181_by179",
+    "--test",
+    "impl175_store_views",
+    "--test",
+    "impl182_capture_contracts",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt185-fixes",
+  "start": 1793154145.8345468,
+  "source_commit": "bfb53c7d7909c98513bdffc775fae2bd337d8a2a",
+  "git_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/integration-fixtures",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/185-integration/assertions02/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793154151.8076532,
+  "stdout.log_sha256": "8effcc1e821ca19a7be9f6095f0565e45d2b745f87fcf603b83bb94f1843ced4",
+  "stderr.log_sha256": "58d127b3f5dbff202cf29a8916cce0d6df04ec5fd6355883425f3b234e0706a8"
+}

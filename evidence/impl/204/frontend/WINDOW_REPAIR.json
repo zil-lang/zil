@@ -1,0 +1,398 @@
+{
+  "slice": "204",
+  "author": "/root/roles196_frontend",
+  "normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
+  "final_test_commit": "7453433e192a319a2ea5b0dab7140a2e9a814b4b",
+  "schema": 27,
+  "discovery": "windows01 actually accepted body TakeCapture with a later read through the old Store element window. The bad source was never executed natively.",
+  "repair": {
+    "verify_commit": "6654830229e1351fa03c9a1fa8cfc5b55cf84da5",
+    "analyze_commit": "70678a8dbad7f1da27730fec301712a36b851520",
+    "verify_owner": "/root",
+    "analyze_owner": "/root/bundle_sync",
+    "note": "The final source rejection is earlier at Analyze. Separate raw/Wire Verify evidence belongs to root and independent review; it is not inferred from this early source result."
+  },
+  "source_expectation_migration": {
+    "before_run": "window_phase_before",
+    "actual_tests": {
+      "passed": 1,
+      "failed": 3
+    },
+    "reason": "Three original negative sources correctly became Analyze SafeReject/E-ANALYZE-IR/verification_runs=0, while the old assertion required Verify. Their source bytes were not changed.",
+    "creation_control": "Retains exact Verify/E-BORROW-CONFLICT/verification_runs=1.",
+    "after_run": "final01",
+    "native_positive_controls": 10
+  },
+  "cases": [
+    {
+      "case": "creation_time_move",
+      "source_sha256": "c7f51aa593b131811033ab0a954579f7ed7d939559691d0ef356571b16c9a285",
+      "unchanged_bytes": true,
+      "observations": [
+        {
+          "run": "windows01",
+          "source_commit": "ece421cb227883db8386455532f01d841aa5ab5c",
+          "tracked_diff_sha256": "b6481cd8d0c6e8e5ee6100e621e84397011fe0ee9eacc490af97a1de916ffbd6",
+          "source": {
+            "path": "runs/windows01/capture204-capture-with-window-live-807371-5/source.zil",
+            "bytes": 618,
+            "sha256": "c7f51aa593b131811033ab0a954579f7ed7d939559691d0ef356571b16c9a285"
+          },
+          "report": {
+            "status": "SafeReject",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [
+              {
+                "phase": "verify",
+                "category": "SafeReject",
+                "code": "E-BORROW-CONFLICT",
+                "message": "write or storage change overlaps a shared address still required by a later use"
+              }
+            ],
+            "record": {
+              "path": "runs/windows01/capture204-capture-with-window-live-807371-5/compile.json",
+              "bytes": 1873,
+              "sha256": "d2eb60589fd95680c48ea3f416df385978b54d516c4a46e37ba2a47af03ec7ac"
+            }
+          },
+          "native_executed": false
+        },
+        {
+          "run": "window_phase_before",
+          "source_commit": "bf300db2eadb6a35024c9de30a23dc641e2b5c40",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "source": {
+            "path": "runs/window_phase_before/capture204-capture-with-window-live-813258-5/source.zil",
+            "bytes": 618,
+            "sha256": "c7f51aa593b131811033ab0a954579f7ed7d939559691d0ef356571b16c9a285"
+          },
+          "report": {
+            "status": "SafeReject",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [
+              {
+                "phase": "verify",
+                "category": "SafeReject",
+                "code": "E-BORROW-CONFLICT",
+                "message": "write or storage change overlaps a shared address still required by a later use"
+              }
+            ],
+            "record": {
+              "path": "runs/window_phase_before/capture204-capture-with-window-live-813258-5/compile.json",
+              "bytes": 1943,
+              "sha256": "3f948d6ab50b51a5522969850f5bd0267df46a14def3d0b5f9a0154a630dd6ed"
+            }
+          },
+          "native_executed": false
+        },
+        {
+          "run": "final01",
+          "source_commit": "7453433e192a319a2ea5b0dab7140a2e9a814b4b",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "source": {
+            "path": "runs/final01/capture204-capture-with-window-live-814370-12/source.zil",
+            "bytes": 618,
+            "sha256": "c7f51aa593b131811033ab0a954579f7ed7d939559691d0ef356571b16c9a285"
+          },
+          "report": {
+            "status": "SafeReject",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [
+              {
+                "phase": "verify",
+                "category": "SafeReject",
+                "code": "E-BORROW-CONFLICT",
+                "message": "write or storage change overlaps a shared address still required by a later use"
+              }
+            ],
+            "record": {
+              "path": "runs/final01/capture204-capture-with-window-live-814370-12/compile.json",
+              "bytes": 1866,
+              "sha256": "29daa765c8037b11af4aa5a8150aca1dbaa77fb513da207b9fe4b5ae545840ff"
+            }
+          },
+          "native_executed": false
+        }
+      ]
+    },
+    {
+      "case": "body_take",
+      "source_sha256": "e5ba306ba1b06df24325df138e69e6c05e8bfdec417da401043fe37f8fb9a872",
+      "unchanged_bytes": true,
+      "observations": [
+        {
+          "run": "windows01",
+          "source_commit": "ece421cb227883db8386455532f01d841aa5ab5c",
+          "tracked_diff_sha256": "b6481cd8d0c6e8e5ee6100e621e84397011fe0ee9eacc490af97a1de916ffbd6",
+          "source": {
+            "path": "runs/windows01/capture204-take-with-window-live-807371-2/source.zil",
+            "bytes": 801,
+            "sha256": "e5ba306ba1b06df24325df138e69e6c05e8bfdec417da401043fe37f8fb9a872"
+          },
+          "report": {
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "record": {
+              "path": "runs/windows01/capture204-take-with-window-live-807371-2/compile.json",
+              "bytes": 1929,
+              "sha256": "28499b18ae79d0d59e9028e04bcef383a44eadbc3a9cbc34615a0ba999eae58b"
+            }
+          },
+          "native_executed": false
+        },
+        {
+          "run": "window_phase_before",
+          "source_commit": "bf300db2eadb6a35024c9de30a23dc641e2b5c40",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "source": {
+            "path": "runs/window_phase_before/capture204-take-with-window-live-813258-2/source.zil",
+            "bytes": 801,
+            "sha256": "e5ba306ba1b06df24325df138e69e6c05e8bfdec417da401043fe37f8fb9a872"
+          },
+          "report": {
+            "status": "SafeReject",
+            "phase": "analyze",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "analyze",
+                "category": "SafeReject",
+                "code": "E-ANALYZE-IR",
+                "message": "captured Store transition invalidates a live element window"
+              }
+            ],
+            "record": {
+              "path": "runs/window_phase_before/capture204-take-with-window-live-813258-2/compile.json",
+              "bytes": 1708,
+              "sha256": "eaede1f821683165c2131883e2d5e46feec13504882152d402ec8dd1da7539a8"
+            }
+          },
+          "native_executed": false
+        },
+        {
+          "run": "final01",
+          "source_commit": "7453433e192a319a2ea5b0dab7140a2e9a814b4b",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "source": {
+            "path": "runs/final01/capture204-take-with-window-live-814370-9/source.zil",
+            "bytes": 801,
+            "sha256": "e5ba306ba1b06df24325df138e69e6c05e8bfdec417da401043fe37f8fb9a872"
+          },
+          "report": {
+            "status": "SafeReject",
+            "phase": "analyze",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "analyze",
+                "category": "SafeReject",
+                "code": "E-ANALYZE-IR",
+                "message": "captured Store transition invalidates a live element window"
+              }
+            ],
+            "record": {
+              "path": "runs/final01/capture204-take-with-window-live-814370-9/compile.json",
+              "bytes": 1636,
+              "sha256": "0a7e2ff75d3e8a4e503de4d15e4352d6abdd3b12ab52e8f9e718bac4d76c0436"
+            }
+          },
+          "native_executed": false
+        }
+      ]
+    },
+    {
+      "case": "package_same_field_take",
+      "source_sha256": "f931472023712c591e7d4788c05671444542c69b29e9ec72561163f597d84a5e",
+      "unchanged_bytes": true,
+      "observations": [
+        {
+          "run": "package_windows01",
+          "source_commit": "ee0d7344875e0a95e7e077e31e17ee46b9bbea33",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "source": {
+            "path": "runs/package_windows01/capture204-package-field-window-live-812539-4/source.zil",
+            "bytes": 1184,
+            "sha256": "f931472023712c591e7d4788c05671444542c69b29e9ec72561163f597d84a5e"
+          },
+          "report": {
+            "status": "SafeReject",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [
+              {
+                "phase": "verify",
+                "category": "SafeReject",
+                "code": "E-BORROW-CONFLICT",
+                "message": "write or storage change overlaps a shared address still required by a later use"
+              }
+            ],
+            "record": {
+              "path": "runs/package_windows01/capture204-package-field-window-live-812539-4/compile.json",
+              "bytes": 1936,
+              "sha256": "6c7e7fb743e3be2f1a467edcf88ee0201a8b1b8eead96862c44c612928150d05"
+            }
+          },
+          "native_executed": false
+        },
+        {
+          "run": "window_phase_before",
+          "source_commit": "bf300db2eadb6a35024c9de30a23dc641e2b5c40",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "source": {
+            "path": "runs/window_phase_before/capture204-package-field-window-live-813258-10/source.zil",
+            "bytes": 1184,
+            "sha256": "f931472023712c591e7d4788c05671444542c69b29e9ec72561163f597d84a5e"
+          },
+          "report": {
+            "status": "SafeReject",
+            "phase": "analyze",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "analyze",
+                "category": "SafeReject",
+                "code": "E-ANALYZE-IR",
+                "message": "captured Store transition invalidates a live element window"
+              }
+            ],
+            "record": {
+              "path": "runs/window_phase_before/capture204-package-field-window-live-813258-10/compile.json",
+              "bytes": 1738,
+              "sha256": "620bfa0d9f0ace6af789364efd8ac90ea23e677b7d4709eb6b768d2d5059975f"
+            }
+          },
+          "native_executed": false
+        },
+        {
+          "run": "final01",
+          "source_commit": "7453433e192a319a2ea5b0dab7140a2e9a814b4b",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "source": {
+            "path": "runs/final01/capture204-package-field-window-live-814370-57/source.zil",
+            "bytes": 1184,
+            "sha256": "f931472023712c591e7d4788c05671444542c69b29e9ec72561163f597d84a5e"
+          },
+          "report": {
+            "status": "SafeReject",
+            "phase": "analyze",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "analyze",
+                "category": "SafeReject",
+                "code": "E-ANALYZE-IR",
+                "message": "captured Store transition invalidates a live element window"
+              }
+            ],
+            "record": {
+              "path": "runs/final01/capture204-package-field-window-live-814370-57/compile.json",
+              "bytes": 1666,
+              "sha256": "900d4261f062ec6090192739b73ee2e420548745a1900a87616b8034c8385a76"
+            }
+          },
+          "native_executed": false
+        }
+      ]
+    },
+    {
+      "case": "package_whole_take",
+      "source_sha256": "993a75a29b61e5d3687c8f42223ae4c8eb33625838fe3da803ac08941e210fb8",
+      "unchanged_bytes": true,
+      "observations": [
+        {
+          "run": "package_windows01",
+          "source_commit": "ee0d7344875e0a95e7e077e31e17ee46b9bbea33",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "source": {
+            "path": "runs/package_windows01/capture204-package-whole-window-live-812539-7/source.zil",
+            "bytes": 1179,
+            "sha256": "993a75a29b61e5d3687c8f42223ae4c8eb33625838fe3da803ac08941e210fb8"
+          },
+          "report": {
+            "status": "SafeReject",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [
+              {
+                "phase": "verify",
+                "category": "SafeReject",
+                "code": "E-BORROW-CONFLICT",
+                "message": "write or storage change overlaps a shared address still required by a later use"
+              }
+            ],
+            "record": {
+              "path": "runs/package_windows01/capture204-package-whole-window-live-812539-7/compile.json",
+              "bytes": 1936,
+              "sha256": "c75cc23e70e821dcd4b779f0ac73ccdf54fde8b1b3f43d0aa182b3f91f606c80"
+            }
+          },
+          "native_executed": false
+        },
+        {
+          "run": "window_phase_before",
+          "source_commit": "bf300db2eadb6a35024c9de30a23dc641e2b5c40",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "source": {
+            "path": "runs/window_phase_before/capture204-package-whole-window-live-813258-13/source.zil",
+            "bytes": 1179,
+            "sha256": "993a75a29b61e5d3687c8f42223ae4c8eb33625838fe3da803ac08941e210fb8"
+          },
+          "report": {
+            "status": "SafeReject",
+            "phase": "analyze",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "analyze",
+                "category": "SafeReject",
+                "code": "E-ANALYZE-IR",
+                "message": "captured Store transition invalidates a live element window"
+              }
+            ],
+            "record": {
+              "path": "runs/window_phase_before/capture204-package-whole-window-live-813258-13/compile.json",
+              "bytes": 1738,
+              "sha256": "ad344711ef47805bb735c081754f9eadc6f07c1826a50a2063433e07c523fc81"
+            }
+          },
+          "native_executed": false
+        },
+        {
+          "run": "final01",
+          "source_commit": "7453433e192a319a2ea5b0dab7140a2e9a814b4b",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "source": {
+            "path": "runs/final01/capture204-package-whole-window-live-814370-60/source.zil",
+            "bytes": 1179,
+            "sha256": "993a75a29b61e5d3687c8f42223ae4c8eb33625838fe3da803ac08941e210fb8"
+          },
+          "report": {
+            "status": "SafeReject",
+            "phase": "analyze",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "analyze",
+                "category": "SafeReject",
+                "code": "E-ANALYZE-IR",
+                "message": "captured Store transition invalidates a live element window"
+              }
+            ],
+            "record": {
+              "path": "runs/final01/capture204-package-whole-window-live-814370-60/compile.json",
+              "bytes": 1666,
+              "sha256": "552de6161908f7f611ea8a705212e52effe423c4df6fc62f63ec511481d863ae"
+            }
+          },
+          "native_executed": false
+        }
+      ]
+    }
+  ],
+  "field_precision": "Sibling Store fields remain independent; last-use-before-take and before-whole-transfer controls execute O0/O2. Same-field and whole-transfer live-window negatives do not run natively."
+}

@@ -13,6 +13,9 @@ struct Budget<'a> {
     nodes: usize,
     ordinary_functions: usize,
     closures: usize,
+    inside_store: bool,
+    store_shapes: bool,
+    direct_type_callee: bool,
 }
 impl<'a> Budget<'a> {
     fn new(limits: &'a Limits) -> Self {
@@ -22,6 +25,9 @@ impl<'a> Budget<'a> {
             nodes: limits.max_nodes,
             ordinary_functions: 0,
             closures: 0,
+            inside_store: false,
+            store_shapes: false,
+            direct_type_callee: false,
         }
     }
     fn work(&mut self, count: usize, span: Span) -> R<()> {
@@ -71,7 +77,7 @@ impl<'a> Budget<'a> {
 
 /// Reserve the complete retained template before a new deep snapshot. This
 /// reuses the borrowed input walk, so nested statements/types and text all count.
-pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> R<usize> {
+pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> R<(usize, bool)> {
     let mut budget = Budget::new(limits);
     budget.work(
         function
@@ -85,14 +91,18 @@ pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> 
         validate_type(&parameter.ty, 0, parameter.span, &mut budget)?;
     }
     validate_type(&function.return_type, 0, function.span, &mut budget)?;
-    if let Some(bound) = &function.callable_parameter {
+    for parameter in &function.type_parameters {
+        budget.work(parameter.name.len().saturating_add(1), function.span)?;
+    }
+    state_snapshot(&function.state_parameters, function.span, &mut budget)?;
+    for bound in &function.callable_parameters {
         callable_snapshot(bound, function.span, &mut budget)?;
     }
     if let Some(bound) = &function.callable_return {
         returned_snapshot(bound, function.span, &mut budget)?;
     }
     contains_closure(&function.body, 0, &mut budget)?;
-    Ok(limits.max_analysis_steps - budget.work)
+    Ok((limits.max_analysis_steps - budget.work, budget.store_shapes))
 }
 
 pub(super) fn signature_snapshot_work(
@@ -110,8 +120,14 @@ pub(super) fn signature_snapshot_work(
     if let Some(ty) = &signature.receiver {
         validate_type(ty, 0, span, &mut budget)?;
     }
-    if let Some(bound) = &signature.callable {
+    if let Some(state) = &signature.state_parameter {
+        state_snapshot(std::slice::from_ref(state), span, &mut budget)?;
+    }
+    for bound in &signature.callable {
         callable_snapshot(bound, span, &mut budget)?;
+    }
+    if let Some(parameter) = &signature.type_parameter {
+        budget.work(parameter.name.len().saturating_add(1), span)?;
     }
     if let Some(bound) = &signature.callable_return {
         returned_snapshot(bound, span, &mut budget)?;
@@ -139,6 +155,35 @@ fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Bud
     validate_type(&bound.result, 0, span, budget)
 }
 
+fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget<'_>) -> R<()> {
+    if states.is_empty() {
+        return Ok(());
+    }
+    let before = budget.work;
+    budget.work(states.len(), span)?;
+    for state in states {
+        budget.work(state.bindings.len().saturating_add(1), span)?;
+        for binding in &state.bindings {
+            budget.work(
+                binding
+                    .generic_name
+                    .len()
+                    .saturating_add(binding.fields.len())
+                    .saturating_add(binding.parameters.len())
+                    .saturating_add(1),
+                span,
+            )?;
+            for parameter in &binding.parameters {
+                validate_type(parameter, 0, span, budget)?;
+            }
+            validate_type(&binding.result, 0, span, budget)?;
+        }
+    }
+    // Both the public source declaration and its private bound view are copied.
+    // Reserve those snapshots before either allocation, including selectors.
+    budget.work((before - budget.work).saturating_mul(2), span)
+}
+
 /// Infer closure-related source types without executing CT or producing a
 /// verified artifact. The caller must still run CT, ordinary types and Verify.
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
@@ -148,7 +193,10 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
     let flags = core
         .functions
         .iter()
-        .map(|f| contains_closure(&f.body, 0, &mut budget))
+        .map(|f| {
+            contains_closure(&f.body, 0, &mut budget)
+                .map(|found| found || !f.state_parameters.is_empty())
+        })
         .collect::<R<Vec<_>>>()
         .map_err(|e| vec![e])?;
     names::check(core, limits).map_err(|e| vec![e])?;
@@ -268,7 +316,10 @@ pub fn infer_program_closures(
                 .core
                 .functions
                 .iter()
-                .map(|f| contains_closure(&f.body, 0, &mut budget))
+                .map(|f| {
+                    contains_closure(&f.body, 0, &mut budget)
+                        .map(|found| found || !f.state_parameters.is_empty())
+                })
                 .collect::<R<Vec<_>>>()
                 .map_err(|e| vec![e])?,
         );
@@ -375,6 +426,50 @@ fn headers(
     validate_module_metadata(core, budget)?;
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
+        state_snapshot(&function.state_parameters, function.span, budget)?;
+        if !function.state_parameters.is_empty() && !function.callable_parameters.is_empty() {
+            // The mixed header compares both declarations and the actual
+            // owned parameter types. Reserve these complete inputs first.
+            budget.work(
+                function
+                    .callable_parameters
+                    .len()
+                    .saturating_add(function.parameters.len()),
+                function.span,
+            )?;
+            for bound in &function.callable_parameters {
+                callable_snapshot(bound, function.span, budget)?;
+            }
+            for parameter in &function.parameters {
+                validate_type(&parameter.ty, 0, parameter.span, budget)?;
+            }
+            validate_type(&function.return_type, 0, function.span, budget)?;
+        }
+        state_origins::validate_header(function)?;
+        if !function.type_parameters.is_empty() {
+            budget.work(function.type_parameters.len(), function.span)?;
+            store_templates::validate_header(function)?;
+            budget.work(
+                function.type_parameters[0]
+                    .name
+                    .len()
+                    .saturating_add(core.functions.len()),
+                function.span,
+            )?;
+            if core
+                .functions
+                .iter()
+                .filter(|f| f.id == function.id)
+                .count()
+                != 1
+            {
+                return Err(error(
+                    "E-TYPE-PARAMETERS",
+                    function.span,
+                    "ordinary template definition identity is duplicated",
+                ));
+            }
+        }
         budget.work(function.name.len(), function.span)?;
         if let Some(foreign) = &function.foreign {
             budget.work(
@@ -399,7 +494,7 @@ fn headers(
                     Some(function.span),
                 )
             })?;
-        if let Some(bound) = &function.callable_parameter {
+        for bound in &function.callable_parameters {
             budget.work(
                 bound
                     .generic_name
@@ -429,18 +524,21 @@ fn headers(
         table.insert(
             function.name.clone(),
             Signature {
-                callable: function.callable_parameter.clone(),
+                callable: state_origins::bounds(function).into_owned(),
+                state_parameter: function.state_parameters.first().cloned(),
                 callable_return: function.callable_return.clone(),
-                template: function
-                    .callable_parameter
-                    .as_ref()
-                    .map(|_| (core.module_id, function.id)),
+                type_parameter: function.type_parameters.first().cloned(),
+                template: (!function.callable_parameters.is_empty()
+                    || !function.type_parameters.is_empty()
+                    || !function.state_parameters.is_empty())
+                .then_some((core.module_id, function.id)),
                 foreign: function.foreign.is_some(),
                 cleanup: core
                     .aggregates
                     .iter()
                     .any(|a| a.teardown.as_ref() == Some(&function.name)),
-                id: FunctionId(id),
+                id: (function.type_parameters.is_empty() && function.state_parameters.is_empty())
+                    .then_some(FunctionId(id)),
                 parameters: function.parameters.iter().map(|p| p.ty.clone()).collect(),
                 result: function.return_type.clone(),
                 public: exports.is_none_or(|e| e.contains(&function.id)),
@@ -460,7 +558,7 @@ fn prepare(
     budget: &mut Budget<'_>,
 ) -> R<CoreFunction> {
     // Scalar-only functions retain their existing inference/default behavior.
-    if !has_closure {
+    if !has_closure && function.type_parameters.is_empty() && function.state_parameters.is_empty() {
         let dependencies = retained::dependencies(
             function,
             signatures,
@@ -551,9 +649,16 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
                 validate_type(element, depth + 1, span, budget)?;
             }
         }
+        Type::OwnedStore { element } => {
+            // Reuse the already charged complete type walk to classify the
+            // new scheduling case. No extra scan or fee reaches old Stores.
+            let previous = budget.inside_store;
+            budget.inside_store = true;
+            validate_type(element, depth + 1, span, budget)?;
+            budget.inside_store = previous;
+        }
         Type::Address { inner, .. }
         | Type::Slice { element: inner }
-        | Type::OwnedStore { element: inner }
         | Type::Managed(inner)
         | Type::Desc(inner)
         | Type::Opaque { hidden: inner, .. } => validate_type(inner, depth + 1, span, budget)?,
@@ -569,7 +674,12 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
             }
             validate_type(result, depth + 1, span, budget)?;
         }
-        Type::Named(name) | Type::Unsupported(name) => budget.work(name.len(), span)?,
+        Type::Named(name) => {
+            budget.work(name.len(), span)?;
+            budget.store_shapes |= budget.inside_store;
+        }
+        Type::Closure(_) => budget.store_shapes |= budget.inside_store,
+        Type::Unsupported(name) => budget.work(name.len(), span)?,
         _ => {}
     }
     Ok(())
@@ -618,19 +728,20 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
             || ty.is_scalar_or_address()
             || resources::supported(ty)
             || errors::owned(ty)
-            || packages::supported(ty)
+            || packages::ordinary(ty)
             || packages::owned_array_supported(ty)
     };
-    if (!admitted(&signature.result)
-        && signature.callable_return.is_none()
-        && !callable_fields::signature(signature))
-        || signature.parameters.iter().enumerate().any(|(index, ty)| {
-            !admitted(ty)
-                && !signature
-                    .callable
-                    .as_ref()
-                    .is_some_and(|bound| bound.index as usize == index)
-        })
+    if signature.type_parameter.is_none()
+        && ((!admitted(&signature.result)
+            && signature.callable_return.is_none()
+            && !callable_fields::signature(signature))
+            || signature.parameters.iter().enumerate().any(|(index, ty)| {
+                !admitted(ty)
+                    && !signature
+                        .callable
+                        .iter()
+                        .any(|bound| bound.index as usize == index)
+            }))
     {
         return Err(unsupported(
             span,
@@ -641,7 +752,10 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
     for parameter in &signature.parameters {
         validate_type(parameter, 0, span, budget)?;
     }
-    if let Some(bound) = &signature.callable {
+    if let Some(state) = &signature.state_parameter {
+        state_snapshot(std::slice::from_ref(state), span, budget)?;
+    }
+    for bound in &signature.callable {
         callable_snapshot(bound, span, budget)?;
     }
     if let Some(bound) = &signature.callable_return {
@@ -744,6 +858,7 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
 }
 fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
     budget.node(depth, e.span)?;
+    let direct_type_callee = std::mem::take(&mut budget.direct_type_callee);
     let mut found = false;
     match &e.kind {
         CoreExprKind::Literal(Constant::WideString(units)) => budget.work(units.len(), e.span)?,
@@ -781,10 +896,36 @@ fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -
             found |= expression_has_closure(right, depth + 1, budget)?;
         }
         CoreExprKind::Call { callee, arguments } => {
+            let previous = budget.direct_type_callee;
+            budget.direct_type_callee = true;
             found |= expression_has_closure(callee, depth + 1, budget)?;
+            budget.direct_type_callee = false;
             for argument in arguments {
                 found |= expression_has_closure(argument, depth + 1, budget)?;
             }
+            budget.direct_type_callee = previous;
+        }
+        CoreExprKind::TypeApply {
+            callee,
+            type_arguments,
+        } => {
+            if !direct_type_callee
+                || type_arguments.len() != 1
+                || !(matches!(&callee.kind, CoreExprKind::Name(_))
+                    || matches!(&callee.kind, CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(_))))
+            {
+                return Err(error(
+                    "E-TYPE-APPLICATION",
+                    e.span,
+                    "one type argument is allowed only on a static call's direct callee",
+                ));
+            }
+            budget.work(type_arguments.len(), e.span)?;
+            for argument in type_arguments {
+                validate_type(argument, depth + 1, e.span, budget)?;
+            }
+            budget.direct_type_callee = false;
+            found |= expression_has_closure(callee, depth + 1, budget)?;
         }
         CoreExprKind::Index { object, index } => {
             found |= expression_has_closure(object, depth + 1, budget)?;
@@ -867,6 +1008,20 @@ enum Term {
         shape: Rc<Type>,
         environment: usize,
     },
+    /// Source identities are attached to real field positions, not merged by
+    /// their eventual shared concrete ClosureId.
+    StatePackage {
+        shape: Rc<Type>,
+        fields: Vec<(u32, usize)>,
+    },
+    // Only new value-inferred ordinary calls need to carry a complete source
+    // State through wrappers before real ClosureIds exist.
+    ValueStore(Rc<Term>, bool),
+    ValueAddress(Rc<Term>, bool),
+    ValueUnion {
+        error: Rc<Term>,
+        result: Rc<Term>,
+    },
     Function(Rc<Signature>),
     /// Nominal receiver already constrained; only valid immediately as a callee.
     Method(Rc<Signature>),
@@ -899,7 +1054,8 @@ struct Solver<'a, 'b, 'c> {
     // when its hidden environment is forwarded by another factory.
     factory_terms: BTreeMap<FunctionId, usize>,
     ordinary_return_identity: Option<usize>,
-    helper_environment: Option<(String, usize)>,
+    helper_environments: BTreeMap<String, usize>,
+    state_modes: BTreeMap<usize, CallableKind>,
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
     enums: &'a BTreeMap<String, Type>,
@@ -920,10 +1076,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         budget: &'b mut Budget<'c>,
     ) -> R<Self> {
         if !(function.callable_return.is_some()
+            || function.type_parameters.first().is_some_and(|parameter| {
+                store_templates::symbolic_type(&function.return_type, &parameter.name)
+            })
             || callable_fields::template(function)
             || function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
-            || packages::supported(&function.return_type)
+            || packages::ordinary(&function.return_type)
             || packages::owned_array_supported(&function.return_type)
             || resources::supported(&function.return_type))
         {
@@ -942,7 +1101,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             ordinary_callable_return: function.callable_return.clone(),
             factory_terms: BTreeMap::new(),
             ordinary_return_identity: None,
-            helper_environment: None,
+            helper_environments: BTreeMap::new(),
+            state_modes: BTreeMap::new(),
             signatures,
             imports,
             enums,
@@ -954,11 +1114,34 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             closure_expressions: BTreeMap::new(),
             callable_hint: None,
         };
+        if let Some(parameter) = function.type_parameters.first() {
+            this.graph
+                .set_store_parameter(&parameter.name, function.span)?;
+        }
+        if let Some(state) = function.state_parameters.first() {
+            state_origins::validate_shape(function)?;
+            for binding in &state.bindings {
+                this.seed_state_environment(
+                    &binding.generic_name,
+                    binding.kind,
+                    &binding.parameters,
+                    &binding.result,
+                    function.id,
+                    function.span,
+                )?;
+            }
+        }
         for (index, parameter) in function.parameters.iter().enumerate() {
-            let term = if let Some(bound) = function
-                .callable_parameter
-                .as_ref()
-                .filter(|bound| bound.index as usize == index)
+            let term = if function
+                .state_parameters
+                .first()
+                .is_some_and(|state| state.index as usize == index)
+            {
+                this.known_term(&parameter.ty, parameter.span)?
+            } else if let Some(bound) = function
+                .callable_parameters
+                .iter()
+                .find(|bound| bound.index as usize == index)
             {
                 let ty = Type::Opaque {
                     identity: function.id,
@@ -967,10 +1150,27 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         result: Box::new(bound.result.clone()),
                     }),
                 };
-                let Term::Closure(id) = this.known_term(&ty, parameter.span)? else {
-                    unreachable!()
+                let id = if let Some(id) = this.helper_environments.get(&bound.generic_name) {
+                    *id
+                } else {
+                    let Term::Closure(id) = this.known_term(&ty, parameter.span)? else {
+                        unreachable!()
+                    };
+                    this.budget
+                        .work(bound.generic_name.len().saturating_add(1), parameter.span)?;
+                    this.helper_environments
+                        .insert(bound.generic_name.clone(), id);
+                    id
                 };
-                this.helper_environment = Some((bound.generic_name.clone(), id));
+                if callable_fields::template(function)
+                    && function
+                        .callable_parameters
+                        .iter()
+                        .any(|other| other.generic_index != bound.generic_index)
+                {
+                    this.budget.work(1, parameter.span)?;
+                    this.state_modes.insert(id, bound.kind);
+                }
                 if callable_fields::placeholder_package(&parameter.ty, &bound.generic_name) {
                     this.state_term(&parameter.ty, &bound.generic_name, id, parameter.span)?
                 } else {
@@ -992,14 +1192,81 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
         Ok(this)
     }
+    fn seed_state_environment(
+        &mut self,
+        name: &str,
+        kind: CallableKind,
+        parameters: &[Type],
+        result: &Type,
+        identity: zil_base::NodeId,
+        span: Span,
+    ) -> R<()> {
+        let ty = Type::Opaque {
+            identity,
+            hidden: Box::new(Type::FunctionPointer {
+                parameters: parameters.to_vec(),
+                result: Box::new(result.clone()),
+            }),
+        };
+        let Term::Closure(id) = self.known_term(&ty, span)? else {
+            unreachable!()
+        };
+        self.budget.work(name.len().saturating_add(2), span)?;
+        self.helper_environments.insert(name.to_owned(), id);
+        self.state_modes.insert(id, kind);
+        Ok(())
+    }
+
+    fn state_term_many(&mut self, ty: &Type, bindings: &[(String, usize)], span: Span) -> R<Term> {
+        validate_type(ty, 0, span, self.budget)?;
+        let Type::Package { name, fields } = ty else {
+            return Err(unsupported(span, "State requires a complete Package"));
+        };
+        self.budget.work(
+            fields
+                .len()
+                .saturating_mul(bindings.len().saturating_add(2)),
+            span,
+        )?;
+        let mut sources = Vec::new();
+        let mut shape = Vec::new();
+        for (index, (name, ty)) in fields.iter().enumerate() {
+            let binding = if let Type::Named(name) = ty {
+                bindings.iter().find(|(binder, _)| binder == name)
+            } else {
+                None
+            };
+            let ty = if let Some((_, source)) = binding {
+                sources.push((index as u32, *source));
+                Type::Named("$callback".into())
+            } else {
+                ty.clone()
+            };
+            shape.push((name.clone(), ty));
+        }
+        if sources.len() != 2 {
+            return Err(unsupported(
+                span,
+                "State requires both direct callable fields",
+            ));
+        }
+        Ok(Term::StatePackage {
+            shape: Rc::new(Type::Package {
+                name: callable_fields::nominal_base(name).to_owned(),
+                fields: shape,
+            }),
+            fields: sources,
+        })
+    }
+
     fn known_result(&mut self, signature: &Signature, span: Span) -> R<Term> {
         if matches!(signature.result, Type::Opaque { .. }) {
-            if let Some(id) = self.factory_terms.get(&signature.id) {
+            if let Some(id) = self.factory_terms.get(&signature.concrete_id(span)?) {
                 return Ok(Term::Closure(*id));
             }
             let term = self.known_term(&signature.result, span)?;
             if let Term::Closure(id) = term {
-                self.factory_terms.insert(signature.id, id);
+                self.factory_terms.insert(signature.concrete_id(span)?, id);
             }
             Ok(term)
         } else {
@@ -1044,11 +1311,33 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
     }
 
     fn known_term(&mut self, ty: &Type, span: Span) -> R<Term> {
-        if let Some((name, id)) = self.helper_environment.clone() {
-            if matches!(ty,Type::Named(n) if n==&name) {
-                return Ok(Term::Closure(id));
+        if self.helper_environments.len() > 1
+            && let Type::Package { fields, .. } = ty
+        {
+            self.budget.work(
+                fields.len().saturating_mul(self.helper_environments.len()),
+                span,
+            )?;
+            let mut bindings = Vec::new();
+            for (name, id) in &self.helper_environments {
+                if fields
+                    .iter()
+                    .any(|(_, ty)| matches!(ty, Type::Named(n) if n == name))
+                {
+                    self.budget.work(name.len().saturating_add(1), span)?;
+                    bindings.push((name.clone(), *id));
+                }
             }
-            if callable_fields::placeholder_package(ty, &name) {
+            if bindings.len() == 2 {
+                return self.state_term_many(ty, &bindings, span);
+            }
+        }
+        for (name, id) in &self.helper_environments {
+            if matches!(ty,Type::Named(n) if n==name) {
+                return Ok(Term::Closure(*id));
+            }
+            if callable_fields::placeholder_package(ty, name) {
+                let (name, id) = (name.clone(), *id);
                 return self.state_term(ty, &name, id, span);
             }
         }
@@ -1089,7 +1378,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         } else if let Type::Address { mutable, inner } = ty {
             if !inner.is_address_pointee()
                 && !ty.is_shared_resource_head_address()
-                && !ty.is_shared_package_address()
+                && !ty.is_package_address()
+                && !self.graph.symbolic_store_type(inner)
             {
                 return Err(unsupported(span, "nested reference signature"));
             }
@@ -1141,20 +1431,335 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 ));
             }
         };
+        self.bind_source_bound(id, bound, argument.span)?;
+        Ok(id)
+    }
+    fn bind_source_bound(&mut self, id: usize, bound: &CoreCallableParameter, span: Span) -> R<()> {
+        if !self.state_modes.is_empty() {
+            self.budget.work(1, span)?;
+            if self
+                .state_modes
+                .get(&id)
+                .is_some_and(|kind| !helpers::compatible(*kind, bound.kind))
+            {
+                return Err(error(
+                    "E-CLOSURE-MODE",
+                    span,
+                    "the State declaration does not provide the requested callable capability",
+                ));
+            }
+        }
         let parameters = self.closures[id].parameters.clone();
         if parameters.len() != bound.parameters.len() {
             return Err(error(
                 "E-CALL-ARITY",
-                argument.span,
+                span,
                 "closure signature differs from callable bound",
             ));
         }
         for (variable, ty) in parameters.into_iter().zip(&bound.parameters) {
-            self.bind(variable, ty, argument.span)?;
+            self.bind(variable, ty, span)?;
         }
-        self.bind(self.closures[id].result, &bound.result, argument.span)?;
-        Ok(id)
+        self.bind(self.closures[id].result, &bound.result, span)?;
+        Ok(())
     }
+
+    fn state_call(
+        &mut self,
+        signature: &Signature,
+        arguments: &[CoreExpr],
+        depth: usize,
+        span: Span,
+    ) -> R<Term> {
+        if arguments.len() != signature.parameters.len() {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "State helper argument count differs",
+            ));
+        }
+        self.budget.work(
+            signature.callable.len().saturating_add(arguments.len()),
+            span,
+        )?;
+        let mut sources = Vec::new();
+        for (index, (argument, ty)) in arguments.iter().zip(&signature.parameters).enumerate() {
+            if let Some(state) = &signature.state_parameter
+                && state.index as usize == index
+            {
+                let value = self.expr(argument, depth + 1, false)?;
+                let Term::StatePackage { fields, .. } = &value else {
+                    return Err(error(
+                        "E-TYPE-MISMATCH",
+                        argument.span,
+                        "both State field origins are required",
+                    ));
+                };
+                for (declaration, bound) in state.bindings.iter().zip(&signature.callable) {
+                    let id = fields
+                        .iter()
+                        .find(|(field, _)| *field == declaration.fields[0])
+                        .map(|(_, id)| *id)
+                        .ok_or_else(|| {
+                            error(
+                                "E-TYPE-MISMATCH",
+                                argument.span,
+                                "State selector has no source callable",
+                            )
+                        })?;
+                    self.bind_source_bound(id, bound, argument.span)?;
+                    sources.push((bound.generic_name.clone(), id));
+                }
+                let expected = self.state_term_many(ty, &sources, argument.span)?;
+                self.unify(&value, &expected, argument.span)?;
+            } else if let Some(bound) = signature
+                .callable
+                .iter()
+                .find(|bound| bound.index as usize == index)
+            {
+                let id = self.bind_callable_argument(argument, ty, bound, depth + 1)?;
+                sources.push((bound.generic_name.clone(), id));
+            } else {
+                let value = self.expr_expected(argument, Some(ty), depth + 1, false)?;
+                self.bind_term(&value, ty, argument.span)?;
+            }
+        }
+        self.state_result_term(&signature.result, &sources, span)
+    }
+
+    fn replacement_call(
+        &mut self,
+        signature: &Signature,
+        arguments: &[CoreExpr],
+        depth: usize,
+        span: Span,
+    ) -> R<Term> {
+        if arguments.len() != signature.parameters.len() {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "State replacement argument count differs",
+            ));
+        }
+        self.budget.work(
+            arguments
+                .len()
+                .saturating_mul(signature.callable.len().saturating_add(1)),
+            span,
+        )?;
+        let mut environment = None;
+        for (index, (argument, ty)) in arguments.iter().zip(&signature.parameters).enumerate() {
+            if let Some(bound) = signature
+                .callable
+                .iter()
+                .find(|bound| bound.index as usize == index)
+            {
+                let id = self.bind_callable_argument(argument, ty, bound, depth + 1)?;
+                if let Some(previous) = environment {
+                    self.unify(&Term::Closure(previous), &Term::Closure(id), argument.span)?;
+                } else {
+                    environment = Some(id);
+                }
+            } else {
+                let value = self.expr_expected(argument, Some(ty), depth + 1, false)?;
+                self.bind_term(&value, ty, argument.span)?;
+            }
+        }
+        self.state_term(
+            &signature.result,
+            &signature.callable[0].generic_name,
+            environment.ok_or_else(|| unsupported(span, "State replacement source is absent"))?,
+            span,
+        )
+    }
+    fn state_result_term(&mut self, ty: &Type, sources: &[(String, usize)], span: Span) -> R<Term> {
+        if matches!(ty, Type::Package { .. })
+            && sources
+                .iter()
+                .any(|(name, _)| callable_fields::placeholder_package(ty, name))
+        {
+            return self.state_term_many(ty, sources, span);
+        }
+        if let Type::ErrorUnion { error, result } = ty {
+            self.budget.work(2, span)?;
+            let failure = self.state_result_term(error, sources, span)?;
+            let success = self.state_result_term(result, sources, span)?;
+            return Ok(Term::ValueUnion {
+                error: Rc::new(failure),
+                result: Rc::new(success),
+            });
+        }
+        self.known_term(ty, span)
+    }
+
+    fn value_store_element(&mut self, term: &Term, span: Span) -> R<Term> {
+        self.budget.work(1, span)?;
+        match term {
+            Term::ValueStore(element, _) => Ok(element.as_ref().clone()),
+            Term::Resource(variable, _) => {
+                let Some(Type::OwnedStore { element }) = self.graph.ty(*variable)? else {
+                    return Err(error(
+                        "E-TYPE-APPLICATION",
+                        span,
+                        "value argument is not a Store",
+                    ));
+                };
+                validate_type(&element, 0, span, self.budget)?;
+                self.known_term(&element, span)
+            }
+            _ => Err(error(
+                "E-TYPE-APPLICATION",
+                span,
+                "value argument is not a Store",
+            )),
+        }
+    }
+    fn value_union_parts(&mut self, term: &Term, span: Span) -> R<(Term, Term)> {
+        self.budget.work(2, span)?;
+        match term {
+            Term::ValueUnion { error, result } => {
+                Ok((error.as_ref().clone(), result.as_ref().clone()))
+            }
+            Term::Scalar(variable) => {
+                let Type::ErrorUnion { error, result } =
+                    self.graph.injection_type(*variable, span)?
+                else {
+                    return Err(error(
+                        "E-TYPE-APPLICATION",
+                        span,
+                        "value argument is not a complete error union",
+                    ));
+                };
+                Ok((
+                    self.known_term(&error, span)?,
+                    self.known_term(&result, span)?,
+                ))
+            }
+            _ => Err(error(
+                "E-TYPE-APPLICATION",
+                span,
+                "value argument is not a complete error union",
+            )),
+        }
+    }
+    fn infer_value_term(
+        &mut self,
+        pattern: &Type,
+        value: &Term,
+        name: &str,
+        actual: &mut Option<Term>,
+        span: Span,
+    ) -> R<()> {
+        validate_type(pattern, 0, span, self.budget)?;
+        if matches!(pattern, Type::Named(n) if n == name) {
+            if let Some(previous) = actual {
+                self.unify(previous, value, span)?;
+            } else {
+                self.budget.work(1, span)?;
+                *actual = Some(value.clone());
+            }
+            return Ok(());
+        }
+        if let Some(element) = dynamic_store::element(pattern) {
+            let value = self.value_store_element(value, span)?;
+            return self.infer_value_term(element, &value, name, actual, span);
+        }
+        if let Type::ErrorUnion { error, result } = pattern {
+            let (failure, success) = self.value_union_parts(value, span)?;
+            self.infer_value_term(error, &failure, name, actual, span)?;
+            return self.infer_value_term(result, &success, name, actual, span);
+        }
+        self.bind_term(value, pattern, span)
+    }
+    fn applied_value_term(
+        &mut self,
+        pattern: &Type,
+        name: &str,
+        actual: &Term,
+        span: Span,
+    ) -> R<Term> {
+        validate_type(pattern, 0, span, self.budget)?;
+        if matches!(pattern, Type::Named(n) if n == name) {
+            self.budget.work(1, span)?;
+            return Ok(actual.clone());
+        }
+        if let Some(element) = dynamic_store::element(pattern) {
+            let element = self.applied_value_term(element, name, actual, span)?;
+            self.budget.work(1, span)?;
+            return Ok(Term::ValueStore(
+                Rc::new(element),
+                matches!(pattern, Type::Managed(_)),
+            ));
+        }
+        if let Type::ErrorUnion { error, result } = pattern {
+            let failure = self.applied_value_term(error, name, actual, span)?;
+            let success = self.applied_value_term(result, name, actual, span)?;
+            self.budget.work(2, span)?;
+            return Ok(Term::ValueUnion {
+                error: Rc::new(failure),
+                result: Rc::new(success),
+            });
+        }
+        self.known_term(pattern, span)
+    }
+    fn value_type_call(
+        &mut self,
+        signature: &Signature,
+        arguments: &[CoreExpr],
+        depth: usize,
+        span: Span,
+    ) -> R<Term> {
+        let name = &signature
+            .type_parameter
+            .as_ref()
+            .expect("ordinary template")
+            .name;
+        if arguments.len() != signature.parameters.len() {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "ordinary template value argument count differs",
+            ));
+        }
+        self.budget.work(arguments.len().saturating_mul(2), span)?;
+        let mut actual = None;
+        for (argument, pattern) in arguments.iter().zip(&signature.parameters) {
+            let hint = (!store_templates::has_parameter(pattern, name)).then_some(pattern);
+            let value = self.expr_expected(argument, hint, depth + 1, false)?;
+            self.infer_value_term(pattern, &value, name, &mut actual, argument.span)?;
+        }
+        let actual = actual.ok_or_else(|| error("E-TYPE-APPLICATION", span,
+            "ordinary template call has no unique complete type constraint from a value argument"))?;
+        match &actual {
+            Term::StatePackage { .. } | Term::ClosurePackage { .. } => {}
+            Term::Scalar(variable) => {
+                let ty = self.graph.injection_type(*variable, span)?;
+                validate_type(&ty, 0, span, self.budget)?;
+                if !(self.graph.is_store_parameter(&ty)
+                    || dynamic_store::supported_element(&ty)
+                    || dynamic_store::callback_element(
+                        &ty,
+                        |t| matches!(t, Type::Named(n) if self.helper_environments.contains_key(n)),
+                    ))
+                {
+                    return Err(error(
+                        "E-STORE-TYPE-ARGUMENT",
+                        span,
+                        "inferred value type does not satisfy StoreElement",
+                    ));
+                }
+            }
+            _ => {
+                return Err(error(
+                    "E-STORE-TYPE-ARGUMENT",
+                    span,
+                    "inferred value type is not a complete Store element",
+                ));
+            }
+        }
+        self.applied_value_term(&signature.result, name, &actual, span)
+    }
+
     fn fresh(&mut self, domain: u8, literal: bool, span: Span) -> R<Variable> {
         self.budget.work(1, span)?;
         if self.graph.len() >= self.budget.limits.max_nodes {
@@ -1168,7 +1773,15 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
     }
     fn bind(&mut self, variable: Variable, ty: &Type, span: Span) -> R<()> {
         self.budget.work(1, span)?;
-        self.graph.bind(variable, ty, span)
+        // Only this source function's declared callable binders may occur in
+        // an unresolved Package shell. Ordinary T remains a distinct opaque
+        // binder, and actual ownership/loans are checked after instantiation.
+        self.graph.bind_source(
+            variable,
+            ty,
+            (!self.helper_environments.is_empty()).then_some(&self.helper_environments),
+            span,
+        )
     }
     fn scalar(&mut self, term: &Term, span: Span) -> R<Variable> {
         match term {
@@ -1215,10 +1828,33 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
     }
     fn bind_term(&mut self, term: &Term, ty: &Type, span: Span) -> R<()> {
-        if let Some((name, _)) = &self.helper_environment
-            && (matches!(ty,Type::Named(n) if n==name)
-                || callable_fields::placeholder_package(ty, name))
+        if let Term::ValueStore(element, owned) = term
+            && let Some(wanted) = dynamic_store::element(ty)
         {
+            if matches!(ty, Type::Managed(_)) && !owned {
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "Store description is not an owning carrier",
+                ));
+            }
+            return self.bind_term(element, wanted, span);
+        }
+        if let Term::ValueUnion {
+            error: failure,
+            result,
+        } = term
+            && let Type::ErrorUnion {
+                error,
+                result: wanted,
+            } = ty
+        {
+            self.bind_term(failure, error, span)?;
+            return self.bind_term(result, wanted, span);
+        }
+        if self.helper_environments.keys().any(|name| {
+            matches!(ty,Type::Named(n) if n==name) || callable_fields::placeholder_package(ty, name)
+        }) {
             let expected = self.known_term(ty, span)?;
             return self.unify(term, &expected, span);
         }
@@ -1240,11 +1876,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     inner,
                 } if (inner.is_address_pointee()
                     || ty.is_shared_resource_head_address()
-                    || ty.is_shared_package_address())
+                    || ty.is_package_address()
+                    || self.graph.symbolic_store_type(inner))
                     && (*mutable || !wanted) =>
                 {
                     self.bind(*variable, inner, span)
                 }
+                Type::Address { mutable: true, .. } if !mutable => Err(error(
+                    "E-ADDRESS-PERMISSION",
+                    span,
+                    "a shared address cannot grant exclusive access",
+                )),
                 Type::Address { .. } => Err(unsupported(
                     span,
                     "only shared finite Copy addresses are implemented",
@@ -1267,6 +1909,30 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             return self.graph.unify(a, b, span);
         }
         match (left, right) {
+            (Term::ValueStore(a, _), Term::ValueStore(b, _)) => self.unify(a, b, span),
+            (Term::ValueStore(a, _), Term::Resource(..)) => {
+                let b = self.value_store_element(right, span)?;
+                self.unify(a, &b, span)
+            }
+            (Term::Resource(..), Term::ValueStore(b, _)) => {
+                let a = self.value_store_element(left, span)?;
+                self.unify(&a, b, span)
+            }
+            (
+                Term::ValueUnion {
+                    error: a,
+                    result: b,
+                },
+                _,
+            ) => {
+                let (c, d) = self.value_union_parts(right, span)?;
+                self.unify(a, &c, span)?;
+                self.unify(b, &d, span)
+            }
+            (_, Term::ValueUnion { .. }) => self.unify(right, left, span),
+            (Term::ValueAddress(a, am), Term::ValueAddress(b, bm)) if am == bm => {
+                self.unify(a, b, span)
+            }
             (Term::Scalar(a), Term::Scalar(b)) => self.graph.unify(*a, *b, span),
             (Term::Address(a, am), Term::Address(b, bm)) if am == bm => {
                 self.graph.unify(*a, *b, span)
@@ -1318,6 +1984,29 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     ))
                 }
             }
+            (
+                Term::StatePackage {
+                    shape: a,
+                    fields: af,
+                },
+                Term::StatePackage {
+                    shape: b,
+                    fields: bf,
+                },
+            ) => {
+                validate_type(a, 0, span, self.budget)?;
+                validate_type(b, 0, span, self.budget)?;
+                self.budget.work(af.len().saturating_add(bf.len()), span)?;
+                if a == b && af == bf {
+                    Ok(())
+                } else {
+                    Err(error(
+                        "E-TYPE-MISMATCH",
+                        span,
+                        "State requires the same nominal shape and both field source identities",
+                    ))
+                }
+            }
             (Term::Closure(a), Term::Closure(b)) if a == b => Ok(()),
             (Term::Closure(_), Term::Closure(_)) => Err(error(
                 "E-TYPE-MISMATCH",
@@ -1342,6 +2031,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 | Term::Closure(_)
                 | Term::ClosureArray { .. }
                 | Term::ClosurePackage { .. }
+                | Term::StatePackage { .. }
+                | Term::ValueStore(..)
+                | Term::ValueAddress(..)
+                | Term::ValueUnion { .. }
                 | Term::ClosureAddress(..)
         ) {
             return Err(unsupported(
@@ -1385,6 +2078,21 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             }
             if self.owner.is_some()
                 && binding.owner != self.owner
+                && (matches!(
+                    &binding.term,
+                    Term::StatePackage { .. }
+                        | Term::ValueStore(..)
+                        | Term::ValueAddress(..)
+                        | Term::ValueUnion { .. }
+                ) || matches!(&binding.term, Term::Closure(id) | Term::ClosureAddress(id, _) if self.state_modes.contains_key(id)))
+            {
+                return Err(unsupported(
+                    span,
+                    "capturing a new State declaration source is outside the finite preserved capability profile",
+                ));
+            }
+            if self.owner.is_some()
+                && binding.owner != self.owner
                 && let Term::Address(variable, _) = &binding.term
                 && self.graph.is_slice(*variable)
             {
@@ -1398,7 +2106,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             // independently classifies their responsibility slots.
             if write
                 && !binding.mutable
-                && !matches!(binding.term, Term::Address(_, true) | Term::Resource(..))
+                && !matches!(
+                    binding.term,
+                    Term::Address(_, true)
+                        | Term::Resource(..)
+                        | Term::ValueStore(..)
+                        | Term::ValueAddress(_, true)
+                )
             {
                 return Err(error(
                     "E-IMMUTABLE-ASSIGNMENT",
@@ -1408,6 +2122,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             }
             return Ok(match binding.term {
                 Term::Resource(variable, _) => Term::Resource(variable, false),
+                Term::ValueStore(element, _) => Term::ValueStore(element, false),
                 other => other,
             });
         }
@@ -1481,6 +2196,49 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
         self.known_term(ty, span)
     }
+    fn projected_base(&mut self, object: &CoreExpr, depth: usize, write: bool) -> R<Term> {
+        // An immutable, unannotated callback parameter can be written through
+        // a projection only when its eventual argument is an exclusive address.
+        // Ordinary Value bindings still retain their existing mutability rule.
+        let mut inferred = None;
+        if write
+            && let Some(owner) = self.owner
+            && let CoreExprKind::Name(name) = &object.kind
+        {
+            self.budget
+                .work(name.len().saturating_add(1), object.span)?;
+            let parameter = self
+                .scopes
+                .iter()
+                .rev()
+                .find_map(|scope| scope.get(name))
+                .and_then(|binding| match binding.term {
+                    Term::Scalar(variable) if !binding.mutable && binding.owner == Some(owner) => {
+                        Some(variable)
+                    }
+                    _ => None,
+                });
+            if let Some(variable) = parameter {
+                self.budget
+                    .work(self.closures[owner].parameters.len(), object.span)?;
+                if self.closures[owner].parameters.contains(&variable)
+                    && self.graph.ty(variable)?.is_none()
+                {
+                    inferred = Some(variable);
+                }
+            }
+        }
+        let term = self.expr(object, depth, write && inferred.is_none())?;
+        if let Some(variable) = inferred {
+            let inner = self.fresh(VALUE, false, object.span)?;
+            self.graph
+                .address(variable, inner, Some(true), object.span)?;
+            Ok(Term::Address(inner, true))
+        } else {
+            Ok(term)
+        }
+    }
+
     fn block(&mut self, block: &CoreBlock, depth: usize) -> R<()> {
         self.budget.node(depth, block.span)?;
         self.scopes.push(BTreeMap::new());
@@ -1610,18 +2368,20 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         Term::Scalar(self.fresh(UNIT, false, statement.span)?)
                     };
                     if let Some(owner) = self.owner {
-                        if matches!(value, Term::Address(..) | Term::ClosureAddress(..)) {
-                            return Err(unsupported(
-                                statement.span,
-                                "address returns require a borrowed-result contract",
-                            ));
-                        }
                         self.closures[owner].has_return = true;
-                        self.unify(
-                            &value,
-                            &Term::Scalar(self.closures[owner].result),
-                            statement.span,
-                        )?;
+                        if let Term::Address(inner, false) = value {
+                            self.graph.shared_address(
+                                self.closures[owner].result,
+                                inner,
+                                statement.span,
+                            )?;
+                        } else {
+                            self.unify(
+                                &value,
+                                &Term::Scalar(self.closures[owner].result),
+                                statement.span,
+                            )?;
+                        }
                     } else {
                         self.bind_term(
                             &value,
@@ -1780,6 +2540,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             )
         {
             let term = self.expr_raw(expression, None, depth, write)?;
+            if matches!(term, Term::ValueUnion { .. }) {
+                self.bind_term(&term, union, expression.span)?;
+                return Ok(term);
+            }
             let variable = self.scalar(&term, expression.span)?;
             let actual = self.graph.injection_type(variable, expression.span)?;
             errors::injection(&actual, union, expression.span)?;
@@ -1838,6 +2602,29 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             }
             CoreExprKind::Try(operand) => {
                 let value = self.expr(operand, depth + 1, false)?;
+                if let Term::ValueUnion {
+                    error: failure,
+                    result,
+                } = value
+                {
+                    let enclosing = match self.owner {
+                        Some(owner) => self.graph.ty(self.closures[owner].result)?,
+                        None => Some(self.ordinary_result.clone()),
+                    };
+                    let Some(Type::ErrorUnion {
+                        error: expected, ..
+                    }) = enclosing
+                    else {
+                        return Err(error(
+                            "E-TRY-RETURN-TYPE",
+                            span,
+                            "? requires an explicitly known enclosing error-union result",
+                        ));
+                    };
+                    self.bind_term(&failure, &expected, span)?;
+                    self.budget.work(4, span)?;
+                    return Ok(result.as_ref().clone());
+                }
                 let variable = self.scalar(&value, span)?;
                 let Type::ErrorUnion {
                     error: failure,
@@ -1934,6 +2721,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     };
                     return match self.scopes.iter().rev().find_map(|s| s.get(name)) {
                         Some(Binding {
+                            term: Term::ValueStore(element, true),
+                            ..
+                        }) => Ok(Term::ValueStore(element.clone(), true)),
+                        Some(Binding {
                             term: Term::Resource(variable, true),
                             ..
                         }) => Ok(Term::Resource(*variable, true)),
@@ -1967,6 +2758,16 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         return Err(unsupported(span, "shared borrow requires a place"));
                     }
                     if let Term::Closure(id) = value {
+                        return Ok(Term::ClosureAddress(id, *op == UnaryOp::BorrowMut));
+                    }
+                    if let Term::ClosureAddress(id, available) = value {
+                        if *op == UnaryOp::BorrowMut && !available {
+                            return Err(error(
+                                "E-ADDRESS-PERMISSION",
+                                span,
+                                "a shared callback field cannot grant exclusive access",
+                            ));
+                        }
                         return Ok(Term::ClosureAddress(id, *op == UnaryOp::BorrowMut));
                     }
                     if *op == UnaryOp::Borrow
@@ -2004,6 +2805,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     return match value {
                         Term::Address(variable, mutable) if !write || mutable => {
                             Ok(Term::Scalar(variable))
+                        }
+                        Term::Scalar(variable) => {
+                            let inner = self.fresh(VALUE, false, span)?;
+                            self.graph
+                                .address(variable, inner, write.then_some(true), span)?;
+                            Ok(Term::Scalar(inner))
                         }
                         _ => Err(error(
                             "E-OPERATOR-TYPE",
@@ -2064,7 +2871,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     self.expression_index += 1;
                     let arity = match name {
                         "store_new" => 0,
-                        "store_reserve" | "store_push" | "store_at" => 2,
+                        "store_reserve" | "store_push" | "store_at" | "store_at_mut" => 2,
                         _ => 1,
                     };
                     if arguments.len() != arity {
@@ -2087,6 +2894,42 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         return self.known_term(&dynamic_store::result_type(name, element), span);
                     }
                     let first = self.expr(&arguments[0], depth + 1, false)?;
+                    if let Term::ValueStore(element, _) = first {
+                        if arguments.len() == 2 {
+                            if name == "store_push" {
+                                let value = self.expr(&arguments[1], depth + 1, false)?;
+                                self.unify(&value, &element, arguments[1].span)?;
+                            } else {
+                                let value = self.expr_expected(
+                                    &arguments[1],
+                                    Some(&Type::I64),
+                                    depth + 1,
+                                    false,
+                                )?;
+                                self.bind_term(&value, &Type::I64, arguments[1].span)?;
+                            }
+                        }
+                        self.budget.work(4, span)?;
+                        return match name {
+                            "store_pop" => Ok(Term::ValueUnion {
+                                error: Rc::new(self.known_term(&Type::Unit, span)?),
+                                result: element,
+                            }),
+                            "store_push" => Ok(Term::ValueUnion {
+                                error: element,
+                                result: Rc::new(self.known_term(&Type::Unit, span)?),
+                            }),
+                            "store_at" | "store_at_mut" => {
+                                if let Term::Scalar(variable) = element.as_ref() {
+                                    Ok(Term::Address(*variable, name == "store_at_mut"))
+                                } else {
+                                    Ok(Term::ValueAddress(element, name == "store_at_mut"))
+                                }
+                            }
+                            "store_reserve" => self.known_term(&Type::Bool, span),
+                            _ => self.known_term(&Type::I64, span),
+                        };
+                    }
                     let Term::Resource(variable, _) = first else {
                         return Err(error(
                             "E-OWNED-STORE-TYPE",
@@ -2102,12 +2945,16 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         ));
                     };
                     validate_type(&element, 0, span, self.budget)?;
-                    if matches!(name, "store_reserve" | "store_push" | "store_at") {
-                        let wanted = if matches!(name, "store_reserve" | "store_at") {
-                            Type::I64
-                        } else {
-                            (*element).clone()
-                        };
+                    if matches!(
+                        name,
+                        "store_reserve" | "store_push" | "store_at" | "store_at_mut"
+                    ) {
+                        let wanted =
+                            if matches!(name, "store_reserve" | "store_at" | "store_at_mut") {
+                                Type::I64
+                            } else {
+                                (*element).clone()
+                            };
                         let term =
                             self.expr_expected(&arguments[1], Some(&wanted), depth + 1, false)?;
                         self.bind_term(&term, &wanted, arguments[1].span)?;
@@ -2180,7 +3027,74 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     self.expression_index += 2;
                     return self.variant(&ty, variant, arguments, depth, span);
                 }
-                let callee_type = self.expr(callee, depth + 1, false)?;
+                let callee_type = if let CoreExprKind::TypeApply {
+                    callee: target,
+                    type_arguments,
+                } = &callee.kind
+                {
+                    self.budget.node(depth + 1, callee.span)?;
+                    self.expression_index += 1;
+                    let [actual] = type_arguments.as_slice() else {
+                        return Err(error(
+                            "E-TYPE-APPLICATION",
+                            callee.span,
+                            "one complete type argument is required",
+                        ));
+                    };
+                    validate_type(actual, 0, callee.span, self.budget)?;
+                    if !(self.graph.is_store_parameter(actual)
+                        || dynamic_store::supported_element(actual)
+                        || dynamic_store::callback_element(
+                            actual,
+                            |ty| matches!(ty, Type::Named(name) if self.helper_environments.contains_key(name)),
+                        ))
+                    {
+                        return Err(error(
+                            "E-STORE-TYPE-ARGUMENT",
+                            callee.span,
+                            "ordinary type applications require the caller's StoreElement binder or a complete finite element type",
+                        ));
+                    }
+                    let Term::Function(signature) = self.expr(target, depth + 2, false)? else {
+                        return Err(error(
+                            "E-TYPE-APPLICATION",
+                            callee.span,
+                            "ordinary type application requires a static template",
+                        ));
+                    };
+                    let mut signature = context_signature(&signature, self.budget, span)?;
+                    let bound = signature.type_parameter.take().ok_or_else(|| {
+                        error(
+                            "E-TYPE-APPLICATION",
+                            callee.span,
+                            "type application target is not an ordinary StoreElement template",
+                        )
+                    })?;
+                    let limits = self.budget.limits;
+                    for parameter in &mut signature.parameters {
+                        *parameter = store_templates::substitute_type(
+                            parameter,
+                            &bound.name,
+                            actual,
+                            limits,
+                            span,
+                            &mut |work| self.budget.work(work, span),
+                        )?;
+                    }
+                    signature.result = store_templates::substitute_type(
+                        &signature.result,
+                        &bound.name,
+                        actual,
+                        limits,
+                        span,
+                        &mut |work| self.budget.work(work, span),
+                    )?;
+                    // This temporary signature is consumed only by this call.
+                    // Its template has no concrete FunctionId or function value.
+                    Term::Function(Rc::new(signature))
+                } else {
+                    self.expr(callee, depth + 1, false)?
+                };
                 let (parameters, result) = match callee_type {
                     Term::Method(signature) => {
                         let mut state_environment = None;
@@ -2196,8 +3110,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         {
                             if let Some(bound) = signature
                                 .callable
-                                .as_ref()
-                                .filter(|bound| bound.index as usize == index + 1)
+                                .iter()
+                                .find(|bound| bound.index as usize == index + 1)
                             {
                                 state_environment = Some(self.bind_callable_argument(
                                     argument,
@@ -2212,7 +3126,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             }
                         }
                         if let (Some(environment), Some(bound)) =
-                            (state_environment, signature.callable.as_ref())
+                            (state_environment, signature.callable.first())
                             && callable_fields::placeholder_package(
                                 &signature.result,
                                 &bound.generic_name,
@@ -2238,6 +3152,19 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         return self.known_term(&Type::I64, span);
                     }
                     Term::Function(signature) => {
+                        if state_origins::replacement_signature(&signature) {
+                            return self.replacement_call(&signature, arguments, depth, span);
+                        }
+                        if callable_fields::signature(&signature)
+                            && signature.callable.len() == 2
+                            && signature.callable[0].generic_index
+                                != signature.callable[1].generic_index
+                        {
+                            return self.state_call(&signature, arguments, depth, span);
+                        }
+                        if signature.type_parameter.is_some() {
+                            return self.value_type_call(&signature, arguments, depth, span);
+                        }
                         let mut state_environment = None;
                         if arguments.len() != signature.parameters.len() {
                             return Err(error(
@@ -2251,8 +3178,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         {
                             if let Some(bound) = signature
                                 .callable
-                                .as_ref()
-                                .filter(|b| b.index as usize == index)
+                                .iter()
+                                .find(|b| b.index as usize == index)
                             {
                                 state_environment = Some(self.bind_callable_argument(
                                     argument,
@@ -2267,7 +3194,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             }
                         }
                         if let (Some(environment), Some(bound)) =
-                            (state_environment, signature.callable.as_ref())
+                            (state_environment, signature.callable.first())
                             && callable_fields::placeholder_package(
                                 &signature.result,
                                 &bound.generic_name,
@@ -2281,6 +3208,24 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             );
                         }
                         return self.known_result(&signature, span);
+                    }
+                    Term::ClosureAddress(id, _)
+                        if self.state_modes.get(&id) == Some(&CallableKind::FnOnce) =>
+                    {
+                        return Err(error(
+                            "E-CLOSURE-MODE",
+                            span,
+                            "FnOnce State declaration requires an owned callable value",
+                        ));
+                    }
+                    Term::ClosureAddress(id, false)
+                        if self.state_modes.get(&id) == Some(&CallableKind::FnMut) =>
+                    {
+                        return Err(error(
+                            "E-CLOSURE-MODE",
+                            span,
+                            "FnMut State declaration requires an exclusive callback window",
+                        ));
                     }
                     Term::Closure(id) | Term::ClosureAddress(id, _) => {
                         self.budget.work(self.closures[id].parameters.len(), span)?;
@@ -2328,9 +3273,35 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 for (argument, parameter) in arguments.iter().zip(parameters) {
                     let hint = self.graph.ty(parameter)?;
                     let value = self.expr_expected(argument, hint.as_ref(), depth + 1, false)?;
-                    self.unify(&value, &Term::Scalar(parameter), argument.span)?;
+                    if let Some(ty @ Type::Address { .. }) = hint.as_ref() {
+                        self.bind_term(&value, ty, argument.span)?;
+                    } else if let Term::Address(inner, mutable) = value {
+                        let wanted = self
+                            .graph
+                            .address_shape(parameter, argument.span)?
+                            .and_then(|(_, mutable)| mutable);
+                        if wanted == Some(true) && !mutable {
+                            return Err(error(
+                                "E-ADDRESS-PERMISSION",
+                                argument.span,
+                                "a shared address cannot grant exclusive access",
+                            ));
+                        }
+                        self.graph.address(
+                            parameter,
+                            inner,
+                            wanted.or(Some(mutable)),
+                            argument.span,
+                        )?;
+                    } else {
+                        self.unify(&value, &Term::Scalar(parameter), argument.span)?;
+                    }
                 }
-                Ok(Term::Scalar(result))
+                if let Some(ty @ Type::Address { .. }) = self.graph.ty(result)? {
+                    self.known_term(&ty, span)
+                } else {
+                    Ok(Term::Scalar(result))
+                }
             }
             CoreExprKind::Member { object, member } => {
                 if !write && let Some((ty, variant)) = self.constructor(expression)? {
@@ -2379,7 +3350,52 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 } else {
                     false
                 };
-                let object_type = self.expr(object, depth + 1, write && !resource_field)?;
+                let object_type =
+                    self.projected_base(object, depth + 1, write && !resource_field)?;
+                if let Term::ValueAddress(inner, mutable) = &object_type {
+                    let (shape, field_sources, one) = match inner.as_ref() {
+                        Term::StatePackage { shape, fields } => (shape, Some(fields), None),
+                        Term::ClosurePackage { shape, environment } => {
+                            (shape, None, Some(*environment))
+                        }
+                        _ => {
+                            return Err(unsupported(
+                                span,
+                                "this inferred Store window has no Package field shape",
+                            ));
+                        }
+                    };
+                    validate_type(shape, 0, span, self.budget)?;
+                    let (index, field) = aggregates::field(shape, member, span)?;
+                    let callback = field_sources
+                        .and_then(|fields| {
+                            fields.iter().find(|(i, _)| *i == index).map(|(_, id)| *id)
+                        })
+                        .or_else(|| {
+                            matches!(&field, Type::Named(n) if n == "$callback")
+                                .then_some(one)
+                                .flatten()
+                        });
+                    if let Some(id) = callback {
+                        return Ok(Term::ClosureAddress(id, *mutable));
+                    }
+                    return self.known_term(&packages::projection_type(field), span);
+                }
+                if let Term::StatePackage { shape, fields } = &object_type {
+                    validate_type(shape, 0, span, self.budget)?;
+                    let (index, field) = aggregates::field(shape, member, span)?;
+                    if let Some((_, source)) = fields.iter().find(|(field, _)| *field == index) {
+                        return Ok(Term::Closure(*source));
+                    }
+                    return self.known_term(
+                        &if write {
+                            field
+                        } else {
+                            packages::projection_type(field)
+                        },
+                        span,
+                    );
+                }
                 if let Term::ClosurePackage { shape, environment } = &object_type {
                     validate_type(shape, 0, span, self.budget)?;
                     let field = aggregates::field(shape, member, span)?.1;
@@ -2568,7 +3584,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 Ok(base)
             }
             CoreExprKind::Index { object, index } => {
-                let base = self.expr(object, depth + 1, write)?;
+                let base = self.projected_base(object, depth + 1, write)?;
                 let index_term = self.expr(index, depth + 1, false)?;
                 let index_variable = self.scalar(&index_term, index.span)?;
                 self.graph.constrain(index_variable, INTEGER, index.span)?;
@@ -2626,17 +3642,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 return_type,
                 body,
             } => {
-                if return_type.as_ref().is_some_and(|t| {
-                    matches!(t, Type::Package { .. } | Type::Slice { .. }) || t.is_slice_address()
-                }) || parameters.iter().any(|p| {
-                    p.ty.as_ref().is_some_and(|t| {
-                        matches!(t, Type::Package { .. } | Type::Slice { .. })
-                            || t.is_slice_address()
+                if return_type
+                    .as_ref()
+                    .is_some_and(|t| !(t.is_copy_value() || lending::supported_result(t)))
+                    || parameters.iter().any(|p| {
+                        p.ty.as_ref()
+                            .is_some_and(|t| !closures::signature_parameter(t))
                     })
-                }) {
+                {
                     return Err(unsupported(
                         span,
-                        "package or slice closure signatures are not implemented",
+                        "closure parameters require a finite Copy type or one Copy/slice address layer; address parameters require a Copy result",
                     ));
                 }
                 let callable_hint = self.callable_hint.take();
@@ -2693,12 +3709,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         self.bind(variable, &types[parameter_index], parameter.span)?;
                     }
                     self.closures[id].parameters.push(variable);
-                    self.insert(
-                        &parameter.name,
-                        Term::Scalar(variable),
-                        false,
-                        parameter.span,
-                    )?;
+                    let term = if let Some(ty @ Type::Address { .. }) = self.graph.ty(variable)? {
+                        let term = self.known_term(&ty, parameter.span)?;
+                        if let Term::Address(inner, mutable) = term {
+                            self.graph
+                                .address(variable, inner, Some(mutable), parameter.span)?;
+                        }
+                        term
+                    } else {
+                        Term::Scalar(variable)
+                    };
+                    self.insert(&parameter.name, term, false, parameter.span)?;
                 }
                 self.block(body, depth + 1)?;
                 if !self.closures[id].has_return {
@@ -2892,6 +3913,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             CoreExprKind::Binary { left, right, .. } => {
                 self.normalize_expr(left, expression, statement)?;
                 self.normalize_expr(right, expression, statement)?;
+            }
+            CoreExprKind::TypeApply { callee, .. } => {
+                self.normalize_expr(callee, expression, statement)?
             }
             CoreExprKind::Call { callee, arguments } => {
                 self.normalize_expr(callee, expression, statement)?;

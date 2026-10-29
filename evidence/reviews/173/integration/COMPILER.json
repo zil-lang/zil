@@ -1,0 +1,13 @@
+{
+  "compiler_source_commit": "02cce89206e74cb5aa0050faf4885973288b9383",
+  "compiler_crates_tree": "901eafb22dcfad61848da795146deef7d5ff5717",
+  "current_integration_source": "76f87af71b8d6e47db3a3cda9856ba244f5935ad",
+  "crates_changes_since_compiler_source": [
+    "crates/zil-driver/tests/impl047.rs"
+  ],
+  "build_origin": "173-final/workspace02 cargo test completed compilation; test execution subsequently failed the historical impl047 Unsupported expectation. workspace03 has only its expectation migration.",
+  "sha256": "623dcf1d58f4dc5c0cb02dff9c912e2a5a866d5d0c7dc9188878114e8d6e3c73",
+  "bytes": 22809328,
+  "debug_symbols": false,
+  "optimization": "dev opt-level 0; debug assertions unchanged"
+}

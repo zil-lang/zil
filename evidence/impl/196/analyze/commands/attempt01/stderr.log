@@ -1,0 +1,17 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-ir)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-analyze)
+    Finished `test` profile [unoptimized] target(s) in 2.24s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets196/analyze/debug/deps/zil_analyze-a5dce2e7a4398044)
+     Running tests/budgets.rs (/workspace/scratch/39be3faa4442/targets196/analyze/debug/deps/budgets-42f48a19e85b3ab8)
+
+thread 'exact_work_budget_covers_instruction_visits_and_fingerprinting' (416975) panicked at crates/zil-analyze/tests/budgets.rs:176:38:
+exact work budget must suffice: [Diagnostic { phase: Analyze, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "analysis budget exceeded during dense Hold candidate", span: None, notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'exact_work_budget_includes_set_scans_across_functions' (416976) panicked at crates/zil-analyze/tests/budgets.rs:203:38:
+exact global set budget must suffice: [Diagnostic { phase: Analyze, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "analysis budget exceeded during helper parameter envelope and candidate table", span: None, notes: [] }]
+
+thread 'exact_work_budget_covers_cfg_edges_and_predecessor_visits' (416974) panicked at crates/zil-analyze/tests/budgets.rs:242:38:
+exact CFG budget must suffice: [Diagnostic { phase: Analyze, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "analysis budget exceeded during helper parameter envelope and candidate table", span: None, notes: [] }]
+error: test failed, to rerun pass `-p zil-analyze --test budgets`

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "kind": "ReadOnlyFixtureMigrationReview",
+  "reviewer": "/root/resume188_acceptance",
+  "baseline": "7d8cea72460d059f76987f076afa147ed68184eb",
+  "reviewed_commit": "1bf8cf548a4648c597a67bf54b09f6200520e4e2",
+  "status": "Pass",
+  "verdict": "Pass",
+  "executed": 0,
+  "language_tests_executed_by_reviewer": 0,
+  "eligible_as_passing_task_execution_gate": false,
+  "scope": "Read-only original-input, production identity and exact diagnostic migration review; explanation attachment only. Not a replacement for task195 executed110 implementation review or root regression execution.",
+  "changed_files": [
+    "changes/195-full-workspace-fixtures.md",
+    "crates/zil-driver/tests/generics.rs",
+    "crates/zil-driver/tests/impl147_static_traits.rs",
+    "crates/zil-expand/tests/generics.rs",
+    "crates/zil-verify/src/helper_tests.rs"
+  ],
+  "production_unchanged": true,
+  "source_inputs_preserved_byte_for_byte": 9,
+  "raw_builder_unchanged": true,
+  "verify_helper_tests_module_cfg_test": true,
+  "original_root_run": {
+    "source_commit": "7d8cea72460d059f76987f076afa147ed68184eb",
+    "reviewer_reexecution": false,
+    "passed": 2059,
+    "failed": 4,
+    "ignored": 0,
+    "status": "Fail",
+    "command_and_logs_sha_checked": true
+  },
+  "findings": [
+    {
+      "test": "driver generics",
+      "reason": "194 structural Copy is a builtin direct function bound. The unused identity definition is valid.",
+      "assertions": "Only original third input now Success/Verify/verification_runs1; original arity and conflicting argument negatives preserved."
+    },
+    {
+      "test": "impl147 static traits",
+      "reason": "194 reserves Copy before nominal trait handling; this remains a real rejection of manufactured capability.",
+      "assertions": "All three inputs SafeReject and verification_runs0. Copy exact Expand/E-GENERIC-ARGUMENT/reserved structural name. Share and Transfer retain E-TRAIT-RESERVED."
+    },
+    {
+      "test": "expand generics",
+      "reason": "194 direct builtin Copy does not require a user nominal declaration.",
+      "assertions": "Original Copy input expands with no unsupported, only sample, valid source map. MissingRead and struct Read retain all original exact diagnostics and spans."
+    },
+    {
+      "test": "Verify helper finite cycle",
+      "reason": "190 independently reconstructs Flow for reachable cycles; false Finite still rejects through contract comparison.",
+      "assertions": "Identical raw construction, both raw/Wire, exact Verify/SafeReject/E-VERIFY-CALLABLE-CONTRACT/traces differ message."
+    }
+  ],
+  "default_budget_changed": false,
+  "schema_or_spec_changed": false,
+  "product_gates_changed": false,
+  "new_compilation_or_full_workspace_runs": 0,
+  "followup": "Root runs targeted/full checks and records actual commit separately. Earlier 2059/4 remains Fail."
+}

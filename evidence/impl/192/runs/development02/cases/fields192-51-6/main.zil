@@ -1,0 +1,1 @@
+package P{manages bytes:ByteBuffer;count:i32}fn main()->i32{var state=P{bytes:bytes_new(),count:40};let count=&mut state.count;if !bytes_reserve(state.bytes,1){return 8}bytes_push(state.bytes,2u8);let view=bytes_view(state.bytes);*count+=i32(view[0]);return *count-42}

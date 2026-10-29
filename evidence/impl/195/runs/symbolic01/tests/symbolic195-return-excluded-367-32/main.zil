@@ -1,0 +1,1 @@
+fn good<T>(value:T)->T{var current=value;for index in 0..2{let temporary=current;current=temporary;continue}return current}fn main(){}

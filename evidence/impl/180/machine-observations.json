@@ -1,0 +1,1082 @@
+[
+  {
+    "case": "store-mut180-401-1",
+    "llvm_sha256": "d81bdd5f869912fcbd78353558fec8b3b08dbb65a401fc806a6eb4525cd93d8a",
+    "bounds_sequences": [
+      {
+        "line": 405,
+        "actual_lines": [
+          "  %v.12 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.13 = add i64 0, 1",
+          "  %tmp.10 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 1",
+          "  %tmp.11 = load i64, ptr %tmp.10, align 8",
+          "  %tmp.12 = icmp ult i64 %v.13, %tmp.11",
+          "  br i1 %tmp.12, label %store.element.ok.2, label %zil.trap",
+          "store.element.ok.2:",
+          "  %tmp.13 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 0",
+          "  %tmp.14 = load ptr, ptr %tmp.13, align 8",
+          "  %v.14 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.14, i64 %v.13",
+          "  store ptr %v.14, ptr %local.3, align 8",
+          "  %v.15 = load ptr, ptr %local.3, align 8"
+        ]
+      },
+      {
+        "line": 466,
+        "actual_lines": [
+          "  %v.43 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.44 = add i64 0, 0",
+          "  %tmp.24 = getelementptr { ptr, i64, i64 }, ptr %v.43, i32 0, i32 1",
+          "  %tmp.25 = load i64, ptr %tmp.24, align 8",
+          "  %tmp.26 = icmp ult i64 %v.44, %tmp.25",
+          "  br i1 %tmp.26, label %store.element.ok.7, label %zil.trap",
+          "store.element.ok.7:",
+          "  %tmp.27 = getelementptr { ptr, i64, i64 }, ptr %v.43, i32 0, i32 0",
+          "  %tmp.28 = load ptr, ptr %tmp.27, align 8",
+          "  %v.45 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.28, i64 %v.44",
+          "  %v.46 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %v.45, i32 0, i32 3",
+          "  %v.47 = add i32 0, 70"
+        ]
+      },
+      {
+        "line": 480,
+        "actual_lines": [
+          "  %v.49 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.50 = add i64 0, 0",
+          "  %tmp.29 = getelementptr { ptr, i64, i64 }, ptr %v.49, i32 0, i32 1",
+          "  %tmp.30 = load i64, ptr %tmp.29, align 8",
+          "  %tmp.31 = icmp ult i64 %v.50, %tmp.30",
+          "  br i1 %tmp.31, label %store.element.ok.8, label %zil.trap",
+          "store.element.ok.8:",
+          "  %tmp.32 = getelementptr { ptr, i64, i64 }, ptr %v.49, i32 0, i32 0",
+          "  %tmp.33 = load ptr, ptr %tmp.32, align 8",
+          "  %v.51 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.33, i64 %v.50",
+          "  %v.52 = getelementptr i8, ptr %v.51, i64 0",
+          "  %v.53 = call i32 @zil.fn.4(ptr %v.52)"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-11",
+    "llvm_sha256": "b279d9f65b674a98923da34c5502fc5b70d497db7a2d52f6e5b22328ff79d9a6",
+    "bounds_sequences": [
+      {
+        "line": 455,
+        "actual_lines": [
+          "  %v.12 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.13 = add i64 0, 0",
+          "  %tmp.10 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 1",
+          "  %tmp.11 = load i64, ptr %tmp.10, align 8",
+          "  %tmp.12 = icmp ult i64 %v.13, %tmp.11",
+          "  br i1 %tmp.12, label %store.element.ok.2, label %zil.trap",
+          "store.element.ok.2:",
+          "  %tmp.13 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 0",
+          "  %tmp.14 = load ptr, ptr %tmp.13, align 8",
+          "  %v.14 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.14, i64 %v.13",
+          "  store ptr %v.14, ptr %local.3, align 8",
+          "  %v.15 = load ptr, ptr %local.3, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-16",
+    "llvm_sha256": "b279d9f65b674a98923da34c5502fc5b70d497db7a2d52f6e5b22328ff79d9a6",
+    "bounds_sequences": [
+      {
+        "line": 455,
+        "actual_lines": [
+          "  %v.12 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.13 = add i64 0, 0",
+          "  %tmp.10 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 1",
+          "  %tmp.11 = load i64, ptr %tmp.10, align 8",
+          "  %tmp.12 = icmp ult i64 %v.13, %tmp.11",
+          "  br i1 %tmp.12, label %store.element.ok.2, label %zil.trap",
+          "store.element.ok.2:",
+          "  %tmp.13 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 0",
+          "  %tmp.14 = load ptr, ptr %tmp.13, align 8",
+          "  %v.14 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.14, i64 %v.13",
+          "  store ptr %v.14, ptr %local.3, align 8",
+          "  %v.15 = load ptr, ptr %local.3, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-20",
+    "llvm_sha256": "0b9aa4d9894a862b7f0d3742a261a382bac37caf038950dd9d97d1dc81e0aac8",
+    "bounds_sequences": [
+      {
+        "line": 405,
+        "actual_lines": [
+          "  %v.12 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.13 = add i64 0, 0",
+          "  %tmp.10 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 1",
+          "  %tmp.11 = load i64, ptr %tmp.10, align 8",
+          "  %tmp.12 = icmp ult i64 %v.13, %tmp.11",
+          "  br i1 %tmp.12, label %store.element.ok.2, label %zil.trap",
+          "store.element.ok.2:",
+          "  %tmp.13 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 0",
+          "  %tmp.14 = load ptr, ptr %tmp.13, align 8",
+          "  %v.14 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.14, i64 %v.13",
+          "  store ptr %v.14, ptr %local.3, align 8",
+          "  %v.15 = load ptr, ptr %local.3, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-27",
+    "llvm_sha256": "0b9aa4d9894a862b7f0d3742a261a382bac37caf038950dd9d97d1dc81e0aac8",
+    "bounds_sequences": [
+      {
+        "line": 405,
+        "actual_lines": [
+          "  %v.12 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.13 = add i64 0, 0",
+          "  %tmp.10 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 1",
+          "  %tmp.11 = load i64, ptr %tmp.10, align 8",
+          "  %tmp.12 = icmp ult i64 %v.13, %tmp.11",
+          "  br i1 %tmp.12, label %store.element.ok.2, label %zil.trap",
+          "store.element.ok.2:",
+          "  %tmp.13 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 0",
+          "  %tmp.14 = load ptr, ptr %tmp.13, align 8",
+          "  %v.14 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.14, i64 %v.13",
+          "  store ptr %v.14, ptr %local.3, align 8",
+          "  %v.15 = load ptr, ptr %local.3, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-38",
+    "llvm_sha256": "f72c63380e4218ffce70b0b0b2e75e63fb41adbf6ad55000ea79bc32c7b59185",
+    "bounds_sequences": [
+      {
+        "line": 432,
+        "actual_lines": [
+          "  %v.1 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.2 = call i64 @zil.fn.7()",
+          "  %tmp.0 = getelementptr { ptr, i64, i64 }, ptr %v.1, i32 0, i32 1",
+          "  %tmp.1 = load i64, ptr %tmp.0, align 8",
+          "  %tmp.2 = icmp ult i64 %v.2, %tmp.1",
+          "  br i1 %tmp.2, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.3 = getelementptr { ptr, i64, i64 }, ptr %v.1, i32 0, i32 0",
+          "  %tmp.4 = load ptr, ptr %tmp.3, align 8",
+          "  %v.3 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.4, i64 %v.2",
+          "  %v.4 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %v.3, i32 0, i32 3",
+          "  %v.5 = call i32 @zil.fn.8()"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-4",
+    "llvm_sha256": "caafe5108b2e0934cd31567fe4fb6a0962988a5d697d112a7e6d897e97118624",
+    "bounds_sequences": [
+      {
+        "line": 420,
+        "actual_lines": [
+          "  %v.13 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.14 = call i64 @zil.fn.6(ptr %v.13)",
+          "  %tmp.10 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 1",
+          "  %tmp.11 = load i64, ptr %tmp.10, align 8",
+          "  %tmp.12 = icmp ult i64 %v.14, %tmp.11",
+          "  br i1 %tmp.12, label %store.element.ok.2, label %zil.trap",
+          "store.element.ok.2:",
+          "  %tmp.13 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 0",
+          "  %tmp.14 = load ptr, ptr %tmp.13, align 8",
+          "  %v.15 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.14, i64 %v.14",
+          "  store ptr %v.15, ptr %local.3, align 8",
+          "  %v.16 = load ptr, ptr %local.3, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-42",
+    "llvm_sha256": "f72c63380e4218ffce70b0b0b2e75e63fb41adbf6ad55000ea79bc32c7b59185",
+    "bounds_sequences": [
+      {
+        "line": 432,
+        "actual_lines": [
+          "  %v.1 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.2 = call i64 @zil.fn.7()",
+          "  %tmp.0 = getelementptr { ptr, i64, i64 }, ptr %v.1, i32 0, i32 1",
+          "  %tmp.1 = load i64, ptr %tmp.0, align 8",
+          "  %tmp.2 = icmp ult i64 %v.2, %tmp.1",
+          "  br i1 %tmp.2, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.3 = getelementptr { ptr, i64, i64 }, ptr %v.1, i32 0, i32 0",
+          "  %tmp.4 = load ptr, ptr %tmp.3, align 8",
+          "  %v.3 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.4, i64 %v.2",
+          "  %v.4 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %v.3, i32 0, i32 3",
+          "  %v.5 = call i32 @zil.fn.8()"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-43",
+    "llvm_sha256": "7ca3f9bb21976777ca93ca76f7c7c6c042cac0491ca597942343767f2f7d8392",
+    "bounds_sequences": [
+      {
+        "line": 411,
+        "actual_lines": [
+          "  %v.12 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.13 = add i64 0, 0",
+          "  %tmp.10 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 1",
+          "  %tmp.11 = load i64, ptr %tmp.10, align 8",
+          "  %tmp.12 = icmp ult i64 %v.13, %tmp.11",
+          "  br i1 %tmp.12, label %store.element.ok.2, label %zil.trap",
+          "store.element.ok.2:",
+          "  %tmp.13 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 0",
+          "  %tmp.14 = load ptr, ptr %tmp.13, align 8",
+          "  %v.14 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.14, i64 %v.13",
+          "  store ptr %v.14, ptr %local.3, align 8",
+          "  %v.15 = load ptr, ptr %local.3, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-44",
+    "llvm_sha256": "9806f7fb81faffe6c0b4a9e9ca209a2a2961d18b0b98ae711e964ee5a99375a7",
+    "bounds_sequences": [
+      {
+        "line": 417,
+        "actual_lines": [
+          "  br i1 %tmp.11, label %zil.trap, label %checked.2",
+          "checked.2:",
+          "  %tmp.12 = getelementptr { ptr, i64, i64 }, ptr %v.14, i32 0, i32 1",
+          "  %tmp.13 = load i64, ptr %tmp.12, align 8",
+          "  %tmp.14 = icmp ult i64 %v.18, %tmp.13",
+          "  br i1 %tmp.14, label %store.element.ok.3, label %zil.trap",
+          "store.element.ok.3:",
+          "  %tmp.15 = getelementptr { ptr, i64, i64 }, ptr %v.14, i32 0, i32 0",
+          "  %tmp.16 = load ptr, ptr %tmp.15, align 8",
+          "  %v.19 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.16, i64 %v.18",
+          "  store ptr %v.19, ptr %local.4, align 8",
+          "  %v.20 = load ptr, ptr %local.4, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-45",
+    "llvm_sha256": "7ca3f9bb21976777ca93ca76f7c7c6c042cac0491ca597942343767f2f7d8392",
+    "bounds_sequences": [
+      {
+        "line": 411,
+        "actual_lines": [
+          "  %v.12 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.13 = add i64 0, 0",
+          "  %tmp.10 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 1",
+          "  %tmp.11 = load i64, ptr %tmp.10, align 8",
+          "  %tmp.12 = icmp ult i64 %v.13, %tmp.11",
+          "  br i1 %tmp.12, label %store.element.ok.2, label %zil.trap",
+          "store.element.ok.2:",
+          "  %tmp.13 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 0",
+          "  %tmp.14 = load ptr, ptr %tmp.13, align 8",
+          "  %v.14 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.14, i64 %v.13",
+          "  store ptr %v.14, ptr %local.3, align 8",
+          "  %v.15 = load ptr, ptr %local.3, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-46",
+    "llvm_sha256": "9806f7fb81faffe6c0b4a9e9ca209a2a2961d18b0b98ae711e964ee5a99375a7",
+    "bounds_sequences": [
+      {
+        "line": 417,
+        "actual_lines": [
+          "  br i1 %tmp.11, label %zil.trap, label %checked.2",
+          "checked.2:",
+          "  %tmp.12 = getelementptr { ptr, i64, i64 }, ptr %v.14, i32 0, i32 1",
+          "  %tmp.13 = load i64, ptr %tmp.12, align 8",
+          "  %tmp.14 = icmp ult i64 %v.18, %tmp.13",
+          "  br i1 %tmp.14, label %store.element.ok.3, label %zil.trap",
+          "store.element.ok.3:",
+          "  %tmp.15 = getelementptr { ptr, i64, i64 }, ptr %v.14, i32 0, i32 0",
+          "  %tmp.16 = load ptr, ptr %tmp.15, align 8",
+          "  %v.19 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.16, i64 %v.18",
+          "  store ptr %v.19, ptr %local.4, align 8",
+          "  %v.20 = load ptr, ptr %local.4, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-47",
+    "llvm_sha256": "3703751105e2c5ea3840c7b5914aa31674a061e5731b6e0311fd48b7e1b15e02",
+    "bounds_sequences": [
+      {
+        "line": 335,
+        "actual_lines": [
+          "  %v.45 = getelementptr i8, ptr %local.2, i64 0",
+          "  %v.46 = load i64, ptr %local.4, align 8",
+          "  %tmp.24 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 1",
+          "  %tmp.25 = load i64, ptr %tmp.24, align 8",
+          "  %tmp.26 = icmp ult i64 %v.46, %tmp.25",
+          "  br i1 %tmp.26, label %store.element.ok.10, label %zil.trap",
+          "store.element.ok.10:",
+          "  %tmp.27 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 0",
+          "  %tmp.28 = load ptr, ptr %tmp.27, align 8",
+          "  %v.47 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.28, i64 %v.46",
+          "  %v.48 = getelementptr i8, ptr %v.47, i64 0",
+          "  %v.49 = call i32 @zil.fn.10(ptr %v.48)"
+        ]
+      },
+      {
+        "line": 406,
+        "actual_lines": [
+          "checked.14:",
+          "  %v.71 = sext i32 %v.70 to i64",
+          "  %tmp.39 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 1",
+          "  %tmp.40 = load i64, ptr %tmp.39, align 8",
+          "  %tmp.41 = icmp ult i64 %v.71, %tmp.40",
+          "  br i1 %tmp.41, label %store.element.ok.15, label %zil.trap",
+          "store.element.ok.15:",
+          "  %tmp.42 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 0",
+          "  %tmp.43 = load ptr, ptr %tmp.42, align 8",
+          "  %v.72 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.43, i64 %v.71",
+          "  %v.73 = getelementptr i8, ptr %v.72, i64 0",
+          "  %v.74 = call i32 @zil.fn.10(ptr %v.73)"
+        ]
+      },
+      {
+        "line": 956,
+        "actual_lines": [
+          "  %v.7 = load ptr, ptr %local.0, align 8",
+          "  %v.8 = load i64, ptr %local.3, align 8",
+          "  %tmp.1 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 1",
+          "  %tmp.2 = load i64, ptr %tmp.1, align 8",
+          "  %tmp.3 = icmp ult i64 %v.8, %tmp.2",
+          "  br i1 %tmp.3, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.4 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 0",
+          "  %tmp.5 = load ptr, ptr %tmp.4, align 8",
+          "  %v.9 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.5, i64 %v.8",
+          "  store ptr %v.9, ptr %local.5, align 8",
+          "  %v.10 = load i32, ptr %local.4, align 4"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-48",
+    "llvm_sha256": "c78177f15ae259df05760eacfe034467f00fba913f6b02b7f3ba470dfe7d4435",
+    "bounds_sequences": [
+      {
+        "line": 627,
+        "actual_lines": [
+          "  %v.1 = getelementptr { { i32 }, { ptr, i64, i64 }, { ptr, i64, i64 } }, ptr %local.0, i32 0, i32 1",
+          "  %v.2 = add i64 0, 0",
+          "  %tmp.0 = getelementptr { ptr, i64, i64 }, ptr %v.1, i32 0, i32 1",
+          "  %tmp.1 = load i64, ptr %tmp.0, align 8",
+          "  %tmp.2 = icmp ult i64 %v.2, %tmp.1",
+          "  br i1 %tmp.2, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.3 = getelementptr { ptr, i64, i64 }, ptr %v.1, i32 0, i32 0",
+          "  %tmp.4 = load ptr, ptr %tmp.3, align 8",
+          "  %v.3 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.4, i64 %v.2",
+          "  store ptr %v.3, ptr %local.1, align 8",
+          "  %v.4 = load ptr, ptr %local.1, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-49",
+    "llvm_sha256": "3703751105e2c5ea3840c7b5914aa31674a061e5731b6e0311fd48b7e1b15e02",
+    "bounds_sequences": [
+      {
+        "line": 335,
+        "actual_lines": [
+          "  %v.45 = getelementptr i8, ptr %local.2, i64 0",
+          "  %v.46 = load i64, ptr %local.4, align 8",
+          "  %tmp.24 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 1",
+          "  %tmp.25 = load i64, ptr %tmp.24, align 8",
+          "  %tmp.26 = icmp ult i64 %v.46, %tmp.25",
+          "  br i1 %tmp.26, label %store.element.ok.10, label %zil.trap",
+          "store.element.ok.10:",
+          "  %tmp.27 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 0",
+          "  %tmp.28 = load ptr, ptr %tmp.27, align 8",
+          "  %v.47 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.28, i64 %v.46",
+          "  %v.48 = getelementptr i8, ptr %v.47, i64 0",
+          "  %v.49 = call i32 @zil.fn.10(ptr %v.48)"
+        ]
+      },
+      {
+        "line": 406,
+        "actual_lines": [
+          "checked.14:",
+          "  %v.71 = sext i32 %v.70 to i64",
+          "  %tmp.39 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 1",
+          "  %tmp.40 = load i64, ptr %tmp.39, align 8",
+          "  %tmp.41 = icmp ult i64 %v.71, %tmp.40",
+          "  br i1 %tmp.41, label %store.element.ok.15, label %zil.trap",
+          "store.element.ok.15:",
+          "  %tmp.42 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 0",
+          "  %tmp.43 = load ptr, ptr %tmp.42, align 8",
+          "  %v.72 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.43, i64 %v.71",
+          "  %v.73 = getelementptr i8, ptr %v.72, i64 0",
+          "  %v.74 = call i32 @zil.fn.10(ptr %v.73)"
+        ]
+      },
+      {
+        "line": 956,
+        "actual_lines": [
+          "  %v.7 = load ptr, ptr %local.0, align 8",
+          "  %v.8 = load i64, ptr %local.3, align 8",
+          "  %tmp.1 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 1",
+          "  %tmp.2 = load i64, ptr %tmp.1, align 8",
+          "  %tmp.3 = icmp ult i64 %v.8, %tmp.2",
+          "  br i1 %tmp.3, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.4 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 0",
+          "  %tmp.5 = load ptr, ptr %tmp.4, align 8",
+          "  %v.9 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.5, i64 %v.8",
+          "  store ptr %v.9, ptr %local.5, align 8",
+          "  %v.10 = load i32, ptr %local.4, align 4"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-5",
+    "llvm_sha256": "d81bdd5f869912fcbd78353558fec8b3b08dbb65a401fc806a6eb4525cd93d8a",
+    "bounds_sequences": [
+      {
+        "line": 405,
+        "actual_lines": [
+          "  %v.12 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.13 = add i64 0, 1",
+          "  %tmp.10 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 1",
+          "  %tmp.11 = load i64, ptr %tmp.10, align 8",
+          "  %tmp.12 = icmp ult i64 %v.13, %tmp.11",
+          "  br i1 %tmp.12, label %store.element.ok.2, label %zil.trap",
+          "store.element.ok.2:",
+          "  %tmp.13 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 0",
+          "  %tmp.14 = load ptr, ptr %tmp.13, align 8",
+          "  %v.14 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.14, i64 %v.13",
+          "  store ptr %v.14, ptr %local.3, align 8",
+          "  %v.15 = load ptr, ptr %local.3, align 8"
+        ]
+      },
+      {
+        "line": 466,
+        "actual_lines": [
+          "  %v.43 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.44 = add i64 0, 0",
+          "  %tmp.24 = getelementptr { ptr, i64, i64 }, ptr %v.43, i32 0, i32 1",
+          "  %tmp.25 = load i64, ptr %tmp.24, align 8",
+          "  %tmp.26 = icmp ult i64 %v.44, %tmp.25",
+          "  br i1 %tmp.26, label %store.element.ok.7, label %zil.trap",
+          "store.element.ok.7:",
+          "  %tmp.27 = getelementptr { ptr, i64, i64 }, ptr %v.43, i32 0, i32 0",
+          "  %tmp.28 = load ptr, ptr %tmp.27, align 8",
+          "  %v.45 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.28, i64 %v.44",
+          "  %v.46 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %v.45, i32 0, i32 3",
+          "  %v.47 = add i32 0, 70"
+        ]
+      },
+      {
+        "line": 480,
+        "actual_lines": [
+          "  %v.49 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.50 = add i64 0, 0",
+          "  %tmp.29 = getelementptr { ptr, i64, i64 }, ptr %v.49, i32 0, i32 1",
+          "  %tmp.30 = load i64, ptr %tmp.29, align 8",
+          "  %tmp.31 = icmp ult i64 %v.50, %tmp.30",
+          "  br i1 %tmp.31, label %store.element.ok.8, label %zil.trap",
+          "store.element.ok.8:",
+          "  %tmp.32 = getelementptr { ptr, i64, i64 }, ptr %v.49, i32 0, i32 0",
+          "  %tmp.33 = load ptr, ptr %tmp.32, align 8",
+          "  %v.51 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.33, i64 %v.50",
+          "  %v.52 = getelementptr i8, ptr %v.51, i64 0",
+          "  %v.53 = call i32 @zil.fn.4(ptr %v.52)"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-50",
+    "llvm_sha256": "c78177f15ae259df05760eacfe034467f00fba913f6b02b7f3ba470dfe7d4435",
+    "bounds_sequences": [
+      {
+        "line": 627,
+        "actual_lines": [
+          "  %v.1 = getelementptr { { i32 }, { ptr, i64, i64 }, { ptr, i64, i64 } }, ptr %local.0, i32 0, i32 1",
+          "  %v.2 = add i64 0, 0",
+          "  %tmp.0 = getelementptr { ptr, i64, i64 }, ptr %v.1, i32 0, i32 1",
+          "  %tmp.1 = load i64, ptr %tmp.0, align 8",
+          "  %tmp.2 = icmp ult i64 %v.2, %tmp.1",
+          "  br i1 %tmp.2, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.3 = getelementptr { ptr, i64, i64 }, ptr %v.1, i32 0, i32 0",
+          "  %tmp.4 = load ptr, ptr %tmp.3, align 8",
+          "  %v.3 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.4, i64 %v.2",
+          "  store ptr %v.3, ptr %local.1, align 8",
+          "  %v.4 = load ptr, ptr %local.1, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-53",
+    "llvm_sha256": "3703751105e2c5ea3840c7b5914aa31674a061e5731b6e0311fd48b7e1b15e02",
+    "bounds_sequences": [
+      {
+        "line": 335,
+        "actual_lines": [
+          "  %v.45 = getelementptr i8, ptr %local.2, i64 0",
+          "  %v.46 = load i64, ptr %local.4, align 8",
+          "  %tmp.24 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 1",
+          "  %tmp.25 = load i64, ptr %tmp.24, align 8",
+          "  %tmp.26 = icmp ult i64 %v.46, %tmp.25",
+          "  br i1 %tmp.26, label %store.element.ok.10, label %zil.trap",
+          "store.element.ok.10:",
+          "  %tmp.27 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 0",
+          "  %tmp.28 = load ptr, ptr %tmp.27, align 8",
+          "  %v.47 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.28, i64 %v.46",
+          "  %v.48 = getelementptr i8, ptr %v.47, i64 0",
+          "  %v.49 = call i32 @zil.fn.10(ptr %v.48)"
+        ]
+      },
+      {
+        "line": 406,
+        "actual_lines": [
+          "checked.14:",
+          "  %v.71 = sext i32 %v.70 to i64",
+          "  %tmp.39 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 1",
+          "  %tmp.40 = load i64, ptr %tmp.39, align 8",
+          "  %tmp.41 = icmp ult i64 %v.71, %tmp.40",
+          "  br i1 %tmp.41, label %store.element.ok.15, label %zil.trap",
+          "store.element.ok.15:",
+          "  %tmp.42 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 0",
+          "  %tmp.43 = load ptr, ptr %tmp.42, align 8",
+          "  %v.72 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.43, i64 %v.71",
+          "  %v.73 = getelementptr i8, ptr %v.72, i64 0",
+          "  %v.74 = call i32 @zil.fn.10(ptr %v.73)"
+        ]
+      },
+      {
+        "line": 956,
+        "actual_lines": [
+          "  %v.7 = load ptr, ptr %local.0, align 8",
+          "  %v.8 = load i64, ptr %local.3, align 8",
+          "  %tmp.1 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 1",
+          "  %tmp.2 = load i64, ptr %tmp.1, align 8",
+          "  %tmp.3 = icmp ult i64 %v.8, %tmp.2",
+          "  br i1 %tmp.3, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.4 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 0",
+          "  %tmp.5 = load ptr, ptr %tmp.4, align 8",
+          "  %v.9 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.5, i64 %v.8",
+          "  store ptr %v.9, ptr %local.5, align 8",
+          "  %v.10 = load i32, ptr %local.4, align 4"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-54",
+    "llvm_sha256": "f6a6202d5a102fca712a9d68dfa72bf9f61884edbe4d8dc0a8b9398dba21f6b6",
+    "bounds_sequences": [
+      {
+        "line": 427,
+        "actual_lines": [
+          "  %v.12 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.13 = add i64 0, 0",
+          "  %tmp.10 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 1",
+          "  %tmp.11 = load i64, ptr %tmp.10, align 8",
+          "  %tmp.12 = icmp ult i64 %v.13, %tmp.11",
+          "  br i1 %tmp.12, label %store.element.ok.2, label %zil.trap",
+          "store.element.ok.2:",
+          "  %tmp.13 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 0",
+          "  %tmp.14 = load ptr, ptr %tmp.13, align 8",
+          "  %v.14 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.14, i64 %v.13",
+          "  store ptr %v.14, ptr %local.3, align 8",
+          "  %v.15 = load ptr, ptr %local.3, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-55",
+    "llvm_sha256": "f6a6202d5a102fca712a9d68dfa72bf9f61884edbe4d8dc0a8b9398dba21f6b6",
+    "bounds_sequences": [
+      {
+        "line": 427,
+        "actual_lines": [
+          "  %v.12 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.13 = add i64 0, 0",
+          "  %tmp.10 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 1",
+          "  %tmp.11 = load i64, ptr %tmp.10, align 8",
+          "  %tmp.12 = icmp ult i64 %v.13, %tmp.11",
+          "  br i1 %tmp.12, label %store.element.ok.2, label %zil.trap",
+          "store.element.ok.2:",
+          "  %tmp.13 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 0",
+          "  %tmp.14 = load ptr, ptr %tmp.13, align 8",
+          "  %v.14 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.14, i64 %v.13",
+          "  store ptr %v.14, ptr %local.3, align 8",
+          "  %v.15 = load ptr, ptr %local.3, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-56",
+    "llvm_sha256": "3703751105e2c5ea3840c7b5914aa31674a061e5731b6e0311fd48b7e1b15e02",
+    "bounds_sequences": [
+      {
+        "line": 335,
+        "actual_lines": [
+          "  %v.45 = getelementptr i8, ptr %local.2, i64 0",
+          "  %v.46 = load i64, ptr %local.4, align 8",
+          "  %tmp.24 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 1",
+          "  %tmp.25 = load i64, ptr %tmp.24, align 8",
+          "  %tmp.26 = icmp ult i64 %v.46, %tmp.25",
+          "  br i1 %tmp.26, label %store.element.ok.10, label %zil.trap",
+          "store.element.ok.10:",
+          "  %tmp.27 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 0",
+          "  %tmp.28 = load ptr, ptr %tmp.27, align 8",
+          "  %v.47 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.28, i64 %v.46",
+          "  %v.48 = getelementptr i8, ptr %v.47, i64 0",
+          "  %v.49 = call i32 @zil.fn.10(ptr %v.48)"
+        ]
+      },
+      {
+        "line": 406,
+        "actual_lines": [
+          "checked.14:",
+          "  %v.71 = sext i32 %v.70 to i64",
+          "  %tmp.39 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 1",
+          "  %tmp.40 = load i64, ptr %tmp.39, align 8",
+          "  %tmp.41 = icmp ult i64 %v.71, %tmp.40",
+          "  br i1 %tmp.41, label %store.element.ok.15, label %zil.trap",
+          "store.element.ok.15:",
+          "  %tmp.42 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 0",
+          "  %tmp.43 = load ptr, ptr %tmp.42, align 8",
+          "  %v.72 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.43, i64 %v.71",
+          "  %v.73 = getelementptr i8, ptr %v.72, i64 0",
+          "  %v.74 = call i32 @zil.fn.10(ptr %v.73)"
+        ]
+      },
+      {
+        "line": 956,
+        "actual_lines": [
+          "  %v.7 = load ptr, ptr %local.0, align 8",
+          "  %v.8 = load i64, ptr %local.3, align 8",
+          "  %tmp.1 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 1",
+          "  %tmp.2 = load i64, ptr %tmp.1, align 8",
+          "  %tmp.3 = icmp ult i64 %v.8, %tmp.2",
+          "  br i1 %tmp.3, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.4 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 0",
+          "  %tmp.5 = load ptr, ptr %tmp.4, align 8",
+          "  %v.9 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.5, i64 %v.8",
+          "  store ptr %v.9, ptr %local.5, align 8",
+          "  %v.10 = load i32, ptr %local.4, align 4"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-6",
+    "llvm_sha256": "caafe5108b2e0934cd31567fe4fb6a0962988a5d697d112a7e6d897e97118624",
+    "bounds_sequences": [
+      {
+        "line": 420,
+        "actual_lines": [
+          "  %v.13 = getelementptr i8, ptr %local.0, i64 0",
+          "  %v.14 = call i64 @zil.fn.6(ptr %v.13)",
+          "  %tmp.10 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 1",
+          "  %tmp.11 = load i64, ptr %tmp.10, align 8",
+          "  %tmp.12 = icmp ult i64 %v.14, %tmp.11",
+          "  br i1 %tmp.12, label %store.element.ok.2, label %zil.trap",
+          "store.element.ok.2:",
+          "  %tmp.13 = getelementptr { ptr, i64, i64 }, ptr %v.12, i32 0, i32 0",
+          "  %tmp.14 = load ptr, ptr %tmp.13, align 8",
+          "  %v.15 = getelementptr { { i32 }, [3 x i32], { i32, i32 }, i32 }, ptr %tmp.14, i64 %v.14",
+          "  store ptr %v.15, ptr %local.3, align 8",
+          "  %v.16 = load ptr, ptr %local.3, align 8"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-62",
+    "llvm_sha256": "3703751105e2c5ea3840c7b5914aa31674a061e5731b6e0311fd48b7e1b15e02",
+    "bounds_sequences": [
+      {
+        "line": 335,
+        "actual_lines": [
+          "  %v.45 = getelementptr i8, ptr %local.2, i64 0",
+          "  %v.46 = load i64, ptr %local.4, align 8",
+          "  %tmp.24 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 1",
+          "  %tmp.25 = load i64, ptr %tmp.24, align 8",
+          "  %tmp.26 = icmp ult i64 %v.46, %tmp.25",
+          "  br i1 %tmp.26, label %store.element.ok.10, label %zil.trap",
+          "store.element.ok.10:",
+          "  %tmp.27 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 0",
+          "  %tmp.28 = load ptr, ptr %tmp.27, align 8",
+          "  %v.47 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.28, i64 %v.46",
+          "  %v.48 = getelementptr i8, ptr %v.47, i64 0",
+          "  %v.49 = call i32 @zil.fn.10(ptr %v.48)"
+        ]
+      },
+      {
+        "line": 406,
+        "actual_lines": [
+          "checked.14:",
+          "  %v.71 = sext i32 %v.70 to i64",
+          "  %tmp.39 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 1",
+          "  %tmp.40 = load i64, ptr %tmp.39, align 8",
+          "  %tmp.41 = icmp ult i64 %v.71, %tmp.40",
+          "  br i1 %tmp.41, label %store.element.ok.15, label %zil.trap",
+          "store.element.ok.15:",
+          "  %tmp.42 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 0",
+          "  %tmp.43 = load ptr, ptr %tmp.42, align 8",
+          "  %v.72 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.43, i64 %v.71",
+          "  %v.73 = getelementptr i8, ptr %v.72, i64 0",
+          "  %v.74 = call i32 @zil.fn.10(ptr %v.73)"
+        ]
+      },
+      {
+        "line": 956,
+        "actual_lines": [
+          "  %v.7 = load ptr, ptr %local.0, align 8",
+          "  %v.8 = load i64, ptr %local.3, align 8",
+          "  %tmp.1 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 1",
+          "  %tmp.2 = load i64, ptr %tmp.1, align 8",
+          "  %tmp.3 = icmp ult i64 %v.8, %tmp.2",
+          "  br i1 %tmp.3, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.4 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 0",
+          "  %tmp.5 = load ptr, ptr %tmp.4, align 8",
+          "  %v.9 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.5, i64 %v.8",
+          "  store ptr %v.9, ptr %local.5, align 8",
+          "  %v.10 = load i32, ptr %local.4, align 4"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-64",
+    "llvm_sha256": "3703751105e2c5ea3840c7b5914aa31674a061e5731b6e0311fd48b7e1b15e02",
+    "bounds_sequences": [
+      {
+        "line": 335,
+        "actual_lines": [
+          "  %v.45 = getelementptr i8, ptr %local.2, i64 0",
+          "  %v.46 = load i64, ptr %local.4, align 8",
+          "  %tmp.24 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 1",
+          "  %tmp.25 = load i64, ptr %tmp.24, align 8",
+          "  %tmp.26 = icmp ult i64 %v.46, %tmp.25",
+          "  br i1 %tmp.26, label %store.element.ok.10, label %zil.trap",
+          "store.element.ok.10:",
+          "  %tmp.27 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 0",
+          "  %tmp.28 = load ptr, ptr %tmp.27, align 8",
+          "  %v.47 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.28, i64 %v.46",
+          "  %v.48 = getelementptr i8, ptr %v.47, i64 0",
+          "  %v.49 = call i32 @zil.fn.10(ptr %v.48)"
+        ]
+      },
+      {
+        "line": 406,
+        "actual_lines": [
+          "checked.14:",
+          "  %v.71 = sext i32 %v.70 to i64",
+          "  %tmp.39 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 1",
+          "  %tmp.40 = load i64, ptr %tmp.39, align 8",
+          "  %tmp.41 = icmp ult i64 %v.71, %tmp.40",
+          "  br i1 %tmp.41, label %store.element.ok.15, label %zil.trap",
+          "store.element.ok.15:",
+          "  %tmp.42 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 0",
+          "  %tmp.43 = load ptr, ptr %tmp.42, align 8",
+          "  %v.72 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.43, i64 %v.71",
+          "  %v.73 = getelementptr i8, ptr %v.72, i64 0",
+          "  %v.74 = call i32 @zil.fn.10(ptr %v.73)"
+        ]
+      },
+      {
+        "line": 956,
+        "actual_lines": [
+          "  %v.7 = load ptr, ptr %local.0, align 8",
+          "  %v.8 = load i64, ptr %local.3, align 8",
+          "  %tmp.1 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 1",
+          "  %tmp.2 = load i64, ptr %tmp.1, align 8",
+          "  %tmp.3 = icmp ult i64 %v.8, %tmp.2",
+          "  br i1 %tmp.3, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.4 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 0",
+          "  %tmp.5 = load ptr, ptr %tmp.4, align 8",
+          "  %v.9 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.5, i64 %v.8",
+          "  store ptr %v.9, ptr %local.5, align 8",
+          "  %v.10 = load i32, ptr %local.4, align 4"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-65",
+    "llvm_sha256": "3703751105e2c5ea3840c7b5914aa31674a061e5731b6e0311fd48b7e1b15e02",
+    "bounds_sequences": [
+      {
+        "line": 335,
+        "actual_lines": [
+          "  %v.45 = getelementptr i8, ptr %local.2, i64 0",
+          "  %v.46 = load i64, ptr %local.4, align 8",
+          "  %tmp.24 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 1",
+          "  %tmp.25 = load i64, ptr %tmp.24, align 8",
+          "  %tmp.26 = icmp ult i64 %v.46, %tmp.25",
+          "  br i1 %tmp.26, label %store.element.ok.10, label %zil.trap",
+          "store.element.ok.10:",
+          "  %tmp.27 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 0",
+          "  %tmp.28 = load ptr, ptr %tmp.27, align 8",
+          "  %v.47 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.28, i64 %v.46",
+          "  %v.48 = getelementptr i8, ptr %v.47, i64 0",
+          "  %v.49 = call i32 @zil.fn.10(ptr %v.48)"
+        ]
+      },
+      {
+        "line": 406,
+        "actual_lines": [
+          "checked.14:",
+          "  %v.71 = sext i32 %v.70 to i64",
+          "  %tmp.39 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 1",
+          "  %tmp.40 = load i64, ptr %tmp.39, align 8",
+          "  %tmp.41 = icmp ult i64 %v.71, %tmp.40",
+          "  br i1 %tmp.41, label %store.element.ok.15, label %zil.trap",
+          "store.element.ok.15:",
+          "  %tmp.42 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 0",
+          "  %tmp.43 = load ptr, ptr %tmp.42, align 8",
+          "  %v.72 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.43, i64 %v.71",
+          "  %v.73 = getelementptr i8, ptr %v.72, i64 0",
+          "  %v.74 = call i32 @zil.fn.10(ptr %v.73)"
+        ]
+      },
+      {
+        "line": 956,
+        "actual_lines": [
+          "  %v.7 = load ptr, ptr %local.0, align 8",
+          "  %v.8 = load i64, ptr %local.3, align 8",
+          "  %tmp.1 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 1",
+          "  %tmp.2 = load i64, ptr %tmp.1, align 8",
+          "  %tmp.3 = icmp ult i64 %v.8, %tmp.2",
+          "  br i1 %tmp.3, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.4 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 0",
+          "  %tmp.5 = load ptr, ptr %tmp.4, align 8",
+          "  %v.9 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.5, i64 %v.8",
+          "  store ptr %v.9, ptr %local.5, align 8",
+          "  %v.10 = load i32, ptr %local.4, align 4"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-66",
+    "llvm_sha256": "3703751105e2c5ea3840c7b5914aa31674a061e5731b6e0311fd48b7e1b15e02",
+    "bounds_sequences": [
+      {
+        "line": 335,
+        "actual_lines": [
+          "  %v.45 = getelementptr i8, ptr %local.2, i64 0",
+          "  %v.46 = load i64, ptr %local.4, align 8",
+          "  %tmp.24 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 1",
+          "  %tmp.25 = load i64, ptr %tmp.24, align 8",
+          "  %tmp.26 = icmp ult i64 %v.46, %tmp.25",
+          "  br i1 %tmp.26, label %store.element.ok.10, label %zil.trap",
+          "store.element.ok.10:",
+          "  %tmp.27 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 0",
+          "  %tmp.28 = load ptr, ptr %tmp.27, align 8",
+          "  %v.47 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.28, i64 %v.46",
+          "  %v.48 = getelementptr i8, ptr %v.47, i64 0",
+          "  %v.49 = call i32 @zil.fn.10(ptr %v.48)"
+        ]
+      },
+      {
+        "line": 406,
+        "actual_lines": [
+          "checked.14:",
+          "  %v.71 = sext i32 %v.70 to i64",
+          "  %tmp.39 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 1",
+          "  %tmp.40 = load i64, ptr %tmp.39, align 8",
+          "  %tmp.41 = icmp ult i64 %v.71, %tmp.40",
+          "  br i1 %tmp.41, label %store.element.ok.15, label %zil.trap",
+          "store.element.ok.15:",
+          "  %tmp.42 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 0",
+          "  %tmp.43 = load ptr, ptr %tmp.42, align 8",
+          "  %v.72 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.43, i64 %v.71",
+          "  %v.73 = getelementptr i8, ptr %v.72, i64 0",
+          "  %v.74 = call i32 @zil.fn.10(ptr %v.73)"
+        ]
+      },
+      {
+        "line": 956,
+        "actual_lines": [
+          "  %v.7 = load ptr, ptr %local.0, align 8",
+          "  %v.8 = load i64, ptr %local.3, align 8",
+          "  %tmp.1 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 1",
+          "  %tmp.2 = load i64, ptr %tmp.1, align 8",
+          "  %tmp.3 = icmp ult i64 %v.8, %tmp.2",
+          "  br i1 %tmp.3, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.4 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 0",
+          "  %tmp.5 = load ptr, ptr %tmp.4, align 8",
+          "  %v.9 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.5, i64 %v.8",
+          "  store ptr %v.9, ptr %local.5, align 8",
+          "  %v.10 = load i32, ptr %local.4, align 4"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-67",
+    "llvm_sha256": "3703751105e2c5ea3840c7b5914aa31674a061e5731b6e0311fd48b7e1b15e02",
+    "bounds_sequences": [
+      {
+        "line": 335,
+        "actual_lines": [
+          "  %v.45 = getelementptr i8, ptr %local.2, i64 0",
+          "  %v.46 = load i64, ptr %local.4, align 8",
+          "  %tmp.24 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 1",
+          "  %tmp.25 = load i64, ptr %tmp.24, align 8",
+          "  %tmp.26 = icmp ult i64 %v.46, %tmp.25",
+          "  br i1 %tmp.26, label %store.element.ok.10, label %zil.trap",
+          "store.element.ok.10:",
+          "  %tmp.27 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 0",
+          "  %tmp.28 = load ptr, ptr %tmp.27, align 8",
+          "  %v.47 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.28, i64 %v.46",
+          "  %v.48 = getelementptr i8, ptr %v.47, i64 0",
+          "  %v.49 = call i32 @zil.fn.10(ptr %v.48)"
+        ]
+      },
+      {
+        "line": 406,
+        "actual_lines": [
+          "checked.14:",
+          "  %v.71 = sext i32 %v.70 to i64",
+          "  %tmp.39 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 1",
+          "  %tmp.40 = load i64, ptr %tmp.39, align 8",
+          "  %tmp.41 = icmp ult i64 %v.71, %tmp.40",
+          "  br i1 %tmp.41, label %store.element.ok.15, label %zil.trap",
+          "store.element.ok.15:",
+          "  %tmp.42 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 0",
+          "  %tmp.43 = load ptr, ptr %tmp.42, align 8",
+          "  %v.72 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.43, i64 %v.71",
+          "  %v.73 = getelementptr i8, ptr %v.72, i64 0",
+          "  %v.74 = call i32 @zil.fn.10(ptr %v.73)"
+        ]
+      },
+      {
+        "line": 956,
+        "actual_lines": [
+          "  %v.7 = load ptr, ptr %local.0, align 8",
+          "  %v.8 = load i64, ptr %local.3, align 8",
+          "  %tmp.1 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 1",
+          "  %tmp.2 = load i64, ptr %tmp.1, align 8",
+          "  %tmp.3 = icmp ult i64 %v.8, %tmp.2",
+          "  br i1 %tmp.3, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.4 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 0",
+          "  %tmp.5 = load ptr, ptr %tmp.4, align 8",
+          "  %v.9 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.5, i64 %v.8",
+          "  store ptr %v.9, ptr %local.5, align 8",
+          "  %v.10 = load i32, ptr %local.4, align 4"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  },
+  {
+    "case": "store-mut180-401-68",
+    "llvm_sha256": "3703751105e2c5ea3840c7b5914aa31674a061e5731b6e0311fd48b7e1b15e02",
+    "bounds_sequences": [
+      {
+        "line": 335,
+        "actual_lines": [
+          "  %v.45 = getelementptr i8, ptr %local.2, i64 0",
+          "  %v.46 = load i64, ptr %local.4, align 8",
+          "  %tmp.24 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 1",
+          "  %tmp.25 = load i64, ptr %tmp.24, align 8",
+          "  %tmp.26 = icmp ult i64 %v.46, %tmp.25",
+          "  br i1 %tmp.26, label %store.element.ok.10, label %zil.trap",
+          "store.element.ok.10:",
+          "  %tmp.27 = getelementptr { ptr, i64, i64 }, ptr %v.45, i32 0, i32 0",
+          "  %tmp.28 = load ptr, ptr %tmp.27, align 8",
+          "  %v.47 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.28, i64 %v.46",
+          "  %v.48 = getelementptr i8, ptr %v.47, i64 0",
+          "  %v.49 = call i32 @zil.fn.10(ptr %v.48)"
+        ]
+      },
+      {
+        "line": 406,
+        "actual_lines": [
+          "checked.14:",
+          "  %v.71 = sext i32 %v.70 to i64",
+          "  %tmp.39 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 1",
+          "  %tmp.40 = load i64, ptr %tmp.39, align 8",
+          "  %tmp.41 = icmp ult i64 %v.71, %tmp.40",
+          "  br i1 %tmp.41, label %store.element.ok.15, label %zil.trap",
+          "store.element.ok.15:",
+          "  %tmp.42 = getelementptr { ptr, i64, i64 }, ptr %v.67, i32 0, i32 0",
+          "  %tmp.43 = load ptr, ptr %tmp.42, align 8",
+          "  %v.72 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.43, i64 %v.71",
+          "  %v.73 = getelementptr i8, ptr %v.72, i64 0",
+          "  %v.74 = call i32 @zil.fn.10(ptr %v.73)"
+        ]
+      },
+      {
+        "line": 956,
+        "actual_lines": [
+          "  %v.7 = load ptr, ptr %local.0, align 8",
+          "  %v.8 = load i64, ptr %local.3, align 8",
+          "  %tmp.1 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 1",
+          "  %tmp.2 = load i64, ptr %tmp.1, align 8",
+          "  %tmp.3 = icmp ult i64 %v.8, %tmp.2",
+          "  br i1 %tmp.3, label %store.element.ok.0, label %zil.trap",
+          "store.element.ok.0:",
+          "  %tmp.4 = getelementptr { ptr, i64, i64 }, ptr %v.7, i32 0, i32 0",
+          "  %tmp.5 = load ptr, ptr %tmp.4, align 8",
+          "  %v.9 = getelementptr { { i32 }, { ptr, i64, i64 }, { i32, [2 x i32] } }, ptr %tmp.5, i64 %v.8",
+          "  store ptr %v.9, ptr %local.5, align 8",
+          "  %v.10 = load i32, ptr %local.4, align 4"
+        ]
+      }
+    ],
+    "contains_noalias": false
+  }
+]

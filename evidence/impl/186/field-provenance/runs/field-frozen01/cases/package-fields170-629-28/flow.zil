@@ -1,0 +1,1 @@
+import model;pub fn relay(s:model.State)->model.State=>s

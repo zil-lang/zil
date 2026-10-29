@@ -290,11 +290,8 @@ fn helper065_helper_does_not_extend_resource_or_address_lifetimes() {
 
 #[test]
 fn helper065_scope_is_explicit_for_extra_borrows_and_unbounded_traces() {
-    rejected(
+    checked(
         "fn run<F:Fn()->i32>(f:&F,other:&i32)->i32{return f()} fn main()->i32{let n=7;let f=()=>n;return run(&f,&n)}",
-        ResultCategory::Unsupported,
-        Phase::Types,
-        "finite Copy",
     );
     rejected(
         "fn run<F:FnMut()->i32>(f:F)->i32{return 0} fn main()->i32{return 0}",
@@ -361,8 +358,8 @@ fn helper065_raw_callable_metadata_is_bounded_before_instantiation() {
         nested = zil_ir::Type::Tuple(vec![nested]);
     }
     input.functions[0]
-        .callable_parameter
-        .as_mut()
+        .callable_parameters
+        .first_mut()
         .unwrap()
         .result = nested;
     let limits = Limits {
@@ -396,11 +393,11 @@ fn helper065_analyze_reconstructs_hold_and_call_paths() {
             .find_map(|f| f.callable_contract.as_mut())
             .unwrap();
         if erase_hold {
-            assert!(!claim.hold.is_empty());
-            claim.hold.clear();
+            assert!(!claim.roles[0].hold.is_empty());
+            claim.roles[0].hold.clear();
         } else {
-            assert!(!claim.traces.is_empty());
-            claim.traces.clear();
+            assert!(!claim.traces.as_finite().unwrap().is_empty());
+            claim.traces.as_finite_mut().unwrap().clear();
         }
         let errors = zil_analyze::analyze(&changed, &limits).unwrap_err();
         assert!(

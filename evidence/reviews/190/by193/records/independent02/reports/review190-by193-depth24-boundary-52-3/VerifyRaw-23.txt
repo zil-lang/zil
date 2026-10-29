@@ -1,0 +1,12 @@
+Err(
+    [
+        Diagnostic {
+            phase: Verify,
+            category: ResourceLimit,
+            code: "E-RESOURCE-LIMIT",
+            message: "helper dependency call depth exhausted",
+            span: None,
+            notes: [],
+        },
+    ],
+)

@@ -1,0 +1,92 @@
+[
+  {
+    "run": "probe-types01",
+    "kind": "InfrastructureFailure",
+    "tests_run": 0,
+    "detail": "No space left on device before tests"
+  },
+  {
+    "run": "probe-types02",
+    "kind": "SourceAdmissionFailure",
+    "detail": "Original minimum input rejected by Types old capture gate"
+  },
+  {
+    "run": "probe-verify01",
+    "kind": "SourceAdmissionFailure",
+    "detail": "Same source rejected by Analyze budget preflight"
+  },
+  {
+    "run": "probe-verify02",
+    "kind": "SourceAdmissionFailure",
+    "detail": "Same source rejected by Verify old capture gate"
+  },
+  {
+    "run": "core01",
+    "passed": 1,
+    "failed": 7,
+    "detail": "Lower capture gate plus a new Slice test whose actual existing rejection was Types, not the initially asserted Analyze"
+  },
+  {
+    "run": "core02",
+    "passed": 8,
+    "failed": 9,
+    "detail": "Actual LLVM capture field alignment old admission gate"
+  },
+  {
+    "run": "core03",
+    "passed": 17,
+    "failed": 0,
+    "detail": "Limited tested cases passed; later internal-window unsafe acceptance means this was not a closed safety result"
+  },
+  {
+    "run": "frozen01",
+    "kind": "InfrastructureFailure",
+    "tests_run": 0,
+    "detail": "E0463 stale zil_driver cache; only own rebuildable package cache cleaned"
+  },
+  {
+    "run": "frozen02",
+    "kind": "TestCompilationFailure",
+    "tests_run": 0,
+    "detail": "Missing Rust format brace escape in newly added test; no production error inferred"
+  },
+  {
+    "run": "frozen03",
+    "passed": 122,
+    "failed": 2,
+    "detail": "Original094 old Unsupported expectation and new ByteBuffer helper extra-parameter Types gate"
+  },
+  {
+    "run": "helper-parameter-probe01",
+    "kind": "ExplicitUnsupported",
+    "detail": "Both ordinary R Desc and ByteBuffer Desc helper extra args rejected by same old Types gate; only ByteBuffer is now opened"
+  },
+  {
+    "run": "internal-window-probe01",
+    "kind": "UnsafeAcceptance",
+    "detail": "Same source Buffer through two captures allowed internal view plus reserve; machine was not executed. Distinct-source control also accepted. Fixed by independent Capture/ParameterCapture separation closure."
+  },
+  {
+    "run": "core04",
+    "passed": 19,
+    "failed": 3,
+    "detail": "Internal capture separation already correct; remaining old Analyze helper extra-parameter gate"
+  },
+  {
+    "run": "core05",
+    "passed": 22,
+    "failed": 0,
+    "detail": "Prototype after helper gates; final commit also charges capture-slot lookup and adds two ordinary helper layers"
+  },
+  {
+    "run": "frozen04",
+    "passed": 130,
+    "failed": 0,
+    "detail": "Final exact source472 bounded driver acceptance"
+  },
+  {
+    "run": "quality01/handoff",
+    "kind": "ColdCheckFailure",
+    "detail": "Historical normative/task snapshot failures preserved without editing formal tasks"
+  }
+]

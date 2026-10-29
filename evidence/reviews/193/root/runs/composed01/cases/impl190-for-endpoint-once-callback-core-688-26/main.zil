@@ -1,0 +1,1 @@
+fn start<F:FnOnce()->i64>(f:F)->i32{for index in f()..i64(3){}return 0}fn main(){}

@@ -1,0 +1,1 @@
+resource R{n:i32}fn eat(give r:R){}fn main()->i32{let r=R{n:42};let d=r;let h=&r;let q=&h.n;let token=R{n:1};let f=move(p:&i32)=>{token.n;d.n=43;return *p};return f(q)-42}

@@ -1,0 +1,16 @@
+{
+  "source_commit": "1d5221da2d64c2bb2f5c8a6b47fe08148e5fb759",
+  "status": "Pass",
+  "suites": {
+    "impl186_generic_owned_success": {
+      "result": "ok",
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0
+    }
+  },
+  "passed": 10,
+  "failed": 0,
+  "ignored": 0,
+  "source": "Original cargo stdout/stderr and command.json; author and development reruns are not added to final counts."
+}

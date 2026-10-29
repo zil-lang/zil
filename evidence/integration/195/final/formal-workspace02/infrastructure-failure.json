@@ -1,0 +1,11 @@
+{
+  "status": "InfrastructureFailure",
+  "source_commit": "1bf8cf548a4648c597a67bf54b09f6200520e4e2",
+  "recorder_exit_code": 1,
+  "observed_error": "OSError: [Errno 28] No space left on device while writing stdout.log; separate df -i observed 2097137/2097152 used inodes, 15 free",
+  "original_command_record_sha256": "29d67b3af138df8013654a0e2b7c3f062ad051ddfa12b703de7cdf0a83e2e047",
+  "original_record_left_unchanged": true,
+  "underlying_cargo_result": "Unknown: subprocess output was not durably written",
+  "accepted_test_counts": null,
+  "counts_as_pass": false
+}

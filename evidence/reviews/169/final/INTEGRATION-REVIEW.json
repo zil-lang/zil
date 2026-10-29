@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "task": "169",
+  "verdict": "Pass",
+  "status": "Pass",
+  "reviewer": "/root/source_inventory",
+  "implementation_author": "/root",
+  "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+  "crates_tree": "0388c0c9936b0e4c1747f904abd458f9e8d5b956",
+  "scope": "Root-authored shared IR/Wire contracts, schema 19 interface wording, integration consumer and explicit test-expectation migrations. Shared transport/packaging was independently reviewed by nested_closures and rebound by exact source identities. This does not substitute for non-author 167 implementation review.",
+  "direct_verification": {
+    "cli_build": {
+      "path": "build/command.json",
+      "sha256": "081bfc567e8aec50bcb0393adefddcfda6c5c5b3b3c3f2426f492aa371fe1aa2",
+      "source_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff"
+    },
+    "consumer": {
+      "path": "REVIEW26.json",
+      "sha256": "a89c18039eb6acb2b668623c0a16fd8438f1c5ad04f50a677326ad4715a3646f",
+      "native_executions": 26,
+      "builds_with_one_verify": 8
+    },
+    "migration_source_rejections": {
+      "path": "166-migration-neighbors/summary.json",
+      "sha256": "9aeb3760ebccdefbf73d68b55f9f774c9b64b3780ddd0b1de9a78b3416a86dcc",
+      "passed": 9,
+      "failed": 0
+    }
+  },
+  "shared_interface_references": [
+    {
+      "path": "evidence/reviews/169/transport-and-packaging/review.json",
+      "sha256": "267493859ffdd1087ae5d625c0c37274a7e1afa8a1d199299f67a5404ecca2a8",
+      "reviewer": "/root/nested_closures",
+      "reviewed_commit": "b0e747bd7a6553c163c6c44512d01da57da9442c",
+      "tested_ir_commit": "456e66caed9384c602b913ec241302431a0873d7",
+      "ir_tree": "9821a100a22a8cb7e98dd08dacbeadd4b353b472",
+      "final_ir_tree_identical": true,
+      "reported_ir_tests_passed": 20,
+      "reexecuted_here": false
+    },
+    {
+      "path": "evidence/reviews/169/transport-and-packaging/source-filter-review.json",
+      "sha256": "5504f74c8f3521ca88d399203fc77e5d7dc78305461a28ac916de40b3733019b",
+      "reviewer": "/root/nested_closures",
+      "reviewed_commit": "1ca4cfecdd3c149e85680fa6f1c54a68c7aa0b8e",
+      "final_package_and_restore_bytes_identical": true,
+      "reexecuted_here": false
+    }
+  ],
+  "interface_document": {
+    "path": "spec/interfaces.json",
+    "sha256": "dfc8976c7986edf08b00084aef23b866e901fa95640ac359e7904d49d9489266",
+    "normative_hash": "9eeacdb5333925a084d7dc14a0c4b50b1a3d01684acb8214ea4bd381251ed666",
+    "assessment": "Version 19 compatibility, opcodes 69–79, owned-union/array admission, conservative array roots, capture guards, private self-contained slots, native error-wrapper cleanup and expansion budgets have accurate finite boundaries."
+  },
+  "fixture_review": {
+    "analyze_budgets": "Only exact cost 1130→1230 and 104→106; 184 unchanged. Keep required−1 ResourceLimit; no limits/accounting weakened.",
+    "impl166": "Only the partial-Package diagnostic substring changed; all 9 closest source categories/phases/codes checked again with the final CLI.",
+    "impl125": "Grounded forwarding becomes positive while borrowed escape, recursion and wrong kind stay rejected. Declaration-order repair is a real 168 production change, not merely fixture acceptance; original failures retained."
+  },
+  "root_executed_final_workspace": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/169/final-workspace-03/command.json",
+    "sha256": "7e8148b7f710ad33195e7d856268d7c8857aad86bb6ca6001d728fa6b0b176e1",
+    "source_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+    "status": "Pass",
+    "tests": {
+      "passed": 1463,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 147
+    },
+    "reexecuted_here": false
+  },
+  "preserved_historical_failure": {
+    "path": "evidence/impl/169/integration/166-diagnostic-migration/command.json",
+    "sha256": "5cf253c9ee582212b400ee569e73ea4293e6f59d73c45d1dbdb13d3bfa36d7b3",
+    "source_commit": "7179b49ca556479acbd53c1ae4566f63970f31cf",
+    "status": "Fail",
+    "interpretation": "Retained as the original failure. Later fresh workspace 1463 and independent final CLI 9-neighbor checks are separately bound results, not a relabel of this receipt."
+  },
+  "limits": [
+    "No independent review of the reviewer-authored 167 implementation is claimed",
+    "No final source ZIP/bundle cold-restore Pass until actual files are independently checked",
+    "No performance or full ZUI readiness claim",
+    "Full language NotSatisfied; product NotRun"
+  ],
+  "source_mutations_by_reviewer": false,
+  "findings_remaining_in_scope": []
+}

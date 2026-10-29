@@ -1,0 +1,28 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-ir",
+    "--offline",
+    "-j2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review173-wire170",
+  "source_commit": "bf2280d8ef53ed234f0605e10a55d7741b914b3e",
+  "crates_tree": "156521437fb96fc057560e23c6205cdbf89c676a",
+  "source_status": "",
+  "start": 1793110933.8149827,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "4ca6ac11c5ae76c8620d04acbe9070047ed58f5c955e0a2743a8e595818c7b7f",
+  "end": 1793110937.663545,
+  "seconds": 3.848562240600586,
+  "tests": {
+    "passed": 35,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 5
+  },
+  "ending_crates_tree": "156521437fb96fc057560e23c6205cdbf89c676a",
+  "ending_source_status": ""
+}

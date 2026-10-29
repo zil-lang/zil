@@ -1,0 +1,14 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/review169-lock/matrix26/main/O0/allocation-probe"
+  ],
+  "start": 1793103529.044336,
+  "status": "Completed",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "0"
+  },
+  "exit_code": 0,
+  "stdout_sha256": "1b371a1041b99d45c8bc98103f59f9fbad3dd7bbdac40ef61d6802a81943f92e",
+  "stderr_sha256": "4686aa5aae16e9c3ae627078957b61896d83e6054345764b63b7131055d3c23e",
+  "end": 1793103529.0482094
+}

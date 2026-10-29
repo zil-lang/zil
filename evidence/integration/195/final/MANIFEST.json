@@ -1,0 +1,195 @@
+{
+  "files": [
+    {
+      "path": "RESULT.json",
+      "bytes": 8216,
+      "sha256": "f4731fe994a25948d2b64ba5acbb8d42a94f26f70507da9e9c1152c2dac104c5"
+    },
+    {
+      "path": "closed-cache-invalidation.json",
+      "bytes": 909,
+      "sha256": "426a251a64115f7aa9f3219f835841da7e3544729943f6ebd367514ad7c2479b"
+    },
+    {
+      "path": "closed-formal195-cache-invalidation.json",
+      "bytes": 433,
+      "sha256": "6f81293a216fe920fbfe8520c5b8019fe733354b3f667d9b27b76e3c0fb3ee0d"
+    },
+    {
+      "path": "closed-review194-cache-invalidation.json",
+      "bytes": 410,
+      "sha256": "63d26941a2488f465505d1e7fd44e1a8d03f7780371c27f7d76b01c50e2dabe6"
+    },
+    {
+      "path": "closed-temp-markers.json",
+      "bytes": 839,
+      "sha256": "cd5df5171a4ba1dd7a74efbc5a254996685c81da86fe8ed4c2f7bdd344f2f208"
+    },
+    {
+      "path": "fixtures01/driver-generic/command.json",
+      "bytes": 999,
+      "sha256": "c1893cd00f54cdd06088f4e73e7ebdb4efe422db2adea834e0761035424a5ca6"
+    },
+    {
+      "path": "fixtures01/driver-generic/stderr.log",
+      "bytes": 283,
+      "sha256": "59a4f2d09b9b4df18c9557d7c68caf7f0b8ac11241ba7b5688acf4c8eb443acf"
+    },
+    {
+      "path": "fixtures01/driver-generic/stdout.log",
+      "bytes": 176,
+      "sha256": "02210eec646dfc4c89d96c8b9fd33f6ef7f272465d71b6b8407941de750e457e"
+    },
+    {
+      "path": "fixtures01/driver-traits/command.json",
+      "bytes": 1011,
+      "sha256": "574287bc326fdae624f31a54bcaac5f36adcb937b8657bccddc4db3efde5ad69"
+    },
+    {
+      "path": "fixtures01/driver-traits/stderr.log",
+      "bytes": 309,
+      "sha256": "4d883efae5fbd45303868f6ab143daa82afae075831a55995fdac0b15e346290"
+    },
+    {
+      "path": "fixtures01/driver-traits/stdout.log",
+      "bytes": 176,
+      "sha256": "dbfb07ee3fdc82ce42ca45323955e98f19b21bcf4c9b34ffd0aa6bba18b35236"
+    },
+    {
+      "path": "fixtures01/expand-generic/command.json",
+      "bytes": 1016,
+      "sha256": "9fb62334f627fe41f1c2377c4bac227c14aa6adb21ea0ac73d85afa52d6c4f3f"
+    },
+    {
+      "path": "fixtures01/expand-generic/stderr.log",
+      "bytes": 283,
+      "sha256": "9905e618023c748c1a376f84eeaddccd4e2bb044b2c4bde388a83822d84f6f48"
+    },
+    {
+      "path": "fixtures01/expand-generic/stdout.log",
+      "bytes": 194,
+      "sha256": "266d6159a8d1178986e9c3ed53dd1252e0da7f2c5e5e459b1416a6593996f22b"
+    },
+    {
+      "path": "fixtures01/verify-cycle/command.json",
+      "bytes": 988,
+      "sha256": "c50c6d5673b6cc58bdb9f65f1d025814ade74c787f7c6da293c97382c9367808"
+    },
+    {
+      "path": "fixtures01/verify-cycle/stderr.log",
+      "bytes": 288,
+      "sha256": "0420171453e490a35d9d247890c93ea9b79a201f1bdb63f2f00ddfb0c58e4a54"
+    },
+    {
+      "path": "fixtures01/verify-cycle/stdout.log",
+      "bytes": 186,
+      "sha256": "9f2998b86b225b312bd5e2fe2987063d82e5617ee88a9ae1a45df78b4e56fa18"
+    },
+    {
+      "path": "formal-workspace01/command/command.json",
+      "bytes": 900,
+      "sha256": "f455f6adae210eb4f0991f895ee348a24a6cd8697863b202f1328e612fb67567"
+    },
+    {
+      "path": "formal-workspace01/command/stderr.log",
+      "bytes": 30900,
+      "sha256": "022fd127840c962d0be01d2f4a22d489c415c3e11f2017d4cf5ed6f21a16d2dd"
+    },
+    {
+      "path": "formal-workspace01/command/stdout.log",
+      "bytes": 189220,
+      "sha256": "6792bbd72771711166b7dcbf721d04664d202b17254256ee5f9ffeff8973ccde"
+    },
+    {
+      "path": "formal-workspace01/environment.json",
+      "bytes": 551,
+      "sha256": "cba2350c82cbe8d4b53b4e8b8f6b92a1e66f4df22d5a3f4b85a72c396c9666c2"
+    },
+    {
+      "path": "formal-workspace01/temporary-archive.json",
+      "bytes": 644,
+      "sha256": "7cc21e0a6e545e2f5c5c2f6849e5ab035a99923875b4289bd777b36ab7f67036"
+    },
+    {
+      "path": "formal-workspace02/command/command.json",
+      "bytes": 700,
+      "sha256": "29d67b3af138df8013654a0e2b7c3f062ad051ddfa12b703de7cdf0a83e2e047"
+    },
+    {
+      "path": "formal-workspace02/environment.json",
+      "bytes": 622,
+      "sha256": "514ce52b60adc9a03c887cff408c627a4817c429f2806aed5e01d2846fb15d8e"
+    },
+    {
+      "path": "formal-workspace02/infrastructure-failure.json",
+      "bytes": 572,
+      "sha256": "7a2a3903a54dcd82d6a11bbd2b4e4a06690d2626e392b2aa661023917f08fbbb"
+    },
+    {
+      "path": "formal-workspace02/temporary-archive.json",
+      "bytes": 659,
+      "sha256": "a7f2e2dfbc31c7fb8e9f1b12e2b3d30737553ed43946e96a8e2f70a92443e888"
+    },
+    {
+      "path": "formal-workspace03/preflight-failure.json",
+      "bytes": 598,
+      "sha256": "8cd38bacb324494295bb6fc8f6f2232fa02dc90a9b9e776af1bb1eb3dc20c11b"
+    },
+    {
+      "path": "formal-workspace04/RESULT.json",
+      "bytes": 300,
+      "sha256": "31caac7f8d811b24cf9c55a24aec246012b44ec3bbeeab7a287b633039d44933"
+    },
+    {
+      "path": "formal-workspace04/command/command.json",
+      "bytes": 898,
+      "sha256": "ee5562681b308228199c45451130f30ecdd9682501a06bd9fde65256efbdfe6c"
+    },
+    {
+      "path": "formal-workspace04/command/stderr.log",
+      "bytes": 29104,
+      "sha256": "1997354bcc251d83cd3c06c1a9e71c3aa218e085f4e0703b046b455cc52cde7c"
+    },
+    {
+      "path": "formal-workspace04/command/stdout.log",
+      "bytes": 184716,
+      "sha256": "a2b17527c0dbdc0321ced19f6027531ae912444148b8f4efc127da5269273101"
+    },
+    {
+      "path": "formal-workspace04/environment.json",
+      "bytes": 830,
+      "sha256": "830c0a40b3f2942ad0bfdfbe8da5ab3075b8bdd9325ff97c5424b51e93751c07"
+    },
+    {
+      "path": "formal-workspace04/recorder-stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "formal-workspace04/recorder-stdout.log",
+      "bytes": 96,
+      "sha256": "f369d931178f252c517de3a746009a69503fe3466c4d1030d71293add6dfe846"
+    },
+    {
+      "path": "handoff-final.json",
+      "bytes": 436627,
+      "sha256": "b2013aea83f7873a82f42643997003a5d1780dcfb2456f563fdb8b49825f5d6f"
+    },
+    {
+      "path": "handoff01.json",
+      "bytes": 436397,
+      "sha256": "1fc26014c37b8047d13f5a4b84e8f9eb5b75e27aae3d06da6bb953b0fa9dab05"
+    },
+    {
+      "path": "inode-reclamation01.json",
+      "bytes": 884,
+      "sha256": "32e1bb8e4f1598adb83a742f4b022ba3ef824926fe370cc8b47f3de962315519"
+    },
+    {
+      "path": "reclaimed-archived192.json",
+      "bytes": 581,
+      "sha256": "2186da49ff0ad12747bffb505459fb09b9994d3d32f7dd82710ed15416f080e2"
+    }
+  ],
+  "bytes": 1332515
+}

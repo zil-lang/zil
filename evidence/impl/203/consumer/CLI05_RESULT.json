@@ -1,0 +1,162 @@
+{
+  "stage": "CLI05 candidate consumer matrix; retained exact identity, not final 203 acceptance",
+  "status": "Pass for these actual runs",
+  "source_commit": "5e101737eea87074fe0531a2ab9371efc44062d4",
+  "compiler_source_commit": "5e101737eea87074fe0531a2ab9371efc44062d4",
+  "compiler_sha256": "b9b518d098d404610dfc85975ff13719283625ac2dbb4f7c2aef0a8be7d9993b",
+  "compiler_build_receipt_sha256": "f0dd36c3ffcc2feba6bd1c6914ddadb914134ea10e2eb6ea4bb1be8392401b54",
+  "design_sha256": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
+  "normative_inputs": {
+    "schema_version": 1,
+    "algorithm": "sha256 of sorted path + NUL + sha256 + LF entries",
+    "files": {
+      "_zil_design.md": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
+      "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "spec/diagnostics.json": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e",
+      "spec/interfaces.json": "a8816494c8a90a299d9e3ddee0bf63a17d6b96e528b94df9bca954e9e1615b78",
+      "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    },
+    "normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52"
+  },
+  "sources": {
+    "factory.zil": "4b54c265d6c1bba44f2c318af68366b104aa8182b105d936922c02d7dfc224e1",
+    "main.zil": "a73bfba066bdb67cf44fcfb09705461d4e5f7e17de6a70e5b3f0153e6bcbd140",
+    "portable.zil": "4836185748a7c2b2200aabdc6948497250d15f219a6b992af20c948250656e9c",
+    "state.zil": "adf023b8169e5f3269745a5a25a3007c48dfb864f0f84a975546afbeeeb49527",
+    "store_helpers.zil": "53148c2f87961fe62b09b800dd6fb9f559187b3ad0f2be0cbf8a526cec7e9b1a"
+  },
+  "platforms": {
+    "linux": {
+      "executions": 128,
+      "native_executions": 128,
+      "wine_executions": 0,
+      "ordinary_executions": 16,
+      "instrumented_executions": 112,
+      "actual_allocation_failures": 88,
+      "builds": [
+        {
+          "optimization": "O0",
+          "verification_runs": 1,
+          "llvm_sha256": "a1f32f739bc5cf34b1462987a6935fd48e61b7883257219bb59fa2989b4cb35f",
+          "executable_sha256": "f430cc7f4888896d824ed70d4ddedcd1162d32fbc6d5ea4963fe88a53b77aca5",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/factory.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/state.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/portable.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/store_helpers.zil"
+          },
+          "module_count": 5,
+          "allocation_probe_sha256": "264db146461665744bcbbc0c37af6ff23d9718e7c69bcc3a2b2033741f283aa2"
+        },
+        {
+          "optimization": "O2",
+          "verification_runs": 1,
+          "llvm_sha256": "a1f32f739bc5cf34b1462987a6935fd48e61b7883257219bb59fa2989b4cb35f",
+          "executable_sha256": "da192d36b9098ec2270135f5ecf631047ebc62d3d22c658a32e86bf9d4b4c0a4",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/factory.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/state.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/portable.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/store_helpers.zil"
+          },
+          "module_count": 5,
+          "allocation_probe_sha256": "ba5e2557c0b7e37c6a096784b16934f4c389de58d4f6b3b9824a5292dab8b0e8"
+        }
+      ],
+      "all_instrumented_live_zero": true,
+      "all_instrumented_allocated_equal_frees": true,
+      "maximum_peak_bytes": 301
+    },
+    "wine": {
+      "executions": 128,
+      "native_executions": 0,
+      "wine_executions": 128,
+      "ordinary_executions": 16,
+      "instrumented_executions": 112,
+      "actual_allocation_failures": 88,
+      "builds": [
+        {
+          "optimization": "O0",
+          "verification_runs": 1,
+          "llvm_sha256": "fd425d94fbf2f2dae7de2a7eaf26e110392313c67dc97bc763ca5f25f839976e",
+          "executable_sha256": "ef57010817430536c38bdb5788544a1a5ad28893ab2ae01c10c0ba2209c86373",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/factory.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/state.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/portable.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/store_helpers.zil"
+          },
+          "module_count": 5,
+          "probe_llvm_sha256": "0c006a92465d1ae5b0475614ed026c913351cb36e6ec0930fbd333cee99a51a6",
+          "redirected_symbols": {
+            "HeapAlloc": 2,
+            "HeapReAlloc": 2,
+            "HeapFree": 2,
+            "ExitProcess": 2
+          },
+          "instrumentation": "separate exact external-symbol redirection",
+          "allocation_probe_sha256": "378fd0d329fe9e4d2749c37ea8ef979b2579d1ea93f9fc6d04ff1e4a8e4345e6"
+        },
+        {
+          "optimization": "O2",
+          "verification_runs": 1,
+          "llvm_sha256": "fd425d94fbf2f2dae7de2a7eaf26e110392313c67dc97bc763ca5f25f839976e",
+          "executable_sha256": "4c216b1916bc8664fee860c34dcc278c1ddffa61973b8a7da619b5dd18d6460f",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/factory.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/state.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/portable.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_bindings203/store_helpers.zil"
+          },
+          "module_count": 5,
+          "probe_llvm_sha256": "0c006a92465d1ae5b0475614ed026c913351cb36e6ec0930fbd333cee99a51a6",
+          "redirected_symbols": {
+            "HeapAlloc": 2,
+            "HeapReAlloc": 2,
+            "HeapFree": 2,
+            "ExitProcess": 2
+          },
+          "instrumentation": "separate exact external-symbol redirection",
+          "allocation_probe_sha256": "b3582e06b3165b407814e41e2bda3bcc8424edd27b88a6235f1cc146965a1a31"
+        }
+      ],
+      "all_instrumented_live_zero": true,
+      "all_instrumented_allocated_equal_frees": true,
+      "maximum_peak_bytes": 301
+    }
+  },
+  "wine_environment": {
+    "WINEPREFIX": "/workspace/scratch/39be3faa4442/toolchains178/wine-prefix-review181",
+    "WINESERVER": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wineserver",
+    "WINELOADER": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+    "WINEDEBUG": "-all",
+    "TMPDIR": null,
+    "LD_LIBRARY_PATH": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu"
+  },
+  "initial_identity_failure": {
+    "run": "linux01",
+    "compiler_invocations": 0,
+    "machine_executions": 0,
+    "cause": "Transient evidence synchronization directories; disappeared without removal, ignore changes, or relaxed checks.",
+    "saved_in_archive": "prior/1-linux01/"
+  },
+  "stage_only_reason": "Parent requested retaining these runs as CLI05 evidence while a later While-condition declaration alias check is repaired. The original source, oracle and archive are unchanged.",
+  "archive": {
+    "name": "203-consumer-evidence.zip",
+    "bytes": 1468034,
+    "sha256": "6abf2927bc17e9c60ca5d158f4f22ee085c5cb71fbca9e9d2cf4c845b19b3666",
+    "payload_files": 877,
+    "crc_and_member_sha256_verified_by_collector": true,
+    "execution_artifacts": false
+  },
+  "native_windows": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "performance_comparison": "NotRun"
+}

@@ -110,17 +110,25 @@ fn fixture(parameter_alias: bool) -> TypedModule {
     ];
     helper.blocks[0].terminator = Terminator::Return(Some(ValueId(6)));
     helper.callable_contract = Some(CallableParameterContract {
-        parameter: 0,
-        closure: ClosureId(0),
-        kind: CallableKind::Fn,
-        hold: vec![],
-        call: vec![],
-        writes: vec![],
-        cleanup: CallableCleanup::Owned,
-        traces: vec![CallableTrace {
-            calls: vec![CallableKind::Fn; if parameter_alias { 2 } else { 1 }],
-            exit: CallableExit::Return,
+        roles: vec![CallableRole {
+            parameter: 0,
+            closure: ClosureId(0),
+            kind: CallableKind::Fn,
+            hold: vec![],
+            call: vec![],
+            writes: vec![],
+            cleanup: CallableCleanup::Owned,
         }],
+        traces: zil_ir::CallableTraces::Finite(vec![CallableTrace {
+            calls: vec![
+                zil_ir::CallEvent {
+                    parameter: 0,
+                    kind: CallableKind::Fn
+                };
+                if parameter_alias { 2 } else { 1 }
+            ],
+            exit: CallableExit::Return,
+        }]),
     });
     let mut factory = function(1, env.clone(), &[Type::I32], &[0]);
     factory.values = vec![Type::I32, env];
@@ -136,6 +144,7 @@ fn fixture(parameter_alias: bool) -> TypedModule {
     ];
     factory.blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
     factory.callable_return_contract = Some(CallableReturnContract {
+        lending_captures: Vec::new(),
         closure: ClosureId(0),
         kind: CallableKind::Fn,
         hold: vec![],
@@ -155,6 +164,7 @@ fn fixture(parameter_alias: bool) -> TypedModule {
         target: TargetProfile::host_llvm(),
         functions: vec![helper, factory, entry],
         closures: vec![ClosureDefinition {
+            lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(2),
             captures: vec![Type::I32],
@@ -269,8 +279,20 @@ fn independent_same_id_instances_and_parameter_aliases_have_exact_counts() {
     observe("parameter-alias", &fixture(true), None);
     for alias in [false, true] {
         let mut m = fixture(alias);
-        m.functions[0].callable_contract.as_mut().unwrap().traces[0].calls =
-            vec![CallableKind::Fn; if alias { 1 } else { 2 }];
+        m.functions[0]
+            .callable_contract
+            .as_mut()
+            .unwrap()
+            .traces
+            .as_finite_mut()
+            .unwrap()[0]
+            .calls = vec![
+            zil_ir::CallEvent {
+                parameter: 0,
+                kind: CallableKind::Fn
+            };
+            if alias { 1 } else { 2 }
+        ];
         observe(
             if alias {
                 "alias-hidden-call"

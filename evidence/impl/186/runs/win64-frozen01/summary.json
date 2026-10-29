@@ -1,0 +1,979 @@
+{
+  "status": "Pass",
+  "source_commit": "fc96383d70ad6f8e91dff97b416b8237cfb26c73",
+  "dirty": "",
+  "cli_sha256": "c8e56658f88910d210d9e584aaf4ce11aa167e5a596dfb68122966f2d868a5cc",
+  "platform": "win64",
+  "execution": "Wine compatibility",
+  "source_hashes": {
+    "examples/mainline/generic_result186/adapter.zil": "9d203a1dbae9f61a3d5a0541aae16a330d3cf2651cfe23caa47f01530bc105ae",
+    "examples/mainline/generic_result186/collection.zil": "0cb3f29632dd7bdddc9bd57433fd5ef4add6a1560b856119f265cee91ac080e6",
+    "examples/mainline/generic_result186/main.zil": "4c09d00ddf26fff349b477d878cedf9096e177a5d137133a7d90d66ca8523a1c",
+    "examples/mainline/generic_result186/model.zil": "6d2387fbf8d389bcd97f6664918a355f8fe00f2266252a5c6e8f9443bfaf5c8b",
+    "tools/language/186/consumer.py": "9f916d84dcd0b027ea35e8e182c1456e74bcfc94db5b6df228b74dfcb2bebe66",
+    "tools/language/177/consumer.py": "2993bc9e0714515c3e22add3997a12b3ea55cc5e91dc18fd1d0dc4156d4893cb",
+    "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+    "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5",
+    "tools/language/181/heap_probe.c": "aa078bd0c5247d0ed0bb4baa2dbf56f9c765940b2ef06b248177a12537d5fd03"
+  },
+  "builds": [
+    {
+      "optimization": "O0",
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/workspace/scratch/39be3faa4442/language14/wt186/examples/mainline/generic_result186/main.zil",
+        "1": "/workspace/scratch/39be3faa4442/language14/wt186/examples/mainline/generic_result186/model.zil",
+        "2": "/workspace/scratch/39be3faa4442/language14/wt186/examples/mainline/generic_result186/collection.zil",
+        "3": "/workspace/scratch/39be3faa4442/language14/wt186/examples/mainline/generic_result186/adapter.zil"
+      },
+      "module_count": 4,
+      "llvm_sha256": "207a5c2a897a4f545b891c294fa3132f5cc92cb209fdf9f2a1c4ed8c3936c8cc",
+      "executable_sha256": "7dea35e49bf8b00aabd978dd638537f09095e2734bbdbcac7b6986fbafff9f6a",
+      "instrumentation": "exact external symbol redirection",
+      "symbol_counts": {
+        "HeapAlloc": 2,
+        "HeapReAlloc": 2,
+        "HeapFree": 2,
+        "ExitProcess": 2
+      },
+      "probe_llvm_sha256": "e06db7b154bca1f9de589ba385aad72fbc638217e5b3f46023a103f7e11bf63c",
+      "allocation_probe_sha256": "a5b3b81342bbce63d0aac5762342be7310ee6b9328050a451e814c53dcbe3a2c"
+    },
+    {
+      "optimization": "O2",
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/workspace/scratch/39be3faa4442/language14/wt186/examples/mainline/generic_result186/main.zil",
+        "1": "/workspace/scratch/39be3faa4442/language14/wt186/examples/mainline/generic_result186/model.zil",
+        "2": "/workspace/scratch/39be3faa4442/language14/wt186/examples/mainline/generic_result186/collection.zil",
+        "3": "/workspace/scratch/39be3faa4442/language14/wt186/examples/mainline/generic_result186/adapter.zil"
+      },
+      "module_count": 4,
+      "llvm_sha256": "207a5c2a897a4f545b891c294fa3132f5cc92cb209fdf9f2a1c4ed8c3936c8cc",
+      "executable_sha256": "45568e56a28fa53e1113cfea1bcb30b149c67430459dbed50f04221b51adbd30",
+      "instrumentation": "exact external symbol redirection",
+      "symbol_counts": {
+        "HeapAlloc": 2,
+        "HeapReAlloc": 2,
+        "HeapFree": 2,
+        "ExitProcess": 2
+      },
+      "probe_llvm_sha256": "e06db7b154bca1f9de589ba385aad72fbc638217e5b3f46023a103f7e11bf63c",
+      "allocation_probe_sha256": "7f19076bc8f89b5b36f2ce8876d58efa194367022fda5f4534072686772eda2b"
+    }
+  ],
+  "observations": [
+    {
+      "scenario": "success",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "30",
+      "stdout": "ZCDABM",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "scenario": "success",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "30",
+      "stdout": "ZCDABM",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 96,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "BAM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "ABM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "DCABM",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 64,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 72,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "first-factory-error",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "31",
+      "stdout": "ABM",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "first-factory-error",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "31",
+      "stdout": "ABM",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 64,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "first-factory-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "BAM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "first-factory-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "ABM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "second-factory-error",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "32",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "second-factory-error",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "32",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 96,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "second-factory-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "BAM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "second-factory-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "ABM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "second-factory-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "DCABM",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 64,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "second-factory-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 72,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "33",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "33",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 96,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "BAM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "ABM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "DCABM",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 64,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 72,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "34",
+      "stdout": "ABM",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "34",
+      "stdout": "ABM",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 64,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "34",
+      "stdout": "BAM",
+      "exit_code": 0,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "34",
+      "stdout": "ABM",
+      "exit_code": 0,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "invalid-input",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "39",
+      "stdout": "",
+      "exit_code": 9,
+      "fail_at": 0
+    },
+    {
+      "scenario": "success",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "30",
+      "stdout": "ZCDABM",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "scenario": "success",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "30",
+      "stdout": "ZCDABM",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 96,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "BAM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "ABM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "DCABM",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 64,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 72,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "first-factory-error",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "31",
+      "stdout": "ABM",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "first-factory-error",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "31",
+      "stdout": "ABM",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 64,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "first-factory-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "BAM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "first-factory-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "ABM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "second-factory-error",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "32",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "second-factory-error",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "32",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 96,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "second-factory-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "BAM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "second-factory-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "ABM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "second-factory-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "DCABM",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 64,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "second-factory-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 72,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "33",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "33",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 96,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "BAM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "ABM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "DCABM",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 64,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "CDABM",
+      "exit_code": 1,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 72,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "34",
+      "stdout": "ABM",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "34",
+      "stdout": "ABM",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 64,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "34",
+      "stdout": "BAM",
+      "exit_code": 0,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "34",
+      "stdout": "ABM",
+      "exit_code": 0,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16,
+        "bad_operations": 0
+      }
+    },
+    {
+      "scenario": "invalid-input",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "39",
+      "stdout": "",
+      "exit_code": 9,
+      "fail_at": 0
+    }
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "executions": 54,
+  "ordinary_executions": 12,
+  "instrumented_executions": 42,
+  "failure_executions": 32
+}

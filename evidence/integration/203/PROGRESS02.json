@@ -1,0 +1,109 @@
+{
+  "schema": "zil203-progress-receipt-v1",
+  "status": "InProgress",
+  "normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+  "source_commit": "7e9c5701349260d46b6701a69738138e373d4fb1",
+  "runs": [
+    {
+      "run": "ct-bare01",
+      "receipt": "/workspace/scratch/39be3faa4442/run-logs/203-root/ct-bare01/command.json",
+      "receipt_sha256": "0f5178a13dfc87d2750b416bbe6d080b193a17e3e705cfb52c16753db16ad8e8",
+      "source_commit": "c5135f782c8b176af5ad08f2874a1fbecb279173",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-ct",
+        "ct203_runtime_bare",
+        "--",
+        "--nocapture"
+      ],
+      "stdout_sha256": "d0a7cbfacae647af7f54d4aa946bd7a7f251668ac725dd6b6b7a3df6888b878d",
+      "stderr_sha256": "8088696658a43da1c230a877af273039951fcfe5bac0d4b7cc678bcdf9774f73"
+    },
+    {
+      "run": "ct-bare02",
+      "receipt": "/workspace/scratch/39be3faa4442/run-logs/203-root/ct-bare02/command.json",
+      "receipt_sha256": "02a21a2b3e222d4f9f824faa15c66af17bec0588c253e11e279fea60c3ce67c3",
+      "source_commit": "7e9c5701349260d46b6701a69738138e373d4fb1",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-ct",
+        "--",
+        "--nocapture"
+      ],
+      "stdout_sha256": "e488f55ce27089592a1c9003e3f820a1c6fbc139a3bca346aa937e6e7380a4ee",
+      "stderr_sha256": "3fe0d215906c9e07ca599666a4a9cdb907630adfc99476e294c84ad1462b6d83"
+    },
+    {
+      "run": "source02",
+      "receipt": "/workspace/scratch/39be3faa4442/run-logs/203-root/source02/command.json",
+      "receipt_sha256": "f5358169d7b0f2b8bd21024b53738b15418dae9c6511443fdde30fd2b6fc5b8c",
+      "source_commit": "7e9c5701349260d46b6701a69738138e373d4fb1",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl203_source",
+        "five_module_consumer_infers_complete_value_types",
+        "--",
+        "--nocapture"
+      ],
+      "stdout_sha256": "68c25f857f76aa8917a4f39d179aede85dab051f58fe33c5c6d2d0b7f321168d",
+      "stderr_sha256": "68fe3a823e511ecc3d2f880eb8a606770e143f665921d56902161e1c5b6f2930"
+    }
+  ],
+  "scope": {
+    "ct_bare01": {
+      "passed": 1,
+      "failed": 3,
+      "level": "raw Core normalization, no runtime execution",
+      "failure": "CT E-INTEGER-RANGE because known i64 parameter context was absent"
+    },
+    "ct_bare02": {
+      "passed": 23,
+      "failed": 0,
+      "level": "zil-ct package including the four original new fixtures"
+    },
+    "source02": {
+      "rust_tests_passed": 1,
+      "rust_tests_failed": 0,
+      "native_executions": 6,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "inputs": [
+        "0",
+        "1",
+        "6"
+      ],
+      "expected_stdout": [
+        "PDdQC2c1ab",
+        "ACCAPDdQC2c1ab",
+        "2cd1ab"
+      ],
+      "all_expected_exit": 0,
+      "verification_runs_per_build": 1
+    }
+  },
+  "not_accepted": [
+    "unused generic definition field-move repair pending",
+    "final independent review pending",
+    "full Linux and Win64/Wine allocator matrices pending",
+    "final workspace and Clippy pending"
+  ],
+  "full_language": "NotSatisfied",
+  "parent_B0": "Doing",
+  "native_windows": "NotRun"
+}

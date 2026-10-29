@@ -1,0 +1,1 @@
+pub fn bytes(value:u8)->impl Fn()->&[u8]{let b=bytes_new();bytes_reserve(b,4);bytes_push(b,value);return move()=>bytes_view(b)}pub fn grow()->impl FnMut(u8)->&[u8]{let b=bytes_new();return move(value)=>{bytes_reserve(b,bytes_len(b)+1);bytes_push(b,value);return bytes_view(b)}}fn main()->i32{var f=bytes(7u8);let a=f();f=bytes(8u8);return i32(a.len())}

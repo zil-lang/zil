@@ -1,0 +1,37 @@
+{
+  "actor": "/root",
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/wt177",
+  "source_commit": "91a86d4c088328a949e4dff17dc2335b635d80c2",
+  "crates_tree": "0842b4c63b0e8d2baca47fe89ac082d8096ee10a",
+  "source_clean": true,
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-verify",
+    "--lib",
+    "--offline",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/177-final",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/177/verify-fixtures01/cases"
+  },
+  "start": 1793117922.891521,
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793117923.5181746,
+  "log_sha256": "da9555dc808fd7ba3729f99ceeed94be25034ea0fe760c74d2708a6d353d85f2",
+  "test_groups": [
+    [
+      "240",
+      "0",
+      "0"
+    ]
+  ]
+}

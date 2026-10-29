@@ -1,0 +1,47 @@
+{
+  "source_commit": "6b2a700a017679d7ded5550d313501578d082972",
+  "baseline": "e3392259e1fbae8239bf98f608539285729e8a9f",
+  "status": "AuthorScopedPass",
+  "scope": "Restore existing concrete-resource give parameters in the already checked callable helper profile",
+  "production_files": [
+    "crates/zil-expand/src/generic_check.rs"
+  ],
+  "original_regression_tests_modified": false,
+  "final_command": "runs/final01/targeted/command.json",
+  "quality": [
+    "runs/final01/fmt/command.json",
+    "runs/final01/clippy/command.json"
+  ],
+  "tests": {
+    "passed": 37,
+    "failed": 0,
+    "filtered": 0,
+    "groups": {
+      "impl064": 2,
+      "impl065_helpers": 17,
+      "impl070_retained": 1,
+      "impl178_generic_store": 15,
+      "impl178_helper_give": 2
+    }
+  },
+  "new_negative_inputs": 6,
+  "allowance": "Only an actual resource nominal with concrete type arguments, or ByteBuffer, inside an existing callable helper. Store continues its prior carrier check.",
+  "still_rejected": [
+    "unconstrained give T",
+    "give T with StoreElement or a nominal empty bound",
+    "give Copy scalar",
+    "give ordinary Package Value",
+    "give Address"
+  ],
+  "failures_retained": {
+    "baseline01": "065 original 15 pass / 2 fail. Baseline command binds docs-only 78b2928, production unchanged from e3392259.",
+    "candidate01": "All original 064/065/070/178 tests passed. New ByteBuffer fixture incorrectly declared native main i64 and was rejected at Types; corrected to explicit i32 conversion.",
+    "handoff": "Inherited integrity failure; not a global gate pass"
+  },
+  "independent_review": "Pending root",
+  "default_limits_changed": false,
+  "schema_changed": false,
+  "full_workspace": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

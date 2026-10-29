@@ -1,0 +1,26 @@
+{
+  "command": [
+    "python3",
+    "tools/language/177/consumer.py",
+    "--repo",
+    "/workspace/scratch/39be3faa4442/zil-restored/review177-composition174",
+    "--cli",
+    "/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/zil",
+    "--out",
+    "/workspace/scratch/39be3faa4442/run-logs/review177-composition174/replay02/consumer",
+    "--source-commit",
+    "605bed2ad33e9c99e867636bcbbbcff90da3e867",
+    "--compiler-commit",
+    "605bed2ad33e9c99e867636bcbbbcff90da3e867"
+  ],
+  "implementation_commit": "605bed2ad33e9c99e867636bcbbbcff90da3e867",
+  "source_commit": "605bed2ad33e9c99e867636bcbbbcff90da3e867",
+  "compiler_source_commit": "605bed2ad33e9c99e867636bcbbbcff90da3e867",
+  "cli_sha256": "7d30f74cf8cd1c453e2cfc91a15d609aa20eb9f1aaaf22ae69eb5fe6d947ecd9",
+  "start": 1793117382.9613693,
+  "end": 1793117387.995576,
+  "status": "Pass",
+  "exit_code": 0,
+  "stdout_sha256": "09dede6d4cd6d321fc58f41150b7b7f237db1fc8dfcc01cad2b92be1729b4a8a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

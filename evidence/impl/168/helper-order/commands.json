@@ -1,0 +1,69 @@
+{
+  "source_commit": "3ba9e9e798f875eef5166c29a99652cd47f113e2",
+  "crates_tree": "0388c0c9936b0e4c1747f904abd458f9e8d5b956",
+  "clean": true,
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/168-order/final",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/168/order/final/native"
+  },
+  "commands": [
+    {
+      "name": "driver",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl125_factory_helpers",
+        "--test",
+        "impl168_retained_composition"
+      ],
+      "exit": 0,
+      "seconds": 15.620067358016968,
+      "log": "driver.log"
+    },
+    {
+      "name": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-types",
+        "-p",
+        "zil-driver",
+        "--tests",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "seconds": 9.440867185592651,
+      "log": "clippy.log"
+    },
+    {
+      "name": "format",
+      "argv": [
+        "rustfmt",
+        "--edition",
+        "2024",
+        "--check",
+        "crates/zil-types/src/retained.rs",
+        "crates/zil-types/src/lib.rs",
+        "crates/zil-types/src/program.rs",
+        "crates/zil-driver/tests/impl125_factory_helpers.rs"
+      ],
+      "exit": 0,
+      "seconds": 0.5952661037445068,
+      "log": "format.log"
+    }
+  ]
+}

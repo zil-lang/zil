@@ -1,0 +1,3 @@
+wine: Call from 00006FFFFF483F07 to unimplemented function user32.dll.CreateDialogParamW, aborting
+wine: Unimplemented function user32.dll.CreateDialogParamW called at address 00006FFFFF483F07 (thread 002c), starting debugger...
+wine: could not load kernel32.dll, status c0000135

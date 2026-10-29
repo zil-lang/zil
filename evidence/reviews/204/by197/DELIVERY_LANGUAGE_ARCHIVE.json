@@ -1,0 +1,58 @@
+{
+  "reviewer": "/root/impl197",
+  "verdict": "Pass",
+  "source_zip": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/204-packaging/204-all-components-intermediate.zip",
+    "bytes": 77001270,
+    "sha256": "d46fb4dd5a72877810e3e6ec730d2d1ee20ebff233f1e943988b20e0276828dd"
+  },
+  "solid_archive": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/204-all-components-evidence-compact.tar.xz",
+    "bytes": 22216240,
+    "sha256": "58d3bfe6b16d4ab0793f85df2978fd480fae7b71637b31ec297a3e95c29f788a"
+  },
+  "members_compared_byte_for_byte": 29927,
+  "decoded_member_bytes": 1500394040,
+  "manifest_bound_members": 29926,
+  "manifest_identity": {
+    "bytes": 5841957,
+    "sha256": "69c24bad740a02bb1c313d0caed26415991d8c54ccee971a57e1797fe87079d9"
+  },
+  "index_identity": {
+    "bytes": 61010126,
+    "sha256": "1dea9ea8424e3e3811412032527b6ef4a47f2e12fb579eaf7e7939f776e38ecf"
+  },
+  "statistics": {
+    "logical_files": 111728,
+    "logical_bytes": 5430720495,
+    "unique_contents": 29920,
+    "unique_bytes": 1433504308,
+    "excluded_execution_products": 4428
+  },
+  "source_count": 8,
+  "input_bytes_and_metadata_unchanged": true,
+  "zip_member_crc_and_xz_footer_checked": true,
+  "extraction": false,
+  "compiler_or_packaged_tools_executed": false,
+  "scope": "Exact frozen ZIP member preservation plus self-contained manifest/index integrity; historical compiler executions are not repeated or relabeled.",
+  "id": "204-language-evidence-container-independent-review",
+  "auditor_source_commit": "5902ef9dbd08b5b51b946f8e5a2d5ec4987cc35a",
+  "auditor_path": "tools/language/204/review_by197/audit_solid_archive.py",
+  "auditor_sha256": "af9c6cda00772b283183126acd22e4e239ad5ade04e54b5fd6c89b43d3d49cd4",
+  "command_receipt": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/204-container-review-by197/full-container01/command.json",
+    "sha256": "f85d57ce946f5a387bcffdfa27e250cb43ec56689c4f78d24aa5a7c24eb20ddc"
+  },
+  "actual_outputs": {
+    "stdout.log": {
+      "bytes": 1433,
+      "sha256": "5619ecc3b500f84e857e5b40f7ee3a76edb71703f79e6460dd4461d5f4f86dee"
+    },
+    "stderr.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "tool_implementation_commit": "e3453cf0e163c6aee6bfc1b592fca27f1b600ed3",
+  "language_implementation_commit_unchanged": "85f01d622d9c31bffe165e5720bbf09658af5084"
+}

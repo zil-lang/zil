@@ -1,0 +1,56 @@
+{
+  "status": "Fail",
+  "scope": "Final delivery handoff snapshot; inherited historical failures retained, not a language acceptance result",
+  "source_commit": "227ddf50111dc249ccc52c3caf55206839e9a7c7",
+  "errors": 1138,
+  "errors_equal_to_prior_9ef_snapshot": true,
+  "errors_178_through_204": [],
+  "command": {
+    "command": [
+      "node",
+      "tools/handoff.mjs"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/language14/main",
+    "start": 1793202990.396372,
+    "source_commit": "227ddf50111dc249ccc52c3caf55206839e9a7c7",
+    "git_status": "",
+    "environment": {
+      "CARGO_TARGET_DIR": null,
+      "CARGO_INCREMENTAL": null,
+      "CARGO_PROFILE_DEV_DEBUG": null,
+      "CARGO_PROFILE_TEST_DEBUG": null,
+      "ZIL_TEST_REPORT_DIR": null,
+      "ZIL_CLANG": null
+    },
+    "status": "Fail",
+    "exit_code": 1,
+    "end": 1793202998.3921595,
+    "stdout.log_sha256": "ac1cfd8c4c4ab47a19f078b1d78c46dc0f98e2f8af4390abfb8a622372fb3a72",
+    "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "plan_self_test": {
+    "command": [
+      "python3",
+      "tools/check-plan.py",
+      "--self-test"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/language14/main",
+    "start": 1793202980.4593334,
+    "source_commit": "227ddf50111dc249ccc52c3caf55206839e9a7c7",
+    "git_status": "",
+    "environment": {
+      "CARGO_TARGET_DIR": null,
+      "CARGO_INCREMENTAL": null,
+      "CARGO_PROFILE_DEV_DEBUG": null,
+      "CARGO_PROFILE_TEST_DEBUG": null,
+      "ZIL_TEST_REPORT_DIR": null,
+      "ZIL_CLANG": null
+    },
+    "status": "Pass",
+    "exit_code": 0,
+    "end": 1793202984.8517044,
+    "stdout.log_sha256": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916",
+    "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "historical_status": "Missing old commits/evidence before the recovered language line remain unresolved. No fabricated repairs."
+}

@@ -1,0 +1,65 @@
+
+running 20 tests
+test actual_field_windows_block_mutation_take_replace_and_whole_parent_move ... ok
+test copy_child_address_keeps_a_live_window_through_local_callback ... ok
+test actual_store_fields_preserve_separation_and_last_use_before_parent_move ... ok
+test element_read_respects_actual_package_field_visibility ... ok
+test element_shape_mutable_owned_field_return_and_capture_guards_are_explicit ... ok
+test direct_projection_and_last_use_allow_later_reserve_and_pop ... ok
+test every_intersecting_container_mutation_is_rejected_while_view_is_live ... ok
+test failed_argument_preparation_ends_element_window_and_cleans_prefix_once ... ok
+test indirect_alias_contract_is_instantiated_from_real_store_roots ... ok
+test raw_and_wire_rebuild_element_type_index_and_hold_origins ... ok
+test old_field_descriptions_cannot_reanimate_element_windows ... ok
+test raw_and_wire_rebuild_field_separation_and_parent_invalidation ... ok
+test raw_and_wire_reject_container_drop_during_an_active_element_window ... ok
+test raw_and_wire_reject_write_retargeted_behind_an_active_window ... ok
+test runtime_negative_empty_and_end_indices_trap_before_element_access ... ok
+test shared_element_windows_cross_functions_and_keep_one_owner ... ok
+test shared_views_allow_len_capacity_and_unrelated_address_return ... ok
+test verify_window_budget_has_an_exact_n_and_n_minus_one_boundary ... ok
+test view_and_descriptor_input_aliasing_cannot_hide_a_write_inside_helper ... ok
+test runtime_index_reads_real_metadata_through_four_source_modules ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.85s
+
+
+running 21 tests
+test conditional_and_looping_callback_effects_cover_every_reachable_path ... ok
+test callback_error_and_late_argument_failure_cleanup_once ... ok
+test copy_argument_preparation_still_observes_the_captured_shared_window ... ok
+test current_explicit_arguments_do_not_end_before_a_direct_helper_returns ... ok
+test final_call_cannot_use_its_shared_capture_as_desc_write_permission ... ok
+test each_desc_capture_keeps_its_own_read_or_write_origin ... ok
+test mixed_capture_contracts_substitute_actual_normal_function_parameters ... ok
+test mutable_address_capture_reborrows_and_releases_after_last_call ... ok
+test mutable_environment_reborrow_does_not_write_its_readonly_desc_capture ... ok
+test owning_once_cleanup_and_error_exit_keep_other_capture_dependencies ... ok
+test per_capture_verification_work_has_an_actual_bounded_failure ... ok
+test raw_and_wire_do_not_open_unimplemented_borrowed_environment_captures ... ok
+test raw_and_wire_preserve_capture_indices_hold_and_public_upper_bounds ... ok
+test raw_and_wire_reconstruct_new_desc_writes_in_the_actual_entry ... ok
+test original_probes_keep_inputs_and_remove_the_unrelated_head_switch ... FAILED
+test recursive_helper_effects_include_its_reachable_callback_prefix ... ok
+test same_origin_shared_desc_and_copy_address_read_on_the_final_call ... ok
+test two_layers_of_desc_helpers_export_internal_callback_accesses ... ok
+test runtime_mixed_capture_consumer_uses_four_actual_modules ... ok
+test unused_cleanup_does_not_turn_a_desc_into_a_strong_hold ... ok
+test zero_call_contract_does_not_execute_a_captured_write ... ok
+
+failures:
+
+---- original_probes_keep_inputs_and_remove_the_unrelated_head_switch stdout ----
+
+thread 'original_probes_keep_inputs_and_remove_the_unrelated_head_switch' (644) panicked at crates/zil-driver/tests/impl182_capture_contracts.rs:184:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"one finite Copy callable signature and one nonescaping environment parameter are implemented","span":{"file":0,"start":17,"end":70},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/run-logs/185-integration/assertions01/cases/mixed-capture182-555-54/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/185-integration/assertions01/cases/mixed-capture182-555-54/phases/ct-core.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/185-integration/assertions01/cases/mixed-capture182-555-54/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/185-integration/assertions01/cases/mixed-capture182-555-54/phases/syntax.txt"},"input_fingerprint":"b18ad6bc3844a97ef034b02418c34f43020f7dac5dde7749ab3490dd67df101c","seconds":0.00740813,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Types
+ right: Expand
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    original_probes_keep_inputs_and_remove_the_unrelated_head_switch
+
+test result: FAILED. 20 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.61s
+

@@ -16,8 +16,18 @@ mod aliases;
 mod bytes;
 #[path = "generic_callable.rs"]
 pub(super) mod callable;
+#[path = "generic_copy.rs"]
+mod copy;
 #[path = "generic_enum.rs"]
 mod enums;
+#[path = "generic_helper_graph.rs"]
+mod helper_graph;
+#[path = "generic_state.rs"]
+mod states;
+#[path = "generic_store_templates.rs"]
+pub(super) mod store_templates;
+#[path = "generic_store.rs"]
+mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
 
@@ -28,6 +38,28 @@ pub(super) fn specialize<'a>(
     let mut names_budget = Budget::new(limits);
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
+        if let ItemKind::Impl(implementation) = &item.kind
+            && implementation
+                .trait_type
+                .as_ref()
+                .is_some_and(stores::is_bound)
+        {
+            return Err(vec![error(
+                item.span,
+                "StoreElement is a compiler shape bound and cannot be implemented",
+            )]);
+        }
+        if let ItemKind::Impl(implementation) = &item.kind
+            && implementation
+                .trait_type
+                .as_ref()
+                .is_some_and(copy::is_bound)
+        {
+            return Err(vec![error(
+                item.span,
+                "Copy is a compiler structural bound and cannot be implemented",
+            )]);
+        }
         let declared = match &item.kind {
             ItemKind::Aggregate(a) => Some(a.name.as_str()),
             ItemKind::Enum(e) => Some(e.name.as_str()),
@@ -39,6 +71,12 @@ pub(super) fn specialize<'a>(
             declared.filter(|n| super::byte_buffer_name(n) || super::owned_store_name(n))
         {
             return Err(vec![super::primitive_name_error(name, item.span)]);
+        }
+        if declared.is_some_and(copy::reserved_name) {
+            return Err(vec![error(
+                item.span,
+                "Copy is a reserved structural capability name",
+            )]);
         }
         for param in params(item) {
             names_budget.node(param.span, 0).map_err(|e| vec![e])?;
@@ -56,18 +94,39 @@ pub(super) fn specialize<'a>(
         {
             return Ok(Cow::Owned(normalized.module));
         }
-        return Engine::new(&normalized.module, limits, &normalized.pattern_types)
-            .and_then(|mut engine| engine.run(&normalized.module))
+        return specialize_engine(&normalized.module, limits, &normalized.pattern_types)
             .map(Cow::Owned)
             .map_err(|error| vec![error]);
     }
     if module.items.iter().all(|item| params(item).is_empty()) {
         return Ok(Cow::Borrowed(module));
     }
-    Engine::new(module, limits, &BTreeMap::new())
-        .and_then(|mut engine| engine.run(module))
+    specialize_engine(module, limits, &BTreeMap::new())
         .map(Cow::Owned)
         .map_err(|error| vec![error])
+}
+
+fn specialize_engine(
+    module: &Module,
+    limits: &Limits,
+    pattern_types: &BTreeMap<String, TypeRef>,
+) -> R<Module> {
+    let mut engine = Engine::new(module, limits, pattern_types)?;
+    if !engine.callable_nominal_collision {
+        return engine.run(module);
+    }
+    // Generated aggregates no longer carry the original generic declaration.
+    // Protect actual nominal identities in the original, still-scoped AST,
+    // before substituting a caller binder into those aggregate fields.
+    let protected = super::modules::protect_alias_nominals(module, &mut engine.budget)?;
+    let mut engine = Engine::with_budget(&protected, limits, pattern_types, engine.budget)?;
+    if engine.callable_nominal_collision {
+        return Err(error(
+            module.span,
+            "callable binder still collides with a nominal identity after scoped normalization",
+        ));
+    }
+    engine.run(&protected)
 }
 
 struct Engine<'a> {
@@ -77,9 +136,19 @@ struct Engine<'a> {
     nominals: BTreeMap<String, &'a Item>,
     traits: trait_bounds::Index<'a>,
     return_type: Option<TypeRef>,
+    callable_name: Option<String>,
+    callable_pair: Option<[String; 2]>,
+    store_parameter: Option<String>,
+    retained_stores: Vec<String>,
+    inferred_state_values: BTreeSet<String>,
+    has_store_templates: bool,
+    has_single_state_values: bool,
+    callable_nominal_collision: bool,
     signatures: BTreeMap<String, Cow<'a, Function>>,
+    foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
     instances: BTreeMap<(String, Vec<String>), String>,
     instance_types: BTreeMap<String, TypeRef>,
+    state_families: BTreeMap<(String, Vec<Option<String>>), usize>,
     pending: VecDeque<Item>,
     limits: &'a Limits,
     budget: Budget<'a>,
@@ -123,7 +192,14 @@ impl<'a> Engine<'a> {
         limits: &'a Limits,
         pattern_types: &'a BTreeMap<String, TypeRef>,
     ) -> R<Self> {
-        let mut budget = Budget::new(limits);
+        Self::with_budget(module, limits, pattern_types, Budget::new(limits))
+    }
+    fn with_budget(
+        module: &'a Module,
+        limits: &'a Limits,
+        pattern_types: &'a BTreeMap<String, TypeRef>,
+        mut budget: Budget<'a>,
+    ) -> R<Self> {
         let traits = trait_bounds::Index::new(module, &mut budget)?;
         let mut engine = Self {
             pattern_types,
@@ -132,9 +208,19 @@ impl<'a> Engine<'a> {
             enums: BTreeMap::new(),
             nominals: BTreeMap::new(),
             return_type: None,
+            callable_name: None,
+            callable_pair: None,
+            store_parameter: None,
+            retained_stores: Vec::new(),
+            inferred_state_values: BTreeSet::new(),
+            has_store_templates: false,
+            has_single_state_values: false,
+            callable_nominal_collision: false,
             signatures: BTreeMap::new(),
+            foreign_signatures: BTreeMap::new(),
             instances: BTreeMap::new(),
             instance_types: BTreeMap::new(),
+            state_families: BTreeMap::new(),
             pending: VecDeque::new(),
             limits,
             budget,
@@ -164,7 +250,18 @@ impl<'a> Engine<'a> {
                 engine.enums.insert(e.name.clone(), e);
             }
             if let ItemKind::Function(f) = &item.kind {
+                // The item/header is already prepaid. Only a module with a
+                // real ordinary StoreElement template needs the new single-F
+                // producer facts; old State-only callers keep their cost.
+                engine.has_store_templates |= store_templates::parameter(f).is_some();
                 engine.signatures.insert(f.name.clone(), Cow::Borrowed(f));
+            }
+            if let ItemKind::Extern { abi, function } = &item.kind {
+                // Borrow the signature in the existing prepaid item traversal.
+                // It is not a normal helper and is never a callable role.
+                engine
+                    .foreign_signatures
+                    .insert(&function.name, (abi, function));
             }
             if !params(item).is_empty() {
                 let key = name(item).expect("template has a name").to_owned();
@@ -174,6 +271,7 @@ impl<'a> Engine<'a> {
             }
         }
         // Validate the parametric subset even when a template is not instantiated.
+        let mut helper_dependencies = helper_graph::Dependencies::default();
         for item in engine.templates.values() {
             if !item.attributes.is_empty() {
                 return Err(unsupported(
@@ -188,6 +286,16 @@ impl<'a> Engine<'a> {
             };
             let mut seen = BTreeSet::new();
             for parameter in params(item) {
+                // This parameter/name was already charged by item preflight.
+                // Borrow the existing nominal index; do not add a global scan,
+                // name copy or a hygiene pass to the noncolliding old path.
+                if callable
+                    .as_ref()
+                    .is_some_and(|bounds| bounds.contains_generic(&parameter.name))
+                    && engine.nominals.contains_key(&parameter.name)
+                {
+                    engine.callable_nominal_collision = true;
+                }
                 if !seen.insert(&parameter.name) {
                     return Err(error(parameter.span, "duplicate type parameter"));
                 }
@@ -195,6 +303,7 @@ impl<'a> Engine<'a> {
                     GenericParamKind::Type(bounds)
                         if bounds.is_empty()
                             || callable.is_some()
+                            || bounds.iter().all(stores::is_bound)
                             || matches!(item.kind, ItemKind::Function(_)) => {}
                     _ => {
                         return Err(unsupported(
@@ -211,16 +320,21 @@ impl<'a> Engine<'a> {
                         "unexecuted generic parameter attribute",
                     ));
                 }
-                if !f.where_clause.is_empty() || !f.contract.is_empty() {
+                if !f.where_clause.is_empty() {
                     return Err(unsupported(f.span, "generic where/contract solving"));
                 }
+                stores::result_mode(f)?;
                 validate_parametric(
                     f,
-                    &engine.nominals,
-                    &engine.enums,
-                    &engine.signatures,
-                    engine.pattern_types,
-                    &engine.traits,
+                    check::ParametricTables {
+                        nominals: &engine.nominals,
+                        enums: &engine.enums,
+                        signatures: &engine.signatures,
+                        foreign_signatures: &engine.foreign_signatures,
+                        pattern_types: engine.pattern_types,
+                        traits: &engine.traits,
+                    },
+                    &mut helper_dependencies,
                     &mut engine.budget,
                 )?;
             }
@@ -228,8 +342,29 @@ impl<'a> Engine<'a> {
                 enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
             }
             if let ItemKind::Aggregate(a) = &item.kind {
-                let variables = a.generics.iter().map(|p| p.name.clone()).collect();
+                let variables: BTreeSet<_> = a.generics.iter().map(|p| p.name.clone()).collect();
+                let bounds = engine
+                    .traits
+                    .parameter_bounds(&a.generics, &mut engine.budget)?;
                 for field in &a.fields {
+                    if field.manages
+                        && stores::element(&field.ty).is_none()
+                        && variables
+                            .iter()
+                            .any(|variable| callable::refers(&field.ty, variable))
+                    {
+                        return Err(error(
+                            field.span,
+                            "a generic manages field needs an explicit resource category; StoreElement is a Value bound",
+                        ));
+                    }
+                    engine.traits.store_types(
+                        &field.ty,
+                        &bounds,
+                        &variables,
+                        &mut engine.budget,
+                        callable::StoreCallbacks::None,
+                    )?;
                     super::foreign::callback_type_tree(
                         &field.ty,
                         &variables,
@@ -256,6 +391,7 @@ impl<'a> Engine<'a> {
                 }
             }
         }
+        helper_dependencies.check(&mut engine.budget)?;
         Ok(engine)
     }
     fn tick(&mut self, span: Span, depth: usize) -> R<()> {
@@ -269,7 +405,8 @@ impl<'a> Engine<'a> {
         };
         for item in &module.items {
             if params(item).is_empty()
-                || matches!(&item.kind, ItemKind::Function(f) if callable::template(f)?.is_some())
+                || matches!(&item.kind, ItemKind::Function(f)
+                    if callable::template(f)?.is_some_and(|bounds| f.generics.iter().all(|p| bounds.contains_generic(&p.name))))
             {
                 self.budget.item(item)?;
                 self.pending.push_back(item.clone());
@@ -282,6 +419,20 @@ impl<'a> Engine<'a> {
         Ok(result)
     }
     fn instantiate(&mut self, template: &str, arguments: Vec<TypeRef>, span: Span) -> R<String> {
+        match self.instantiate_inner(template, arguments, span, false)? {
+            store_templates::Instantiation::Eager(name) => Ok(name),
+            store_templates::Instantiation::Deferred { .. } => {
+                unreachable!("only an ordinary direct call can retain a StoreElement template")
+            }
+        }
+    }
+    fn instantiate_inner(
+        &mut self,
+        template: &str,
+        arguments: Vec<TypeRef>,
+        span: Span,
+        allow_store_template: bool,
+    ) -> R<store_templates::Instantiation> {
         let item = self
             .templates
             .get(template)
@@ -289,11 +440,45 @@ impl<'a> Engine<'a> {
             .ok_or_else(|| error(span, format!("unknown generic declaration {template}")))?;
         // Canonical source type applications identify an instance, independent
         // of whether inference or explicit ::<...> reached it first.
+        let scope = if allow_store_template {
+            self.store_parameter.as_deref().map_or_else(
+                || {
+                    callable::StoreCallbacks::from_names(
+                        self.callable_name.as_deref(),
+                        self.callable_pair.as_ref(),
+                    )
+                },
+                callable::StoreCallbacks::Single,
+            )
+        } else {
+            callable::StoreCallbacks::None
+        };
+        let mut dependent = false;
         let arguments = arguments
             .iter()
-            .map(|ty| self.original_type(ty))
+            .map(|ty| {
+                original_type_observed(
+                    ty,
+                    &self.instance_types,
+                    &mut self.budget,
+                    0,
+                    scope,
+                    &mut dependent,
+                )
+            })
             .collect::<R<Vec<_>>>()?;
-        let parameters = params(item);
+        let retained = match &item.kind {
+            ItemKind::Function(function) => callable::template(function)?,
+            _ => None,
+        };
+        let parameters: Vec<_> = params(item)
+            .iter()
+            .filter(|p| {
+                retained
+                    .as_ref()
+                    .is_none_or(|bound| !bound.contains_generic(&p.name))
+            })
+            .collect();
         if parameters.len() != arguments.len() {
             return Err(error(
                 span,
@@ -304,24 +489,42 @@ impl<'a> Engine<'a> {
                 ),
             ));
         }
-        let key = (
+        if dependent {
+            return self.retain_store_template(template, item, arguments, span);
+        }
+        let mut key = (
             template.to_owned(),
             arguments
                 .iter()
                 .map(|ty| type_key(ty, &mut self.budget))
                 .collect::<R<Vec<_>>>()?,
         );
-        if let Some(existing) = self.instances.get(&key) {
-            return Ok(existing.clone());
+        let family = self.state_family(item, &arguments, &key.1, span)?;
+        if let Some(family) = family {
+            // A source type name shadowing a callable binder must not share a
+            // symbolic aggregate instance with an ordinary concrete argument.
+            self.budget.node(span, 0)?;
+            key.1.push(format!("$state-family{family}"));
         }
-        if self.instances.len() >= self.limits.max_functions.min(512) {
+        if let Some(existing) = self.instances.get(&key) {
+            return Ok(store_templates::Instantiation::Eager(existing.clone()));
+        }
+        if self
+            .instances
+            .len()
+            .saturating_add(self.retained_stores.len())
+            >= self.limits.max_functions.min(512)
+        {
             return Err(Diagnostic::limit(
                 Phase::Expand,
                 "generic instance budget exceeded",
                 Some(span),
             ));
         }
-        let generated = format!("$generic_{}_{}", template, self.instances.len());
+        let generated = match family {
+            Some(family) => format!("$generic_{template}_$data{family}_{}", self.instances.len()),
+            None => format!("$generic_{}_{}", template, self.instances.len()),
+        };
         self.instances.insert(key, generated.clone());
         if matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_)) {
             self.instance_types.insert(
@@ -341,12 +544,19 @@ impl<'a> Engine<'a> {
             .map(|(p, ty)| (p.name.clone(), ty))
             .collect();
         self.traits.check_arguments(
-            parameters,
+            params(item),
             &substitution,
-            &trait_bounds::Bounds::new(),
-            &BTreeSet::new(),
+            (
+                &trait_bounds::Bounds::new(),
+                &BTreeSet::new(),
+                callable::StoreCallbacks::from_names(
+                    self.callable_name.as_deref(),
+                    self.callable_pair.as_ref(),
+                ),
+            ),
             &mut self.budget,
             span,
+            retained.as_ref(),
         )?;
         self.budget.substituted_item(item, &substitution)?;
         let mut instance = item.clone();
@@ -354,7 +564,11 @@ impl<'a> Engine<'a> {
         self.budget.item(&instance)?;
         match &mut instance.kind {
             ItemKind::Function(f) => {
-                f.generics.clear();
+                f.generics.retain(|parameter| {
+                    retained
+                        .as_ref()
+                        .is_some_and(|bound| bound.contains_generic(&parameter.name))
+                });
                 f.name.clone_from(&generated);
                 self.signatures
                     .insert(generated.clone(), Cow::Owned(f.clone()));
@@ -370,7 +584,7 @@ impl<'a> Engine<'a> {
             _ => unreachable!(),
         }
         self.pending.push_back(instance);
-        Ok(generated)
+        Ok(store_templates::Instantiation::Eager(generated))
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
         self.tick(ty.span, depth)?;
@@ -424,6 +638,24 @@ impl<'a> Engine<'a> {
     fn item(&mut self, item: &mut Item) -> R<()> {
         match &mut item.kind {
             ItemKind::Function(f) => {
+                let store_parameter = store_templates::parameter(f);
+                if let Some(parameter) = store_parameter {
+                    self.budget.node(parameter.span, 0)?;
+                    self.budget.text(&parameter.name, parameter.span)?;
+                }
+                let saved_store = std::mem::replace(
+                    &mut self.store_parameter,
+                    store_parameter.map(|parameter| parameter.name.clone()),
+                );
+                let callable = callable::template(f)?;
+                let pair = callable::dual_scope(callable.as_ref(), &mut self.budget, f.span)?;
+                let saved_pair = std::mem::replace(&mut self.callable_pair, pair);
+                let saved_callable = std::mem::replace(
+                    &mut self.callable_name,
+                    callable
+                        .as_ref()
+                        .and_then(|bound| bound.single_generic().map(str::to_owned)),
+                );
                 for parameter in &mut f.generics {
                     if let GenericParamKind::Type(bounds) = &mut parameter.kind {
                         for bound in bounds {
@@ -470,6 +702,9 @@ impl<'a> Engine<'a> {
                     FunctionBody::Declaration => {}
                 }
                 self.return_type = saved_result;
+                self.callable_name = saved_callable;
+                self.callable_pair = saved_pair;
+                self.store_parameter = saved_store;
             }
             ItemKind::Aggregate(a) => {
                 for field in &mut a.fields {
@@ -576,7 +811,7 @@ impl<'a> Engine<'a> {
                 body,
                 pattern,
             } => {
-                let ty = self.expr(iterable, env, depth + 1)?;
+                let ty = self.range_expression(iterable, env, depth + 1)?;
                 let mut inner = self.clone_env(env)?;
                 bind(pattern, ty, &mut inner);
                 self.block(body, &mut inner, depth + 1)?;
@@ -609,6 +844,265 @@ impl<'a> Engine<'a> {
             }
         }
     }
+    fn range_expression(
+        &mut self,
+        expression: &mut Expr,
+        env: &mut Env,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        self.tick(expression.span, depth)?;
+        match &mut expression.kind {
+            ExprKind::Group(inner) => self.range_expression(inner, env, depth + 1),
+            ExprKind::Binary {
+                op: BinaryOp::Range,
+                left,
+                right,
+            } => {
+                let hint = match self.range_hint(left, env, depth + 1)? {
+                    Some(ty) => Some(ty),
+                    None => self.range_hint(right, env, depth + 1)?,
+                };
+                // The lookahead never transforms or evaluates an endpoint.
+                // Actual expansion and runtime evaluation keep source order.
+                let start = self.expr_expected(left, env, hint.as_ref(), depth + 1)?;
+                self.expr_expected(right, env, start.as_ref(), depth + 1)?;
+                Ok(start)
+            }
+            _ => self.expr(expression, env, depth + 1),
+        }
+    }
+
+    /// Read-only type hints for a range. This does not instantiate a function,
+    /// consume an argument, update the AST or confer any typing authority.
+    fn range_hint(&mut self, e: &Expr, env: &Env, depth: usize) -> R<Option<TypeRef>> {
+        self.tick(e.span, depth)?;
+        match &e.kind {
+            ExprKind::Name(name) => {
+                self.budget.text(name, e.span)?;
+                let ty = env.get(name).and_then(Option::as_ref);
+                if let Some(ty) = ty {
+                    self.budget.ty(ty)?;
+                }
+                Ok(ty.cloned())
+            }
+            ExprKind::Literal(Literal::Integer(text)) => {
+                self.budget.text(text, e.span)?;
+                Ok(["u8", "u16", "i32", "i64"]
+                    .into_iter()
+                    .find(|suffix| text.ends_with(suffix))
+                    .map(|suffix| named(suffix, e.span)))
+            }
+            ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", e.span))),
+            ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
+                self.range_hint(inner, env, depth + 1)
+            }
+            ExprKind::Unary {
+                op: UnaryOp::Not, ..
+            } => Ok(Some(named("bool", e.span))),
+            ExprKind::Unary {
+                op: UnaryOp::Dereference,
+                operand,
+            } => {
+                let Some(ty) = self.range_hint(operand, env, depth + 1)? else {
+                    return Ok(None);
+                };
+                let TypeKind::Reference { inner, .. } = &grouped(&ty).kind else {
+                    return Ok(None);
+                };
+                self.budget.ty(inner)?;
+                Ok(Some(*inner.clone()))
+            }
+            ExprKind::Unary { operand, .. } => self.range_hint(operand, env, depth + 1),
+            ExprKind::Binary {
+                op:
+                    BinaryOp::Equal
+                    | BinaryOp::NotEqual
+                    | BinaryOp::Less
+                    | BinaryOp::LessEqual
+                    | BinaryOp::Greater
+                    | BinaryOp::GreaterEqual
+                    | BinaryOp::And
+                    | BinaryOp::Or,
+                ..
+            } => Ok(Some(named("bool", e.span))),
+            ExprKind::Binary { left, right, .. } => match self.range_hint(left, env, depth + 1)? {
+                Some(ty) => Ok(Some(ty)),
+                None => self.range_hint(right, env, depth + 1),
+            },
+            ExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } => match self.range_hint(then_value, env, depth + 1)? {
+                Some(ty) => Ok(Some(ty)),
+                None => self.range_hint(else_value, env, depth + 1),
+            },
+            ExprKind::Try(operand) => {
+                let Some(ty) = self.range_hint(operand, env, depth + 1)? else {
+                    return Ok(None);
+                };
+                let TypeKind::Error { result, .. } = &grouped(&ty).kind else {
+                    return Ok(None);
+                };
+                self.budget.ty(result)?;
+                Ok(Some(*result.clone()))
+            }
+            ExprKind::Index { object, .. } | ExprKind::Member { object, .. } => {
+                let Some(ty) = self.range_hint(object, env, depth + 1)? else {
+                    return Ok(None);
+                };
+                let original = self.original_type(projection_shape(&ty))?;
+                match (&e.kind, &grouped(&original).kind) {
+                    (ExprKind::Index { .. }, TypeKind::Array { element, .. }) => {
+                        self.budget.ty(element)?;
+                        Ok(Some(*element.clone()))
+                    }
+                    (
+                        ExprKind::Member {
+                            member: MemberName::TupleIndex(index),
+                            ..
+                        },
+                        TypeKind::Tuple(fields),
+                    ) => {
+                        let field = fields.get(*index as usize);
+                        if let Some(field) = field {
+                            self.budget.ty(field)?;
+                        }
+                        Ok(field.cloned())
+                    }
+                    (
+                        ExprKind::Member {
+                            member: MemberName::Name(member),
+                            ..
+                        },
+                        TypeKind::Named { path, args },
+                    ) => {
+                        for part in path {
+                            self.budget.text(part, e.span)?;
+                        }
+                        let Some(Item {
+                            kind: ItemKind::Aggregate(decl),
+                            ..
+                        }) = self.nominals.get(&path.join("."))
+                        else {
+                            return Ok(None);
+                        };
+                        for field in &decl.fields {
+                            self.budget.text(&field.name, e.span)?;
+                        }
+                        let Some(field) = decl.fields.iter().find(|f| f.name == *member) else {
+                            return Ok(None);
+                        };
+                        if decl.generics.len() != args.len() {
+                            return Ok(None);
+                        }
+                        let mut found = BTreeMap::new();
+                        for (parameter, argument) in decl.generics.iter().zip(args) {
+                            let GenericArg::Type(ty) = argument else {
+                                return Ok(None);
+                            };
+                            self.budget.text(&parameter.name, e.span)?;
+                            self.budget.ty(ty)?;
+                            found.insert(parameter.name.clone(), ty.clone());
+                        }
+                        enums::substituted(&field.ty, &found, &mut self.budget).map(Some)
+                    }
+                    _ => Ok(None),
+                }
+            }
+            ExprKind::Call { callee, arguments } => {
+                if let Some(name) = super::integer_conversion_name(callee) {
+                    return Ok(Some(named(name, e.span)));
+                }
+                if let ExprKind::Member {
+                    object,
+                    member: MemberName::Name(name),
+                } = &callee.kind
+                {
+                    if name == "len"
+                        && self.range_hint(object, env, depth + 1)?.is_some_and(|ty| {
+                            matches!(&grouped(&ty).kind, TypeKind::Reference { inner, .. }
+                            if matches!(grouped(inner).kind, TypeKind::Array { length: None, .. }))
+                        })
+                    {
+                        return Ok(Some(named("i64", e.span)));
+                    }
+                    return Ok(None);
+                }
+                let (target, explicit) = match &callee.kind {
+                    ExprKind::Name(name) => (name, None),
+                    ExprKind::TypeApply { callee, arguments } => match &callee.kind {
+                        ExprKind::Name(name) => (name, Some(arguments)),
+                        _ => return Ok(None),
+                    },
+                    _ => return Ok(None),
+                };
+                self.budget.text(target, e.span)?;
+                if matches!(
+                    target.as_str(),
+                    "bytes_len" | "bytes_capacity" | "store_len" | "store_capacity"
+                ) {
+                    return Ok(Some(named("i64", e.span)));
+                }
+                if let Some(local) = env.get(target) {
+                    let result = local.as_ref().and_then(|ty| match &grouped(ty).kind {
+                        TypeKind::Function { result, .. } => Some(result.as_ref()),
+                        _ => callable::opaque_signature(ty).map(|(_, _, result)| result),
+                    });
+                    if let Some(result) = result {
+                        self.budget.ty(result)?;
+                    }
+                    return Ok(result.cloned());
+                }
+                let mut actuals = Vec::new();
+                for arg in arguments {
+                    actuals.push(self.range_hint(&arg.value, env, depth + 1)?);
+                }
+                let Some(function) = self.signatures.get(target) else {
+                    return Ok(None);
+                };
+                let Some(result) = &function.return_type else {
+                    return Ok(Some(check::unit(e.span)));
+                };
+                let mut variables = BTreeSet::new();
+                for parameter in &function.generics {
+                    self.budget.text(&parameter.name, e.span)?;
+                    variables.insert(parameter.name.clone());
+                }
+                self.budget.ty(result)?;
+                let mut found = BTreeMap::new();
+                if let Some(arguments) = explicit {
+                    if arguments.len() != function.generics.len() {
+                        return Ok(None);
+                    }
+                    for (parameter, argument) in function.generics.iter().zip(arguments) {
+                        let GenericArg::Type(ty) = argument else {
+                            return Ok(None);
+                        };
+                        self.budget.text(&parameter.name, e.span)?;
+                        self.budget.ty(ty)?;
+                        found.insert(parameter.name.clone(), ty.clone());
+                    }
+                }
+                for (parameter, actual) in function.params.iter().zip(actuals) {
+                    if let Some(actual) = actual {
+                        unify(
+                            &parameter.ty,
+                            &actual,
+                            &variables,
+                            &mut found,
+                            e.span,
+                            &mut self.budget,
+                        )?;
+                    }
+                }
+                let result = enums::substituted(result, &found, &mut self.budget)?;
+                Ok((!check::dependent(&result, &variables)).then_some(result))
+            }
+            _ => Ok(None),
+        }
+    }
+
     fn expr(&mut self, e: &mut Expr, env: &mut Env, depth: usize) -> R<Option<TypeRef>> {
         self.expr_expected(e, env, None, depth)
     }
@@ -623,7 +1117,8 @@ impl<'a> Engine<'a> {
         // A surrounding E!T admits either exact payload or the whole union.
         // It therefore cannot constrain a generic result variable to E!T
         // before argument inference determines the expression's own type.
-        let expected = expected.filter(|ty| !matches!(ty.kind, TypeKind::Error { .. }));
+        let store_success_context = expected.filter(|ty| stores::success(ty).is_some());
+        let expected = expected.filter(|ty| !matches!(grouped(ty).kind, TypeKind::Error { .. }));
         if let Some(ty) = self.enum_expression(e, env, expected, depth)? {
             return Ok(Some(ty));
         }
@@ -657,7 +1152,7 @@ impl<'a> Engine<'a> {
                 }
             }
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
-                self.expr_expected(inner, env, expected, depth + 1)?
+                self.expr_expected(inner, env, expected.or(store_success_context), depth + 1)?
             }
             ExprKind::Unary { op, operand } => {
                 let hint = if matches!(op, UnaryOp::Negate | UnaryOp::BitNot) {
@@ -716,6 +1211,49 @@ impl<'a> Engine<'a> {
                 }
             }
             ExprKind::Call { callee, arguments } => {
+                if let Some(name) =
+                    super::foreign::bare_name(callee).filter(|name| stores::primitive(name))
+                {
+                    if arguments.len() != stores::arity(name)
+                        || arguments.iter().any(|arg| arg.spread)
+                    {
+                        return Err(error(
+                            e.span,
+                            "Store primitive argument count or shape differs",
+                        ));
+                    }
+                    let element = if name == "store_new" {
+                        expected
+                            .or(store_success_context.and_then(stores::carrier))
+                            .and_then(stores::element)
+                            .cloned()
+                            .ok_or_else(|| {
+                                error(
+                                    e.span,
+                                    "store_new requires an explicit Store element context",
+                                )
+                            })?
+                    } else {
+                        let store = self
+                            .expr_expected(&mut arguments[0].value, env, None, depth + 1)?
+                            .ok_or_else(|| {
+                                error(e.span, "Store primitive requires a known Store type")
+                            })?;
+                        stores::element(&store).cloned().ok_or_else(|| {
+                            error(e.span, "Store primitive requires a Store description")
+                        })?
+                    };
+                    self.budget.ty(&element)?;
+                    if arguments.len() == 2 {
+                        let wanted = if name == "store_push" {
+                            element.clone()
+                        } else {
+                            named("i64", e.span)
+                        };
+                        self.expr_expected(&mut arguments[1].value, env, Some(&wanted), depth + 1)?;
+                    }
+                    return Ok(Some(stores::result(name, &element, e.span)));
+                }
                 if let Some((parameters, result)) = super::foreign::bare_name(callee)
                     .and_then(|name| bytes::signature(name, e.span))
                 {
@@ -785,6 +1323,17 @@ impl<'a> Engine<'a> {
                     self.expr(&mut arguments[0].value, env, depth + 1)?;
                     return Ok(Some(named(name, e.span)));
                 }
+                let expected = expected.or_else(|| {
+                    let result = stores::call_name(callee)
+                        .and_then(|name| self.signatures.get(name))?
+                        .return_type
+                        .as_ref()?;
+                    stores::call_context(result, store_success_context?)
+                });
+                let value_inference_allowed = matches!(&callee.kind, ExprKind::Name(name)
+                    if !env.contains_key(name) && self.signatures.get(name)
+                        .is_some_and(|f| store_templates::parameter(f).is_some()));
+                let mut value_inferred = false;
                 let mut hints = self.call_hints(callee, env, expected)?;
                 let mut actual = Vec::new();
                 for (index, arg) in arguments.iter_mut().enumerate() {
@@ -794,6 +1343,16 @@ impl<'a> Engine<'a> {
                         .transpose()?
                         .flatten();
                     let ty = self.expr_expected(&mut arg.value, env, hint.as_ref(), depth + 1)?;
+                    if value_inference_allowed
+                        && let Some(ty) = &ty
+                        && self.inferred_state_value(ty, 0)?
+                    {
+                        value_inferred = true;
+                        // Concrete C identities belong to Types. A prior
+                        // symbolic spelling is not a cross-argument equality
+                        // constraint; the new static Call checks all real T's.
+                        hints = None;
+                    }
                     if let (Some(hints), Some(ty)) = (&mut hints, &ty) {
                         let ty = self.original_type(ty)?;
                         hints.constrain(index, &ty, arg.span, &mut self.budget)?;
@@ -838,18 +1397,95 @@ impl<'a> Engine<'a> {
                             if function.params.len() != actual.len() {
                                 return Err(error(e.span, "callable helper arity mismatch"));
                             }
+                            if function
+                                .generics
+                                .iter()
+                                .any(|p| !callable.contains_generic(&p.name))
+                            {
+                                let variables: BTreeSet<_> =
+                                    function.generics.iter().map(|p| p.name.clone()).collect();
+                                let mut found = BTreeMap::new();
+                                if let (Some(result), Some(expected)) =
+                                    (&function.return_type, expected)
+                                {
+                                    let expected = self.original_type(expected)?;
+                                    unify(
+                                        result,
+                                        &expected,
+                                        &variables,
+                                        &mut found,
+                                        e.span,
+                                        &mut self.budget,
+                                    )?;
+                                }
+                                for (index, (parameter, actual)) in
+                                    function.params.iter().zip(actual).enumerate()
+                                {
+                                    if callable.roles.iter().any(|role| {
+                                        role.index == index
+                                            && !callable::state_type(
+                                                &parameter.ty,
+                                                &role.generic_name,
+                                            )
+                                    }) {
+                                        continue;
+                                    }
+                                    let actual = actual.ok_or_else(|| {
+                                        error(
+                                            e.span,
+                                            "ordinary Copy type argument cannot be inferred",
+                                        )
+                                    })?;
+                                    let actual = self.original_type(&actual)?;
+                                    unify_argument(
+                                        &parameter.ty,
+                                        &actual,
+                                        &variables,
+                                        &mut found,
+                                        e.span,
+                                        &mut self.budget,
+                                    )?;
+                                }
+                                let types = function.generics.iter()
+                                    .filter(|p| !callable.contains_generic(&p.name))
+                                    .map(|p| found.get(&p.name).cloned().ok_or_else(|| error(e.span,
+                                        format!("Copy type parameter {} has no unique constraint", p.name))))
+                                    .collect::<R<Vec<_>>>()?;
+                                let instance = self.instantiate(&target, types, e.span)?;
+                                callee.kind = ExprKind::Name(instance.clone());
+                                if callable.owned_state
+                                    && let (Some(hints), Some(result)) =
+                                        (&hints, &function.return_type)
+                                    && let Some(mut result) = hints.symbolic_result(
+                                        result,
+                                        &callable,
+                                        &mut self.budget,
+                                    )?
+                                {
+                                    self.ty(&mut result, depth + 1)?;
+                                    self.note_single_state_value_result(&result, &callable)?;
+                                    return Ok(Some(result));
+                                }
+                                return self.signature_result(&instance);
+                            }
                             if callable.owned_state
                                 && let (Some(hints), Some(result)) = (&hints, &function.return_type)
-                                && let Some(mut result) = hints.symbolic_result(
-                                    result,
-                                    &callable.generic_name,
-                                    &mut self.budget,
-                                )?
+                                && let Some(mut result) =
+                                    hints.symbolic_result(result, &callable, &mut self.budget)?
                             {
                                 self.ty(&mut result, depth + 1)?;
+                                self.note_single_state_value_result(&result, &callable)?;
                                 return Ok(Some(result));
                             }
                             return self.signature_result(&target);
+                        }
+                        if value_inferred {
+                            let item = self.templates.get(&target).copied().ok_or_else(|| {
+                                error(e.span, "inferred ordinary call has no original template")
+                            })?;
+                            return self.apply_value_store_template(
+                                callee, function, item, &target, &actual, e.span,
+                            );
                         }
                         let types = if let Some(types) = explicit {
                             types
@@ -906,9 +1542,15 @@ impl<'a> Engine<'a> {
                                 })
                                 .collect::<R<Vec<_>>>()?
                         };
-                        let instance = self.instantiate(&target, types, e.span)?;
-                        callee.kind = ExprKind::Name(instance.clone());
-                        self.signature_result(&instance)?
+                        match self.instantiate_inner(&target, types, e.span, true)? {
+                            store_templates::Instantiation::Eager(instance) => {
+                                callee.kind = ExprKind::Name(instance.clone());
+                                self.signature_result(&instance)?
+                            }
+                            store_templates::Instantiation::Deferred { template, element } => {
+                                self.apply_store_template(callee, function, template, element)?
+                            }
+                        }
                     } else {
                         if explicit.is_some() {
                             return Err(error(
@@ -1114,6 +1756,15 @@ impl<'a> Engine<'a> {
         Ok(result)
     }
     fn signature_result(&mut self, name: &str) -> R<Option<TypeRef>> {
+        let callable = self
+            .signatures
+            .get(name)
+            .map(|f| callable::template(f))
+            .transpose()?
+            .flatten();
+        let callable_name = callable
+            .as_ref()
+            .and_then(|bound| bound.single_generic().map(str::to_owned));
         if let Some(ty) = self
             .signatures
             .get(name)
@@ -1121,7 +1772,20 @@ impl<'a> Engine<'a> {
         {
             self.budget.ty(ty)?;
             let mut result = ty.clone();
+            let pair = callable::dual_scope(callable.as_ref(), &mut self.budget, ty.span)?;
+            let saved_pair = std::mem::replace(&mut self.callable_pair, pair);
+            let saved_callable = std::mem::replace(&mut self.callable_name, callable_name);
             self.ty(&mut result, 0)?;
+            self.callable_name = saved_callable;
+            self.callable_pair = saved_pair;
+            if let Some(names) = callable
+                .as_ref()
+                .and_then(callable::CallableTemplates::dual_names)
+            {
+                self.note_state_value_result(&result, callable::StoreCallbacks::Pair(names), 0)?;
+            } else if let Some(callable) = &callable {
+                self.note_single_state_value_result(&result, callable)?;
+            }
             Ok(Some(result))
         } else {
             Ok(None)
@@ -1144,26 +1808,58 @@ fn original_type(
     budget: &mut Budget<'_>,
     depth: usize,
 ) -> R<TypeRef> {
+    original_type_observed(
+        ty,
+        instances,
+        budget,
+        depth,
+        callable::StoreCallbacks::None,
+        &mut false,
+    )
+}
+
+fn original_type_observed(
+    ty: &TypeRef,
+    instances: &BTreeMap<String, TypeRef>,
+    budget: &mut Budget<'_>,
+    depth: usize,
+    binder: callable::StoreCallbacks<'_>,
+    dependent: &mut bool,
+) -> R<TypeRef> {
     budget.node(ty.span, depth)?;
     budget.ty(ty)?;
     let kind = match &ty.kind {
         TypeKind::Named { path, args } => {
+            // Observe the already charged node, including names restored from
+            // a nominal instance. No second traversal changes legacy budgets.
+            if args.is_empty() && path.len() == 1 && binder.contains(&path[0]) {
+                *dependent = true;
+            }
             if path.len() == 1
                 && args.is_empty()
                 && let Some(original) = instances.get(&path[0])
             {
-                return original_type(original, instances, budget, depth + 1);
+                return original_type_observed(
+                    original,
+                    instances,
+                    budget,
+                    depth + 1,
+                    binder,
+                    dependent,
+                );
             }
             TypeKind::Named {
                 path: path.clone(),
                 args: args
                     .iter()
                     .map(|arg| match arg {
-                        GenericArg::Type(t) => Ok(GenericArg::Type(original_type(
+                        GenericArg::Type(t) => Ok(GenericArg::Type(original_type_observed(
                             t,
                             instances,
                             budget,
                             depth + 1,
+                            binder,
+                            dependent,
                         )?)),
                         _ => Err(unsupported(ty.span, "const generic argument")),
                     })
@@ -1177,32 +1873,64 @@ fn original_type(
         } => TypeKind::Reference {
             lifetime: lifetime.clone(),
             mutable: *mutable,
-            inner: Box::new(original_type(inner, instances, budget, depth + 1)?),
+            inner: Box::new(original_type_observed(
+                inner,
+                instances,
+                budget,
+                depth + 1,
+                binder,
+                dependent,
+            )?),
         },
-        TypeKind::Group(inner) => TypeKind::Group(Box::new(original_type(
+        TypeKind::Group(inner) => TypeKind::Group(Box::new(original_type_observed(
             inner,
             instances,
             budget,
             depth + 1,
+            binder,
+            dependent,
         )?)),
-        TypeKind::Optional(inner) => TypeKind::Optional(Box::new(original_type(
+        TypeKind::Optional(inner) => TypeKind::Optional(Box::new(original_type_observed(
             inner,
             instances,
             budget,
             depth + 1,
+            binder,
+            dependent,
         )?)),
         TypeKind::Tuple(ts) => TypeKind::Tuple(
             ts.iter()
-                .map(|t| original_type(t, instances, budget, depth + 1))
+                .map(|t| original_type_observed(t, instances, budget, depth + 1, binder, dependent))
                 .collect::<R<_>>()?,
         ),
         TypeKind::Array { element, length } => TypeKind::Array {
-            element: Box::new(original_type(element, instances, budget, depth + 1)?),
+            element: Box::new(original_type_observed(
+                element,
+                instances,
+                budget,
+                depth + 1,
+                binder,
+                dependent,
+            )?),
             length: length.clone(),
         },
         TypeKind::Error { error, result } => TypeKind::Error {
-            error: Box::new(original_type(error, instances, budget, depth + 1)?),
-            result: Box::new(original_type(result, instances, budget, depth + 1)?),
+            error: Box::new(original_type_observed(
+                error,
+                instances,
+                budget,
+                depth + 1,
+                binder,
+                dependent,
+            )?),
+            result: Box::new(original_type_observed(
+                result,
+                instances,
+                budget,
+                depth + 1,
+                binder,
+                dependent,
+            )?),
         },
         TypeKind::ForeignFunction {
             abi,
@@ -1212,16 +1940,30 @@ fn original_type(
             abi: abi.clone(),
             params: params
                 .iter()
-                .map(|t| original_type(t, instances, budget, depth + 1))
+                .map(|t| original_type_observed(t, instances, budget, depth + 1, binder, dependent))
                 .collect::<R<_>>()?,
-            result: Box::new(original_type(result, instances, budget, depth + 1)?),
+            result: Box::new(original_type_observed(
+                result,
+                instances,
+                budget,
+                depth + 1,
+                binder,
+                dependent,
+            )?),
         },
         TypeKind::Function { params, result } => TypeKind::Function {
             params: params
                 .iter()
-                .map(|t| original_type(t, instances, budget, depth + 1))
+                .map(|t| original_type_observed(t, instances, budget, depth + 1, binder, dependent))
                 .collect::<R<_>>()?,
-            result: Box::new(original_type(result, instances, budget, depth + 1)?),
+            result: Box::new(original_type_observed(
+                result,
+                instances,
+                budget,
+                depth + 1,
+                binder,
+                dependent,
+            )?),
         },
         _ => ty.kind.clone(),
     };
@@ -1531,6 +2273,13 @@ fn substitute_item(item: &mut Item, substitutions: &BTreeMap<String, TypeRef>) -
     let visitor = Substitution { substitutions };
     match &mut item.kind {
         ItemKind::Function(f) => {
+            for parameter in &mut f.generics {
+                if let GenericParamKind::Type(bounds) = &mut parameter.kind {
+                    for bound in bounds {
+                        visitor.ty(bound);
+                    }
+                }
+            }
             for p in &mut f.params {
                 visitor.ty(&mut p.ty);
             }

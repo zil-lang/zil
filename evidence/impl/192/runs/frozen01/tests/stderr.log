@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt192/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.09s
+     Running tests/impl072_packages.rs (/workspace/scratch/39be3faa4442/targets178/author192/debug/deps/impl072_packages-039cb512bb22b1b8)
+     Running tests/impl077_package_captures.rs (/workspace/scratch/39be3faa4442/targets178/author192/debug/deps/impl077_package_captures-d87d780ee1f8b183)
+     Running tests/impl176_callable_fields.rs (/workspace/scratch/39be3faa4442/targets178/author192/debug/deps/impl176_callable_fields-5ccc076d899cc77e)
+     Running tests/impl179_field_precision.rs (/workspace/scratch/39be3faa4442/targets178/author192/debug/deps/impl179_field_precision-b8aa0a896a16c234)
+     Running tests/impl189_address.rs (/workspace/scratch/39be3faa4442/targets178/author192/debug/deps/impl189_address-8c296929301d0e07)
+     Running tests/impl189_address_raw.rs (/workspace/scratch/39be3faa4442/targets178/author192/debug/deps/impl189_address_raw-1b15c8f5a4c7cc1a)
+     Running tests/impl192_copy_fields.rs (/workspace/scratch/39be3faa4442/targets178/author192/debug/deps/impl192_copy_fields-b52d00061320b098)
+     Running tests/impl192_copy_fields_raw.rs (/workspace/scratch/39be3faa4442/targets178/author192/debug/deps/impl192_copy_fields_raw-edf011083debc866)

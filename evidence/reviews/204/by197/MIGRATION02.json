@@ -1,0 +1,127 @@
+{
+  "reviewer": "/root/impl197",
+  "verdict": "Pass for this exact test-only migration",
+  "reviewed_commit": "fd6de26275e84e9a15b0546a245f4ebba35d4cbf",
+  "original_full_workspace_commit": "057e7f67cd6fee9dc80c9cf31fe7af5cbc6bf1b3",
+  "mode": "Read-only code, original-file, module/result byte and recorded-command hash audit. No new reviewer compile/test/native execution.",
+  "production_diff": [],
+  "original_baseline_test_file_identical_to_migration_parent": true,
+  "actual_scope": "Six original raw TypedIR modules; five negatives remain Analyze Unsupported and the original child-Copy positive remains Success. This does not claim source/native or independent Verify execution for these hand-built cases.",
+  "code_review": [
+    "Only diagnostic message expectations and their explanatory comments changed; all original capture construction expressions, helper bodies, category checks and child negative/positive controls remain.",
+    "The two Store-bearing inputs keep their original inner element(0), outer callback element(1), equal nominal name and conflicting canonical definition. No missing definition was added and no negative was converted to an accepted module.",
+    "Actual canonical payload is inspected at the leaf boundary before nominal/payload equality, so the exact new leaf diagnostic is retained. The nested callback Package has its exact separate finite captured-Package diagnostic.",
+    "The temporary before sweep only catches the four original strict assertion panics to record later cases, then still asserts zero mismatches and fails0/1; catch-unwind is absent from the final migration."
+  ],
+  "six_byte_identical_cases": [
+    {
+      "case": "borrowed-desc",
+      "module_sha256": "96f4e9198944bc52c8a35551d73491d66c48de0421fb3c7e15b6c1f81233e427",
+      "result_sha256": "5ce534ca4bb0aaa5fd3bcf0b37e59ccb65cdaf9be1e82d3df7dad03b6a62764c",
+      "actual": "Analyze/Unsupported/E-UNSUPPORTED",
+      "messages": [
+        "callback State requires a self-contained environment with supported owned captures"
+      ],
+      "bytes": 8317
+    },
+    {
+      "case": "direct-store-conflicting-canonical",
+      "module_sha256": "b6ffddb47fa00797aa8eb9af138b9af1b9fe1e86bb2a284c369fa20a6bbf1b62",
+      "result_sha256": "043659eadce448cba74a66e47ddfb76f1f133262349416fbba4f461a88d4141e",
+      "actual": "Analyze/Unsupported/E-UNSUPPORTED",
+      "messages": [
+        "captured Store Item cannot contain callbacks, addresses, descriptions, nested Store or unresolved types"
+      ],
+      "bytes": 8939
+    },
+    {
+      "case": "package-store-conflicting-canonical",
+      "module_sha256": "304f421b40eb42a5e3e34e7769b7f5bfd4297df987708010924e321654870598",
+      "result_sha256": "043659eadce448cba74a66e47ddfb76f1f133262349416fbba4f461a88d4141e",
+      "actual": "Analyze/Unsupported/E-UNSUPPORTED",
+      "messages": [
+        "captured Store Item cannot contain callbacks, addresses, descriptions, nested Store or unresolved types"
+      ],
+      "bytes": 9395
+    },
+    {
+      "case": "nested-callback-package",
+      "module_sha256": "c2eb0115a4084981de20171527757aa53195b28f2d1b9e2d62659f6cd5d08f9a",
+      "result_sha256": "8152c7f33c88e4efc9cfcb7a5b8dc65d2e6021981cf1805a0ce6c5e440bf1329",
+      "actual": "Analyze/Unsupported/E-UNSUPPORTED",
+      "messages": [
+        "captured Store Package requires direct owned Store, supported Managed and finite Copy fields"
+      ],
+      "bytes": 8989
+    },
+    {
+      "case": "child-desc",
+      "module_sha256": "bbcc1520c11fe85209f99a5331c9b1e130a3535dab18c3d10b74a8071a9dd9d5",
+      "result_sha256": "5ce534ca4bb0aaa5fd3bcf0b37e59ccb65cdaf9be1e82d3df7dad03b6a62764c",
+      "actual": "Analyze/Unsupported/E-UNSUPPORTED",
+      "messages": [
+        "callback State requires a self-contained environment with supported owned captures"
+      ],
+      "bytes": 9769
+    },
+    {
+      "case": "child-copy-positive",
+      "module_sha256": "3cc24c5e0d83223e8c12d1176ca4f4dabb1a4c486aae0f2d6af8ccae3e89471a",
+      "result_sha256": "60ef4b1e5433d41fbe61964da3b9f473e7a057f011469a95c535e5c2e36fe91e",
+      "actual": "Success",
+      "messages": [],
+      "bytes": 9717
+    }
+  ],
+  "observed_author_commands": [
+    {
+      "owner": "/root/bundle_sync author; not execution by this reviewer",
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-before01/command.json",
+      "sha256": "39b32ce9b5ffbd45e75e96fbbbcd39c349fa18c47e2e52d479257ca2acb22395",
+      "source_commit": "fb1567f0bf7c3b3411ce6b5767fcd0b733d424e9",
+      "git_status": " M crates/zil-analyze/tests/impl201_store.rs\n",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl201_store",
+        "--offline",
+        "--locked",
+        "direct_and_package_store_captures_stay_closed",
+        "--",
+        "--nocapture"
+      ]
+    },
+    {
+      "owner": "/root/bundle_sync author; not execution by this reviewer",
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/legacy201-after01/command.json",
+      "sha256": "29e38036b83b9208c9f775c05f0a0cf163db12aed89198f3e7baf4dada666b57",
+      "source_commit": "fd6de26275e84e9a15b0546a245f4ebba35d4cbf",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl201_store",
+        "--offline",
+        "--locked",
+        "direct_and_package_store_captures_stay_closed",
+        "--",
+        "--nocapture"
+      ]
+    }
+  ],
+  "author_summary_path": "/workspace/scratch/39be3faa4442/run-logs/204-analyze/LEGACY201_MIGRATION.json",
+  "author_summary_sha256": "e0a0434ff39961eaa286fdee107c989b98d3e0fc1660a84ca6ddebb1bfc602d0",
+  "before_patch_sha256": "879eefe903e52c2d108c4a0546fd67280d99d78af5f4ac50baa0097ed0397a36",
+  "before_dirty_test_snapshot_sha256": "0d116a81d4731a93ed7c1da34727187cf6c52b0c5ac7797cba7a47ebd3782048",
+  "formal_workspace_boundary": "Root workspace01 actual2468/1/0 is preserved as Fail; final formal rerun belongs to root and is not supplied by this read-only receipt."
+}
