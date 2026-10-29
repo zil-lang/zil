@@ -1,0 +1,80 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.24s
+     Running tests/impl215_capture.rs (/workspace/scratch/3cf12ce32e36/targets/215/debug/deps/impl215_capture-5888378759c9e185)
+
+running 5 tests
+expected raw rejection: [
+    Diagnostic {
+        phase: Analyze,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "package requires finite Copy/complete array fields and at least one explicit Managed resource",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 0,
+                end: 0,
+            },
+        ),
+        notes: [],
+    },
+]
+expected raw rejection: [
+    Diagnostic {
+        phase: Analyze,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "package requires finite Copy/complete array fields and at least one explicit Managed resource",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 0,
+                end: 0,
+            },
+        ),
+        notes: [],
+    },
+]
+test capture_with_borrowed_child_stays_closed ... ok
+
+thread 'capture_child_cannot_be_discharged_twice' (48) panicked at crates/zil-driver/tests/impl215_capture.rs:44:24:
+invalid Product capture must not produce an Analyze candidate: CandidatePlan { schema_version: 27, module_fingerprint: Fingerprint([74, 103, 149, 170, 152, 112, 62, 90, 173, 49, 165, 182, 52, 36, 33, 67, 72, 164, 147, 23, 157, 78, 98, 15, 66, 73, 150, 138, 210, 4, 40, 51]), target_fingerprint: Fingerprint([205, 49, 11, 211, 61, 158, 160, 206, 0, 177, 155, 124, 142, 36, 127, 255, 149, 121, 131, 121, 165, 196, 116, 61, 206, 130, 190, 234, 40, 5, 28, 15]), functions: [FunctionPlan { function: FunctionId(0), blocks: [BlockPlan { block: BlockId(0), initialized_in: [LocalId(0)], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [] }, ValueHold { value: ValueId(1), roots: [] }, ValueHold { value: ValueId(2), roots: [] }] }, FunctionPlan { function: FunctionId(1), blocks: [BlockPlan { block: BlockId(0), initialized_in: [], initialized_out: [] }], holds: [] }, FunctionPlan { function: FunctionId(2), blocks: [BlockPlan { block: BlockId(0), initialized_in: [], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [] }] }], origins: [], responsibilities: [], unsupported: [] }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test capture_child_cannot_be_discharged_twice ... FAILED
+test complete_product_capture_is_checked_by_analyze_and_wire ... ok
+expected raw rejection: [
+    Diagnostic {
+        phase: Analyze,
+        category: SafeReject,
+        code: "E-ANALYZE-IR",
+        message: "resource closure: repeatable entry fails to restore owned fields",
+        span: None,
+        notes: [],
+    },
+]
+expected raw rejection: [
+    Diagnostic {
+        phase: Analyze,
+        category: SafeReject,
+        code: "E-ANALYZE-IR",
+        message: "resource closure: repeatable entry fails to restore owned fields",
+        span: None,
+        notes: [],
+    },
+]
+test capture_child_must_be_present_at_repeatable_return ... ok
+Product capture Analyze exact budget: 3254
+test fresh_exact_budget_and_one_less_are_distinct ... ok
+
+failures:
+
+failures:
+    capture_child_cannot_be_discharged_twice
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-driver --test impl215_capture`

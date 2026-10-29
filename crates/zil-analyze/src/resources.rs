@@ -376,7 +376,7 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
             if let Type::Package { fields, .. } = ty {
                 budget.spend(fields.len(), "capture Package field shapes")?;
                 for (field, (_, ty)) in fields.iter().enumerate() {
-                    if matches!(ty, Type::Managed(_)) {
+                    if package_owned_field(ty) {
                         budget.lookup(result.len(), "capture Package field insertion")?;
                         result.insert(
                             Place::CaptureField {
@@ -1051,7 +1051,7 @@ impl Flow<'_> {
                     };
                     budget.spend(fields.len(), "Package capture binding fields")?;
                     for (field, (_, ty)) in fields.iter().enumerate() {
-                        if !matches!(ty, Type::Managed(_)) {
+                        if !package_owned_field(ty) {
                             continue;
                         }
                         let source = Place::CaptureField {
@@ -1113,7 +1113,7 @@ impl Flow<'_> {
                     };
                     budget.spend(fields.len(), "Package capture end fields")?;
                     for (field, (_, ty)) in fields.iter().enumerate() {
-                        if !matches!(ty, Type::Managed(_)) {
+                        if !package_owned_field(ty) {
                             continue;
                         }
                         let source = Place::PackageField {
