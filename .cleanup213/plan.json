@@ -1,0 +1,152 @@
+{
+  "schema": 1,
+  "repository": "zil-lang/zil",
+  "remote": "origin",
+  "main_ref": "refs/heads/main",
+  "expected_main": "ad509b5003d9d2a303428f9d01732292988084d8",
+  "expected_main_tree": "fec01a1f44bd710a2f131122041708f977683206",
+  "workflow_path": ".github/workflows/verify-main.yml",
+  "workflow_blob": "8599a71381994c56039faf483dfc4cf015492447",
+  "transport_ref": "refs/heads/task/213",
+  "cleanup_tag": "refs/tags/archive/2026-10-29/task-213-cleanup",
+  "guard_tag": "refs/tags/archive/2026-10-29/heads-before-213",
+  "guard_timestamp": "2026-10-29T13:04:26.724426+00:00",
+  "retire": [
+    {
+      "ref": "refs/heads/impl/132-owned-text",
+      "expected_sha": "0ba64a223494860d513d7d7522e1d1b942af6069",
+      "archive_tag": "refs/tags/archive/2026-10-29/task-132",
+      "disposition": "archive-only"
+    },
+    {
+      "ref": "refs/heads/research/131-effect-retraction",
+      "expected_sha": "66644baae15ce4d481363038c34747256522b020",
+      "archive_tag": "refs/tags/archive/2026-10-29/task-131-research",
+      "disposition": "merged"
+    },
+    {
+      "ref": "refs/heads/research/136-compiled-effects",
+      "expected_sha": "54d9b0f1aeb24d16d826bba4bbe849d4ae46466b",
+      "archive_tag": "refs/tags/archive/2026-10-29/task-136-research-nogo",
+      "disposition": "archive-only"
+    },
+    {
+      "ref": "refs/heads/sync/bundle-94515c1c78c7",
+      "expected_sha": "94515c1c78c77c8bb9eb2300cdadce714fed7e19",
+      "archive_tag": "refs/tags/archive/2026-10-29/sync-bundle-94515c1c78c7",
+      "disposition": "merged"
+    },
+    {
+      "ref": "refs/heads/task/135",
+      "expected_sha": "2860c1bcdba907e297ca4dc08e48012cff71b032",
+      "archive_tag": "refs/tags/archive/2026-10-29/task-135",
+      "disposition": "archive-only"
+    },
+    {
+      "ref": "refs/heads/task/203",
+      "expected_sha": "76243bff2fed94fa90cf7df5435be828bf6ee9c2",
+      "archive_tag": "refs/tags/archive/2026-10-29/task-203",
+      "disposition": "merged"
+    }
+  ],
+  "canonical_archives": {
+    "refs/tags/archive/2026-10-29/main-before-213": "a0796270cfde23379d1b227f0a8158121d7c91d5",
+    "refs/tags/archive/2026-10-29/task-213-publish": "39f489000da676deff303bcd4ed9355d1191cbf0",
+    "refs/tags/archive/2026-10-29/task-132": "0ba64a223494860d513d7d7522e1d1b942af6069",
+    "refs/tags/archive/2026-10-29/task-131-research": "66644baae15ce4d481363038c34747256522b020",
+    "refs/tags/archive/2026-10-29/task-136-research-nogo": "54d9b0f1aeb24d16d826bba4bbe849d4ae46466b",
+    "refs/tags/archive/2026-10-29/sync-bundle-94515c1c78c7": "94515c1c78c77c8bb9eb2300cdadce714fed7e19",
+    "refs/tags/archive/2026-10-29/task-135": "2860c1bcdba907e297ca4dc08e48012cff71b032",
+    "refs/tags/archive/2026-10-29/task-203": "76243bff2fed94fa90cf7df5435be828bf6ee9c2"
+  },
+  "proof_sha256": "4a6092ed4858f5b5b7ea77eea53cdb0683559d557c6494b90aff482ffdf3f9aa",
+  "proof_identity": {
+    "repository": "zil-lang/zil",
+    "source_sha": "0c0db351dab77d17a747617dd437c69554c695a0",
+    "source_tree": "30139ea5f11e594f5be4dd4ad014993247c32401",
+    "bundle_sha256": "e7e8dc962fa94658dcdd7f3b5b7444bbd616517e5327a31426bb8bd8181ad94c",
+    "manifest_sha256": "4d41bc5acb70acebe4bf6db7f704c1e82cab2477fb71c7ad0b12bfe702f32753",
+    "transport_sha": "39f489000da676deff303bcd4ed9355d1191cbf0",
+    "run_id": "40874423223",
+    "run_attempt": "1",
+    "verification_script_sha256": "5d797994f520f764508ce3303dedde3b6f71a4e801a3bd33e10135d94bbaf195"
+  },
+  "gate_contracts": [
+    {
+      "id": "format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment_overrides": {}
+    },
+    {
+      "id": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace"
+      ],
+      "environment_overrides": {}
+    },
+    {
+      "id": "reference",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--no-default-features"
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/home/runner/work/_temp/target-reference"
+      }
+    },
+    {
+      "id": "native_build",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "zil-cli"
+      ],
+      "environment_overrides": {}
+    },
+    {
+      "id": "consumer208",
+      "command": [
+        "python3",
+        "tools/research/208/validate.py",
+        "--repo",
+        ".",
+        "--cli",
+        "/home/runner/work/_temp/target/release/zil",
+        "--clang",
+        "/usr/bin/clang-17",
+        "--out",
+        "/home/runner/work/_temp/consumer208"
+      ],
+      "environment_overrides": {}
+    },
+    {
+      "id": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment_overrides": {}
+    }
+  ]
+}

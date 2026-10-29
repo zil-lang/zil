@@ -1,310 +1,48 @@
-name: Publish reviewed 213 source and archive branches
+name: Retire exact archived 213 branches without changing main
 on:
   push:
     branches: [task/213]
     paths:
-      - '.publish213/**'
+      - '.cleanup213/**'
       - '.github/workflows/publish213.yml'
   workflow_dispatch:
 permissions:
   contents: write
-  checks: read
 concurrency:
   group: zil-publish-213
   cancel-in-progress: false
 jobs:
-  verify-and-publish:
+  cleanup-only:
     if: ${{ github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/213' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    env:
-      CARGO_BUILD_JOBS: '2'
-      CARGO_PROFILE_TEST_DEBUG: '0'
-      CARGO_PROFILE_DEV_DEBUG: '0'
-      CARGO_PROFILE_TEST_STRIP: 'symbols'
-      CARGO_PROFILE_DEV_STRIP: 'symbols'
-      CARGO_INCREMENTAL: '0'
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 0
-          # Uses only this job's short-lived, repository-scoped GITHUB_TOKEN.
-          # Checkout removes its credential configuration during post-job cleanup.
           persist-credentials: true
-      - name: Copy the reviewed transport payload outside the source checkout
+      - name: Copy exact cleanup plan and immutable prior gate proof
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/publish213" "$RUNNER_TEMP/receipts"
-          cp .publish213/publish.py .publish213/verify.py .publish213/diagnose.py .publish213/manifest.json .publish213/source.bundle "$RUNNER_TEMP/publish213/"
-          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target" >> "$GITHUB_ENV"
-          echo "ZIL_TEST_REPORT_DIR=$RUNNER_TEMP/native-evidence" >> "$GITHUB_ENV"
-      - name: Verify checksum, remote snapshot, ancestry, and exact source checkout
+          mkdir -p "$RUNNER_TEMP/cleanup213" "$RUNNER_TEMP/cleanup-receipts"
+          cp .cleanup213/cleanup.py .cleanup213/plan.json .cleanup213/proof.zip "$RUNNER_TEMP/cleanup213/"
+          cp .cleanup213/plan.json .cleanup213/proof.zip "$RUNNER_TEMP/cleanup-receipts/"
+      - name: Verify existing main and retire only exact archived heads atomically
         shell: bash
         run: |
           set -euo pipefail
-          python3 "$RUNNER_TEMP/publish213/publish.py" prepare \
-            --repo "$GITHUB_WORKSPACE" \
-            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
-            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
-            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
-            --receipt "$RUNNER_TEMP/receipts/prepared.json"
-      - name: Install the supported LLVM API and Rust toolchains
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y clang-17 libllvm17t64 lld-17
-          echo "ZIL_CLANG=/usr/bin/clang-17" >> "$GITHUB_ENV"
-          echo "ZIL_LLVM_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> "$GITHUB_ENV"
-          echo "LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> "$GITHUB_ENV"
-          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
-      - name: Record exact source and toolchain
-        shell: bash
-        run: |
-          set -euo pipefail
-          git rev-parse HEAD > "$RUNNER_TEMP/receipts/commit.txt"
-          git ls-tree -r HEAD > "$RUNNER_TEMP/receipts/source-tree.txt"
-          rustc -vV > "$RUNNER_TEMP/receipts/toolchain.txt"
-          "$ZIL_CLANG" --version >> "$RUNNER_TEMP/receipts/toolchain.txt"
-          python3 tools/llvm/check_toolchain.py > "$RUNNER_TEMP/receipts/llvm-api-toolchain.json"
-          cp "$RUNNER_TEMP/publish213/manifest.json" "$RUNNER_TEMP/receipts/manifest.json"
-          cp "$RUNNER_TEMP/publish213/source.bundle" "$RUNNER_TEMP/receipts/source.bundle"
-      - name: Initialize this exact verification attempt
-        id: gate_init
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$RUNNER_TEMP/publish213/verify.py" init \
-            --repo "$GITHUB_WORKSPACE" \
-            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
-            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
-            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
-            --receipt "$RUNNER_TEMP/receipts/prepared.json" \
-            --out "$RUNNER_TEMP/receipts"
-      - name: Read previous-job annotations without affecting verification
-        if: ${{ !cancelled() && steps.gate_init.outcome == 'success' }}
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          python3 "$RUNNER_TEMP/publish213/diagnose.py" --out "$RUNNER_TEMP/receipts/previous-job-annotations.json"
-      - name: Keep prepared receipts immediately
-        id: upload_prepared
-        if: ${{ always() && steps.gate_init.outcome == 'success' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: zil-publish-213-${{ github.run_id }}-${{ github.run_attempt }}-prepared
-          path: |
-            ${{ runner.temp }}/receipts/*.json
-            ${{ runner.temp }}/receipts/*.log
-            ${{ runner.temp }}/receipts/*.txt
-          retention-days: 30
-          if-no-files-found: error
-      - name: Complete verification gate — format
-        id: gate_format
-        if: ${{ !cancelled() && steps.gate_init.outcome == 'success' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$RUNNER_TEMP/publish213/verify.py" gate --gate format \
-            --repo "$GITHUB_WORKSPACE" \
-            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
-            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
-            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
-            --receipt "$RUNNER_TEMP/receipts/prepared.json" \
-            --out "$RUNNER_TEMP/receipts"
-      - name: Keep format receipts immediately
-        id: upload_format
-        if: ${{ always() && steps.gate_init.outcome == 'success' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: zil-publish-213-${{ github.run_id }}-${{ github.run_attempt }}-format
-          path: |
-            ${{ runner.temp }}/receipts/*.json
-            ${{ runner.temp }}/receipts/*.log
-            ${{ runner.temp }}/receipts/*.txt
-          retention-days: 30
-          if-no-files-found: error
-      - name: Complete verification gate — workspace
-        id: gate_workspace
-        if: ${{ !cancelled() && steps.gate_init.outcome == 'success' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$RUNNER_TEMP/publish213/verify.py" gate --gate workspace \
-            --repo "$GITHUB_WORKSPACE" \
-            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
-            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
-            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
-            --receipt "$RUNNER_TEMP/receipts/prepared.json" \
-            --out "$RUNNER_TEMP/receipts"
-      - name: Keep workspace receipts immediately
-        id: upload_workspace
-        if: ${{ always() && steps.gate_init.outcome == 'success' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: zil-publish-213-${{ github.run_id }}-${{ github.run_attempt }}-workspace
-          path: |
-            ${{ runner.temp }}/receipts/*.json
-            ${{ runner.temp }}/receipts/*.log
-            ${{ runner.temp }}/receipts/*.txt
-          retention-days: 30
-          if-no-files-found: error
-      - name: Release archived workspace compiler cache
-        if: ${{ !cancelled() && steps.upload_workspace.outcome == 'success' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$RUNNER_TEMP/publish213/verify.py" cleanup --gate workspace --artifact-id "${{ steps.upload_workspace.outputs.artifact-id }}" --artifact-digest "${{ steps.upload_workspace.outputs.artifact-digest }}" \
-            --repo "$GITHUB_WORKSPACE" \
-            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
-            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
-            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
-            --receipt "$RUNNER_TEMP/receipts/prepared.json" \
-            --out "$RUNNER_TEMP/receipts"
-      - name: Complete verification gate — reference
-        id: gate_reference
-        if: ${{ !cancelled() && steps.gate_init.outcome == 'success' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$RUNNER_TEMP/publish213/verify.py" gate --gate reference \
-            --repo "$GITHUB_WORKSPACE" \
-            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
-            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
-            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
-            --receipt "$RUNNER_TEMP/receipts/prepared.json" \
-            --out "$RUNNER_TEMP/receipts"
-      - name: Keep reference receipts immediately
-        id: upload_reference
-        if: ${{ always() && steps.gate_init.outcome == 'success' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: zil-publish-213-${{ github.run_id }}-${{ github.run_attempt }}-reference
-          path: |
-            ${{ runner.temp }}/receipts/*.json
-            ${{ runner.temp }}/receipts/*.log
-            ${{ runner.temp }}/receipts/*.txt
-          retention-days: 30
-          if-no-files-found: error
-      - name: Release archived reference compiler cache
-        if: ${{ !cancelled() && steps.upload_reference.outcome == 'success' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$RUNNER_TEMP/publish213/verify.py" cleanup --gate reference --artifact-id "${{ steps.upload_reference.outputs.artifact-id }}" --artifact-digest "${{ steps.upload_reference.outputs.artifact-digest }}" \
-            --repo "$GITHUB_WORKSPACE" \
-            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
-            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
-            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
-            --receipt "$RUNNER_TEMP/receipts/prepared.json" \
-            --out "$RUNNER_TEMP/receipts"
-      - name: Complete verification gate — native_build
-        id: gate_native_build
-        if: ${{ !cancelled() && steps.gate_init.outcome == 'success' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$RUNNER_TEMP/publish213/verify.py" gate --gate native_build \
-            --repo "$GITHUB_WORKSPACE" \
-            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
-            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
-            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
-            --receipt "$RUNNER_TEMP/receipts/prepared.json" \
-            --out "$RUNNER_TEMP/receipts"
-      - name: Keep native_build receipts immediately
-        id: upload_native_build
-        if: ${{ always() && steps.gate_init.outcome == 'success' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: zil-publish-213-${{ github.run_id }}-${{ github.run_attempt }}-native_build
-          path: |
-            ${{ runner.temp }}/receipts/*.json
-            ${{ runner.temp }}/receipts/*.log
-            ${{ runner.temp }}/receipts/*.txt
-          retention-days: 30
-          if-no-files-found: error
-      - name: Complete verification gate — consumer208
-        id: gate_consumer208
-        if: ${{ !cancelled() && steps.gate_init.outcome == 'success' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$RUNNER_TEMP/publish213/verify.py" gate --gate consumer208 \
-            --repo "$GITHUB_WORKSPACE" \
-            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
-            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
-            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
-            --receipt "$RUNNER_TEMP/receipts/prepared.json" \
-            --out "$RUNNER_TEMP/receipts"
-      - name: Keep consumer208 receipts immediately
-        id: upload_consumer208
-        if: ${{ always() && steps.gate_init.outcome == 'success' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: zil-publish-213-${{ github.run_id }}-${{ github.run_attempt }}-consumer208
-          path: |
-            ${{ runner.temp }}/receipts/*.json
-            ${{ runner.temp }}/receipts/*.log
-            ${{ runner.temp }}/receipts/*.txt
-          retention-days: 30
-          if-no-files-found: error
-      - name: Complete verification gate — clippy
-        id: gate_clippy
-        if: ${{ !cancelled() && steps.gate_init.outcome == 'success' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$RUNNER_TEMP/publish213/verify.py" gate --gate clippy \
-            --repo "$GITHUB_WORKSPACE" \
-            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
-            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
-            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
-            --receipt "$RUNNER_TEMP/receipts/prepared.json" \
-            --out "$RUNNER_TEMP/receipts"
-      - name: Keep clippy receipts immediately
-        id: upload_clippy
-        if: ${{ always() && steps.gate_init.outcome == 'success' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: zil-publish-213-${{ github.run_id }}-${{ github.run_attempt }}-clippy
-          path: |
-            ${{ runner.temp }}/receipts/*.json
-            ${{ runner.temp }}/receipts/*.log
-            ${{ runner.temp }}/receipts/*.txt
-          retention-days: 30
-          if-no-files-found: error
-      - name: Seal all six complete gates for this source and attempt
-        if: ${{ !cancelled() && steps.gate_init.outcome == 'success' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$RUNNER_TEMP/publish213/verify.py" finalize \
-            --repo "$GITHUB_WORKSPACE" \
-            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
-            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
-            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
-            --receipt "$RUNNER_TEMP/receipts/prepared.json" \
-            --out "$RUNNER_TEMP/receipts"
-      - name: Archive and atomically fast-forward main and retire exact old heads
-        if: ${{ success() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$RUNNER_TEMP/publish213/publish.py" publish \
-            --repo "$GITHUB_WORKSPACE" \
-            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
-            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
-            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
-            --receipt "$RUNNER_TEMP/receipts/prepared.json" \
-            --gates "$RUNNER_TEMP/receipts/gates.json" \
-            --result "$RUNNER_TEMP/receipts/published.json"
-      - name: Keep publication receipts and source bundle
+          python3 "$RUNNER_TEMP/cleanup213/cleanup.py" execute \
+            --repo "$GITHUB_WORKSPACE" --repository "$GITHUB_REPOSITORY" \
+            --transport-sha "$GITHUB_SHA" \
+            --plan "$RUNNER_TEMP/cleanup213/plan.json" \
+            --proof "$RUNNER_TEMP/cleanup213/proof.zip" \
+            --out "$RUNNER_TEMP/cleanup-receipts"
+      - name: Preserve cleanup result including both push output streams
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: zil-publish-213-${{ github.run_id }}-${{ github.run_attempt }}-final
-          path: ${{ runner.temp }}/receipts/
+          name: zil-cleanup-213-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cleanup-receipts/
           retention-days: 30
           if-no-files-found: error
