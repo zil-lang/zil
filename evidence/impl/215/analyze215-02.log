@@ -1,0 +1,25 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-ir)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-analyze)
+error[E0596]: cannot borrow `budget` as mutable, as it is not declared as mutable
+   --> crates/zil-analyze/src/budget.rs:508:54
+    |
+508 |                 super::resources::product::admit(ty, &mut budget)?;
+    |                                                      ^^^^^^^^^^^ cannot borrow as mutable
+    |
+note: the binding is already a mutable borrow
+   --> crates/zil-analyze/src/budget.rs:265:13
+    |
+265 |     budget: &mut Budget,
+    |             ^^^^^^^^^^^
+help: consider making the binding mutable if you need to reborrow multiple times
+    |
+265 |     mut budget: &mut Budget,
+    |     +++
+help: to reborrow the mutable reference, add `*`
+    |
+508 |                 super::resources::product::admit(ty, &mut *budget)?;
+    |                                                           +
+
+For more information about this error, try `rustc --explain E0596`.
+error: could not compile `zil-analyze` (lib) due to 1 previous error

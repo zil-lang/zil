@@ -1,0 +1,15 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-215/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.20s
+     Running tests/impl215_capture.rs (/workspace/scratch/3cf12ce32e36/targets/215/debug/deps/impl215_capture-5888378759c9e185)
+
+running 6 tests
+test capture_with_borrowed_child_stays_closed ... ok
+test complete_product_capture_is_checked_by_analyze_and_wire ... ok
+test conditional_cleanup_remains_idempotent_for_a_consumed_child ... ok
+test capture_child_must_be_present_at_repeatable_return ... ok
+test capture_child_cannot_be_transferred_twice ... ok
+Product capture Analyze exact budget: 3254
+test fresh_exact_budget_and_one_less_are_distinct ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
