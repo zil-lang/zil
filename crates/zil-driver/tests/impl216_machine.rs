@@ -72,13 +72,13 @@ fn native(label: &str, body: &str, expected: &str) {
 
 #[test]
 fn owned_fn_and_uncalled_environment_drop_all_descendants_once() {
-    for call in ["if f()+f()!=130{return 9}", ""] {
+    for call in ["if f()+f()!=130{return 9};", ""] {
         native(
             "fn-read-or-unused",
             &format!(
                 r#"
 fn make(input:Root)->impl Fn()->i32{{return move()=>input.tag}}
-fn main()->i32{{let f=make(root(65));{call};emit(88);return 0}}
+fn main()->i32{{let f=make(root(65));{call}emit(88);return 0}}
 "#
             ),
             "XABCD",
@@ -235,48 +235,62 @@ fn allocation_cases(label: &str, source: &str, cases: &[Probe<'_>]) {
 #[test]
 fn callback_store_uses_actual_product_environment_stride_and_cleans_failures() {
     let source = include_str!("../../../examples/mainline/product_capture216/main.zil");
-    allocation_cases(
-        "callback-store",
-        source,
-        &[
-            Probe {
-                fail: 0,
-                stdout: "ABCDEFGH",
-                exit: 0,
-                calls: 2,
-                allocated: 1,
-                failures: 0,
-                peak: 224,
-            },
-            Probe {
-                fail: 1,
-                stdout: "EFGHABCD",
-                exit: 1,
-                calls: 1,
-                allocated: 0,
-                failures: 1,
-                peak: 0,
-            },
-            Probe {
-                fail: 2,
-                stdout: "ABCDEFGH",
-                exit: 2,
-                calls: 2,
-                allocated: 1,
-                failures: 1,
-                peak: 112,
-            },
-            Probe {
-                fail: 3,
-                stdout: "ABCDEFGH",
-                exit: 0,
-                calls: 2,
-                allocated: 1,
-                failures: 0,
-                peak: 224,
-            },
-        ],
-    );
+    let mutable = source
+        .replace("impl Fn()", "impl FnMut()")
+        .replace("<F:Fn()", "<F:FnMut()")
+        .replace(
+            "return move()=>input.tag",
+            "var p=input;return ()=>{let child=p.child;let n=child.tag;p.child=child;return n}",
+        )
+        .replace("store_at(items", "store_at_mut(items");
+    assert!(mutable.contains("impl FnMut()") && mutable.contains("p.child=child"));
+    for (label, source) in [
+        ("callback-store", source),
+        ("callback-store-mut", mutable.as_str()),
+    ] {
+        allocation_cases(
+            label,
+            source,
+            &[
+                Probe {
+                    fail: 0,
+                    stdout: "ABCDEFGH",
+                    exit: 0,
+                    calls: 2,
+                    allocated: 1,
+                    failures: 0,
+                    peak: 224,
+                },
+                Probe {
+                    fail: 1,
+                    stdout: "EFGHABCD",
+                    exit: 1,
+                    calls: 1,
+                    allocated: 0,
+                    failures: 1,
+                    peak: 0,
+                },
+                Probe {
+                    fail: 2,
+                    stdout: "ABCDEFGH",
+                    exit: 2,
+                    calls: 2,
+                    allocated: 1,
+                    failures: 1,
+                    peak: 112,
+                },
+                Probe {
+                    fail: 3,
+                    stdout: "ABCDEFGH",
+                    exit: 0,
+                    calls: 2,
+                    allocated: 1,
+                    failures: 0,
+                    peak: 224,
+                },
+            ],
+        );
+    }
 }
 
 #[test]

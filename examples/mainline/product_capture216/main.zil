@@ -18,16 +18,18 @@ fn make(input:Root)->impl Fn()->i32{
 fn pack<F:Fn()->i32>(callback:F)->State<F>{
     return State::<F>{bytes:bytes_new(),callback:callback}
 }
-fn run<F:Fn()->i32>(first:State<F>,second:State<F>)->i32{
-    let items:Store<State<F>>=store_new()
-    if !store_reserve(items,2){return 1}
+fn seed<T:StoreElement>(first:T,second:T)->Store<T> contract{result(create)}{
+    let items:Store<T>=store_new()
+    if !store_reserve(items,2){return give items}
     store_push(items,first)
     store_push(items,second)
+    return give items
+}
+fn main()->i32{
+    let items=seed(pack(make(root(65))),pack(make(root(69))))
+    if store_len(items)!=2{return 1}
     if store_at(items,0).callback()!=65 || store_at(items,1).callback()!=69{return 8}
     if !store_reserve(items,4){return 2}
     if store_at(items,1).callback()!=69 || store_at(items,0).callback()!=65{return 8}
     return 0
-}
-fn main()->i32{
-    return run(pack(make(root(65))),pack(make(root(69))))
 }
