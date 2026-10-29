@@ -202,27 +202,19 @@ fn give_does_not_grant_ownership_to_copy_callable_or_descriptor_values() {
 }
 
 #[test]
-fn direct_store_builtin_in_parametric_body_remains_a_separate_closed_protocol() {
+fn generic_store_construction_in_unused_callable_state_is_checked() {
     let source = format!(
         "{MODEL} fn unused<F:FnMut()->i32>(state:State<F>)->State<F>{{let s:Store<Item>=store_new();return state}} fn main()->i32=>0"
     );
     let report = check(&[("main", &source)]);
     assert_eq!(
         report.status,
-        ResultCategory::SafeReject,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.phase == zil_base::Phase::Expand
-                && d.code == "E-GENERIC-ARGUMENT"
-                && d.message.contains("unknown function in parametric body")),
-        "{}",
-        report.to_json()
-    );
+    assert_eq!(report.verification_runs, 1);
+    assert!(report.diagnostics.is_empty(), "{}", report.to_json());
 }
 
 #[test]

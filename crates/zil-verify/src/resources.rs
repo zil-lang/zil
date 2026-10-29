@@ -6,6 +6,7 @@
 use super::*;
 use std::collections::VecDeque;
 pub(crate) mod arrays;
+mod product;
 
 const EMPTY: u8 = 1;
 const LIVE: u8 = 2;
@@ -146,7 +147,7 @@ pub(super) fn check_definitions(
     for resource in &module.resources {
         budget.spend(resource.name.len().saturating_add(1))?;
         check_type_shape(&resource.payload, &module.target, limits, budget)?;
-        if dynamic_store::check_definition(module, resource, budget)? {
+        if dynamic_store::check_definition(module, resource, limits, budget)? {
             if !names.insert(&resource.name) {
                 return Err(reject(
                     "E-VERIFY-OWNED-STORE",
@@ -209,6 +210,7 @@ pub(super) fn check_definitions(
     for f in &module.functions {
         match (&f.return_type, f.result_mode) {
             (Type::Managed(_), PassingMode::Create | PassingMode::Give) => {}
+            (ty, PassingMode::Create | PassingMode::Give) if errors::managed_success(ty) => {}
             (Type::Desc(_), _) => {
                 return Err(unsupported(
                     "resource description returns require exported source and management contracts",
@@ -219,6 +221,12 @@ pub(super) fn check_definitions(
                 return Err(bad(
                     f.span,
                     "managed result requires an explicit create or give result mode",
+                ));
+            }
+            (ty, _) if errors::managed_success(ty) => {
+                return Err(bad(
+                    f.span,
+                    "owned success result requires an explicit create or give result mode",
                 ));
             }
             (_, PassingMode::Infer) => {}
@@ -250,6 +258,13 @@ enum Root {
 struct State {
     debt: Vec<u8>,
     fresh: Vec<u8>,
+    // Independent SSA Package field provenance. These bytes do not add debt:
+    // a complete Package still moves as one value, with local partial fields
+    // checked by the existing responsibility slots.
+    package_fresh: Vec<Vec<u8>>,
+    // Actual local/SSA Managed leaves of new Product functions, independently
+    // rebuilt here. Empty on the historical flat path; never a public proof.
+    product_fresh: Vec<u8>,
     desc: Vec<BTreeSet<Root>>,
     // An edge a -> b means b may have been initialized later while a remained live.
     newer: Vec<BTreeSet<usize>>,
@@ -262,6 +277,8 @@ struct Slots {
     // fields do not. Field debts follow all SSA slots and precede captures so
     // they still participate in the ordinary-return conservation check.
     package_fields: Vec<Vec<Option<usize>>>,
+    package_widths: Vec<usize>,
+    product: product::Plan,
     desc_local: Vec<Option<usize>>,
     desc_value: Vec<Option<usize>>,
     capture_debt: Vec<Option<usize>>,
@@ -367,6 +384,19 @@ impl Slots {
         let managed_value = f.values.iter().map(|t| slot(t, true)).collect();
         let desc_local = f.locals.iter().map(|l| slot(&l.ty, false)).collect();
         let desc_value = f.values.iter().map(|t| slot(t, false)).collect();
+        budget.spend(f.values.len())?;
+        let mut package_widths = Vec::new();
+        for (value, ty) in f.values.iter().enumerate() {
+            if let Type::Package { fields, .. } = ty {
+                if package_widths.is_empty() {
+                    budget.spend(f.values.len())?;
+                    package_widths = vec![0; f.values.len()];
+                }
+                // Field byte allocation is charged in empty, before it occurs.
+                budget.spend(1)?;
+                package_widths[value] = fields.len();
+            }
+        }
         let mut package_fields = if package_declarations.is_empty() && array_declarations.is_empty()
         {
             Vec::new()
@@ -436,10 +466,13 @@ impl Slots {
                 }
             }
         }
+        let product = product::Plan::new(f, budget)?;
         Ok(Self {
             managed_local,
             managed_value,
             package_fields,
+            package_widths,
+            product,
             desc_local,
             desc_value,
             capture_debt,
@@ -474,9 +507,19 @@ impl Slots {
                 .saturating_add(self.desc_count)
                 .saturating_add(self.local_count),
         )?;
+        budget.spend(self.package_widths.len())?;
+        let mut package_fresh = Vec::with_capacity(self.package_widths.len());
+        for &width in &self.package_widths {
+            budget.spend(width)?;
+            // An input or unknown Package producer cannot prove new fields.
+            package_fresh.push(vec![INPUT; width]);
+        }
+        budget.spend(self.product.width())?;
         Ok(State {
             debt: vec![EMPTY; self.debt_count],
             fresh: vec![0; self.debt_count],
+            package_fresh,
+            product_fresh: vec![INPUT; self.product.width()],
             desc: vec![BTreeSet::new(); self.desc_count],
             newer: vec![BTreeSet::new(); self.local_count],
         })
@@ -488,9 +531,14 @@ fn state_cost(s: &State, budget: &mut Budget) -> Check<()> {
         s.debt
             .len()
             .saturating_mul(2)
+            .saturating_add(s.package_fresh.len())
+            .saturating_add(s.product_fresh.len())
             .saturating_add(s.desc.len())
             .saturating_add(s.newer.len()),
     )?;
+    for row in &s.package_fresh {
+        budget.spend(row.len())?;
+    }
     for row in &s.desc {
         budget.spend(row.len())?;
     }
@@ -513,6 +561,14 @@ fn merge(target: &mut State, source: &State, budget: &mut Budget) -> Check<bool>
         .iter_mut()
         .zip(&source.debt)
         .chain(target.fresh.iter_mut().zip(&source.fresh))
+        .chain(target.product_fresh.iter_mut().zip(&source.product_fresh))
+        .chain(
+            target
+                .package_fresh
+                .iter_mut()
+                .flatten()
+                .zip(source.package_fresh.iter().flatten()),
+        )
     {
         let next = *a | *b;
         changed |= next != *a;
@@ -824,7 +880,12 @@ impl Transfer<'_> {
                     | InstructionKind::StorePackageField { local, .. }
                     | InstructionKind::TakeLocal { local }
                     | InstructionKind::DropPackage { local }
-                    | InstructionKind::Store { local, .. } => slots.view(local).is_some(),
+                    | InstructionKind::Store { local, .. }
+                    | InstructionKind::BorrowPackageField {
+                        local,
+                        mutable: true,
+                        ..
+                    } => slots.view(local).is_some(),
                     _ => false,
                 };
                 if written_view {
@@ -846,14 +907,35 @@ impl Transfer<'_> {
                 InstructionKind::OwnedStorePop { .. } => {
                     fresh_result = Some(INPUT);
                 }
-                InstructionKind::MakeErrorUnion { value, .. } if result.is_some() => {
+                InstructionKind::MakeErrorUnion { value, is_error } if result.is_some() => {
+                    let union = &f.values[instruction.result.unwrap().0 as usize];
+                    let fresh = if errors::managed_success(union) {
+                        if *is_error {
+                            0 // This tag creates no success payload obligation.
+                        } else {
+                            let source =
+                                slots.managed_value[value.0 as usize].ok_or_else(|| {
+                                    bad(span, "owned success has no resource carrier")
+                                })?;
+                            state.fresh[source]
+                        }
+                    } else {
+                        INPUT
+                    };
                     self.consume(state, *value, span, validate)?;
-                    fresh_result = Some(INPUT);
+                    fresh_result = Some(fresh);
                 }
                 InstructionKind::TakeErrorUnion { value, .. } => {
+                    let fresh = if errors::managed_success(&f.values[value.0 as usize]) {
+                        let source = slots.managed_value[value.0 as usize]
+                            .ok_or_else(|| bad(span, "selected union has no responsibility"))?;
+                        state.fresh[source]
+                    } else {
+                        INPUT
+                    };
                     self.consume(state, *value, span, validate)?;
                     if result.is_some() {
-                        fresh_result = Some(INPUT);
+                        fresh_result = Some(fresh);
                     }
                 }
                 InstructionKind::ErrorTag { value }
@@ -879,15 +961,40 @@ impl Transfer<'_> {
                 InstructionKind::OwnedStoreNew { .. }
                 | InstructionKind::MakeManaged { .. }
                 | InstructionKind::ByteBufferNew => fresh_result = Some(FRESH),
-                InstructionKind::MakePackage { fields }
-                | InstructionKind::MakeOwnedArray { elements: fields } => {
+                InstructionKind::MakePackage { fields } => {
+                    let output = instruction.result.expect("checked Package result");
+                    budget.spend(fields.len())?;
+                    for (index, &value) in fields.iter().enumerate() {
+                        if matches!(f.values[value.0 as usize], Type::Managed(_)) {
+                            let source = slots.managed_value[value.0 as usize]
+                                .expect("checked Managed field source");
+                            state.package_fresh[output.0 as usize][index] = state.fresh[source];
+                        }
+                        self.consume(state, value, span, validate)?;
+                    }
+                    fresh_result = Some(INPUT);
+                }
+                InstructionKind::MakeOwnedArray { elements: fields } => {
                     for &value in fields {
                         self.consume(state, value, span, validate)?;
                     }
                     fresh_result = Some(INPUT);
                 }
-                InstructionKind::BorrowOwnedArrayElement { local, index, .. }
-                | InstructionKind::BorrowPackageField { local, index, .. } => {
+                InstructionKind::BorrowPackageField { local, index, .. } => {
+                    self.package_shell(state, *local, span, validate)?;
+                    // A checked Copy field is initialized with its shell and
+                    // has no independent cleanup responsibility to demand.
+                    if let Some(field) = slots.package_fields[local.0 as usize][*index as usize]
+                        && validate
+                        && state.debt[field] != LIVE
+                    {
+                        return Err(bad(
+                            span,
+                            "callback field borrow requires a live field on every path",
+                        ));
+                    }
+                }
+                InstructionKind::BorrowOwnedArrayElement { local, index, .. } => {
                     self.package_shell(state, *local, span, validate)?;
                     let element = slots.package_fields[local.0 as usize][*index as usize]
                         .expect("independently checked callback array element");
@@ -1029,7 +1136,7 @@ impl Transfer<'_> {
                     }
                     if take {
                         state.debt[field] = MOVED;
-                        fresh_result = Some(INPUT);
+                        fresh_result = Some(state.fresh[field]);
                     } else {
                         state.debt[field] = discharged(state.debt[field]);
                     }
@@ -1059,9 +1166,17 @@ impl Transfer<'_> {
                                 budget,
                             )?;
                         }
+                        budget.spend(1)?;
+                        let fresh = if matches!(f.values[value.0 as usize], Type::Managed(_)) {
+                            let source = slots.managed_value[value.0 as usize]
+                                .expect("checked Managed field source");
+                            state.fresh[source]
+                        } else {
+                            INPUT
+                        };
                         self.consume(state, *value, span, validate)?;
                         state.debt[field] = LIVE;
-                        state.fresh[field] = INPUT;
+                        state.fresh[field] = fresh;
                     }
                 }
                 InstructionKind::BorrowLocal { local }
@@ -1087,9 +1202,12 @@ impl Transfer<'_> {
                     state.desc[row] = BTreeSet::from([Root::Local(*local)]);
                 }
                 InstructionKind::BorrowCapture { index, .. } => {
-                    let debt =
-                        slots.capture_debt[*index as usize].expect("typed owned closure capture");
-                    if validate && state.debt[debt] != LIVE {
+                    // Independent capture typing also permits an inline Copy
+                    // field in a lending entry; such storage owns no resource.
+                    if let Some(debt) = slots.capture_debt[*index as usize]
+                        && validate
+                        && state.debt[debt] != LIVE
+                    {
                         return Err(bad(span, "borrow reads a transferred captured closure"));
                     }
                 }
@@ -1198,6 +1316,18 @@ impl Transfer<'_> {
                                 budget,
                             )?;
                         }
+                        if let Type::Package { fields: types, .. } = &f.locals[local.0 as usize].ty
+                        {
+                            budget.spend(types.len())?;
+                            let output = instruction.result.expect("checked Package move result");
+                            for (position, (_, ty)) in types.iter().enumerate() {
+                                if matches!(ty, Type::Managed(_)) {
+                                    let field = fields[position].expect("checked Managed field");
+                                    state.package_fresh[output.0 as usize][position] =
+                                        state.fresh[field];
+                                }
+                            }
+                        }
                         fresh_result = Some(state.fresh[index]);
                         state.debt[index] = MOVED;
                         for &field in fields.iter().flatten() {
@@ -1260,9 +1390,20 @@ impl Transfer<'_> {
                         }
                         state.debt[index] = LIVE;
                         state.fresh[index] = fresh;
-                        for &field in fields.iter().flatten() {
-                            state.debt[field] = LIVE;
-                            state.fresh[field] = INPUT;
+                        budget.spend(fields.len())?;
+                        for (position, field) in fields.iter().enumerate() {
+                            if let Some(field) = field {
+                                state.debt[*field] = LIVE;
+                                state.fresh[*field] = if matches!(
+                                    &f.locals[local.0 as usize].ty,
+                                    Type::Package { fields: types, .. }
+                                        if matches!(types[position].1, Type::Managed(_))
+                                ) {
+                                    state.package_fresh[value.0 as usize][position]
+                                } else {
+                                    INPUT
+                                };
+                            }
                         }
                     }
                     if let Some(dst) = slots.desc_local[local.0 as usize] {
@@ -1449,24 +1590,52 @@ impl Transfer<'_> {
                         // helpers::check_module already checked this relation.
                         // Callback consumers use its public write upper bound,
                         // never the helper's private body or inferred effects.
-                        budget
-                            .spend(contract.traces.len().saturating_add(contract.writes.len()))?;
-                        let definition = &self.module.closures[contract.closure.0 as usize];
-                        if contract.traces.iter().any(|trace| !trace.calls.is_empty())
-                            && contract
-                                .writes
-                                .iter()
-                                .any(|i| matches!(definition.captures[*i as usize], Type::Desc(_)))
-                        {
-                            let argument = arguments[contract.parameter as usize];
-                            if let Some(row) = slots.desc_value[argument.0 as usize] {
-                                self.write_roots(
-                                    &state.desc[row],
-                                    written,
-                                    span,
-                                    validate,
-                                    budget,
-                                )?;
+                        budget.spend(contract.roles.len())?;
+                        for role in &contract.roles {
+                            let invokes = match &contract.traces {
+                                CallableTraces::Finite(paths) => {
+                                    budget.spend(paths.len())?;
+                                    let mut invokes = false;
+                                    for path in paths {
+                                        budget.spend(path.calls.len())?;
+                                        invokes |= path
+                                            .calls
+                                            .iter()
+                                            .any(|event| event.parameter == role.parameter);
+                                    }
+                                    invokes
+                                }
+                                CallableTraces::Flow(flow) => {
+                                    // Every reachable prefix includes nonreturning paths.
+                                    budget.spend(flow.nodes.len())?;
+                                    let mut invokes = false;
+                                    for node in &flow.nodes {
+                                        budget.spend(node.calls.len())?;
+                                        invokes |= node
+                                            .calls
+                                            .iter()
+                                            .any(|event| event.parameter == role.parameter);
+                                    }
+                                    invokes
+                                }
+                            };
+                            budget.spend(role.writes.len())?;
+                            let definition = &self.module.closures[role.closure.0 as usize];
+                            if invokes
+                                && role.writes.iter().any(|i| {
+                                    matches!(definition.captures[*i as usize], Type::Desc(_))
+                                })
+                            {
+                                let argument = arguments[role.parameter as usize];
+                                if let Some(row) = slots.desc_value[argument.0 as usize] {
+                                    self.write_roots(
+                                        &state.desc[row],
+                                        written,
+                                        span,
+                                        validate,
+                                        budget,
+                                    )?;
+                                }
                             }
                         }
                     } else {
@@ -1513,6 +1682,9 @@ impl Transfer<'_> {
                 state.debt[index] = LIVE;
                 state.fresh[index] = fresh;
             }
+            if !state.product_fresh.is_empty() {
+                slots.product.apply(f, slots, instruction, state, budget)?;
+            }
         }
         if let Terminator::Return(value) = f.blocks[b].terminator {
             if let Some(value) = value {
@@ -1520,6 +1692,7 @@ impl Transfer<'_> {
                     && let Some(index) = slots.managed_value[value.0 as usize]
                     && f.result_mode == PassingMode::Create
                     && state.fresh[index] != FRESH
+                    && !(errors::managed_success(&f.return_type) && state.fresh[index] == 0)
                 {
                     return Err(bad(
                         f.span,

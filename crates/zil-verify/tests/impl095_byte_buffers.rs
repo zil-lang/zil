@@ -748,6 +748,8 @@ fn byte_storage_remains_outside_compile_time_and_aggregate_profiles() {
             inner: Box::new(Type::ByteBuffer),
         },
     ] {
+        let owned_success = matches!(&ty, Type::ErrorUnion { result, .. }
+            if matches!(result.as_ref(), Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer));
         let mut f = Body::new(0, Type::Unit);
         f.parameter(ty);
         let mut t = case(vec![f.finish(None)]);
@@ -759,12 +761,27 @@ fn byte_storage_remains_outside_compile_time_and_aggregate_profiles() {
             &Limits::default(),
         )
         .unwrap_err();
-        assert_eq!(errors[0].category, ResultCategory::Unsupported);
+        if owned_success {
+            assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+            assert_eq!(errors[0].code, "E-VERIFY-RESOURCE", "{errors:?}");
+            assert!(
+                errors[0]
+                    .message
+                    .contains("outstanding resource responsibility"),
+                "{errors:?}"
+            );
+        } else {
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::Unsupported,
+                "{errors:?}"
+            );
+        }
     }
 }
 
 #[test]
-fn package_and_capture_cannot_hide_borrowed_byte_storage() {
+fn package_cannot_hide_borrowed_bytes_and_unused_explicit_desc_capture_is_valid() {
     let mut f = Body::new(0, Type::Unit);
     f.parameter(Type::Package {
         name: "P".into(),
@@ -783,6 +800,7 @@ fn package_and_capture_cannot_hide_borrowed_byte_storage() {
     let f = Body::new(0, Type::Unit);
     let mut t = case(vec![f.finish(None)]);
     t.module.closures.push(ClosureDefinition {
+        lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(0),
         captures: vec![desc()],
@@ -791,15 +809,9 @@ fn package_and_capture_cannot_hide_borrowed_byte_storage() {
         kind: CallableKind::FnMut,
     });
     t.module.functions[0].environment = Some(ClosureId(0));
-    t.bind();
-    let errors = verify_module(
-        t.module,
-        t.plan,
-        &TargetProfile::host_llvm(),
-        &Limits::default(),
-    )
-    .unwrap_err();
-    assert_eq!(errors[0].category, ResultCategory::Unsupported);
+    // 187 admits an explicit ByteBuffer Desc capture. This exact entry has no
+    // operations or hidden effects; constructing/calling it still checks roots.
+    t.pass();
 }
 
 #[test]

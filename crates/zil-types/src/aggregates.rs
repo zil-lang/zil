@@ -184,9 +184,7 @@ fn resolve_indexed(
                 "manages fields require a package",
             )]);
         }
-        if d.kind == AggregateKind::Package
-            && (d.teardown.is_some() || !d.fields.iter().any(|f| f.manages))
-        {
+        if d.kind == AggregateKind::Package && d.teardown.is_some() {
             return Err(vec![unsupported(
                 d.span,
                 "package requires at least one manages field and has no custom whole Drop",
@@ -308,22 +306,40 @@ fn resolve_indexed(
         }
     }
     let mut resolver = Resolver {
+        ordinary_parameter: None,
+        active_callable_parameters: &[],
+        active_state_parameters: &[],
         callable_names: core
             .functions
             .iter()
-            .filter_map(|f| {
-                f.callable_parameter
-                    .as_ref()
-                    .map(|b| b.generic_name.clone())
-            })
+            .flat_map(|f| f.callable_parameters.iter().map(|b| b.generic_name.clone()))
             .chain(
                 project
                     .iter()
                     .flat_map(|m| m.functions.iter())
-                    .filter_map(|f| {
-                        f.callable_parameter
-                            .as_ref()
-                            .map(|b| b.generic_name.clone())
+                    .flat_map(|f| f.callable_parameters.iter().map(|b| b.generic_name.clone())),
+            )
+            .chain(
+                core.functions
+                    .iter()
+                    .flat_map(|f| f.state_parameters.iter())
+                    .flat_map(|state| {
+                        state
+                            .bindings
+                            .iter()
+                            .map(|binding| binding.generic_name.clone())
+                    }),
+            )
+            .chain(
+                project
+                    .iter()
+                    .flat_map(|m| m.functions.iter())
+                    .flat_map(|f| f.state_parameters.iter())
+                    .flat_map(|state| {
+                        state
+                            .bindings
+                            .iter()
+                            .map(|binding| binding.generic_name.clone())
                     }),
             )
             .collect(),
@@ -350,9 +366,41 @@ fn resolve_indexed(
         };
         declaration.variants = variants;
     }
+    // Resolve using the original declaration headers while moving function bodies.
+    // State selectors need the unmodified headers, but cloning every body is unnecessary.
+    let original_headers: Vec<_> = core
+        .functions
+        .iter()
+        .map(|f| (f.callable_parameters.clone(), f.state_parameters.clone()))
+        .collect();
     let mut functions = std::mem::take(&mut core.functions);
-    for f in &mut functions {
-        if let Some(bound) = &mut f.callable_parameter {
+    for (f, (callable_parameters, state_parameters)) in functions.iter_mut().zip(&original_headers)
+    {
+        resolver.active_callable_parameters = callable_parameters;
+        resolver.active_state_parameters = state_parameters;
+        store_templates::validate_header(f).map_err(|e| vec![e])?;
+        if let Some(parameter) = f.type_parameters.first() {
+            resolver.remaining = resolver
+                .remaining
+                .checked_sub(parameter.name.len().saturating_add(1))
+                .ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Types,
+                        "ordinary binder resolution budget exceeded",
+                        Some(f.span),
+                    )]
+                })?;
+            resolver.ordinary_parameter = Some(parameter.name.clone());
+        }
+        for state in &mut f.state_parameters {
+            for bound in &mut state.bindings {
+                bound.result = resolver.ty(&bound.result, 0, f.span).map_err(|e| vec![e])?;
+                for ty in &mut bound.parameters {
+                    *ty = resolver.ty(ty, 0, f.span).map_err(|e| vec![e])?;
+                }
+            }
+        }
+        for bound in &mut f.callable_parameters {
             bound.result = resolver.ty(&bound.result, 0, f.span).map_err(|e| vec![e])?;
             for ty in &mut bound.parameters {
                 *ty = resolver.ty(ty, 0, f.span).map_err(|e| vec![e])?;
@@ -365,14 +413,14 @@ fn resolve_indexed(
             }
         }
         let raw_result = if matches!(f.result_mode, PassingMode::Create | PassingMode::Give) {
-            Type::Managed(Box::new(f.return_type.clone()))
+            owned_mode_type(&f.return_type)
         } else {
             f.return_type.clone()
         };
         f.return_type = resolver.ty(&raw_result, 0, f.span).map_err(|e| vec![e])?;
         for p in &mut f.parameters {
             let raw = if p.mode == PassingMode::Give {
-                Type::Managed(Box::new(p.ty.clone()))
+                owned_mode_type(&p.ty)
             } else {
                 p.ty.clone()
             };
@@ -393,6 +441,9 @@ fn resolve_indexed(
             }
         }
         resolver.block(&mut f.body, 0).map_err(|e| vec![e])?;
+        resolver.ordinary_parameter = None;
+        resolver.active_callable_parameters = &[];
+        resolver.active_state_parameters = &[];
     }
     *remaining = resolver.remaining;
     let mut aggregates = core.aggregates.clone();
@@ -407,8 +458,24 @@ fn resolve_indexed(
     core.enums = resolved_enums;
     Ok(core)
 }
+
+/// A source ownership mode selects the direct success resource of a fallible
+/// signature. The outer union remains an ordinary Value, never a Managed head.
+fn owned_mode_type(ty: &Type) -> Type {
+    match ty {
+        Type::ErrorUnion { error, result } => Type::ErrorUnion {
+            error: error.clone(),
+            result: Box::new(Type::Managed(result.clone())),
+        },
+        _ => Type::Managed(Box::new(ty.clone())),
+    }
+}
+
 struct Resolver<'a> {
     callable_names: BTreeSet<String>,
+    ordinary_parameter: Option<String>,
+    active_callable_parameters: &'a [CoreCallableParameter],
+    active_state_parameters: &'a [CoreStateParameter],
     declarations: BTreeMap<String, &'a CoreAggregate>,
     enum_declarations: BTreeMap<String, &'a CoreEnum>,
     owners: BTreeMap<String, u32>,
@@ -418,6 +485,41 @@ struct Resolver<'a> {
     depth_limit: usize,
 }
 impl Resolver<'_> {
+    fn callback_error_payload(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
+        let Type::Package { fields, .. } = ty else {
+            return Ok(false);
+        };
+        if self.active_callable_parameters.is_empty() && self.active_state_parameters.is_empty() {
+            return Ok(false);
+        }
+        for (_, field) in fields {
+            self.charge(depth, span)?;
+            if let Type::Named(name) = field {
+                self.remaining = self
+                    .remaining
+                    .checked_sub(name.len().saturating_add(1).saturating_mul(
+                        self.active_callable_parameters.len().saturating_add(
+                            if self.active_state_parameters.is_empty() {
+                                0
+                            } else {
+                                2
+                            },
+                        ),
+                    ))
+                    .ok_or_else(|| {
+                        Diagnostic::limit(
+                            Phase::Types,
+                            "callback error payload budget exceeded",
+                            Some(span),
+                        )
+                    })?;
+            }
+        }
+        Ok(dynamic_store::callback_element(ty, |field| {
+            matches!(field, Type::Named(name) if self.active_callable_parameters.iter().any(|b| &b.generic_name == name)
+                || self.active_state_parameters.iter().flat_map(|s| &s.bindings).any(|b| &b.generic_name == name))
+        }))
+    }
     fn field_type(&mut self, field: &CoreField, depth: usize) -> R<Type> {
         let resolved = self.ty(&field.ty, depth, field.span)?;
         if dynamic_store::is_carrier(&resolved) && !field.manages {
@@ -465,6 +567,46 @@ impl Resolver<'_> {
             Ok(resolved)
         }
     }
+    fn store_element_shape(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
+        if let Type::Named(name) = ty
+            && self.ordinary_parameter.as_ref() == Some(name)
+        {
+            return Ok(true);
+        }
+        if dynamic_store::supported_element(ty) {
+            return Ok(true);
+        }
+        let Type::Package { fields, .. } = ty else {
+            return Ok(false);
+        };
+        // Only the unresolved callback path adds work. The old Store shell
+        // retains exactly its previous resolution cost.
+        let lookup = self
+            .callable_names
+            .len()
+            .checked_ilog2()
+            .map_or(1, |n| n as usize + 2);
+        for (_, field) in fields {
+            self.charge(depth, span)?;
+            if let Type::Named(name) = field {
+                self.remaining = self
+                    .remaining
+                    .checked_sub(lookup.saturating_mul(name.len().saturating_add(1)))
+                    .ok_or_else(|| {
+                        Diagnostic::limit(
+                            Phase::Types,
+                            "Store callback placeholder budget exceeded",
+                            Some(span),
+                        )
+                    })?;
+            }
+        }
+        Ok(dynamic_store::callback_element(
+            ty,
+            |field| matches!(field, Type::Named(name) if self.callable_names.contains(name)),
+        ))
+    }
+
     fn charge(&mut self, depth: usize, span: Span) -> R<()> {
         if depth > self.depth_limit || self.remaining == 0 {
             return Err(Diagnostic::limit(
@@ -479,6 +621,7 @@ impl Resolver<'_> {
     fn ty(&mut self, ty: &Type, depth: usize, span: Span) -> R<Type> {
         self.charge(depth, span)?;
         Ok(match ty {
+            Type::Named(name) if self.ordinary_parameter.as_ref() == Some(name) => ty.clone(),
             Type::Named(name) if name == "ByteBuffer" => Type::Desc(Box::new(Type::ByteBuffer)),
             Type::Named(name)
                 if self.declarations.contains_key(name)
@@ -558,6 +701,10 @@ impl Resolver<'_> {
                                 && !f.manages
                                 && packages::array_field_supported(&ty))
                             || (d.kind == AggregateKind::Package
+                                && !f.manages
+                                && matches!(ty, Type::Package { .. })
+                                && packages::product::supported(&ty))
+                            || (d.kind == AggregateKind::Package
                                 && f.manages
                                 && matches!(ty, Type::Managed(_))
                                 && resources::supported(&ty)))
@@ -571,7 +718,21 @@ impl Resolver<'_> {
                     }
                     let name = format!("@module{}:{}", self.owners[name], name);
                     if d.kind == AggregateKind::Package {
-                        Type::Package { name, fields }
+                        let ty = Type::Package { name, fields };
+                        if packages::product::nested(&ty) {
+                            packages::product::validate(
+                                &ty,
+                                &mut self.remaining,
+                                self.depth_limit,
+                                span,
+                            )?;
+                        } else if !d.fields.iter().any(|f| f.manages) {
+                            return Err(unsupported(
+                                span,
+                                "package requires at least one manages field or complete owning child",
+                            ));
+                        }
+                        ty
                     } else {
                         let payload = Type::Record { name, fields };
                         if d.kind == AggregateKind::Resource {
@@ -585,9 +746,13 @@ impl Resolver<'_> {
                 self.cache.insert(name.clone(), result.clone());
                 result
             }
+            ty @ Type::Package { .. } if packages::product::nested(ty) => {
+                packages::product::validate(ty, &mut self.remaining, self.depth_limit, span)?;
+                ty.clone()
+            }
             Type::OwnedStore { element } => {
                 let element = self.ty(element, depth + 1, span)?;
-                if !dynamic_store::supported_element(&element) {
+                if !self.store_element_shape(&element, depth, span)? {
                     return Err(unsupported(
                         span,
                         "Store elements require nonzero complete direct-Managed Packages",
@@ -668,15 +833,11 @@ impl Resolver<'_> {
                     {
                         Type::Managed(payload)
                     }
-                    Type::Package { .. }
-                        if !*mutable && dynamic_store::supported_element(&inner) =>
-                    {
-                        inner
-                    }
+                    Type::Package { .. } if self.store_element_shape(&inner, depth, span)? => inner,
                     Type::Managed(_) | Type::Desc(_) | Type::Package { .. } => {
                         return Err(unsupported(
                             span,
-                            "head addresses require a shared finite user-resource head; mutable, byte-storage and Package heads are not implemented",
+                            "head addresses require a shared finite user-resource head or a supported Store element; byte-storage and other Package heads are not implemented",
                         ));
                     }
                     other => other,
@@ -692,18 +853,32 @@ impl Resolver<'_> {
             } => {
                 let failure = self.ty(failure, depth + 1, span)?;
                 let result = self.ty(result, depth + 1, span)?;
-                if !(failure.is_copy_value() || packages::supported(&failure))
-                    || !(result.is_copy_value() || packages::supported(&result))
-                {
-                    return Err(unsupported(
-                        span,
-                        "error union payloads require finite Copy values or complete owned Packages",
-                    ));
-                }
-                Type::ErrorUnion {
+                let union = Type::ErrorUnion {
                     error: Box::new(failure),
                     result: Box::new(result),
+                };
+                if !errors::supported(&union) {
+                    let mut symbolic = self
+                        .ordinary_parameter
+                        .as_ref()
+                        .is_some_and(|name| store_templates::symbolic_type(&union, name));
+                    if !symbolic && let Type::ErrorUnion { error, result } = &union {
+                        let error_ok = error.is_copy_value()
+                            || packages::supported(error)
+                            || self.callback_error_payload(error, depth + 1, span)?;
+                        let result_ok = result.is_copy_value()
+                            || packages::supported(result)
+                            || self.callback_error_payload(result, depth + 1, span)?;
+                        symbolic = error_ok && result_ok;
+                    }
+                    if !symbolic {
+                        return Err(unsupported(
+                            span,
+                            "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
+                        ));
+                    }
                 }
+                union
             }
             Type::FunctionPointer { parameters, result } => Type::FunctionPointer {
                 parameters: parameters
@@ -867,6 +1042,15 @@ impl Resolver<'_> {
             CoreExprKind::Binary { left, right, .. } => {
                 self.expr(left, depth + 1)?;
                 self.expr(right, depth + 1)?;
+            }
+            CoreExprKind::TypeApply {
+                callee,
+                type_arguments,
+            } => {
+                for argument in type_arguments {
+                    *argument = self.ty(argument, depth + 1, e.span)?;
+                }
+                self.expr(callee, depth + 1)?;
             }
             CoreExprKind::Call { callee, arguments } => {
                 self.expr(callee, depth + 1)?;
@@ -1057,7 +1241,7 @@ impl Builder<'_, '_> {
             self.same(&ty, expected, span)?;
         }
         let kind = InstructionKind::Call {
-            function: signature.id,
+            function: signature.concrete_id(span)?,
             arguments,
         };
         if ty == Type::Unit {

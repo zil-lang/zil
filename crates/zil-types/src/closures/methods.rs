@@ -61,7 +61,7 @@ impl InferBuilder<'_, '_> {
         if matches!(receiver, Type::Desc(_))
             && self
                 .resource_writes
-                .get(&signature.id)
+                .get(&resource_effects::target(&signature))
                 .is_some_and(|writes| writes.contains(&0))
         {
             self.mark_resource_write(receiver_value, object.span)?;
@@ -77,7 +77,7 @@ impl InferBuilder<'_, '_> {
             if matches!(parameter, Type::Desc(_))
                 && self
                     .resource_writes
-                    .get(&signature.id)
+                    .get(&resource_effects::target(&signature))
                     .is_some_and(|writes| writes.contains(&(index + 1)))
             {
                 self.mark_resource_write(value, argument.span)?;

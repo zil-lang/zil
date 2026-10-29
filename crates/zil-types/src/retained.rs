@@ -336,7 +336,12 @@ impl Dependencies<'_, '_> {
         self.node(depth, expression.span)?;
         match &expression.kind {
             CoreExprKind::Call { callee, arguments } => {
-                let signature = match &callee.kind {
+                let target = if let CoreExprKind::TypeApply { callee, .. } = &callee.kind {
+                    callee.as_ref()
+                } else {
+                    callee.as_ref()
+                };
+                let signature = match &target.kind {
                     CoreExprKind::Name(name) if !self.bound(name) => self.signatures.get(name),
                     CoreExprKind::Member { object, member } => {
                         if let CoreExprKind::Name(alias) = &object.kind {
@@ -359,7 +364,9 @@ impl Dependencies<'_, '_> {
                 };
                 if let Some(signature) = signature {
                     if signature.callable_return.is_some() {
-                        self.found.factories.insert(signature.id);
+                        self.found
+                            .factories
+                            .insert(signature.concrete_id(expression.span)?);
                     }
                     if let Some(key) = signature.template {
                         self.found.helpers.insert(key);
@@ -370,7 +377,8 @@ impl Dependencies<'_, '_> {
                     self.expr(argument, depth + 1)?;
                 }
             }
-            CoreExprKind::Ascribed { value, .. }
+            CoreExprKind::TypeApply { callee: value, .. }
+            | CoreExprKind::Ascribed { value, .. }
             | CoreExprKind::IntegerConvert { value, .. }
             | CoreExprKind::CompileTime(value)
             | CoreExprKind::Try(value)
@@ -450,11 +458,12 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
     };
     if function.foreign.is_some()
         || function.receiver.is_some()
-        || function.callable_parameter.is_some()
+        || !function.callable_parameters.is_empty()
+        || !function.state_parameters.is_empty()
         || function.result_mode != PassingMode::Infer
         || bound.kind == CallableKind::FunctionPointer
-        || !bound.parameters.iter().all(Type::is_copy_value)
-        || !bound.result.is_copy_value()
+        || !closures::supported_signature(&bound.parameters, &bound.result)
+        || (lending::supported_result(&bound.result) && bound.kind == CallableKind::FnOnce)
         || function.return_type
             != (Type::Opaque {
                 identity: function.id,
@@ -468,7 +477,7 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
     {
         return Err(unsupported(
             function.span,
-            "opaque callable factories require ordinary Copy/owned Managed/Package inputs, one finite Copy signature and a matching opaque identity",
+            "opaque callable factories require ordinary Copy/owned Managed/Package inputs, finite Copy or Copy/slice-address parameters, a Copy or shared environment result and a matching opaque identity",
         ));
     }
     Ok(())
@@ -536,6 +545,7 @@ impl Builder<'_, '_> {
         }
         self.function.return_type = Type::Closure(id);
         self.function.callable_return_contract = Some(CallableReturnContract {
+            lending_captures: Vec::new(),
             closure: id,
             kind: bound.kind,
             hold: Vec::new(),

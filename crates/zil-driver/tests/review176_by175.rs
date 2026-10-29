@@ -370,7 +370,7 @@ fn independent_raw_and_wire_check_real_field_and_call_permission() {
             module,
             plan.clone(),
             [
-                "E-VERIFY-PACKAGE",
+                "E-VERIFY-TYPE",
                 "E-VERIFY-MUTABILITY",
                 "E-VERIFY-CLOSURE-CALL",
             ][variant],

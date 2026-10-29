@@ -4,9 +4,24 @@ use super::*;
 use std::collections::{BTreeSet, VecDeque};
 
 type Origins = BTreeSet<usize>;
-pub(super) type Writes = BTreeMap<FunctionId, Origins>;
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum Target {
+    Concrete(FunctionId),
+    TypeTemplate(helpers::TemplateKey),
+}
+pub(super) fn target(signature: &Signature) -> Target {
+    match signature.id {
+        Some(id) => Target::Concrete(id),
+        None => Target::TypeTemplate(
+            signature
+                .template
+                .expect("validated ordinary template identity"),
+        ),
+    }
+}
+pub(super) type Writes = BTreeMap<Target, Origins>;
 type Tables = BTreeMap<zil_base::ModuleId, BTreeMap<String, Signature>>;
-type CallInfo = (FunctionId, Vec<bool>);
+type CallInfo = (Target, Vec<bool>);
 
 enum MethodInfo {
     Call(CallInfo),
@@ -29,7 +44,7 @@ pub(super) fn single(
         core.functions
             .iter()
             .filter(|function| {
-                function.callable_parameter.is_none()
+                function.callable_parameters.is_empty()
                     && function
                         .parameters
                         .iter()
@@ -51,7 +66,7 @@ pub(super) fn program(program: &CoreProgram, tables: &Tables, limits: &Limits) -
     for module in &program.modules {
         let table = &tables[&module.core.module_id];
         for function in &module.core.functions {
-            if function.callable_parameter.is_some() {
+            if !function.callable_parameters.is_empty() {
                 continue;
             }
             if !function
@@ -125,7 +140,7 @@ fn solve_sweeps(inputs: &[Input<'_>], tables: Option<&Tables>, limits: &Limits) 
                 scan.block(&input.function.body, 0)?;
             }
             let writes = scan.writes;
-            let id = input.signatures[&input.function.name].id;
+            let id = target(&input.signatures[&input.function.name]);
             let entry = summaries.entry(id).or_default();
             let before = entry.len();
             entry.extend(writes);
@@ -147,7 +162,7 @@ fn solve_worklist(inputs: &[Input<'_>], tables: Option<&Tables>, limits: &Limits
     charge(&mut work, inputs.len().saturating_mul(5), span)?;
     let ids = inputs
         .iter()
-        .map(|i| i.signatures[&i.function.name].id)
+        .map(|i| target(&i.signatures[&i.function.name]))
         .collect::<Vec<_>>();
     let positions = ids
         .iter()
@@ -232,7 +247,7 @@ fn scan_once<T: Tracking>(
     summaries: &Writes,
     work: &mut usize,
     limits: &Limits,
-) -> R<(Origins, BTreeSet<FunctionId>)> {
+) -> R<(Origins, BTreeSet<Target>)> {
     let mut scan = Scan::<T> {
         input,
         tables,
@@ -271,26 +286,26 @@ fn scan_once<T: Tracking>(
 // dependencies uses a type-level policy rather than an always-present set.
 trait Tracking: Default {
     const ENABLED: bool;
-    fn observe(&mut self, callee: FunctionId);
-    fn finish(self) -> BTreeSet<FunctionId>;
+    fn observe(&mut self, callee: Target);
+    fn finish(self) -> BTreeSet<Target>;
 }
 #[derive(Default)]
 struct Untracked;
 impl Tracking for Untracked {
     const ENABLED: bool = false;
-    fn observe(&mut self, _: FunctionId) {}
-    fn finish(self) -> BTreeSet<FunctionId> {
+    fn observe(&mut self, _: Target) {}
+    fn finish(self) -> BTreeSet<Target> {
         BTreeSet::new()
     }
 }
 #[derive(Default)]
-struct Tracked(BTreeSet<FunctionId>);
+struct Tracked(BTreeSet<Target>);
 impl Tracking for Tracked {
     const ENABLED: bool = true;
-    fn observe(&mut self, callee: FunctionId) {
+    fn observe(&mut self, callee: Target) {
         self.0.insert(callee);
     }
-    fn finish(self) -> BTreeSet<FunctionId> {
+    fn finish(self) -> BTreeSet<Target> {
         self.0
     }
 }
@@ -484,6 +499,7 @@ impl<T: Tracking> Scan<'_, '_, T> {
     }
     fn callee(&self, expr: &CoreExpr) -> Option<&Signature> {
         match &expr.kind {
+            CoreExprKind::TypeApply { callee, .. } => self.callee(callee),
             CoreExprKind::Name(name) if self.lookup(name).is_none() => {
                 self.input.signatures.get(name)
             }
@@ -557,7 +573,7 @@ impl<T: Tracking> Scan<'_, '_, T> {
             ) else {
                 return Ok(MethodInfo::Unknown);
             };
-            if chosen.is_some_and(|previous| previous.id != signature.id) {
+            if chosen.is_some_and(|previous| target(previous) != target(signature)) {
                 return Ok(MethodInfo::Unknown);
             }
             chosen = Some(signature);
@@ -571,7 +587,7 @@ impl<T: Tracking> Scan<'_, '_, T> {
         let Some(signature) = chosen else {
             return Ok(MethodInfo::Unknown);
         };
-        let id = signature.id;
+        let id = target(signature);
         let count = signature.parameters.len();
         self.spend(count, span)?;
         Ok(MethodInfo::Call((
@@ -646,6 +662,7 @@ impl<T: Tracking> Scan<'_, '_, T> {
                 return Ok(self.lookup(name).cloned().unwrap_or_default());
             }
             CoreExprKind::Ascribed { value, .. }
+            | CoreExprKind::TypeApply { callee: value, .. }
             | CoreExprKind::IntegerConvert { value, .. }
             | CoreExprKind::CompileTime(value)
             | CoreExprKind::Try(value)
@@ -726,7 +743,7 @@ impl<T: Tracking> Scan<'_, '_, T> {
                 self.spend(count, callee.span)?;
                 let info = self.callee(callee).map(|s| {
                     (
-                        s.id,
+                        target(s),
                         s.parameters
                             .iter()
                             .map(|p| matches!(p, Type::Desc(_)))

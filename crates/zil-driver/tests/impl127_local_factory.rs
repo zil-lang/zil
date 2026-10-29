@@ -148,21 +148,23 @@ fn trace(text: &str, kind: CallableKind, calls: &[usize]) {
         .iter()
         .find_map(|f| f.callable_contract.as_ref())
         .unwrap();
-    assert_eq!(contract.kind, kind);
+    assert_eq!(contract.roles[0].kind, kind);
     assert_eq!(
         contract
             .traces
+            .as_finite()
+            .unwrap()
             .iter()
             .map(|t| t.calls.len())
             .collect::<Vec<_>>(),
         calls
     );
-    assert!(
-        contract
-            .traces
-            .iter()
-            .all(|t| t.exit == CallableExit::Return && t.calls.iter().all(|k| *k == kind))
-    );
+    assert!(contract.traces.as_finite().unwrap().iter().all(|t| {
+        t.exit == CallableExit::Return
+            && t.calls
+                .iter()
+                .all(|event| event.parameter == 0 && event.kind == kind)
+    }));
 }
 const SHARED: &str = "fn make(seed:i64)->impl Fn(i64)->i64{return move (n:i64)=>seed+n}fn run<F:Fn(i64)->i64>(f:&F)->i64{let local=make(2);return f(local(3))}fn value()->i64{let f=make(37);return run(&f)}";
 const ONCE_PREFIX: &str = "resource Token{n:i64}fn consume(give t:Token)->i64{return t.n}fn make(seed:i64)->impl FnOnce()->i64{let t=Token{n:seed};return move ()=>consume(give t)}";
@@ -236,6 +238,8 @@ fn four_modules_clean_called_unused_and_error_environments() {
         contracts[0]
             .contract
             .traces
+            .as_finite()
+            .unwrap()
             .iter()
             .map(|t| t.calls.len())
             .collect::<Vec<_>>(),

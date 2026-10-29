@@ -119,7 +119,7 @@ impl Type {
     pub fn is_scalar_or_address(&self) -> bool {
         self.is_b0_scalar()
             || self.is_shared_resource_head_address()
-            || self.is_shared_package_address()
+            || self.is_package_address()
             || matches!(self, Self::Address { inner, .. } if inner.is_address_pointee())
     }
     /// Structural eligibility only; each checker separately proves sources,
@@ -140,6 +140,13 @@ impl Type {
     /// provenance, initialization and loan checks. General pointees stay Copy.
     pub fn is_shared_package_address(&self) -> bool {
         matches!(self, Self::Address { mutable: false, inner }
+            if matches!(inner.as_ref(), Self::Package { .. }))
+    }
+    /// Raw shape only. A mutable Package window still needs independent exact
+    /// Store-element, origin, initialized-prefix and exclusive-loan checks.
+    /// This does not make Package a general address pointee or a Copy value.
+    pub fn is_package_address(&self) -> bool {
+        matches!(self, Self::Address { inner, .. }
             if matches!(inner.as_ref(), Self::Package { .. }))
     }
     pub fn is_slice_address(&self) -> bool {
@@ -275,14 +282,33 @@ pub struct CoreModule {
     pub enums: Vec<CoreEnum>,
     pub unsupported: Vec<UnsupportedFeature>,
 }
+/// A compiler-reserved source bound. This raw declaration grants no permission.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreTypeBound {
+    StoreElement,
+}
+
+/// Lexically scoped ordinary type binder, distinct from actual callable roles.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreTypeParameter {
+    pub index: u32,
+    pub name: String,
+    pub bound: CoreTypeBound,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
+    /// Retained ordinary template metadata; only a checked full instance may run.
+    pub type_parameters: Vec<CoreTypeParameter>,
+    /// Independent declared bindings within one owning State parameter.
+    /// This raw table grants neither call authority nor ownership.
+    pub state_parameters: Vec<CoreStateParameter>,
     /// Source-declared opaque callable result; still untrusted and unresolved.
     pub callable_return: Option<CoreCallableReturn>,
     pub id: NodeId,
     pub name: String,
     /// Retained callable template metadata; absent on ordinary concrete functions.
-    pub callable_parameter: Option<CoreCallableParameter>,
+    pub callable_parameters: Vec<CoreCallableParameter>,
     pub foreign: Option<ForeignDeclaration>,
     pub parameters: Vec<CoreParameter>,
     pub return_type: Type,
@@ -303,10 +329,31 @@ pub struct CoreCallableReturn {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCallableParameter {
     pub index: u32,
+    /// Position among callable generic declarations, independent of runtime role order.
+    pub generic_index: u32,
     pub generic_name: String,
     pub kind: CallableKind,
     pub parameters: Vec<Type>,
     pub result: Type,
+}
+
+/// One real owning State parameter, evaluated and transferred only once.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreStateParameter {
+    pub index: u32,
+    pub bindings: Vec<CoreStateBinding>,
+}
+
+/// One lexical callable declaration and its actual direct symbolic fields.
+/// Declaration order is independent of Package field order and ClosureId.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreStateBinding {
+    pub generic_index: u32,
+    pub generic_name: String,
+    pub kind: CallableKind,
+    pub parameters: Vec<Type>,
+    pub result: Type,
+    pub fields: Vec<u32>,
 }
 
 /// An untrusted external ABI/symbol declaration, never proof of its C implementation.
@@ -486,6 +533,11 @@ pub enum CoreExprKind {
         left: Box<CoreExpr>,
         right: Box<CoreExpr>,
     },
+    /// Untrusted complete type constraints, legal only at a static Call callee.
+    TypeApply {
+        callee: Box<CoreExpr>,
+        type_arguments: Vec<Type>,
+    },
     Call {
         callee: Box<CoreExpr>,
         arguments: Vec<CoreExpr>,
@@ -606,10 +658,17 @@ pub struct CallableContracts {
     pub resume: Vec<String>,
 }
 
-/// Finite public helper claim. It is checked from the callee CFG before use;
+/// Public helper claim. It is checked from the callee CFG before use;
 /// neither construction nor transport confers authority.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableParameterContract {
+    /// Sorted unique actual parameter roles; runtime identity is never inferred from type identity.
+    pub roles: Vec<CallableRole>,
+    /// One joint ordered call language preserves correlation across every role.
+    pub traces: CallableTraces,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallableRole {
     pub parameter: u32,
     pub closure: ClosureId,
     /// Requested bound mode; the concrete closure may support an adaptation.
@@ -621,8 +680,6 @@ pub struct CallableParameterContract {
     /// Conservative target-write upper bound: Desc and mutable Address captures.
     pub writes: Vec<u32>,
     pub cleanup: CallableCleanup,
-    /// Sorted unique finite paths, including zero-call and trapping paths.
-    pub traces: Vec<CallableTrace>,
 }
 /// A raw opaque callable result claim. The first implemented form is a
 /// self-contained concrete environment with no external Hold/Call dependencies.
@@ -635,6 +692,9 @@ pub struct CallableReturnContract {
     pub writes: Vec<u32>,
     /// Direct Managed capture indices, in exact environment field order.
     pub cleanup: Vec<u32>,
+    /// Sorted unique actual environment captures lending the shared result.
+    /// Raw provenance claim only; independent CFG and loan checks are required.
+    pub lending_captures: Vec<u32>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CallableCleanup {
@@ -650,10 +710,52 @@ pub enum CallableExit {
     /// Process abort; no unwind cleanup guarantee is implied.
     Trap,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CallEvent {
+    pub parameter: u32,
+    pub kind: CallableKind,
+}
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CallableTrace {
-    pub calls: Vec<CallableKind>,
+    pub calls: Vec<CallEvent>,
     pub exit: CallableExit,
+}
+/// Exact callback behavior, transported as an untrusted claim.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CallableTraces {
+    Finite(Vec<CallableTrace>),
+    Flow(CallableFlow),
+}
+impl CallableTraces {
+    /// Explicit projection: a cyclic graph is never an empty finite trace set.
+    pub fn as_finite(&self) -> Option<&[CallableTrace]> {
+        match self {
+            Self::Finite(traces) => Some(traces),
+            Self::Flow(_) => None,
+        }
+    }
+    pub fn as_finite_mut(&mut self) -> Option<&mut Vec<CallableTrace>> {
+        match self {
+            Self::Finite(traces) => Some(traces),
+            Self::Flow(_) => None,
+        }
+    }
+}
+/// Flat graph. Canonical semantic claims use entry zero and ordered BFS IDs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallableFlow {
+    pub entry: u32,
+    pub nodes: Vec<CallableFlowNode>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallableFlowNode {
+    pub calls: Vec<CallEvent>,
+    pub next: CallableFlowNext,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CallableFlowNext {
+    Edges(Vec<u32>),
+    Exit(CallableExit),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -684,6 +786,9 @@ pub struct ClosureDefinition {
     pub parameters: Vec<Type>,
     pub result: Type,
     pub kind: CallableKind,
+    /// Sorted unique capture positions that own storage borrowed by the result.
+    /// Distinct from external captured Address/Desc targets and ordinary parameters.
+    pub lending_captures: Vec<u32>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunction {
@@ -781,6 +886,12 @@ pub enum InstructionKind {
     /// Borrow a real initialized prefix element after a checked i64 index.
     /// Shared only; the Store retains responsibility for the complete element.
     OwnedStoreBorrow {
+        store: ValueId,
+        index: ValueId,
+    },
+    /// Exclusive, synchronous element window. The Store retains all element
+    /// responsibility; only independently admitted Copy projections may change.
+    OwnedStoreBorrowMut {
         store: ValueId,
         index: ValueId,
     },
@@ -1331,7 +1442,7 @@ impl CandidatePlan {
 }
 
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V21\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V27\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -1359,6 +1470,10 @@ fn encode_module(module: &TypedModule) -> Vec<u8> {
             CallableKind::FnMut => 2,
             CallableKind::FnOnce => 3,
         });
+        encode_len(&mut bytes, closure.lending_captures.len());
+        for index in &closure.lending_captures {
+            encode_u32(&mut bytes, *index);
+        }
     }
     encode_len(&mut bytes, module.resources.len());
     for resource in &module.resources {
@@ -2095,6 +2210,11 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
             encode_u32(b, store.0);
             encode_u32(b, index.0);
         }
+        InstructionKind::OwnedStoreBorrowMut { store, index } => {
+            b.push(88);
+            encode_u32(b, store.0);
+            encode_u32(b, index.0);
+        }
         InstructionKind::ByteBufferReserve { buffer, capacity } => {
             b.push(64);
             encode_u32(b, buffer.0);
@@ -2140,20 +2260,20 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
 
 /// Deterministic binding for a raw callable relation, not a verification token.
 pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-CONTRACT-1\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-CONTRACT-3\0".to_vec();
     encode_callable_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
 /// Deterministic identity only; this hash never grants verification authority.
 pub fn callable_return_contract_fingerprint(contract: &CallableReturnContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-1\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-2\0".to_vec();
     encode_callable_return_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
 fn encode_callable_return_contract(b: &mut Vec<u8>, c: &CallableReturnContract) {
     encode_u32(b, c.closure.0);
     b.push(callable_kind_tag(c.kind));
-    for indices in [&c.hold, &c.call, &c.writes, &c.cleanup] {
+    for indices in [&c.hold, &c.call, &c.writes, &c.cleanup, &c.lending_captures] {
         encode_len(b, indices.len());
         for index in indices {
             encode_u32(b, *index);
@@ -2169,28 +2289,64 @@ fn callable_kind_tag(kind: CallableKind) -> u8 {
     }
 }
 fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract) {
-    encode_u32(b, c.parameter);
-    encode_u32(b, c.closure.0);
-    b.push(callable_kind_tag(c.kind));
-    for indices in [&c.hold, &c.call, &c.writes] {
-        encode_len(b, indices.len());
-        for index in indices {
-            encode_u32(b, *index);
+    encode_len(b, c.roles.len());
+    for role in &c.roles {
+        encode_u32(b, role.parameter);
+        encode_u32(b, role.closure.0);
+        b.push(callable_kind_tag(role.kind));
+        for indices in [&role.hold, &role.call, &role.writes] {
+            encode_len(b, indices.len());
+            for index in indices {
+                encode_u32(b, *index);
+            }
         }
-    }
-    b.push(match c.cleanup {
-        CallableCleanup::Owned => 0,
-        CallableCleanup::Borrowed => 1,
-    });
-    encode_len(b, c.traces.len());
-    for trace in &c.traces {
-        encode_len(b, trace.calls.len());
-        for call in &trace.calls {
-            b.push(callable_kind_tag(*call));
-        }
-        b.push(match trace.exit {
-            CallableExit::Return => 0,
-            CallableExit::Trap => 1,
+        b.push(match role.cleanup {
+            CallableCleanup::Owned => 0,
+            CallableCleanup::Borrowed => 1,
         });
     }
+    match &c.traces {
+        CallableTraces::Finite(traces) => {
+            b.push(0);
+            encode_len(b, traces.len());
+            for trace in traces {
+                encode_callable_calls(b, &trace.calls);
+                encode_callable_exit(b, trace.exit);
+            }
+        }
+        CallableTraces::Flow(flow) => {
+            b.push(1);
+            encode_u32(b, flow.entry);
+            encode_len(b, flow.nodes.len());
+            for node in &flow.nodes {
+                encode_callable_calls(b, &node.calls);
+                match &node.next {
+                    CallableFlowNext::Edges(edges) => {
+                        b.push(0);
+                        encode_len(b, edges.len());
+                        for edge in edges {
+                            encode_u32(b, *edge);
+                        }
+                    }
+                    CallableFlowNext::Exit(exit) => {
+                        b.push(1);
+                        encode_callable_exit(b, *exit);
+                    }
+                }
+            }
+        }
+    }
+}
+fn encode_callable_calls(b: &mut Vec<u8>, calls: &[CallEvent]) {
+    encode_len(b, calls.len());
+    for call in calls {
+        encode_u32(b, call.parameter);
+        b.push(callable_kind_tag(call.kind));
+    }
+}
+fn encode_callable_exit(b: &mut Vec<u8>, exit: CallableExit) {
+    b.push(match exit {
+        CallableExit::Return => 0,
+        CallableExit::Trap => 1,
+    });
 }

@@ -12,7 +12,9 @@ pub(super) fn owns(definition: &ClosureDefinition) -> bool {
 }
 
 pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
-    owns(definition) || matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
+    owns(definition)
+        || !definition.lending_captures.is_empty()
+        || matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
 }
 
 /// Flags are appended after all data fields, grouped by capture order.
@@ -114,20 +116,18 @@ pub(super) fn drop_functions(
             ]));
             match ty {
                 Type::Managed(payload) => {
-                    if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
-                        return unsupported(
-                            "Store capture requires a separate retained storage profile",
-                            None,
-                        );
-                    }
-                    let resource = resources
-                        .iter()
-                        .find(|resource| &resource.payload == payload.as_ref())
-                        .expect("verified captured resource definition");
-                    let teardown = if resource.payload == Type::ByteBuffer {
-                        Some("zil.bytes.drop".into())
+                    let teardown = if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                        Some(dynamic_store::helper(payload, resources, "drop")?)
                     } else {
-                        resource.teardown.map(symbol)
+                        let resource = resources
+                            .iter()
+                            .find(|resource| &resource.payload == payload.as_ref())
+                            .expect("verified captured resource definition");
+                        if resource.payload == Type::ByteBuffer {
+                            Some("zil.bytes.drop".into())
+                        } else {
+                            resource.teardown.map(symbol)
+                        }
                     };
                     if let Some(teardown) = teardown {
                         text.append(m::Code::from(vec![
@@ -192,16 +192,6 @@ pub(super) fn drop_functions(
                     let mut offset = 1;
                     for (field, (_, ty)) in fields.iter().enumerate() {
                         let Type::Managed(payload) = ty else { continue };
-                        if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
-                            return unsupported(
-                                "Store fields require a separate owning composition profile",
-                                None,
-                            );
-                        }
-                        let resource = resources
-                            .iter()
-                            .find(|resource| &resource.payload == payload.as_ref())
-                            .expect("verified captured package resource definition");
                         let field_flag = flag + offset;
                         offset += 1;
                         text.append(m::Code::from(vec![
@@ -242,10 +232,18 @@ pub(super) fn drop_functions(
                                 },
                             )),
                         ]));
-                        let teardown = if resource.payload == Type::ByteBuffer {
-                            Some("zil.bytes.drop".into())
+                        let teardown = if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                            Some(dynamic_store::helper(payload, resources, "drop")?)
                         } else {
-                            resource.teardown.map(symbol)
+                            let resource = resources
+                                .iter()
+                                .find(|resource| &resource.payload == payload.as_ref())
+                                .expect("verified captured package resource definition");
+                            if resource.payload == Type::ByteBuffer {
+                                Some("zil.bytes.drop".into())
+                            } else {
+                                resource.teardown.map(symbol)
+                            }
                         };
                         if let Some(teardown) = teardown {
                             text.append(m::Code::from(vec![

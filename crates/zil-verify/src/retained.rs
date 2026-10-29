@@ -15,7 +15,7 @@ pub(super) fn check_claim(
     budget: &mut Budget,
 ) -> Check<()> {
     if let Some(c) = &f.callable_return_contract {
-        for indices in [&c.hold, &c.call, &c.writes, &c.cleanup] {
+        for indices in [&c.hold, &c.call, &c.writes, &c.cleanup, &c.lending_captures] {
             if indices.len() > limits.max_locals {
                 return Err(limit("callable result index vector exceeds local bound"));
             }
@@ -53,6 +53,12 @@ pub(super) fn check_claim(
         return Err(bad(
             f,
             "returned environment identity or exact callable kind disagrees",
+        ));
+    }
+    if c.lending_captures != d.lending_captures {
+        return Err(bad(
+            f,
+            "opaque lending sources differ from the concrete environment definition",
         ));
     }
     if !c.hold.is_empty() || !c.call.is_empty() || !c.writes.is_empty() {

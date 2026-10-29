@@ -431,9 +431,22 @@ fn field_transfer_keeps_input_provenance_at_create_returns() {
     b.op(InstructionKind::DropPackage { local });
     let m = module(b.finish(Some(value), CleanupExitKind::Return));
     accepted(m.clone());
-    let mut forged = m;
-    forged.functions[0].result_mode = PassingMode::Create;
-    rejected(forged, "create result is not independently proven fresh");
+    // The original candidate constructs both fields here.186 now preserves
+    // their actual freshness through the Package and its local storage.
+    let mut fresh = m;
+    fresh.functions[0].result_mode = PassingMode::Create;
+    accepted(fresh);
+
+    // A genuinely incoming field still cannot acquire creation provenance.
+    let mut b = Body::new(owned());
+    b.0.result_mode = PassingMode::Give;
+    let local = b.parameter(package());
+    let value = take(&mut b, local, 0);
+    b.op(InstructionKind::DropPackage { local });
+    let mut incoming = module(b.finish(Some(value), CleanupExitKind::Return));
+    accepted(incoming.clone());
+    incoming.functions[0].result_mode = PassingMode::Create;
+    rejected(incoming, "create result is not independently proven fresh");
 }
 
 #[test]
@@ -839,12 +852,12 @@ fn responsibility_pass_does_not_rescan_unrelated_nominal_resource_definitions() 
 
 #[test]
 fn no_package_scalar_controls_charge_resource_frontier_setup_exactly() {
-    // 080 adds the actually executed dependency scan/queue to the existing
-    // no-Package control. Frozen complete responsibility-pass N values include
-    // both final validation and setup; the prior 10/258 failure is retained.
-    // This fixture deliberately registers a resource despite having no owning
-    // or description locals, so it reaches the resource pass's scalar path.
-    for (count, expected_cost) in [(1, 22), (32, 394)] {
+    //080 adds the dependency scan/queue;186 also visits each SSA value when
+    // preparing Package provenance. Effect inference and final checking each
+    // perform that scan, adding2*count to the old22/394 controls. These measured
+    // complete responsibility-pass N values include both setup and validation.
+    // The fixture still registers a resource but has no owning/Desc locals.
+    for (count, expected_cost) in [(1, 24), (32, 458)] {
         let mut b = Body::new(Type::Unit);
         for value in 0..count {
             let local = b.storage(Type::I32);
@@ -853,6 +866,10 @@ fn no_package_scalar_controls_charge_resource_frontier_setup_exactly() {
         }
         let m = module(b.finish(None, CleanupExitKind::Return));
         accepted(m.clone());
+        assert_eq!(
+            responsibility_cost(&m, Limits::default().max_analysis_steps).unwrap(),
+            expected_cost
+        );
         assert_eq!(
             responsibility_cost(&m, expected_cost).unwrap(),
             expected_cost

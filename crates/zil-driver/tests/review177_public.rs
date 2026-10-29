@@ -133,7 +133,7 @@ fn literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruption
                 ResultCategory::SafeReject,
                 "E-WIRE-BOOL",
             );
-            for unknown in [88, 254] {
+            for unknown in [89, 254] {
                 let mut bad = bytes.clone();
                 bad[offset + opcode] = unknown;
                 error(
@@ -168,7 +168,7 @@ fn literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruption
                     "E-WIRE-TRUNCATED",
                 );
             }
-            for version in [0u32, 20, 22, u32::MAX] {
+            for version in (0u32..wire::WIRE_VERSION).chain([wire::WIRE_VERSION + 1, u32::MAX]) {
                 let mut bad = bytes.clone();
                 bad[8..12].copy_from_slice(&version.to_le_bytes());
                 error(

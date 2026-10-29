@@ -61,6 +61,9 @@ pub(super) struct Pending {
     pub body: CoreBlock,
     pub span: Span,
     pub captures: Vec<Capture>,
+    // Private source classification. It only restricts this resolved result;
+    // Analyze and Verify independently inspect actual captures and values.
+    pub owns_leaf_store: bool,
     pub inference: Inference,
     pub typed: Option<TypedFunction>,
 }
@@ -98,7 +101,8 @@ pub(super) struct State {
     pub helper_templates: BTreeMap<helpers::TemplateKey, helpers::Template>,
     pub active_helpers: std::collections::BTreeSet<helpers::TemplateKey>,
     pub helper_tables: std::rc::Rc<helpers::Tables>,
-    pub helper_instances: BTreeMap<(helpers::TemplateKey, ClosureId), FunctionId>,
+    pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
+    pub store_instances: Vec<store_templates::Instance>,
     pub helper_functions: Vec<TypedFunction>,
     pub helper_exports: Vec<helpers::Export>,
     pub pending: Vec<Pending>,
@@ -123,6 +127,7 @@ impl State {
             active_helpers: std::collections::BTreeSet::new(),
             helper_tables: std::rc::Rc::new(BTreeMap::new()),
             helper_instances: BTreeMap::new(),
+            store_instances: Vec::new(),
             helper_functions: Vec::new(),
             helper_exports: Vec::new(),
             pending: vec![],
@@ -223,18 +228,39 @@ impl State {
             .work_left
             .checked_sub(checker.captures.len())
             .ok_or_else(|| limit("byte capture admission budget exceeded", input.span))?;
+        let mut owns_leaf_store = false;
         for capture in &checker.captures {
             if dynamic_store::is_carrier(&capture.stored_type()) {
-                return Err(unsupported(
-                    capture.span,
-                    "Store capture requires a separate retained storage profile",
-                ));
+                if !capture.moved
+                    || !dynamic_store::owned_capture(
+                        &capture.ty,
+                        checker.work_left,
+                        &self.limits,
+                        capture.span,
+                    )?
+                {
+                    return Err(unsupported(
+                        capture.span,
+                        "Store capture requires an owned carrier with finite leaf Package elements",
+                    ));
+                }
+                owns_leaf_store = true;
             }
             if packages::has_store_fields(&capture.stored_type()) {
-                return Err(unsupported(
-                    capture.span,
-                    "Package capture with Store fields requires a retained storage protocol",
-                ));
+                if !capture.moved
+                    || !dynamic_store::owned_capture(
+                        &capture.ty,
+                        checker.work_left,
+                        &self.limits,
+                        capture.span,
+                    )?
+                {
+                    return Err(unsupported(
+                        capture.span,
+                        "Package capture with Store fields requires a complete owning leaf Store transfer",
+                    ));
+                }
+                owns_leaf_store = true;
             }
             if packages::has_array_fields(&capture.stored_type()) {
                 return Err(unsupported(
@@ -250,13 +276,16 @@ impl State {
             }
             if let Type::Closure(id) = capture.stored_type() {
                 retained::self_contained(&self.pending, id, checker.work_left, capture.span)?;
+                if self.pending[id.0 as usize].owns_leaf_store {
+                    *checker.work_left = checker.work_left.checked_sub(1).ok_or_else(|| {
+                        limit("owned Store child profile budget exceeded", capture.span)
+                    })?;
+                    owns_leaf_store = true;
+                }
             }
-            if matches!(capture.stored_type(), Type::Desc(inner) if *inner == Type::ByteBuffer) {
-                return Err(unsupported(
-                    capture.span,
-                    "borrowed ByteBuffer captures require a dynamic storage effect contract; use an actual owning capture",
-                ));
-            }
+            // A local byte-storage Desc uses the same actual capture-source
+            // and dynamic access checks as a direct synchronous operation.
+            // Retained results still independently require self containment.
         }
         if !checker.has_return {
             checker
@@ -275,6 +304,7 @@ impl State {
             body: input.body.clone(),
             span: input.span,
             captures: checker.captures,
+            owns_leaf_store,
             inference,
             typed: None,
         });
@@ -323,6 +353,7 @@ impl State {
                 )
             })?;
             definitions.push(ClosureDefinition {
+                lending_captures: Vec::new(),
                 id: pending.id,
                 function: pending.function,
                 captures: pending.captures.iter().map(Capture::stored_type).collect(),
@@ -360,6 +391,15 @@ fn limit(message: impl Into<String>, span: Span) -> Diagnostic {
 }
 
 pub(super) type Variable = usize;
+pub(super) fn signature_parameter(ty: &Type) -> bool {
+    ty.is_copy_value() || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+}
+
+pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
+    parameters.iter().all(signature_parameter)
+        && (result.is_copy_value()
+            || (parameters.iter().all(Type::is_copy_value) && lending::supported_result(result)))
+}
 pub(super) const UNIT: u8 = 1;
 pub(super) const BOOL: u8 = 2;
 pub(super) const I32: u8 = 4;
@@ -381,6 +421,10 @@ enum Shape {
     },
     Slice {
         element: Variable,
+    },
+    Address {
+        inner: Variable,
+        mutable: Option<bool>,
     },
     FunctionPointer {
         parameters: Vec<Variable>,
@@ -406,6 +450,8 @@ pub(super) struct Graph {
     work_left: std::cell::Cell<usize>,
     depth_limit: usize,
     node_limit: usize,
+    store_parameter: Option<String>,
+    source_callback_parameters: Vec<String>,
 }
 impl Graph {
     pub(super) fn new(limits: &Limits) -> Self {
@@ -415,7 +461,53 @@ impl Graph {
             work_left: std::cell::Cell::new(limits.max_analysis_steps),
             depth_limit: limits.max_call_depth,
             node_limit: limits.max_nodes,
+            store_parameter: None,
+            source_callback_parameters: Vec::new(),
         }
+    }
+    pub(super) fn set_store_parameter(&mut self, name: &str, span: Span) -> R<()> {
+        self.spend_count(name.len().saturating_add(1), span)?;
+        self.store_parameter = Some(name.to_owned());
+        Ok(())
+    }
+    pub(super) fn symbolic_store_type(&self, ty: &Type) -> bool {
+        self.store_parameter
+            .as_ref()
+            .is_some_and(|name| store_templates::symbolic_type(ty, name))
+    }
+    pub(super) fn is_store_parameter(&self, ty: &Type) -> bool {
+        matches!(ty, Type::Named(name) if self.store_parameter.as_ref() == Some(name))
+    }
+    pub(super) fn source_callback_parameter(&mut self, name: &str, span: Span) -> R<()> {
+        self.spend_count(
+            self.source_callback_parameters
+                .len()
+                .saturating_mul(name.len().saturating_add(1))
+                .saturating_add(name.len())
+                .saturating_add(1),
+            span,
+        )?;
+        if !self
+            .source_callback_parameters
+            .iter()
+            .any(|old| old == name)
+        {
+            if self.source_callback_parameters.len() >= 2 {
+                return Err(unsupported(
+                    span,
+                    "source callback parameter bound exceeded",
+                ));
+            }
+            self.source_callback_parameters.push(name.to_owned());
+        }
+        Ok(())
+    }
+    fn source_callback_package(&self, ty: &Type) -> bool {
+        !self.source_callback_parameters.is_empty()
+            && dynamic_store::callback_element(
+                ty,
+                |ty| matches!(ty, Type::Named(name) if self.source_callback_parameters.contains(name)),
+            )
     }
     fn spend(&self, span: Span) -> R<()> {
         self.spend_count(1, span)
@@ -491,7 +583,7 @@ impl Graph {
         let count = match shape {
             Some(Shape::Tuple(fields)) => fields.len(),
             Some(Shape::FunctionPointer { parameters, .. }) => parameters.len() + 1,
-            Some(Shape::Array { .. } | Shape::Slice { .. }) => 1,
+            Some(Shape::Array { .. } | Shape::Slice { .. } | Shape::Address { .. }) => 1,
             None => 0,
         };
         self.spend_count(count, span)?;
@@ -538,6 +630,15 @@ impl Graph {
         Ok(())
     }
     pub(super) fn bind(&mut self, variable: Variable, ty: &Type, span: Span) -> R<()> {
+        self.bind_source(variable, ty, None, span)
+    }
+    pub(super) fn bind_source(
+        &mut self,
+        variable: Variable,
+        ty: &Type,
+        source_callbacks: Option<&BTreeMap<String, usize>>,
+        span: Span,
+    ) -> R<()> {
         self.reserve_type(ty, 0, span)?;
         let domain = match ty {
             Type::Unit => UNIT,
@@ -547,12 +648,16 @@ impl Graph {
             Type::ForeignHandle => HANDLE,
             Type::I32 => I32,
             Type::I64 => I64,
+            ty if self.symbolic_store_type(ty) => AGGREGATE,
+            ty if self.source_callback_package(ty) => AGGREGATE,
             ty if *ty == Type::ByteBuffer
                 || matches!(ty, Type::OwnedStore { .. })
                 || ty.is_copy_value()
                 || errors::owned(ty)
-                || packages::supported(ty)
+                || packages::ordinary(ty)
                 || packages::owned_array_supported(ty)
+                || lending::supported_result(ty)
+                || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 // This is only a pointee constraint node for a shared head.
                 // It does not make a Managed value Copy or grant a capture.
                 || matches!(ty, Type::Managed(payload)
@@ -562,6 +667,20 @@ impl Graph {
                 AGGREGATE
             }
             _ => {
+                if let Some(callbacks) = source_callbacks {
+                    // Only the new unresolved shell pays for this extra walk.
+                    // Ordinary concrete/Copy paths returned above unchanged.
+                    self.reserve_type(ty, 0, span)?;
+                    if dynamic_store::callback_element(
+                        ty,
+                        |ty| matches!(ty, Type::Named(name) if callbacks.contains_key(name)),
+                    ) {
+                        for name in callbacks.keys() {
+                            self.source_callback_parameter(name, span)?;
+                        }
+                        return self.bind(variable, ty, span);
+                    }
+                }
                 return Err(unsupported(
                     span,
                     "closure value requires a finite Copy type",
@@ -604,6 +723,19 @@ impl Graph {
                         element: ty_element,
                     },
                 ) => self.bind(element, ty_element, span)?,
+                (
+                    Some(Shape::Address { inner, mutable }),
+                    Type::Address {
+                        mutable: actual_mutable,
+                        inner: actual,
+                    },
+                ) if mutable.is_none_or(|wanted| wanted == *actual_mutable) => {
+                    self.bind(inner, actual, span)?;
+                    self.nodes[root].shape = Some(Shape::Address {
+                        inner,
+                        mutable: Some(*actual_mutable),
+                    });
+                }
                 (
                     Some(Shape::FunctionPointer { parameters, result }),
                     Type::FunctionPointer {
@@ -649,6 +781,7 @@ impl Graph {
                 Some(Shape::Array { element, .. } | Shape::Slice { element }) => {
                     pending.push(*element)
                 }
+                Some(Shape::Address { inner, .. }) => pending.push(*inner),
                 Some(Shape::FunctionPointer { parameters, result }) => {
                     self.spend_count(parameters.len() + 1, span)?;
                     pending.extend(parameters);
@@ -696,7 +829,7 @@ impl Graph {
                 "different concrete aggregate types",
             ));
         }
-        let a_shape = self.clone_shape(&self.nodes[a].shape, span)?;
+        let mut a_shape = self.clone_shape(&self.nodes[a].shape, span)?;
         let b_shape = self.clone_shape(&self.nodes[b].shape, span)?;
         match (&a_shape, &b_shape) {
             (Some(Shape::Tuple(left)), Some(Shape::Tuple(right))) if left.len() == right.len() => {
@@ -716,6 +849,22 @@ impl Graph {
             ) if n == m => self.unify_depth(*a, *b, span, depth + 1)?,
             (Some(Shape::Slice { element: a }), Some(Shape::Slice { element: b })) => {
                 self.unify_depth(*a, *b, span, depth + 1)?
+            }
+            (
+                Some(Shape::Address {
+                    inner: a,
+                    mutable: am,
+                }),
+                Some(Shape::Address {
+                    inner: b,
+                    mutable: bm,
+                }),
+            ) if am.is_none() || bm.is_none() || am == bm => {
+                self.unify_depth(*a, *b, span, depth + 1)?;
+                a_shape = Some(Shape::Address {
+                    inner: *a,
+                    mutable: am.or(*bm),
+                });
             }
             (
                 Some(Shape::FunctionPointer {
@@ -776,6 +925,72 @@ impl Graph {
         let root = self.root(result);
         self.nodes[root].shape = Some(Shape::Slice { element });
         Ok(())
+    }
+    /// Inference shapes carry no storage ownership or lifetime proof. An
+    /// unknown permission is resolved by the signature/call constraints.
+    pub(super) fn address(
+        &mut self,
+        result: Variable,
+        inner: Variable,
+        mutable: Option<bool>,
+        span: Span,
+    ) -> R<()> {
+        self.constrain(result, AGGREGATE, span)?;
+        let root = self.root(result);
+        match self.clone_shape(&self.nodes[root].shape, span)? {
+            Some(Shape::Address {
+                inner: previous,
+                mutable: prior,
+            }) if prior.is_none() || mutable.is_none() || prior == mutable => {
+                self.unify(previous, inner, span)?;
+                self.nodes[root].shape = Some(Shape::Address {
+                    inner: previous,
+                    mutable: prior.or(mutable),
+                });
+            }
+            Some(_) => {
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "address shape or permission differs from its context",
+                ));
+            }
+            None => {
+                if self.occurs(root, inner, span)? {
+                    return Err(error(
+                        "E-INFINITE-LAYOUT",
+                        span,
+                        "recursive address constraint",
+                    ));
+                }
+                self.nodes[root].shape = Some(Shape::Address { inner, mutable });
+            }
+        }
+        if let Some(ty) = self.clone_type(&self.nodes[root].concrete, span)? {
+            self.bind(root, &ty, span)?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn address_shape(
+        &self,
+        variable: Variable,
+        span: Span,
+    ) -> R<Option<(Variable, Option<bool>)>> {
+        self.spend(span)?;
+        Ok(match self.nodes[self.root(variable)].shape {
+            Some(Shape::Address { inner, mutable }) => Some((inner, mutable)),
+            _ => None,
+        })
+    }
+
+    pub(super) fn shared_address(
+        &mut self,
+        result: Variable,
+        inner: Variable,
+        span: Span,
+    ) -> R<()> {
+        self.address(result, inner, Some(false), span)
     }
     pub(super) fn function_pointer(
         &mut self,
@@ -847,6 +1062,9 @@ impl Graph {
             let mut progressed = false;
             for (base, projection, result, span) in pending.drain(..) {
                 self.spend(span)?;
+                let base = self
+                    .address_shape(base, span)?
+                    .map_or(base, |(inner, _)| inner);
                 let base_root = self.root(base);
                 let projected_variable = match (&self.nodes[base_root].shape, &projection) {
                     (Some(Shape::Tuple(fields)), Projection::Field(name)) => name
@@ -866,6 +1084,10 @@ impl Graph {
                     continue;
                 }
                 if let Some(ty) = self.ty(base)? {
+                    let ty = match ty {
+                        Type::Address { inner, .. } if inner.is_address_pointee() => *inner,
+                        other => other,
+                    };
                     let field = match &projection {
                         Projection::Field(name) => aggregates::field(&ty, name, span)?.1,
                         Projection::Element => match ty {
@@ -940,6 +1162,16 @@ impl Graph {
                                     element: Box::new(element),
                                 })
                         }
+                        Some(Shape::Address {
+                            inner,
+                            mutable: Some(mutable),
+                        }) => self
+                            .ty_depth(*inner, depth + 1)?
+                            .map(|inner| Type::Address {
+                                mutable: *mutable,
+                                inner: Box::new(inner),
+                            }),
+                        Some(Shape::Address { mutable: None, .. }) => None,
                         Some(Shape::FunctionPointer { parameters, result }) => {
                             let mut types = Vec::new();
                             for parameter in parameters {
@@ -1040,15 +1272,10 @@ impl Inference {
             "E-CLOSURE-INFERENCE", span,
             "closure parameter or result type is not uniquely constrained; annotate it or supply a uniquely typed call",
         ))?;
-        if signature
-            .0
-            .iter()
-            .any(|t| matches!(t, Type::Package { .. }))
-            || matches!(signature.1, Type::Package { .. })
-        {
+        if !supported_signature(&signature.0, &signature.1) {
             return Err(unsupported(
                 span,
-                "package closure signatures are not implemented",
+                "closure signatures require finite Copy or one-layer Copy/slice-address arguments; address arguments require a Copy result",
             ));
         }
         Ok(signature)
@@ -1099,11 +1326,16 @@ impl LocalType {
                 },
             ) if (inner.is_address_pointee()
                 || ty.is_shared_resource_head_address()
-                || ty.is_shared_package_address())
+                || ty.is_package_address())
                 && (mutable || !wanted) =>
             {
                 graph.bind(variable, inner, span)
             }
+            (Self::Address(_, false), Type::Address { mutable: true, .. }) => Err(error(
+                "E-ADDRESS-PERMISSION",
+                span,
+                "a shared address cannot grant exclusive access",
+            )),
             (Self::Address(..), Type::Address { .. }) => Err(unsupported(
                 span,
                 "only shared finite Copy addresses are implemented",
@@ -1175,7 +1407,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let mut graph = Graph::new(limits);
         let result = graph.fresh(VALUE, false);
         if let Some(ty) = input.result {
-            if ty.is_slice_address() || matches!(ty, Type::Slice { .. }) {
+            if matches!(ty, Type::Slice { .. }) {
                 return Err(unsupported(
                     input.span,
                     "slice closure signatures are not implemented",
@@ -1221,16 +1453,26 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             }
             let variable = this.graph.fresh(VALUE, false);
             if let Some(ty) = &parameter.ty {
-                if ty.is_slice_address() || matches!(ty, Type::Slice { .. }) {
+                if !signature_parameter(ty) {
                     return Err(unsupported(
                         parameter.span,
-                        "slice closure signatures are not implemented",
+                        "closure parameters require a finite Copy type or one Copy/slice address layer",
                     ));
                 }
                 this.graph.bind(variable, ty, parameter.span)?;
             }
+            let local = if let Some(ty @ Type::Address { .. }) = &parameter.ty {
+                let local = this.known(ty, parameter.span)?;
+                if let LocalType::Address(inner, mutable) = local {
+                    this.graph
+                        .address(variable, inner, Some(mutable), parameter.span)?;
+                }
+                local
+            } else {
+                LocalType::Scalar(variable)
+            };
             if this.scopes[0]
-                .insert(parameter.name.clone(), LocalType::Scalar(variable))
+                .insert(parameter.name.clone(), local)
                 .is_some()
             {
                 return Err(error(
@@ -1278,7 +1520,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 format!("unknown value {name}"),
             ));
         };
-        if ty.is_shared_package_address() {
+        if ty.is_package_address() {
             return Err(unsupported(
                 span,
                 "Store element address capture requires a separate retained element-window contract",
@@ -1358,7 +1600,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let (inner, address) = match ty {
             ty if ty.is_copy_value() => (ty, None),
             ty @ Type::Package { .. } if packages::supported(ty) => {
-                if !self.move_capture && !nested_owned {
+                if !self.move_capture
+                    && !nested_owned
+                    && !dynamic_store::owned_capture(ty, self.work_left, self.limits, span)?
+                {
                     return Err(unsupported(span, "Package capture requires explicit move"));
                 }
                 (ty, None)
@@ -1463,11 +1708,17 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     if let Some(expression) = expression {
                         let hint = self.graph.ty(self.result)?;
                         let value = self.expr_expected(expression, hint.as_ref(), depth + 1)?;
-                        self.graph.unify(
-                            self.result,
-                            value.scalar(expression.span)?,
-                            expression.span,
-                        )?;
+                        match value {
+                            LocalType::Address(inner, false) => {
+                                self.graph
+                                    .shared_address(self.result, inner, expression.span)?;
+                            }
+                            _ => self.graph.unify(
+                                self.result,
+                                value.scalar(expression.span)?,
+                                expression.span,
+                            )?,
+                        }
                     } else if let Some(ty @ Type::ErrorUnion { .. }) = self.graph.ty(self.result)? {
                         errors::injection(&Type::Unit, &ty, statement.span)?;
                     } else {
@@ -1590,6 +1841,78 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             capture.borrowed = false;
             capture.consumed = true;
         }
+    }
+    fn helper_argument(
+        &mut self,
+        expression: &CoreExpr,
+        bound: &CoreCallableParameter,
+        mode: Option<bool>,
+        depth: usize,
+    ) -> R<()> {
+        let span = expression.span;
+        self.graph.spend(span)?;
+        let value = self.expr(expression, depth)?;
+        let mismatch = || {
+            error(
+                "E-TYPE-MISMATCH",
+                span,
+                "helper requires its concrete environment passing mode and callable signature",
+            )
+        };
+        match (value, mode) {
+            (LocalType::Scalar(variable), None)
+            | (LocalType::Address(variable, false), Some(false))
+            | (LocalType::Address(variable, true), Some(_)) => {
+                // Nested closure bodies have already received concrete source
+                // signatures. This capture walk represents them using a private
+                // graph signature only; it must not bind an address to Named(F).
+                // Builder later checks actual ClosureId, mode and role origin.
+                self.graph.spend(span)?;
+                for ty in bound
+                    .parameters
+                    .iter()
+                    .chain(std::iter::once(&bound.result))
+                {
+                    self.graph.reserve_type(ty, 0, span)?;
+                }
+                self.graph.bind(
+                    variable,
+                    &Type::FunctionPointer {
+                        parameters: bound.parameters.clone(),
+                        result: Box::new(bound.result.clone()),
+                    },
+                    span,
+                )?;
+                if mode == Some(true) {
+                    self.mark_address_write(expression, depth)?;
+                }
+            }
+            (LocalType::Closure(id, actual), wanted)
+                if actual == wanted || (actual == Some(true) && wanted == Some(false)) =>
+            {
+                let pending = self.closures.get(id.0 as usize).ok_or_else(mismatch)?;
+                if !helpers::compatible(pending.callable_kind(), bound.kind)
+                    || pending.inference.arity() != bound.parameters.len()
+                {
+                    return Err(mismatch());
+                }
+                for (index, ty) in bound.parameters.iter().enumerate() {
+                    self.graph.reserve_type(ty, 0, span)?;
+                    if pending.inference.parameter(index)?.as_ref() != Some(ty) {
+                        return Err(mismatch());
+                    }
+                }
+                self.graph.reserve_type(&bound.result, 0, span)?;
+                if pending.inference.result()?.as_ref() != Some(&bound.result) {
+                    return Err(mismatch());
+                }
+                if wanted.is_none() {
+                    self.transferred_closure(expression, value);
+                }
+            }
+            _ => return Err(mismatch()),
+        }
+        Ok(())
     }
     fn known(&mut self, ty: &Type, span: Span) -> R<LocalType> {
         if let Type::Closure(id) = ty {
@@ -1782,6 +2105,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                                 }
                             }
                         }
+                    } else if matches!(ty, Type::Package { .. }) {
+                        // The existing Package capture path requires explicit
+                        // ownership transfer and records FnMut environment use.
+                        // Its field address does not turn the Package into Copy.
+                        self.name(name, true, expression.span)?;
                     } else {
                         if !matches!(ty, Type::Address { mutable: true, .. }) {
                             return Err(error(
@@ -2028,6 +2356,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 if *op == UnaryOp::Dereference {
                     return match value {
                         LocalType::Address(variable, _) => Ok(LocalType::Scalar(variable)),
+                        LocalType::Scalar(variable) => {
+                            let inner = self.graph.fresh(VALUE, false);
+                            self.graph.address(variable, inner, None, span)?;
+                            Ok(LocalType::Scalar(inner))
+                        }
                         _ => Err(error(
                             "E-OPERATOR-TYPE",
                             span,
@@ -2077,7 +2410,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     self.visit(depth + 1, callee.span)?;
                     let arity = match name {
                         "store_new" => 0,
-                        "store_reserve" | "store_push" | "store_at" => 2,
+                        "store_reserve" | "store_push" | "store_at" | "store_at_mut" => 2,
                         _ => 1,
                     };
                     if arguments.len() != arity {
@@ -2115,16 +2448,23 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         ));
                     };
                     self.graph.reserve_type(&element, 0, span)?;
-                    if matches!(name, "store_reserve" | "store_push" | "store_at") {
-                        let wanted = if matches!(name, "store_reserve" | "store_at") {
-                            Type::I64
-                        } else {
-                            (*element).clone()
-                        };
+                    if matches!(
+                        name,
+                        "store_reserve" | "store_push" | "store_at" | "store_at_mut"
+                    ) {
+                        let wanted =
+                            if matches!(name, "store_reserve" | "store_at" | "store_at_mut") {
+                                Type::I64
+                            } else {
+                                (*element).clone()
+                            };
                         let value = self.expr_expected(&arguments[1], Some(&wanted), depth + 1)?;
                         value.bind(&mut self.graph, &wanted, arguments[1].span)?;
                     }
-                    if matches!(name, "store_reserve" | "store_push" | "store_pop") {
+                    if matches!(
+                        name,
+                        "store_reserve" | "store_push" | "store_pop" | "store_at_mut"
+                    ) {
                         self.mark_resource_write(first, arguments[0].span)?;
                     }
                     return self.known(&dynamic_store::result_type(name, &element), span);
@@ -2312,6 +2652,16 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 for (index, (argument, parameter)) in
                     arguments.iter().zip(&signature.parameters).enumerate()
                 {
+                    self.graph.spend_count(signature.callable.len(), span)?;
+                    if let Some(bound) = signature
+                        .callable
+                        .iter()
+                        .find(|bound| bound.index as usize == index)
+                        && let Some(mode) = helpers::parameter_mode(parameter, &bound.generic_name)
+                    {
+                        self.helper_argument(argument, bound, mode, depth + 1)?;
+                        continue;
+                    }
                     let variable = self.expr_expected(argument, Some(parameter), depth + 1)?;
                     if matches!(parameter, Type::Address { mutable: true, .. }) {
                         self.mark_address_write(argument, depth + 1)?;
@@ -2319,7 +2669,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     if matches!(parameter, Type::Desc(_))
                         && self
                             .resource_writes
-                            .get(&signature.id)
+                            .get(&resource_effects::target(&signature))
                             .is_some_and(|writes| writes.contains(&index))
                     {
                         self.mark_resource_write(variable, argument.span)?;
@@ -2571,6 +2921,17 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             .chain(std::iter::once(&signature.result))
         {
             self.graph.reserve_type(ty, 0, span)?;
+        }
+        self.graph.spend_count(signature.callable.len(), span)?;
+        for bound in &signature.callable {
+            self.graph.spend_count(bound.generic_name.len(), span)?;
+            for ty in bound
+                .parameters
+                .iter()
+                .chain(std::iter::once(&bound.result))
+            {
+                self.graph.reserve_type(ty, 0, span)?;
+            }
         }
         Ok(())
     }

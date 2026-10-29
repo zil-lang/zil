@@ -83,6 +83,7 @@ fn with_entry(kind: CallableKind, function: TypedFunction) -> TypedModule {
     let mut m = module(main.finish(Some(value), CleanupExitKind::Return));
     m.functions.push(function);
     m.closures.push(ClosureDefinition {
+        lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(1),
         kind,
@@ -393,6 +394,7 @@ fn indirect_write(nested: bool) -> TypedModule {
         .push(helper.finish(Some(n), CleanupExitKind::Return));
     if nested {
         m.closures.push(ClosureDefinition {
+            lending_captures: Vec::new(),
             id: ClosureId(1),
             function: FunctionId(2),
             kind: CallableKind::Fn,
@@ -574,6 +576,7 @@ fn complete_package_factory_input_and_owned_cleanup_contract_are_checked() {
         },
     );
     factory.0.callable_return_contract = Some(CallableReturnContract {
+        lending_captures: Vec::new(),
         closure: ClosureId(0),
         kind: CallableKind::FnMut,
         hold: vec![],
@@ -982,6 +985,7 @@ fn mixed_capture_indices_keep_distinct_package_roots_and_managed_debts() {
     let mut m = module(main.finish(Some(result), CleanupExitKind::Return));
     m.functions.push(body.0);
     m.closures.push(ClosureDefinition {
+        lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(1),
         kind: CallableKind::FnMut,

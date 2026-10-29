@@ -45,16 +45,18 @@ fn store_raw_ops_have_fixed_tags_and_reject_every_truncated_prefix() {
                     .is_err()
             );
         }
-        let mut changed = writer.output;
-        changed[5] = 88;
-        assert_eq!(
-            Reader::new(&changed, &limits)
-                .unwrap()
-                .instruction()
-                .unwrap_err()
-                .code,
-            "E-WIRE-OPCODE"
-        );
+        for unknown in [89, 90] {
+            let mut changed = writer.output.clone();
+            changed[5] = unknown;
+            assert_eq!(
+                Reader::new(&changed, &limits)
+                    .unwrap()
+                    .instruction()
+                    .unwrap_err()
+                    .code,
+                "E-WIRE-OPCODE"
+            );
+        }
     }
 }
 
@@ -146,17 +148,17 @@ fn store_type_has_distinct_tag_and_nested_metadata_is_bounded_both_ways() {
 }
 
 #[test]
-fn schema21_wire_rejects_all_old_versions_and_next_unknown_version() {
+fn current_wire_rejects_all_old_versions_and_next_unknown_version() {
     let limits = Limits::default();
     let mut writer = Writer::new(&limits);
     writer.header(MODULE_MAGIC).unwrap();
-    assert_eq!(WIRE_VERSION, 21);
-    assert_eq!(SCHEMA_VERSION, 21);
+    assert_eq!(WIRE_VERSION, 27);
+    assert_eq!(SCHEMA_VERSION, 27);
     Reader::new(&writer.output, &limits)
         .unwrap()
         .header(MODULE_MAGIC)
         .unwrap();
-    for version in (0u32..21).chain([22, u32::MAX]) {
+    for version in (0u32..WIRE_VERSION).chain([WIRE_VERSION + 1, u32::MAX]) {
         let mut bytes = writer.output.clone();
         bytes[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(

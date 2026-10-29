@@ -33,7 +33,10 @@ pub(super) fn helper(
     Ok(format!("zil.store.{index}.{operation}"))
 }
 
-pub(super) fn runtime(lir: &LirModule) -> CompileResult<m::Code> {
+pub(super) fn runtime(
+    lir: &LirModule,
+    closures: &BTreeMap<ClosureId, &ClosureDefinition>,
+) -> CompileResult<m::Code> {
     if !lir
         .resources
         .iter()
@@ -41,8 +44,8 @@ pub(super) fn runtime(lir: &LirModule) -> CompileResult<m::Code> {
     {
         return Ok(m::Code::new());
     }
-    if lir.target.triple != "x86_64-unknown-linux-gnu" {
-        return unsupported("owned Store currently requires Linux x64 LLVM", None);
+    if !lir.target.is_supported_x64_llvm() {
+        return unsupported("owned Store requires checked Linux x64 or Win64 LLVM", None);
     }
     if let Some(f) = lir.functions.iter().find(|f| {
         f.foreign
@@ -68,7 +71,7 @@ pub(super) fn runtime(lir: &LirModule) -> CompileResult<m::Code> {
             );
         };
         let item = llvm_type(element)?;
-        let align = alignment(element, &BTreeMap::new())?;
+        let align = alignment(element, closures)?;
         let push = llvm_type(&Type::ErrorUnion {
             error: element.clone(),
             result: Box::new(Type::Unit),
@@ -679,6 +682,35 @@ pub(super) fn runtime(lir: &LirModule) -> CompileResult<m::Code> {
             )),
         ]));
         for (field_index, (_, ty)) in fields.iter().enumerate() {
+            if let Type::Closure(id) = ty {
+                output.append(m::Code::from(vec![
+                    m::Event::Instruction(m::Inst::new(
+                        Some(format!("field.{field_index}")),
+                        m::Op::Gep {
+                            ty: item.clone(),
+                            ptr: m::local("slot".into()),
+                            indices: vec![
+                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                m::Arg::new(m::Ty::Int(32), m::val(field_index)),
+                            ],
+                        },
+                    )),
+                    m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Call {
+                            result: m::Ty::Void,
+                            result_attrs: vec![],
+                            callee: m::global(format!("zil.closure.drop.{}", id.0)),
+                            args: vec![m::Arg::new(
+                                m::Ty::Ptr,
+                                m::local(format!("field.{field_index}")),
+                            )],
+                            vararg: None,
+                        },
+                    )),
+                ]));
+                continue;
+            }
             let Type::Managed(payload) = ty else { continue };
             let definition = lir
                 .resources
@@ -777,7 +809,8 @@ impl FunctionEmitter<'_> {
             | InstructionKind::OwnedStorePop { store }
             | InstructionKind::OwnedStoreLen { store }
             | InstructionKind::OwnedStoreCapacity { store }
-            | InstructionKind::OwnedStoreBorrow { store, .. } => store,
+            | InstructionKind::OwnedStoreBorrow { store, .. }
+            | InstructionKind::OwnedStoreBorrowMut { store, .. } => store,
             _ => unreachable!("Store instruction dispatch"),
         };
         let Type::Desc(payload) = self.value_type(store)? else {
@@ -804,7 +837,8 @@ impl FunctionEmitter<'_> {
                     },
                 )));
             }
-            InstructionKind::OwnedStoreBorrow { index, .. } => {
+            InstructionKind::OwnedStoreBorrow { index, .. }
+            | InstructionKind::OwnedStoreBorrowMut { index, .. } => {
                 let Type::OwnedStore { element } = payload.as_ref() else {
                     unreachable!("verified Store payload");
                 };

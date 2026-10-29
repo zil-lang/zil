@@ -3,6 +3,8 @@
 //! producer solver or callee body inlining supplies authority to a caller.
 use super::*;
 use std::collections::VecDeque;
+#[path = "helper_flow.rs"]
+mod flow;
 
 fn bad(f: &TypedFunction, message: impl Into<String>) -> Diagnostic {
     reject("E-VERIFY-CALLABLE-CONTRACT", Some(f.span), message)
@@ -26,15 +28,16 @@ pub(super) fn parameter_type(ty: &Type) -> Option<(ClosureId, bool)> {
 struct EnvironmentOrigins {
     values_at: usize,
     marks: Vec<u8>,
+    parameters: Vec<u32>,
 }
 
 /// Independent provenance graph. Edges describe only actual local/SSA
 /// transfers; type equality never supplies an edge. The finite marks are
-/// parameter (1), verified self-contained factory (2), and other producer (4).
+/// roles (1 and 2), verified self-contained factory (4), and other producer (8).
 fn environment_origins(
     module: &TypedModule,
     f: &TypedFunction,
-    parameter: LocalId,
+    roles: &[CallableRole],
     budget: &mut Budget,
 ) -> Check<EnvironmentOrigins> {
     let values_at = f.locals.len();
@@ -43,9 +46,14 @@ fn environment_origins(
     let mut marks = vec![0u8; count];
     let mut edges = vec![Vec::<usize>::new(); count];
     let mut pending = VecDeque::new();
-    marks[parameter.0 as usize] = 1;
-    budget.spend(1)?;
-    pending.push_back(parameter.0 as usize);
+    budget.spend(roles.len().saturating_mul(2))?;
+    let mut parameters = Vec::with_capacity(roles.len());
+    for (position, role) in roles.iter().enumerate() {
+        let parameter = f.parameters[role.parameter as usize];
+        marks[parameter.0 as usize] = 1 << position;
+        pending.push_back(parameter.0 as usize);
+        parameters.push(role.parameter);
+    }
     for block in &f.blocks {
         budget.spend(1)?;
         for instruction in &block.instructions {
@@ -89,7 +97,7 @@ fn environment_origins(
                 }
                 _ => false,
             };
-            marks[destination] = if factory { 2 } else { 4 };
+            marks[destination] = if factory { 4 } else { 8 };
             budget.spend(1)?;
             pending.push_back(destination);
         }
@@ -106,14 +114,18 @@ fn environment_origins(
             }
         }
     }
-    Ok(EnvironmentOrigins { values_at, marks })
+    Ok(EnvironmentOrigins {
+        values_at,
+        marks,
+        parameters,
+    })
 }
 
 fn invocation(
     f: &TypedFunction,
     instruction: &Instruction,
     origins: &EnvironmentOrigins,
-) -> Check<Option<CallableKind>> {
+) -> Check<Option<CallEvent>> {
     let (origin, kind, borrowed) = match &instruction.kind {
         InstructionKind::CallClosureShared { callee, .. } => {
             (callee.0 as usize, CallableKind::Fn, false)
@@ -136,143 +148,202 @@ fn invocation(
         }
         _ => return Ok(None),
     };
-    match (origins.marks[origin], borrowed) {
-        (1, _) => Ok(Some(kind)),
-        (2, false) => Ok(None),
-        _ => Err(unsupported(
-            "helper callable origin is unknown, mixed, or a borrowed local factory result",
-            Some(f.span),
-        )),
+    let mark = origins.marks[origin];
+    if mark == 4 && !borrowed {
+        return Ok(None);
+    }
+    let parameter = match mark {
+        1 => origins.parameters.first().copied(),
+        2 => origins.parameters.get(1).copied(),
+        _ => None,
+    };
+    parameter
+        .map(|parameter| Some(CallEvent { parameter, kind }))
+        .ok_or_else(|| {
+            unsupported(
+                "helper callable origin is unknown, mixed, or a borrowed local factory result",
+                Some(f.span),
+            )
+        })
+}
+
+fn dependency_order(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    limits: &Limits,
+    budget: &mut Budget,
+) -> Check<Vec<usize>> {
+    let count = module.functions.len();
+    budget.spend(count.saturating_mul(4))?;
+    let mut depths: Option<Vec<usize>> = None;
+    let mut predecessors = vec![0usize; count];
+    let mut consumers = vec![Vec::new(); count];
+    for (caller, f) in module.functions.iter().enumerate() {
+        if f.callable_contract.is_none() {
+            continue;
+        }
+        if depths.is_none() {
+            budget.spend(count)?;
+            depths = Some(vec![1usize; count]);
+        }
+        budget.spend(f.blocks.len())?;
+        for (b, block) in f.blocks.iter().enumerate() {
+            if !graphs[caller].reachable[b] {
+                continue;
+            }
+            for instruction in &block.instructions {
+                budget.spend(1)?;
+                if let InstructionKind::Call {
+                    function: callee, ..
+                } = instruction.kind
+                {
+                    let callee = callee.0 as usize;
+                    if module.functions[callee].callable_contract.is_some() {
+                        budget.spend(2)?;
+                        predecessors[caller] += 1;
+                        consumers[callee].push(caller);
+                    }
+                }
+            }
+        }
+    }
+    let mut frontier: VecDeque<_> = predecessors
+        .iter()
+        .enumerate()
+        .filter_map(|(i, degree)| (*degree == 0).then_some(i))
+        .collect();
+    let mut order = Vec::with_capacity(count);
+    while let Some(callee) = frontier.pop_front() {
+        budget.spend(consumers[callee].len().saturating_add(1))?;
+        order.push(callee);
+        for &caller in &consumers[callee] {
+            let depth = depths.as_mut().expect("helper edges have a depth table");
+            let next_depth = depth[callee]
+                .checked_add(1)
+                .filter(|n| *n <= limits.max_call_depth)
+                .ok_or_else(|| limit("helper dependency call depth exhausted"))?;
+            depth[caller] = depth[caller].max(next_depth);
+            predecessors[caller] -= 1;
+            if predecessors[caller] == 0 {
+                frontier.push_back(caller);
+            }
+        }
+    }
+    if order.len() != count {
+        return Err(unsupported(
+            "recursive callable helper dependency requires an explicit finite contract",
+            None,
+        ));
+    }
+    if depths.is_some() && limits.max_call_depth == 0 {
+        return Err(limit("helper dependency call depth exhausted"));
+    }
+    Ok(order)
+}
+
+struct Forwarded<'a> {
+    traces: &'a CallableTraces,
+    mapping: Vec<(u32, u32)>,
+}
+impl Forwarded<'_> {
+    fn remap(
+        &self,
+        calls: &[CallEvent],
+        budget: &mut Budget,
+        f: &TypedFunction,
+    ) -> Check<Vec<CallEvent>> {
+        budget.spend(
+            calls
+                .len()
+                .saturating_mul(self.mapping.len().saturating_add(1)),
+        )?;
+        calls
+            .iter()
+            .map(|event| {
+                let parameter = self
+                    .mapping
+                    .iter()
+                    .find(|(child, _)| *child == event.parameter)
+                    .map(|(_, caller)| *caller)
+                    .ok_or_else(|| bad(f, "child event has no actual role substitution"))?;
+                Ok(CallEvent {
+                    parameter,
+                    kind: event.kind,
+                })
+            })
+            .collect()
     }
 }
 
-/// Each reachable block is processed after all its predecessors. Trace sets
-/// merge equal prefixes, instead of enumerating duplicate syntactic paths.
-/// Cycles are a reported scope limit, never an empty or truncated contract.
-fn traces(
-    module: &TypedModule,
+fn forwarded<'a>(
+    module: &'a TypedModule,
     f: &TypedFunction,
-    graph: &FunctionGraph,
-    parameter: LocalId,
-    expected_kind: CallableKind,
+    instruction: &Instruction,
+    origins: &EnvironmentOrigins,
+    roles: &[CallableRole],
+    checked: &[bool],
     budget: &mut Budget,
-) -> Check<Vec<CallableTrace>> {
-    let origins = environment_origins(module, f, parameter, budget)?;
-    let n = f.blocks.len();
-    budget.spend(n.saturating_mul(3))?;
-    let mut degree = vec![0usize; n];
-    let mut reachable_count = 0usize;
-    for b in 0..n {
-        if !graph.reachable[b] {
-            continue;
+) -> Check<Option<Forwarded<'a>>> {
+    let InstructionKind::Call {
+        function: callee,
+        arguments,
+    } = &instruction.kind
+    else {
+        return Ok(None);
+    };
+    budget.spend(arguments.len())?;
+    let target = &module.functions[callee.0 as usize];
+    let Some(claim) = &target.callable_contract else {
+        if arguments
+            .iter()
+            .any(|value| parameter_type(&f.values[value.0 as usize]).is_some())
+        {
+            return Err(bad(f, "forwarded helper has no joint contract"));
         }
-        reachable_count += 1;
-        for &next in &graph.successors[b] {
-            budget.spend(1)?;
-            degree[next] += 1;
-        }
-    }
-    let mut ready = VecDeque::new();
-    for (b, incoming) in degree.iter().enumerate() {
-        if graph.reachable[b] && *incoming == 0 {
-            ready.push_back(b);
-        }
-    }
-    let mut order = Vec::with_capacity(reachable_count);
-    while let Some(b) = ready.pop_front() {
-        budget.spend(1)?;
-        order.push(b);
-        for &next in &graph.successors[b] {
-            budget.spend(1)?;
-            degree[next] -= 1;
-            if degree[next] == 0 {
-                ready.push_back(next);
-            }
-        }
-    }
-    if order.len() != reachable_count {
-        return Err(unsupported(
-            "concrete callback helpers require an acyclic finite call-trace CFG",
-            Some(f.span),
+        return Ok(None);
+    };
+    if !checked[callee.0 as usize] {
+        return Err(bad(
+            f,
+            "nested helper contract was not independently checked",
         ));
     }
-    // An exact count is sufficient only because each actual invocation below
-    // must have the same independently checked kind. Public traces stay full.
-    let mut inputs: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); n];
-    inputs[f.entry.0 as usize].insert(0);
-    let mut exits = BTreeSet::<(usize, u8)>::new();
-    for b in order {
-        budget.spend(inputs[b].len().saturating_add(1))?;
-        let mut states = std::mem::take(&mut inputs[b]);
-        for instruction in &f.blocks[b].instructions {
-            budget.spend(1)?;
-            if matches!(instruction.kind, InstructionKind::MakeClosure { .. }) {
-                return Err(unsupported(
-                    "helper-local nested environments require an additional contract",
-                    Some(instruction.span),
+    budget.spend(
+        claim
+            .roles
+            .len()
+            .saturating_mul(roles.len().saturating_add(1)),
+    )?;
+    let mut mapping = Vec::with_capacity(claim.roles.len());
+    for child in &claim.roles {
+        let value = *arguments
+            .get(child.parameter as usize)
+            .ok_or_else(|| bad(f, "nested helper role parameter is absent"))?;
+        let mark = origins.marks[origins.values_at + value.0 as usize];
+        let position = match mark {
+            1 => 0,
+            2 => 1,
+            _ => {
+                return Err(bad(
+                    f,
+                    "nested helper must forward an actual unmixed parameter role",
                 ));
             }
-            if let InstructionKind::Call { arguments, .. } = &instruction.kind {
-                budget.spend(arguments.len())?;
-                if arguments
-                    .iter()
-                    .any(|v| parameter_type(&f.values[v.0 as usize]).is_some())
-                {
-                    return Err(unsupported(
-                        "callback helper forwarding and recursive helper contracts are not in this finite slice",
-                        Some(instruction.span),
-                    ));
-                }
-            }
-            if let Some(kind) = invocation(f, instruction, &origins)? {
-                if kind != expected_kind {
-                    return Err(bad(
-                        f,
-                        "helper callback use differs from its requested bound",
-                    ));
-                }
-                let mut next = BTreeSet::new();
-                for count in states {
-                    budget.spend(count_tree_work(next.len()))?;
-                    if kind == CallableKind::FnOnce && count != 0 {
-                        return Err(bad(f, "helper consumes its callback more than once"));
-                    }
-                    next.insert(count.saturating_add(1));
-                }
-                states = next;
-            }
+        };
+        let caller = roles
+            .get(position)
+            .ok_or_else(|| bad(f, "nested helper refers to an absent caller role"))?;
+        if child.kind != caller.kind
+            || parameter_type(&f.values[value.0 as usize]).map(|(id, _)| id) != Some(child.closure)
+        {
+            return Err(bad(f, "nested helper actual role type or bound differs"));
         }
-        match f.blocks[b].terminator {
-            Terminator::Return(_) | Terminator::Trap => {
-                let exit = u8::from(matches!(f.blocks[b].terminator, Terminator::Trap));
-                for trace in states {
-                    budget.spend(count_tree_work(exits.len()))?;
-                    exits.insert((trace, exit));
-                }
-            }
-            _ => {
-                for &next in &graph.successors[b] {
-                    for trace in &states {
-                        budget.spend(count_tree_work(inputs[next].len()))?;
-                        inputs[next].insert(*trace);
-                    }
-                }
-            }
-        }
+        mapping.push((child.parameter, caller.parameter));
     }
-    let mut result = Vec::new();
-    for (count, exit) in exits {
-        budget.spend(count.saturating_add(1))?;
-        result.push(CallableTrace {
-            calls: vec![expected_kind; count],
-            exit: if exit == 0 {
-                CallableExit::Return
-            } else {
-                CallableExit::Trap
-            },
-        });
-    }
-    Ok(result)
+    Ok(Some(Forwarded {
+        traces: &claim.traces,
+        mapping,
+    }))
 }
 
 /// Bound raw metadata before the module fingerprint walks it. A raw Rust API
@@ -285,53 +356,183 @@ pub(super) fn check_claim_shape(
     let Some(claim) = &f.callable_contract else {
         return Ok(());
     };
-    let field_count = claim
-        .hold
-        .len()
-        .saturating_add(claim.call.len())
-        .saturating_add(claim.writes.len());
-    budget.spend(
-        field_count
-            .saturating_add(claim.traces.len())
-            .saturating_add(1),
-    )?;
-    if field_count > limits.max_nodes || claim.traces.len() > limits.max_nodes {
-        return Err(limit(
-            "raw callback contract metadata node allowance exhausted",
-        ));
+    if claim.roles.len() > limits.max_locals {
+        return Err(limit("raw callback role allowance exhausted"));
     }
-    for trace in &claim.traces {
-        budget.spend(trace.calls.len().saturating_add(1))?;
-        if trace.calls.len() > limits.max_nodes {
-            return Err(limit("raw callback trace node allowance exhausted"));
+    budget.spend(claim.roles.len())?;
+    let mut field_count = 0usize;
+    for role in &claim.roles {
+        let amount = role
+            .hold
+            .len()
+            .checked_add(role.call.len())
+            .and_then(|n| n.checked_add(role.writes.len()))
+            .ok_or_else(|| limit("raw callback role metadata overflow"))?;
+        field_count = field_count
+            .checked_add(amount)
+            .filter(|n| *n <= limits.max_nodes)
+            .ok_or_else(|| limit("raw callback contract metadata node allowance exhausted"))?;
+        budget.spend(amount.saturating_add(2))?;
+    }
+    match &claim.traces {
+        CallableTraces::Finite(traces) => {
+            budget.spend(traces.len())?;
+            if traces.len() > limits.max_nodes {
+                return Err(limit(
+                    "raw callback contract metadata node allowance exhausted",
+                ));
+            }
+            for trace in traces {
+                budget.spend(trace.calls.len().saturating_add(1))?;
+                if trace.calls.len() > limits.max_nodes {
+                    return Err(limit("raw callback trace node allowance exhausted"));
+                }
+            }
+        }
+        CallableTraces::Flow(flow) => {
+            if flow.nodes.len() > limits.max_nodes {
+                return Err(limit("raw callback flow node allowance exhausted"));
+            }
+            budget.spend(flow.nodes.len().saturating_add(1).saturating_mul(2))?;
+            let (mut calls, mut edges) = (0usize, 0usize);
+            for node in &flow.nodes {
+                calls = calls
+                    .checked_add(node.calls.len())
+                    .filter(|n| *n <= limits.max_instructions)
+                    .ok_or_else(|| limit("raw callback flow call allowance exhausted"))?;
+                budget.spend(node.calls.len().saturating_add(1).saturating_mul(2))?;
+                match &node.next {
+                    CallableFlowNext::Edges(next) => {
+                        edges = edges
+                            .checked_add(next.len())
+                            .filter(|n| *n <= limits.max_analysis_steps)
+                            .ok_or_else(|| limit("raw callback flow edge allowance exhausted"))?;
+                        budget.spend(next.len().saturating_add(1).saturating_mul(2))?;
+                    }
+                    CallableFlowNext::Exit(_) => budget.spend(2)?,
+                }
+            }
         }
     }
     Ok(())
 }
 
+// Independent admission of the new two-type owning boundary. It checks the
+// actual parameter locals, both result fields and both capture roots; it does
+// not consume a Types/Analyze classification or a claimed callback contract.
+fn two_type_state_constructor(
+    module: &TypedModule,
+    function: &TypedFunction,
+    parameters: &[(u32, ClosureId, bool, &Type)],
+    budget: &mut Budget,
+) -> Check<bool> {
+    let [
+        (first_position, first, false, _),
+        (second_position, second, false, _),
+    ] = parameters
+    else {
+        return Ok(false);
+    };
+    // No additional work is charged to the already implemented same-type path.
+    if first == second {
+        return Ok(false);
+    }
+    let Type::Package { fields, .. } = &function.return_type else {
+        return Ok(false);
+    };
+    resources::charge_payload(&function.return_type, budget)?;
+    budget.spend(
+        fields
+            .len()
+            .saturating_add(function.parameters.len())
+            .saturating_add(2),
+    )?;
+    let (mut counts, mut managed) = ([0usize; 2], false);
+    for (_, ty) in fields {
+        match ty {
+            Type::Closure(id) if id == first => counts[0] += 1,
+            Type::Closure(id) if id == second => counts[1] += 1,
+            Type::Managed(payload)
+                if **payload == Type::ByteBuffer
+                    || (matches!(payload.as_ref(), Type::Record { .. })
+                        && payload.is_copy_value()) =>
+            {
+                managed = true
+            }
+            ty if ty.is_copy_value() => {}
+            _ => return Ok(false),
+        }
+    }
+    if counts != [1, 1] || !managed {
+        return Ok(false);
+    }
+    for (position, local) in function.parameters.iter().enumerate() {
+        if position == *first_position as usize || position == *second_position as usize {
+            continue;
+        }
+        let ty = &function.locals[local.0 as usize].ty;
+        let work = closures::type_layout_work(ty, budget)?;
+        budget.spend(work)?;
+        if !ty.is_copy_value() && !matches!(ty, Type::Managed(_)) {
+            return Err(unsupported(
+                "two-type owning State constructors require finite Copy or direct Managed ordinary parameters",
+                Some(function.span),
+            ));
+        }
+    }
+    for id in [*first, *second] {
+        budget.spend(1)?;
+        let definition = closures::definition(module, id, Some(function.span))?;
+        resources::charge_payload(&definition.result, budget)?;
+        if !definition.result.is_copy_value() {
+            return Err(unsupported(
+                "two-type owning State constructors require Copy callback results",
+                Some(function.span),
+            ));
+        }
+        budget.spend(1)?;
+        closures::self_contained(module, id, budget)?;
+    }
+    packages::check_type_for(module, &function.return_type, Some(function.span), budget)?;
+    Ok(true)
+}
+
 pub(super) fn check_module(
     module: &TypedModule,
     graphs: &[FunctionGraph],
+    limits: &Limits,
     budget: &mut Budget,
 ) -> Check<()> {
-    for (f, graph) in module.functions.iter().zip(graphs) {
-        let mut parameter = None;
-        for (index, local) in f.parameters.iter().enumerate() {
+    let order = dependency_order(module, graphs, limits, budget)?;
+    budget.spend(module.functions.len())?;
+    let mut checked = vec![false; module.functions.len()];
+    for index in order {
+        let f = &module.functions[index];
+        let mut parameters: Vec<(u32, ClosureId, bool, &Type)> = Vec::new();
+        for (position, local) in f.parameters.iter().enumerate() {
             let ty = &f.locals[local.0 as usize].ty;
             if let Some((closure, borrowed)) = parameter_type(ty) {
-                budget.spend(1)?;
-                if parameter
-                    .replace((index as u32, closure, borrowed, ty))
-                    .is_some()
+                budget.spend(parameters.len())?;
+                if parameters
+                    .iter()
+                    .any(|(position, ..)| f.parameters[*position as usize] == *local)
                 {
+                    return Err(bad(
+                        f,
+                        "actual callback parameters cannot share one local slot",
+                    ));
+                }
+                if parameters.len() >= 2 {
                     return Err(unsupported(
-                        "a concrete helper supports exactly one callback environment parameter",
+                        "a concrete helper supports at most two callback environment parameters",
                         Some(f.span),
                     ));
                 }
+                budget.spend(1)?;
+                parameters.push((position as u32, closure, borrowed, ty));
             }
         }
-        let Some((parameter, closure, borrowed, ty)) = parameter else {
+        if parameters.is_empty() {
             if f.callable_contract.is_some() {
                 return Err(bad(
                     f,
@@ -339,140 +540,195 @@ pub(super) fn check_module(
                 ));
             }
             continue;
-        };
+        }
         if f.foreign.is_some() || f.environment.is_some() {
             return Err(bad(
                 f,
                 "a callback helper must be an ordinary checked function",
             ));
         }
-        // A concrete self-contained input may enter ordinary owning State.
-        // This is an owned value boundary; borrowed/descriptor environments
-        // still require the separately reconstructed synchronous contract.
-        if f.callable_contract.is_none()
-            && !borrowed
-            && matches!(&f.return_type, Type::Package { fields, .. }
-                if fields.iter().any(|(_, ty)| *ty == Type::Closure(closure)))
+        // Preserve the single self-contained owning State value boundary.
+        if let [(.., closure, false, _)] = parameters.as_slice()
+            && f.callable_contract.is_none()
+            && matches!(&f.return_type, Type::Package { fields, .. } if fields.iter().any(|(_, ty)| *ty == Type::Closure(*closure)))
         {
-            closures::self_contained(module, closure, budget)?;
+            closures::self_contained(module, *closure, budget)?;
             packages::check_type_for(module, &f.return_type, Some(f.span), budget)?;
             continue;
         }
-        if !f.return_type.is_copy_value() {
-            return Err(unsupported(
-                "concrete callback helper results must be finite Copy values",
-                Some(f.span),
+        // A second owned input is a second value, even when both use the same
+        // concrete environment type. Reconstruct this finite owning boundary
+        // from the actual signature; no producer classification or empty
+        // callback contract can stand in for it. Ordinary parameter, move,
+        // Package construction and cleanup checks still cover both values.
+        if f.callable_contract.is_none()
+            && let [
+                (first_position, first, false, _),
+                (second_position, second, false, _),
+            ] = parameters.as_slice()
+            && first == second
+            && let Type::Package { fields, .. } = &f.return_type
+        {
+            budget.spend(
+                fields
+                    .len()
+                    .saturating_add(f.parameters.len())
+                    .saturating_add(2),
+            )?;
+            for (position, local) in f.parameters.iter().enumerate() {
+                if position == *first_position as usize || position == *second_position as usize {
+                    continue;
+                }
+                let ty = &f.locals[local.0 as usize].ty;
+                // The Copy predicate walks a structural type. Pay for that
+                // walk before using it to classify an ordinary input.
+                let work = closures::type_layout_work(ty, budget)?;
+                budget.spend(work)?;
+                if !ty.is_copy_value() && !matches!(ty, Type::Managed(_)) {
+                    return Err(unsupported(
+                        "two-input owning State constructors require finite Copy or direct Managed ordinary parameters",
+                        Some(f.span),
+                    ));
+                }
+            }
+            let mut callable_fields = 0usize;
+            let mut same_environment = true;
+            for (_, ty) in fields {
+                if let Type::Closure(id) = ty {
+                    callable_fields += 1;
+                    same_environment &= id == first;
+                }
+            }
+            if same_environment && (1..=2).contains(&callable_fields) {
+                closures::self_contained(module, *first, budget)?;
+                packages::check_type_for(module, &f.return_type, Some(f.span), budget)?;
+                continue;
+            }
+        }
+        if f.callable_contract.is_none()
+            && two_type_state_constructor(module, f, &parameters, budget)?
+        {
+            continue;
+        }
+        let claim = f.callable_contract.as_ref().ok_or_else(|| {
+            bad(
+                f,
+                "callback helper is missing its independently checkable contract",
+            )
+        })?;
+        if claim.roles.len() != parameters.len() {
+            return Err(bad(
+                f,
+                "callback role table does not exactly cover actual parameters",
             ));
         }
-        for (index, local) in f.parameters.iter().enumerate() {
-            if index as u32 == parameter {
+        for (position, local) in f.parameters.iter().enumerate() {
+            if parameters.iter().any(|(p, ..)| *p as usize == position) {
                 continue;
             }
             let ty = &f.locals[local.0 as usize].ty;
-            if !ty.is_copy_value() && !matches!(ty, Type::Managed(_) | Type::Package { .. }) {
+            if !ty.is_copy_value()
+                && !matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()
+                    || (f.return_type.is_copy_value() && matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())))
+                && !matches!(ty, Type::Managed(_) | Type::Package { .. })
+                && !matches!(ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
+            {
                 return Err(unsupported(
-                    "other callback helper parameters must be finite Copy, Managed or complete Package values",
+                    "other callback helper parameters must be finite Copy, one Copy/slice address, Managed, complete Package or ByteBuffer description values; slice arguments require a Copy helper result",
                     Some(f.span),
                 ));
             }
         }
-        let definition = closures::definition(module, closure, Some(f.span))?;
-        let Some(claim) = &f.callable_contract else {
-            return Err(bad(
-                f,
-                "callback helper is missing its independently checkable contract",
-            ));
-        };
-        if !closures::supports(definition.kind, claim.kind) {
-            return Err(bad(
-                f,
-                "requested callback bound is not supported by the concrete entry",
-            ));
-        }
-        if !borrowed && claim.kind == CallableKind::FnMut {
-            return Err(unsupported(
-                "this helper slice takes FnMut through an exclusive environment address",
-                Some(f.span),
-            ));
-        }
-        if borrowed {
-            let Type::Address { mutable, .. } = ty else {
-                unreachable!()
-            };
-            if !(claim.kind == CallableKind::Fn && !mutable
-                || claim.kind == CallableKind::FnMut && *mutable)
+        budget.spend(parameters.len())?;
+        let mut roles = Vec::with_capacity(parameters.len());
+        for ((parameter, closure, borrowed, ty), proposed) in parameters.iter().zip(&claim.roles) {
+            if proposed.parameter != *parameter || proposed.closure != *closure {
+                return Err(bad(
+                    f,
+                    "callback roles must match actual parameter order and concrete types",
+                ));
+            }
+            let definition = closures::definition(module, *closure, Some(f.span))?;
+            if !f.return_type.is_copy_value()
+                && !(parameters.len() == 1
+                    && *borrowed
+                    && closures::lending_result(&f.return_type)
+                    && !definition.lending_captures.is_empty())
+            {
+                return Err(unsupported(
+                    "concrete callback helper results require finite Copy or a borrowed environment lending result",
+                    Some(f.span),
+                ));
+            }
+            if !closures::supports(definition.kind, proposed.kind) {
+                return Err(bad(
+                    f,
+                    "requested callback bound is not supported by the concrete entry",
+                ));
+            }
+            if !borrowed && proposed.kind == CallableKind::FnMut {
+                return Err(unsupported(
+                    "this helper slice takes FnMut through an exclusive environment address",
+                    Some(f.span),
+                ));
+            }
+            if let Type::Address { mutable, .. } = ty
+                && !(proposed.kind == CallableKind::Fn && !mutable
+                    || proposed.kind == CallableKind::FnMut && *mutable)
             {
                 return Err(bad(
                     f,
                     "borrowed callback parameter permission must match its exact Fn/FnMut entry",
                 ));
             }
-        }
-        let mut hold = Vec::new();
-        let mut call = Vec::new();
-        let mut writes = Vec::new();
-        for (index, capture) in definition.captures.iter().enumerate() {
-            budget.spend(1)?;
-            if matches!(capture, Type::Address { .. }) {
-                hold.push(index as u32);
+            let mut hold = Vec::new();
+            let mut call = Vec::new();
+            let mut writes = Vec::new();
+            for (capture, ty) in definition.captures.iter().enumerate() {
+                budget.spend(4)?;
+                if matches!(ty, Type::Address { .. }) {
+                    hold.push(capture as u32);
+                }
+                if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+                    call.push(capture as u32);
+                }
+                if matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_)) {
+                    writes.push(capture as u32);
+                }
             }
-            if matches!(capture, Type::Address { .. } | Type::Desc(_)) {
-                call.push(index as u32);
-            }
-            // This is a conservative capability upper bound, not a claim that
-            // a write occurs. Unknown effects never become an empty summary.
-            if matches!(capture, Type::Address { mutable: true, .. } | Type::Desc(_)) {
-                writes.push(index as u32);
-            }
+            roles.push(CallableRole {
+                parameter: *parameter,
+                closure: *closure,
+                kind: proposed.kind,
+                hold,
+                call,
+                writes,
+                cleanup: if *borrowed {
+                    CallableCleanup::Borrowed
+                } else {
+                    CallableCleanup::Owned
+                },
+            });
         }
-        let traces = traces(
-            module,
-            f,
-            graph,
-            f.parameters[parameter as usize],
-            claim.kind,
-            budget,
-        )?;
-        if traces.iter().any(|trace| {
-            trace.calls.iter().any(|mode| *mode != claim.kind)
-                || claim.kind == CallableKind::FnOnce && trace.calls.len() > 1
-        }) {
-            return Err(bad(
-                f,
-                "helper callback use differs from its requested bound or consumes more than once",
-            ));
+        let traces = flow::reconstruct(module, f, &roles, &checked, limits, budget)?;
+        let expected = CallableParameterContract { roles, traces };
+        budget.spend(claim.roles.len())?;
+        for role in &claim.roles {
+            budget.spend(
+                role.hold
+                    .len()
+                    .saturating_add(role.call.len())
+                    .saturating_add(role.writes.len()),
+            )?;
         }
-        let expected = CallableParameterContract {
-            parameter,
-            closure,
-            kind: claim.kind,
-            hold,
-            call,
-            writes,
-            cleanup: if borrowed {
-                CallableCleanup::Borrowed
-            } else {
-                CallableCleanup::Owned
-            },
-            traces,
-        };
-        budget.spend(
-            claim
-                .hold
-                .len()
-                .saturating_add(claim.call.len())
-                .saturating_add(claim.writes.len())
-                .saturating_add(claim.traces.len()),
-        )?;
-        for trace in &claim.traces {
-            budget.spend(trace.calls.len())?;
-        }
+        flow::comparison_work(&claim.traces, budget)?;
         if claim != &expected {
             return Err(bad(
                 f,
                 "callback Hold/Call/write bound/Cleanup/traces differ from the independent contract",
             ));
         }
+        checked[index] = true;
     }
     Ok(())
 }

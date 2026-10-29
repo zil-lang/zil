@@ -257,6 +257,7 @@ fn unreachable_call_does_not_create_a_summary_consumer() {
 fn every_concrete_closure_call_has_its_entry_dependency() {
     let mut module = fixture(&[vec![], vec![]], &[0, 1]);
     module.closures.push(ClosureDefinition {
+        lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(1),
         kind: CallableKind::FnMut,
@@ -372,6 +373,7 @@ fn transitive_owned_write_is_rejected_after_convergence_and_borrowed_write_is_le
                 };
             }
             module.closures.push(ClosureDefinition {
+                lending_captures: Vec::new(),
                 id: ClosureId(0),
                 function: FunctionId(0),
                 kind,
@@ -407,17 +409,19 @@ fn transitive_owned_write_is_rejected_after_convergence_and_borrowed_write_is_le
 fn public_helper_contract_cuts_the_private_effect_dependency() {
     let mut module = fixture(&[vec![(1, false)], vec![]], &[0, 1]);
     module.functions[1].callable_contract = Some(CallableParameterContract {
-        parameter: 0,
-        closure: ClosureId(0),
-        kind: CallableKind::Fn,
-        hold: vec![],
-        call: vec![],
-        writes: vec![],
-        cleanup: CallableCleanup::Borrowed,
-        traces: vec![CallableTrace {
+        roles: vec![CallableRole {
+            parameter: 0,
+            closure: ClosureId(0),
+            kind: CallableKind::Fn,
+            hold: vec![],
+            call: vec![],
+            writes: vec![],
+            cleanup: CallableCleanup::Borrowed,
+        }],
+        traces: zil_ir::CallableTraces::Finite(vec![CallableTrace {
             calls: vec![],
             exit: CallableExit::Return,
-        }],
+        }]),
     });
     let rows = effect_consumers(
         &module,

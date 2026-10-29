@@ -144,6 +144,47 @@ impl Builder<'_, '_> {
             ty,
         ))
     }
+    pub(super) fn borrow_package_field(
+        &mut self,
+        local: LocalId,
+        index: u32,
+        field: Type,
+        mutable: bool,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let work = inference::type_snapshot_work(&field, span, self.limits)?;
+        self.closures.snapshot(work.saturating_mul(2), span)?;
+        if !field.is_copy_value() && !matches!(field, Type::Closure(_)) {
+            return Err(unsupported(
+                span,
+                "package field addresses require a finite Copy field or concrete callback",
+            ));
+        }
+        if mutable && !self.function.locals[local.0 as usize].mutable {
+            return Err(error(
+                "E-IMMUTABLE-ASSIGNMENT",
+                span,
+                "exclusive field borrow requires a mutable Package position",
+            ));
+        }
+        self.check_owned_array_closure(&field, 1, span)?;
+        let ty = Type::Address {
+            mutable,
+            inner: Box::new(field),
+        };
+        Ok((
+            self.value(
+                InstructionKind::BorrowPackageField {
+                    local,
+                    index,
+                    mutable,
+                },
+                ty.clone(),
+                span,
+            )?,
+            ty,
+        ))
+    }
     /// Locate a write target before evaluating its RHS. Projections retain the
     /// same authority; only an explicit ReborrowAddress creates a child window.
     fn address_place(&mut self, e: &CoreExpr, mutable: bool) -> R<(ValueId, Type)> {
@@ -155,6 +196,27 @@ impl Builder<'_, '_> {
                 let decl = self.function.locals[local.0 as usize].clone();
                 if self.closure_slots.contains_key(&local) {
                     return self.borrow_closure_slot(local, mutable, e.span);
+                }
+                if let Some(index) = self.stored_copy_captures.get(&local).copied() {
+                    if mutable && !decl.mutable {
+                        return Err(error(
+                            "E-IMMUTABLE-ASSIGNMENT",
+                            e.span,
+                            "captured Copy field has no exclusive access",
+                        ));
+                    }
+                    let ty = Type::Address {
+                        mutable,
+                        inner: Box::new(decl.ty),
+                    };
+                    return Ok((
+                        self.value(
+                            InstructionKind::BorrowCapture { index, mutable },
+                            ty.clone(),
+                            e.span,
+                        )?,
+                        ty,
+                    ));
                 }
                 if let Some((index, inner)) = self.closure_captures.get(&local).cloned() {
                     let available = matches!(decl.ty, Type::Address { mutable: true, .. });
@@ -236,7 +298,7 @@ impl Builder<'_, '_> {
                 let result = self.expr(operand, None)?;
                 if !matches!(&result.1, Type::Address { inner, .. } if inner.is_address_pointee())
                     && !result.1.is_shared_resource_head_address()
-                    && !result.1.is_shared_package_address()
+                    && !result.1.is_package_address()
                 {
                     return Err(error(
                         "E-OPERATOR-TYPE",
@@ -247,42 +309,25 @@ impl Builder<'_, '_> {
                 Ok(result)
             }
             CoreExprKind::Member { object, member } => {
-                if let Some((local, index, field @ Type::Closure(_))) = self.package_place(e)? {
-                    if mutable && !self.function.locals[local.0 as usize].mutable {
-                        return Err(error(
-                            "E-IMMUTABLE-ASSIGNMENT",
-                            e.span,
-                            "exclusive callback field borrow requires a mutable State",
-                        ));
-                    }
-                    self.check_owned_array_closure(&field, 1, e.span)?;
-                    let ty = Type::Address {
-                        mutable,
-                        inner: Box::new(field),
-                    };
-                    return Ok((
-                        self.value(
-                            InstructionKind::BorrowPackageField {
-                                local,
-                                index,
-                                mutable,
-                            },
-                            ty.clone(),
-                            e.span,
-                        )?,
-                        ty,
-                    ));
+                if let Some((local, index, field)) = self.package_place(e)? {
+                    return self.borrow_package_field(local, index, field, mutable, e.span);
                 }
                 let (address, ty) = self.projection_base(object, mutable)?;
                 let Type::Address { mutable, inner } = ty else {
                     unreachable!()
                 };
                 let (index, field) = aggregates::field(&inner, member, e.span)?;
-                if matches!(inner.as_ref(), Type::Package { .. }) && !field.is_copy_value() {
+                if matches!(inner.as_ref(), Type::Package { .. })
+                    && !field.is_copy_value()
+                    && !matches!(field, Type::Closure(_))
+                {
                     return Err(unsupported(
                         e.span,
-                        "Store element windows only project finite Copy fields",
+                        "Store element windows only project finite Copy or concrete callback fields",
                     ));
+                }
+                if matches!(field, Type::Closure(_)) {
+                    self.check_owned_array_closure(&field, 1, e.span)?;
                 }
                 let ty = Type::Address {
                     mutable,
@@ -469,6 +514,12 @@ impl Builder<'_, '_> {
                 "indirect write requires an exclusive address",
             ));
         };
+        if matches!(inner.as_ref(), Type::Closure(_)) {
+            return Err(unsupported(
+                target.span,
+                "Store windows cannot replace an owning callback field",
+            ));
+        }
         let (value, actual) = self.expr(rhs, Some(&inner))?;
         self.same(&actual, &inner, rhs.span)?;
         self.emit(

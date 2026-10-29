@@ -1,0 +1,128 @@
+{
+  "status": "PreparationOnly",
+  "created_utc": "2026-10-28T17:37:53.680247+00:00",
+  "language_compile": "NotRun",
+  "language_verify": "NotRun",
+  "language_codegen": "NotRun",
+  "language_native": "NotRun",
+  "model_generation": {
+    "command": [
+      "python3",
+      "-B",
+      "/workspace/scratch/39be3faa4442/run-logs/206-preparation/consumer01/oracle.py"
+    ],
+    "exit_code": 0,
+    "scope": "Independent expected-value generation only; no language invocation",
+    "oracle_sha256": "956e2142fc79cd4ea0431c5cfecdaa8d54d47072873795e88a3c8d1df929ec6d",
+    "model_sha256": "693220040d1366c2b4a531148081031d91cd97a0138133225a9eafa91054a5b2"
+  },
+  "source_modules": 5,
+  "negative_sources": 12,
+  "control_sources": 3,
+  "files": {
+    "NEGATIVE-MANIFEST.json": {
+      "bytes": 8269,
+      "sha256": "94daba8879de5d4c52a8b46bfc38c3a2364f10365393b5f996926e5620b1934e"
+    },
+    "ORACLE.json": {
+      "bytes": 15209,
+      "sha256": "956e2142fc79cd4ea0431c5cfecdaa8d54d47072873795e88a3c8d1df929ec6d"
+    },
+    "RAW-OBLIGATIONS.json": {
+      "bytes": 1498,
+      "sha256": "98a7ac254b577d90b286d789cdfd20cc757372f898a174ee73346d94202ad9b4"
+    },
+    "README.txt": {
+      "bytes": 8146,
+      "sha256": "4c28dca2ff6f5378db2c7a3e96807f1ad781194e4329e14274259f527052746f"
+    },
+    "SOURCE-MANIFEST.json": {
+      "bytes": 1430,
+      "sha256": "22bb32ee064489fd4bd45db5a4b3272415f5be23db897545cdab418cf12ba026"
+    },
+    "controls/fresh-subtree-remains-create.zil": {
+      "bytes": 366,
+      "sha256": "844d1b40c2be311940885f91cb6d5f77e0e31041bd1bda1d15330678663de05f"
+    },
+    "controls/original120-package-direct-nested.zil": {
+      "bytes": 120,
+      "sha256": "8f82dcba19831acf7417ee2fd4c852b8086d2dc377c8fc470131f87a603d2dba"
+    },
+    "controls/parent-only-child.zil": {
+      "bytes": 116,
+      "sha256": "e6eaec19437f78614ea4c9b9aed03df8374be6016524cbfc567dfd99f852ed34"
+    },
+    "negative/closed-capture.zil": {
+      "bytes": 293,
+      "sha256": "df6531c814776f4a2a32cab5b394c3be607b153643f7e9d64dd834418624f742"
+    },
+    "negative/closed-child-borrow.zil": {
+      "bytes": 242,
+      "sha256": "179b5bb2eec05f7ef2c3642fbdf8d91c7181257e77cd2d4acc80d46a86aefae5"
+    },
+    "negative/closed-deep-child-lvalue.zil": {
+      "bytes": 248,
+      "sha256": "86267e9c4a727a3cdbf6c4e38e9353b3eb6063c3ad7852e686dcb6c0a3015f08"
+    },
+    "negative/closed-nested-error-payload.zil": {
+      "bytes": 248,
+      "sha256": "bc7df6f6f348cb892c4aaa476031444f087b510d60b92c302b77c9cabd90b4b8"
+    },
+    "negative/closed-owning-array.zil": {
+      "bytes": 229,
+      "sha256": "384679cf3a8621218c2508a7e5e30f6af1dae08eacf160147b32692f0b56438d"
+    },
+    "negative/closed-store-element.zil": {
+      "bytes": 235,
+      "sha256": "c530e741f846186e58fa61c619aee94348b345d620868abdef22cc74dcf2233d"
+    },
+    "negative/duplicate-child.zil": {
+      "bytes": 325,
+      "sha256": "06e366546e89fd62d3d62559271b5d44b90287c489c47b55d402bd9109cee76f"
+    },
+    "negative/incoming-subtree-is-not-create.zil": {
+      "bytes": 315,
+      "sha256": "157c250b18c6a5c30ead5642518b674ab1e6d61e68835fc718dbb76f7ea07fb9"
+    },
+    "negative/old-description-after-wrap.zil": {
+      "bytes": 328,
+      "sha256": "8483127edb79734ea1b37df331646d8c7b2e6ac983f7ee869d77377a30f585ed"
+    },
+    "negative/partial-child-embed.zil": {
+      "bytes": 303,
+      "sha256": "4858b70ae24e6a0c3afe85a15f3daa237773e604e5e49a0b5656bfea6515a9c7"
+    },
+    "negative/partial-leaf-embed.zil": {
+      "bytes": 318,
+      "sha256": "863761b17901e5d3ef440684ffc7d5613ec06f847e9e9872434a94ee15bb2854"
+    },
+    "negative/same-layout-distinct-nominal.zil": {
+      "bytes": 372,
+      "sha256": "1237c327781cc096b339943f7b9df23f8fb1a1338c94b3f2f403a1b28f060a3f"
+    },
+    "oracle.py": {
+      "bytes": 7746,
+      "sha256": "693220040d1366c2b4a531148081031d91cd97a0138133225a9eafa91054a5b2"
+    },
+    "sources/leaf.zil": {
+      "bytes": 1309,
+      "sha256": "395fb6c0848013d99ac7a08e66294aa36b019e32fbe63abf736def660f493242"
+    },
+    "sources/main.zil": {
+      "bytes": 1567,
+      "sha256": "64857a4690940dbed1a4efb540cd45b0fc7ca6f052e1e26ae1808d1f08986d47"
+    },
+    "sources/portable.zil": {
+      "bytes": 407,
+      "sha256": "2941ae9bc0134884ced99dbc6fea716808ee9d11c8339d77742b3d8bcf2df531"
+    },
+    "sources/product.zil": {
+      "bytes": 733,
+      "sha256": "d3e53fe12275657e96353e468d7f02f56da820bde249f57b2b091947a9722a0d"
+    },
+    "sources/transitions.zil": {
+      "bytes": 923,
+      "sha256": "9e459a0d8114f3b81a72eef9c7d881d1e61e0d1501f3720950941a6b22aef9f0"
+    }
+  }
+}

@@ -4,10 +4,11 @@
 use super::*;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+pub(super) mod product;
 mod summary_graph;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum Place {
+pub(super) enum Place {
     Local(LocalId),
     PackageField { local: LocalId, index: u32 },
     ArrayElement { local: LocalId, index: u32 },
@@ -37,6 +38,7 @@ enum Birth {
     Created,
     Incoming,
 }
+type PackageValues = BTreeMap<(ValueId, u32), BTreeSet<Birth>>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Fact {
     life: BTreeSet<Life>,
@@ -47,6 +49,11 @@ struct Fact {
 struct State {
     cells: BTreeMap<Place, Fact>,
     later: BTreeSet<(LocalId, LocalId)>,
+    // Complete SSA Packages carry the actual birth of each direct Managed
+    // field. Local Packages already have separate lifecycle cells. Unknown
+    // producers keep Incoming; packaging itself never creates a resource.
+    package_values: PackageValues,
+    product_births: product::Origins,
 }
 #[derive(Clone, Copy)]
 struct Shape {
@@ -59,12 +66,16 @@ struct Effect {
     borrowed_fields: BTreeSet<u32>,
 }
 type Shapes = BTreeMap<Place, Shape>;
-type Live = BTreeSet<Place>;
+pub(super) type Live = BTreeSet<Place>;
 
 pub(super) fn owned_error(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
         if matches!(error.as_ref(), Type::Package { .. })
-            || matches!(result.as_ref(), Type::Package { .. }))
+            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_)))
+}
+
+fn managed_success(ty: &Type) -> bool {
+    matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Managed(_)))
 }
 
 fn error(message: &str) -> Vec<Diagnostic> {
@@ -102,12 +113,20 @@ fn replace(state: &mut State, place: Place, fact: Fact, budget: &mut Budget) -> 
 }
 fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
     budget.spend(
-        state.cells.len().saturating_add(state.later.len()),
+        state
+            .cells
+            .len()
+            .saturating_add(state.later.len())
+            .saturating_add(state.package_values.len()),
         "resource state clone",
     )?;
     for fact in state.cells.values() {
         fact_cost(fact, budget)?;
     }
+    for birth in state.package_values.values() {
+        budget.spend(birth.len(), "Package SSA birth clone")?;
+    }
+    product::copy_cost(&state.product_births, budget)?;
     Ok(state.clone())
 }
 fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool> {
@@ -133,7 +152,87 @@ fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool
     let before = to.later.len();
     to.later.extend(&from.later);
     changed |= before != to.later.len();
+    for (key, source) in &from.package_values {
+        budget.lookup(to.package_values.len(), "Package SSA birth join lookup")?;
+        let target = to
+            .package_values
+            .get_mut(key)
+            .ok_or_else(|| error("incompatible Package SSA birth shapes"))?;
+        budget.spend(
+            target.len().saturating_add(source.len()),
+            "Package SSA birth join",
+        )?;
+        let before = target.len();
+        target.extend(source);
+        changed |= before != target.len();
+    }
+    changed |= product::join(&mut to.product_births, &from.product_births, budget)?;
     Ok(changed)
+}
+
+fn package_value_shapes(
+    f: &TypedFunction,
+    budget: &mut Budget,
+) -> CompileResult<(PackageValues, product::Origins)> {
+    budget.spend(f.values.len(), "Package SSA birth shape scan")?;
+    let mut fields = BTreeMap::new();
+    let mut products = product::Origins::new();
+    for (value, ty) in f.values.iter().enumerate() {
+        if let Type::Package { fields: types, .. } = ty {
+            budget.spend(types.len(), "Package SSA birth field scan")?;
+            for (index, (_, ty)) in types.iter().enumerate() {
+                if matches!(ty, Type::Managed(_)) {
+                    budget.lookup(fields.len(), "Package SSA birth shape insertion")?;
+                    budget.spend(2, "Package SSA birth allocation")?;
+                    fields.insert(
+                        (ValueId(value as u32), index as u32),
+                        BTreeSet::from([Birth::Incoming]),
+                    );
+                } else if matches!(ty, Type::Package { .. }) {
+                    product::add(
+                        &mut products,
+                        product::Carrier::Value(ValueId(value as u32)),
+                        index as u32,
+                        ty,
+                        budget,
+                    )?;
+                }
+            }
+        }
+    }
+    Ok((fields, products))
+}
+
+fn package_birth(
+    state: &State,
+    value: ValueId,
+    index: u32,
+    budget: &mut Budget,
+) -> CompileResult<BTreeSet<Birth>> {
+    budget.lookup(state.package_values.len(), "Package SSA birth lookup")?;
+    let birth = state
+        .package_values
+        .get(&(value, index))
+        .ok_or_else(|| error("missing Package SSA birth field"))?;
+    budget.spend(birth.len(), "Package SSA birth copy")?;
+    Ok(birth.clone())
+}
+
+fn set_package_birth(
+    state: &mut State,
+    value: ValueId,
+    index: u32,
+    birth: BTreeSet<Birth>,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.lookup(state.package_values.len(), "Package SSA birth update")?;
+    let target = state
+        .package_values
+        .get_mut(&(value, index))
+        .ok_or_else(|| error("missing Package SSA birth field"))?;
+    budget.spend(target.len(), "Package SSA birth replacement")?;
+    *target = birth;
+    Ok(())
 }
 fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<Shape> {
     Ok(match ty {
@@ -196,8 +295,10 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
     })
 }
 fn package_owned_field(ty: &Type) -> bool {
-    matches!(ty, Type::Managed(_) | Type::Closure(_))
-        || matches!(ty, Type::Array { element, length } if *length > 0 && matches!(element.as_ref(), Type::Package { .. }))
+    matches!(
+        ty,
+        Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
+    ) || matches!(ty, Type::Array { element, length } if *length > 0 && matches!(element.as_ref(), Type::Package { .. }))
 }
 
 fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> CompileResult<Shapes> {
@@ -300,7 +401,10 @@ fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
             (Some(*store), Some(*capacity), &[])
         }
         InstructionKind::OwnedStorePush { store, value } => (Some(*store), Some(*value), &[]),
-        InstructionKind::OwnedStoreBorrow { store, index } => (Some(*store), Some(*index), &[]),
+        InstructionKind::OwnedStoreBorrow { store, index }
+        | InstructionKind::OwnedStoreBorrowMut { store, index } => {
+            (Some(*store), Some(*index), &[])
+        }
         InstructionKind::OwnedStorePop { store }
         | InstructionKind::OwnedStoreLen { store }
         | InstructionKind::OwnedStoreCapacity { store } => (Some(*store), None, &[]),
@@ -519,6 +623,43 @@ fn afters(
         result.push(rows);
     }
     Ok(result)
+}
+
+/// Strong address windows for the newly qualified owned-Store profile. The
+/// caller supplies actual private Hold roots, never the exported candidate.
+/// Reuse the independently reconstructed last-use walk; an ordinary Desc is
+/// deliberately absent because a weak resource description is not a loan.
+pub(super) fn address_afters(
+    f: &TypedFunction,
+    reachable: &[bool],
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<Live>>> {
+    budget.spend(
+        f.locals.len().saturating_add(f.values.len()),
+        "captured Store address shape scan",
+    )?;
+    let mut shapes = BTreeMap::new();
+    for (place, ty) in f.locals.iter().map(|l| (Place::Local(l.id), &l.ty)).chain(
+        f.values
+            .iter()
+            .enumerate()
+            .map(|(index, ty)| (Place::Value(ValueId(index as u32)), ty)),
+    ) {
+        if matches!(ty, Type::Address { .. }) {
+            budget.lookup(shapes.len(), "captured Store address shape insertion")?;
+            shapes.insert(
+                place,
+                Shape {
+                    owned: false,
+                    description: true,
+                },
+            );
+        }
+    }
+    if shapes.is_empty() {
+        return Ok(Vec::new());
+    }
+    afters(f, reachable, &shapes, budget)
 }
 fn live_sources(state: &State, fact: &Fact, budget: &mut Budget) -> CompileResult<()> {
     if fact.sources.is_empty() {
@@ -762,7 +903,12 @@ impl Flow<'_> {
                     | InstructionKind::DropPackage { local }
                     | InstructionKind::TakePackageField { local, .. }
                     | InstructionKind::DropPackageField { local, .. }
-                    | InstructionKind::StorePackageField { local, .. } => Some(local),
+                    | InstructionKind::StorePackageField { local, .. }
+                    | InstructionKind::BorrowPackageField {
+                        local,
+                        mutable: true,
+                        ..
+                    } => Some(local),
                     _ => None,
                 };
                 budget.lookup(self.views.len(), "Shared Package view mutation")?;
@@ -829,13 +975,27 @@ impl Flow<'_> {
                         sources: BTreeSet::new(),
                     });
                 }
-                InstructionKind::MakeErrorUnion { value, .. }
+                InstructionKind::MakeErrorUnion { value, is_error }
                     if out_shape.is_some_and(|s| s.owned) =>
                 {
+                    // Birth belongs to the selected success owner, not to the
+                    // wrapper. A Copy error has no success responsibility.
+                    let birth = if i
+                        .result
+                        .is_some_and(|v| managed_success(&f.values[v.0 as usize]))
+                    {
+                        if *is_error {
+                            BTreeSet::new()
+                        } else {
+                            copied(state, Place::Value(*value), budget)?.birth
+                        }
+                    } else {
+                        BTreeSet::from([Birth::Incoming])
+                    };
                     self.consume(state, *value, check, budget)?;
                     produced = Some(Fact {
                         life: BTreeSet::from([Life::Available]),
-                        birth: BTreeSet::from([Birth::Incoming]),
+                        birth,
                         sources: BTreeSet::new(),
                     });
                 }
@@ -843,11 +1003,16 @@ impl Flow<'_> {
                     if !f.values.get(value.0 as usize).is_some_and(owned_error) {
                         return Err(error("TakeErrorUnion requires an owned error-union value"));
                     }
+                    let birth = if managed_success(&f.values[value.0 as usize]) {
+                        copied(state, Place::Value(*value), budget)?.birth
+                    } else {
+                        BTreeSet::from([Birth::Incoming])
+                    };
                     self.consume(state, *value, check, budget)?;
                     if out_shape.is_some_and(|s| s.owned) {
                         produced = Some(Fact {
                             life: BTreeSet::from([Life::Available]),
-                            birth: BTreeSet::from([Birth::Incoming]),
+                            birth,
                             sources: BTreeSet::new(),
                         });
                     }
@@ -997,10 +1162,33 @@ impl Flow<'_> {
                     if fields.len() != expected.len() {
                         return Err(error("package field arity mismatch"));
                     }
-                    for (value, (_, ty)) in fields.iter().zip(expected) {
+                    for (index, (value, (_, ty))) in fields.iter().zip(expected).enumerate() {
                         budget.type_work(ty, false, "package assembly type comparison")?;
                         if f.values.get(value.0 as usize) != Some(ty) {
                             return Err(error("package field type mismatch"));
+                        }
+                        if matches!(ty, Type::Managed(_)) {
+                            let birth = copied(state, Place::Value(*value), budget)?.birth;
+                            set_package_birth(
+                                state,
+                                i.result.expect("checked Package result"),
+                                index as u32,
+                                birth,
+                                budget,
+                            )?;
+                        } else if matches!(ty, Type::Package { .. }) {
+                            product::transfer(
+                                state,
+                                (product::Carrier::Value(*value), &[]),
+                                (
+                                    product::Carrier::Value(
+                                        i.result.expect("checked Package result"),
+                                    ),
+                                    &[index as u32],
+                                ),
+                                ty,
+                                budget,
+                            )?;
                         }
                         self.consume(state, *value, check, budget)?;
                     }
@@ -1244,26 +1432,31 @@ impl Flow<'_> {
                             return Err(error("package read requires a matching Copy field"));
                         }
                     } else if let InstructionKind::BorrowPackageField { mutable, .. } = i.kind {
-                        if !matches!(ty, Type::Closure(_))
+                        budget.type_work(ty, true, "package field address type checks")?;
+                        if (!ty.is_copy_value() && !matches!(ty, Type::Closure(_)))
                             || (mutable && !decl.mutable)
                             || !matches!(result, Some(Type::Address { mutable: actual, inner }) if *actual == mutable && inner.as_ref() == ty)
                         {
                             return Err(error(
-                                "callback field borrow requires exact permission and Closure field shape",
+                                "field borrow requires exact permission and a Copy or Closure field",
                             ));
                         }
-                        let fact = copied(
-                            state,
-                            Place::PackageField {
-                                local: *local,
-                                index: *index,
-                            },
-                            budget,
-                        )?;
-                        if check && !exact(&fact, Life::Available) {
-                            return Err(error(
-                                "callback field borrow requires its live environment on every path",
-                            ));
+                        // Copy fields are initialized with the shell and have
+                        // no independent owning debt. Callback fields do.
+                        if matches!(ty, Type::Closure(_)) {
+                            let fact = copied(
+                                state,
+                                Place::PackageField {
+                                    local: *local,
+                                    index: *index,
+                                },
+                                budget,
+                            )?;
+                            if check && !exact(&fact, Life::Available) {
+                                return Err(error(
+                                    "callback field borrow requires its live environment on every path",
+                                ));
+                            }
                         }
                     } else if let InstructionKind::StorePackageField { value, .. } = i.kind {
                         budget.type_work(
@@ -1300,13 +1493,27 @@ impl Flow<'_> {
                                     budget,
                                 )?;
                             }
+                            let birth = if matches!(ty, Type::Managed(_)) {
+                                copied(state, Place::Value(value), budget)?.birth
+                            } else {
+                                BTreeSet::from([Birth::Incoming])
+                            };
+                            if matches!(ty, Type::Package { .. }) {
+                                product::transfer(
+                                    state,
+                                    (product::Carrier::Value(value), &[]),
+                                    (product::Carrier::Local(*local), &[*index]),
+                                    ty,
+                                    budget,
+                                )?;
+                            }
                             self.consume(state, value, check, budget)?;
                             replace(
                                 state,
                                 place,
                                 Fact {
                                     life: BTreeSet::from([Life::Available]),
-                                    birth: BTreeSet::from([Birth::Incoming]),
+                                    birth,
                                     sources: BTreeSet::new(),
                                 },
                                 budget,
@@ -1371,9 +1578,24 @@ impl Flow<'_> {
                                         "package field take requires that field live on every path",
                                     ));
                                 }
+                                if matches!(ty, Type::Package { .. }) {
+                                    product::transfer(
+                                        state,
+                                        (product::Carrier::Local(*local), &[*index]),
+                                        (
+                                            product::Carrier::Value(
+                                                i.result.expect("checked child result"),
+                                            ),
+                                            &[],
+                                        ),
+                                        ty,
+                                        budget,
+                                    )?;
+                                }
+                                budget.spend(fact.birth.len(), "package field birth transfer")?;
                                 produced = Some(Fact {
                                     life: BTreeSet::from([Life::Available]),
-                                    birth: BTreeSet::from([Birth::Incoming]),
+                                    birth: fact.birth.clone(),
                                     sources: BTreeSet::new(),
                                 });
                                 fact.life = BTreeSet::from([Life::Transferred]);
@@ -1423,9 +1645,17 @@ impl Flow<'_> {
                     });
                 }
                 InstructionKind::BorrowCapture { index, .. } => {
-                    let fact = copied(state, Place::Capture(*index), budget)?;
-                    if check && !exact(&fact, Life::Available) {
-                        return Err(error("cannot borrow a moved captured closure environment"));
+                    if f.environment
+                        .and_then(|id| self.module.closures.get(id.0 as usize))
+                        .and_then(|capture| capture.captures.get(*index as usize))
+                        .is_some_and(|ty| matches!(ty, Type::Closure(_)))
+                    {
+                        let fact = copied(state, Place::Capture(*index), budget)?;
+                        if check && !exact(&fact, Life::Available) {
+                            return Err(error(
+                                "cannot borrow a moved captured closure environment",
+                            ));
+                        }
                     }
                 }
                 InstructionKind::DescribeCapture { index } => {
@@ -1540,6 +1770,44 @@ impl Flow<'_> {
                                     budget,
                                 )?;
                             }
+                            if let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty {
+                                budget.spend(fields.len(), "whole Package birth transfer")?;
+                                for (index, (_, ty)) in fields.iter().enumerate() {
+                                    if matches!(ty, Type::Managed(_)) {
+                                        let birth = copied(
+                                            state,
+                                            Place::PackageField {
+                                                local: *local,
+                                                index: index as u32,
+                                            },
+                                            budget,
+                                        )?
+                                        .birth;
+                                        set_package_birth(
+                                            state,
+                                            i.result.ok_or_else(|| error("move has no result"))?,
+                                            index as u32,
+                                            birth,
+                                            budget,
+                                        )?;
+                                    } else if matches!(ty, Type::Package { .. }) {
+                                        product::transfer(
+                                            state,
+                                            (product::Carrier::Local(*local), &[index as u32]),
+                                            (
+                                                product::Carrier::Value(
+                                                    i.result.ok_or_else(|| {
+                                                        error("move has no result")
+                                                    })?,
+                                                ),
+                                                &[index as u32],
+                                            ),
+                                            ty,
+                                            budget,
+                                        )?;
+                                    }
+                                }
+                            }
                             package_transition(f, state, *local, Life::Transferred, check, budget)?;
                             produced = Some(fact.clone());
                             fact.life = BTreeSet::from([Life::Transferred]);
@@ -1599,6 +1867,29 @@ impl Flow<'_> {
                             }
                             source.life = BTreeSet::from([Life::Available]);
                             package_transition(f, state, *local, Life::Available, check, budget)?;
+                            if let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty {
+                                budget.spend(fields.len(), "whole Package birth store")?;
+                                for (index, (_, ty)) in fields.iter().enumerate() {
+                                    if matches!(ty, Type::Managed(_)) {
+                                        let place = Place::PackageField {
+                                            local: *local,
+                                            index: index as u32,
+                                        };
+                                        let mut field = copied(state, place, budget)?;
+                                        field.birth =
+                                            package_birth(state, *value, index as u32, budget)?;
+                                        replace(state, place, field, budget)?;
+                                    } else if matches!(ty, Type::Package { .. }) {
+                                        product::transfer(
+                                            state,
+                                            (product::Carrier::Value(*value), &[index as u32]),
+                                            (product::Carrier::Local(*local), &[index as u32]),
+                                            ty,
+                                            budget,
+                                        )?;
+                                    }
+                                }
+                            }
                         }
                         replace(state, Place::Local(*local), source, budget)?;
                     }
@@ -1752,23 +2043,60 @@ impl Flow<'_> {
                         .get(function.0 as usize)
                         .ok_or_else(|| error("absent callee"))?;
                     if let Some(contract) = &callee.callable_contract {
-                        let environment = &self.module.closures[contract.closure.0 as usize];
-                        if contract.traces.iter().any(|t| !t.calls.is_empty())
-                            && contract
-                                .writes
-                                .iter()
-                                .any(|i| matches!(environment.captures[*i as usize], Type::Desc(_)))
-                        {
-                            let value = arguments
-                                .get(contract.parameter as usize)
-                                .ok_or_else(|| error("missing helper environment argument"))?;
-                            record_write(
-                                &copied(state, Place::Value(*value), budget)?.sources,
-                                effect,
-                                shared,
-                                check,
-                                budget,
-                            )?;
+                        budget.spend(contract.roles.len(), "helper role write projection")?;
+                        for role in &contract.roles {
+                            let environment = &self.module.closures[role.closure.0 as usize];
+                            let mut invokes = false;
+                            match &contract.traces {
+                                CallableTraces::Finite(paths) => {
+                                    budget.spend(
+                                        paths.len(),
+                                        "helper finite role invocation presence",
+                                    )?;
+                                    for path in paths {
+                                        budget
+                                            .spend(path.calls.len(), "helper finite role events")?;
+                                        invokes |= path
+                                            .calls
+                                            .iter()
+                                            .any(|event| event.parameter == role.parameter);
+                                    }
+                                }
+                                CallableTraces::Flow(flow) => {
+                                    // The complete graph includes reachable prefixes
+                                    // with no Return. Inspect the current role, not
+                                    // whether any unrelated environment was called.
+                                    budget.spend(
+                                        flow.nodes.len(),
+                                        "helper flow role invocation presence",
+                                    )?;
+                                    for node in &flow.nodes {
+                                        budget
+                                            .spend(node.calls.len(), "helper flow role events")?;
+                                        invokes |= node
+                                            .calls
+                                            .iter()
+                                            .any(|event| event.parameter == role.parameter);
+                                    }
+                                }
+                            }
+                            budget.spend(role.writes.len(), "helper role capture writes")?;
+                            if invokes
+                                && role.writes.iter().any(|i| {
+                                    matches!(environment.captures[*i as usize], Type::Desc(_))
+                                })
+                            {
+                                let value = arguments
+                                    .get(role.parameter as usize)
+                                    .ok_or_else(|| error("missing helper environment argument"))?;
+                                record_write(
+                                    &copied(state, Place::Value(*value), budget)?.sources,
+                                    effect,
+                                    shared,
+                                    check,
+                                    budget,
+                                )?;
+                            }
                         }
                     } else if callee.callable_return_contract.is_none() {
                         // Callable helpers and self-contained factory callers
@@ -1862,9 +2190,17 @@ impl Flow<'_> {
                             CallableKind::Fn,
                         ),
                         InstructionKind::CallClosureBorrowed { callee, kind, .. } => {
-                            let Type::Address { inner, .. } = &f.values[callee.0 as usize] else {
+                            let Type::Address { inner, mutable } = &f.values[callee.0 as usize]
+                            else {
                                 return Err(error("borrowed environment call requires an address"));
                             };
+                            if kind == CallableKind::FnOnce
+                                || (kind == CallableKind::FnMut && !mutable)
+                            {
+                                return Err(error(
+                                    "borrowed environment call requires Fn or an exclusive FnMut address",
+                                ));
+                            }
                             (Place::Value(callee), inner.as_ref(), kind)
                         }
                         _ => unreachable!(),
@@ -1933,12 +2269,13 @@ impl Flow<'_> {
         }
         if let Terminator::Return(value) = f.blocks[b].terminator {
             if let Some(value) = value {
-                if check
-                    && f.result_mode == PassingMode::Create
-                    && copied(state, Place::Value(value), budget)?.birth
-                        != BTreeSet::from([Birth::Created])
-                {
-                    return Err(error("create result forwards an incoming responsibility"));
+                if check && f.result_mode == PassingMode::Create {
+                    let birth = copied(state, Place::Value(value), budget)?.birth;
+                    if birth != BTreeSet::from([Birth::Created])
+                        && !(managed_success(&f.return_type) && birth.is_empty())
+                    {
+                        return Err(error("create result forwards an incoming responsibility"));
+                    }
                 }
                 self.consume(state, value, check, budget)?;
             }
@@ -1992,7 +2329,12 @@ fn analyze_function_with_dependencies(
     } else {
         Vec::new()
     };
-    let mut initial = State::default();
+    let (package_values, product_births) = package_value_shapes(f, budget)?;
+    let mut initial = State {
+        package_values,
+        product_births,
+        ..State::default()
+    };
     for (place, s) in &shapes {
         budget.lookup(initial.cells.len(), "initial resource state")?;
         let mut fact = Fact::default();
@@ -2007,6 +2349,18 @@ fn analyze_function_with_dependencies(
         }
         if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
             fact.birth.insert(Birth::Incoming);
+        }
+        if let Place::PackageField { local, index } = place
+            && let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty
+            && let child @ Type::Package { .. } = &fields[*index as usize].1
+        {
+            product::add(
+                &mut initial.product_births,
+                product::Carrier::Local(*local),
+                *index,
+                child,
+                budget,
+            )?;
         }
         initial.cells.insert(*place, fact);
     }
@@ -2326,7 +2680,12 @@ fn analyze_function_eager_reference(
         return Ok(Effect::default());
     }
     let after = afters(f, reachable, &shapes, budget)?;
-    let mut initial = State::default();
+    let (package_values, product_births) = package_value_shapes(f, budget)?;
+    let mut initial = State {
+        package_values,
+        product_births,
+        ..State::default()
+    };
     for (place, s) in &shapes {
         budget.lookup(initial.cells.len(), "initial resource state")?;
         let mut fact = Fact::default();
@@ -2341,6 +2700,18 @@ fn analyze_function_eager_reference(
         }
         if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
             fact.birth.insert(Birth::Incoming);
+        }
+        if let Place::PackageField { local, index } = place
+            && let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty
+            && let child @ Type::Package { .. } = &fields[*index as usize].1
+        {
+            product::add(
+                &mut initial.product_births,
+                product::Carrier::Local(*local),
+                *index,
+                child,
+                budget,
+            )?;
         }
         initial.cells.insert(*place, fact);
     }
