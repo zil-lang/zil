@@ -11,7 +11,7 @@ use zil_verify::VerifiedModule;
 use crate::object_cache::{
     Access, ObjectCacheSummary, PendingObject, PendingObjectCache, PreparedCache,
 };
-use crate::{EmitOptions, EntryPoint};
+use crate::{EmitOptions, EntryPoint, TimingTrace};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Optimization {
@@ -164,6 +164,30 @@ pub fn build_with_cancellation(
     options: &BuildOptions,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<BuildArtifact> {
+    build_with_cancellation_traced(verified, lir, options, cancelled, &TimingTrace::default())
+}
+
+/// The optional sink records actual wall intervals, including failed phases.
+/// It does not affect build options, object keys, or publication order.
+pub fn build_with_cancellation_traced(
+    verified: &VerifiedModule,
+    lir: &LirModule,
+    options: &BuildOptions,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    trace: &TimingTrace,
+) -> CompileResult<BuildArtifact> {
+    trace.measure("backend", "stage", |trace| {
+        build_traced(verified, lir, options, cancelled, trace)
+    })
+}
+
+fn build_traced(
+    verified: &VerifiedModule,
+    lir: &LirModule,
+    options: &BuildOptions,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    trace: &TimingTrace,
+) -> CompileResult<BuildArtifact> {
     check_cancelled(cancelled)?;
     if options.emit.entry == EntryPoint::None {
         return Err(vec![Diagnostic::error(
@@ -179,12 +203,15 @@ pub fn build_with_cancellation(
             "codegen units and jobs must be in 1..=64",
         ));
     }
-    let machine = crate::emit::lower_with_options(verified, lir, &options.emit)?;
+    let machine = trace.measure("machine_lower", "stage", |_| {
+        crate::emit::lower_with_options(verified, lir, &options.emit)
+    })?;
     // Diagnostic/reference output only. API preflight runs once per owned unit,
     // immediately before its LLVMBuilder calls; it cannot be bypassed.
-    let llvm = machine.to_text();
-    let plan =
-        crate::machine_cgu::partition(machine, lir, options.emit.entry, options.codegen.units);
+    let llvm = trace.value("llvm_text_render", || machine.to_text());
+    let plan = trace.value("cgu_partition", || {
+        crate::machine_cgu::partition(machine, lir, options.emit.entry, options.codegen.units)
+    });
     if options.backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
         return Err(vec![Diagnostic::new(
             Phase::Codegen,
@@ -205,7 +232,9 @@ pub fn build_with_cancellation(
         ..ObjectCacheSummary::default()
     };
     let cache = options.object_cache.as_ref().and_then(|path| {
-        match PreparedCache::new(path, &lir.target, options.optimization) {
+        match trace.measure("cache_setup", "stage", |_| {
+            PreparedCache::new(path, &lir.target, options.optimization)
+        }) {
             Ok(cache) => {
                 cache_summary.enabled = true;
                 Some(cache)
@@ -230,6 +259,7 @@ pub fn build_with_cancellation(
         jobs: options.codegen.jobs.min(actual_units),
         fallback: plan.fallback.map(str::to_owned),
     };
+    let mut staging_timing = trace.scope("staging_prepare", "stage");
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     if windows != options.windows.is_some() {
         return Err(infra(
@@ -275,6 +305,7 @@ pub fn build_with_cancellation(
     let object_path = staging.0.join("module.obj");
     fs::write(&ir_path, llvm.as_bytes())
         .map_err(|error| io_error("write LLVM IR", &ir_path, error))?;
+    staging_timing.finish("ok");
 
     let optimization = match options.optimization {
         Optimization::O0 => "-O0",
@@ -282,72 +313,92 @@ pub fn build_with_cancellation(
     };
     let mut commands = Vec::new();
     let split = plan.units.len() > 1;
-    let objects = if !split && options.backend == NativeBackend::Clang {
-        // Keep the legacy one-process Unix path exactly, including its flags.
-        drop(plan.units);
-        let mut command = Command::new(&options.clang);
-        command
-            .arg(format!("--target={}", lir.target.triple))
-            .arg("-x")
-            .arg("ir")
-            .arg(optimization);
-        if windows {
-            command.arg("-c");
-        }
-        command.arg(&ir_path).arg("-o").arg(if windows {
-            &object_path
+    let objects = trace.measure(
+        "codegen_units",
+        if codegen.jobs > 1 {
+            "parallel"
         } else {
-            &executable_path
-        });
-        commands.push(run_command(&mut command, "E-LLVM-COMPILE")?);
-        vec![object_path]
-    } else {
-        let units = plan.units;
-        let inputs = units
-            .into_iter()
-            .enumerate()
-            .map(|(id, module)| {
-                let input = staging.0.join(format!("unit-{id}.ll"));
-                let object = staging.0.join(format!("unit-{id}.o"));
-                // Only the reference backend serializes individual codegen units.
-                if options.backend == NativeBackend::Clang {
-                    fs::write(&input, module.to_text())
-                        .map_err(|e| io_error("write codegen unit", &input, e))?;
+            "stage"
+        },
+        |unit_trace| {
+            let objects = if !split && options.backend == NativeBackend::Clang {
+                // Keep the legacy one-process Unix path exactly, including its flags.
+                drop(plan.units);
+                let mut command = Command::new(&options.clang);
+                command
+                    .arg(format!("--target={}", lir.target.triple))
+                    .arg("-x")
+                    .arg("ir")
+                    .arg(optimization);
+                if windows {
+                    command.arg("-c");
                 }
-                Ok(UnitInput {
-                    input,
-                    object,
-                    module,
-                })
-            })
-            .collect::<CompileResult<Vec<_>>>()?;
-        let compiled = compile_units(
-            &inputs,
-            &lir.target.triple,
-            optimization,
-            options,
-            cache.as_ref(),
-            cancelled,
-        )?;
-        for result in compiled {
-            if let Some(command) = result.command {
-                commands.push(command);
-            }
-            if let Some(receipt) = result.receipt {
-                codegen.object_reports.push(receipt);
-            }
-            if let Some(access) = result.access {
-                codegen.object_cache.add(&access);
-            }
-            if let Some(pending) = result.pending {
-                pending_cache.objects.push(pending);
-            }
-        }
-        inputs
-            .into_iter()
-            .map(|unit| unit.object)
-            .collect::<Vec<_>>()
-    };
+                command.arg(&ir_path).arg("-o").arg(if windows {
+                    &object_path
+                } else {
+                    &executable_path
+                });
+                commands.push(unit_trace.measure(
+                    if windows {
+                        "clang_object"
+                    } else {
+                        "clang_compile_and_link"
+                    },
+                    "stage",
+                    |_| run_command(&mut command, "E-LLVM-COMPILE"),
+                )?);
+                vec![object_path]
+            } else {
+                let units = plan.units;
+                let inputs = units
+                    .into_iter()
+                    .enumerate()
+                    .map(|(id, module)| {
+                        let input = staging.0.join(format!("unit-{id}.ll"));
+                        let object = staging.0.join(format!("unit-{id}.o"));
+                        // Only the reference backend serializes individual codegen units.
+                        if options.backend == NativeBackend::Clang {
+                            fs::write(&input, module.to_text())
+                                .map_err(|e| io_error("write codegen unit", &input, e))?;
+                        }
+                        Ok(UnitInput {
+                            input,
+                            object,
+                            module,
+                        })
+                    })
+                    .collect::<CompileResult<Vec<_>>>()?;
+                let compiled = compile_units(
+                    &inputs,
+                    &lir.target.triple,
+                    optimization,
+                    options,
+                    cache.as_ref(),
+                    cancelled,
+                    unit_trace,
+                )?;
+                for result in compiled {
+                    if let Some(command) = result.command {
+                        commands.push(command);
+                    }
+                    if let Some(receipt) = result.receipt {
+                        codegen.object_reports.push(receipt);
+                    }
+                    if let Some(access) = result.access {
+                        codegen.object_cache.add(&access);
+                    }
+                    if let Some(pending) = result.pending {
+                        pending_cache.objects.push(pending);
+                    }
+                }
+                inputs
+                    .into_iter()
+                    .map(|unit| unit.object)
+                    .collect::<Vec<_>>()
+            };
+            Ok::<_, Vec<Diagnostic>>(objects)
+        },
+    )?;
     check_cancelled(cancelled)?;
     if let Some(config) = &options.windows {
         let mut link = Command::new(&config.linker);
@@ -361,7 +412,7 @@ pub fn build_with_cancellation(
         .arg(format!("/out:{}", executable_path.display()))
         .args(&objects)
         .args(imports);
-        commands.push(run_command(&mut link, "E-WIN64-LINK")?);
+        commands.push(trace.measure("link", "stage", |_| run_command(&mut link, "E-WIN64-LINK"))?);
     } else if split || options.backend == NativeBackend::LlvmApi {
         let mut link = Command::new(&options.clang);
         link.arg(format!("--target={}", lir.target.triple))
@@ -369,9 +420,12 @@ pub fn build_with_cancellation(
             .args(&objects)
             .arg("-o")
             .arg(&executable_path);
-        commands.push(run_command(&mut link, "E-LLVM-COMPILE")?);
+        commands.push(trace.measure("link", "stage", |_| {
+            run_command(&mut link, "E-LLVM-COMPILE")
+        })?);
     }
     check_cancelled(cancelled)?;
+    let mut publication_timing = trace.scope("backend_publication", "stage");
     let recorded_command = commands[0].clone();
     if !executable_path.is_file() {
         return Err(infra(
@@ -387,6 +441,7 @@ pub fn build_with_cancellation(
         .map_err(|error| io_error("publish LLVM IR", &final_ir, error))?;
     fs::rename(&executable_path, &final_executable)
         .map_err(|error| io_error("publish executable", &final_executable, error))?;
+    publication_timing.finish("ok");
     Ok(BuildArtifact {
         executable: final_executable,
         llvm_ir: final_ir,
@@ -419,6 +474,7 @@ fn compile_units(
     options: &BuildOptions,
     cache: Option<&PreparedCache>,
     cancelled: &(dyn Fn() -> bool + Sync),
+    trace: &TimingTrace,
 ) -> CompileResult<Vec<UnitResult>> {
     let mut schedule = (0..inputs.len()).collect::<Vec<_>>();
     schedule.sort_by_key(|id| {
@@ -450,6 +506,8 @@ fn compile_units(
                         let Some(&id) = schedule.get(slot) else {
                             break;
                         };
+                        let mut unit_timing = trace.unit_scope("unit", "worker", Some(id));
+                        let unit_trace = unit_timing.trace();
                         let result = check_cancelled(cancelled).and_then(|()| {
                             let unit = &inputs[id];
                             match options.backend {
@@ -461,7 +519,10 @@ fn compile_units(
                                         .arg(&unit.input)
                                         .arg("-o")
                                         .arg(&unit.object);
-                                    let command = run_command(&mut command, "E-LLVM-COMPILE")?;
+                                    let command =
+                                        unit_trace.measure("clang_object", "stage", |_| {
+                                            run_command(&mut command, "E-LLVM-COMPILE")
+                                        })?;
                                     if !unit.object.is_file() {
                                         return Err(infra(
                                             "E-LINK-MISSING-OUTPUT",
@@ -481,9 +542,11 @@ fn compile_units(
                                     options.optimization,
                                     cache,
                                     cancelled,
+                                    unit_trace,
                                 ),
                             }
                         });
+                        unit_timing.finish(if result.is_ok() { "ok" } else { "error" });
                         results.push((id, result));
                     }
                     results
@@ -552,6 +615,7 @@ fn compile_api_unit(
     opt: Optimization,
     cache: Option<&PreparedCache>,
     cancelled: &(dyn Fn() -> bool + Sync),
+    trace: &TimingTrace,
 ) -> CompileResult<UnitResult> {
     use zil_llvm_api::{Config, Optimization as ApiOpt};
     let config = Config {
@@ -563,17 +627,21 @@ fn compile_api_unit(
     };
     let mut access = None;
     if let Some(cache) = cache {
-        let (mut lookup, bytes) = cache.lookup(&unit.module);
+        let (mut lookup, bytes) = trace.value("object_cache_lookup", || cache.lookup(&unit.module));
         check_cancelled(cancelled)?;
         if let Some(bytes) = bytes {
             // A hit is not a native Builder invocation. Current machine checks
             // still run, independently of the checks performed by the producer.
             let t = std::time::Instant::now();
-            zil_llvm_api::validate_module(&unit.module).map_err(api_error)?;
+            trace.measure("cached_machine_preflight", "stage", |_| {
+                zil_llvm_api::validate_module(&unit.module).map_err(api_error)
+            })?;
             lookup.preflight_ns = crate::object_cache::elapsed_ns(t);
             check_cancelled(cancelled)?;
-            fs::write(&unit.object, &bytes)
-                .map_err(|e| io_error("write reused object", &unit.object, e))?;
+            trace.measure("object_write", "stage", |_| {
+                fs::write(&unit.object, &bytes)
+                    .map_err(|e| io_error("write reused object", &unit.object, e))
+            })?;
             let q = zil_base::json_string;
             let receipt = format!(
                 "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-cache\",\"llvm_version\":{},\"triple\":{},\"object_bytes\":{},\"cache\":{},\"llvm_verification_this_request\":false,\"producer_verified_before_after\":true,\"preflight_ns\":{},\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":{}}}",
@@ -593,11 +661,13 @@ fn compile_api_unit(
         }
         access = Some(lookup);
     }
-    let object =
-        zil_llvm_api::compile_module(&unit.module, &config, cancelled).map_err(api_error)?;
+    let object = zil_llvm_api::compile_module_with_trace(&unit.module, &config, cancelled, trace)
+        .map_err(api_error)?;
     check_cancelled(cancelled)?;
-    fs::write(&unit.object, &object.bytes)
-        .map_err(|e| io_error("write LLVM API object", &unit.object, e))?;
+    trace.measure("object_write", "stage", |_| {
+        fs::write(&unit.object, &object.bytes)
+            .map_err(|e| io_error("write LLVM API object", &unit.object, e))
+    })?;
     let r = &object.receipt;
     let q = zil_base::json_string;
     let mut receipt = format!(
@@ -645,6 +715,7 @@ fn compile_api_unit(
     _opt: Optimization,
     _cache: Option<&PreparedCache>,
     _cancelled: &(dyn Fn() -> bool + Sync),
+    _trace: &TimingTrace,
 ) -> CompileResult<UnitResult> {
     Err(infra(
         "E-LLVM-API-UNAVAILABLE",

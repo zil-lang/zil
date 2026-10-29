@@ -178,7 +178,7 @@ impl ArtifactPlan {
         if self.path(name).is_none() {
             return self.dump(report, options, name, "");
         }
-        let contents = contents(report);
+        let contents = report.trace.value("artifact_render", || contents(report));
         self.dump(report, options, name, &contents)
     }
 
@@ -196,6 +196,7 @@ impl ArtifactPlan {
         let Some(path) = self.path(name) else {
             return Ok(());
         };
+        let mut timing = report.trace.scope("artifact_write", "stage");
         self.validate()?;
         let parent = path.parent().expect("planned destination is absolute");
         fs::create_dir_all(parent).map_err(|error| infra("E-ARTIFACT-IO", error.to_string()))?;
@@ -210,6 +211,7 @@ impl ArtifactPlan {
         // Replacing a directory entry never truncates another hard link's data.
         fs::rename(&staged, path).map_err(|error| infra("E-ARTIFACT-IO", error.to_string()))?;
         report.artifacts.insert(name.into(), path.to_path_buf());
+        timing.finish("ok");
         Ok(())
     }
 

@@ -29,12 +29,13 @@ mod machine_cgu;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
 mod object_cache;
 pub use object_cache::{ObjectCacheSummary, PendingObjectCache};
+pub use zil_llvm_api::timing::{TimingReport, TimingSpan, TimingTrace};
 
 use zil_ir::FunctionId;
 
 pub use build::{
     BuildArtifact, BuildOptions, CodegenOptions, CodegenSummary, NativeBackend, Optimization,
-    WindowsLinkOptions, build, build_with_cancellation,
+    WindowsLinkOptions, build, build_with_cancellation, build_with_cancellation_traced,
 };
 pub use emit::{emit, emit_with_options};
 

@@ -13,16 +13,17 @@ Doing
   "authority": "user-requested independent research branch",
   "experiments": {
     "CP01": {
-      "status": "Doing",
+      "status": "NoGo",
       "author": "/root/frontend_audit",
       "write_set": [
         "crates/zil-db/src/lib.rs",
         "crates/zil-db/src/tests.rs",
         "crates/zil-db/examples/compile_performance.rs"
-      ]
+      ],
+      "result": "docs/research/compile-performance/CP01-RESULT.md"
     },
     "CP02": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/backend_audit",
       "write_set": [
         "crates/zil-driver/src",
@@ -36,11 +37,26 @@ Doing
       ]
     },
     "CP03": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/compiler_research",
       "write_set": [
         "tools/research/compile-performance",
         "docs/research/compile-performance/SOURCES.md"
+      ]
+    },
+    "CP04": {
+      "status": "Doing",
+      "author": "/root/frontend_audit",
+      "reviewer": "/root/backend_audit",
+      "plan": "docs/research/compile-performance/CP04-PLAN.md",
+      "write_set": [
+        "crates/zil-llvm-api/src/native.rs",
+        "crates/zil-llvm-api/src/lib.rs",
+        "crates/zil-backend-llvm/src/object_cache.rs",
+        "crates/zil-driver/tests/o0_ssa.rs",
+        "tools/research/compile-performance/runtime_bench.py",
+        "tools/research/compile-performance/test_runtime_bench.py",
+        "tools/research/compile-performance/README.md"
       ]
     }
   }

@@ -109,15 +109,35 @@ impl CompilationSession {
         options: &CompileOptions,
         observer: &mut dyn FnMut(&QueryEvent),
     ) -> CompileReport {
+        self.compile_source_traced(
+            source,
+            options,
+            observer,
+            &TimingTrace::new(options.timings),
+        )
+    }
+
+    pub(super) fn compile_source_traced(
+        &mut self,
+        source: &SourceUnit,
+        options: &CompileOptions,
+        observer: &mut dyn FnMut(&QueryEvent),
+        trace: &TimingTrace,
+    ) -> CompileReport {
+        let mut request = trace.scope("compile_source", "request");
         if self.raw.len() > self.capacity {
-            self.clear();
+            request.trace().value("session_eviction", || self.clear());
         }
         let start = Instant::now();
         let mut report = CompileReport::new(source);
+        report.trace = request.trace().clone();
         if let Err(errors) = self.pipeline(source, options, &mut report, observer) {
             report.fail(errors);
         }
         report.seconds = start.elapsed().as_secs_f64();
+        request.finish(report.status.as_str());
+        report.timings = trace.report();
+        report.trace = TimingTrace::default();
         report
     }
 
@@ -130,68 +150,71 @@ impl CompilationSession {
         observer: &mut dyn FnMut(&QueryEvent),
         execute: impl FnOnce() -> CompileResult<RawSnapshot>,
     ) -> CompileResult<(RawSnapshot, Arc<QuerySnapshot>)> {
-        options
-            .cancellation
-            .check(key.phase)
-            .map_err(|error| vec![error])?;
-        if let Some(snapshot) = self.database.read(&key).map_err(|error| vec![error])?
-            && let Some(raw) = self.raw.get(&key).cloned()
-        {
-            event(key.phase, QueryDisposition::Reused, report, observer);
+        let trace = report.trace.clone();
+        trace.measure(key.phase.as_str(), "query", |query_trace| {
             options
                 .cancellation
                 .check(key.phase)
                 .map_err(|error| vec![error])?;
-            report.cache_hit = true;
-            return Ok((raw, snapshot));
-        }
-        self.database
-            .begin(key.clone())
-            .map_err(|error| vec![error])?;
-        let result = execute();
-        event(key.phase, QueryDisposition::Executed, report, observer);
-        let raw = match result {
-            Ok(raw) => raw,
-            Err(errors) => {
-                self.database.abort(&key);
-                return Err(errors);
+            if let Some(snapshot) = self.database.read(&key).map_err(|error| vec![error])?
+                && let Some(raw) = self.raw.get(&key).cloned()
+            {
+                event(key.phase, QueryDisposition::Reused, report, observer);
+                options
+                    .cancellation
+                    .check(key.phase)
+                    .map_err(|error| vec![error])?;
+                report.cache_hit = true;
+                return Ok((raw, snapshot));
             }
-        };
-        if let Err(error) = options.cancellation.check(key.phase) {
-            self.database.abort(&key);
-            return Err(vec![error]);
-        }
-        let digest = raw.digest(&key, dependencies);
-        // The current whole-module raw queries conservatively observe complete
-        // implementation identity. Kind-selective graph support is separate;
-        // this does not claim cross-module private-body incremental checking.
-        let fingerprints = ResultFingerprints {
-            semantic: digest,
-            abi: key.target,
-            private_implementation: digest,
-            source_positions: key.input,
-            build_inputs: options.build_inputs,
-        };
-        let dependencies = dependencies
-            .iter()
-            .map(|input| Dependency {
-                key: input.key.clone(),
-                kind: FingerprintKind::PrivateImplementation,
-                observed: input.fingerprints.private_implementation,
-            })
-            .collect();
-        let snapshot = self
-            .database
-            .publish(
-                key.clone(),
-                ResultCategory::Success,
-                fingerprints,
-                dependencies,
-                digest.0.to_vec(),
-            )
-            .map_err(|error| vec![error])?;
-        self.raw.insert(key, raw.clone());
-        Ok((raw, snapshot))
+            self.database
+                .begin(key.clone())
+                .map_err(|error| vec![error])?;
+            let result = query_trace.measure("execute", "stage", |_| execute());
+            event(key.phase, QueryDisposition::Executed, report, observer);
+            let raw = match result {
+                Ok(raw) => raw,
+                Err(errors) => {
+                    self.database.abort(&key);
+                    return Err(errors);
+                }
+            };
+            if let Err(error) = options.cancellation.check(key.phase) {
+                self.database.abort(&key);
+                return Err(vec![error]);
+            }
+            let digest = query_trace.value("snapshot_identity", || raw.digest(&key, dependencies));
+            // The current whole-module raw queries conservatively observe complete
+            // implementation identity. Kind-selective graph support is separate;
+            // this does not claim cross-module private-body incremental checking.
+            let fingerprints = ResultFingerprints {
+                semantic: digest,
+                abi: key.target,
+                private_implementation: digest,
+                source_positions: key.input,
+                build_inputs: options.build_inputs,
+            };
+            let dependencies = dependencies
+                .iter()
+                .map(|input| Dependency {
+                    key: input.key.clone(),
+                    kind: FingerprintKind::PrivateImplementation,
+                    observed: input.fingerprints.private_implementation,
+                })
+                .collect();
+            let snapshot = self
+                .database
+                .publish(
+                    key.clone(),
+                    ResultCategory::Success,
+                    fingerprints,
+                    dependencies,
+                    digest.0.to_vec(),
+                )
+                .map_err(|error| vec![error])?;
+            self.raw.insert(key, raw.clone());
+            Ok((raw, snapshot))
+        })
     }
 
     fn pipeline(
@@ -221,7 +244,9 @@ impl CompilationSession {
         }
         let artifacts = ArtifactPlan::new(source, options)?;
         let parse_key = query_key(source, options, Phase::Parse, false);
-        disk_source(source, options, report, &parse_key)?;
+        report.trace.clone().measure("source_cache", "stage", |_| {
+            disk_source(source, options, report, &parse_key)
+        })?;
         // These immutable identities describe this request, not a proof. Reuse
         // them vertically instead of rehashing source bytes for every phase.
         let target = options.target.fingerprint();
@@ -379,12 +404,14 @@ impl CompilationSession {
             .check(Phase::Verify)
             .map_err(|error| vec![error])?;
         report.verification_runs += 1;
-        let verified = zil_verify::verify_module(
-            typed.clone(),
-            (*candidate).clone(),
-            &options.target,
-            &options.limits,
-        );
+        let verified = report.trace.measure("verify", "stage", |_| {
+            zil_verify::verify_module(
+                typed.clone(),
+                (*candidate).clone(),
+                &options.target,
+                &options.limits,
+            )
+        });
         event(Phase::Verify, QueryDisposition::Executed, report, observer);
         options
             .cancellation
@@ -392,7 +419,9 @@ impl CompilationSession {
             .map_err(|error| vec![error])?;
         let verified = verified?;
         report.phase = Phase::Verify;
-        super::contracts::publish(&verified, &mut report.scalar_interfaces)?;
+        report.trace.measure("contract_publish", "stage", |_| {
+            super::contracts::publish(&verified, &mut report.scalar_interfaces)
+        })?;
         if project.is_some() {
             artifacts.dump_lazy(report, options, "verified-interfaces", |report| {
                 format!("{:#?}", report.scalar_interfaces)
@@ -408,7 +437,9 @@ impl CompilationSession {
         if options.stop_after == Stage::Verify {
             return Ok(());
         }
-        let lir = zil_lower::lower(&verified)?;
+        let lir = report
+            .trace
+            .measure("lower", "stage", |_| zil_lower::lower(&verified))?;
         event(Phase::Lower, QueryDisposition::Executed, report, observer);
         options
             .cancellation
@@ -484,22 +515,34 @@ impl CompilationSession {
         // itself is a single external build step; this API does not claim to
         // interrupt a linker already running. Outputs stay in a private directory
         // until the last cancellation check and all fallible dumps have finished.
-        let artifact = zil_backend_llvm::build_with_cancellation(&verified, &lir, &build, &|| {
-            options.cancellation.check(Phase::Link).is_err()
-        })?;
+        let artifact = zil_backend_llvm::build_with_cancellation_traced(
+            &verified,
+            &lir,
+            &build,
+            &|| options.cancellation.check(Phase::Link).is_err(),
+            &report.trace,
+        )?;
         event(Phase::Link, QueryDisposition::Executed, report, observer);
         if let Err(error) = options.cancellation.check(Phase::Link) {
             return Err(vec![error]);
         }
-        let llvm = fs::read_to_string(&artifact.llvm_ir)
-            .map_err(|error| infra("E-ARTIFACT-IO", error.to_string()))?;
+        let llvm = report.trace.measure("llvm_sidecar_read", "stage", |_| {
+            fs::read_to_string(&artifact.llvm_ir)
+                .map_err(|error| infra("E-ARTIFACT-IO", error.to_string()))
+        })?;
         report.phase = Phase::Link;
         artifacts.dump(report, options, "llvm", &llvm)?;
-        artifacts.validate()?;
-        let mut artifact = publication.commit(artifact, &options.cancellation)?;
+        report
+            .trace
+            .measure("publication_validation", "stage", |_| artifacts.validate())?;
+        let mut artifact = report.trace.measure("publication", "stage", |_| {
+            publication.commit(artifact, &options.cancellation)
+        })?;
         // Only complete successful requests populate the machine cache. The
         // permission/capability for this request is never serialized or reused.
-        artifact.commit_object_cache();
+        report
+            .trace
+            .value("cache_store", || artifact.commit_object_cache());
         report.artifacts.insert("llvm".into(), artifact.llvm_ir);
         report
             .artifacts

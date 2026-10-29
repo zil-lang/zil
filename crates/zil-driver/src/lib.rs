@@ -16,7 +16,8 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 pub use zil_backend_llvm::{
-    CodegenOptions, CodegenSummary, NativeBackend, Optimization, WindowsLinkOptions,
+    CodegenOptions, CodegenSummary, NativeBackend, Optimization, TimingReport, TimingTrace,
+    WindowsLinkOptions,
 };
 use zil_base::{
     CompileResult, Diagnostic, FileId, Fingerprint, Limits, ModuleId, Phase, ResultCategory,
@@ -55,6 +56,8 @@ pub enum ExecutionProfile {
 }
 #[derive(Clone, Debug)]
 pub struct CompileOptions {
+    /// Diagnostic monotonic wall spans; not a compilation/cache input.
+    pub timings: bool,
     pub backend: NativeBackend,
     pub stop_after: Stage,
     pub emit_dir: Option<PathBuf>,
@@ -78,6 +81,7 @@ pub struct CompileOptions {
 impl Default for CompileOptions {
     fn default() -> Self {
         Self {
+            timings: false,
             backend: NativeBackend::default(),
             stop_after: Stage::Verify,
             emit_dir: None,
@@ -141,6 +145,8 @@ pub struct CompileReport {
     pub artifacts: BTreeMap<String, PathBuf>,
     pub input_fingerprint: Fingerprint,
     pub seconds: f64,
+    pub timings: Option<TimingReport>,
+    pub(crate) trace: TimingTrace,
     /// Compatibility summary; inspect query_events and disk_cache to determine
     /// what was reused. This flag never indicates a cached Verified object.
     pub cache_hit: bool,
@@ -161,6 +167,8 @@ impl CompileReport {
             artifacts: BTreeMap::new(),
             input_fingerprint: source.fingerprint(),
             seconds: 0.0,
+            timings: None,
+            trace: TimingTrace::default(),
             cache_hit: false,
             commands: vec![],
             native_codegen: None,
@@ -173,7 +181,7 @@ impl CompileReport {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"timings\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -192,6 +200,7 @@ impl CompileReport {
                 .join(","),
             json_string(&self.input_fingerprint.to_hex()),
             self.seconds,
+            self.timings.as_ref().map_or_else(|| "null".into(), TimingReport::to_json),
             self.cache_hit,
             self.commands
                 .iter()

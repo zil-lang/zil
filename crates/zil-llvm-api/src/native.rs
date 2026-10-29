@@ -3,6 +3,7 @@
 //! ParseIR consumes its memory buffer even on failure; target refs are borrowed;
 //! all LLVM work for one unit stays on one thread. No raw handle is Send/Sync.
 use super::{Config, Error, ErrorKind, Object, Optimization, Receipt};
+use crate::timing::TimingTrace;
 enum Input<'a> {
     #[cfg(feature = "text-reference")]
     Text(&'a str),
@@ -163,14 +164,15 @@ pub(super) fn compile(
     config: &Config<'_>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
-    compile_input(Input::Text(ir), config, cancelled)
+    compile_input(Input::Text(ir), config, cancelled, &TimingTrace::default())
 }
 pub(super) fn compile_module(
     module: &crate::model::Module,
     config: &Config<'_>,
     cancelled: &(dyn Fn() -> bool + Sync),
+    trace: &TimingTrace,
 ) -> Result<Object, Error> {
-    compile_input(Input::Structured(module), config, cancelled)
+    compile_input(Input::Structured(module), config, cancelled, trace)
 }
 pub(super) fn check_config(config: &Config<'_>) -> Result<[u32; 3], Error> {
     if !matches!(
@@ -239,8 +241,10 @@ fn compile_input(
     input: Input<'_>,
     config: &Config<'_>,
     cancelled: &(dyn Fn() -> bool + Sync),
+    trace: &TimingTrace,
 ) -> Result<Object, Error> {
     let start = Instant::now();
+    let mut setup = trace.scope("llvm_setup", "stage");
     check(cancelled)?;
     check_config(config)?;
     INIT.call_once(|| {
@@ -296,6 +300,7 @@ fn compile_input(
         ));
     }
     let data_layout = unsafe { take_message(LLVMCopyStringRepOfTargetData(layout.0)) };
+    setup.finish("ok");
     let (module, input_kind, preflight_ns, builder_ns, parse_ns) = match input {
         #[cfg(feature = "text-reference")]
         Input::Text(ir) => {
@@ -329,17 +334,22 @@ fn compile_input(
                 ));
             }
             let t = Instant::now();
-            let schedule = crate::preflight::validate(program)
-                .map_err(|message| error(ErrorKind::Verify, message))?;
+            let schedule = trace.measure("machine_preflight", "stage", |_| {
+                crate::preflight::validate(program)
+                    .map_err(|message| error(ErrorKind::Verify, message))
+            })?;
             let preflight_ns = nanos(t);
             check(cancelled)?;
             let t = Instant::now();
-            let module = builder::build(context.0, program, layout.0, &schedule, cancelled)?;
+            let module = trace.measure("llvm_builder", "stage", |_| {
+                builder::build(context.0, program, layout.0, &schedule, cancelled)
+            })?;
             (module, "builder", preflight_ns, nanos(t), 0)
         }
     };
-    verify(&module)?;
+    trace.measure("llvm_verify_before", "stage", |_| verify(&module))?;
     check(cancelled)?;
+    let mut pass_setup = trace.scope("llvm_pass_setup", "stage");
     if unsafe { text(LLVMGetTarget(module.0)) } != config.triple {
         return Err(error(
             ErrorKind::Target,
@@ -369,6 +379,8 @@ fn compile_input(
         LLVMPassBuilderOptionsSetLoopVectorization(opts.0, i32::from(optimized));
         LLVMPassBuilderOptionsSetSLPVectorization(opts.0, i32::from(optimized));
     }
+    pass_setup.finish("ok");
+    let mut optimization = trace.scope("llvm_optimize", "stage");
     let t = Instant::now();
     let failure = unsafe { LLVMRunPasses(module.0, pipeline.as_ptr(), machine.0, opts.0) };
     if !failure.is_null() {
@@ -381,8 +393,10 @@ fn compile_input(
         return Err(error(ErrorKind::Optimize, message));
     }
     let optimize_ns = nanos(t);
-    verify(&module)?;
+    optimization.finish("ok");
+    trace.measure("llvm_verify_after", "stage", |_| verify(&module))?;
     check(cancelled)?;
+    let mut emission = trace.scope("llvm_object_emit", "stage");
     let t = Instant::now();
     let mut object = ptr::null_mut();
     let mut msg = ptr::null_mut();
@@ -403,6 +417,7 @@ fn compile_input(
     // SAFETY: immutable borrowed byte range from a live LLVM memory buffer.
     let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) }.to_vec();
     let emit_ns = nanos(t);
+    emission.finish("ok");
     check(cancelled)?;
     Ok(Object {
         bytes,

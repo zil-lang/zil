@@ -46,7 +46,13 @@ impl CompilationSession {
         options: &CompileOptions,
         observer: &mut dyn FnMut(&QueryEvent),
     ) -> CompileReport {
-        self.compile_project_request(project, options, observer, None)
+        self.compile_project_request(
+            project,
+            options,
+            observer,
+            None,
+            &TimingTrace::new(options.timings),
+        )
     }
 
     /// The filesystem adapter may lend the exact syntax it already parsed to
@@ -58,9 +64,11 @@ impl CompilationSession {
         options: &CompileOptions,
         observer: &mut dyn FnMut(&QueryEvent),
         loaded_syntax: Option<&[Arc<ParseResult>]>,
+        trace: &TimingTrace,
     ) -> CompileReport {
+        let mut request = trace.scope("compile_project", "request");
         if self.raw.len() > self.capacity {
-            self.clear();
+            request.trace().value("session_eviction", || self.clear());
         }
         let start = Instant::now();
         let fallback = SourceUnit::new(FileId(0), project.root, "<project>", "");
@@ -70,12 +78,16 @@ impl CompilationSession {
             .find(|m| m.module_id == project.root)
             .unwrap_or(&fallback);
         let mut report = CompileReport::new(root);
+        report.trace = request.trace().clone();
         if let Err(errors) =
             self.project_pipeline(project, options, &mut report, observer, loaded_syntax)
         {
             report.fail(errors);
         }
         report.seconds = start.elapsed().as_secs_f64();
+        request.finish(report.status.as_str());
+        report.timings = trace.report();
+        report.trace = TimingTrace::default();
         report
     }
 
@@ -85,6 +97,8 @@ impl CompilationSession {
         options: &CompileOptions,
     ) -> CompileReport {
         let start = Instant::now();
+        let trace = TimingTrace::new(options.timings);
+        let mut request = trace.scope("compile_path", "request");
         // Discovery may borrow immutable syntax from the previous request.
         // The existing compile_project_request capacity guard still clears
         // cache ownership before publishing this request; the lent Arcs do
@@ -101,21 +115,34 @@ impl CompilationSession {
         };
         // Parse is a syntax-only stop for the requested file. Import discovery
         // belongs to expansion and must not read or reject dependencies yet.
-        let loaded = if options.stop_after == Stage::Parse {
-            read_source(path, options).map(|source| {
-                project.modules[0] = source;
-                Vec::new()
-            })
-        } else {
-            load_sources(&mut project, path, options, self)
-        };
+        let loaded = request
+            .trace()
+            .measure("source_discovery", "stage", |trace| {
+                if options.stop_after == Stage::Parse {
+                    trace
+                        .measure("source_read", "stage", |_| read_source(path, options))
+                        .map(|source| {
+                            project.modules[0] = source;
+                            Vec::new()
+                        })
+                } else {
+                    load_sources(&mut project, path, options, self, trace)
+                }
+            });
         let mut report = match loaded {
-            Ok(_) if options.stop_after == Stage::Parse => {
-                self.compile_source(&project.modules[0], options)
-            }
-            Ok(parsed) => {
-                self.compile_project_request(&project, options, &mut |_| {}, Some(&parsed))
-            }
+            Ok(_) if options.stop_after == Stage::Parse => self.compile_source_traced(
+                &project.modules[0],
+                options,
+                &mut |_| {},
+                request.trace(),
+            ),
+            Ok(parsed) => self.compile_project_request(
+                &project,
+                options,
+                &mut |_| {},
+                Some(&parsed),
+                request.trace(),
+            ),
             Err(errors) => {
                 let mut report = CompileReport::new(&project.modules[0]);
                 report.source_files = project
@@ -128,6 +155,8 @@ impl CompilationSession {
             }
         };
         report.seconds = start.elapsed().as_secs_f64();
+        request.finish(report.status.as_str());
+        report.timings = trace.report();
         report
     }
 
@@ -168,12 +197,14 @@ impl CompilationSession {
         let mut remaining = options.limits.clone();
         for (index, source) in project.modules.iter().enumerate() {
             if options.cache_dir.is_some() {
-                disk_source(
-                    source,
-                    options,
-                    report,
-                    &query_key(source, options, Phase::Parse, false),
-                )?;
+                report.trace.clone().measure("source_cache", "stage", |_| {
+                    disk_source(
+                        source,
+                        options,
+                        report,
+                        &query_key(source, options, Phase::Parse, false),
+                    )
+                })?;
             }
             let mut parse_options = options.clone();
             parse_options.limits = remaining.clone();
@@ -216,7 +247,9 @@ impl CompilationSession {
         if options.stop_after == Stage::Parse {
             return Ok(());
         }
-        let imports = resolve_imports(project, &parsed, &options.limits)?;
+        let imports = report.trace.measure("resolve_imports", "stage", |_| {
+            resolve_imports(project, &parsed, &options.limits)
+        })?;
         let (raw, expand_snapshot) = self.query(
             key(Phase::Expand, false),
             &dependencies,
@@ -702,6 +735,7 @@ fn load_sources(
     path: &Path,
     options: &CompileOptions,
     session: &CompilationSession,
+    trace: &TimingTrace,
 ) -> CompileResult<Vec<Arc<ParseResult>>> {
     options
         .cancellation
@@ -716,7 +750,8 @@ fn load_sources(
     if remaining.max_nodes == 0 {
         return Err(limit(Phase::Parse, "project module budget exceeded"));
     }
-    project.modules[0] = read_source(&root_path, options)?;
+    project.modules[0] =
+        trace.measure("source_read", "stage", |_| read_source(&root_path, options))?;
     take(
         &mut remaining.max_source_bytes,
         project.modules[0].text.len(),
@@ -751,7 +786,12 @@ fn load_sources(
         query_options.limits.max_tokens = parse_limits.max_tokens;
         query_options.limits.max_nodes = remaining.max_nodes;
         let key = query_key(&project.modules[index], &query_options, Phase::Parse, false);
-        let cached = if session.database.read(&key).map_err(|e| vec![e])?.is_some() {
+        let cached = if trace
+            .measure("discovery_query", "stage", |_| {
+                session.database.read(&key).map_err(|e| vec![e])
+            })?
+            .is_some()
+        {
             match session.raw.get(&key) {
                 Some(RawSnapshot::Parse(p)) => Some(p.clone()),
                 _ => None,
@@ -760,10 +800,17 @@ fn load_sources(
             None
         };
         let parsed = cached.unwrap_or_else(|| {
-            Arc::new(zil_syntax::parse_with_limits(
+            let mut timing = trace.scope("parse", "stage");
+            let parsed = Arc::new(zil_syntax::parse_with_limits(
                 &project.modules[index],
                 &parse_limits,
-            ))
+            ));
+            timing.finish(if parsed.diagnostics.is_empty() {
+                "ok"
+            } else {
+                "error"
+            });
+            parsed
         });
         if !parsed.diagnostics.is_empty() {
             return Err(parsed.diagnostics.clone());
@@ -800,14 +847,21 @@ fn load_sources(
                     .map_err(|_| limit(Phase::Parse, "project module identity budget exceeded"))?;
                 let mut read_options = options.clone();
                 read_options.limits.max_source_bytes = remaining.max_source_bytes;
-                let mut source = read_source(&canonical, &read_options).map_err(|errors| {
-                    errors
-                        .into_iter()
-                        .map(|e| {
-                            e.with_note(format!("imported from {}", project.modules[index].path))
-                        })
-                        .collect::<Vec<_>>()
-                })?;
+                let mut source = trace
+                    .measure("source_read", "stage", |_| {
+                        read_source(&canonical, &read_options)
+                    })
+                    .map_err(|errors| {
+                        errors
+                            .into_iter()
+                            .map(|e| {
+                                e.with_note(format!(
+                                    "imported from {}",
+                                    project.modules[index].path
+                                ))
+                            })
+                            .collect::<Vec<_>>()
+                    })?;
                 take(
                     &mut remaining.max_source_bytes,
                     source.text.len(),
@@ -861,7 +915,7 @@ mod discovery158_tests {
             modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "placeholder", "")],
             paths: BTreeMap::new(),
         };
-        load_sources(&mut p, path, options, session)
+        load_sources(&mut p, path, options, session, &TimingTrace::default())
     }
     fn setup() -> (Dir, std::path::PathBuf, CompilationSession) {
         let dir = Dir::new();
