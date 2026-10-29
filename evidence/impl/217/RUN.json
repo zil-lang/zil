@@ -1,0 +1,23 @@
+{
+  "command": [
+    "python3",
+    "tools/language/217/run.py",
+    "--repo",
+    "/workspace/scratch/3cf12ce32e36/zil-217",
+    "--cli",
+    "/workspace/scratch/3cf12ce32e36/targets/review216/debug/zil",
+    "--compiler-build-receipt",
+    "/workspace/scratch/3cf12ce32e36/recovery/review216/compiler-build.json",
+    "--compiler-sha256",
+    "448ff19886570b775176bca237ef512a523bd924e61f465b13b20d8b3be88ca7",
+    "--out",
+    "/workspace/scratch/3cf12ce32e36/recovery/217-consumer01"
+  ],
+  "setup": "source /workspace/scratch/3cf12ce32e36/recovery/env.sh",
+  "exit": 0,
+  "source_commit": "06a80559e91f5fc743bbadf17ddb900e25bc85d8",
+  "source_clean_before_and_after": true,
+  "result": "RESULT.json",
+  "artifact_manifest": "ARTIFACT-MANIFEST.json",
+  "whole_workspace_ran": false
+}
