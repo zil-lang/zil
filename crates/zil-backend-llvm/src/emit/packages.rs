@@ -16,8 +16,12 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
 }
 
 /// Complete nested Products use the ordinary value ABI. The old predicate
-/// remains the only admission route for captures, arrays and error payloads.
+/// remains the admission route for arrays and error payloads.
 pub(super) fn supported_value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
+    supported_type(ty, resources) || product_type(ty, resources)
+}
+
+pub(super) fn supported_capture_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     supported_type(ty, resources) || product_type(ty, resources)
 }
 

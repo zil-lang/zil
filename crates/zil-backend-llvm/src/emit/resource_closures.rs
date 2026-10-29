@@ -18,14 +18,14 @@ pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
 }
 
 /// Flags are appended after all data fields, grouped by capture order.
-/// Package groups are shell followed by direct Managed fields in field order.
+/// Package groups are shell followed by direct Managed/complete child fields.
 pub(super) fn flag_count(ty: &Type) -> usize {
     match ty {
         Type::Managed(_) | Type::Closure(_) => 1,
         Type::Package { fields, .. } => {
             1 + fields
                 .iter()
-                .filter(|(_, ty)| matches!(ty, Type::Managed(_)))
+                .filter(|(_, ty)| matches!(ty, Type::Managed(_) | Type::Package { .. }))
                 .count()
         }
         _ => 0,
@@ -191,7 +191,9 @@ pub(super) fn drop_functions(
                 Type::Package { fields, .. } => {
                     let mut offset = 1;
                     for (field, (_, ty)) in fields.iter().enumerate() {
-                        let Type::Managed(payload) = ty else { continue };
+                        if !matches!(ty, Type::Managed(_) | Type::Package { .. }) {
+                            continue;
+                        }
                         let field_flag = flag + offset;
                         offset += 1;
                         text.append(m::Code::from(vec![
@@ -232,31 +234,32 @@ pub(super) fn drop_functions(
                                 },
                             )),
                         ]));
-                        let teardown = if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
-                            Some(dynamic_store::helper(payload, resources, "drop")?)
-                        } else {
-                            let resource = resources
-                                .iter()
-                                .find(|resource| &resource.payload == payload.as_ref())
-                                .expect("verified captured package resource definition");
-                            if resource.payload == Type::ByteBuffer {
-                                Some("zil.bytes.drop".into())
+                        // Discharge the direct child flag before traversing its
+                        // complete inline leaves in declaration order. Machine
+                        // events serve both direct Builder and text reference.
+                        for (leaf, (path, teardown)) in packages::teardown_paths(ty, resources)?
+                            .into_iter()
+                            .enumerate()
+                        {
+                            let pointer = if path.is_empty() {
+                                format!("payload.{index}.{field}")
                             } else {
-                                resource.teardown.map(symbol)
-                            }
-                        };
-                        if let Some(teardown) = teardown {
+                                format!("payload.{index}.{field}.{leaf}")
+                            };
+                            let mut indices = vec![
+                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                m::Arg::new(m::Ty::Int(32), m::val(index)),
+                                m::Arg::new(m::Ty::Int(32), m::val(field)),
+                            ];
+                            indices
+                                .extend(path.into_iter().map(|p| m::Arg::new(m::Ty::Int(32), p)));
                             text.append(m::Code::from(vec![
                                 m::Event::Instruction(m::Inst::new(
-                                    Some(format!("payload.{}.{}", index, field)),
+                                    Some(pointer.clone()),
                                     m::Op::Gep {
-                                        ty: (env).clone(),
+                                        ty: env.clone(),
                                         ptr: m::local("env".into()),
-                                        indices: vec![
-                                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                                            m::Arg::new(m::Ty::Int(32), m::val(index)),
-                                            m::Arg::new(m::Ty::Int(32), m::val(field)),
-                                        ],
+                                        indices,
                                     },
                                 )),
                                 m::Event::Instruction(m::Inst::new(
@@ -264,11 +267,8 @@ pub(super) fn drop_functions(
                                     m::Op::Call {
                                         result: m::Ty::Void,
                                         result_attrs: vec![],
-                                        callee: m::global(teardown.to_string()),
-                                        args: vec![m::Arg::new(
-                                            m::Ty::Ptr,
-                                            m::local(format!("payload.{}.{}", index, field)),
-                                        )],
+                                        callee: m::global(teardown),
+                                        args: vec![m::Arg::new(m::Ty::Ptr, m::local(pointer))],
                                         vararg: None,
                                     },
                                 )),
@@ -344,7 +344,9 @@ impl FunctionEmitter<'_> {
         let owned = fields
             .iter()
             .enumerate()
-            .filter_map(|(field, (_, ty))| matches!(ty, Type::Managed(_)).then_some(field))
+            .filter_map(|(field, (_, ty))| {
+                matches!(ty, Type::Managed(_) | Type::Package { .. }).then_some(field)
+            })
             .collect::<Vec<_>>();
         let env = environment_type(environment);
         self.event(m::Event::Instruction(m::Inst::new(
