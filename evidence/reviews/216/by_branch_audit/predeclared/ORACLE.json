@@ -1,0 +1,338 @@
+{
+  "basis": "Declaration-order teardown and explicit native control flow; frozen before compiling these inputs.",
+  "cases": [
+    {
+      "name": "two-equal-captures-read",
+      "path": "/workspace/scratch/3cf12ce32e36/recovery/review216/predeclared/two-equal-captures-read.zil",
+      "source_sha256": "fb2839c3a8e55d49d0e9d756ecfb1e928aad57a61ae0f57fc1edf0cc102601ec",
+      "stdout": "XABCDEFGH",
+      "exit": 0,
+      "probes": [
+        {
+          "fail_at": 0,
+          "stdout": "XABCDEFGH",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 0,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "take-first-keep-second",
+      "path": "/workspace/scratch/3cf12ce32e36/recovery/review216/predeclared/take-first-keep-second.zil",
+      "source_sha256": "f3c1b4aa673241eda78e4ac4fd678b8c2b3c6b5ceaea549df8370ebf52e2bf13",
+      "stdout": "XABCDEFGHY",
+      "exit": 0,
+      "probes": [
+        {
+          "fail_at": 0,
+          "stdout": "XABCDEFGHY",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 0,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "same-type-child-swap",
+      "path": "/workspace/scratch/3cf12ce32e36/recovery/review216/predeclared/same-type-child-swap.zil",
+      "source_sha256": "37f2922c3fba7b90328b4277850facc274a6d85eaddf87517f2333c6f6942764",
+      "stdout": "XABCDEFGH",
+      "exit": 0,
+      "probes": [
+        {
+          "fail_at": 0,
+          "stdout": "XABCDEFGH",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 0,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "mixed-child-flags-padding",
+      "path": "/workspace/scratch/3cf12ce32e36/recovery/review216/predeclared/mixed-child-flags-padding.zil",
+      "source_sha256": "ee9206ea820bfb5b2a65a7b2945e75bd81d81c2498e42bc0d3d70030baa5262d",
+      "stdout": "XIEFGHABCDJ",
+      "exit": 0,
+      "probes": [
+        {
+          "fail_at": 0,
+          "stdout": "XIEFGHABCDJ",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 0,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "nested-owned-environments",
+      "path": "/workspace/scratch/3cf12ce32e36/recovery/review216/predeclared/nested-owned-environments.zil",
+      "source_sha256": "7f842e5b18ee5e63e1d479e535a8c56c80b136f193d010ae9ac12308fddb2bf0",
+      "stdout": "XABCDY",
+      "exit": 0,
+      "probes": [
+        {
+          "fail_at": 0,
+          "stdout": "XABCDY",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 0,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "once-branch-leaves-child",
+      "path": "/workspace/scratch/3cf12ce32e36/recovery/review216/predeclared/once-branch-leaves-child.zil",
+      "source_sha256": "1f2c91de93abd1f2bebe18869778a430bbd90db1ca1b881d2f9c44d325d57964",
+      "stdout": "XABCDY",
+      "exit": 0,
+      "probes": [
+        {
+          "fail_at": 0,
+          "stdout": "XABCDY",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 0,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "store-shared",
+      "path": "/workspace/scratch/3cf12ce32e36/recovery/review216/predeclared/store-shared.zil",
+      "source_sha256": "e18a31b6462e026b13901c07278e1479408bda8c128868467f2ea6592be6d87d",
+      "stdout": "ABCDEFGH",
+      "exit": 0,
+      "probes": [
+        {
+          "fail_at": 0,
+          "stdout": "ABCDEFGH",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 224
+          }
+        },
+        {
+          "fail_at": 1,
+          "stdout": "EFGHABCD",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "fail_at": 2,
+          "stdout": "ABCDEFGH",
+          "exit": 2,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 112
+          }
+        },
+        {
+          "fail_at": 3,
+          "stdout": "ABCDEFGH",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 224
+          }
+        }
+      ]
+    },
+    {
+      "name": "store-exclusive",
+      "path": "/workspace/scratch/3cf12ce32e36/recovery/review216/predeclared/store-exclusive.zil",
+      "source_sha256": "ed8250995494a86d425b33377074e7eeb3d8f058c485ac4c86d9da7c5ffef29c",
+      "stdout": "ABCDEFGH",
+      "exit": 0,
+      "probes": [
+        {
+          "fail_at": 0,
+          "stdout": "ABCDEFGH",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 224
+          }
+        },
+        {
+          "fail_at": 1,
+          "stdout": "EFGHABCD",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "fail_at": 2,
+          "stdout": "ABCDEFGH",
+          "exit": 2,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 112
+          }
+        },
+        {
+          "fail_at": 3,
+          "stdout": "ABCDEFGH",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 224
+          }
+        }
+      ]
+    },
+    {
+      "name": "real-child-buffer-failure",
+      "path": "/workspace/scratch/3cf12ce32e36/recovery/review216/predeclared/real-child-buffer-failure.zil",
+      "source_sha256": "55f789e4e44f6a544c8a7c4842e302ed9cc9378b4d865d1ef60d79a4237b52a8",
+      "stdout": "YAB",
+      "exit": 0,
+      "probes": [
+        {
+          "fail_at": 0,
+          "stdout": "YAB",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 16
+          }
+        },
+        {
+          "fail_at": 1,
+          "stdout": "",
+          "exit": 1,
+          "allocation": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "fail_at": 2,
+          "stdout": "AB",
+          "exit": 2,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 4
+          }
+        },
+        {
+          "fail_at": 3,
+          "stdout": "YAB",
+          "exit": 0,
+          "allocation": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 16
+          }
+        }
+      ]
+    }
+  ]
+}

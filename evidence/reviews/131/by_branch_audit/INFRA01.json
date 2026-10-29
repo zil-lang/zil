@@ -1,0 +1,1 @@
+{"status": "InfraError", "scope": "pre-test tool discovery", "reason": "rustc absent from shell PATH", "tests_executed": 0}

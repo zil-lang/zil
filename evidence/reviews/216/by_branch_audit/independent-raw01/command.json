@@ -1,0 +1,29 @@
+{
+  "source_commit": "68dd99af8b995275db8ba51df73e419899c10e3d",
+  "git_status": "",
+  "command": [
+    "/workspace/scratch/3cf12ce32e36/toolchains/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+    "test",
+    "--offline",
+    "--manifest-path",
+    "/workspace/scratch/3cf12ce32e36/recovery/review216/raw-harness/Cargo.toml",
+    "--",
+    "--nocapture"
+  ],
+  "started": 1793255052.0989015,
+  "status": "Pass",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/3cf12ce32e36/targets/review216",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "ZIL_CLANG": "/workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/llvm-17/bin/clang",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/x86_64-linux-gnu",
+    "LD_LIBRARY_PATH": "/workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/x86_64-linux-gnu"
+  },
+  "exit_code": 0,
+  "elapsed_seconds": 12.31310749053955,
+  "stdout_sha256": "63a0af8002a43aa8b2437fd42729715d2add0aab58a083926ab11426e6ef4aa1",
+  "stderr_sha256": "6a4be21d6ab18264a7d34ebd16a864a547086601228a1aefccfeadbf750ac864"
+}

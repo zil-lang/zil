@@ -1,0 +1,25 @@
+
+running 10 tests
+test effect_graph::tests::empty_graph_and_invalid_construction_are_explicit ... ok
+test effect_graph::tests::external_support_and_alternate_paths_survive ... ok
+boundary n=128 dirty=1 incoming=127 work=135
+boundary n=256 dirty=1 incoming=255 work=263
+boundary n=512 dirty=1 incoming=511 work=519
+real_source_families=20 receiver_observations=160
+boundary n=1024 dirty=1 incoming=1023 work=1031
+test effect_graph::tests::recursive_seed_deletion_cannot_self_support ... ok
+test effect_graph::tests::every_budget_prefix_rolls_back_and_n_minus_one_fails ... ok
+test effect_graph::tests::last_write_wins_and_noop_has_no_dirty_graph_scan ... ok
+test incremental_edits_match_all_real_source_receiver_observations ... ok
+test one_dirty_vertex_can_still_have_a_linear_boundary ... ok
+growth n=128 local_work=8 local_dirty=1 root_work=641 root_dirty=128
+growth n=256 local_work=8 local_dirty=1 root_work=1281 root_dirty=256
+growth n=512 local_work=8 local_dirty=1 root_work=2561 root_dirty=512
+growth n=1024 local_work=8 local_dirty=1 root_work=5121 root_dirty=1024
+test effect_graph::tests::local_edit_and_whole_cone_growth_are_both_reported ... ok
+exhaustive_updates=49152
+test effect_graph::tests::exhaustive_three_node_graphs_seeds_and_single_updates ... ok
+test effect_graph::tests::mixed_batches_match_whole_graph_fixed_point ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.38s
+
