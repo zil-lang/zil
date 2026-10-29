@@ -495,6 +495,18 @@ Types、Analyze、Verify分别从实际类型、MakeClosure输入、捕获位置
 
 本片复用既有Managed<OwnedStore<T>>、MakeClosure、DescribeCapture/TakeCapture、BindPackageCapture、Describe/TakePackageField和Store借用指令；保持schema/Wire27及其指纹域，不增加权限位或新的运行时opcode。若实际raw/Wire不能独立恢复必要事实，须先发布具体公共表示再继续该路径。新增完整类型、资格、结果、图、键、复制和工作队列在扫描/增长之前预费；仅在实际新增形状收费，原路径精确预算、默认限额及产品profile不变。登记不等于通过，须原预检源、近邻反例、独立raw/Wire、O0/O2真实失败清理及N/N−1/fresh N收据闭合。借入逃逸、长期外部保留、异步、取消、dyn及完整语言终态没有由此完成。
 
+### 9.1.2 完整嵌套 Product 的拥有捕获（214–216）
+
+206 的有限完整 Package Product 可作为真实拥有值进入闭包环境。准入严格复用 §8.1.1 的完整递归形状：直接 Managed 叶、完整 Package child 和既有有限 Copy 伴随字段；不由此开放 Product 内部 Store、Closure、拥有数组、Sum 或借入字段。只读普通闭包继续按 §9.1 借入，`move` 创建真实拥有环境；正文实际整体消费或取走完整 child 时，普通闭包在创建时转交该 Product，不能等调用时再从外部夺取责任。
+
+每个直接 Managed 字段及完整 Package child 在环境视图中各占一个独立责任槽；child 取到局部后才允许既有部分取走和补入，回填必须完整。只读拥有环境为 Fn；修改且所有正常、错误返回均恢复完整的环境为 FnMut；任一可达返回可能残缺则为 FnOnce。循环回边、提前返回及 `?` 均检查实际责任。共享环境不得取 child、替换或写入；所有模式继续保留实际捕获位置、来源和父借用根，不以相同类型或 ClosureId 合并实例。
+
+捕获不制造 create 来源：捕获视图的 Managed 叶按实际已取得责任检查，跨捕获/普通调用不得将 Incoming 改记为 Created。整体转交、child 转交、失败准备及未调用销毁各清理当前实际持有的责任。child 一个存活标志，在递归声明序 teardown 之前清除；内部完整 child 不引入另一套部分初始化标志。FnOnce 消费后只清理尚存字段。布局内联，无新增隐式分配、Box、RC、锁或全局表。
+
+新环境可沿已验收的 State 和外层 callback Store 入口使用；Product 自身仍不因此成为 Store 元素、错误载荷或拥有数组元素。复用 schema/Wire27 与 MakeClosure、BindPackageCapture、EndPackageCapture、TakePackageField 等现有表示。Analyze 与 Verify 独立重建捕获资格、完整性、来源及布局，Verify 不调用 Types/Analyze 求证。新增遍历、路径和状态在增长前收费；原默认限额和未新增工作路径保持。
+
+206 的 Product capture 拒绝为当时有限实现边界；214–216 先冻结其原始 source/raw/Wire 与拒绝，再按本合同晋升完整合法形状，同时保持缺失 child、错误绑定、重复取走、共享写入、来源伪造和错误布局的最近拒绝。登记不表示实现或产品通过；完整 1.4、异步/取消、长期外部保留及原生 Windows 义务保持。
+
 ### 9.2 精确路径和三个执行时点
 
 普通内联结构/元组字段可精确捕获；同源前缀合并，不能移动同一字段两次或制造两份相交独占资格。动态索引、自定义投影、未知解引用、packed/union、需完整 teardown 的位置，提升到最近合法前缀或要求明确的已核视图。不能为提高精度提前执行 getter、索引计算、allocator 或用户代码。
