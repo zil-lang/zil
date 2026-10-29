@@ -128,6 +128,18 @@ pub(super) fn has_children(ty: &Type) -> bool {
         if fields.iter().any(|(_, field)| matches!(field, Type::Package { .. })))
 }
 
+/// Capture admission is explicit: only the complete ordinary Product profile
+/// extends the old flat gate. Bind/End, per-child debts, call mode and source
+/// provenance are still reconstructed from the actual closure body.
+pub(super) fn check_capture_type(
+    module: &TypedModule,
+    ty: &Type,
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<()> {
+    check_ordinary_type(module, ty, span, budget)
+}
+
 pub(super) fn check_ordinary_type(
     module: &TypedModule,
     ty: &Type,

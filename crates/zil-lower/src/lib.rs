@@ -52,7 +52,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                     // A borrowed Store description still has no owning ABI.
                     || (resource_type(ty, &module.resources)
                         && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
-                    || (package_type(ty, &module.resources)
+                    || (package_capture_type(ty, &module.resources)
                         && !package_array_fields(ty))
             })
             || !closure.parameters.iter().all(|ty| {
@@ -165,10 +165,13 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
         })
 }
 
-// The new recursive Product is an ordinary complete value only. Keep the
-// existing predicate above for capture, error-payload and array qualification.
+// Keep the existing predicate above for error-payload and array qualification.
 // Verify has already bounded the full inline type and its cleanup paths.
 fn package_value_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    package_type(ty, resources) || product_type(ty, resources)
+}
+
+fn package_capture_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     package_type(ty, resources) || product_type(ty, resources)
 }
 
