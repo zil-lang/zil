@@ -191,6 +191,9 @@ fn check_callback_captures(
                 // environment retains the existing shell/field live flags;
                 // only the complete Store element must have nonzero layout.
                 Type::Package { .. } if legacy_fields(capture) => {}
+                Type::Package { .. } if packages::product::nested(capture) => {
+                    packages::product::validate(capture, work, limits.max_call_depth, span)?;
+                }
                 Type::Managed(_) | Type::Package { .. }
                     if owned_capture(capture, work, limits, span)? =>
                 {
