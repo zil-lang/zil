@@ -18,14 +18,14 @@ pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
 }
 
 /// Flags are appended after all data fields, grouped by capture order.
-/// Package groups are shell followed by direct Managed fields in field order.
+/// Package groups are shell followed by direct Managed/complete child fields.
 pub(super) fn flag_count(ty: &Type) -> usize {
     match ty {
         Type::Managed(_) | Type::Closure(_) => 1,
         Type::Package { fields, .. } => {
             1 + fields
                 .iter()
-                .filter(|(_, ty)| matches!(ty, Type::Managed(_)))
+                .filter(|(_, ty)| matches!(ty, Type::Managed(_) | Type::Package { .. }))
                 .count()
         }
         _ => 0,
@@ -95,28 +95,31 @@ pub(super) fn drop_functions(
                 Type::Package { fields, .. } => {
                     let mut offset = 1;
                     for (field, (_, ty)) in fields.iter().enumerate() {
-                        let Type::Managed(payload) = ty else { continue };
+                        if !matches!(ty, Type::Managed(_) | Type::Package { .. }) {
+                            continue;
+                        }
                         let field_flag = flag + offset;
                         offset += 1;
                         text.push_str(&format!(
                             "  %field.flag.{index}.{field} = getelementptr {env}, ptr %env, i32 0, i32 {field_flag}\n  %field.live.{index}.{field} = load i1, ptr %field.flag.{index}.{field}, align 1\n  br i1 %field.live.{index}.{field}, label %field.drop.{index}.{field}, label %field.done.{index}.{field}\nfield.drop.{index}.{field}:\n  store i1 false, ptr %field.flag.{index}.{field}, align 1\n"
                         ));
-                        let teardown = if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
-                            Some(dynamic_store::helper(payload, resources, "drop")?)
-                        } else {
-                            let resource = resources
-                                .iter()
-                                .find(|resource| &resource.payload == payload.as_ref())
-                                .expect("verified captured package resource definition");
-                            if resource.payload == Type::ByteBuffer {
-                                Some("zil.bytes.drop".into())
+                        // The direct child flag is already clear. Embedded
+                        // children are complete inline payloads, so their
+                        // leaves tear down in recursive declaration order
+                        // without another partial-initialization flag table.
+                        for (leaf, (path, teardown)) in packages::teardown_paths(ty, resources)?
+                            .into_iter()
+                            .enumerate()
+                        {
+                            let suffix: String =
+                                path.iter().map(|p| format!(", i32 {p}")).collect();
+                            let pointer = if path.is_empty() {
+                                format!("%payload.{index}.{field}")
                             } else {
-                                resource.teardown.map(symbol)
-                            }
-                        };
-                        if let Some(teardown) = teardown {
+                                format!("%payload.{index}.{field}.{leaf}")
+                            };
                             text.push_str(&format!(
-                                "  %payload.{index}.{field} = getelementptr {env}, ptr %env, i32 0, i32 {index}, i32 {field}\n  call void @{teardown}(ptr %payload.{index}.{field})\n"
+                                "  {pointer} = getelementptr {env}, ptr %env, i32 0, i32 {index}, i32 {field}{suffix}\n  call void @{teardown}(ptr {pointer})\n"
                             ));
                         }
                         text.push_str(&format!(
@@ -172,7 +175,9 @@ impl FunctionEmitter<'_> {
         let owned = fields
             .iter()
             .enumerate()
-            .filter_map(|(field, (_, ty))| matches!(ty, Type::Managed(_)).then_some(field))
+            .filter_map(|(field, (_, ty))| {
+                matches!(ty, Type::Managed(_) | Type::Package { .. }).then_some(field)
+            })
             .collect::<Vec<_>>();
         let env = environment_type(environment);
         self.line(format!(

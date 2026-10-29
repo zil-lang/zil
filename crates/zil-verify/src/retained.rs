@@ -77,7 +77,7 @@ pub(super) fn check_claim(
             .get(parameter.0 as usize)
             .ok_or_else(|| bad(f, "callable factory parameter is outside its local table"))?;
         if matches!(local.ty, Type::Package { .. }) {
-            packages::check_type_for(module, &local.ty, Some(local.span), budget)?;
+            packages::check_ordinary_type(module, &local.ty, Some(local.span), budget)?;
         } else if !(local.ty.is_copy_value() || matches!(local.ty, Type::Managed(_))) {
             return Err(unsupported(
                 "self-contained callable factories require Copy, Managed or finite Package inputs",
@@ -89,7 +89,7 @@ pub(super) fn check_claim(
     for (index, ty) in d.captures.iter().enumerate() {
         budget.spend(1)?;
         if matches!(ty, Type::Package { .. }) {
-            packages::check_type_for(module, ty, Some(f.span), budget)?;
+            packages::check_capture_type(module, ty, Some(f.span), budget)?;
             cleanup.push(index as u32);
         } else if matches!(ty, Type::Managed(_)) {
             cleanup.push(index as u32);
