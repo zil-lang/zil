@@ -1,0 +1,9 @@
+# 216 最终规范登记与旧206诊断迁移
+
+214–216只开放完整有限Product拥有捕获，未实现默认只读借入；interfaces以ImplementedPartial及closed边界明确记录，不宣称§9.1.2/1.4全体通过。schema/Wire27与默认预算、产品门不变。
+
+867新增规范与213恢复编译专项规范时漏同步data/normative-inputs.json；本提交按七份实际规范输入重新登记。206及更早历史记录不改，214/215/216作者交付仍保原SHA及当时文件哈希，正式任务的implementation_commit将绑定本次登记正确的最终集成候选，再由非作者补充审核。
+
+46a2947f参考后端全仓2711/0/0；生产/测试与本候选相同，仅本次规范状态说明与登记、审核收据变化。68dd99af独审覆盖101项及72次构建/108次原生/24次真实分配失败。所有执行仍保原身份，不改写为本候选执行。默认后端正式全仓与Clippy另行记录。
+
+impl206_analyze保留原恶构造源及raw输入，只迁capture这一项由资格Unsupported进入所有权字段核后的精确SafeReject；其它父上下文拒绝保持。先前完整workspace失败与reference磁盘耗尽均保留为Fail/InfraFail。
