@@ -197,7 +197,6 @@ fn heads_are_not_descriptors_mutable_windows_returns_or_captures() {
         "fn main(){let r=R{code:65,n:42};let p=&r;let f=()=>p.n}",
         "fn main(){let r=R{code:65,n:42};let f=move()=>{let p=&r;return p.n}}",
         "fn main(){let b=bytes_new();let p=&b}",
-        "fn main(){var r=R{code:65,n:42};let p=&r;r=R{code:66,n:43};let x=p.n}",
     ] {
         let source = format!("{RESOURCE}{body}");
         let report = check(&[("main", &source)]);
@@ -214,6 +213,35 @@ fn heads_are_not_descriptors_mutable_windows_returns_or_captures() {
             report.to_json()
         );
     }
+}
+
+#[test]
+fn shared_mutable_resource_slot_still_rejects_replacement_under_live_head() {
+    // 224 enables the shared hidden-Package field address. Preserve the
+    // original source and require the actual lifetime conflict in Verify.
+    let body = "fn main(){var r=R{code:65,n:42};let p=&r;r=R{code:66,n:43};let x=p.n}";
+    let source = format!("{RESOURCE}{body}");
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(
+        report.phase,
+        zil_base::Phase::Verify,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{}",
+        report.to_json()
+    );
 }
 
 #[test]

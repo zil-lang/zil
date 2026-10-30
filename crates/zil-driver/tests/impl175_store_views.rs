@@ -399,12 +399,15 @@ fn element_shape_mutable_owned_field_return_and_capture_guards_are_explicit() {
         "E-UNSUPPORTED",
         "Store element address capture",
     );
-    reject_source(
-        &format!("{PACKAGE} fn main()->i32{{{SETUP}let view=store_at(s,0);return view.r.code}}"),
-        ResultCategory::Unsupported,
-        Types,
-        "E-UNSUPPORTED",
-        "only project finite Copy or concrete callback fields",
+    // 224 admits this original shared resource-head projection.
+    let resource_head = check(&format!(
+        "{PACKAGE} fn main()->i32{{{SETUP}let view=store_at(s,0);return view.r.code}}"
+    ));
+    assert_eq!(
+        resource_head.status,
+        ResultCategory::Success,
+        "{}",
+        resource_head.to_json()
     );
     reject_source(
         &format!(
@@ -434,12 +437,15 @@ fn element_shape_mutable_owned_field_return_and_capture_guards_are_explicit() {
         "E-ADDRESS-PERMISSION",
         "exclusive",
     );
-    reject_source(
-        &format!("{PACKAGE} fn main()->i32{{let value=make(65);return read(&value)}}"),
-        ResultCategory::Unsupported,
-        Types,
-        "E-UNSUPPORTED",
-        "",
+    // Ordinary shared Package admission is independent of Store membership.
+    let ordinary = check(&format!(
+        "{PACKAGE} fn main()->i32{{let value=make(65);return read(&value)}}"
+    ));
+    assert_eq!(
+        ordinary.status,
+        ResultCategory::Success,
+        "{}",
+        ordinary.to_json()
     );
 }
 
