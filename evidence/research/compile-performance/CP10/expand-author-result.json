@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "experiment": "CP10a",
+  "implementation_author": "/root/llvm_strategy",
+  "baseline_commit": "0d28a51452f57c2cd27c1007058056c021bf3481",
+  "status": "ReadyForIndependentReview",
+  "change": "Build the immutable borrowed aggregate declaration table once per expansion request and share it with all module expanders. Standalone expansion builds the same local table once.",
+  "invariants": [
+    "Module/item traversal order and entry.or_insert first-wins retained.",
+    "Only previously uncharged declaration scanning and map construction are reused.",
+    "Specialization, default-helper budget charges, each module expansion, SourceMap validation and cumulative project node/work charges remain in the same order.",
+    "No changes to public IR/schema, source acceptance, ABI, Verify or persistent cache identities.",
+    "receivers.rs changes only the borrowed lookup argument level."
+  ],
+  "source_sha256": {
+    "crates/zil-expand/src/lib.rs": "11c349edc98cbe42a3b820af7a4d7027704457c04116f22e3b994e617e732363",
+    "crates/zil-expand/src/receivers.rs": "8a9cda4adc8faf22144af133911b7dc58de2afd3e104a12b2b1dc5796631209d",
+    "crates/zil-expand/tests/project_lookup_cp10.rs": "304db0d2862a1feafd9878f1e3edd05a4f4991d02799d959d85136417c01fe88"
+  },
+  "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+  "commands": [
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/scratch/ac5966c4c370/zil-cp10/target cargo test -p zil-expand --test project_lookup_cp10 -j2 -- --nocapture",
+      "source": "unchanged production baseline plus new tests",
+      "passed": 5,
+      "failed": 0,
+      "log": "expand-baseline-tests.log"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/scratch/ac5966c4c370/zil-cp10/target cargo test -p zil-expand --test project_lookup_cp10 --test normalization --test impl203_state_bindings --test impl205_state_replace -j2 -- --nocapture",
+      "source": "candidate",
+      "passed": 45,
+      "failed": 0,
+      "log": "expand-candidate-tests.log"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/scratch/ac5966c4c370/zil-cp10/target cargo clippy -p zil-expand --all-targets -j2 -- -D warnings",
+      "exit": 0,
+      "log": "expand-clippy.log"
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    }
+  ],
+  "new_controls": [
+    "Four module traversal orders preserve two same-spelled types, owner default helpers/imports and source maps.",
+    "Two private-field errors retain consumer source locations and first-error order.",
+    "Duplicate declaration normalization error precedes consumer lowering.",
+    "Standalone two same-spelled aggregate headers still use the first declaration default during Expand; later Types duplicate checking is not bypassed.",
+    "Frozen analysis budget N=677 succeeds; N-1=676 rejects at original Expand generic budget location FileId3:62..63; fresh N retry reproduces all Core/SourceMap output."
+  ],
+  "evidence_sha256": {
+    "expand-baseline-tests.log": "beb242e317f19017aaa2962a968f6c048ae3496147fd2396fd0c168804685527",
+    "expand-candidate-tests.log": "044e71cbac351f97ecb78da040aad0ca04d4f7c8f0d91c0cdba8172dea177f43",
+    "expand-clippy.log": "10deb5ab327de74a24787d0d54cc74d56b5b546eb685b15d2a8a2f89472c0ea4"
+  },
+  "rust_goal_assessment": {
+    "safety": "Mandatory checking and logical budgets unchanged; targeted source-to-Core semantic controls pass.",
+    "runtime_memory": "No emitted-IR/layout change intended; native runtime performance unmeasured in this slice.",
+    "expression_maintenance": "No syntax change; immutable sharing removes redundant lookup construction.",
+    "compile_cost": "This loop scans project items once instead of once per module; full-request gain not measured by author.",
+    "breakthrough": "Not established until independent review and quiet paired performance measurement."
+  },
+  "limitations": [
+    "No formal performance run, full-workspace acceptance or product-gate change.",
+    "Inherited handoff check reports Fail for historical/incomplete records; main authority was located, not claimed globally passing.",
+    "Source-derived Expand controls are not native runtime or independent Verify evidence."
+  ]
+}
