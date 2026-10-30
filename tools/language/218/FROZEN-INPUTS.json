@@ -9,10 +9,10 @@
   "joint_delivery": {
     "requires": ["actual source-derived TypedIR", "independent Analyze and Verify", "Wire27 mutations", "O0 and O2 ordinary CLI products", "actual allocation failures", "new N/N-1/fresh-N and unchanged old budget boundaries"],
     "status": "NotRun"
-  }
-  ,"types": {
+  },
+  "types": {
     "source": "crates/zil-driver/tests/impl218_factory_types.rs",
-    "positive": ["Fn/FnMut/FnOnce ordinary owning boundary with real return contract", "actual Fn adapted to declared FnOnce uses TakeCapture", "same F shares code but not runtime values", "different F keeps different result identity", "nested wrapper calls", "input consumed or dropped without retention"],
+    "positive": ["Fn/FnMut/FnOnce ordinary owning boundary with real return contract", "actual Fn adapted to declared FnOnce uses TakeCapture", "same F shares code but not runtime values", "different F keeps different result identity", "nested wrapper calls", "factory-body forwarding to another grounded factory", "same concrete type but distinct declared mode", "nested capture", "actual FnMut adapted to FnOnce", "Copy caller position retained", "input consumed or dropped without retention"],
     "negative": ["borrowed position input", "owned closure carrying an external address"],
     "status": "NotRun"
   }
