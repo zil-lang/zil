@@ -24,7 +24,7 @@ common = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(common)
 runtime = common.module("cp08_runtime", HERE / "runtime_bench.py")
 ROOT, sha, save, fresh = common.ROOT, common.sha, common.save, common.fresh
-SCHEMA = "zil-rust-compile-performance/1"
+SCHEMA = "zil-rust-compile-performance/2"
 TARGET = "x86_64-unknown-linux-gnu"
 HELPERS = ["tools/research/compile-performance/bench.py",
            "tools/research/compile-performance/runtime_bench.py", *common.DEPENDENCIES]
@@ -97,7 +97,15 @@ def tool_inventory(rustc, clang, extra, rust_linker):
         "boundary": "sysroot artifacts and listed tools frozen; system libc/crt and OS loader are shared host dependencies, not rebuilt; native Rust linker selection is not inferred from executable size"}
 
 
+def validate_modes(cache_mode, query_cache, closed_executable):
+    if type(query_cache) is not bool or type(closed_executable) is not bool:
+        raise SystemExit("Explicit boolean query-cache and closed-executable modes required")
+    if query_cache and cache_mode != "incremental":
+        raise SystemExit("--query-cache requires --cache-mode incremental; cold means no compiler caches")
+
+
 def prepare(args):
+    validate_modes(args.cache_mode, args.query_cache, args.closed_executable)
     if sys.platform != "linux" or not hasattr(os, "wait4"):
         raise SystemExit("Linux affinity and wait4 required")
     if common.git("status", "--porcelain"):
@@ -144,13 +152,15 @@ def prepare(args):
         "binaries": binaries, "extra_tools": extra, "linkage": linkage, "versions": versions,
         "environment": common.environment(), "host": common.host(), "cpus": cpus, "cpu": cpus[0],
         "target": TARGET, "profile": args.profile, "cache_mode": args.cache_mode,
+        "query_cache": args.query_cache, "closed_executable": args.closed_executable,
         "rust_profile": args.rust_profile, "rust_linker": rust_linker,
         "units": args.units, "jobs": args.jobs, "blocks": args.blocks, "seed": args.seed,
         "request_weights": common.REQUESTS if args.cache_mode == "incremental" else {"cold_process": 1.0},
         "cases": cases, "selected_original_weight": original_weight, "order": order_for(cases, args.blocks, args.seed),
         "fixtures_sha256": fixtures(out), "timeout_seconds": args.timeout, "runtime_timeout_seconds": args.runtime_timeout,
         "scope": "Full compiler process to complete executable, with current Verify/lowering/codegen/link/publication; no Cargo no-op, no persistent-session shortcut; OS pages not flushed",
-        "cache_scope": "cold: neither ZIL source/object cache nor Rust incremental requested; incremental: fresh sequence then unchanged/private/public using isolated per-arm caches",
+        "cache_scope": "cold: no ZIL source/object/query cache or Rust incremental; incremental: fresh sequence then unchanged/private/public using isolated per-arm caches; explicit query_cache requires a new current Verify and only identical whole-input hits",
+        "linkage_scope": "closed_executable explicitly permits internalizing generated ZIL-only symbols in complete Linux executables; compare runtime quality independently; Rust native CGU and existing flags unchanged",
         "runtime_scope": "Separate complete native processes including startup and file I/O on one CPU; base binaries from preflight only; compilation/correctness/warmup are not runtime samples",
         "warmup": "One complete AB preflight per case/request, plus empty-input startup and long-input warmup per base executable; no observations subtracted or scored",
         "cpu_accounting": "wait4 user+system includes reaped descendants; RSS is maximum individual process, not simultaneous process-tree peak",
@@ -166,6 +176,7 @@ def load(path, check_environment=True):
     plan = json.loads(path.read_text())
     if plan["schema"] != SCHEMA or sha(Path(__file__)) != plan["runner_sha256"]:
         raise SystemExit("Frozen runner/schema changed")
+    validate_modes(plan["cache_mode"], plan["query_cache"], plan["closed_executable"])
     for name, digest in plan["helper_sha256"].items():
         if sha(ROOT / name) != digest:
             raise SystemExit("Frozen helper changed: " + name)
@@ -205,6 +216,10 @@ def command(plan, arm, work):
             "--codegen-units", str(plan["units"]), "--codegen-jobs", str(plan["jobs"])]
     if incremental:
         argv += ["--cache-dir", str(work / "source-candidates"), "--object-cache", str(work / "objects")]
+    if plan["query_cache"]:
+        argv += ["--query-cache", str(work / "queries")]
+    if plan["closed_executable"]:
+        argv += ["--closed-executable"]
     return argv
 
 
@@ -214,14 +229,39 @@ def source_hashes(plan, case, snapshot, arm):
 
 
 def report_ok(plan, request, report):
+    if not isinstance(report, dict) or not isinstance(report.get("native_codegen", {}), dict):
+        return False
     ok = (report.get("status") == "Success" and report.get("verification_runs") == 1 and report.get("timings") is None
           and report.get("native_codegen", {}).get("backend") == "llvm-api")
     cache = report.get("native_codegen", {}).get("object_cache", {})
+    if not isinstance(cache, dict):
+        return False
     if plan["cache_mode"] == "incremental":
         ok &= bool(cache.get("enabled")) and (request != "cold_process" or cache.get("hits") == 0)
         ok &= request != "unchanged" or cache.get("hits") == report.get("native_codegen", {}).get("actual_units")
     else:
         ok &= not cache.get("requested") and not cache.get("enabled")
+    native = report.get("native_codegen", {})
+    mode = native.get("closed_executable", False)
+    count = native.get("internalized_functions", 0)
+    ok &= (mode is plan["closed_executable"] and type(count) is int and count >= 0
+           and (mode or count == 0) and (not mode or "internalized_functions" in native))
+    query = report.get("query_cache")
+    if query is not None and not isinstance(query, dict):
+        return False
+    if plan["query_cache"]:
+        query = query or {}
+        hit = request == "unchanged"
+        key = query.get("key")
+        ok &= (query.get("requested") is True and query.get("state") == ("hit" if hit else "miss")
+               and query.get("stored") is (not hit) and query.get("reason") is None
+               and query.get("write_reason") is None and isinstance(key, str) and len(key) == 64
+               and all(c in "0123456789abcdef" for c in key)
+               and all(type(query.get(field)) is int and query[field] >= 0
+                       for field in ("ct_steps", "ct_nodes", "ct_functions")))
+    elif query is not None:
+        ok &= (query.get("requested") is False and query.get("state") == "disabled"
+               and query.get("stored") is False)
     return ok
 
 
@@ -242,7 +282,7 @@ def one_build(plan, root, case, seq, request, work, logs, tag):
               and row["source_before"] == row["source_after"] == source_hashes(plan, case, snapshot, arm))
         if arm == "B":
             report = json.loads((logs / row["stdout"]).read_text())
-            row["reported"] = {k: report.get(k) for k in ("status", "verification_runs", "native_codegen", "commands", "disk_cache", "timings")}
+            row["reported"] = {k: report.get(k) for k in ("status", "verification_runs", "native_codegen", "commands", "disk_cache", "query_cache", "timings")}
             ok &= report_ok(plan, request, report)
         if ok:
             row["executable"] = common.inventory(output)
@@ -438,6 +478,7 @@ def summarize(args):
               "records_sha256": sha(args.records), "kind": args.kind, "arm_A": "Rust", "arm_B": "ZIL",
               "source_identity": plan["source_identity"], "versions": plan["versions"], "profile": plan["profile"],
               "cache_mode": plan["cache_mode"], "rust_profile": plan["rust_profile"], "units": plan["units"], "jobs": plan["jobs"],
+              "query_cache": plan["query_cache"], "closed_executable": plan["closed_executable"],
               "selected_original_weight": plan["selected_original_weight"], "rows": len(observed), "failures": failures,
               "coverage_complete": complete, "completion_receipt_matches": receipt_ok,
               "scope": plan["scope"] if args.kind == "build" else plan["runtime_scope"],
@@ -468,6 +509,8 @@ def main():
     p.add_argument("--tool", type=Path, action="append", required=True, help="Actual LLVM shared library and any additional tool dependency; repeatable")
     p.add_argument("--profile", choices=["O0", "O2"], default="O0")
     p.add_argument("--cache-mode", choices=["cold", "incremental"], default="cold")
+    p.add_argument("--query-cache", action="store_true", help="Explicit CP12 trusted-local full-input checkpoints; incremental profile only")
+    p.add_argument("--closed-executable", action="store_true", help="Explicit CP13 Linux executable linkage optimization; independently check runtime quality")
     p.add_argument("--rust-profile", choices=["native", "matched"], default="native")
     p.add_argument("--rust-linker", type=Path, help="Optional explicit Rust driver; omitted means the toolchain default")
     p.add_argument("--units", type=int, choices=range(1, 65), default=1)

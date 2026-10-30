@@ -1,0 +1,23 @@
+test_build_and_startup_costs_do_not_enter_runtime_score (test_runtime_bench.RuntimeControls.test_build_and_startup_costs_do_not_enter_runtime_score) ... ok
+test_build_receipt_resolves_relative_plan_path (test_runtime_bench.RuntimeControls.test_build_receipt_resolves_relative_plan_path) ... ok
+test_changed_input_is_rejected_before_execution (test_runtime_bench.RuntimeControls.test_changed_input_is_rejected_before_execution) ... ok
+test_distinct_frozen_build_configuration_and_actual_mode (test_runtime_bench.RuntimeControls.test_distinct_frozen_build_configuration_and_actual_mode) ... ok
+test_executable_change_during_execution_is_rejected (test_runtime_bench.RuntimeControls.test_executable_change_during_execution_is_rejected) ... ok
+test_legacy_plan_keeps_o0_one_unit_and_no_closed_flag (test_runtime_bench.RuntimeControls.test_legacy_plan_keeps_o0_one_unit_and_no_closed_flag) ... ok
+test_missing_row_and_changed_raw_log_suppress_scores (test_runtime_bench.RuntimeControls.test_missing_row_and_changed_raw_log_suppress_scores) ... ok
+test_modified_native_preflight_log_is_rejected (test_runtime_bench.RuntimeControls.test_modified_native_preflight_log_is_rejected) ... ok
+test_nonfinite_or_rewritten_time_suppresses_scores (test_runtime_bench.RuntimeControls.test_nonfinite_or_rewritten_time_suppresses_scores) ... ok
+test_oracle_checks_stdout_and_empty_stderr (test_runtime_bench.RuntimeControls.test_oracle_checks_stdout_and_empty_stderr) ... ok
+test_pair_means_precede_median_and_outlier_is_retained (test_runtime_bench.RuntimeControls.test_pair_means_precede_median_and_outlier_is_retained) ... ok
+test_prepare_freezes_base_sources_and_all_runtime_inputs (test_runtime_bench.RuntimeControls.test_prepare_freezes_base_sources_and_all_runtime_inputs) ... ok
+test_requested_closed_mode_cannot_be_missing_or_ignored (test_runtime_bench.RuntimeControls.test_requested_closed_mode_cannot_be_missing_or_ignored) ... ok
+test_source_drift_during_build_prevents_native_execution (test_runtime_bench.RuntimeControls.test_source_drift_during_build_prevents_native_execution) ... ok
+test_timeout_and_spawn_failure_remain_failure_rows (test_runtime_bench.RuntimeControls.test_timeout_and_spawn_failure_remain_failure_rows) ... ok
+test_timer_captures_file_io_and_wait4_usage (test_runtime_bench.RuntimeControls.test_timer_captures_file_io_and_wait4_usage) ... ok
+test_timer_kills_process_group_and_keeps_partial_logs (test_runtime_bench.RuntimeControls.test_timer_kills_process_group_and_keeps_partial_logs) ... ok
+test_weighted_absolute_costs_precede_ratio (test_runtime_bench.RuntimeControls.test_weighted_absolute_costs_precede_ratio) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.254s
+
+OK

@@ -30,6 +30,7 @@ class RustBenchmarkControls(unittest.TestCase):
         self.case = {"id": "x", "root": "corpus/x", "weight": 1., "input": "inputs/x.bin", "expected": "expected/x.bin",
                      "inputs": [{"path": "inputs/x.bin", "expected": {s: "expected/x.bin" for s in ("base", "private", "public")}}]}
         self.plan = {"schema": bench.SCHEMA, "source_identity": {}, "versions": {}, "profile": "O0", "cache_mode": "cold",
+                     "query_cache": False, "closed_executable": False,
                      "rust_profile": "native", "rust_linker": None, "units": 1, "jobs": 1, "target": bench.TARGET,
                      "cpus": [0], "cpu": 0, "timeout_seconds": 1, "runtime_timeout_seconds": 1,
                      "binaries": {k: {"path": "synthetic-" + k} for k in ("A", "B", "clang")},
@@ -194,6 +195,75 @@ class RustBenchmarkControls(unittest.TestCase):
         self.assertFalse(bench.report_ok(self.plan, "unchanged", report))
         report["native_codegen"]["object_cache"]["hits"] = 8
         self.assertTrue(bench.report_ok(self.plan, "unchanged", report))
+        self.assertFalse(bench.report_ok(self.plan, "cold_process", report))
+
+    def test_query_checkpoint_requires_incremental_and_explicit_boolean_modes(self):
+        with self.assertRaisesRegex(SystemExit, "requires --cache-mode incremental"):
+            bench.validate_modes("cold", True, False)
+        for value in (None, 0, "false"):
+            with self.assertRaisesRegex(SystemExit, "boolean"):
+                bench.validate_modes("incremental", value, False)
+        bench.validate_modes("cold", False, True)
+        bench.validate_modes("incremental", True, False)
+        self.plan.update(cache_mode="incremental", query_cache=True, closed_executable=True)
+        rust = bench.command(self.plan, "A", self.root / "work")
+        zil = bench.command(self.plan, "B", self.root / "work")
+        self.assertNotIn("--query-cache", rust)
+        self.assertNotIn("--closed-executable", rust)
+        self.assertFalse(any("codegen-units=" in arg for arg in rust))
+        self.assertIn("--query-cache", zil)
+        self.assertEqual(zil[zil.index("--query-cache") + 1], str(self.root / "work/queries"))
+        self.assertIn("--closed-executable", zil)
+
+    def checkpoint_report(self, request):
+        return {"status": "Success", "verification_runs": 1, "timings": None,
+                "native_codegen": {"backend": "llvm-api", "actual_units": 8,
+                                   "closed_executable": False, "internalized_functions": 0,
+                                   "object_cache": {"enabled": True, "requested": True,
+                                                    "hits": 8 if request == "unchanged" else 0}},
+                "query_cache": {"requested": True, "state": "hit" if request == "unchanged" else "miss",
+                                "key": "b" * 64, "stored": request != "unchanged", "reason": None,
+                                "write_reason": None, "ct_steps": 0, "ct_nodes": 10, "ct_functions": 3}}
+
+    def test_query_checkpoint_requires_cold_and_edit_misses_and_unchanged_hit(self):
+        self.plan.update(cache_mode="incremental", query_cache=True)
+        for request in bench.common.REQUESTS:
+            report = self.checkpoint_report(request)
+            self.assertTrue(bench.report_ok(self.plan, request, report), request)
+            report["query_cache"]["state"] = "hit" if request != "unchanged" else "miss"
+            self.assertFalse(bench.report_ok(self.plan, request, report), request)
+
+    def test_query_checkpoint_never_scores_fallback_missing_usage_or_write_skip(self):
+        self.plan.update(cache_mode="incremental", query_cache=True)
+        for field, value in [("state", "bypass"), ("state", "corrupt"), ("stored", False),
+                             ("requested", False), ("write_reason", "codec quota"),
+                             ("reason", "identity drift"), ("key", "invalid"),
+                             ("ct_steps", None), ("ct_nodes", -1), ("ct_functions", True)]:
+            report = self.checkpoint_report("cold_process")
+            report["query_cache"][field] = value
+            self.assertFalse(bench.report_ok(self.plan, "cold_process", report), (field, value))
+        report = self.checkpoint_report("cold_process")
+        del report["query_cache"]
+        self.assertFalse(bench.report_ok(self.plan, "cold_process", report))
+        self.plan["query_cache"] = False
+        self.assertTrue(bench.report_ok(self.plan, "cold_process", report))
+        report["query_cache"] = self.checkpoint_report("cold_process")["query_cache"]
+        self.assertFalse(bench.report_ok(self.plan, "cold_process", report))
+
+    def test_closed_executable_needs_actual_reported_mode_and_count(self):
+        report = self.checkpoint_report("cold_process")
+        del report["query_cache"]
+        self.plan.update(cache_mode="incremental", closed_executable=True)
+        self.assertFalse(bench.report_ok(self.plan, "cold_process", report))
+        report["native_codegen"].update(closed_executable=True, internalized_functions=7)
+        self.assertTrue(bench.report_ok(self.plan, "cold_process", report))
+        del report["native_codegen"]["internalized_functions"]
+        self.assertFalse(bench.report_ok(self.plan, "cold_process", report))
+        for value in (None, -1, True):
+            report["native_codegen"]["internalized_functions"] = value
+            self.assertFalse(bench.report_ok(self.plan, "cold_process", report))
+        report["native_codegen"].update(closed_executable=False, internalized_functions=7)
+        self.plan["closed_executable"] = False
         self.assertFalse(bench.report_ok(self.plan, "cold_process", report))
 
     def test_compiler_failure_retains_rows_and_logs(self):
