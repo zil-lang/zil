@@ -129,6 +129,24 @@ fn dependency_cycles_and_active_ancestors_cannot_be_observed_or_published() {
 }
 
 #[test]
+fn active_missing_and_leaf_reads_reject_before_returning_cached_results() {
+    let mut db = Database::default();
+    assert!(db.read(&key(0)).unwrap().is_none());
+    db.begin(key(0)).unwrap();
+    let leaf = publish(&mut db, 1, fingerprints(), vec![]);
+    assert_eq!(db.read(&key(0)).unwrap_err().code, "E-QUERY-CYCLE");
+    assert!(Arc::ptr_eq(&db.read(&key(1)).unwrap().unwrap(), &leaf));
+    assert_eq!(db.active_count(), 1);
+    db.abort(&key(0));
+    assert!(db.read(&key(0)).unwrap().is_none());
+    db.begin(key(1)).unwrap();
+    assert_eq!(db.read(&key(1)).unwrap_err().code, "E-QUERY-CYCLE");
+    assert_eq!(db.active_count(), 1);
+    db.abort(&key(1));
+    assert!(Arc::ptr_eq(&db.read(&key(1)).unwrap().unwrap(), &leaf));
+}
+
+#[test]
 fn stale_input_and_cancelled_publication_abort_the_active_record() {
     let mut db = Database::default();
     db.begin(key(1)).unwrap();
