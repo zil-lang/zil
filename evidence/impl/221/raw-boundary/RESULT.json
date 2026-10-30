@@ -1,0 +1,40 @@
+{
+  "status": "LimitedRawWirePass",
+  "implementation_author": "/root/language_review_plan",
+  "implementation_head_before_checkpoint": "5c4588e50cf796aa4cc70fd3b0ed48999bb632e9",
+  "tested_state": "authorized uncommitted task/221 working changes; root will bind next exact remote SHA",
+  "spec_hash": "14109fb881d03f4e3633d8d5f851287df9c5a4ed35f642ff6942c9fd7a9190f2",
+  "normative_hash": "51bce715057b382d1cf15de405c8ee7357aacd3935ed736df9b6268b5c3ec0d0",
+  "command": "CARGO_BUILD_JOBS=1 CARGO_TARGET_DIR=/workspace/scratch/3cf12ce32e36/targets/221 cargo test -p zil-verify retained_tests --offline -- --nocapture",
+  "result": {
+    "selected_unit_tests": 18,
+    "passed": 18,
+    "failed": 0,
+    "filtered_integration_targets": "zero selections are not counted"
+  },
+  "budgets": {
+    "raw": 2919,
+    "wire": 2919,
+    "checks": "N success; N-1 ResourceLimit only; fresh N fingerprint matches default"
+  },
+  "files": {
+    "crates/zil-verify/src/retained.rs": "157ca1dfa3da9721154cac6a4e54217776dba2e93624131cb24d7bea39569831",
+    "crates/zil-verify/src/helpers.rs": "2430579b46636a1e631b8d123f61ebdba6da590bf3009f7433e97c4dc1b238d8",
+    "crates/zil-verify/src/retained_tests.rs": "d945736222ece430b0097b93a2ade49746157098b65e47226f9f2e84cae00902"
+  },
+  "previous_failures": [
+    {
+      "file": "test-compile-fail.log",
+      "reason": "test scaffolding enum spelling and missing ResultCategory import"
+    },
+    {
+      "file": "test-diagnostic-fail.log",
+      "reason": "ReadCapture rejected by E-VERIFY-CAPTURE; test initially expected E-VERIFY-CLOSURE-CALL"
+    },
+    {
+      "file": "direct-store-before.log",
+      "reason": "real raw/Wire unexpected acceptance of direct Store companion hiding another callback; fixed only in new profile"
+    }
+  ],
+  "scope": "hand-built raw public IR and Wire; no source-derived or native acceptance, no independent review, no full-workspace run"
+}

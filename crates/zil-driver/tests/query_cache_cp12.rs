@@ -101,6 +101,38 @@ fn success(report: &CompileReport, state: &str, stdout: &[u8]) {
 }
 
 #[test]
+fn source_selection_bypasses_checkpoint_and_replays_current_ct_budget() {
+    let case = Case::new();
+    case.put(
+        "main.zil",
+        "fn choose()->bool=>true\n#if (choose()) { fn value()->i64=>42 } else { fn value()->i64=>7 }\n",
+    );
+    let options = case.options();
+    for label in ["selection-cold", "selection-unchanged"] {
+        let report = case.build(label, &options);
+        success(&report, "bypass", b"42\n");
+        assert_eq!(
+            report.query_cache.reason.as_deref(),
+            Some("source #if selection requires the original pipeline")
+        );
+        assert!(!report.query_cache.stored);
+        assert!(report.query_cache.key.is_none());
+        assert!(report.query_events.iter().any(|event| {
+            event.phase == Phase::Ct && event.disposition == QueryDisposition::Executed
+        }));
+    }
+    assert!(case.entries().is_empty());
+    let old = fs::read(options.output.as_ref().unwrap()).unwrap();
+    let mut limited = options;
+    limited.limits.max_ct_steps = 0;
+    let rejected = case.build("selection-no-steps", &limited);
+    assert_eq!(rejected.status, ResultCategory::ResourceLimit);
+    assert_eq!(rejected.phase, Phase::Ct);
+    assert_eq!(rejected.verification_runs, 0);
+    assert_eq!(fs::read(limited.output.as_ref().unwrap()).unwrap(), old);
+}
+
+#[test]
 fn cold_unchanged_and_both_edits_use_current_source_and_fresh_verify() {
     let case = Case::new();
     let options = case.options();

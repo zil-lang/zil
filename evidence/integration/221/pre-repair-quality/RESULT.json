@@ -1,0 +1,15 @@
+{
+  "source_commit": "2212505a667508dc9c7565cbab674c8e59700457",
+  "format": "Fail",
+  "clippy_deny_warnings": "Fail",
+  "inventory_without_deny_warnings": "NotAcceptance",
+  "cause": [
+    "Unformatted Analyze factory guard",
+    "219 selection_cost placement after test module and unused imports in path-included test modules"
+  ],
+  "repairs": [
+    "e115ba5cfdc2cf56d092b912ae5077cffd0d92a3",
+    "deb5824c4f9aa1eefd729420aa967c08632ffe34"
+  ],
+  "scope": "original failures preserved; final acceptance is a separate fresh run"
+}

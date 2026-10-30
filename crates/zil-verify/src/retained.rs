@@ -6,6 +6,40 @@ fn bad(f: &TypedFunction, message: impl Into<String>) -> Diagnostic {
     reject("E-VERIFY-CALLABLE-CONTRACT", Some(f.span), message)
 }
 
+// Only the new owning-input boundary needs this narrower signature. Existing
+// ordinary factories retain their lending profile and their exact old work.
+fn owning_signature(
+    module: &TypedModule,
+    f: &TypedFunction,
+    id: ClosureId,
+    budget: &mut Budget,
+) -> Check<()> {
+    let definition = closures::definition(module, id, Some(f.span))?;
+    budget.spend(definition.parameters.len().saturating_add(1))?;
+    for ty in definition
+        .parameters
+        .iter()
+        .chain(std::iter::once(&definition.result))
+    {
+        let work = closures::type_layout_work(ty, budget)?;
+        budget.spend(work)?;
+    }
+    if !definition.result.is_copy_value()
+        || definition.parameters.iter().any(|ty| {
+            !ty.is_copy_value()
+                && !matches!(ty, Type::Address { inner, .. }
+                    if inner.is_copy_value()
+                        || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value()))
+        })
+    {
+        return Err(unsupported(
+            "owning callable factories require finite Copy results and Copy or synchronous Copy/slice-address parameters",
+            Some(f.span),
+        ));
+    }
+    Ok(())
+}
+
 /// Runs before fingerprinting. Raw callers cannot hide huge index vectors in a
 /// forged contract and force unbounded hashing or equality work.
 pub(super) fn check_claim(
@@ -71,18 +105,55 @@ pub(super) fn check_claim(
     // external address/description to the factory. Inspect raw parameters here;
     // a source producer's restriction grants no authority to a forged module.
     budget.spend(f.parameters.len())?;
+    let mut owned_input = None;
     for parameter in &f.parameters {
         let local = f
             .locals
             .get(parameter.0 as usize)
             .ok_or_else(|| bad(f, "callable factory parameter is outside its local table"))?;
-        if matches!(local.ty, Type::Package { .. }) {
+        if let Type::Closure(input) = local.ty {
+            if owned_input.replace(input).is_some() || input == id {
+                return Err(bad(
+                    f,
+                    "an owning callable factory requires one input environment and a distinct grounded result identity",
+                ));
+            }
+            closures::self_contained(module, input, budget)?;
+            owning_signature(module, f, input, budget)?;
+        } else if matches!(local.ty, Type::Package { .. }) {
             packages::check_ordinary_type(module, &local.ty, Some(local.span), budget)?;
         } else if !(local.ty.is_copy_value() || matches!(local.ty, Type::Managed(_))) {
             return Err(unsupported(
                 "self-contained callable factories require Copy, Managed or finite Package inputs",
                 Some(local.span),
             ));
+        }
+    }
+    if owned_input.is_some() {
+        owning_signature(module, f, id, budget)?;
+        // Ordinary Package admission also includes existing State and owned
+        // array profiles. The new factory only permits capturable companions;
+        // a second callback input cannot be hidden in a State shell.
+        budget.spend(f.parameters.len())?;
+        for parameter in &f.parameters {
+            let local = &f.locals[parameter.0 as usize];
+            if dynamic_store::is_carrier(&local.ty) {
+                dynamic_store::check_owned_capture(module, &local.ty, Some(limits), budget)?;
+            } else if matches!(local.ty, Type::Package { .. }) {
+                let work = closures::type_layout_work(&local.ty, budget)?;
+                budget.spend(work)?;
+                if packages::has_callable_fields(&local.ty) || packages::has_array_fields(&local.ty)
+                {
+                    return Err(unsupported(
+                        "owning callable factory companions cannot hide State callbacks or owned arrays",
+                        Some(local.span),
+                    ));
+                }
+                if packages::has_store_fields(&local.ty) {
+                    dynamic_store::check_owned_capture(module, &local.ty, Some(limits), budget)?;
+                }
+                packages::check_capture_type(module, &local.ty, Some(local.span), budget)?;
+            }
         }
     }
     let mut cleanup = Vec::new();

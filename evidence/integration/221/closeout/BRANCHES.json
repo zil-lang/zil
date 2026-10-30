@@ -1,0 +1,47 @@
+{
+  "status": "Completed",
+  "observed_at_utc": "2026-10-30T13:22:24Z",
+  "main_merge": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
+  "pull_request": 8,
+  "pull_request_state": "merged",
+  "deleted": [
+    {
+      "branch": "task/218",
+      "head": "4d331dd6b321685ea575a132c05dfb03aa7758fc",
+      "ancestor_of_main_verified": true,
+      "history_preserved": true
+    },
+    {
+      "branch": "task/219",
+      "head": "19375551b7963f4c44536895322c9502fa4945e5",
+      "ancestor_of_main_verified": true,
+      "history_preserved": true
+    },
+    {
+      "branch": "task/220",
+      "head": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "ancestor_of_main_verified": true,
+      "history_preserved": true
+    },
+    {
+      "branch": "task/221",
+      "head": "d61264ba57af08ddb7e0b8dafe2fc584632c6833",
+      "ancestor_of_main_verified": true,
+      "history_preserved": true
+    }
+  ],
+  "remaining": [
+    {
+      "branch": "main",
+      "head": "66d4954f0dfbbf074e19435e5e507f1cef795c82"
+    },
+    {
+      "branch": "research/compile-performance",
+      "head": "f95e751d6782310d8d48c7b3eba3037e176e3eb3"
+    }
+  ],
+  "research_branch_modified": false,
+  "archive_tags_modified": false,
+  "method": "GitHub branch deletion UI; both merged ancestry and exact pre-delete tips checked; connector API readback confirms only two remaining heads.",
+  "branches_url": "https://github.com/zil-lang/zil/branches/all"
+}

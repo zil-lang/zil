@@ -1,0 +1,101 @@
+{
+  "baseline": "4153fbd0a2a0effd90da4bee4034247e1e822cc1",
+  "purpose": "Predeclared source oracles for the new 218 implementation; no old218 acceptance is reused.",
+  "expand": {
+    "source": "crates/zil-expand/tests/impl218_factory.rs",
+    "positive": [
+      "unused Fn/FnMut/FnOnce definitions",
+      "nonadjacent F parameter",
+      "fresh result without retaining incoming F",
+      "local alias of one fresh closure"
+    ],
+    "negative": [
+      "FnOnce twice",
+      "moved alias revival",
+      "capture twice",
+      "consumption across a loop backedge",
+      "direct input return",
+      "distinct return definitions",
+      "borrowed F",
+      "multiple F inputs",
+      "ordinary type generic",
+      "lending input/result",
+      "default capture does not own another borrowed Copy local",
+      "F as callback parameter or result remains closed",
+      "owned Store reused after capture"
+    ]
+  },
+  "joint_delivery": {
+    "requires": [
+      "actual source-derived TypedIR",
+      "independent Analyze and Verify",
+      "Wire27 mutations",
+      "O0 and O2 ordinary CLI products",
+      "actual allocation failures",
+      "new N/N-1/fresh-N and unchanged old budget boundaries"
+    ],
+    "status": "NotRun"
+  },
+  "types": {
+    "source": "crates/zil-driver/tests/impl218_factory_types.rs",
+    "positive": [
+      "Fn/FnMut/FnOnce ordinary owning boundary with real return contract",
+      "actual Fn adapted to declared FnOnce uses TakeCapture",
+      "same F shares code but not runtime values",
+      "different F keeps different result identity",
+      "nested wrapper calls",
+      "factory-body forwarding to another grounded factory",
+      "same concrete type but distinct declared mode",
+      "nested capture",
+      "actual FnMut adapted to FnOnce",
+      "Copy caller position retained",
+      "input consumed or dropped without retention",
+      "public three-module forwarding retains definition context",
+      "bare function pointer in finite Copy callback parameter and result",
+      "Package manages-field give produces FnOnce; refill produces FnMut"
+    ],
+    "negative": [
+      "borrowed position input",
+      "owned closure carrying an external address",
+      "unused definition reuses Store after owned capture",
+      "concrete captured closure cannot become a bare function pointer signature value"
+    ],
+    "companion_and_default_capture": [
+      "direct Managed",
+      "complete Package",
+      "complete Product",
+      "owned leaf Store",
+      "default F:FnOnce capture",
+      "nested owned capture",
+      "default Managed give capture",
+      "same grounded result selected on both paths"
+    ],
+    "status": "Limited source-derived checks passed on checkpoint E working source; pending published SHA replay"
+  },
+  "budget_sources": {
+    "directory": "tools/language/218/budget-sources",
+    "legacy": [
+      "helper",
+      "state",
+      "opaque"
+    ],
+    "new": [
+      "owning",
+      "forwarding",
+      "conditional"
+    ],
+    "oracle": "default == N == fresh N; N-1 expected-phase ResourceLimit; old exact N and Core/Typed serialization unchanged",
+    "result": "evidence/impl/218/FRONTEND-BUDGETS.json"
+  },
+  "review_fix": {
+    "original_source_commit": "2212505a667508dc9c7565cbab674c8e59700457",
+    "source_directory": "tools/language/218/review-cases",
+    "originals": "tools/language/218/review-cases/ORIGINALS.json",
+    "result": "evidence/impl/218/CHECKPOINT-F.json",
+    "oracle": "original independent success/rejection oracles unchanged",
+    "extra_controls": [
+      "parenthesized conditional",
+      "nested conditional"
+    ]
+  }
+}

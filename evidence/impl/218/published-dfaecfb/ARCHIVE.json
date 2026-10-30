@@ -1,0 +1,40 @@
+{
+  "source_directory": "/workspace/scratch/3cf12ce32e36/recovery/continue218/published-dfaecfb",
+  "file_count": 6,
+  "uncompressed_bytes": 7756,
+  "archive_sha256": "36646b933c01c7db0a46895a9bc3d547d492db890c575da00ad6fe39f181b394",
+  "archive_bytes": 2297,
+  "all_archived_bytes_reverified": true,
+  "files": [
+    {
+      "path": "RESULT.json",
+      "size": 3733,
+      "sha256": "8685ffa9604e5d54eb54e74aa4ff832eb82af9f953ce3bba9c6bfb8834e35eb8"
+    },
+    {
+      "path": "diff-check.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "expand.log",
+      "size": 752,
+      "sha256": "58efe4bd60f7e549f564d13863fe025d0587830bb66e4eee350328e5a46df4fc"
+    },
+    {
+      "path": "legacy-copy.log",
+      "size": 401,
+      "sha256": "5d6537f7347df9b3a74808e5e8801d37bf6075edb6a5ea2137d123c3ba047498"
+    },
+    {
+      "path": "legacy-state.log",
+      "size": 394,
+      "sha256": "0d140a129e061805a096d6673b089195004b51c7a819fef7653153e1f6f3515a"
+    },
+    {
+      "path": "types-budget.log",
+      "size": 2476,
+      "sha256": "291e0195f1d59b4a38e4de5ba5c51b3c65ce67d19eb700d3576c71065f3fa5e1"
+    }
+  ]
+}

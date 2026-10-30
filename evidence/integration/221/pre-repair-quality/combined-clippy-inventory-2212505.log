@@ -1,0 +1,64 @@
+    Checking zil-base v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-base)
+    Checking zil-ir v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-ir)
+    Checking zil-syntax v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-syntax)
+    Checking zil-expand v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-expand)
+    Checking zil-verify v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-verify)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-llvm-api)
+    Checking zil-analyze v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-analyze)
+    Checking zil-backend-llvm v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-backend-llvm)
+    Checking zil-ct v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-ct)
+    Checking zil-lower v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-lower)
+    Checking zil-types v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-types)
+    Checking zil-db v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-db)
+    Checking zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-driver)
+    Checking zil-ide v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-ide)
+warning: function `selection_cost` is never used
+    --> crates/zil-driver/tests/../src/ct_program.rs:1574:15
+     |
+1574 | pub(super) fn selection_cost(
+     |               ^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: items after a test module
+    --> crates/zil-driver/tests/../src/ct_program.rs:1264:1
+     |
+1264 |   mod tests {
+     |   ^^^^^^^^^
+...
+1574 | / pub(super) fn selection_cost(
+1575 | |     program: &CoreProgram,
+1576 | |     limits: &Limits,
+1577 | | ) -> CompileResult<(usize, usize)> {
+     | |__________________________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#items_after_test_module
+     = note: `#[warn(clippy::items_after_test_module)]` on by default
+     = help: move the items to before the test module was defined
+
+warning: `zil-driver` (test "impl088_ct_collector") generated 2 warnings (run `cargo clippy --fix --test "impl088_ct_collector" -p zil-driver -- ` to apply 1 suggestion)
+    Checking zil-cli v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-cli)
+warning: `zil-driver` (test "impl202_ct_independent") generated 1 warning (1 duplicate)
+warning: `zil-driver` (test "impl205_ct_independent") generated 1 warning (1 duplicate)
+warning: `zil-driver` (test "impl205_ct_boundary") generated 1 warning (1 duplicate)
+warning: `zil-driver` (test "impl094_ct_preflight") generated 2 warnings (2 duplicates)
+warning: `zil-driver` (test "impl203_ct_independent") generated 1 warning (1 duplicate)
+warning: `zil-driver` (test "impl203_ct_boundary") generated 1 warning (1 duplicate)
+warning: items after a test module
+    --> crates/zil-driver/src/ct_program.rs:1264:1
+     |
+1264 |   mod tests {
+     |   ^^^^^^^^^
+...
+1574 | / pub(super) fn selection_cost(
+1575 | |     program: &CoreProgram,
+1576 | |     limits: &Limits,
+1577 | | ) -> CompileResult<(usize, usize)> {
+     | |__________________________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#items_after_test_module
+     = note: `#[warn(clippy::items_after_test_module)]` on by default
+     = help: move the items to before the test module was defined
+
+warning: `zil-driver` (lib test) generated 1 warning (run `cargo clippy --fix --lib -p zil-driver --tests -- ` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized] target(s) in 39.29s

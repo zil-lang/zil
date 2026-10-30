@@ -1,0 +1,336 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/handoff_closeout",
+  "implementation_commit": "f064b953462529288409c66eaa1f0aa95b43400e",
+  "verdict": "Pass",
+  "scope": "Independent read-only verification of metadata repair after accepted language218–221 merge; not a new compiler acceptance, performance claim, or overall historical handoff Pass.",
+  "checked_at_utc": "2026-10-30T13:28:30.699995+00:00",
+  "before_commit": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
+  "accepted_source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "commands": "Read git history/diffs and already-generated JSON receipts only. Did not rerun handoff, Cargo, or alter the repository.",
+  "historical_handoff": {
+    "status": "Fail",
+    "errors": 1138,
+    "warnings": 0,
+    "preserved_baseline_commit": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
+    "scope_note": "All 1138 inherited errors remain verbatim as a multiset. Pass applies only to this metadata repair review."
+  },
+  "checks": {
+    "only_expected_ten_errors_removed": true,
+    "no_added_errors": true,
+    "historical_error_multiset_identical_to_63b5d064": true,
+    "historical_status_remains_fail": true,
+    "exact_historical_count_1138": true,
+    "warnings_zero": true,
+    "new_cards_zero_errors": true,
+    "all_old_card_invariants": true,
+    "all_new_card_invariants": true,
+    "planning_bytes_unchanged": true,
+    "metadata_only_commit": true,
+    "accepted_source_production_test_tool_normative_bytes_unchanged": true,
+    "generated_snapshot_matches_portable_report": true,
+    "current_head_is_reviewed_commit": true,
+    "only_uncommitted_file_generated_handoff": true
+  },
+  "added_errors": [],
+  "removed_errors": [
+    {
+      "id": "181",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "208",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "209",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "210",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "211",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "212",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "218",
+      "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+    },
+    {
+      "id": "219",
+      "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+    },
+    {
+      "id": "220",
+      "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+    },
+    {
+      "id": "221",
+      "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+    }
+  ],
+  "in_progress_cards": [
+    {
+      "id": "181",
+      "status": "施工",
+      "changed_json_fields": [
+        "normative_hash",
+        "spec_hash"
+      ],
+      "only_current_normative_fields_changed": true,
+      "old_other_json_values_identical": true,
+      "old_body_retained_with_append_only_note": true,
+      "current_hashes_match_registry": true,
+      "migration_matches_old_status_baseline_and_ids": true,
+      "status_baseline_implementation_unchanged": true
+    },
+    {
+      "id": "208",
+      "status": "施工",
+      "changed_json_fields": [
+        "normative_hash",
+        "spec_hash"
+      ],
+      "only_current_normative_fields_changed": true,
+      "old_other_json_values_identical": true,
+      "old_body_retained_with_append_only_note": true,
+      "current_hashes_match_registry": true,
+      "migration_matches_old_status_baseline_and_ids": true,
+      "status_baseline_implementation_unchanged": true
+    },
+    {
+      "id": "209",
+      "status": "施工",
+      "changed_json_fields": [
+        "normative_hash",
+        "spec_hash"
+      ],
+      "only_current_normative_fields_changed": true,
+      "old_other_json_values_identical": true,
+      "old_body_retained_with_append_only_note": true,
+      "current_hashes_match_registry": true,
+      "migration_matches_old_status_baseline_and_ids": true,
+      "status_baseline_implementation_unchanged": true
+    },
+    {
+      "id": "210",
+      "status": "施工",
+      "changed_json_fields": [
+        "normative_hash",
+        "spec_hash"
+      ],
+      "only_current_normative_fields_changed": true,
+      "old_other_json_values_identical": true,
+      "old_body_retained_with_append_only_note": true,
+      "current_hashes_match_registry": true,
+      "migration_matches_old_status_baseline_and_ids": true,
+      "status_baseline_implementation_unchanged": true
+    },
+    {
+      "id": "211",
+      "status": "施工",
+      "changed_json_fields": [
+        "normative_hash",
+        "spec_hash"
+      ],
+      "only_current_normative_fields_changed": true,
+      "old_other_json_values_identical": true,
+      "old_body_retained_with_append_only_note": true,
+      "current_hashes_match_registry": true,
+      "migration_matches_old_status_baseline_and_ids": true,
+      "status_baseline_implementation_unchanged": true
+    },
+    {
+      "id": "212",
+      "status": "施工",
+      "changed_json_fields": [
+        "normative_hash",
+        "spec_hash"
+      ],
+      "only_current_normative_fields_changed": true,
+      "old_other_json_values_identical": true,
+      "old_body_retained_with_append_only_note": true,
+      "current_hashes_match_registry": true,
+      "migration_matches_old_status_baseline_and_ids": true,
+      "status_baseline_implementation_unchanged": true
+    }
+  ],
+  "accepted_cards": [
+    {
+      "id": "218",
+      "changed_json_fields": [
+        "evidence",
+        "planning_evidence"
+      ],
+      "only_evidence_classification_changed": true,
+      "removed_only_planning_from_acceptance": true,
+      "planning_reference_preserved": true,
+      "status": "已合入",
+      "committed": true,
+      "all_acceptance_evidence_passing": true,
+      "review_binding": {
+        "reviewer": "/root/language_parallel",
+        "verdict": "Pass",
+        "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+        "evidence": [
+          "evidence/reviews/218-221/by_language_parallel/REVIEW-218.json"
+        ]
+      },
+      "all_review_evidence_passing": true,
+      "all_identity_fields_preserved": true,
+      "live_errors": []
+    },
+    {
+      "id": "219",
+      "changed_json_fields": [
+        "evidence",
+        "planning_evidence"
+      ],
+      "only_evidence_classification_changed": true,
+      "removed_only_planning_from_acceptance": true,
+      "planning_reference_preserved": true,
+      "status": "已合入",
+      "committed": true,
+      "all_acceptance_evidence_passing": true,
+      "review_binding": {
+        "reviewer": "/root",
+        "verdict": "Pass",
+        "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+        "evidence": [
+          "evidence/reviews/219/by_root/REVIEW.json"
+        ]
+      },
+      "all_review_evidence_passing": true,
+      "all_identity_fields_preserved": true,
+      "live_errors": []
+    },
+    {
+      "id": "220",
+      "changed_json_fields": [
+        "evidence",
+        "planning_evidence"
+      ],
+      "only_evidence_classification_changed": true,
+      "removed_only_planning_from_acceptance": true,
+      "planning_reference_preserved": true,
+      "status": "已合入",
+      "committed": true,
+      "all_acceptance_evidence_passing": true,
+      "review_binding": {
+        "reviewer": "/root/language_parallel",
+        "verdict": "Pass",
+        "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+        "evidence": [
+          "evidence/reviews/218-221/by_language_parallel/REVIEW-220.json"
+        ]
+      },
+      "all_review_evidence_passing": true,
+      "all_identity_fields_preserved": true,
+      "live_errors": []
+    },
+    {
+      "id": "221",
+      "changed_json_fields": [
+        "evidence",
+        "planning_evidence"
+      ],
+      "only_evidence_classification_changed": true,
+      "removed_only_planning_from_acceptance": true,
+      "planning_reference_preserved": true,
+      "status": "已合入",
+      "committed": true,
+      "all_acceptance_evidence_passing": true,
+      "review_binding": {
+        "reviewer": "/root/language_parallel",
+        "verdict": "Pass",
+        "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+        "evidence": [
+          "evidence/reviews/218-221/by_language_parallel/REVIEW-221.json"
+        ]
+      },
+      "all_review_evidence_passing": true,
+      "all_identity_fields_preserved": true,
+      "live_errors": []
+    }
+  ],
+  "changed_files": [
+    ".task/impl/181.md",
+    ".task/impl/208.md",
+    ".task/impl/209.md",
+    ".task/impl/210.md",
+    ".task/impl/211.md",
+    ".task/impl/212.md",
+    ".task/impl/218.md",
+    ".task/impl/219.md",
+    ".task/impl/220.md",
+    ".task/impl/221.md",
+    "data/construction-progress.json",
+    "docs/CONSTRUCTION-PROGRESS.md",
+    "evidence/final-summary.json",
+    "evidence/integration/221/closeout/BRANCHES.json",
+    "evidence/integration/221/closeout/initial/MANIFEST.json",
+    "evidence/integration/221/closeout/initial/RESULT.json",
+    "evidence/integration/221/closeout/initial/check-plan.json",
+    "evidence/integration/221/closeout/initial/handoff.json.gz",
+    "evidence/planning/218-221/INFLIGHT-MIGRATION.json"
+  ],
+  "unexpected_nonmetadata_paths": [],
+  "candidate_to_metadata_production_diff": [],
+  "production_paths_checked": [
+    "crates",
+    "tools",
+    "examples",
+    ".github",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml",
+    "_zil_design.md",
+    "spec",
+    "validation",
+    "conformance",
+    "policy",
+    "changes",
+    "data/normative-inputs.json"
+  ],
+  "snapshot": {
+    "path": "data/handoff.json",
+    "sha256": "b868896751bcb093a8ffc0460ef749b558e8786bfacc3c515ee6356caa5e4075",
+    "main_head": "f064b953462529288409c66eaa1f0aa95b43400e",
+    "status": "Fail",
+    "measured": {
+      "source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "draft_gate": "NotRun",
+      "full_language_gate": "NotSatisfied",
+      "product_gate": "NotRun",
+      "result_path": "evidence/integration/221/RESULT.json"
+    },
+    "uncommitted_at_review": true,
+    "requires_integrator_publication": true,
+    "preserved_reviewed_snapshot": "/workspace/scratch/3cf12ce32e36/recovery/closeout-f064b953/snapshot-reviewed.json"
+  },
+  "inputs": [
+    {
+      "path": "/workspace/scratch/3cf12ce32e36/recovery/closeout-66d4954/handoff.json",
+      "sha256": "0865b8334a295ee735ba53a7e0f228cfd14ea589b30de2792d407b5ce20adacf"
+    },
+    {
+      "path": "/workspace/scratch/3cf12ce32e36/recovery/closeout-f064b953/handoff-reviewed.json",
+      "sha256": "63fa275f5da64e72810e4a105d34a2f4e1f7921b5b7b2938c63883289b3bd4d7",
+      "original_generated_path": "/workspace/scratch/3cf12ce32e36/recovery/closeout-f064b953/handoff.json"
+    },
+    {
+      "path": "/workspace/scratch/3cf12ce32e36/recovery/handoff-continue-20261030.json",
+      "sha256": "8060b37947a4bb51606e97d6d2a84705c06fb7ccec0ef0482779f111544cda5c"
+    }
+  ],
+  "tracked_worktree_status_at_completion": [
+    " M data/handoff.json"
+  ],
+  "post_review_worktree_cleanup": "Integrator subsequently removed clean completed task worktrees/local refs after ancestry checks. A later regenerated snapshot may differ in worktrees only; this review binds the preserved input snapshot and metadata repair, and does not label an unseen later snapshot reviewed."
+}

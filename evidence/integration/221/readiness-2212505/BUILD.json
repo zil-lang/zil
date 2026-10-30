@@ -1,0 +1,30 @@
+{
+  "status": "Pass",
+  "source_commit": "2212505a667508dc9c7565cbab674c8e59700457",
+  "git_status": "",
+  "argv": [
+    "cargo",
+    "build",
+    "--release",
+    "-p",
+    "zil-cli",
+    "--offline"
+  ],
+  "target_dir": "/workspace/scratch/3cf12ce32e36/targets/218-integration-release",
+  "production_input_manifest_sha256": "f059257553033e3e092860cd3e6ca8da0ff10c767ba0399f0ae118ac3b92ea33",
+  "production_input_count": 201,
+  "production_files_sha256": "6052f788be666554e5e9e20881fa7eb65c514330e40e2b3ea4d72f57a0d38c36",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+  "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin\n",
+  "start_unix": 1793339053.5988002,
+  "build_jobs": "1",
+  "exit_code": 0,
+  "end_unix": 1793339161.7319784,
+  "head_after": "2212505a667508dc9c7565cbab674c8e59700457",
+  "build_log_sha256": "42e186100f00ed261f1273b29b585938f83c0c4e87533f1fa421a6f4b1a8941b",
+  "production_inputs_unchanged": true,
+  "cli": "/workspace/scratch/3cf12ce32e36/targets/218-integration-release/release/zil",
+  "cli_sha256": "f9e5e62d501e5fbb458c56d3eed162187af782190dd96db588d62a7c05ded613",
+  "cli_bytes": 7175016
+}

@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "scope": "Full repository CI automatically triggered by the accepted main merge.",
+  "workflow": {
+    "id": 41061704505,
+    "url": "https://github.com/zil-lang/zil/actions/runs/41061704505",
+    "event": "push",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
+    "created_at": "2026-10-30T13:15:20Z",
+    "updated_at": "2026-10-30T13:30:49Z",
+    "run_attempt": 1
+  },
+  "actual_checkout": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
+  "accepted_source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "accepted_source_equivalence": "Production, tests, tools, examples, workflow, Cargo, normative and policy paths are byte-identical. Main additionally contains accepted task records, documentation and evidence; the complete trees are not asserted equal.",
+  "tests": {
+    "workspace": {
+      "passed": 2817,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 295
+    },
+    "reference": {
+      "passed": 2785,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 295
+    },
+    "text_reference": {
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 8
+    }
+  },
+  "format": "Pass",
+  "all_target_clippy_deny_warnings": "Pass",
+  "migration_runner": {
+    "tests": 9,
+    "failed": 0
+  },
+  "native_208": {
+    "status": "Pass",
+    "builds": 16,
+    "executions": 128,
+    "injected_failures": 56
+  },
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm_clang_lld": "23.1.4"
+  },
+  "jobs": [
+    {
+      "id": 124082788715,
+      "name": "workspace",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T13:15:23Z",
+      "completed_at": "2026-10-30T13:30:18Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:15:23Z",
+          "completed_at": "2026-10-30T13:15:24Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:15:24Z",
+          "completed_at": "2026-10-30T13:15:40Z"
+        },
+        {
+          "name": "Install the supported LLVM API toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:15:40Z",
+          "completed_at": "2026-10-30T13:16:23Z"
+        },
+        {
+          "name": "Record exact checkout and restorable source history",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:16:23Z",
+          "completed_at": "2026-10-30T13:16:40Z"
+        },
+        {
+          "name": "Formatting",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:16:40Z",
+          "completed_at": "2026-10-30T13:16:42Z"
+        },
+        {
+          "name": "Record workspace resources before tests",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:16:42Z",
+          "completed_at": "2026-10-30T13:16:42Z"
+        },
+        {
+          "name": "Complete workspace tests",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:16:42Z",
+          "completed_at": "2026-10-30T13:22:32Z"
+        },
+        {
+          "name": "Record workspace resources after tests",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:22:32Z",
+          "completed_at": "2026-10-30T13:22:32Z"
+        },
+        {
+          "name": "Preserve workspace receipts before releasing its cache",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:22:32Z",
+          "completed_at": "2026-10-30T13:22:34Z"
+        },
+        {
+          "name": "Release only the archived workspace compiler cache",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:22:34Z",
+          "completed_at": "2026-10-30T13:22:34Z"
+        },
+        {
+          "name": "Record reference resources before tests",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:22:34Z",
+          "completed_at": "2026-10-30T13:22:35Z"
+        },
+        {
+          "name": "Reference-only build and explicit unavailable control",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:22:35Z",
+          "completed_at": "2026-10-30T13:28:22Z"
+        },
+        {
+          "name": "Record reference resources after tests",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:28:22Z",
+          "completed_at": "2026-10-30T13:28:24Z"
+        },
+        {
+          "name": "Preserve reference receipts before releasing its cache",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:28:24Z",
+          "completed_at": "2026-10-30T13:28:25Z"
+        },
+        {
+          "name": "Release only the archived reference compiler cache",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:28:25Z",
+          "completed_at": "2026-10-30T13:28:26Z"
+        },
+        {
+          "name": "Native API State and allocation-failure controls",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:28:26Z",
+          "completed_at": "2026-10-30T13:29:34Z"
+        },
+        {
+          "name": "All-target Clippy",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:29:34Z",
+          "completed_at": "2026-10-30T13:29:56Z"
+        },
+        {
+          "name": "Explicit LLVM text-reference boundary",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:29:56Z",
+          "completed_at": "2026-10-30T13:29:58Z"
+        },
+        {
+          "name": "Small recovery artifact, never target caches",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:29:58Z",
+          "completed_at": "2026-10-30T13:30:02Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:30:02Z",
+          "completed_at": "2026-10-30T13:30:02Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-30T13:30:02Z",
+          "completed_at": "2026-10-30T13:30:02Z"
+        }
+      ]
+    }
+  ],
+  "logs": {
+    "path": "job.log.gz",
+    "downloaded_from_job_id": 124082788715,
+    "decoded_characters": 909542,
+    "complete_decoded_log": true,
+    "bytes": 909544,
+    "sha256": "36faeb56f405159ad3b66d16c51f6844112ad0aea135d500721ace6659defbd1",
+    "compression": "gzip; SHA256 names the original decoded UTF-8 bytes"
+  },
+  "prior_candidate_ci": "evidence/integration/221/ci41057841800/RESULT.json",
+  "full_language": "NotSatisfied",
+  "full_zui": "NotSatisfied",
+  "product_gates": "NotRun",
+  "native_windows": "NotRun"
+}

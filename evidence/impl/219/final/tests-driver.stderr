@@ -1,0 +1,8 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.97s
+     Running tests/impl068_vertical.rs (/workspace/scratch/3cf12ce32e36/targets/219/debug/deps/impl068_vertical-0bc5e8c00695f781)
+     Running tests/impl122_ct_declarations.rs (/workspace/scratch/3cf12ce32e36/targets/219/debug/deps/impl122_ct_declarations-a1c8ad7290fa7af6)
+     Running tests/impl219_budget.rs (/workspace/scratch/3cf12ce32e36/targets/219/debug/deps/impl219_budget-182bdc4b67448239)
+     Running tests/impl219_ct_boundary.rs (/workspace/scratch/3cf12ce32e36/targets/219/debug/deps/impl219_ct_boundary-1d8ed9e6a6217b17)
+     Running tests/impl219_selection.rs (/workspace/scratch/3cf12ce32e36/targets/219/debug/deps/impl219_selection-7cfab901dd561281)
+     Running tests/projects.rs (/workspace/scratch/3cf12ce32e36/targets/219/debug/deps/projects-1fc010c49dfa3007)

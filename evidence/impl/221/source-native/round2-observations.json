@@ -1,0 +1,62 @@
+[
+  {
+    "case": "factory221-address-signatures-O0-75-2",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-address-signatures-O2-75-3",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-copy-error-result-O0-75-6",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "ABXCDY",
+    "stdout_sha256": "0d43c56fc0601d37218ab3262837c1abdb92233e4aa71603caca51d55d388973",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-copy-error-result-O2-75-7",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "ABXCDY",
+    "stdout_sha256": "0d43c56fc0601d37218ab3262837c1abdb92233e4aa71603caca51d55d388973",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-lending-child-O0-75-10",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-lending-child-O2-75-11",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

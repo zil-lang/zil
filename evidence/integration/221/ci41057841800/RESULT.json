@@ -1,0 +1,244 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "accepted_source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "accepted_source_tree": "cc9f3580cb2dcce2b51f037a37acb87b1d8365b2",
+  "workflow": {
+    "id": 41057841800,
+    "url": "https://github.com/zil-lang/zil/actions/runs/41057841800",
+    "event": "pull_request",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+    "created_at": "2026-10-30T12:46:06Z",
+    "updated_at": "2026-10-30T13:03:25Z",
+    "run_attempt": 1
+  },
+  "actual_checkout": {
+    "sha": "fc5b3c058c1f4c112cbadffdb4f9f41705049ea6",
+    "tree": "cc9f3580cb2dcce2b51f037a37acb87b1d8365b2",
+    "parents": [
+      "92ef47db54444fd98e241ab84d8a58ef9f8ef8f5",
+      "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf"
+    ],
+    "same_complete_git_tree_as_accepted_source": true,
+    "explanation": "GitHub tested its synthetic PR merge commit. Both the complete Git tree and all tracked source bytes equal the frozen source candidate; the two commit IDs are not relabelled as one."
+  },
+  "tests": {
+    "workspace": {
+      "passed": 2817,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 295
+    },
+    "reference": {
+      "passed": 2785,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 295
+    },
+    "text_reference": {
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 8
+    }
+  },
+  "format": "Pass",
+  "all_target_clippy_deny_warnings": "Pass",
+  "migration_runner": {
+    "tests": 9,
+    "failed": 0
+  },
+  "native_208": {
+    "status": "Pass",
+    "builds": 16,
+    "executions": 128,
+    "injected_failures": 56
+  },
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm_clang_lld": "23.1.4"
+  },
+  "jobs": [
+    {
+      "id": 124069751875,
+      "name": "workspace",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 41057841800,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Install the supported LLVM API toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Record exact checkout and restorable source history",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Formatting",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Record workspace resources before tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Complete workspace tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Record workspace resources after tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Preserve workspace receipts before releasing its cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "Release only the archived workspace compiler cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10
+        },
+        {
+          "name": "Record reference resources before tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        },
+        {
+          "name": "Reference-only build and explicit unavailable control",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12
+        },
+        {
+          "name": "Record reference resources after tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13
+        },
+        {
+          "name": "Preserve reference receipts before releasing its cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14
+        },
+        {
+          "name": "Release only the archived reference compiler cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15
+        },
+        {
+          "name": "Native API State and allocation-failure controls",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16
+        },
+        {
+          "name": "All-target Clippy",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17
+        },
+        {
+          "name": "Explicit LLVM text-reference boundary",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18
+        },
+        {
+          "name": "Small recovery artifact, never target caches",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 38
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 39
+        }
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 12978606108,
+      "name": "zil-main-41057841800-1-workspace",
+      "size_in_bytes": 1662682,
+      "digest": "sha256:ce7c4caff8d860356ccf57fdaf76a7998c8ebe55aea153f9815f86ccd6bc84ad",
+      "expired": false,
+      "created_at": "2026-10-30T12:54:13Z",
+      "expires_at": "2026-11-29T12:54:12Z"
+    },
+    {
+      "id": 12978472453,
+      "name": "zil-main-41057841800-1-reference",
+      "size_in_bytes": 1662098,
+      "digest": "sha256:a527a592ce80642a0a5645f05fefcfdc66bfd82aded4b9fe9a8e7347069b7d34",
+      "expired": false,
+      "created_at": "2026-10-30T13:00:58Z",
+      "expires_at": "2026-11-29T13:00:56Z"
+    },
+    {
+      "id": 12977619052,
+      "name": "zil-main-41057841800-1-final",
+      "size_in_bytes": 92029453,
+      "digest": "sha256:621015e6d06353a6dcd3bed6152a7e82e6782d871fbe3b99d1dc7f028cd484b1",
+      "expired": false,
+      "created_at": "2026-10-30T13:03:06Z",
+      "expires_at": "2026-11-29T13:03:02Z"
+    }
+  ],
+  "logs": {
+    "path": "job.log.gz",
+    "downloaded_from_job_id": 124069751875,
+    "complete_decoded_log": true,
+    "sha256": "0a09d8fcd7e9d6e0256a48a42a59de3d7448ffd5d3b086448ceff13923a42cfc",
+    "bytes": 909161,
+    "compression": "gzip; sha256 names the original decoded UTF-8 bytes"
+  },
+  "independent_reviews": "evidence/reviews/218-221/by_language_parallel and evidence/reviews/219/by_root",
+  "local_incomplete_full_runs": "InfrastructureFailure; excluded from acceptance counts",
+  "full_language": "NotSatisfied",
+  "full_zui": "NotSatisfied",
+  "product_gates": "NotRun",
+  "native_windows": "NotRun"
+}

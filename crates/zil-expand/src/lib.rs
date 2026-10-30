@@ -2,6 +2,7 @@
 //! Source-shaped AST to untrusted Core. No transformation grants safety facts.
 //! Sequence bindings identify ordered evaluations. They do not decide a place's
 //! Copy/Move/Borrow mode or extend a borrow; those decisions remain in zil-types.
+pub mod ct_selection;
 mod enums;
 mod foreign;
 mod generics;
@@ -394,35 +395,13 @@ fn expand_inner_project(
     limits: &Limits,
     project_defaults: Option<&ProjectDefaults>,
 ) -> CompileResult<ExpandedModule> {
-    let mut e = Expander {
+    let mut e = Expander::new(
+        module.id,
         imports_resolved,
-        module_id: module.id,
-        callable_work: limits.max_analysis_steps,
+        limits,
         project_defaults,
-        generated_imports: BTreeMap::new(),
-        generated_exports: Vec::new(),
-        next: 0,
-        next_temporary: 0,
-        unsupported: Vec::new(),
-        diagnostics: Vec::new(),
-        diagnosed_attributes: BTreeSet::new(),
-        functions: Vec::new(),
-        aggregates: Vec::new(),
-        enums: Vec::new(),
         declarations,
-        default_helpers: BTreeMap::new(),
-        traits: BTreeMap::new(),
-        static_traits: BTreeSet::new(),
-        static_trait_impls: BTreeSet::new(),
-        source_map: SourceMap::new(module.id),
-        node_maps: BTreeMap::new(),
-        markers: BTreeMap::new(),
-        parent_map: None,
-        lexical_receiver: None,
-        self_type: None,
-        return_type: None,
-        drop_implementations: BTreeMap::new(),
-    };
+    );
     for item in &module.items {
         if let s::ItemKind::Trait(t) = &item.kind {
             e.traits.entry(t.name.clone()).or_insert(t);
@@ -495,6 +474,45 @@ struct Expander<'a> {
     self_type: Option<Type>,
     return_type: Option<Type>,
     drop_implementations: BTreeMap<String, String>,
+}
+impl<'a> Expander<'a> {
+    fn new(
+        module_id: zil_base::ModuleId,
+        imports_resolved: bool,
+        limits: &Limits,
+        project_defaults: Option<&'a ProjectDefaults>,
+        declarations: &'a AggregateDeclarations<'a>,
+    ) -> Self {
+        Self {
+            imports_resolved,
+            module_id,
+            callable_work: limits.max_analysis_steps,
+            project_defaults,
+            generated_imports: BTreeMap::new(),
+            generated_exports: Vec::new(),
+            next: 0,
+            next_temporary: 0,
+            unsupported: Vec::new(),
+            diagnostics: Vec::new(),
+            diagnosed_attributes: BTreeSet::new(),
+            functions: Vec::new(),
+            aggregates: Vec::new(),
+            enums: Vec::new(),
+            declarations,
+            default_helpers: BTreeMap::new(),
+            traits: BTreeMap::new(),
+            static_traits: BTreeSet::new(),
+            static_trait_impls: BTreeSet::new(),
+            source_map: SourceMap::new(module_id),
+            node_maps: BTreeMap::new(),
+            markers: BTreeMap::new(),
+            parent_map: None,
+            lexical_receiver: None,
+            self_type: None,
+            return_type: None,
+            drop_implementations: BTreeMap::new(),
+        }
+    }
 }
 impl Expander<'_> {
     fn id(&mut self) -> NodeId {

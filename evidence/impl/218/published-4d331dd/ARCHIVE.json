@@ -1,0 +1,30 @@
+{
+  "source_directory": "/workspace/scratch/3cf12ce32e36/recovery/continue218/published-4d331dd",
+  "file_count": 4,
+  "uncompressed_bytes": 5873,
+  "archive_sha256": "777700f4a32f346562f7753af48fe45a793f06e9146183e079039159d2efc113",
+  "archive_bytes": 2011,
+  "all_archived_bytes_reverified": true,
+  "files": [
+    {
+      "path": "RESULT.json",
+      "size": 2325,
+      "sha256": "a2539c0ff0c113130ebca2dd1f31ff4b9c3c15a4486cde3496113d4de483203b"
+    },
+    {
+      "path": "diff-check.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "expand.log",
+      "size": 752,
+      "sha256": "b1681fcc125226b41a788c8399da56d289cb6d1d211d981d7ace4f3f24ee72e3"
+    },
+    {
+      "path": "types-budget.log",
+      "size": 2796,
+      "sha256": "465b46bd2619856ae8c4591396e919595b1c993e0be4f184cd2644ce686fc8b6"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "reviewer": "/root/language_parallel/factory_boundary_review",
+  "original_commit": "2212505a667508dc9c7565cbab674c8e59700457",
+  "author_base": "dfaecfb0fd92f093f74857136af6baca9d17144b",
+  "original_files_unchanged": true,
+  "files": {
+    "conditional-inside.zil": "a84a0896036f159411f7bed24db38905718e3b0fe1f747f06469ba028ca9c3d0",
+    "direct-alias-inside.zil": "f0d55c28dfaff51acd16189f3ca107ab7fe04ebc1acd86b4f43ffcf7fb657a8a",
+    "conditional-outside.zil": "cbea1742579c961779045b2a5f0e0262d6b81c8c45d68c8f5a5d7fa8e21087a6",
+    "direct-branch-calls.zil": "548c3920a298b943bab34aa0adf5ee62e3e5ec5964d825ef59688686fdd1eea3",
+    "conditional-inside-twice.zil": "a50ee63b980ab73e8f5bae09b195b92cb78a53d693f9d993bb36e73739360101"
+  },
+  "oracle_source": "original independent FROZEN.json; copied source bytes only; no oracle update"
+}

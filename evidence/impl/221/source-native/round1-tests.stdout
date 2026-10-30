@@ -1,0 +1,16 @@
+
+running 9 tests
+test native_argument_preparation_failure_cleans_the_prepared_input ... ok
+test native_callback_store_uses_inline_wrapper_stride_and_cleans_each_failure ... ok
+test native_cross_module_nested_factory_keeps_complete_input_identity ... ok
+test native_owning_modes_and_distinct_values_clean_exactly_once_without_allocation ... ok
+test source_derived_environment_and_runtime_values_remain_independent ... ok
+test source_derived_raw_and_wire_work_has_exact_fresh_limits ... source221 wire=false N=16559; N-1 ResourceLimit; fresh N identical
+source221 wire=true N=16559; N-1 ResourceLimit; fresh N identical
+ok
+test source_derived_return_envelope_cannot_be_deleted_or_counterfeited ... ok
+test source_factory_reaches_independent_raw_wire_and_inline_machine_ir ... ok
+test unused_factory_definitions_keep_declared_consuming_obligations ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.83s
+

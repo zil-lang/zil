@@ -1,0 +1,35 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-221/crates/zil-verify)
+    Finished `test` profile [unoptimized] target(s) in 3.97s
+     Running unittests src/lib.rs (/workspace/scratch/3cf12ce32e36/targets/221/debug/deps/zil_verify-c59aee014cb4882b)
+
+running 15 tests
+test retained_tests::callable_return_contract_is_bounded_and_changes_all_candidate_identity ... ok
+
+thread 'retained_tests::owning_factory_raw_and_wire_keep_per_value_responsibility' (43) panicked at crates/zil-verify/src/retained_tests.rs:548:9:
+wanted E-VERIFY-CLOSURE-CALL: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-CAPTURE", message: "owned captures require their explicit resource or Package view operations, never copying ReadCapture", span: Some(Span { file: FileId(0), start: 0, end: 1 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test retained_tests::owning_factory_raw_and_wire_reject_recursive_or_deep_borrowed_inputs ... ok
+test retained_tests::owning_factory_raw_and_wire_reject_same_result_identity_or_extra_input ... ok
+test retained_tests::owning_factory_raw_and_wire_reject_hidden_companion_callback ... ok
+test retained_tests::owning_factory_raw_and_wire_keep_per_value_responsibility ... FAILED
+test retained_tests::owning_factory_raw_and_wire_require_exact_return_contract ... ok
+test retained_tests::raw_factory_cannot_hide_external_input_effects_behind_empty_contract ... ok
+test retained_tests::raw_self_contained_contract_rejects_borrowed_captures ... ok
+test retained_tests::raw_factory_resource_multiplicity_and_caller_cleanup_are_not_trusted ... ok
+test retained_tests::raw_factory_bodies_keep_exact_contracts_when_hidden_identity_is_shared ... ok
+test retained_tests::raw_return_contract_cannot_forge_identity_kind_dependencies_or_cleanup ... ok
+test retained_tests::owning_factory_raw_and_wire_transfer_or_clean_input_without_helper_contract ... ok
+owning221 wire=false N=2919; N-1=ResourceLimit; fresh N=Pass
+test retained_tests::raw_and_wire_factories_transfer_owned_and_empty_environments ... ok
+test retained_tests::current_wire_accepts_current_version_and_rejects_other_versions_and_every_truncation ... ok
+owning221 wire=true N=2919; N-1=ResourceLimit; fresh N=Pass
+test retained_tests::owning_factory_verify_and_wire_have_exact_fresh_budget_boundaries ... ok
+
+failures:
+
+failures:
+    retained_tests::owning_factory_raw_and_wire_keep_per_value_responsibility
+
+test result: FAILED. 14 passed; 1 failed; 0 ignored; 0 measured; 248 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p zil-verify --lib`

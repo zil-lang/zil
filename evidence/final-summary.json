@@ -1,11 +1,29 @@
 {
-  "source_commit": "9219be40ff0aa2d7e2902cd0a6da151bd44b3cb4",
-  "result_path": "evidence/integration/217/RESULT.json",
+  "source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "result_path": "evidence/integration/221/RESULT.json",
   "draft_gate": "NotRun",
   "full_workspace_gate": "Pass",
   "full_language_gate": "NotSatisfied",
   "full_zui_gate": "NotSatisfied",
   "product_gate": "NotRun",
   "schema_version": 27,
-  "note": "213-217 bounded integration accepted: language206+LLVM212, finite Product owning capture, five-module synchronous startup composition. Workspace2743/0/0@8628, reference2711/0/0@46a, all-target Clippy/release/API consumer pass; independent309f773 binds9219 via exact source equivalence and preserves all execution identities. All failures retained; readonly borrowed capture, declarative/open heterogeneity/retained async and complete1.4 remain open."
+  "note": "218–221 bounded language integration accepted through separate-author review and GitHub CI run41057841800 (workspace2817/reference2785, zero failures/ignored). The CI checkout fc5b3c05 has the exact source candidate tree. Main merge66d4954 preserves the validated production/test/tool/normative files and adds cards/evidence. Full language1.4, ZUI readiness, product comparisons and the six older in-flight tasks remain open.",
+  "integration_commit": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
+  "reference_workspace_gate": "Pass",
+  "independent_reviews": "Pass",
+  "previous_summary": {
+    "source_commit": "9219be40ff0aa2d7e2902cd0a6da151bd44b3cb4",
+    "result_path": "evidence/integration/217/RESULT.json",
+    "draft_gate": "NotRun",
+    "full_workspace_gate": "Pass",
+    "full_language_gate": "NotSatisfied",
+    "full_zui_gate": "NotSatisfied",
+    "product_gate": "NotRun",
+    "schema_version": 27,
+    "note": "213-217 bounded integration accepted: language206+LLVM212, finite Product owning capture, five-module synchronous startup composition. Workspace2743/0/0@8628, reference2711/0/0@46a, all-target Clippy/release/API consumer pass; independent309f773 binds9219 via exact source equivalence and preserves all execution identities. All failures retained; readonly borrowed capture, declarative/open heterogeneity/retained async and complete1.4 remain open."
+  },
+  "main_ci_receipt": "evidence/integration/221/ci41061704505/RESULT.json",
+  "main_ci_run": 41061704505,
+  "main_ci_gate": "Pass",
+  "handoff_closeout_receipt": "evidence/integration/221/closeout/RESULT.json"
 }

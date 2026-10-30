@@ -1,0 +1,87 @@
+{
+  "checkpoint": "F; precise independent-review repair prepared for parent publication",
+  "author_source_base": "dfaecfb0fd92f093f74857136af6baca9d17144b",
+  "discovery": {
+    "reviewer": "/root/language_parallel/factory_boundary_review",
+    "combined_source_commit": "2212505a667508dc9c7565cbab674c8e59700457",
+    "cli_sha256": "f9e5e62d501e5fbb458c56d3eed162187af782190dd96db588d62a7c05ded613",
+    "original_result_sha256": "d4f31ce5c3d99334f3d5fd81ad344994af69c433a03db34380d180771e71b53e",
+    "source_sha256": "a84a0896036f159411f7bed24db38905718e3b0fe1f747f06469ba028ca9c3d0",
+    "oracle": "Success; verification_runs=1; native exit0 if built; original oracle unchanged"
+  },
+  "author_reproduction": {
+    "command": "cargo test -p zil-driver --test impl218_factory_types declared_once_survives_conditional_transfer_inside_the_returned_environment --offline -- --nocapture",
+    "production": "unchanged dfaecfb; only the regression test/byte-identical source fixtures had been added",
+    "exit_code": 101,
+    "passed": 0,
+    "failed": 1,
+    "phase": "Types",
+    "category": "Unsupported",
+    "code": "E-UNSUPPORTED",
+    "message": "opaque callable kind adaptation is not implemented; declared and actual Fn/FnMut/FnOnce kinds must match"
+  },
+  "repair": {
+    "production_file": "crates/zil-types/src/closures.rs",
+    "sha256": "97d856bb45183facfbdb883e312e2e4f29dc7c2931bce8e65c33f9432482bbf1",
+    "description": "At Core If value joins, mark real owned Name capture transfer only for Closure values carrying the private declaration kind; nested Ifs are handled during their existing visits. Precharge scope traversal and lexical/capture lookup work before inspecting or mutating positions. Existing direct-alias path and all declaration-mode checks remain unchanged.",
+    "not_changed": [
+      "No ClosureId-global capability map",
+      "No ordinary/borrowed/unknown-mode new admission",
+      "No empty nonescaping callable contract",
+      "No public schema, ABI, default budgets, Analyze or Verify edits"
+    ]
+  },
+  "after_format_commands": [
+    {
+      "command": "cargo test -p zil-expand --test impl218_factory --offline -- --nocapture",
+      "passed": 6,
+      "failed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test -p zil-driver --test impl218_factory_types --test impl218_factory_budget --offline -- --nocapture",
+      "suites": {
+        "types": {
+          "passed": 15,
+          "failed": 0
+        },
+        "budgets": {
+          "passed": 3,
+          "failed": 0
+        }
+      },
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "focused_controls": [
+    "Original conditional-inside source",
+    "Original direct-alias-inside",
+    "Original conditional-outside",
+    "Original direct-branch-calls",
+    "Parenthesized conditional-inside",
+    "Nested conditional-inside",
+    "Original conditional-inside-twice remains Expand SafeReject"
+  ],
+  "new_boundary": {
+    "case": "conditional",
+    "expand_work": 818,
+    "types_work": 978,
+    "types_locals": 14,
+    "types_functions": 5,
+    "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+  },
+  "unchanged_budget_and_ir": [
+    "helper",
+    "state",
+    "opaque",
+    "owning",
+    "forwarding"
+  ],
+  "comparison": "The five prior boundary JSON outputs and Core/Typed debug serialization are byte-identical to pre-fix checkpoint-E outputs; original independent source/oracle files are unchanged.",
+  "environment": "Rust1.99.1; source ../recovery/zil-env.sh; CARGO_TARGET_DIR=/workspace/scratch/3cf12ce32e36/targets/218; jobs1; offline",
+  "acceptance": "NotAccepted; author Types/Expand repair only; parent publishes exact SHA and independent reviewer replays original source through combined Analyze/Verify/native"
+}

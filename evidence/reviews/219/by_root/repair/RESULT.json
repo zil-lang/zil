@@ -1,0 +1,78 @@
+{
+  "status": "Pass",
+  "candidate": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+  "reviewer": "/root/language_review_plan",
+  "finding": "219-grouped-import-resolution",
+  "finding_resolution": "Closed by independent original-byte replay",
+  "formal_verdict_owner": "/root",
+  "scope": "Repair-only second-view review, not whole task acceptance",
+  "compiler_sha256": "b87bf8b0c7128a5048c68d39d82af2ebf772b689d064f7d067562244644948d7",
+  "build_receipt_sha256": "c1d08ee6d703e8b95510e68639255abfd14491bc74da717b89d04949ff7f70db",
+  "original_candidate": "4b4ac10315a84429a5ad8f2b3a46810b2598f272",
+  "original_review_sha256": "ebe5729f5cc362f3c0f34c58d96aeff932b00284112a9464403fc91468872dd3",
+  "original_files_rechecked_unchanged": 54,
+  "independent_cli_probes": 4,
+  "oracle_matches": 4,
+  "oracle_mismatches": 0,
+  "native_runs": 0,
+  "full_suite_runs": 0,
+  "production_edits": 0,
+  "independent_exact_budget_or_cache_runs": 0,
+  "author_test_counts_reused_as_independent": false,
+  "repository_head_after": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+  "repository_status_after": "",
+  "observations": [
+    {
+      "label": "grouped-alias-trace",
+      "oracle_match": true,
+      "checks": {
+        "status": true,
+        "one_selection": true,
+        "dependency_names": true,
+        "precise_dependency_identity": true,
+        "chosen_then": true,
+        "ct_steps_24": true,
+        "cli_unchanged": true,
+        "source_unchanged": true
+      }
+    },
+    {
+      "label": "grouped-alias-generated",
+      "oracle_match": true,
+      "checks": {
+        "safe_reject": true,
+        "ct_phase": true,
+        "frozen_diagnostic_code": true,
+        "precise_diagnostic_span": true,
+        "cli_unchanged": true,
+        "source_unchanged": true
+      }
+    },
+    {
+      "label": "grouped-alias-runtime-shadow",
+      "oracle_match": true,
+      "checks": {
+        "safe_reject": true,
+        "ct_phase": true,
+        "frozen_diagnostic_code": true,
+        "precise_diagnostic_span": true,
+        "cli_unchanged": true,
+        "source_unchanged": true
+      }
+    },
+    {
+      "label": "ungrouped-alias-trace",
+      "oracle_match": true,
+      "checks": {
+        "status": true,
+        "one_selection": true,
+        "dependency_names": true,
+        "precise_dependency_identity": true,
+        "chosen_then": true,
+        "ct_steps_24": true,
+        "cli_unchanged": true,
+        "source_unchanged": true
+      }
+    }
+  ]
+}

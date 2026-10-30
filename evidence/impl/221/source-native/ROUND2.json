@@ -1,0 +1,40 @@
+{
+  "status": "AuthorLimitedPass",
+  "compiler_ref": "eed58269f4cdeb25c9e71052a104d270aea6dcc4",
+  "actual_compiler_commit": "eed58269f4cdeb25c9e71052a104d270aea6dcc4",
+  "compiler_inputs_unchanged": true,
+  "implementation_task_head_before_test_checkpoint": "0fc198ecfd9271094e08b19d89a1531eb4e27e5d",
+  "selected_test_groups": 1,
+  "source_controls": 3,
+  "raw_wire_successes": 6,
+  "ordinary_llvm_api_runs": 6,
+  "optimizations": [
+    "O0",
+    "O2"
+  ],
+  "observations": "round2-observations.json",
+  "contracts": [
+    "shared and mutable finite Copy address parameters",
+    "shared finite Copy slice address parameter",
+    "empty actual Fn environments as copied factory inputs",
+    "Copy ErrorUnion callable input/result with actual Fn consuming adaptation",
+    "error exit cleans consumed input then remaining owned tail: ABXCDY",
+    "existing nested lending result remains legal below a Copy root result"
+  ],
+  "archive": {
+    "file": "round2-raw.zip",
+    "bytes": 339397,
+    "sha256": "c132e9c06cf73db75fbb38d2388b4904d23ecbc33afcf52ac97fdfc2ba838007",
+    "file_manifest": "round2-files.json",
+    "file_manifest_sha256": "d8571fb971c25ce98ae460b97a47dc177462862a56adc41c5bc6e28f812edfd3"
+  },
+  "not_claimed": [
+    "non-author review",
+    "full workspace",
+    "full language 1.4",
+    "all ZUI prerequisites",
+    "native Windows",
+    "product gates",
+    "Rust performance comparison"
+  ]
+}

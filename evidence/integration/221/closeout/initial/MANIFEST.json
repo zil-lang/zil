@@ -1,0 +1,10 @@
+{
+  "source_commit": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
+  "handoff_raw_bytes": 497725,
+  "handoff_raw_sha256": "0865b8334a295ee735ba53a7e0f228cfd14ea589b30de2792d407b5ce20adacf",
+  "handoff_actual_verdict": "Fail",
+  "handoff_error_count": 1148,
+  "known_pre_session_errors": 1138,
+  "new_metadata_errors": 10,
+  "original_receipts_preserved": true
+}

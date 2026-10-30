@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "task": "219",
+  "reviewer": "/root",
+  "implementation_author": "/root/language_parallel",
+  "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "verdict": "Pass",
+  "scope": "Finite ConfigReady scalar source #if selection; independent source/code review, original-byte defect replay and combined-source control; whole-workspace acceptance recorded separately",
+  "independence": {
+    "reviewer_authored_219_production": false,
+    "reviewer_authored_220": true,
+    "reviewer_does_not_review_own_220": true,
+    "second_view": "/root/language_review_plan",
+    "second_view_authored_219_production": false
+  },
+  "normative_hash": "e4bd2d0f939a205b01618c0d5ce53a8725549be093db2658272633021131e44d",
+  "spec_hash": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+  "reviewed_production_manifest": {
+    "crates/zil-driver/src/artifacts.rs": "6d743c7f2e13333063bf764f5c54a9ab3c6a787f1fbe9d2fe980bda5e39ef4ab",
+    "crates/zil-driver/src/ct_program.rs": "e06cdf9c0fd05630f254bb5da1aaa0787d93036439c6881320e83cdd3acf79e7",
+    "crates/zil-driver/src/ct_selection.rs": "5be1b6915926d08e45b641f7b1afb5d02869561b1b3c162c59b1a61c44c15ae1",
+    "crates/zil-driver/src/ct_selection/budget.rs": "8e08febffa66533a0688d8b23e81d7e718867f12e515c783287d7dc6b0e3bb38",
+    "crates/zil-driver/src/ct_selection/context.rs": "b5de98949cea0a9faca85170d7813118bbd8c7314c12c9903eb52115d922244a",
+    "crates/zil-driver/src/ct_selection/materialize.rs": "07eb343e07ff1c25560dbcbadf9a71cd8f16f31a8e5cc902cb22a2682b6875e7",
+    "crates/zil-driver/src/lib.rs": "25087819d67321ba1cfa80480eb429d959452c2622d72b8b42a26988fb559866",
+    "crates/zil-driver/src/project.rs": "acc4b466a2c1a7414eaa878a4ebba1449d9d604e42fb656b0344550db4a9f5fc",
+    "crates/zil-driver/src/session.rs": "cd345932411958f531929ce574879be68a30a734b9d979ee88df10d08325c117",
+    "crates/zil-expand/src/ct_selection.rs": "197825cc366401bdd2f8f4923f13bf26de60f0d9e7863c59fcb8f19afe76c3b0",
+    "crates/zil-expand/src/lib.rs": "9dbbf611bf4583dd48a990513d4ecf67bb63ca23da5c3745cf5eac75f7b078fd"
+  },
+  "source_equivalence": {
+    "original_repair_tested_commit": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+    "combined_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+    "all_219_owned_production_files_byte_identical": true,
+    "other_component_changes": "Owning factory changes are separately independently reviewed at the same combined source; no blanket claim that every transitive compiler input equals the219-only branch."
+  },
+  "findings": [
+    {
+      "id": "219-grouped-import-resolution",
+      "original_candidate": "4b4ac10315a84429a5ad8f2b3a46810b2598f272",
+      "original_result": "Grouped module alias lost choose/leaf dependency trace and reported generated leaf as ordinary unknown name. Runtime shadow and ungrouped controls already rejected/accepted correctly. No unsafe CT execution or stale cache was demonstrated.",
+      "repair_commit": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+      "closed": true,
+      "original_oracles_modified": false,
+      "independent_original_byte_replay": {
+        "source_probes": 4,
+        "matches": 4,
+        "mismatches": 0,
+        "successful_CT_steps": 24,
+        "grouped_nodes": 357,
+        "ungrouped_nodes": 351,
+        "generated_leaf_diagnostic": "E-CT-PHASE-DEPENDENCY file1 83..87",
+        "runtime_shadow_diagnostic": "E-CT-FORBIDDEN file0 51..54",
+        "receipt": "repair/RESULT.json",
+        "receipt_sha256": "059768c7c41cbb6508ee76a577a9b2c2ff2da0ae79df003667df55f9aefb8df3"
+      }
+    }
+  ],
+  "static_checks": [
+    "One ConfigReady Context is frozen before materialization. Original unconditional scalar bodies/public imports remain the query source; generated declarations do not mutate it.",
+    "Both arms remain parsed and bounded, only the selected declaration/statement list is inserted. Selected statement lists do not introduce a runtime scope; downstream ordinary names/types/Analyze/Verify remain mandatory.",
+    "Direct, grouped and pipeline callees follow actual module and lexical resolution. Runtime receiver locals cannot fall through to a same-named global; public visibility and phase readiness stay separate.",
+    "Actual source CTIR, independent CT verification and the VM execute conditions. A failed query is not false and does not fall back to runtime.",
+    "New cloning, declaration indexing, dependency walks and grouped unwrapping prepay bounded work. Selection and later constants retain one cumulative CT budget; cached selection use also deducts recorded usage.",
+    "Selection cache identity binds original sources/dependencies, rules, target and limits. Warm requests still run ordinary independent runtime Verify.",
+    "selection.json uses the existing preplanned atomic artifact path; selection does not mint verified IR permissions or alter schema/Wire27.",
+    "selection_cost was only relocated before its test module; byte comparison verifies the same function body. No lint allow or budget increase was introduced."
+  ],
+  "cross_feature_check": {
+    "source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+    "receipt": "evidence/integration/221/readiness-final/READINESS.json",
+    "case": "#if emits a public owning factory and selected bindings in its body/caller",
+    "check": "Verify Success",
+    "native": [
+      "O0 exit0",
+      "O2 exit0"
+    ],
+    "new_219_independent_native_count": 2,
+    "separate_from_author_100": true
+  },
+  "author_evidence_used_as_author_evidence": {
+    "repair_delivery": "19375551b7963f4c44536895322c9502fa4945e5",
+    "source_tested": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+    "rust_tests": 54,
+    "native_runs": 100,
+    "actual_allocation_failures": 28,
+    "all_final_live_zero": true,
+    "precise_ct_boundaries": [
+      127,
+      205,
+      645
+    ],
+    "receipt": "evidence/impl/219/grouped-member-repair/RESULT.json",
+    "counts_not_relabelled_as_independent": true
+  },
+  "integration_validation": {
+    "workflow_run": 41057841800,
+    "url": "https://github.com/zil-lang/zil/actions/runs/41057841800",
+    "default_workspace_observed": "success",
+    "remaining_workflow_steps": "pending; see the separately finalized CI receipt",
+    "local_incomplete_workspace_runs": "InfrastructureFailure; never full Pass"
+  },
+  "limitations": [
+    "No independent exact budget/hot-cache execution is claimed for the four second-view repair probes; author tests and complete CI execute those existing checks.",
+    "#for/#emit/full Type-Syntax hygiene, conditional imports, CT globals/reflection and generic CT value binding remain outside this finite profile.",
+    "Full language1.4, all ZUI prerequisites, B0/181, Rust product goals and native Windows remain unfinished."
+  ],
+  "completed_at_utc": "2026-10-30T12:56:56.882957+00:00"
+}
