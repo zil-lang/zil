@@ -363,7 +363,7 @@ impl Dependencies<'_, '_> {
                     _ => None,
                 };
                 if let Some(signature) = signature {
-                    if signature.callable_return.is_some() {
+                    if signature.callable_return.is_some() && signature.template.is_none() {
                         self.found
                             .factories
                             .insert(signature.concrete_id(expression.span)?);
@@ -452,6 +452,9 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
     let Some(bound) = &function.callable_return else {
         return Ok(());
     };
+    if owning_factory::template(function) {
+        return owning_factory::validate(function);
+    }
     let signature = Type::FunctionPointer {
         parameters: bound.parameters.clone(),
         result: Box::new(bound.result.clone()),
@@ -500,6 +503,11 @@ impl Builder<'_, '_> {
                 "opaque callable return requires a closure environment",
             ));
         };
+        if self.factory_modes.is_some() && self.function.parameters.iter().any(|local| {
+            self.function.locals[local.0 as usize].ty == Type::Closure(id)
+        }) {
+            return Err(unsupported(span, "owning callable factory must produce a fresh environment, not its input F"));
+        }
         let bound = self.factory_bound.as_ref().expect("factory return").clone();
         let pending = &mut self.closures.pending[id.0 as usize];
         if pending.inference.arity() != bound.parameters.len() {

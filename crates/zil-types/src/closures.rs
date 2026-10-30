@@ -19,6 +19,7 @@ pub(super) struct Capture {
     pub address_written: bool,
     pub moved: bool,
     pub consumed: bool,
+    pub declared_kind: Option<CallableKind>,
     pub span: Span,
 }
 impl Capture {
@@ -188,6 +189,7 @@ impl State {
         signatures: &BTreeMap<String, Signature>,
         imports: Option<&program::Imports<'_>>,
         enums: Option<&BTreeMap<String, Type>>,
+        declared: Option<&BTreeMap<LocalId, CallableKind>>,
     ) -> R<ClosureId> {
         let function = self.allocate_function(input.span)?;
         let id = ClosureId(
@@ -208,6 +210,7 @@ impl State {
                 imports,
                 resource_writes: &self.resource_writes,
                 closures: &self.pending,
+                declared,
             },
             &self.limits,
             &mut self.work_left,
@@ -1295,7 +1298,7 @@ enum LocalType {
     Scalar(Variable),
     Address(Variable, bool),
     Resource(Variable, bool),
-    Closure(ClosureId, Option<bool>),
+    Closure(ClosureId, Option<bool>, Option<CallableKind>),
     SliceLength,
 }
 impl LocalType {
@@ -1312,8 +1315,8 @@ impl LocalType {
     }
     fn bind(self, graph: &mut Graph, ty: &Type, span: Span) -> R<()> {
         match (self, ty) {
-            (Self::Closure(actual, None), Type::Closure(expected)) if actual == *expected => Ok(()),
-            (Self::Closure(actual, Some(available)), Type::Address { mutable, inner })
+            (Self::Closure(actual, None, _), Type::Closure(expected)) if actual == *expected => Ok(()),
+            (Self::Closure(actual, Some(available), _), Type::Address { mutable, inner })
                 if matches!(inner.as_ref(), Type::Closure(expected) if actual == *expected)
                     && (available || !mutable) =>
             {
@@ -1355,7 +1358,7 @@ impl LocalType {
     }
     fn unify(self, other: Self, graph: &mut Graph, span: Span) -> R<()> {
         match (self, other) {
-            (Self::Closure(a, am), Self::Closure(b, bm)) if a == b && am == bm => Ok(()),
+            (Self::Closure(a, am, ak), Self::Closure(b, bm, bk)) if a == b && am == bm && ak == bk => Ok(()),
             (Self::Scalar(a), Self::Scalar(b)) => graph.unify(a, b, span),
             (Self::Address(a, am), Self::Address(b, bm)) if am == bm => graph.unify(a, b, span),
             (Self::Resource(a, am), Self::Resource(b, bm)) if am == bm => graph.unify(a, b, span),
@@ -1373,6 +1376,7 @@ struct Functions<'a> {
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
     resource_writes: &'a resource_effects::Writes,
+    declared: Option<&'a BTreeMap<LocalId, CallableKind>>,
 }
 struct InferBuilder<'a, 'b> {
     closures: &'a [Pending],
@@ -1383,6 +1387,7 @@ struct InferBuilder<'a, 'b> {
     scopes: Vec<BTreeMap<String, LocalType>>,
     prepared: std::collections::BTreeSet<String>,
     outer: &'a BTreeMap<String, (LocalId, Type)>,
+    declared: Option<&'a BTreeMap<LocalId, CallableKind>>,
     captures: Vec<Capture>,
     captured_variables: BTreeMap<LocalId, LocalType>,
     package_descriptions: Vec<(Variable, LocalId)>,
@@ -1430,6 +1435,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             scopes: vec![BTreeMap::new()],
             prepared: std::collections::BTreeSet::new(),
             outer,
+            declared: functions.declared,
             captures: vec![],
             captured_variables: BTreeMap::new(),
             package_descriptions: Vec::new(),
@@ -1588,7 +1594,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 capture.consumed |= nested_consumed;
                 return Ok(*variable);
             }
-            let value = LocalType::Closure(*id, None);
+            let declared_kind = if let Some(declared) = self.declared {
+                *self.work_left = self.work_left.checked_sub(helpers::plan::tree_work(declared.len()))
+                    .ok_or_else(|| limit("factory capture declaration budget exceeded", span))?;
+                declared.get(local).copied()
+            } else { None };
+            let value = LocalType::Closure(*id, None, declared_kind);
             self.captures.push(Capture {
                 name: name.into(),
                 source: *local,
@@ -1598,6 +1609,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 address_written: false,
                 moved,
                 consumed: nested_consumed,
+                declared_kind,
                 span,
             });
             self.captured_variables.insert(*local, value);
@@ -1659,6 +1671,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             address_written: nested_writeback,
             moved: self.move_capture || nested_owned,
             consumed: nested_consumed,
+            declared_kind: None,
             span,
         });
         let value = if matches!(ty, Type::Managed(_) | Type::Desc(_)) {
@@ -1847,7 +1860,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
     }
     fn transferred_closure(&mut self, expression: &CoreExpr, term: LocalType) {
-        if matches!(term, LocalType::Closure(_, None))
+        if matches!(term, LocalType::Closure(_, None, _))
             && let CoreExprKind::Name(name) = &expression.kind
             && self.lookup(name).is_none()
             && let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name)
@@ -1902,11 +1915,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     self.mark_address_write(expression, depth)?;
                 }
             }
-            (LocalType::Closure(id, actual), wanted)
+            (LocalType::Closure(id, actual, declared), wanted)
                 if actual == wanted || (actual == Some(true) && wanted == Some(false)) =>
             {
                 let pending = self.closures.get(id.0 as usize).ok_or_else(mismatch)?;
-                if !helpers::compatible(pending.callable_kind(), bound.kind)
+                if !helpers::compatible(declared.unwrap_or_else(|| pending.callable_kind()), bound.kind)
                     || pending.inference.arity() != bound.parameters.len()
                 {
                     return Err(mismatch());
@@ -1931,12 +1944,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
     }
     fn known(&mut self, ty: &Type, span: Span) -> R<LocalType> {
         if let Type::Closure(id) = ty {
-            return Ok(LocalType::Closure(*id, None));
+            return Ok(LocalType::Closure(*id, None, None));
         }
         if let Type::Address { mutable, inner } = ty
             && let Type::Closure(id) = inner.as_ref()
         {
-            return Ok(LocalType::Closure(*id, Some(*mutable)));
+            return Ok(LocalType::Closure(*id, Some(*mutable), None));
         }
         let variable = self.graph.fresh(VALUE, false);
         if let Type::Managed(payload) | Type::Desc(payload) = ty {
@@ -2348,11 +2361,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     ) {
                         return Err(unsupported(span, "shared borrow requires a place"));
                     }
-                    if let LocalType::Closure(id, None) = value {
+                    if let LocalType::Closure(id, None, declared) = value {
                         if *op == UnaryOp::BorrowMut {
                             self.name_if_capture_written(operand);
                         }
-                        return Ok(LocalType::Closure(id, Some(*op == UnaryOp::BorrowMut)));
+                        return Ok(LocalType::Closure(id, Some(*op == UnaryOp::BorrowMut), declared));
                     }
                     if matches!(value, LocalType::Address(..)) {
                         return Err(unsupported(
@@ -2579,7 +2592,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         }
                         return self.known(&Type::I64, span);
                     }
-                    if let LocalType::Closure(id, permission) = callee_type {
+                    if let LocalType::Closure(id, permission, declared) = callee_type {
                         let pending = self.closures.get(id.0 as usize).ok_or_else(|| {
                             error(
                                 "E-CLOSURE-INFERENCE",
@@ -2587,7 +2600,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                                 "concrete captured closure is absent",
                             )
                         })?;
-                        let kind = pending.callable_kind();
+                        let kind = declared.unwrap_or_else(|| pending.callable_kind());
                         if permission.is_some()
                             && (kind == CallableKind::FnOnce
                                 || (kind == CallableKind::FnMut && permission == Some(false)))
