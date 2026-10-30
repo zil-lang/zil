@@ -703,16 +703,12 @@ impl FunctionEmitter<'_> {
             }
         }
         self.event(m::Event::Instruction(m::Inst::new(
-            (assignment).clone(),
+            assignment,
             m::Op::Call {
-                result: (llvm_type(result_ty)?).clone(),
+                result: llvm_type(result_ty)?,
                 result_attrs: vec![],
                 callee: m::global(symbol(function).to_string()),
-                args: {
-                    let mut args = vec![];
-                    args.extend((emitted_arguments.clone()).clone());
-                    args
-                },
+                args: emitted_arguments,
                 vararg: None,
             },
         )));
