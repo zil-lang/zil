@@ -655,6 +655,18 @@ fn check_function_signature_type(
     budget: &mut Budget,
 ) -> Check<()> {
     match ty {
+        Type::Address { inner, mutable }
+            if packages::has_children(inner)
+                || (!*mutable && packages::shared_product_head(inner)) =>
+        {
+            if *mutable {
+                return Err(unsupported(
+                    "ordinary Product addresses are shared synchronous inputs",
+                    span,
+                ));
+            }
+            packages::check_shared_product_type(module, inner, span, budget)
+        }
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
@@ -684,6 +696,18 @@ fn check_local_type(
             span,
             "local closure type references an absent environment",
         )),
+        Type::Address { inner, mutable }
+            if packages::has_children(inner)
+                || (!*mutable && packages::shared_product_head(inner)) =>
+        {
+            if *mutable {
+                return Err(unsupported(
+                    "ordinary Product addresses are shared synchronous inputs",
+                    span,
+                ));
+            }
+            packages::check_shared_product_type(module, inner, span, budget)
+        }
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
@@ -1215,6 +1239,8 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if matches!(inner, Type::Package { .. }) {
+                packages::check_shared_product_type(module, inner, span, budget)?;
             } else if matches!(inner, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
             {
                 resources::check_type_for(module, inner, span, budget)?;
@@ -1310,7 +1336,11 @@ fn check_instruction(
                 Type::Tuple(fields) => fields.get(*index as usize),
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
                 Type::Package { fields, .. } => {
-                    dynamic_store::check_element(module, projected, span, budget)?;
+                    if !*mutable && packages::shared_product_head(projected) {
+                        packages::check_shared_product_type(module, projected, span, budget)?;
+                    } else {
+                        dynamic_store::check_element(module, projected, span, budget)?;
+                    }
                     fields.get(*index as usize).map(|(_, ty)| ty)
                 }
                 _ => None,
@@ -1329,6 +1359,12 @@ fn check_instruction(
                 // Projection borrows its actual field; it grants neither a
                 // Copy read nor a consuming/replacing indirect operation.
                 closures::definition(module, *id, span)?;
+            } else if !*mutable && matches!(field, Type::Package { .. }) {
+                packages::check_shared_product_type(module, field, span, budget)?;
+            } else if !*mutable
+                && matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
+            {
+                resources::check_type_for(module, field, span, budget)?;
             } else {
                 check_type(field, span)?;
             }

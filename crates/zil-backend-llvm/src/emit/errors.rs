@@ -14,7 +14,9 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
         if ((error.is_copy_value() || packages::supported_type(error, resources))
             && (result.is_copy_value() || packages::supported_type(result, resources)))
             || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
-                && resources::supported_type(result, resources)))
+                && resources::supported_type(result, resources))
+            || (**error == Type::Unit && packages::supported_value_type(result, resources))
+            || (**result == Type::Unit && packages::supported_value_type(error, resources)))
 }
 
 fn teardowns(

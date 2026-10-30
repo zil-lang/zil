@@ -1881,6 +1881,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             } => self
                 .known_type(operand)
                 .filter(|ty| ty.is_address_pointee()
+                    || (*op == UnaryOp::Borrow && matches!(ty, Type::Package { .. }))
                     || (*op == UnaryOp::Borrow && matches!(ty, Type::Managed(payload)
                         if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())))
                 .map(|inner| Type::Address {
@@ -1891,7 +1892,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 op: UnaryOp::Dereference,
                 operand,
             } => match self.known_type(operand)? {
-                Type::Address { inner, .. } if inner.is_address_pointee() => Some(*inner),
+                Type::Address { inner, mutable } if inner.is_address_pointee()
+                    || (!mutable && matches!(inner.as_ref(), Type::Package { .. })) => Some(*inner),
                 _ => None,
             },
             CoreExprKind::Unary {

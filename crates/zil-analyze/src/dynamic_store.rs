@@ -3,6 +3,86 @@ use zil_ir::{InstructionKind, Type, ValueId};
 
 use super::{Budget, CompileResult, Diagnostic, Phase, TypedModule, callable_fields};
 
+/// The caller completes bounded raw type preflight before invoking this
+/// producer-only admission. No Types result is used as a proof here.
+pub(super) fn product_element(element: &Type, budget: &mut Budget) -> CompileResult<()> {
+    super::resources::product::admit(element, budget)?;
+    budget.type_work(element, true, "Product Store nonzero layout")?;
+    fn storage(ty: &Type) -> bool {
+        match ty {
+            Type::Unit => false,
+            Type::Managed(payload) => storage(payload),
+            Type::Tuple(fields) => fields.iter().any(storage),
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fields.iter().any(|(_, ty)| storage(ty))
+            }
+            Type::Array { element, length } => *length > 0 && storage(element),
+            _ => true,
+        }
+    }
+    if !storage(element) {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "Product Store element requires nonzero actual inline storage",
+            None,
+        )]);
+    }
+    Ok(())
+}
+
+pub(super) fn product_protocol_payload(ty: &Type) -> Option<&Type> {
+    let Type::ErrorUnion { error, result } = ty else {
+        return None;
+    };
+    if **error == Type::Unit && super::resources::product::nested(result) {
+        Some(result)
+    } else if **result == Type::Unit && super::resources::product::nested(error) {
+        Some(error)
+    } else {
+        None
+    }
+}
+
+pub(super) fn product_carrier(
+    module: &TypedModule,
+    element: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    product_element(element, budget)?;
+    let Type::Package { name, .. } = element else {
+        unreachable!("independently admitted Product")
+    };
+    budget.spend(
+        name.len()
+            .saturating_add("@builtin:OwnedStore<".len())
+            .saturating_add(">".len()),
+        "Product Store canonical identity",
+    )?;
+    let expected = format!("@builtin:OwnedStore<{name}>");
+    for definition in &module.resources {
+        budget.spend(
+            expected
+                .len()
+                .saturating_add(definition.name.len())
+                .saturating_add(1),
+            "Product Store definition lookup",
+        )?;
+        if definition.name != expected {
+            continue;
+        }
+        budget.type_work(&definition.payload, true, "Product Store exact definition")?;
+        budget.type_work(element, true, "Product Store exact element")?;
+        if definition.teardown.is_none()
+            && matches!(&definition.payload, Type::OwnedStore { element: actual } if actual.as_ref() == element)
+        {
+            return Ok(());
+        }
+    }
+    Err(super::bad(
+        "Product Store lacks its exact canonical element definition",
+    ))
+}
+
 /// The structural preflight records only Store elements that actually contain
 /// a concrete Closure. Ordinary Store inputs therefore keep their old work
 /// bound. This pass reads the raw element and environment tables; no Types

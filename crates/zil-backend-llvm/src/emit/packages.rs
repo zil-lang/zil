@@ -207,10 +207,20 @@ impl FunctionEmitter<'_> {
         index: u32,
     ) -> CompileResult<()> {
         let (package, field) = self.package_field(local, index)?;
-        if !field.is_copy_value() && !matches!(field, Type::Closure(_)) {
+        // Verify has already checked this actual field's complete debt,
+        // source and shared permission. Emit its address using the parent's
+        // concrete inline layout; do not load or transfer the owned value.
+        let shared_head = matches!(
+            instruction.kind,
+            InstructionKind::BorrowPackageField { mutable: false, .. }
+        ) && (product_type(&field, self.resources)
+            || matches!(&field, Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::Record { .. })
+                    && resources::supported_type(&field, self.resources)));
+        if !field.is_copy_value() && !matches!(field, Type::Closure(_)) && !shared_head {
             return invalid(
                 "E-CODEGEN-CFG",
-                "field address requires a finite Copy field or concrete environment",
+                "field address requires Copy, concrete environment or an actual shared finite Product/resource head",
                 Some(instruction.span),
             );
         }

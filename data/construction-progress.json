@@ -1,103 +1,44 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-30T13:33:29.186838+00:00",
-  "status": "MilestoneComplete",
-  "accepted_main_at_start": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
-  "milestone": "218–221 accepted and merged into main; completed task branches removed",
+  "observed_at_utc": "2026-10-30T15:33:56.193470+00:00",
+  "status": "AwaitingGitHubCI",
+  "conversation": "zil施工8",
+  "accepted_main_at_start": "a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
+  "milestone": "222–224 finite generation, Product Store, shared Product borrow",
+  "active_development_agents": 2,
   "tasks": [
     {
-      "id": "218",
-      "state": "已合入",
-      "owner": "/root/language218",
-      "branch": "task/218",
-      "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-      "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
-      "author_delivery_checkpoint": "4d331dd6b321685ea575a132c05dfb03aa7758fc",
-      "branch_status": "DeletedAfterMerge"
+      "id": "222",
+      "state": "待验",
+      "owner": "/root/ct_for",
+      "branch": "impl/222-ct-for",
+      "review": "evidence/reviews/222-224/REVIEW-222.json"
     },
     {
-      "id": "219",
-      "state": "已合入",
-      "owner": "/root/language_parallel",
-      "branch": "task/219",
-      "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-      "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
-      "author_delivery_checkpoint": "19375551b7963f4c44536895322c9502fa4945e5",
-      "branch_status": "DeletedAfterMerge"
+      "id": "223",
+      "state": "待验",
+      "owner": "/root/product_store",
+      "branch": "impl/223-product-store",
+      "review": "evidence/reviews/222-224/REVIEW-223.json"
     },
     {
-      "id": "220",
-      "state": "已合入",
-      "owner": "/root",
-      "branch": "task/220",
-      "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-      "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
-      "author_delivery_checkpoint": "e115ba5cfdc2cf56d092b912ae5077cffd0d92a3",
-      "branch_status": "DeletedAfterMerge"
-    },
-    {
-      "id": "221",
-      "state": "已合入",
-      "owner": "/root/language_review_plan",
-      "branch": "task/221",
-      "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-      "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
-      "author_delivery_checkpoint": "d61264ba57af08ddb7e0b8dafe2fc584632c6833",
-      "branch_status": "DeletedAfterMerge"
+      "id": "224",
+      "state": "待验",
+      "owner": "/root/scope_audit",
+      "branch": "impl/224-readonly-product",
+      "review": "evidence/reviews/222-224/REVIEW-224.json"
     }
   ],
-  "proof": [
-    "evidence/planning/218-221/FREEZE.json",
-    "evidence/planning/218-221/DIAGNOSTIC-AMENDMENT.json"
-  ],
-  "stale_after_minutes": 20,
-  "stale_interpretation": "StatusUnknown; an old heartbeat does not prove execution or termination.",
-  "notification": {
-    "requested_minutes_approximately": 10,
-    "native_minimum_minutes": 60,
-    "automation_created": false,
-    "conversation_updates": true,
-    "page": "https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab",
-    "row": "zil施工7",
-    "page_updates_during_active_construction": true
-  },
-  "previous218_recovered": false,
-  "full_language": "NotSatisfied",
-  "full_zui": "NotSatisfied",
-  "last_main_ci": {
-    "source": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
-    "run_id": 41061704505,
-    "url": "https://github.com/zil-lang/zil/actions/runs/41061704505",
-    "observed_status": "completed",
-    "conclusion": "success",
-    "receipt": "evidence/integration/221/ci41061704505/RESULT.json"
-  },
-  "new_language_acceptance": true,
-  "readiness_recheck": {
-    "source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-    "unchanged_original_sources": 29,
-    "success": 13,
-    "unsupported": 14,
-    "malformed_excluded": 2,
-    "promoted": [
-      "ct-item-if",
-      "ct-statement-if"
-    ],
-    "full_readiness": false,
-    "receipt": "evidence/integration/221/readiness-final/READINESS.json"
+  "local_affected_regression": {
+    "commit": "a57516d138f85c8f352bec5d440c5c22af259b14",
+    "passed": 132,
+    "failed": 0,
+    "ignored": 0,
+    "receipt": "evidence/integration/222-224/local/RESULT.json"
   },
   "candidate_ci": {
-    "source": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-    "run_id": 41057841800,
-    "url": "https://github.com/zil-lang/zil/actions/runs/41057841800",
-    "pr": 8,
-    "observed_status": "completed",
-    "default_workspace": "success",
-    "full_workflow_conclusion": "success",
-    "actual_checkout": "fc5b3c058c1f4c112cbadffdb4f9f41705049ea6",
-    "same_tree": true
+    "status": "Pending"
   },
-  "accepted_source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
   "last_acceptance_ci": {
     "source": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
     "run_id": 41057841800,
@@ -109,28 +50,48 @@
     "actual_checkout": "fc5b3c058c1f4c112cbadffdb4f9f41705049ea6",
     "same_tree": true
   },
-  "accepted_main_commit": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
-  "closeout_status": "Complete; historical handoff remains Fail/1138, with zero errors introduced by this stage",
-  "branch_cleanup": {
-    "completed_tasks": [
-      "task/218",
-      "task/219",
-      "task/220",
-      "task/221"
-    ],
-    "preserved_branches": [
-      "main",
-      "research/compile-performance"
-    ],
-    "receipt": "evidence/integration/221/closeout/BRANCHES.json"
+  "last_main_ci": {
+    "source": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
+    "run_id": 41061704505,
+    "url": "https://github.com/zil-lang/zil/actions/runs/41061704505",
+    "observed_status": "completed",
+    "conclusion": "success",
+    "receipt": "evidence/integration/221/ci41061704505/RESULT.json"
   },
-  "active_development_agents": 0,
-  "handoff": {
-    "status": "Fail",
-    "historical_errors": 1138,
-    "new_errors": 0,
-    "task_218_to_221_errors": 0,
-    "warnings": 0,
-    "receipt": "evidence/integration/221/closeout/RESULT.json"
+  "notification": {
+    "requested_minutes_approximately": 10,
+    "automation_created": false,
+    "page": "https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab",
+    "row": "zil施工8",
+    "page_updates_during_active_construction": true,
+    "known_gap": "One blocked publication call exceeded the requested interval; real heartbeat resumed and was delegated to an active agent."
+  },
+  "stale_after_minutes": 20,
+  "stale_interpretation": "StatusUnknown; an old heartbeat does not prove execution or termination.",
+  "full_language": "NotSatisfied",
+  "full_zui": "NotSatisfied",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "independent_scope_reviews": "Pass",
+  "final_affected_regression": {
+    "passed": 19,
+    "failed": 0,
+    "ignored": 0,
+    "receipt": "evidence/integration/222-224/final-generation/RESULT.json"
+  },
+  "readiness_recheck": {
+    "source_commit": "6b0d974bedfb40c93eb36e491ceb18a138718dac",
+    "unchanged_original_sources": 29,
+    "success": 15,
+    "unsupported": 12,
+    "malformed_excluded": 2,
+    "promoted": [
+      "product-store-element",
+      "product-error-union"
+    ],
+    "old_success_regressions": 0,
+    "receipt": "evidence/integration/222-224/readiness/READINESS.json",
+    "full_readiness": false
   }
 }

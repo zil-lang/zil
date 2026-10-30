@@ -83,7 +83,23 @@ pub(super) fn owned_capture(ty: &Type, work: &mut usize, limits: &Limits, span: 
 }
 
 pub(super) fn supported_element(ty: &Type) -> bool {
-    legacy_element(ty) || callback_element(ty, |ty| matches!(ty, Type::Closure(_)))
+    legacy_element(ty)
+        || callback_element(ty, |ty| matches!(ty, Type::Closure(_)))
+        || product_element(ty)
+}
+
+/// Container qualification is explicit. It does not widen captured Stores,
+/// owning arrays or general error payloads through the ordinary Product gate.
+pub(super) fn product_element(ty: &Type) -> bool {
+    packages::product::nested(ty) && packages::product::supported(ty) && has_storage(ty)
+}
+
+/// These two exact wrappers are the existing push/pop protocol, not arbitrary
+/// Product error unions. Every path still consumes one actual active tag.
+pub(super) fn product_protocol(ty: &Type) -> bool {
+    matches!(ty, Type::ErrorUnion { error, result }
+        if (**error == Type::Unit && product_element(result))
+            || (**result == Type::Unit && product_element(error)))
 }
 
 /// This checks only the exact finite shell. Concrete capture definitions are
@@ -408,7 +424,7 @@ pub(super) fn add_definitions(
                     work = work
                         .checked_sub(cost.saturating_add(2))
                         .ok_or_else(exhausted)?;
-                    if !legacy_element(element) {
+                    if !legacy_element(element) && !product_element(element) {
                         if !callback_element(element, |ty| matches!(ty, Type::Closure(_))) {
                             return Err(unsupported(
                                 function.span,
@@ -470,7 +486,7 @@ pub(super) fn add_definitions(
         work = work
             .checked_sub(cost.saturating_mul(2).saturating_add(2))
             .ok_or_else(exhausted)?;
-        if !legacy_element(element) {
+        if !legacy_element(element) && !product_element(element) {
             if !callback_element(element, |ty| matches!(ty, Type::Closure(_))) {
                 return Err(unsupported(
                     *span,
@@ -583,6 +599,12 @@ impl Builder<'_, '_> {
                     InstructionKind::OwnedStorePush { store, value }
                 }
                 "store_at" | "store_at_mut" => {
+                    if name == "store_at_mut" && packages::product::nested(&element) {
+                        return Err(unsupported(
+                            span,
+                            "Product Store elements currently expose only shared windows",
+                        ));
+                    }
                     let (index, actual) = self.expr(&arguments[1], Some(&Type::I64))?;
                     self.same(&actual, &Type::I64, arguments[1].span)?;
                     if name == "store_at_mut" {

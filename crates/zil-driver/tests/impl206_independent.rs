@@ -800,14 +800,8 @@ fn source_22_inner_store() {
 
 #[test]
 fn source_23_store_parent() {
-    rejected(
-        "23_store_parent",
-        source!("23_store_parent"),
-        Phase::Types,
-        ResultCategory::Unsupported,
-        None,
-        None,
-    );
+    // 223 promotes the original frozen source without rewriting its fixture.
+    accepted("23_store_parent", source!("23_store_parent"));
 }
 
 #[test]

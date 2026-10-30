@@ -252,8 +252,18 @@ fn local_value(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    if let Type::Address {
+        mutable: false,
+        inner,
+    } = ty
+        && super::resources::product::nested(inner)
+    {
+        return super::resources::product::admit(inner, budget);
+    }
     if super::resources::product::nested(ty) {
         super::resources::product::admit(ty, budget)
+    } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {
+        super::dynamic_store::product_element(payload, budget)
     } else {
         legacy_value(ty, span, module)
     }
@@ -295,6 +305,7 @@ pub(super) fn preflight(
     // Only a real Closure occurrence allocates a new admission entry; old
     // noncallback Store paths receive no new traversal or logical charge.
     let mut callback_store_elements = Vec::new();
+    let mut product_store_elements = Vec::new();
     let mut owned_store_capture_roots = Vec::new();
     for (ty, store_element, capture_owner, resource_head) in module
         .functions
@@ -337,6 +348,12 @@ pub(super) fn preflight(
                 )
         }))
     {
+        if let Some(element) = store_element
+            && super::resources::product::nested(element)
+        {
+            budget.spend(1, "Product Store instruction admission entry")?;
+            product_store_elements.push(element);
+        }
         let mut pending = vec![(ty, 0usize, store_element, capture_owner, resource_head)];
         while let Some((ty, depth, store_element, capture_owner, resource_head)) = pending.pop() {
             budget.input(1, "type shape")?;
@@ -368,18 +385,18 @@ pub(super) fn preflight(
                 }
                 Type::OwnedStore { element } => {
                     if super::resources::product::nested(element) {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "ordinary Package Product is not a Store element profile",
-                            None,
-                        )]);
+                        budget.spend(1, "Product Store type admission entry")?;
+                        product_store_elements.push(element);
                     }
                     pending.push((
                         element,
                         depth + 1,
                         store_element.or(Some(element)),
                         None,
-                        resource_head,
+                        // Only the top-level sealed Store definition owns an
+                        // ordinary element. A Store hidden in a user resource
+                        // head cannot erase that head's closed Copy profile.
+                        resource_head && depth != 0,
                     ));
                 }
                 Type::Tuple(fields) => {
@@ -471,6 +488,11 @@ pub(super) fn preflight(
                 _ => {}
             }
         }
+    }
+    // Complete shape and depth preflight precedes recursive Product admission.
+    // A Store element is a value, not an owning user-resource header.
+    for element in product_store_elements {
+        super::dynamic_store::product_carrier(module, element, budget)?;
     }
     count(0, module.closures.len(), limits.max_functions, "closure")?;
     budget.input(module.closures.len(), "closure table preflight")?;

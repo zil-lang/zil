@@ -1,33 +1,19 @@
-# 209当前接续（本地已集成，远端状态须实际回读）
+# 当前接续入口：施工8 / 222–224
 
-远端冻结基线：`ab2aaa7aa25e3c10d2908801d5e06dff1079df25`。通过主线CI artifact 12653433445恢复真实Git历史后完成三方源码整合，保留该基线为祖先；不导入8100份历史证据。
+当前真实 GitHub `main` 是开发基准，接续前重新读取远端 ref。施工8从 `a8e8831a9e28ac2ec83be6eac740a8f04a00af7d` 接续已验收的218–221；本批222–224的实现与返修已通过三份非作者范围审查，正在进行GitHub整仓验收/正式集成，当前状态以 `.task/impl/222.md`–`224.md`、`data/construction-progress.json` 和 `evidence/integration/222-224/` 为准。
 
-208输入：`0f391c0a8cb8a421ffca5cef441fee201cf7c123`。具体支持、策略与剩余缺口见`docs/research/209/INTEGRATION.md`。用户授权采用LLVM API研发主路线；直接Builder与完整产品门不冒称完成。GitHub推送状态以本轮交付收据为准，不能从存在本文件推断远端更新。
+## 本批范围
 
-本地209回归：标准workspace1664、参考1647、原生消费者16构建/128运行，均通过。发布工具见`tools/research/209/publish.py`；上传之前必须重新检查远端，拒绝force覆盖。样例输入是ASCII字符`3`，不是单字节0x03。
+222为有限源级 `#for`，223为完整嵌套 Product 的 Store 元素资格和失败清理，224为完整 Product 的同步共享借入。组合可用行为、真实审查缺陷、原字节重放和剩余边界见 [LANGUAGE-222-224.md](LANGUAGE-222-224.md)。不得用作者限定通过替代独审、全量或实际远端合入。
 
-## 以下为原GitHub主线交接原文
+下一范围仍包括完整 Type/Syntax / `#emit` / 类型声明生成、更深拥有容器组合、一般 trait/lending、长期外部回调关闭/注销/重入，以及挂起、取消和并发。完整1.4、B0/181、全部ZUI和Rust产品门保持未完成；不降低 `validation/product-gates.json`。
 
-# 当前 GitHub 接续入口（2026-10-26，136/137）
+## 接续约束
 
-GitHub的实际main是当前开发基准；每次接续重新读远端ref，不能把本文记录的提交当永远最新。旧GITHUB-SYNC.md中的draft24恢复说明只作历史来源，不代表当前实现状态。
+一单一branch/worktree/target，禁止跨工作树复用 Cargo target。源码及测试提交由 Git 保留，作者、非作者和正式CI身份分别记录。GitHub验收必须读取实际checkout/tree及全部workflow步骤，不能只看默认workspace一项绿色。主线合并使用保留审核提交的merge，不改写历史身份。
 
-## 已进入主干
+冷启动运行 `node tools/handoff.mjs --check`，再读取主树规范、总目标及派定工单。历史handoff缺项与本批新增问题分列；稀疏checkout不展开旧evidence时可能额外报告缺文件，不能据此重标历史成绩。规范输入注册表使用 `python3 tools/update-indexes.py` 生成；已合入旧片仍锁其实际implementation_commit规范，不追改旧hash。
 
-137由PR3合入：852854f7ccd124ef7c95b8f0d85516b7ca24f581。远端受测源码20de6d9734393bf70db58bec0d4f7c1ac0e7beb4，与本地963f9dcc生产对象一致。bytes_truncate纵切、schema/wire18、规范和接口变更，以及原worklist测试Clippy修复均已进入main；跨模块默认字段没有回退。
+`research/compile-performance` 为另一独立施工线；此语言批次不合并其未经本线验收的进度，也不声明编译性能收益。旧209/136/137交接内容保存在Git历史，已不代表当前主线。
 
-本地与Actions40326379096各1264项workspace通过，fmt/Clippy通过。独立Codex代码审核于2026-10-26T13:13:17Z完成，绑定20de6d97、未发现重大问题。其结果不等于全语言安全证明或新测试执行。正式35门、产品/Rust四目标最终验收仍未运行，B0 Doing不变。
-
-## 未进入主干
-
-136：research/136-compiled-effects，PR4。实际生产受测9c1644be786b33abf3549378714865be27606bb0，后续54d9b0f1aeb24d16d826bba4bbe849d4ae46466b只追加完整成本脚本/结果。真实源码参数事实图与当前worklist等价验证完成；本地与CI各1263通过。固定1716编译进程/396原生执行成功，但完整成本Inconclusive/NotEligible，禁止将个别较快点值记作生产优化获批。现有工作量节省不是时间倍数。
-
-旧research/131-effect-retraction=66644baae15ce4d481363038c34747256522b020，impl/132-owned-text=0ba64a223494860d513d7d7522e1d1b942af6069，PR1/2仍未合入。旧报告中“main为空”是历史描述。不得直接把旧分支基线/成绩替换成当前主干成绩。
-
-## 可恢复事实
-
-Actions artifact12650489762（136）SHA256 57da96589702ccc25a8ee2f62abc70ec174850468a476af8b11313bdfed3e748；artifact12652295020（137）SHA256 ce59a4b05d4f9d85e0846e13c18a042a3f09348b3f207225ed5ff9832fedf8c7。大体积阶段IR、二进制、全部原生测试原件保存在artifact和旁置交付证据，不入Git。
-
-任务工作流可能先应用hash校验的窄补丁后测试，事件head不是实际受测提交；读取artifact receipts/commit.txt和source-tree.txt，不能仅看workflow绿色。生产对象和测试对象已在本地逐一核对。新增主干CI不修改Git，直接测试checkout HEAD并保存小型bundle与命令日志。
-
-旧完整施工Git历史仍单独归档，当前源码仓只有真实导入后的历史，不能将旧缺失审计对象的handoff失败改成Pass。常规开发用当前GitHub；一任务一worktree，阶段提交同步，研究不满足准入留分支，语言通过验证与独审后合入。
+施工期间只更新 [zil-log](https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab) 的 **zil施工8** 一行，时间为北京时间；收尾明确标记阶段完成。日志是实际活动记录，不承诺会话结束后继续后台运行。
