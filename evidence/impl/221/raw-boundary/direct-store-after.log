@@ -1,0 +1,64 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-221/crates/zil-verify)
+    Finished `test` profile [unoptimized] target(s) in 8.25s
+     Running unittests src/lib.rs (/workspace/scratch/3cf12ce32e36/targets/221/debug/deps/zil_verify-c59aee014cb4882b)
+
+running 18 tests
+test retained_tests::owning_factory_raw_and_wire_reject_hidden_companion_callback ... ok
+test retained_tests::callable_return_contract_is_bounded_and_changes_all_candidate_identity ... ok
+test retained_tests::owning_factory_raw_and_wire_reject_recursive_or_deep_borrowed_inputs ... ok
+test retained_tests::owning_factory_raw_and_wire_do_not_open_root_lending_results ... ok
+test retained_tests::owning_factory_raw_and_wire_direct_store_companion_cannot_hide_another_callback ... ok
+test retained_tests::owning_factory_raw_and_wire_reject_same_result_identity_or_extra_input ... ok
+test retained_tests::owning_factory_raw_and_wire_input_mode_can_be_consuming_adaptation ... ok
+test retained_tests::owning_factory_raw_and_wire_require_exact_return_contract ... ok
+test retained_tests::owning_factory_raw_and_wire_keep_per_value_responsibility ... ok
+test retained_tests::raw_factory_cannot_hide_external_input_effects_behind_empty_contract ... ok
+test retained_tests::raw_self_contained_contract_rejects_borrowed_captures ... ok
+test retained_tests::raw_factory_bodies_keep_exact_contracts_when_hidden_identity_is_shared ... ok
+test retained_tests::raw_factory_resource_multiplicity_and_caller_cleanup_are_not_trusted ... ok
+test retained_tests::raw_return_contract_cannot_forge_identity_kind_dependencies_or_cleanup ... ok
+test retained_tests::owning_factory_raw_and_wire_transfer_or_clean_input_without_helper_contract ... ok
+test retained_tests::raw_and_wire_factories_transfer_owned_and_empty_environments ... ok
+owning221 wire=false N=2919; N-1=ResourceLimit; fresh N=Pass
+test retained_tests::current_wire_accepts_current_version_and_rejects_other_versions_and_every_truncation ... ok
+owning221 wire=true N=2919; N-1=ResourceLimit; fresh N=Pass
+test retained_tests::owning_factory_verify_and_wire_have_exact_fresh_budget_boundaries ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 248 filtered out; finished in 0.05s
+
+     Running tests/impl082_bytes_ffi.rs (/workspace/scratch/3cf12ce32e36/targets/221/debug/deps/impl082_bytes_ffi-897b72b39cca6a80)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.00s
+
+     Running tests/impl086_static_foreign.rs (/workspace/scratch/3cf12ce32e36/targets/221/debug/deps/impl086_static_foreign-d08d10c328fc77ab)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.00s
+
+     Running tests/impl091_slices.rs (/workspace/scratch/3cf12ce32e36/targets/221/debug/deps/impl091_slices-482f46f5d017f92a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.00s
+
+     Running tests/impl095_byte_buffers.rs (/workspace/scratch/3cf12ce32e36/targets/221/debug/deps/impl095_byte_buffers-4815f7fa627449ff)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.00s
+
+     Running tests/impl099_owned_bytes.rs (/workspace/scratch/3cf12ce32e36/targets/221/debug/deps/impl099_owned_bytes-6be06f2d1683c992)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+     Running tests/impl124_signed_shifts.rs (/workspace/scratch/3cf12ce32e36/targets/221/debug/deps/impl124_signed_shifts-e54128603af2766a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
