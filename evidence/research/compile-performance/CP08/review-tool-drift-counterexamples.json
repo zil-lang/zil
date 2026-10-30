@@ -1,0 +1,24 @@
+[
+  {
+    "scenario": "explicit_override_changed",
+    "expected": "Frozen toolchain drift rejects load",
+    "actual_rejected": false,
+    "frozen_tools": [
+      "/tmp/cp08-review-drift-m5hhlgsc/sdk/bin/libLLVM.so",
+      "/tmp/cp08-review-drift-m5hhlgsc/sdk/bin/lld-one"
+    ],
+    "override": "/tmp/cp08-review-drift-m5hhlgsc/sdk/bin/explicit-linker",
+    "fixture_kind": "Synthetic tool files; real inventory/load implementation, mocked sysroot probe and PATH tool enumeration only"
+  },
+  {
+    "scenario": "sibling_symlink_retargeted",
+    "expected": "Frozen toolchain drift rejects load",
+    "actual_rejected": false,
+    "frozen_tools": [
+      "/tmp/cp08-review-drift-s7m6vtij/sdk/bin/libLLVM.so",
+      "/tmp/cp08-review-drift-s7m6vtij/sdk/bin/lld-one"
+    ],
+    "override": null,
+    "fixture_kind": "Synthetic tool files; real inventory/load implementation, mocked sysroot probe and PATH tool enumeration only"
+  }
+]
