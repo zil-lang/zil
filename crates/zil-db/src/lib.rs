@@ -247,6 +247,13 @@ impl Database {
     /// follow the actual reverse dependency closure. Replacing an input through
     /// `publish` invokes this operation automatically.
     pub fn invalidate(&mut self, key: &QueryKey, new: &ResultFingerprints) -> Vec<QueryKey> {
+        // Publication requires existing dependencies, and invalidation removes
+        // their entire reverse closure. No surviving edge can therefore point
+        // to an absent producer, including a key being published for the first
+        // time. Existing producers retain the original kind-selective scan.
+        if !self.snapshots.contains_key(key) {
+            return Vec::new();
+        }
         let mut gone = BTreeSet::new();
         loop {
             let next = self
