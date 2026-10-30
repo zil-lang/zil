@@ -142,3 +142,8 @@ fn owning_factory_and_forwarded_nested_capture_exact_boundaries() {
         probe(label, false);
     }
 }
+
+#[test]
+fn conditional_capture_transfer_has_a_fresh_exact_budget() {
+    probe("conditional", false);
+}
