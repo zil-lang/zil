@@ -1433,7 +1433,13 @@ impl Flow<'_> {
                         }
                     } else if let InstructionKind::BorrowPackageField { mutable, .. } = i.kind {
                         budget.type_work(ty, true, "package field address type checks")?;
-                        if (!ty.is_copy_value() && !matches!(ty, Type::Closure(_)))
+                        let shared_owned = !mutable
+                            && (matches!(ty, Type::Package { .. })
+                                || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
+                        if shared_owned && matches!(ty, Type::Package { .. }) {
+                            product::admit(ty, budget)?;
+                        }
+                        if (!ty.is_copy_value() && !matches!(ty, Type::Closure(_)) && !shared_owned)
                             || (mutable && !decl.mutable)
                             || !matches!(result, Some(Type::Address { mutable: actual, inner }) if *actual == mutable && inner.as_ref() == ty)
                         {
@@ -1443,7 +1449,7 @@ impl Flow<'_> {
                         }
                         // Copy fields are initialized with the shell and have
                         // no independent owning debt. Callback fields do.
-                        if matches!(ty, Type::Closure(_)) {
+                        if matches!(ty, Type::Closure(_)) || shared_owned {
                             let fact = copied(
                                 state,
                                 Place::PackageField {
@@ -1609,6 +1615,45 @@ impl Flow<'_> {
                             }
                             fact.sources.clear();
                             replace(state, place, fact, budget)?;
+                        }
+                    }
+                }
+                InstructionKind::BorrowLocal { local }
+                    if matches!(f.locals[local.0 as usize].ty, Type::Package { .. }) =>
+                {
+                    let ty = &f.locals[local.0 as usize].ty;
+                    product::admit(ty, budget)?;
+                    let Type::Package { fields, .. } = ty else {
+                        unreachable!("Package borrow")
+                    };
+                    budget.spend(fields.len(), "shared Product completeness")?;
+                    if check {
+                        if !exact(
+                            &copied(state, Place::Local(*local), budget)?,
+                            Life::Available,
+                        ) {
+                            return Err(error(
+                                "shared Product borrow requires a live complete shell",
+                            ));
+                        }
+                        for (index, (_, field)) in fields.iter().enumerate() {
+                            if package_owned_field(field)
+                                && !exact(
+                                    &copied(
+                                        state,
+                                        Place::PackageField {
+                                            local: *local,
+                                            index: index as u32,
+                                        },
+                                        budget,
+                                    )?,
+                                    Life::Available,
+                                )
+                            {
+                                return Err(error(
+                                    "shared Product borrow requires every owned child live",
+                                ));
+                            }
                         }
                     }
                 }

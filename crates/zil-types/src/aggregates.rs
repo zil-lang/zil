@@ -833,6 +833,24 @@ impl Resolver<'_> {
                     {
                         Type::Managed(payload)
                     }
+                    Type::Package { .. }
+                        if packages::product::nested(&inner)
+                            || (!*mutable && packages::product::supported(&inner)) =>
+                    {
+                        if *mutable {
+                            return Err(unsupported(
+                                span,
+                                "ordinary Product addresses are shared synchronous inputs",
+                            ));
+                        }
+                        packages::product::validate(
+                            &inner,
+                            &mut self.remaining,
+                            self.depth_limit,
+                            span,
+                        )?;
+                        inner
+                    }
                     Type::Package { .. } if self.store_element_shape(&inner, depth, span)? => inner,
                     Type::Managed(_) | Type::Desc(_) | Type::Package { .. } => {
                         return Err(unsupported(
@@ -1499,6 +1517,7 @@ impl Builder<'_, '_> {
             }
             CoreExprKind::Member { object, member } => {
                 if matches!(self.known_type(object), Some(Type::Package { .. }))
+                    && !self.indirect_place(e)
                     && self.method_signature(object, member).is_none()
                 {
                     return self.package_field(object, member, e.span);
@@ -1506,7 +1525,8 @@ impl Builder<'_, '_> {
                 if matches!(
                     self.known_type(object),
                     Some(Type::Managed(_) | Type::Desc(_))
-                ) && self.method_signature(object, member).is_none()
+                ) && !self.indirect_place(e)
+                    && self.method_signature(object, member).is_none()
                 {
                     return self.resource_field(object, member, e.span);
                 }
@@ -1519,12 +1539,19 @@ impl Builder<'_, '_> {
                 }
                 if matches!(self.known_type(object), Some(Type::Address { .. }))
                     || dynamic_store::borrow_expression(object)
+                    || self.indirect_place(e)
                 {
                     let (address, ty) = self.borrow_place(e)?;
                     let Type::Address { inner, .. } = ty else {
                         unreachable!()
                     };
                     let ty = *inner;
+                    if !ty.is_copy_value() {
+                        return Err(unsupported(
+                            e.span,
+                            "shared Product projections only read Copy leaves; borrow an owned child explicitly",
+                        ));
+                    }
                     return Ok((
                         self.value(InstructionKind::ReadAddress { address }, ty.clone(), e.span)?,
                         ty,
