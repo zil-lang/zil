@@ -393,7 +393,8 @@ impl CompilationSession {
             report,
             observer,
             || {
-                let inferred = zil_types::infer_program_closures(&expanded.core, &options.limits)?;
+                let inferred =
+                    zil_types::infer_program_closures_borrowed(&expanded.core, &options.limits)?;
                 let mut remaining = expanded.selection.remaining(&options.limits)?;
                 let context = zil_ct::SourceProgramContext::new(&inferred, &remaining)?;
                 let mut modules = Vec::new();
