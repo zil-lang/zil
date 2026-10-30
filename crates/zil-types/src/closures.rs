@@ -120,6 +120,10 @@ pub(super) struct State {
 }
 
 impl State {
+    pub(super) fn factory_self_contained(&mut self, id: ClosureId, span: Span) -> R<()> {
+        retained::self_contained(&self.pending, id, &mut self.work_left, span)
+    }
+
     pub fn new(ordinary_functions: usize, limits: &Limits) -> Self {
         Self {
             resource_writes: BTreeMap::new(),

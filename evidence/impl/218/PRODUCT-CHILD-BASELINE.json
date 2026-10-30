@@ -1,0 +1,16 @@
+{
+  "compiler": "63b5d064f443e9ed7989e0ec87d4e18b540a370a read-only baseline CLI",
+  "source": "tools/language/218/original-probes/product-child-read.zil",
+  "command": [
+    "/workspace/scratch/3cf12ce32e36/targets/baseline/release/zil",
+    "check",
+    "/workspace/scratch/3cf12ce32e36/zil-218/tools/language/218/original-probes/product-child-read.zil",
+    "--stop-after",
+    "types",
+    "--json"
+  ],
+  "exit_code": 3,
+  "stdout": "{\"status\":\"Unsupported\",\"phase\":\"types\",\"diagnostics\":[{\"phase\":\"types\",\"category\":\"Unsupported\",\"code\":\"E-UNSUPPORTED\",\"message\":\"opaque callable kind adaptation is not implemented; declared and actual Fn/FnMut/FnOnce kinds must match\",\"span\":{\"file\":0,\"start\":130,\"end\":170},\"notes\":[]}],\"artifacts\":{},\"input_fingerprint\":\"771a4dafe98ea0e58b1dd12bba1090337cc50220f231290e0ef45265a1808adb\",\"seconds\":0.000797332,\"cache_hit\":false,\"commands\":[],\"native_codegen\":null,\"disk_cache\":\"disabled\",\"query_events\":[{\"phase\":\"parse\",\"disposition\":\"executed\"},{\"phase\":\"expand\",\"disposition\":\"executed\"},{\"phase\":\"ct\",\"disposition\":\"executed\"},{\"phase\":\"types\",\"disposition\":\"executed\"}],\"verification_runs\":0,\"source_files\":{\"0\":\"/workspace/scratch/3cf12ce32e36/zil-218/tools/language/218/original-probes/product-child-read.zil\"},\"scalar_interfaces\":[]}\n",
+  "stderr": "",
+  "scope": "Existing Product child transfer/kind behavior; no production relaxation in 218"
+}

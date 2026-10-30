@@ -58,6 +58,10 @@ fn unused_factory_checks_capture_consumption_and_hidden_identity() {
             "return move (x:i32)=>{while x>0 {f(x)} return 0}",
             "loop must preserve",
         ),
+        (
+            "let bias=2;return (x:i32)=>f(x)+bias",
+            "explicit move or an actual owning use",
+        ),
         ("return f", "fresh grounded environment"),
         (
             "if true {return move (x:i32)=>f(x)} else {return move (x:i32)=>f(x)}",
@@ -107,5 +111,52 @@ fn input_can_be_settled_without_being_retained_in_the_result() {
         );
         let core = expand(&text).unwrap_or_else(|error| panic!("{text}\n{error:#?}"));
         assert!(core.unsupported.is_empty(), "{:#?}", core.unsupported);
+    }
+}
+
+#[test]
+fn unused_owned_store_capture_consumes_its_real_input_position() {
+    let text = "resource R{n:i32} package Item{manages owner:R;tag:i32} fn bad<F:Fn()->i32>(f:F,give items:Store<Item>)->impl Fn()->i32{let output=move()=>f()+i32(store_len(items));store_len(items);return output} fn main(){}";
+    let errors =
+        expand(text).expect_err("owned Store input was transferred into the new environment");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("used after move")),
+        "{errors:#?}"
+    );
+}
+
+#[test]
+fn callable_environment_inputs_and_results_are_not_copy_signatures() {
+    for (signature, diagnostic) in [
+        (
+            "fn bad<F:Fn(F)->i32>(f:F)->impl Fn()->i32",
+            "recursive callable signature",
+        ),
+        (
+            "fn bad<F:Fn()->F>(f:F)->impl Fn()->i32",
+            "recursive callable signature",
+        ),
+        (
+            "fn bad<F:Fn()->i32>(f:F)->impl Fn(F)->i32",
+            "escaping callable result",
+        ),
+        (
+            "fn bad<F:Fn()->i32>(f:F)->impl Fn()->F",
+            "escaping callable result",
+        ),
+    ] {
+        let text = format!("{signature}{{return move()=>3}} fn main(){{}}");
+        let errors = expand(&text)
+            .expect_err("an environment-bearing callable is not a Copy signature value");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.phase == zil_base::Phase::Expand
+                    && error.category == zil_base::ResultCategory::Unsupported
+                    && error.message.contains(diagnostic)),
+            "{text}\n{errors:#?}"
+        );
     }
 }
