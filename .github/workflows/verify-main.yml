@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo test --locked --workspace --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/workspace.log"
+          ZIL_TEST_REPORT_DIR="$RUNNER_TEMP/native-evidence/workspace" cargo test --locked --workspace --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/workspace.log"
       - name: Record workspace resources after tests
         id: workspace_resources_after
         if: ${{ always() && (steps.workspace_tests.outcome == 'success' || steps.workspace_tests.outcome == 'failure' || steps.workspace_tests.outcome == 'cancelled') }}
@@ -113,7 +113,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: zil-main-${{ github.run_id }}-${{ github.run_attempt }}-workspace-native
-          path: ${{ runner.temp }}/native-evidence/
+          path: ${{ runner.temp }}/native-evidence/workspace/
           include-hidden-files: true
           retention-days: 30
           if-no-files-found: error
@@ -162,7 +162,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          CARGO_TARGET_DIR="$RUNNER_TEMP/target-reference" cargo test --locked --workspace --no-default-features --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/reference.log"
+          ZIL_TEST_REPORT_DIR="$RUNNER_TEMP/native-evidence/reference" CARGO_TARGET_DIR="$RUNNER_TEMP/target-reference" cargo test --locked --workspace --no-default-features --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/reference.log"
       - name: Record reference resources after tests
         id: reference_resources_after
         if: ${{ always() && (steps.reference_tests.outcome == 'success' || steps.reference_tests.outcome == 'failure' || steps.reference_tests.outcome == 'cancelled') }}
@@ -200,7 +200,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: zil-main-${{ github.run_id }}-${{ github.run_attempt }}-reference-native
-          path: ${{ runner.temp }}/native-evidence/
+          path: ${{ runner.temp }}/native-evidence/reference/
           include-hidden-files: true
           retention-days: 30
           if-no-files-found: error
