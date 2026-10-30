@@ -314,7 +314,7 @@ fn store(directory: &Path, key: Fingerprint, bytes: &[u8]) -> io::Result<()> {
 /// Fast installed-tool identity, following the build-id approach used by mature
 /// toolchains. Installed tools must not be modified while the compiler runs.
 /// Full SHA-256 fallback supports tools without a GNU build ID.
-fn installed_identity(path: &Path) -> io::Result<Fingerprint> {
+pub fn installed_identity(path: &Path) -> io::Result<Fingerprint> {
     let mut file = File::open(path)?;
     let meta = file.metadata()?;
     if !meta.is_file() {
