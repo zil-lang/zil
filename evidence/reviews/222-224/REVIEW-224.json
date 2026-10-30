@@ -1,0 +1,128 @@
+{
+  "task": "224",
+  "reviewer": "/root/ct_for",
+  "implementation_author": "/root/scope_audit",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "implementation_tree": "6ec628b56387fb5437179986dfeef0e90d553c68",
+  "verdict": "Pass",
+  "scope": "224 finite complete ordinary Product shared-borrow integration in the frozen joint 222/223/224 candidate. Static qualification separation and exact byte comparison; not full-workspace acceptance.",
+  "production_tree_modified_by_reviewer": false,
+  "new_test_executions": 0,
+  "new_native_executions": 0,
+  "normative": {
+    "schema_version": 1,
+    "algorithm": "sha256 of sorted path + NUL + sha256 + LF entries",
+    "files": {
+      "_zil_design.md": "a9fbba01612959917c8ede69a5eeee7854d6ce8e0ff5f5a02d0ab362c6d9eebb",
+      "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "spec/diagnostics.json": "76d7b0eda1addd47ad03d81fa083d2d016c2ec7eeb46297ee868ae3d59131cb8",
+      "spec/interfaces.json": "138d32b57c1d7e0a154335f9321dabd2c47fd78511e322d097f1fcbd7647efcb",
+      "policy/dependencies.json": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    },
+    "normative_hash": "1e9be8621c14b53ceaa4668ddb910ca80217907e916043e7fba322844d41c246"
+  },
+  "production_comparison": {
+    "reviewed_author_delivery": "0614831ceffe5f6d8f973fa51cf9ef74b8c02e3e",
+    "repaired_author_code": "3f0f5ee43cf650297a6be18c93dd52c097768ecb",
+    "unchanged_224_production_files": [
+      "crates/zil-types/src/addresses.rs",
+      "crates/zil-types/src/aggregates.rs",
+      "crates/zil-types/src/lib.rs",
+      "crates/zil-analyze/src/resources.rs",
+      "crates/zil-verify/src/lib.rs",
+      "crates/zil-verify/src/packages.rs",
+      "crates/zil-verify/src/resources.rs",
+      "crates/zil-backend-llvm/src/emit/packages.rs"
+    ],
+    "unchanged_additional_boundary_paths": [
+      "crates/zil-verify/src/borrows/",
+      "crates/zil-types/src/packages/product.rs"
+    ],
+    "overlapping_changed_file": "crates/zil-analyze/src/budget.rs",
+    "old_sha256": "22b1ce1519351b8ee403930e1e27434a3433a6dcdb1c10d4c4e8535d219d7096",
+    "candidate_sha256": "6c4ea5ff15088fa345790859a77013c8da29a6ec57772ada7cb5c13f62138b14",
+    "overlap_review": [
+      "223 adds exact Unit/Product error-protocol payload admission after the existing shared Address and ordinary nested Product cases.",
+      "223 prepays and queues real nested Product Store element occurrences; the raw bounded type/depth walk completes before independent Product carrier admission.",
+      "The OwnedStore resource_head && depth != 0 adjustment applies only to the actual top-level sealed Store carrier; a Store hidden inside a user resource head cannot erase that head restriction.",
+      "224 shared Address qualification and completeness checks are unchanged. The repaired shared BorrowPackageField GEP implementation is byte-identical."
+    ]
+  },
+  "qualification_separation": [
+    {
+      "layer": "Types",
+      "path": "crates/zil-types/src/dynamic_store.rs",
+      "conclusion": "223 Product Store element eligibility additionally requires nonzero storage and exact supported Unit/Product protocol pairing. Mutable Product Store windows remain unsupported. This does not grant ordinary Product shared-address eligibility."
+    },
+    {
+      "layer": "Analyze",
+      "path": "crates/zil-analyze/src/dynamic_store.rs",
+      "conclusion": "Product Store element and carrier checks independently admit the finite Product, charge layout/name/table work, require actual canonical OwnedStore nominal definition and exact payload, and reject teardown. Types metadata is not treated as proof."
+    },
+    {
+      "layer": "Verify",
+      "path": "crates/zil-verify/src/dynamic_store.rs",
+      "conclusion": "check_element retains ordinary address restrictions with product_container=false; check_store_element uses product_container=true and independently checks ordinary Product shape plus nonzero layout for actual Store operations. Mutable Product Store borrowing is rejected."
+    },
+    {
+      "layer": "Shared borrow provenance",
+      "paths": [
+        "crates/zil-verify/src/lib.rs",
+        "crates/zil-verify/src/packages.rs",
+        "crates/zil-verify/src/resources.rs",
+        "crates/zil-verify/src/borrows/"
+      ],
+      "conclusion": "224 signature/local/shared field eligibility remains independent. Actual BorrowLocal/BorrowPackageField/AddressField and Store instructions determine roots, lifetime and ownership; equal type classification or public Hold facts cannot substitute object identity. Existing coarse nested-Product footprints remain unchanged."
+    },
+    {
+      "layer": "LLVM",
+      "path": "crates/zil-backend-llvm/src/emit/packages.rs",
+      "conclusion": "The repaired mutable:false BorrowPackageField eligibility still emits an actual parent inline GEP for finite Product or supported nominal resource heads. It does not load/take the child or grant mutable permissions. Store element storage constraints do not forbid otherwise eligible zero-storage ordinary shared Product heads."
+    }
+  ],
+  "evidence": [
+    {
+      "path": "evidence/reviews/224/by_ct_for/REVIEW.json",
+      "review_commit": "e0726413c6d10e470360108bfbc0ec856112fdbe",
+      "implementation_commit": "0614831ceffe5f6d8f973fa51cf9ef74b8c02e3e",
+      "kind": "independent original exact-repair review",
+      "sha256": "a24d22a1054cdd4903bd291ccadfbab34b696f770783a853c521db13a927a14a",
+      "results": "Original direct-child Codegen failure preserved and closed by exact-byte O0/O2 rerun; 4 native executions, 12 limited Rust tests, and two raw/Wire attack families with positive controls. Original receipt and artifact identities are unchanged."
+    },
+    {
+      "path": "evidence/reviews/224/by_ct_for/PERSISTENT-TEST.json",
+      "kind": "promoted independent raw/Wire CI regression",
+      "results": "Permanent review224_independent.rs preserves the executed semantic mutation/control logic; its four wires matched the frozen original repair audit. Existing receipt is referenced, not recounted as a new execution here."
+    },
+    {
+      "path": "evidence/integration/222-224/final-generation/RESULT.json",
+      "receipt_commit": "6b0d974bedfb40c93eb36e491ceb18a138718dac",
+      "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+      "kind": "root final generation and composition affected regression",
+      "sha256": "b0ef23083093086a500a78ff724c9e158f36f4bed7c06d02b0e28d2cb2f29070",
+      "tests": {
+        "suites": 5,
+        "passed": 19,
+        "failed": 0,
+        "ignored": 0
+      },
+      "archive_sha256": "d9f60505d702d325d3997e2065bd9f638a3041c923a9685992b5519db48ca932",
+      "scope": "Final generation repair and composition affected regression, not full workspace",
+      "independently_executed_by_this_reviewer": false
+    },
+    {
+      "path": "evidence/integration/222-224/local/RESULT.json",
+      "implementation_commit": "a57516d138f85c8f352bec5d440c5c22af259b14",
+      "kind": "earlier limited integration evidence",
+      "results": "132 affected tests and four composition native runs belong to their original earlier implementation identity; do not relabel as new executions on the common candidate or sum overlapping coverage."
+    }
+  ],
+  "remaining_boundaries": [
+    "No mutable ordinary Product address, borrowed return/escape, long-lived capture, or newly precise disjoint-child footprint admitted.",
+    "The historical 0614 review receipt, raw input bytes and original failures remain unchanged.",
+    "Full-workspace acceptance belongs to the root GitHub workflow; this supplemental review adds zero executions.",
+    "This reviewer authored 222; this verdict covers only independently authored 224 and its qualification interaction with 223."
+  ]
+}
