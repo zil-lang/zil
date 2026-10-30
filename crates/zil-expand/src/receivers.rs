@@ -14,7 +14,7 @@ impl Expander<'_> {
         }
         let template = match generics::callable::expanded_template(
             f,
-            &self.declarations,
+            self.declarations,
             &mut self.callable_work,
         ) {
             Ok(template) if prefix.is_none() => template,
