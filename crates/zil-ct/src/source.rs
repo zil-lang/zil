@@ -4,6 +4,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::*;
 
+#[cfg(test)]
+#[path = "source/reuse_cp19.rs"]
+mod reuse_cp19;
+
 /// Evaluate the currently supported closed scalar `#(...)` expressions.
 /// A driver-supplied raw CFG producer extends calls/control flow through
 /// `evaluate_source_constants_with_compiler`; the VM still verifies every query.
@@ -543,6 +547,7 @@ fn evaluate_with_context(
         context,
         compiler,
         scopes: Vec::new(),
+        type_shapes: BTreeMap::new(),
     };
     // Every declaration is borrowed and bounded before the first body, query,
     // or forward-reference hint can copy any of its metadata.
@@ -608,6 +613,14 @@ struct Walker<'a> {
     // still check the entire rewritten module after CT execution.
     // An unknown closure parameter still shadows an outer type hint.
     scopes: Vec<BTreeMap<String, Option<Type>>>,
+    // This reference-bearing, request-local table cannot outlive its immutable
+    // Core inputs. The pointer only provides constant-sized identity comparison.
+    type_shapes: BTreeMap<(*const Type, usize), CheckedTypeShape<'a>>,
+}
+struct CheckedTypeShape<'a> {
+    _input: &'a Type,
+    nodes: usize,
+    work: usize,
 }
 impl<'a> Walker<'a> {
     fn text(&mut self, text: &str, span: Option<Span>) -> CompileResult<()> {
@@ -620,7 +633,12 @@ impl<'a> Walker<'a> {
         })?;
         Ok(())
     }
-    fn parameters(&mut self, parameters: &[Type], result: &Type, span: Span) -> CompileResult<()> {
+    fn parameters(
+        &mut self,
+        parameters: &'a [Type],
+        result: &'a Type,
+        span: Span,
+    ) -> CompileResult<()> {
         if parameters.len() > self.limits.max_locals {
             return Err(vec![Diagnostic::limit(
                 Phase::Ct,
@@ -768,7 +786,7 @@ impl<'a> Walker<'a> {
     }
     fn block(
         &mut self,
-        block: &CoreBlock,
+        block: &'a CoreBlock,
         result: Option<&Type>,
         depth: usize,
     ) -> CompileResult<CoreBlock> {
@@ -968,7 +986,7 @@ impl<'a> Walker<'a> {
             span: block.span,
         })
     }
-    fn bind_pattern(&mut self, pattern: &CorePattern, depth: usize) -> CompileResult<()> {
+    fn bind_pattern(&mut self, pattern: &'a CorePattern, depth: usize) -> CompileResult<()> {
         self.charge(depth, pattern.span)?;
         match &pattern.kind {
             CorePatternKind::Name(name) => {
@@ -1002,7 +1020,58 @@ impl<'a> Walker<'a> {
     }
     // Raw Core patterns carry a full nominal type. Bound that tree before the
     // enclosing pattern is cloned; visiting only the payload patterns is insufficient.
-    fn pattern_type_shape(&mut self, ty: &Type, depth: usize, span: Span) -> CompileResult<()> {
+    fn pattern_type_shape(&mut self, ty: &'a Type, depth: usize, span: Span) -> CompileResult<()> {
+        // Leaves need no lookup. Successful compound walks of at least eight
+        // nodes amortize the index; smaller shapes keep their ordinary walk.
+        if !matches!(
+            ty,
+            Type::Tuple(_)
+                | Type::Record { .. }
+                | Type::Package { .. }
+                | Type::Array { .. }
+                | Type::Enum { .. }
+                | Type::Address { .. }
+                | Type::OwnedStore { .. }
+                | Type::Slice { .. }
+                | Type::Managed(_)
+                | Type::Desc(_)
+                | Type::Opaque { .. }
+                | Type::ErrorUnion { .. }
+                | Type::FunctionPointer { .. }
+                | Type::ForeignCallback { .. }
+        ) {
+            return self.walk_type_shape(ty, depth, span);
+        }
+        let key = (std::ptr::from_ref(ty), depth);
+        if let Some(cost) = self.type_shapes.get(&key) {
+            if let (Some(nodes), Some(work)) = (
+                self.nodes
+                    .checked_add(cost.nodes)
+                    .filter(|nodes| *nodes <= self.limits.max_nodes),
+                self.work_left.checked_sub(cost.work),
+            ) {
+                self.nodes = nodes;
+                self.work_left = work;
+                return Ok(());
+            }
+            // Replay the exact original traversal when the complete charge
+            // cannot be paid, preserving its first failure and partial usage.
+        }
+        let before_nodes = self.nodes;
+        let before_work = self.work_left;
+        self.walk_type_shape(ty, depth, span)?;
+        let nodes = self.nodes - before_nodes;
+        if nodes >= 8 {
+            self.type_shapes.entry(key).or_insert(CheckedTypeShape {
+                _input: ty,
+                nodes,
+                work: before_work - self.work_left,
+            });
+        }
+        Ok(())
+    }
+    #[inline]
+    fn walk_type_shape(&mut self, ty: &Type, depth: usize, span: Span) -> CompileResult<()> {
         hint_type(ty, depth, &mut self.nodes, &mut self.work_left, self.limits)
             .map(|_| ())
             .map_err(|mut errors| {
@@ -1014,7 +1083,7 @@ impl<'a> Walker<'a> {
     }
     fn expr(
         &mut self,
-        e: &CoreExpr,
+        e: &'a CoreExpr,
         expected: Option<&Type>,
         depth: usize,
     ) -> CompileResult<CoreExpr> {
@@ -1173,11 +1242,13 @@ impl<'a> Walker<'a> {
                     None
                 };
                 let core = self.core;
+                // The original Core/context outlives every argument walk. Keep
+                // the original per-use shape charges without copying its types.
                 let mut hints = Vec::new();
                 if let Some(f) = self.function(callee) {
                     for p in f.parameters.iter().take(arguments.len()) {
                         self.pattern_type_shape(&p.ty, depth + 1, e.span)?;
-                        hints.push(p.ty.clone());
+                        hints.push(&p.ty);
                     }
                 } else {
                     let enum_fields = (|| {
@@ -1206,13 +1277,13 @@ impl<'a> Walker<'a> {
                     if let Some(fields) = enum_fields {
                         for ty in fields.iter().take(arguments.len()) {
                             self.pattern_type_shape(ty, depth + 1, e.span)?;
-                            hints.push(ty.clone());
+                            hints.push(ty);
                         }
                     }
                 }
                 let mut args = Vec::new();
                 for (i, a) in arguments.iter().enumerate() {
-                    args.push(self.expr(a, hints.get(i), depth + 1)?);
+                    args.push(self.expr(a, hints.get(i).copied(), depth + 1)?);
                 }
                 CoreExprKind::Call {
                     callee: Box::new(match application {
@@ -1556,7 +1627,7 @@ impl<'a> Walker<'a> {
     }
     fn fields(
         &mut self,
-        fields: &[(String, CoreExpr)],
+        fields: &'a [(String, CoreExpr)],
         depth: usize,
     ) -> CompileResult<Vec<(String, CoreExpr)>> {
         fields
