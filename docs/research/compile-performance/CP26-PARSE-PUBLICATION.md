@@ -32,6 +32,8 @@ CP22 每个未从磁盘命中的模块均编码完整 AST，写入 80 字节 hea
 
 同时复跑 CP22 的解析复用/预算/发现/损坏/取消与输出保护控制，以及 CP12 的受影响缓存控制。嵌套进程只算所属控制的一次执行，不与外层测试数相加。精确源码、命令、退出状态、原始日志和最终 release 收据记录在 `evidence/research/compile-performance/CP26/`；实际未运行的项不写成 Pass。
 
+源码 `d8872b52f5a215c2efd33aaadba5083f471e0bc2` 的上述 22 项定向控制已通过。对应 release 又通过 5 次新进程 CLI、4 次原生执行：实际 `-o` 选为下一临时名称的反例不再误删 ELF；后续修复和热命中保持新 Verify，所有原生 ELF/LLVM 内容 hash 相等。详见该目录 `AUTHOR-RESULT.md`、`TESTS.json`、`RELEASE.json` 与 `cli/MANIFEST.json`。这些是发布正确性证据，未用于计算提速。
+
 ## 范围与后续测量
 
 本片不解决同 Session 命中后重复持久化，不去重 source fingerprint 或 producer，也不增加语义增量。只有独立冻结的完整 CLI A/B 窗口才能说明编译性能；用测试数量、少了几个 syscall 或缓存 hit 数推导提速不成立。正式测量由根协调者安排，采用既有场景、请求权重、编译选项和原生控制。

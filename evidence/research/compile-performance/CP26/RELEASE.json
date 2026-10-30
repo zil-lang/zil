@@ -1,0 +1,42 @@
+{
+  "source_commit": "d8872b52f5a215c2efd33aaadba5083f471e0bc2",
+  "base_commit": "7ca57fb61aa6fe4f7cac963a531a6cf2851792e4",
+  "crates_tree": "7e5def64ddddb7def8637bb96d8ab69f6f3813e6",
+  "build_command": [
+    "cargo",
+    "build",
+    "--offline",
+    "--locked",
+    "--release",
+    "-p",
+    "zil-cli"
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/4ab361722127/build-cp26",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_INCREMENTAL": "0",
+    "toolchain_env": "/workspace/scratch/4ab361722127/.toolchain/env.sh"
+  },
+  "binary": "/workspace/scratch/4ab361722127/build-cp26/release/zil",
+  "binary_sha256": "c9f10a9840fd8bdbb884e4981c7dbb5895ebfe653ecb7b486b1979c16441278f",
+  "binary_stat": {
+    "size": 7614936,
+    "device": 27,
+    "inode": 912428,
+    "mtime_ns": 1793385671372689474,
+    "ctime_ns": 1793385671396689353
+  },
+  "rustc_verbose_version": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "cli_version": "zil 0.1.0 (ZIL-LANG-1.4; Rust 2024; compiler draft; default backend: llvm-api)\n",
+  "log_sha256": "b3a53e704e6247084122dc010f49a112b7e808df64b9f3d593d15d15c1a2c311",
+  "tests_sha256": "f09c79315c403ab41d9759d2e2bf6eaccac5e61cb93da21dbb554ca43c652361",
+  "cli_manifest_sha256": "3b939f9a308acf0ca58aeef7860a09f9c8a24d0f1baa01f5df8e8836455f5ff9",
+  "cli_control_script_sha256": "0bb20267448ca68de6120f767ad1e752d3f6083ccea10faa1913656b66eb6a99",
+  "cli_controls": {
+    "requests": 5,
+    "native_runs": 4,
+    "collision_keeps_published_executable": true,
+    "all_native_elf_and_llvm_hashes_equal": true
+  },
+  "performance": "NotRun by author; root owns frozen full-process windows"
+}
