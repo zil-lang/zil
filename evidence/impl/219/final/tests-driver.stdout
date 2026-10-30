@@ -1,0 +1,80 @@
+
+running 6 tests
+test artifact_collision_and_cancelled_request_never_publish_seeded_syntax ... ok
+test cumulative_source_and_frontend_quotas_still_reject_before_verify ... ok
+test existing_read_only_source_cache_is_read_without_replacing_independent_verification ... ok
+test path_discovery_and_explicit_sources_have_identical_stages_and_verified_interfaces ... ok
+test private_edit_and_request_identity_changes_do_not_reuse_stale_analysis ... ok
+test syntax_only_stop_does_not_discover_missing_imports_or_publish_failed_loads ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+
+running 6 tests
+test owned_callback_can_combine_ct_query_with_consuming_its_token ... ok
+test pure_enum_query_keeps_runtime_drop_on_early_return ... ok
+test pure_queries_across_modules_do_not_import_runtime_drop_execution ... ok
+test pure_record_and_repeated_queries_keep_each_runtime_owner ... ok
+test query_resource_operations_and_ffi_remain_forbidden ... ok
+test runtime_drop_body_still_receives_ordinary_type_checking ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+
+
+running 3 tests
+test project_source_dependency_edits_reselect_with_fresh_independent_verification ... ok
+test selection_and_later_constants_share_steps_nodes_and_fresh_request_recovery ... ok
+test target_and_limits_invalidate_selection_but_original_no_selection_paths_keep_their_identity ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+
+running 3 tests
+test raw_runtime_resource_candidate_cannot_gain_ct_authority ... ok
+test selected_ownership_and_borrow_errors_have_the_same_ordinary_gate ... ok
+test unrelated_runtime_generic_bodies_do_not_become_condition_dependencies ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 5 tests
+test actual_scalar_function_dependencies_loops_recursion_and_short_circuit_execute ... ok
+test config_snapshot_is_closed_and_runtime_shadowing_is_not_a_global_fallback ... ok
+test ordinary_cross_module_visibility_and_generated_exports_are_preserved ... ok
+test original_probes_and_selected_lists_reach_the_independent_gate ... ok
+test the_frozen_native_consumer_checks_both_source_configurations ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+
+running 27 tests
+test m001_real_native_modules_keep_same_names_and_only_root_main ... ok
+test m002_visibility_alias_and_call_contract_rejections ... ok
+test m003_dependency_edit_changes_runtime_without_changing_public_signature ... ok
+test m004_signature_and_implementation_hashes_track_different_inputs ... ok
+test m005_memory_entry_has_no_implicit_filesystem_imports ... ok
+test m006_missing_cycles_and_invalid_paths_have_honest_categories ... ok
+test m007_every_dependency_is_protected_from_output_overwrite ... ok
+test m008_source_and_frontend_function_and_block_quotas_are_cumulative ... ok
+test m009_second_module_receives_only_remaining_ct_steps_before_execution ... ok
+test m010_dependency_diagnostics_preserve_file_identity ... ok
+test m011_symlink_escape_rejected_and_internal_aliases_share_one_identity ... ok
+test m012_graph_mapping_edits_invalidate_even_with_identical_source_bytes ... ok
+test m013_raw_program_calls_use_explicit_ids_and_validate_export_references ... ok
+test m014_imported_main_cannot_supply_a_missing_root_entry ... ok
+test m015_cross_module_ct_preserves_context_visibility_and_verified_calls ... ok
+test m016_ct_header_index_charges_graph_and_signature_work ... ok
+test m017_file_parse_stop_only_checks_entry_syntax ... ok
+test m018_file_parse_stop_does_not_resolve_escaping_symlinks ... ok
+test m019_file_core_stop_resolves_graph_without_executing_ct ... ok
+test m020_directory_entry_is_a_single_module_with_explicit_dependencies ... ok
+test m021_two_entries_are_rejected_including_preseeded_root_identity ... ok
+test m022_directory_without_entry_is_not_a_glob_or_merged_namespace ... ok
+test m023_zil_suffix_is_a_logical_segment_and_never_stripped ... ok
+test m024_directory_aliases_share_identity_and_cannot_escape_the_root ... ok
+test m025_directory_edits_and_layout_changes_match_cold_compilation ... ok
+test m026_directory_imports_keep_parse_stops_and_cumulative_source_budgets ... ok
+test m027_numberlab_compiles_real_algorithms_through_file_and_directory_modules ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s
+
