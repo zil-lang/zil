@@ -24,7 +24,7 @@ import time
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[3]
-SCHEMA = "zil-compile-performance/1"
+SCHEMA = "zil-compile-performance/2"
 REQUESTS = {"cold_process": .10, "unchanged": .35, "private_edit": .40, "public_edit": .15}
 SNAPSHOTS = {"cold_process": "base", "unchanged": "base", "private_edit": "private", "public_edit": "public"}
 DEPENDENCIES = ["tools/research/210/corpus.py", "tools/research/212/bench.py",
@@ -175,13 +175,8 @@ def load(path, check_environment=True):
     return plan, path.parent
 
 
-def one(plan, root, case, seq, request, work, logs, tag):
-    snapshot = SNAPSHOTS[request]
-    legacy.sync_sources(root / case["root"] / snapshot / "zil", work / "src")
-    before = file_hashes(work / "src")
+def command(plan, seq, work):
     program = work / "program"
-    program.unlink(missing_ok=True)
-    program.with_suffix(".ll").unlink(missing_ok=True)
     argv = [plan["binaries"][seq["arm"]]["path"], seq["phase"], str(work / "src/main.zil"), "--json",
             "--cache-dir", str(work / "source-candidates"), "--clang", plan["binaries"]["clang"]["path"],
             "--opt", plan["profile"], "--codegen-units", str(plan["units"]), "--codegen-jobs", str(plan["jobs"])]
@@ -189,9 +184,31 @@ def one(plan, root, case, seq, request, work, logs, tag):
         argv += ["-o", str(program)]
         if plan["object_cache"]:
             argv += ["--object-cache", str(work / "objects")]
+    return argv
+
+
+def source_hashes(plan, case, snapshot):
+    prefix = str(Path(case["root"]).relative_to("corpus") / snapshot / "zil") + "/"
+    return {name[len(prefix):]: digest for name, digest in plan["fixtures_sha256"].items()
+            if name.startswith(prefix)}
+
+
+def fixture_sha(plan, path):
+    return plan["fixtures_sha256"][str(Path(path).relative_to("corpus"))]
+
+
+def one(plan, root, case, seq, request, work, logs, tag):
+    snapshot = SNAPSHOTS[request]
+    legacy.sync_sources(root / case["root"] / snapshot / "zil", work / "src")
+    before = file_hashes(work / "src")
+    program = work / "program"
+    program.unlink(missing_ok=True)
+    program.with_suffix(".ll").unlink(missing_ok=True)
+    argv = command(plan, seq, work)
     stdout, stderr = logs / (tag + ".stdout.json"), logs / (tag + ".stderr.txt")
     record = {**seq, "request": request, "snapshot": snapshot, "argv": argv,
-              "stdout": stdout.name, "stderr": stderr.name, "source_before": before, "checks": [], "pass": False}
+              "work": str(work), "stdout": stdout.name, "stderr": stderr.name,
+              "source_before": before, "checks": [], "pass": False}
     try:
         record.update(legacy.timed(argv, stdout, stderr, plan["cpus"], plan["timeout_seconds"]))
         record["source_after"] = file_hashes(work / "src")
@@ -199,7 +216,8 @@ def one(plan, root, case, seq, request, work, logs, tag):
         for field in ("status", "phase", "verification_runs", "native_codegen", "commands", "disk_cache", "diagnostics"):
             record["reported_" + field] = report.get(field)
         record["pass"] = (record["exit"] == 0 and not record["timeout"] and report.get("status") == "Success"
-                          and report.get("verification_runs") == 1 and before == record["source_after"])
+                          and report.get("verification_runs") == 1
+                          and bool(before) and before == record["source_after"] == source_hashes(plan, case, snapshot))
         if seq["phase"] == "build" and record["pass"]:
             if plan["object_cache"]:
                 native = report["native_codegen"]
@@ -213,23 +231,34 @@ def one(plan, root, case, seq, request, work, logs, tag):
             record["llvm_sha256"] = sha(program.with_suffix(".ll"))
             for i, sample in enumerate(case["inputs"]):
                 actual_out, actual_err = logs / f"{tag}.run{i}.stdout.bin", logs / f"{tag}.run{i}.stderr.bin"
+                payload = (root / sample["path"]).read_bytes()
                 try:
-                    result = subprocess.run([str(program)], input=(root / sample["path"]).read_bytes(), capture_output=True,
+                    result = subprocess.run([str(program)], input=payload, capture_output=True,
                                             timeout=plan["native_timeout_seconds"],
                                             preexec_fn=lambda: os.sched_setaffinity(0, plan["cpus"]))
                     actual_out.write_bytes(result.stdout); actual_err.write_bytes(result.stderr)
                     expected = (root / sample["expected"][snapshot]).read_bytes()
-                    check = {"exit": result.returncode, "matches": result.returncode == 0 and result.stdout == expected and not result.stderr}
+                    check = {"exit": result.returncode, "timeout": False,
+                             "matches": result.returncode == 0 and result.stdout == expected and not result.stderr}
                 except subprocess.TimeoutExpired as error:
                     actual_out.write_bytes(error.stdout or b""); actual_err.write_bytes(error.stderr or b"")
                     check = {"matches": False, "timeout": True}
                 check.update(input=sample["path"], expected=sample["expected"][snapshot],
+                             input_sha256=hashlib.sha256(payload).hexdigest(),
+                             input_after_sha256=sha(root / sample["path"]),
+                             expected_stdout_sha256=sha(root / sample["expected"][snapshot]),
                              stdout=actual_out.name, stderr=actual_err.name,
                              stdout_sha256=sha(actual_out), stderr_sha256=sha(actual_err))
                 record["checks"].append(check)
             record["pass"] &= len(record["checks"]) == len(case["inputs"]) and all(c["matches"] for c in record["checks"])
+            record["executable_after_sha256"] = sha(program)
+            record["pass"] &= record["executable_sha256"] == record["executable_after_sha256"]
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
         record.update(error=repr(error), **{"pass": False})
+    finally:
+        for name, path in (("stdout", stdout), ("stderr", stderr)):
+            if path.is_file():
+                record[name + "_sha256"] = sha(path)
     return record
 
 
@@ -260,50 +289,124 @@ def execute(plan, root, out, order):
             "pass": not failures, "records_sha256": sha(out / "records.jsonl")}
 
 
+def preflight_order(plan):
+    return [{"phase": phase, "case": case["id"], "arm": arm, "position": position, "block": 0}
+            for phase in plan["phases"] for case in plan["cases"] for position, arm in enumerate("AB")]
+
+
+def log_ok(logs, row):
+    return all(Path(row[name]).name == row[name] and sha(logs / row[name]) == row[name + "_sha256"]
+               for name in ("stdout", "stderr"))
+
+
+def validate_rows(plan, root, records, rows, order):
+    keys = ("block", "phase", "case", "position", "arm", "request")
+    expected = [tuple({**seq, "request": request}[key] for key in keys) for seq in order for request in REQUESTS]
+    observed = [tuple(row.get(key) for key in keys) for row in rows]
+    cases, failures, logs = {c["id"]: c for c in plan["cases"]}, [], records.parent / "logs"
+    plan_hash = sha(root / "plan.json")
+    for index, row in enumerate(rows):
+        try:
+            case, snapshot = cases[row["case"]], SNAPSHOTS[row["request"]]
+            before = source_hashes(plan, case, snapshot)
+            report = json.loads((logs / row["stdout"]).read_text())
+            ok = (row["pass"] is True and row["exit"] == 0 and row["timeout"] is False
+                  and row["index"] == index and row["plan_sha256"] == plan_hash
+                  and row["snapshot"] == snapshot and row["argv"] == command(plan, row, Path(row["work"]))
+                  and bool(before) and row["source_before"] == row["source_after"] == before
+                  and all(type(row.get(k)) in (int, float) and math.isfinite(row[k]) and row[k] >= 0
+                          for k in ("wall_seconds", "cpu_user", "cpu_system")) and row["wall_seconds"] > 0
+                  and log_ok(logs, row) and report.get("status") == "Success" and report.get("verification_runs") == 1
+                  and all(row["reported_" + name] == report.get(name) for name in
+                          ("status", "phase", "verification_runs", "native_codegen", "commands", "disk_cache", "diagnostics")))
+            checks = row["checks"]
+            if row["phase"] == "build":
+                ok &= (len(checks) == len(case["inputs"]) and row["executable_bytes"] > 0
+                       and row["executable_sha256"] == row["executable_after_sha256"]
+                       and all(isinstance(row[k], str) and len(row[k]) == 64
+                               and all(c in "0123456789abcdef" for c in row[k])
+                               for k in ("executable_sha256", "llvm_sha256")))
+                if plan["object_cache"]:
+                    native = report["native_codegen"]
+                    cache = native["object_cache"]
+                    ok &= (cache["enabled"] is True and row["cache_contract"] is True
+                           and (row["request"] != "cold_process" or cache["hits"] == 0)
+                           and (row["request"] != "unchanged" or cache["hits"] == native["actual_units"]))
+                for check, sample in zip(checks, case["inputs"]):
+                    expected_path = sample["expected"][snapshot]
+                    ok &= (check["matches"] is True and check["exit"] == 0 and check["timeout"] is False
+                           and check["input"] == sample["path"] and check["expected"] == expected_path
+                           and check["input_sha256"] == check["input_after_sha256"] == fixture_sha(plan, sample["path"])
+                           and check["stdout_sha256"] == check["expected_stdout_sha256"] == fixture_sha(plan, expected_path)
+                           and log_ok(logs, check) and (logs / check["stderr"]).stat().st_size == 0
+                           and (logs / check["stdout"]).read_bytes() == (root / expected_path).read_bytes())
+            else:
+                ok &= checks == []
+        except (OSError, KeyError, ValueError, TypeError):
+            ok = False
+        if not ok:
+            failures.append(index)
+    return observed == expected, failures
+
+
+def checked_preflight(plan, root, path):
+    try:
+        receipt, records = json.loads(path.read_text()), path.parent / "records.jsonl"
+        rows = [json.loads(line) for line in records.read_text().splitlines()]
+        complete, failures = validate_rows(plan, root, records, rows, preflight_order(plan))
+        ok = (receipt["pass"] is True and not receipt["failures"] and complete and not failures
+              and receipt["plan_sha256"] == sha(root / "plan.json") and receipt["rows"] == len(rows)
+              and receipt["records_sha256"] == sha(records))
+    except (OSError, KeyError, ValueError, TypeError):
+        ok = False
+    if not ok:
+        raise SystemExit("Matching complete passing raw preflight, sources and logs are required")
+
+
 def preflight(args):
     plan, root = load(args.plan)
     out = fresh(args.out.resolve())
-    order = [{"phase": phase, "case": case["id"], "arm": arm, "position": position, "block": 0}
-             for phase in plan["phases"] for case in plan["cases"] for position, arm in enumerate("AB")]
-    save(out / "result.json", execute(plan, root, out, order))
+    result = execute(plan, root, out, preflight_order(plan))
+    load(args.plan)
+    save(out / "result.json", result)
 
 
 def measure(args):
     plan, root = load(args.plan)
-    pre = json.loads(args.preflight.read_text())
-    records = args.preflight.parent / "records.jsonl"
-    expected_preflight = len(plan["cases"]) * len(plan["phases"]) * 2 * len(REQUESTS)
-    if (not args.quiet_window or not pre.get("pass") or pre.get("plan_sha256") != sha(args.plan)
-            or pre.get("rows") != expected_preflight or sha(records) != pre.get("records_sha256")):
-        raise SystemExit("A matching complete passing preflight and --quiet-window are required")
-    pre_rows = [json.loads(line) for line in records.read_text().splitlines()]
-    if len(pre_rows) != expected_preflight or any(not r.get("pass") or r.get("plan_sha256") != sha(args.plan) for r in pre_rows):
-        raise SystemExit("Preflight raw rows do not support its success receipt")
+    if not args.quiet_window:
+        raise SystemExit("--quiet-window is required")
+    checked_preflight(plan, root, args.preflight)
     out = fresh(args.out.resolve())
     result = execute(plan, root, out, plan["order"])
+    load(args.plan)
     result["preflight_sha256"] = sha(args.preflight)
     save(out / "complete.json", result)
 
 
 def summarize(args):
-    plan, _ = load(args.plan, check_environment=False)
+    plan, root = load(args.plan, check_environment=False)
     rows = [json.loads(line) for line in args.records.read_text().splitlines()]
-    keys = ("block", "phase", "case", "position", "arm", "request")
-    expected = [tuple({**seq, "request": request}[key] for key in keys) for seq in plan["order"] for request in REQUESTS]
-    observed = [tuple(row.get(key) for key in keys) for row in rows]
-    plan_hash = sha(args.plan)
-    def valid(row):
-        return (row.get("pass") and row.get("plan_sha256") == plan_hash
-                and all(isinstance(row.get(k), (int, float)) and math.isfinite(row[k]) and row[k] >= 0
-                        for k in ("wall_seconds", "cpu_user", "cpu_system")) and row["wall_seconds"] > 0)
-    failures = [i for i, r in enumerate(rows) if not valid(r)]
+    complete, failures = validate_rows(plan, root, args.records, rows, plan["order"])
+    try:
+        checked_preflight(plan, root, args.preflight)
+        preflight_ok = True
+    except SystemExit:
+        preflight_ok = False
+    try:
+        receipt = json.loads((args.records.parent / "complete.json").read_text())
+        receipt_ok = (receipt["pass"] is True and not receipt["failures"] and receipt["plan_sha256"] == sha(args.plan)
+                      and receipt["preflight_sha256"] == sha(args.preflight)
+                      and receipt["rows"] == len(rows) and receipt["records_sha256"] == sha(args.records))
+    except (OSError, KeyError, ValueError, TypeError):
+        receipt_ok = False
     result = {"schema": SCHEMA, "plan_sha256": sha(args.plan), "records_sha256": sha(args.records),
               "source_identity": plan["source_identity"], "selected_cases": plan["selected_cases"],
               "selected_original_weight": plan["selected_original_weight"], "phases": plan["phases"],
-              "rows": len(rows), "coverage_complete": observed == expected, "failures": failures,
-              "native_checks": sum(len(r["checks"]) for r in rows), "scope": plan["scope"],
+              "rows": len(rows), "coverage_complete": complete, "failures": failures,
+              "completion_receipt_matches": receipt_ok, "preflight_matches": preflight_ok,
+              "native_checks": sum(len(r.get("checks", [])) for r in rows), "scope": plan["scope"],
               "product_gates": "NotRun", "independent_review": "NotRun", "by_phase": {}}
-    if failures or observed != expected:
+    if failures or not complete or not receipt_ok or not preflight_ok:
         result["verdict"] = "IncompleteOrFailed_NoScore"
         save(args.out, result)
         raise SystemExit("Missing/failed cells retained; no aggregate score")
@@ -357,8 +460,10 @@ def main():
     for action, handler in (("preflight", preflight), ("measure", measure), ("summarize", summarize)):
         p = sub.add_parser(action)
         p.add_argument("--plan", type=Path, required=True); p.add_argument("--out", type=Path, required=True)
+        if action in ("measure", "summarize"):
+            p.add_argument("--preflight", type=Path, required=True)
         if action == "measure":
-            p.add_argument("--preflight", type=Path, required=True); p.add_argument("--quiet-window", action="store_true")
+            p.add_argument("--quiet-window", action="store_true")
         if action == "summarize":
             p.add_argument("--records", type=Path, required=True)
         p.set_defaults(run=handler)
