@@ -133,5 +133,13 @@
     "heterogeneous.zil": "f058c51314ff5d2b14250d3081712eb5a4c697667dced191bf5b7c072b9aa80f",
     "mutable_control.zil": "b3f19abd09088e6686ebb12eb50a0058429ba38a8568274c789050160716f75a",
     "unit_protocols.zil": "5e79a5c9255005d7ea20ed486df4f6796cd9daf61cc1b1d1c7b81e618d69ca51"
+  },
+  "original_mutable_wire_sha256": "5ba4b35d45093a324e31ab8971d92788a1e9c18b57cbdc17fdd317c7d2f59de9",
+  "original_mutable_observation": {
+    "implementation_commit": "9ca5d5b0ecc6ad531d497217df3b90b77616f5ef",
+    "result": "UnexpectedAccept",
+    "unchanged_oracle": "Reject",
+    "original_probe_commit": "0d435fa22",
+    "receipt": "initial isolated-target replay required before final adjudication; original bytes preserved"
   }
 }
