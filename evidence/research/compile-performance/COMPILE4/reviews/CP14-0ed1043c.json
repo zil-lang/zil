@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/restore_environment",
+  "reviewed_at_utc": "2026-10-30T13:44:56Z",
+  "implementation_commit": "0ed1043c98e6ffc2256b86b34cb8dd626c15c861",
+  "implementation_tree": "9b37794efb1de9a491a8a0df51ac3d0a5711874a",
+  "verdict": "StaticPassPendingExecution",
+  "scope": "Non-author source review of small closed O2 CGU grouping and its declared controls.",
+  "files": [
+    "crates/zil-backend-llvm/src/build.rs",
+    "crates/zil-backend-llvm/src/machine_cgu.rs",
+    "crates/zil-backend-llvm/tests/closed_executable_cp13.rs"
+  ],
+  "static_checks": [
+    "Changed route is gated by closed_executable, O2, requested count >1, and at most 2048 total machine instructions; O0/open/single-unit routes delegate to the existing partition function.",
+    "Count subtraction uses checked_sub and stops above the threshold; declarations without bodies do not contribute instructions.",
+    "Entry and codegen option rejection still precede lowering/partitioning. Target/backend/cache rejection, Verified-bound lowering and API preflight remain present.",
+    "Single-unit retention keeps the original complete Module; internalization uses the existing current-LIR/semantic-reference algorithm.",
+    "Reported requested_units remains the user request; actual_units/jobs and explicit fallback expose the changed plan.",
+    "Added model controls distinguish 2047/2048/2049 instructions, retain a cross-unit external target above the boundary, and preserve unchanged routes.",
+    "Native integration assertions cover both backends when llvm-api is enabled, selected entry, exported symbol behavior, public IR stability, invalid options and old output preservation.",
+    "git diff --check passed on the exact CP14 diff."
+  ],
+  "blocking_findings": [],
+  "observations": [
+    {
+      "severity": "measurement_limit",
+      "detail": "The 2048 threshold is a research heuristic, not measured evidence of a speed or runtime-quality win. Instruction count does not bound global initializer size, declaration count, or per-instruction optimization complexity."
+    },
+    {
+      "severity": "test_scope",
+      "detail": "Boundary unit tests use hand-authored machine-model fixtures; backend integration tests use independently verified hand-authored TypedIR. Neither alone proves source-language acceptance or native runtime nonregression."
+    }
+  ],
+  "execution": {
+    "cargo": "NotRun",
+    "llvm": "NotRun",
+    "reason": "No local Rust/LLVM; exact/equivalent-tree Actions results remain required."
+  },
+  "required_followup": [
+    "Run backend library tests and closed_executable_cp13 with llvm-api enabled.",
+    "Measure CP14 vs its baseline using identical O2 settings and retain native runtime quality per corpus; do not promote the prior CP13 NoGo solely on static review.",
+    "Keep the feature opt-in until those results support adoption."
+  ],
+  "performance": {
+    "measured": false,
+    "claims": "None"
+  }
+}

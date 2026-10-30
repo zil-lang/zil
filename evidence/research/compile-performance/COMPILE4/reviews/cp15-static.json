@@ -1,0 +1,66 @@
+{
+  "experiment": "CP15",
+  "reviewer": "/root/o2_strategy",
+  "implementation_author": "/root",
+  "implementation_commit": "6b543595e8d86cb03816f86cdcfb56941e5a3876",
+  "implementation_tree": "d6b54e188098e00f1ea7b36cdd300d8428cc6bfe",
+  "baseline": "f95e751d6782310d8d48c7b3eba3037e176e3eb3",
+  "review_kind": "independent_static_source_review",
+  "verdict": "NoBlockingFindings_StaticOnly",
+  "cargo_executed": false,
+  "native_execution_performed": false,
+  "performance_measurement_performed": false,
+  "reviewed_files": [
+    "crates/zil-types/src/inference.rs",
+    "crates/zil-types/src/lib.rs",
+    "crates/zil-types/src/program.rs",
+    "crates/zil-driver/src/project.rs",
+    "crates/zil-driver/tests/borrowed_inference_cp15.rs"
+  ],
+  "blocking_findings": [],
+  "static_checks_executed": [
+    {
+      "check": "Compare the old program-inference body with the new update body's prefix through enum resolution and before result materialization",
+      "result": "byte_identical",
+      "meaning": "The preflight, module/export/import checks, closure flags, normalization, metadata validation, enum accounting and their logical budget order remain unchanged."
+    },
+    {
+      "check": "Compare old prepare body with prepare_borrowed after replacing only its result ownership wrappers",
+      "result": "byte_identical",
+      "meaning": "The same dependency walk, budget references, solver construction, block inference and solver finish still execute under the same conditions."
+    },
+    {
+      "check": "Compare inference.rs from copy_module_metadata through EOF",
+      "result": "byte_identical",
+      "meaning": "Metadata copy/validation and the remaining solver implementation were not changed."
+    },
+    {
+      "check": "git diff --check f95e751d6782310d8d48c7b3eba3037e176e3eb3 6b543595e8d86cb03816f86cdcfb56941e5a3876",
+      "result": "exit_0"
+    }
+  ],
+  "review_reasoning": {
+    "borrow_lifetime": "The public Cow lifetime is tied only to the caller's CoreProgram. The private update function returns owned data or None and never returns a reference into its local normalized program. Core program/module/function fields are ordinary owned immutable data; SourceProgramContext retains immutable references whose use remains within the inferred Cow's scope.",
+    "normalized_path": "None is returned only if normalization did not run and every function was unchanged. When normalized is Some, all rebuilt modules use the normalized program, including modules whose individual function vector requires no solver rewrite.",
+    "mixed_function_order": "At the first owned function, the previously processed unchanged prefix is cloned once; subsequent unchanged functions are appended once. Module and function order, identities, imports, exports and fingerprints are retained. Aggregate normalization preserves function count and order, so the existing zip invariant is not weakened.",
+    "public_owned_api": "infer_program_closures retains its original owned return type and uses Cow::into_owned only after all original validation succeeds. infer_source_closures retains an owned prepare wrapper.",
+    "authority": "Cow selection is storage reuse for untrusted Core. It does not construct a Verified wrapper, cache a verification qualification or remove CT/Types/Verify work."
+  },
+  "new_test_review": {
+    "source_route": "The four new driver integration tests construct Core through actual parse/expand calls rather than hand-authoring a replacement inference result.",
+    "controls": [
+      "Exact Borrowed pointer identity on an unchanged scalar project, including an inner function reference",
+      "Owned closure inference with unchanged prefix and suffix functions, explicit inferred i32 parameter/result, stable identity and unmodified original input",
+      "Project-wide normalization preserved in a module without closures and the original unresolved Named type unchanged",
+      "Zero-work ResourceLimit message/phase/span and duplicate ModuleId rejection"
+    ],
+    "execution_status": "NotRun"
+  },
+  "required_follow_up": [
+    "Run cargo fmt and compile/test the exact candidate or an explicitly reviewed integration descendant; local Rust/LLVM tools are unavailable.",
+    "Run the new borrowed_inference_cp15 driver target and existing closures_frontend controls.",
+    "Run zil-types project_lookup_cp10: its previously frozen N/N-1 boundaries 273, 707, 780 and 1568 provide an independent regression control, unlike comparing the two new wrappers alone.",
+    "Measure complete requests and report the result separately from unchanged storage identity; this change does not implement fine-grained edited-project invalidation."
+  ],
+  "limitations": "Static review is not an executed Rust test, native correctness result, performance result or product acceptance. No Pass status is asserted for those gates."
+}

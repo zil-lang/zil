@@ -598,8 +598,7 @@ fn prepare(
     has_closure: bool,
     budget: &mut Budget<'_>,
 ) -> R<CoreFunction> {
-    prepare_borrowed(function, signatures, imports, enums, has_closure, budget)
-        .map(Cow::into_owned)
+    prepare_borrowed(function, signatures, imports, enums, has_closure, budget).map(Cow::into_owned)
 }
 
 fn prepare_borrowed<'a>(

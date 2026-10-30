@@ -246,7 +246,8 @@ Doing
         "crates/zil-backend-llvm/src/machine_cgu.rs",
         "crates/zil-backend-llvm/tests/closed_executable_cp13.rs",
         "crates/zil-backend-llvm/tests/closed_executable_cp14.rs"
-      ]
+      ],
+      "candidate": "0ed1043c98e6ffc2256b86b34cb8dd626c15c861"
     },
     "CP15": {
       "status": "Doing",
@@ -259,8 +260,9 @@ Doing
         "crates/zil-types/src/lib.rs",
         "crates/zil-types/src/program.rs",
         "crates/zil-driver/src/project.rs",
-        "crates/zil-types/tests/borrowed_inference_cp15.rs"
-      ]
+        "crates/zil-driver/tests/borrowed_inference_cp15.rs"
+      ],
+      "candidate": "6b543595e8d86cb03816f86cdcfb56941e5a3876"
     },
     "CP16": {
       "status": "Doing",
@@ -272,6 +274,20 @@ Doing
         "tools/research/compile-performance/rust_bench.py",
         "tools/research/compile-performance/test_rust_bench.py",
         "docs/research/compile-performance/CP16-BENCHMARK-CONTROLS.md"
+      ],
+      "candidate": "e6314eaa82b42c1d8c0782a813c0f9ff010499dc"
+    },
+    "CP17": {
+      "status": "Doing",
+      "author": "/root/benchmark_review",
+      "baseline": "e6314eaa82b42c1d8c0782a813c0f9ff010499dc",
+      "candidate": "d7a8abc52bdf460b73de5f0f32d2683af456372f",
+      "purpose": "Run frozen source builds, targeted correctness controls and the existing full five-case comparison serially on one CI host; retain failed and complete evidence without granting adoption.",
+      "plan": "docs/research/compile-performance/COMPILE4-PLAN.md",
+      "write_set": [
+        "tools/research/compile-performance/compile4_ci.py",
+        ".github/workflows/compile-performance.yml",
+        "docs/research/compile-performance/CP17-CI.md"
       ]
     }
   },
@@ -279,11 +295,15 @@ Doing
   "next_priority": "Fine-grained frontend invalidation for edited incremental requests; O2 compile improvements that also pass per-case native runtime quality. Preserve all complete and failed historical windows.",
   "latest_result": "docs/research/compile-performance/LLVM23-RESULT.md",
   "measured_source": "6e8e63a5ceae861447d0447c325bed78b59c3f42",
-  "scope": "O0 wins in the frozen five-case comparison; edited incremental and quality-preserving O2 superiority remain open. main unchanged, product gates NotRun."
+  "scope": "O0 wins in the frozen five-case comparison; edited incremental and quality-preserving O2 superiority remain open. main unchanged, product gates NotRun.",
+  "compile4_baseline": "64072793a0f41994f216a6207bf49ee1e2d224f8",
+  "compile4_status": "Candidate assembled; Rust compilation, correctness execution and new performance scores pending. Historical results retain their original source identity."
 }
 ```
 
 协调记录只在本研究分支维护；2026-10-30 用户明确授权继续研究开发与 GitHub 操作。既有历史实验与负结果保持。
 
 
-2026-10-30 zil编译4：承接 f95e751d6，CP14/15/16 并行派工。新主线 f064b953 将先合入研究线再冻结最终候选与测试；main 本身不受本轮未验收改动影响。
+2026-10-30 zil编译4：承接 f95e751d6，CP14/15/16 并行派工。已合入最新主线 a8e8831a，远端基线固定为 64072793；main 本身不受本轮未验收改动影响。
+
+2026-10-30 CP17 由根协调者派工并审核上述写集。CP15 实际回归位于 driver，以真实解析/展开输入覆盖借用、改写及预算；合流保留 source #if 扣费，且独立复核发现并修正测试中 Option<CoreExpr> 解包遗漏。仍等待真实 Rust 执行。

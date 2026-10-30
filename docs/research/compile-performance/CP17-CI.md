@@ -21,7 +21,7 @@
   "seed": 20261030,
   "tests": [
     {"package": "zil-types", "targets": ["project_lookup_cp10"], "lib": true, "features": []},
-    {"package": "zil-backend-llvm", "targets": ["closed_executable_cp13"], "lib": false, "features": ["llvm-api"]},
+    {"package": "zil-backend-llvm", "targets": ["closed_executable_cp13"], "lib": true, "features": ["llvm-api"]},
     {"package": "zil-driver", "targets": ["borrowed_inference_cp15", "query_cache_cp12", "closures_frontend", "projects", "impl219_budget", "impl219_selection"], "lib": false, "features": ["llvm-api"]}
   ]
 }

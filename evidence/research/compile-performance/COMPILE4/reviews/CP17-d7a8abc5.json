@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/restore_environment",
+  "implementation_commit": "d7a8abc52bdf460b73de5f0f32d2683af456372f",
+  "implementation_tree": "604183ce958b11c4792d931597a9d6b8e4127851",
+  "verdict": "StaticPassPendingManifestBindingAndExecution",
+  "scope": "Independent non-author review of committed source identity, serial benchmark orchestration, timeout failure evidence, workflow permissions and compatibility with the actual existing runner CLIs.",
+  "files": [
+    ".github/workflows/compile-performance.yml",
+    "tools/research/compile-performance/compile4_ci.py",
+    "docs/research/compile-performance/CP17-CI.md"
+  ],
+  "static_checks": [
+    "Manifest bytes must equal HEAD's committed blob and the checkout must be clean. Baseline is a full existing ancestor commit, candidate is exact HEAD/event SHA, and the candidate crates tree is explicitly checked. Rust, LLVM, seed and paired-block requirements are checked before installation/measurement.",
+    "Test groups restrict package names, feature values and existing target identifiers. LLVM-related tests must enable llvm-api; required integration controls and types library tests cannot be omitted. Selected harnesses must each report nonzero passing execution, not merely cargo exit success.",
+    "Both release compilers are built from the declared commits in separate Cargo target directories. Exact binary hashes and build commands are retained before only those disposable target directories are removed.",
+    "Compiler builds, candidate format/check/tests and Python runner tests all finish before matrix execution. Commands and measurement windows execute synchronously; there is no background compiler build, parallel measurement matrix or favorable-window retry/selection.",
+    "The five-case weights, three paired blocks and request weights are checked after each plan preparation. The O0 bridge keeps no-query LLVM API/no-timings behavior; query-enabled Rust incremental is separately named. Rust primary windows explicitly preserve native CGU/linker/LTO policy. The direct O2 quality window explicitly compares baseline closed 1/1 with candidate closed 8/4.",
+    "All orchestration argv/cwd, command logs, return status and hashes are retained. Existing runner validation remains responsible for full measured argv, source/tool/environment identity, oracle checks, row coverage and completion receipts. Overall completion remains exploratory with product gates and performance adoption unaccepted.",
+    "A command exhausting the monotonic budget kills its descendant process tree, records failure and suppresses the overall score. Previously completed windows and partial logs remain in the evidence directory; a file-hash inventory is generated on normal error handling.",
+    "Workflow permissions are contents:read; checkout uses persist-credentials:false. No token is explicitly injected, no credential/config directory is packaged, and no write-back step exists. Fixed action commits, same-branch concurrency and serial steps are present.",
+    "Packaging retains the evidence tree and binary modes in tar.gz plus hashes and setup/install receipts. Compiler target caches are excluded. Hard runner loss or cancellation still depends on GitHub's artifact-upload opportunity and is not a completed measurement.",
+    "The exact runner source parses successfully, git diff --check passes, and all orchestration runner flags match the current bench.py/rust_bench.py/runtime_bench.py interfaces. These dependencies were unchanged at the observed integrated HEAD 42dc0423f8d673b018451cfdd57b8987f24feeaf."
+  ],
+  "blocking_findings": [],
+  "integration_requirements": [
+    {
+      "id": "cp14_library_controls",
+      "detail": "The CP17 validator requires the types library but permits a backend group with lib:false; its original documentation example does so. The actual run manifest must select zil-backend-llvm lib:true so CP14's 2047/2048/2049 machine-model boundary tests execute. The integrator has confirmed this manifest/documentation correction; inspect the committed final manifest before treating targeted tests as complete."
+    },
+    {
+      "id": "published_identity",
+      "detail": "Bind the final committed manifest, equivalent published runner tree, exact candidate crates tree and actual Actions run/artifact. A static review of this orchestration commit does not bind a later source candidate by itself."
+    }
+  ],
+  "execution": {
+    "exact_source_python_syntax": "Pass",
+    "timeout_microcontrol": {
+      "status": "Pass",
+      "scope": "One isolated Python command with a child in another session, using the exact CP17 Run.command/finish source and a one-second budget. No Rust/LLVM build or performance measurement.",
+      "command_result": "Fail with timeout:true and nonzero exit, as required",
+      "descendant_result": "Terminated; descendant process absent after return",
+      "overall_result": "IncompleteOrFailed_NoScore",
+      "windows": [],
+      "hash_inventory_present": true,
+      "evidence": "/workspace/scratch/87d454884917/recovery/reviews/CP17-timeout-probe/evidence"
+    },
+    "cargo": "NotRun",
+    "llvm": "NotRun",
+    "workflow": "NotRunByReviewer",
+    "real_benchmarks": "NotRunByReviewer",
+    "product_gates": "NotRun"
+  },
+  "limitations": [
+    "GitHub CPU affinity and sequential subprocesses do not prove exclusive access to physical host resources; the output correctly retains exploratory status.",
+    "A passing runtime summary establishes complete correct measurements, not runtime nonregression. The integrator must independently assess each corpus and cannot accept CP14/CP15 by the orchestration completion flag alone.",
+    "This entrypoint runs native primary Rust windows. CP16 off-mode diagnostics require their own separate plans if requested; no off-mode performance result is implied."
+  ],
+  "performance": {"measured": false, "claims": "None"}
+}

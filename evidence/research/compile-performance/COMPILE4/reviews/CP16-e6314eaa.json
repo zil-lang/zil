@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/restore_environment",
+  "implementation_commit": "e6314eaa82b42c1d8c0782a813c0f9ff010499dc",
+  "implementation_tree": "ed325f88f324027e20e7284883ca7280bb12480a",
+  "verdict": "StaticAndPythonControlsPassPendingRealExecution",
+  "scope": "Independent non-author review of Rust native/off LTO diagnostics, frozen-plan compatibility, complete command evidence, and runner control tests.",
+  "files": [
+    "tools/research/compile-performance/rust_bench.py",
+    "tools/research/compile-performance/test_rust_bench.py",
+    "docs/research/compile-performance/CP16-BENCHMARK-CONTROLS.md"
+  ],
+  "static_checks": [
+    "CLI default remains native. Native adds no -C lto option; all previous Rust optimization, CGU, linker, bitcode and incremental options remain unchanged. Off adds only the explicit Rust -C lto=off option. The ZIL command is unchanged.",
+    "Both preparation and plan loading require an explicit valid frozen rust_lto mode. Schema /3 rejects /2 plans with an instruction to replay using the original runner/source or prepare a fresh plan; no in-place migration or invented default occurs.",
+    "Plan and build/runtime summaries preserve rust_lto and its diagnostic scope. There is no best-mode selection, corpus change, weight change or pooled replacement for native results.",
+    "Each build records the exact argv passed to execution. Validation recomputes the entire argv from the frozen plan and binds records to plan, source, raw log, executable and preflight hashes. Removing the off flag makes the record invalid.",
+    "Native runtime measurements remain bound to the producing plan and preflight executable hashes; build and runtime summary coverage/completion requirements remain intact.",
+    "bench.py, runtime_bench.py and the corpus helper are unchanged relative to the reviewed merged-main baseline 0a4e00250a58809daaa56d2d225ad5f123a71d3b.",
+    "git diff --check passed for the exact CP16 commit."
+  ],
+  "blocking_findings": [],
+  "observations": [
+    {
+      "severity": "interpretation_limit",
+      "detail": "Native means omission of the explicit LTO option and retention of toolchain policy. It does not establish that Rust performs no LTO or that Rust and ZIL use identical LLVM versions, CGU behavior or linkers. The documentation retains these distinctions."
+    },
+    {
+      "severity": "measurement_limit",
+      "detail": "The Python controls validate plan, command and evidence behavior. They do not demonstrate actual Rust/ZIL compilation speed or native runtime quality for either LTO mode."
+    }
+  ],
+  "execution": {
+    "candidate_files_match_exact_commit": true,
+    "python_controls": {
+      "command": ["python3", "-B", "tools/research/compile-performance/test_rust_bench.py"],
+      "cwd": "/workspace/scratch/87d454884917/zil-cp16",
+      "status": "Pass",
+      "tests": 26,
+      "exit_code": 0,
+      "log": "/workspace/scratch/87d454884917/recovery/reviews/CP16-python.log",
+      "log_sha256": "18f8351213eb8678595482b266edb9eb601f1cb428ce9108cc0b1dd7a2b07c5c"
+    },
+    "cargo": "NotRun",
+    "llvm": "NotRun",
+    "real_rust_zil_benchmarks": "NotRun",
+    "product_gates": "NotRun"
+  },
+  "required_followup": [
+    "Bind this review to the published equivalent tree and the concrete Actions run.",
+    "Keep native results as the primary comparison; any off window must retain a separate frozen plan, full argv and independent native runtime quality results.",
+    "Do not re-label old schema /2 evidence as schema /3 or infer a performance benefit from these control tests."
+  ],
+  "performance": {"measured": false, "claims": "None"}
+}

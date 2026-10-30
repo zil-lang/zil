@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/restore_environment",
+  "reviewed_at_utc": "2026-10-30T13:44:56Z",
+  "implementation_commit": "0a4e00250a58809daaa56d2d225ad5f123a71d3b",
+  "implementation_tree": "2ac0f98645c5c72dbaf2172047f737aa2aee1eb7",
+  "verdict": "StaticPassPendingExecution",
+  "scope": "Non-author review of the research/main merge resolution and adjacent API adaptation; not a re-review of all accepted main changes.",
+  "files": [
+    "crates/zil-driver/src/project.rs",
+    "crates/zil-driver/src/lib.rs",
+    "crates/zil-expand/src/lib.rs",
+    "crates/zil-expand/src/ct_selection.rs",
+    "crates/zil-driver/tests/query_cache_cp12.rs"
+  ],
+  "static_checks": [
+    "Both parent histories are retained; source-selection receipt and target-dependent Expand key from main coexist with research checkpoint/timing structures.",
+    "Source #if detection precedes Prepared::new; CP12 is bypassed and does not create a checkpoint or import an incomplete CT usage receipt.",
+    "expanded.selection.remaining preserves cumulative selection steps/nodes before SourceProgramContext and per-module CT.",
+    "AggregateDeclarations remains a shared immutable lookup built in original module/item order with first-wins insertion. Expander::new preserves prior field initialization.",
+    "ct_selection::expression uses a local empty declaration map, equivalent to main's previously owned empty map; CoreExpr does not borrow it.",
+    "New source test makes two fresh CompilationSession requests, checks native 42 output and exactly one current Verify, no checkpoint entry, and rejects max_ct_steps=0 while preserving the existing executable.",
+    "git diff --check passed on reviewed merge paths."
+  ],
+  "blocking_findings": [],
+  "execution": {
+    "cargo": "NotRun",
+    "llvm": "NotRun",
+    "reason": "Local sandbox has no Rust/LLVM and insufficient disk for the toolchain; use exact/equivalent-tree Actions execution."
+  },
+  "required_followup": [
+    "Run query_cache_cp12 and impl219_budget/selection/ct_boundary on the merged tree.",
+    "Run compilation/format checks to validate merged constructor lifetimes and all call sites."
+  ],
+  "performance": {
+    "measured": false,
+    "claims": "None"
+  }
+}

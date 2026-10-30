@@ -1,0 +1,54 @@
+{
+  "status": "Pass",
+  "requested_toolchain": "1.99.1",
+  "version": "rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13)",
+  "direct_without_env_exit": 0,
+  "direct_without_env_version": "rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13)",
+  "direct_without_env_stderr": "",
+  "formatter": "/workspace/scratch/87d454884917/recovery/rustfmt-1991-repair/bin/rustfmt",
+  "library_path": "/workspace/scratch/87d454884917/recovery/rustfmt-1991-repair/lib",
+  "components": {
+    "rustfmt-preview": {
+      "xz_url": "https://static.rust-lang.org/dist/2026-10-15/rustfmt-1.99.1-x86_64-unknown-linux-gnu.tar.xz",
+      "xz_hash": "e3b36c4c7ec3486c059d8067ff48787676612007123aad7a4e8ec12c48ee9ba2"
+    },
+    "rustc": {
+      "xz_url": "https://static.rust-lang.org/dist/2026-10-15/rustc-1.99.1-x86_64-unknown-linux-gnu.tar.xz",
+      "xz_hash": "2ff05ff9c08a90861e7f6e4065b40a8b87463b4576186fd613871c3e37f2091f"
+    }
+  },
+  "files": [
+    {
+      "path": "/workspace/scratch/87d454884917/recovery/rustfmt-1991-repair/bin/cargo-fmt",
+      "bytes": 2082352,
+      "sha256": "6b42f43e4523abba428eb42b3a106727843428b096ef7ed8a9497bddcc50448a"
+    },
+    {
+      "path": "/workspace/scratch/87d454884917/recovery/rustfmt-1991-repair/bin/rustfmt",
+      "bytes": 5256344,
+      "sha256": "68cb47a2a38daa8ff2ec6d623a2374b0a165d77ec74f1f654216665018c04598"
+    },
+    {
+      "path": "/workspace/scratch/87d454884917/recovery/rustfmt-1991-repair/lib/libLLVM.so.23.1-rust-1.99.1-stable",
+      "bytes": 208167760,
+      "sha256": "1cfbe1392a767227b88b33ab6187283e281c63f80f9b1ca9010d9cee5fdf9131"
+    },
+    {
+      "path": "/workspace/scratch/87d454884917/recovery/rustfmt-1991-repair/lib/librustc_driver-7ed0375ae352bd75.so",
+      "bytes": 158240640,
+      "sha256": "5a2cd52edba7d15f8d898b92a912638f5b73a089c7c1bfde5604ab45665602c7"
+    },
+    {
+      "path": "/workspace/scratch/87d454884917/recovery/rustfmt-1991-repair/lib/libLLVM-23-rust-1.99.1-stable.so",
+      "bytes": 42,
+      "sha256": "ed06fbed8d297efa92979aeb227a4ce5b87b1a462d0aeac66d093300fad74824"
+    }
+  ],
+  "ldd": "\tlinux-vdso.so.1 (0x00007faf1fbb4000)\n\tlibrustc_driver-7ed0375ae352bd75.so => /workspace/scratch/87d454884917/recovery/rustfmt-1991-repair/lib/librustc_driver-7ed0375ae352bd75.so (0x00007faf17400000)\n\tlibgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007faf1f747000)\n\tlibpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007faf1f742000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007faf1f659000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007faf171ee000)\n\tlibdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00007faf1f652000)\n\tlibLLVM.so.23.1-rust-1.99.1-stable => /workspace/scratch/87d454884917/recovery/rustfmt-1991-repair/lib/libLLVM.so.23.1-rust-1.99.1-stable (0x00007faf0c200000)\n\tlibrt.so.1 => /lib/x86_64-linux-gnu/librt.so.1 (0x00007faf1f64d000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007faf1fbb6000)\n\tlibz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00007faf1f631000)\n",
+  "stdin_format_control": {
+    "exit": 0,
+    "output": "fn main() {\n    let x = 1;\n    println!(\"{}\", x);\n}\n"
+  },
+  "rustc_executable_extracted": false,
+  "full_llvm_installed": false
+}

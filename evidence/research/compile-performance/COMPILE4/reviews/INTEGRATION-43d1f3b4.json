@@ -1,0 +1,68 @@
+{
+  "reviewer": "/root/o2_strategy",
+  "review_kind": "independent_static_integration_review",
+  "review_commit": "43d1f3b4e8c89fc760c67070f2b3708bd7239cb3",
+  "observed_head": "42dc0423f8d673b018451cfdd57b8987f24feeaf",
+  "crates_tree": "4b643eb7c4cc60bdefb268a1d44ba95a8c76b3b5",
+  "cp15_implementation_commit": "6b543595e8d86cb03816f86cdcfb56941e5a3876",
+  "cp15_integration_commit": "5aa760e99221a4673fe6492e283fc687fa244fc7",
+  "verdict_for_bound_committed_tree": "BlockedByTestCompileError",
+  "production_merge_static_verdict": "NoBlockingFindings_StaticOnly",
+  "cargo_executed": false,
+  "rustfmt_executed": false,
+  "native_execution_performed": false,
+  "performance_measurement_performed": false,
+  "merge_checks": [
+    {
+      "check": "Compare merged project.rs to its main-aware first parent 44b7608ce",
+      "result": "The complete file is byte-identical after substituting only the owned inference call with the borrowed inference call and its line wrap.",
+      "executed": true
+    },
+    {
+      "check": "Compare integrated inference.rs to reviewed CP15 6b543595e8d86cb03816f86cdcfb56941e5a3876",
+      "result": "byte_identical",
+      "executed": true
+    },
+    {
+      "check": "Selection budget and error order",
+      "result": "Inference runs first as in main; expanded.selection.remaining then deducts the current receipt's CT steps and nodes with checked subtraction; SourceProgramContext and each CT module receive that remaining budget. The prior main selection accounting is retained, not reset to options.limits.",
+      "executed": true
+    },
+    {
+      "check": "Borrow lifetimes after integration",
+      "result": "The local Cow remains alive through SourceProgramContext construction and all module CT evaluations. Context holds immutable Core references and no reference to mutable remaining. The returned EvaluatedProject owns its modules.",
+      "executed": true
+    }
+  ],
+  "findings": [
+    {
+      "id": "CP15-TEST-OPTION-INITIALIZER",
+      "severity": "blocking",
+      "path": "crates/zil-driver/tests/borrowed_inference_cp15.rs",
+      "description": "CoreStatementKind::Binding.initializer is Option<CoreExpr>, as defined in zil-ir/src/lib.rs. The committed test binds initializer directly and reads initializer.kind, which is not a field on Option and will not compile.",
+      "committed_test_sha256": "45699fd9539c5a750a1fb32ec0256ecd23f329e832b4218400b179d9ee2a8c19",
+      "correction": "Match initializer: Some(initializer) in the Binding pattern before inspecting the CoreExpr kind.",
+      "working_tree_fix_observed": true,
+      "corrected_working_test_sha256": "84609966ffade32ae426398f1ac030913c55fcd642d1d10920d5798d79c715d1",
+      "fix_status": "Root applied the exact correction in the working tree; a committed corrected identity and actual Rust execution are still required."
+    }
+  ],
+  "prior_review_correction": {
+    "prior_record": "recovery/reviews/cp15-static.json",
+    "missed_finding": "The earlier source-only review missed that Binding.initializer is optional and incorrectly reported no blocking findings for the new test. This record supersedes that statement for test compilation.",
+    "production_conclusions": "The original ownership/budget/normalization review remains supported by the exact source comparisons; no production merge defect was identified."
+  },
+  "other_type_and_syntax_checks": [
+    "SourceUnit::new accepts the provided FileId, ModuleId, String path and str text inputs.",
+    "expand_program_module returns (ProgramModule, SourceMap), so selecting .0 has the expected project module type.",
+    "CoreClosureParameter.ty and the Closure return_type are Option<Type>, matching the Some(Type::I32) assertions after correcting the initializer pattern.",
+    "The parser supports the arrow-expression function and closure syntax used in these fixtures; existing source tests use the same lambda syntax and finite record declarations.",
+    "No second independently identifiable type or syntax blocker was found; this is not a substitute for compiling the tests."
+  ],
+  "required_follow_up": [
+    "Commit the corrected initializer pattern and bind CI evidence to that exact descendant and crates tree.",
+    "Run the CP15 driver source target, existing project_lookup_cp10 frozen budget controls, closures_frontend, and source-level selection/CT budget regressions.",
+    "Ensure backend library tests are selected so CP14's threshold and cross-unit model controls execute, alongside the closed executable native target."
+  ],
+  "limitations": "This is a static review of an integrated source tree plus one observed working-tree correction. It records a real compile blocker discovered by source inspection, not a compiler diagnostic from an executed Rust build. No executed-test or performance Pass is claimed."
+}

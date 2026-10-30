@@ -29,10 +29,7 @@ fn project(sources: &[&str]) -> CoreProgram {
 
 #[test]
 fn unchanged_scalar_project_borrows_the_exact_original_storage() {
-    let input = project(&[
-        "fn first(x: i32)->i32=>x+1",
-        "fn second(x: i64)->i64=>x-1",
-    ]);
+    let input = project(&["fn first(x: i32)->i32=>x+1", "fn second(x: i64)->i64=>x-1"]);
     let result = zil_types::infer_program_closures_borrowed(&input, &Limits::default()).unwrap();
     let Cow::Borrowed(borrowed) = result else {
         panic!("unchanged inference must not clone the project");
@@ -50,7 +47,9 @@ fn unchanged_scalar_project_borrows_the_exact_original_storage() {
 
 #[test]
 fn rewritten_function_preserves_both_unchanged_neighbors_and_source() {
-    let input = project(&["fn before()->i32=>1\nfn middle()->i32 { let f=(x)=>x; return f(7); }\nfn after()->i32=>2"]);
+    let input = project(&[
+        "fn before()->i32=>1\nfn middle()->i32 { let f=(x)=>x; return f(7); }\nfn after()->i32=>2",
+    ]);
     let original = input.clone();
     let result = zil_types::infer_program_closures_borrowed(&input, &Limits::default()).unwrap();
     assert!(matches!(result, Cow::Owned(_)));
@@ -59,7 +58,10 @@ fn rewritten_function_preserves_both_unchanged_neighbors_and_source() {
     assert_eq!(functions[0], input.modules[0].core.functions[0]);
     assert_eq!(functions[2], input.modules[0].core.functions[2]);
     assert_eq!(functions[1].id, input.modules[0].core.functions[1].id);
-    let CoreStatementKind::Binding { initializer, .. } = &functions[1].body.statements[0].kind
+    let CoreStatementKind::Binding {
+        initializer: Some(initializer),
+        ..
+    } = &functions[1].body.statements[0].kind
     else {
         panic!("expected the source binding");
     };
@@ -107,8 +109,14 @@ fn borrowing_does_not_skip_metadata_or_zero_work_failures() {
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].phase, Phase::Types);
     assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
-    assert_eq!(errors[0].message, "source closure constraint work budget exceeded");
-    assert_eq!(errors[0].span, Some(input.modules[0].core.functions[0].span));
+    assert_eq!(
+        errors[0].message,
+        "source closure constraint work budget exceeded"
+    );
+    assert_eq!(
+        errors[0].span,
+        Some(input.modules[0].core.functions[0].span)
+    );
     input.modules[1].core.module_id = ModuleId(0);
     let errors =
         zil_types::infer_program_closures_borrowed(&input, &Limits::default()).unwrap_err();

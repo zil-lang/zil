@@ -1,0 +1,16 @@
+{
+  "schema": "zil-compile4-publication/1",
+  "note": "Git data API publication preserves exact tree objects and mapped parent order. Commit metadata differs. Final run identity is frozen by the committed manifest and the CI result.",
+  "commits": {
+    "32b143f8cef796c356cf4710b39892f1458b7296": "fffff9f611785118bf81a7abe37c666ec09cad30",
+    "0a4e00250a58809daaa56d2d225ad5f123a71d3b": "64072793a0f41994f216a6207bf49ee1e2d224f8",
+    "0ed1043c98e6ffc2256b86b34cb8dd626c15c861": "021d1411fe4297469a067b9cd2408f3318d918a0",
+    "44b7608ce84476f60d4a1ef7192e02e44e3d04dd": "e2fbade5d2159a3a276c02f7357125d68752da44",
+    "6b543595e8d86cb03816f86cdcfb56941e5a3876": "aa5cf96328097d6c8ec1d965c53f4511cec97474",
+    "5aa760e99221a4673fe6492e283fc687fa244fc7": "fa62b3d5e26f3c103decd551329e25ae40d90a2c",
+    "e6314eaa82b42c1d8c0782a813c0f9ff010499dc": "6fe00cda5a2de694bb6338dc32c5fe88af2e9571",
+    "43d1f3b4e8c89fc760c67070f2b3708bd7239cb3": "40774a2125ad1d6491120642210ff203574184c1",
+    "d7a8abc52bdf460b73de5f0f32d2683af456372f": "0284ddd1154b94ef5b3765166a854307b43d0661",
+    "42dc0423f8d673b018451cfdd57b8987f24feeaf": "95607c55ca9af7b000760f64e0b723db166de13e"
+  }
+}
