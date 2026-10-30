@@ -90,6 +90,7 @@ jobs:
             done
             sha256sum -- "$RUNNER_TEMP/receipts/workspace.log"
           } > "$RUNNER_TEMP/receipts/workspace-resources-after.log"
+          python3 tools/ci/native_evidence.py capture "$RUNNER_TEMP" workspace >> "$GITHUB_OUTPUT"
       - name: Preserve workspace receipts before releasing its cache
         id: workspace_receipts
         if: ${{ always() && (steps.workspace_tests.outcome == 'success' || steps.workspace_tests.outcome == 'failure' || steps.workspace_tests.outcome == 'cancelled') }}
@@ -99,12 +100,29 @@ jobs:
           path: |
             ${{ runner.temp }}/receipts/workspace.log
             ${{ runner.temp }}/receipts/workspace-resources-*.log
+            ${{ runner.temp }}/receipts/workspace-native-manifest.json
             ${{ runner.temp }}/receipts/commit.txt
             ${{ runner.temp }}/receipts/source-tree.txt
             ${{ runner.temp }}/receipts/toolchain.txt
             ${{ runner.temp }}/receipts/llvm-api-toolchain.json
           retention-days: 30
           if-no-files-found: error
+      - name: Preserve all workspace native evidence before releasing it
+        id: workspace_native
+        if: ${{ always() && steps.workspace_resources_after.outcome == 'success' && steps.workspace_resources_after.outputs.native_file_count != '0' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-main-${{ github.run_id }}-${{ github.run_attempt }}-workspace-native
+          path: ${{ runner.temp }}/native-evidence/
+          include-hidden-files: true
+          retention-days: 30
+          if-no-files-found: error
+      - name: Release only the archived workspace native evidence
+        if: ${{ !cancelled() && steps.workspace_resources_after.outcome == 'success' && steps.workspace_receipts.outcome == 'success' && (steps.workspace_resources_after.outputs.native_file_count == '0' || steps.workspace_native.outcome == 'success') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/native_evidence.py release "$RUNNER_TEMP" workspace
       - name: Release only the archived workspace compiler cache
         if: ${{ !cancelled() && steps.workspace_resources_after.outcome == 'success' && steps.workspace_receipts.outcome == 'success' }}
         shell: bash
@@ -159,6 +177,7 @@ jobs:
             done
             sha256sum -- "$RUNNER_TEMP/receipts/reference.log"
           } > "$RUNNER_TEMP/receipts/reference-resources-after.log"
+          python3 tools/ci/native_evidence.py capture "$RUNNER_TEMP" reference >> "$GITHUB_OUTPUT"
       - name: Preserve reference receipts before releasing its cache
         id: reference_receipts
         if: ${{ always() && (steps.reference_tests.outcome == 'success' || steps.reference_tests.outcome == 'failure' || steps.reference_tests.outcome == 'cancelled') }}
@@ -168,12 +187,29 @@ jobs:
           path: |
             ${{ runner.temp }}/receipts/reference.log
             ${{ runner.temp }}/receipts/reference-resources-*.log
+            ${{ runner.temp }}/receipts/reference-native-manifest.json
             ${{ runner.temp }}/receipts/commit.txt
             ${{ runner.temp }}/receipts/source-tree.txt
             ${{ runner.temp }}/receipts/toolchain.txt
             ${{ runner.temp }}/receipts/llvm-api-toolchain.json
           retention-days: 30
           if-no-files-found: error
+      - name: Preserve all reference native evidence before releasing it
+        id: reference_native
+        if: ${{ always() && steps.reference_resources_after.outcome == 'success' && steps.reference_resources_after.outputs.native_file_count != '0' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-main-${{ github.run_id }}-${{ github.run_attempt }}-reference-native
+          path: ${{ runner.temp }}/native-evidence/
+          include-hidden-files: true
+          retention-days: 30
+          if-no-files-found: error
+      - name: Release only the archived reference native evidence
+        if: ${{ !cancelled() && steps.reference_resources_after.outcome == 'success' && steps.reference_receipts.outcome == 'success' && (steps.reference_resources_after.outputs.native_file_count == '0' || steps.reference_native.outcome == 'success') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/native_evidence.py release "$RUNNER_TEMP" reference
       - name: Release only the archived reference compiler cache
         if: ${{ !cancelled() && steps.reference_resources_after.outcome == 'success' && steps.reference_receipts.outcome == 'success' }}
         shell: bash
