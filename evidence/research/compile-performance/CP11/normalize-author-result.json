@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "experiment": "CP11b",
+  "implementation_author": "/root/toolchain_setup",
+  "baseline_commit": "0093420b178a75717c406c6fa54c0c9d0b99d243",
+  "original_normalize_commit": "542d30676c42e1b691287bcab55874799ca910c1",
+  "status": "ReadyForIndependentReview",
+  "timestamp": "2026-10-30T07:55:29.967259+00:00",
+  "change": "Consume the already-owned specialized item vector when redistributing project syntax. The Borrowed branch moves combined.items; the Owned branch moves its module.items.",
+  "source_sha256": {
+    "crates/zil-expand/src/modules.rs": "5b7ee8089946029a506f5207adb7f93a2d1f1f0c3d67bc5e1aa89fc465e79a90",
+    "crates/zil-expand/tests/normalize_move_cp11.rs": "b3865e5a1410bff2da905b4d5fa700472dd3a916e323737cd094b912d33ef62b"
+  },
+  "invariants": [
+    "No into_owned is used on the Borrowed Cow: the original combined.items vector is moved directly, eliminating the final per-item clone. Earlier source normalization and specialization clones are intentionally unchanged.",
+    "The specialized items retain their original iteration order. budget.item executes before file lookup, function registration and insertion for every item, with the same spans and fallible calls.",
+    "Definition-source lookup, functions.entry(...).or_insert first-wins registration, original import cloning and the full Restore visitor are unchanged.",
+    "Only untrusted syntax ownership changes. Input syntax is borrowed and remains byte-for-byte Debug-equal after every probe call; no schema, source acceptance, logical limit, ABI, Verify or runtime representation change."
+  ],
+  "validation": {
+    "baseline_new_controls": {
+      "passed": 4,
+      "failed": 0,
+      "manifest": "normalize-baseline.json",
+      "log": "normalize-baseline-tests.log"
+    },
+    "candidate_new_controls": {
+      "passed": 4,
+      "failed": 0,
+      "log": "normalize-candidate-tests.log"
+    },
+    "candidate_regression": {
+      "passed": 10,
+      "failed": 0,
+      "groups": [
+        "generics",
+        "project_lookup_cp10",
+        "source_map_cp11"
+      ]
+    },
+    "control_records": [
+      "CP11_NORMALIZE_SNAPSHOT:borrowed:421a64372cb38589d96a9ac39543ee5063df15ace48aebf8bd74b86f847b2dca",
+      "CP11_NORMALIZE_BOUNDARY:borrowed:work:606:[Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic metadata budget exceeded\", span: Some(Span { file: FileId(29), start: 42, end: 48 }), notes: [] }]",
+      "CP11_NORMALIZE_BOUNDARY:borrowed:nodes:103:[Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic expansion budget exceeded\", span: Some(Span { file: FileId(29), start: 42, end: 48 }), notes: [] }]",
+      "CP11_NORMALIZE_SNAPSHOT:borrowed-rotated:2073275a1c915d0a99ef7327d0f725a3cf53434c5d6b22a3eca9763953be3a57",
+      "CP11_NORMALIZE_ERROR:duplicate-before-alias:[Diagnostic { phase: Expand, category: SafeReject, code: \"E-NAME-DUPLICATE\", message: \"duplicate declaration name\", span: Some(Span { file: FileId(11), start: 22, end: 43 }), notes: [] }]",
+      "CP11_NORMALIZE_ERROR:private-template:[Diagnostic { phase: Expand, category: SafeReject, code: \"E-MODULE-PRIVATE\", message: \"imported declaration is private\", span: Some(Span { file: FileId(11), start: 31, end: 41 }), notes: [] }]",
+      "CP11_NORMALIZE_SNAPSHOT:owned-generic:a608cd698353458f2b3c7c6d6113bf17a145c16ff95462ef196cca8f41b36813",
+      "CP11_NORMALIZE_BOUNDARY:owned-generic:work:1238:[Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic expansion budget exceeded\", span: Some(Span { file: FileId(5), start: 29, end: 30 }), notes: [] }]",
+      "CP11_NORMALIZE_BOUNDARY:owned-generic:nodes:285:[Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic expansion budget exceeded\", span: Some(Span { file: FileId(5), start: 29, end: 30 }), notes: [] }]",
+      "CP11_NORMALIZE_SNAPSHOT:owned-alias:8a49b2e458c06bcd8be11e5941bc2ec00a37bc63ddd4c635ee9decfa367d6195",
+      "CP11_NORMALIZE_BOUNDARY:owned-alias:work:275:[Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic expansion budget exceeded\", span: Some(Span { file: FileId(5), start: 40, end: 42 }), notes: [] }]",
+      "CP11_NORMALIZE_BOUNDARY:owned-alias:nodes:41:[Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic expansion budget exceeded\", span: Some(Span { file: FileId(5), start: 40, end: 42 }), notes: [] }]",
+      "CP11_NORMALIZE_RAW_FILE:0:Err([Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic expansion budget exceeded\", span: Some(Span { file: FileId(11), start: 0, end: 18 }), notes: [] }])",
+      "CP11_NORMALIZE_RAW_FILE:1:Err([Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic expansion budget exceeded\", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])",
+      "CP11_NORMALIZE_RAW_FILE:16:Err([Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic metadata budget exceeded\", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])",
+      "CP11_NORMALIZE_RAW_FILE:64:Err([Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic metadata budget exceeded\", span: Some(Span { file: FileId(11), start: 11, end: 14 }), notes: [] }])",
+      "CP11_NORMALIZE_RAW_FILE:256:Err([Diagnostic { phase: Expand, category: SafeReject, code: \"E-MODULE-ID\", message: \"instantiated declaration lost its definition source\", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])",
+      "CP11_NORMALIZE_RAW_FILE:512:Err([Diagnostic { phase: Expand, category: SafeReject, code: \"E-MODULE-ID\", message: \"instantiated declaration lost its definition source\", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])",
+      "CP11_NORMALIZE_RAW_FILE:1024:Err([Diagnostic { phase: Expand, category: SafeReject, code: \"E-MODULE-ID\", message: \"instantiated declaration lost its definition source\", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])",
+      "CP11_NORMALIZE_RAW_FILE:10000000:Err([Diagnostic { phase: Expand, category: SafeReject, code: \"E-MODULE-ID\", message: \"instantiated declaration lost its definition source\", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])"
+    ],
+    "record_count": 20,
+    "mismatches": 0,
+    "coverage": [
+      "Borrowed project with same-spelled private functions in distinct modules and non-monotonic file/module IDs",
+      "Rotation of physical module order while preserving identities",
+      "Owned ordinary generic instantiations in the defining module with public exports",
+      "Owned alias normalization without ordinary generic instantiation",
+      "Original import order and restored function/item order",
+      "Duplicate declaration before later cyclic alias, and private generic import rejection",
+      "Raw untrusted AST with missing definition source across eight work limits"
+    ],
+    "budgets": [
+      {
+        "case": "borrowed",
+        "work_n": 606,
+        "nodes_n": 103
+      },
+      {
+        "case": "owned-generic",
+        "work_n": 1238,
+        "nodes_n": 285
+      },
+      {
+        "case": "owned-alias",
+        "work_n": 275,
+        "nodes_n": 41
+      }
+    ],
+    "budget_contract": "Each of the six boundaries is checked at N, N-1 and fresh N; every accepted result equals the complete default Core+SourceMap output.",
+    "checks": [
+      {
+        "name": "normalize-regression-tests",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-expand",
+          "--test",
+          "project_lookup_cp10",
+          "--test",
+          "generics",
+          "--test",
+          "source_map_cp11",
+          "-j2",
+          "--",
+          "--nocapture"
+        ],
+        "exit_code": 0
+      },
+      {
+        "name": "normalize-clippy",
+        "argv": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-expand",
+          "--all-targets",
+          "-j2",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0
+      },
+      {
+        "name": "normalize-fmt",
+        "argv": [
+          "cargo",
+          "fmt",
+          "-p",
+          "zil-expand",
+          "--",
+          "--check"
+        ],
+        "exit_code": 0
+      }
+    ]
+  },
+  "rlib_sha256": {
+    "base": {
+      "path": "/tmp/cp11-toolchain-setup/cp11b-libs/libzil_base-a5cb5dbca91c1029.rlib",
+      "sha256": "f6f4a3c704aa4a96b8c232908e4dbc8cc23cb1e17494e38fc3118ccb8d50a07c"
+    },
+    "ir": {
+      "path": "/tmp/cp11-toolchain-setup/cp11b-libs/libzil_ir-b9f5982dc757d842.rlib",
+      "sha256": "33d0f5aef268300cbf82d3fa09c4d14bac854f4f247b2c1d37fffd2ff95e95b0"
+    },
+    "syntax": {
+      "path": "/tmp/cp11-toolchain-setup/cp11b-libs/libzil_syntax-85e178f3f1cb215e.rlib",
+      "sha256": "70f8077b5a429d32d257e4071c8b26b29330fa3abf43ed0b5b0985b58a5e1ed3"
+    },
+    "expand": {
+      "path": "/tmp/cp11-toolchain-setup/cp11b-libs/libzil_expand-dd2700c7a1d08ec9.rlib",
+      "sha256": "4a265b8db23bb9013d6f206f6fbf8bd72bde9d58ffc95dc34649f21df03e7e3c"
+    }
+  },
+  "failed_attempts": [
+    {
+      "source": "unchanged production baseline",
+      "exit_code": 101,
+      "passed": 3,
+      "failed": 1,
+      "files": [
+        "normalize-baseline-first-attempt.json",
+        "normalize-baseline-first-attempt.log"
+      ],
+      "reason": "A new generic fixture placed > immediately against => and failed parsing. Only the fixture spacing was corrected; the successful baseline ran before production changes."
+    }
+  ],
+  "evidence_sha256": {
+    "normalize-baseline-first-attempt.json": "b34013ce9f1e4ddfb4cb41385bf79ab3a1f365e962e1d488c77d7bd79ad33b0c",
+    "normalize-baseline-first-attempt.log": "309754b86454b7208378dd601ce73098673043587334714f9551554adacbaeda",
+    "normalize-baseline-tests.log": "3ed9c24ce0cf8b4b9817eb940aa162cc527698e1a758742c4e0a62541d24fafb",
+    "normalize-baseline.json": "c2b1c11def91ede5ee161bb22266ea323f4c5e84806ce983653010015b8c9f8a",
+    "normalize-candidate-tests.log": "a0a4e2c208148480b4b8f0b581028ec8a7a6434e3f973e1216155c54a899d82b",
+    "normalize-checks.json": "8ce0d951e24714c568d5add5938eb81a50b0a0529afe57c52de83d8b646bb315",
+    "normalize-clippy.log": "55fef9eafbc5bed1b64579c264e6af9b5dda39951ca363e5cec62acbd6112cc2",
+    "normalize-fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalize-regression-tests.log": "479c5f0b3497fa89bcbc33b9f994ee297cbf759c84146292e993e0f16c88cb6b"
+  },
+  "rust_goal_assessment": {
+    "safety": "All validation, error order and logical work retained; finite accepted/rejected output and budget controls match.",
+    "runtime_memory": "No emitted-program representation change; no native/runtime measurement in this task.",
+    "expression_maintenance": "No syntax/API changes; two explicit Cow branches make ownership transfer visible.",
+    "compile_cost": "Removes a complete final per-item AST clone without removing charged traversal; full-request gain remains unmeasured.",
+    "breakthrough": "Not claimed before non-author review and quiet measurement."
+  },
+  "limitations": [
+    "Bounded author controls; not full-language equivalence, independent acceptance or a product gate.",
+    "No full-workspace, native execution or performance measurement.",
+    "Golden snapshots are full Debug-output SHA-256 on the fixed x86_64 test platform.",
+    "Raw baseline failure and successful logs are preserved, including trailing blank lines."
+  ]
+}

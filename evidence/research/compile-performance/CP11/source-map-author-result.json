@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "experiment": "CP11a",
+  "implementation_author": "/root/toolchain_setup",
+  "baseline_commit": "542d30676c42e1b691287bcab55874799ca910c1",
+  "status": "ReadyForIndependentReview",
+  "timestamp": "2026-10-30T07:49:50.460940+00:00",
+  "change": "Lazily build one source-file lookup per Expand project request. Every map retains its original complete validation and logical source/entry charges.",
+  "source_sha256": {
+    "crates/zil-base/src/source_map.rs": "7df94d58791b5af98b97f60d49680e554775db52a0255ad5bc8d322ddcd70153",
+    "crates/zil-expand/src/lib.rs": "b216b17791e874bf5728d2f39000540c1cc1cc6376e4cf11dabda80fe4538c20",
+    "crates/zil-base/tests/source_map_cp11.rs": "82740632a0b1f7ba024cbb272206a04b1c9bab3824dea87806750f752f470a77",
+    "crates/zil-expand/tests/source_map_cp11.rs": "9b8a186dc6ef2ae5df64e3941a3ee84e35e57bd2e8da98e99200c3ed15bee916"
+  },
+  "invariants": [
+    "SourceMapValidator binds one immutable source slice. Its fields are private; construction performs no validation, allocation or budget work. SourceMap::validate remains available and constructs a temporary validator.",
+    "Cold scans still subtract one step immediately before each source insertion and duplicate check. A duplicate can precede a later budget failure; any incomplete scan leaves no cached table.",
+    "A successful complete source scan may be retained after an entry error. Unique immutable source identities make a later bulk checked_sub(sources.len()) observationally equivalent to the old scan.",
+    "Each call independently checks map/source max_nodes, initializes remaining from the current limits, creates targets and runs entry identity/parent, unique target, origin/related/generated UTF-8/span checks in the original order.",
+    "Project integration replaces only the source argument to the internal expander with the request validator. The actual validation call remains after e.diagnostics rejection; cumulative project map work/node accounting is unchanged.",
+    "Standalone APIs still bind just their own source; no cross-request caching, validation result, trusted capability, schema or IR change."
+  ],
+  "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+  "environment": {
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0 for Clippy/final checks",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_TARGET_DIR": "/workspace/scratch/ac5966c4c370/target-cp11",
+    "jobs": 2
+  },
+  "validation": {
+    "baseline_new_controls": {
+      "passed": 4,
+      "failed": 0,
+      "production_source": "unchanged 542d30676c42e1b691287bcab55874799ca910c1",
+      "manifest": "source-map-baseline.json",
+      "log": "source-map-baseline-tests.log"
+    },
+    "candidate_new_controls": {
+      "passed": 6,
+      "failed": 0,
+      "log": "source-map-candidate-tests.log"
+    },
+    "existing_regression": {
+      "source_map_unit_passed": 3,
+      "expand_cp10_and_normalization_passed": 17,
+      "failed": 0
+    },
+    "source_map_matrix": {
+      "source_sets": 5,
+      "maps": 9,
+      "node_limits": 7,
+      "work_limits": 13,
+      "sequence_prefix_calls_per_source_set": 4,
+      "calls_per_variant": 4115,
+      "variants": [
+        "original standalone baseline",
+        "candidate standalone",
+        "candidate reused validator"
+      ],
+      "mismatching_digest_records": 0,
+      "comparison": "SHA-256 over complete Debug diagnostics and outcomes for the same ordered inputs; unchanged x86_64 platform."
+    },
+    "project_source_control": {
+      "modules": 3,
+      "includes": [
+        "UTF-8 comments/spans",
+        "public defaults with defining-module helper",
+        "empty module",
+        "overlapping target identities across independent maps"
+      ],
+      "analysis_budget_n": 352,
+      "analysis_budget_n_minus_one": 351,
+      "fresh_n_equal": true,
+      "full_core_and_source_map_sha256": "365776dbbbcb572d38267cbbf6435a73d826aee62cc9bb9a66300b4771aae55d"
+    },
+    "checks": [
+      {
+        "name": "source-map-unit-tests",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-base",
+          "--lib",
+          "-j2",
+          "--",
+          "source_map::tests",
+          "--nocapture"
+        ],
+        "exit_code": 0
+      },
+      {
+        "name": "source-map-regression-tests",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-expand",
+          "--test",
+          "project_lookup_cp10",
+          "--test",
+          "normalization",
+          "-j2",
+          "--",
+          "--nocapture"
+        ],
+        "exit_code": 0
+      },
+      {
+        "name": "source-map-clippy",
+        "argv": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-base",
+          "-p",
+          "zil-expand",
+          "--all-targets",
+          "-j2",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0
+      },
+      {
+        "name": "source-map-fmt",
+        "argv": [
+          "cargo",
+          "fmt",
+          "-p",
+          "zil-base",
+          "-p",
+          "zil-expand",
+          "--",
+          "--check"
+        ],
+        "exit_code": 0
+      }
+    ],
+    "candidate_accepted_test_total": 26,
+    "total_note": "Counts are separate named tests; baseline and matrix variants are not additional unique source-language acceptance cases."
+  },
+  "evidence_sha256": {
+    "source-map-baseline-tests.log": "800a00603343214ef7cba1beca1e8e2d95979f8683354514ea1b4bc2041ea71e",
+    "source-map-baseline.json": "54c5a9f7af7df607848319c34e6fe2b6ebc7f9f418a9a9df9221a3df152177ba",
+    "source-map-candidate-tests.log": "236fdc82f4b5427f16252cd1b68215da5b988d6bce49320ea8d860cb0eaeef6a",
+    "source-map-checks.json": "48bc59908935bd702c8ce0ea44a5f072069d8775654e1c3f8167285fcd8d17a2",
+    "source-map-clippy.log": "b423c9cea34b109eee1a4bde3bfb51a81974cec63ab350b4191a1645961b8d0a",
+    "source-map-fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source-map-regression-tests.log": "1f22147207f63720fbb000027bdbff021e42053c57330cbbcfe5da8baa52f739",
+    "source-map-unit-tests.log": "72ae575d116fedbb258d410840443240f228a59cc7bcfbe9d679abaac6482bad"
+  },
+  "failed_attempts": [],
+  "rust_goal_assessment": {
+    "safety": "No validator result or capability reused; old diagnostics and logical quotas retained in bounded controls.",
+    "runtime_memory": "No emitted program or runtime representation change; no native/runtime comparison performed by this task.",
+    "expression_maintenance": "Existing validate API retained; a documented immutable request helper is added without exposing fields.",
+    "compile_cost": "Removes repeated source BTreeMap insertion after one complete scan; actual full-request improvement is pending quiet measurement.",
+    "breakthrough": "Not claimed before non-author review and measured comparison."
+  },
+  "limitations": [
+    "Author controls and finite differential only; independent review is still required.",
+    "No full-workspace, LLVM/native execution or compile/runtime performance measurement.",
+    "Raw test logs retain their trailing blank lines; source diff --check passes.",
+    "Inherited global handoff status is not promoted by this limited task."
+  ]
+}

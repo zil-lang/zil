@@ -1,0 +1,52 @@
+[
+  {
+    "name": "normalize-regression-tests",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-expand",
+      "--test",
+      "project_lookup_cp10",
+      "--test",
+      "generics",
+      "--test",
+      "source_map_cp11",
+      "-j2",
+      "--",
+      "--nocapture"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "normalize-clippy",
+    "argv": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-expand",
+      "--all-targets",
+      "-j2",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "normalize-fmt",
+    "argv": [
+      "cargo",
+      "fmt",
+      "-p",
+      "zil-expand",
+      "--",
+      "--check"
+    ],
+    "exit_code": 0
+  }
+]

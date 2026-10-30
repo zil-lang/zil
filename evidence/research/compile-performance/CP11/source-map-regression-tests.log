@@ -1,0 +1,31 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp11/crates/zil-expand)
+    Finished `test` profile [unoptimized] target(s) in 0.31s
+     Running tests/normalization.rs (/workspace/scratch/ac5966c4c370/target-cp11/debug/deps/normalization-f06525a8fcff6a62)
+
+running 12 tests
+test explicit_compile_time_marker_survives_until_the_ct_stage ... ok
+test plan_t01_002_implicit_parameter_and_shorthand_map_to_real_sources ... ok
+test plan_t01_002_explicit_group_default_and_static_are_fixed_before_body ... ok
+test context_records_do_not_infer_nominal_types_from_fields_or_outer_closure_return ... ok
+test plan_t01_002_nested_closures_inherit_lexical_receiver_only ... ok
+test plan_t01_004_pipeline_order_single_input_and_callable_factory ... ok
+test plan_t01_002_trait_receiver_comes_from_signature_not_body_or_order ... ok
+test plan_t01_004_failed_override_does_not_commit_or_run_later_fields ... ok
+test record_defaults_keep_declaration_scope_and_declared_order ... ok
+test plan_t01_004_record_update_prepares_base_then_source_order_overrides ... ok
+test source_map_covers_unique_core_node_ids_and_is_deterministic ... ok
+test range_name_and_ordered_endpoints_survive_source_expansion ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/project_lookup_cp10.rs (/workspace/scratch/ac5966c4c370/target-cp11/debug/deps/project_lookup_cp10-18f5c1ba4d9121fb)
+
+running 5 tests
+test duplicate_declaration_rejection_still_precedes_consumer_lowering ... ok
+test single_module_uses_first_written_aggregate_until_duplicate_check ... ok
+test private_field_errors_keep_the_first_consumer_source ... ok
+test project_analysis_budget_has_an_exact_fresh_boundary ... ok
+test shared_named_declarations_keep_owner_defaults_and_source_maps ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

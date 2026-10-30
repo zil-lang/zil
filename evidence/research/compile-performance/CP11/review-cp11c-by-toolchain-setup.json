@@ -1,0 +1,2509 @@
+{
+  "schema_version": 1,
+  "task": "CP11c",
+  "reviewer": "/root/toolchain_setup",
+  "implementation_author": "/root",
+  "implementation_commit": "4b2beb13b146d29683b9088b56346d4f15e97409",
+  "baseline_commit": "542d30676c42e1b691287bcab55874799ca910c1",
+  "verdict": "Pass",
+  "timestamp": "2026-10-30T08:02:17.233298+00:00",
+  "scope": "Independent exact source review and eight finite source-to-machine/runtime/rejection controls, using frozen LLVM23 CLI binaries. No full-workspace or performance claim.",
+  "source_hashes": {
+    "crates/zil-backend-llvm/src/emit.rs": "c75cd0657868ca4d3ff25d954a93244716ec2f1cb66df9cbf545204a89ff8f08",
+    "crates/zil-backend-llvm/src/emit/resource_closures.rs": "cf8dbcde97697b375d5e258b8bcc535239efc72c497ed7770ecefc026764991d",
+    "crates/zil-llvm-api/src/model.rs": "96aa60a9eb041aa059031ddc5eebb1aa5ffe199369b88a982fbf3f7152d1aa72"
+  },
+  "findings": [
+    "All four changed call sites retain the original callee/environment checks, value_type/llvm_type/result calls, Unit argument erasure and their original fallible ordering. No condition or validation is removed.",
+    "Signature parameter order, prepended closure environment, result attributes, calling target and vararg settings are unchanged. Each previously cloned temporary is consumed once at its existing final use.",
+    "Model Ty/Arg/Param and the owned String/Vec payloads use value-style derived Clone with no user-defined Drop/Clone behavior in these model types. Moving these values preserves the complete model rather than changing any LLVM optimization.",
+    "By-value Copy environment, pointer environment, function-pointer indirect call, Unit erasure and FnOnce cleanup are exercised in source-derived LLVM text and native output.",
+    "Six accepted source pairs produced byte-identical complete LLVM machine text and byte-identical ELF executables; all twelve executions matched independent expected stdout/exit values, and each build performed exactly one Verify.",
+    "Arity rejection and live-borrow conflict retained complete diagnostic arrays and verification-run counts. Both compiler versions preserved pre-existing executable and machine-sidecar bytes on both failures."
+  ],
+  "binary_provenance": {
+    "baseline": {
+      "path": "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1",
+      "source_commit": "e8e274c1b28509547a4854d46708ae1601e756e4",
+      "sha256": "3ae400c2eaa83d5643362b5cd1aa29915844904fe95ee01d69900b2a2612b0ba",
+      "crates_tree": "398e091f55a5d42f5562331e1ac5b09622f9f014"
+    },
+    "candidate": {
+      "path": "/workspace/scratch/ac5966c4c370/binaries/cp11c-4b2beb13",
+      "source_commit": "4b2beb13b146d29683b9088b56346d4f15e97409",
+      "sha256": "65281f6c3f86c7be8ee82d76263eb52fb6ccdf0352ad88737a09b0702af4d414"
+    },
+    "note": "Root supplied the fixed build/source bindings; reviewer independently checked both binary SHA-256 values and exact equality of baseline crates trees. Root retained its earlier stale-target release errors and the successful fresh isolated release build log."
+  },
+  "validation": {
+    "source_cases": 8,
+    "positive_cases": 6,
+    "negative_cases": 2,
+    "accepted_compilations_and_native_runs": 12,
+    "negative_compilations": 4,
+    "machine_text_equal_pairs": 6,
+    "executable_equal_pairs": 6,
+    "diagnostic_mismatches": 0,
+    "native_mismatches": 0,
+    "profile": "O0",
+    "codegen_units": 1,
+    "codegen_jobs": 1,
+    "backend": "llvm-api",
+    "clang": "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+    "records": [
+      {
+        "case": "direct-unit",
+        "source": "fn consume(u:()){}\nfn sum(x:i64,y:i64)->i64=>x+y\nfn result()->i64{consume(());return sum(20,22)}",
+        "source_path": "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/main.zil",
+        "source_sha256": "df218e1798f999bf9d2fe938e030991a952e7672d4383a57eb19d6cea99729af",
+        "expected_stdout": "42\n",
+        "expected_exit": 0,
+        "arms": {
+          "baseline": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/baseline",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 0,
+            "compiler_stdout_sha256": "10c4092b37dc219c8b2058e7e34ddef9410145d312f19b92ce5a8539d716c5a3",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "Success",
+              "phase": "link",
+              "diagnostics": [],
+              "artifacts": {
+                "executable": "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/baseline",
+                "llvm": "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/baseline.ll"
+              },
+              "input_fingerprint": "de310284ab961adc9e13545042aedd08940f0bea6c4e79a0ff8cd90ce00edb2d",
+              "seconds": 0.025213591,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [
+                [
+                  "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+                  "--target=x86_64-unknown-linux-gnu",
+                  "-O0",
+                  "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/.zil-driver-7-0/.zil-build-7-0/unit-0.o",
+                  "-o",
+                  "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/.zil-driver-7-0/.zil-build-7-0/program",
+                  "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+                ]
+              ],
+              "native_codegen": {
+                "backend": "llvm-api",
+                "object_reports": [
+                  {
+                    "backend": "llvm-api",
+                    "llvm_version": "23.1.4",
+                    "triple": "x86_64-unknown-linux-gnu",
+                    "cpu": "x86-64",
+                    "features": "",
+                    "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                    "pipeline": "default<O0>",
+                    "relocation": "PIC",
+                    "code_model": "default",
+                    "verify_before_after": true,
+                    "object_bytes": 1464,
+                    "input_kind": "builder",
+                    "preflight_ns": 29063,
+                    "builder_ns": 521313,
+                    "parse_ns": 0,
+                    "optimize_ns": 240466,
+                    "emit_ns": 1763134,
+                    "total_ns": 3431679
+                  }
+                ],
+                "object_cache": {
+                  "requested": false,
+                  "enabled": false,
+                  "hits": 0,
+                  "misses": 0,
+                  "corrupt": 0,
+                  "stored": 0,
+                  "write_failures": 0,
+                  "key_ns": 0,
+                  "lookup_ns": 0,
+                  "current_preflight_ns": 0,
+                  "disabled_reason": null
+                },
+                "requested_units": 1,
+                "actual_units": 1,
+                "jobs": 1,
+                "fallback": null
+              },
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "lower",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "link",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "df218e1798f999bf9d2fe938e030991a952e7672d4383a57eb19d6cea99729af",
+                  "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+                  "result_origins": [],
+                  "callable_contracts": [],
+                  "callable_returns": [],
+                  "exports": []
+                }
+              ]
+            },
+            "machine_ir_sha256": "fb3533f218d4af46ffe9c27d1b364e9632045ada992c75f46da6801a52c5b912",
+            "machine_ir_bytes": 1476,
+            "executable_sha256": "ac11fcae422ea0b27553979940a4789a004abd1c1f213116028fed79f2e80008",
+            "native": {
+              "exit": 0,
+              "stdout": "42\n",
+              "stderr": ""
+            }
+          },
+          "candidate": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/cp11c-4b2beb13",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/candidate",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 0,
+            "compiler_stdout_sha256": "85fc14b461c74acfae69055e61ba3346cc73192958c85ccb50063ffb54f84e18",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "Success",
+              "phase": "link",
+              "diagnostics": [],
+              "artifacts": {
+                "executable": "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/candidate",
+                "llvm": "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/candidate.ll"
+              },
+              "input_fingerprint": "de310284ab961adc9e13545042aedd08940f0bea6c4e79a0ff8cd90ce00edb2d",
+              "seconds": 0.02718939,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [
+                [
+                  "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+                  "--target=x86_64-unknown-linux-gnu",
+                  "-O0",
+                  "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/.zil-driver-21-0/.zil-build-21-0/unit-0.o",
+                  "-o",
+                  "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/.zil-driver-21-0/.zil-build-21-0/program",
+                  "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+                ]
+              ],
+              "native_codegen": {
+                "backend": "llvm-api",
+                "object_reports": [
+                  {
+                    "backend": "llvm-api",
+                    "llvm_version": "23.1.4",
+                    "triple": "x86_64-unknown-linux-gnu",
+                    "cpu": "x86-64",
+                    "features": "",
+                    "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                    "pipeline": "default<O0>",
+                    "relocation": "PIC",
+                    "code_model": "default",
+                    "verify_before_after": true,
+                    "object_bytes": 1464,
+                    "input_kind": "builder",
+                    "preflight_ns": 22073,
+                    "builder_ns": 295999,
+                    "parse_ns": 0,
+                    "optimize_ns": 141670,
+                    "emit_ns": 1701362,
+                    "total_ns": 2587567
+                  }
+                ],
+                "object_cache": {
+                  "requested": false,
+                  "enabled": false,
+                  "hits": 0,
+                  "misses": 0,
+                  "corrupt": 0,
+                  "stored": 0,
+                  "write_failures": 0,
+                  "key_ns": 0,
+                  "lookup_ns": 0,
+                  "current_preflight_ns": 0,
+                  "disabled_reason": null
+                },
+                "requested_units": 1,
+                "actual_units": 1,
+                "jobs": 1,
+                "fallback": null
+              },
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "lower",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "link",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup-corrected-direct/direct-unit/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "df218e1798f999bf9d2fe938e030991a952e7672d4383a57eb19d6cea99729af",
+                  "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+                  "result_origins": [],
+                  "callable_contracts": [],
+                  "callable_returns": [],
+                  "exports": []
+                }
+              ]
+            },
+            "machine_ir_sha256": "fb3533f218d4af46ffe9c27d1b364e9632045ada992c75f46da6801a52c5b912",
+            "machine_ir_bytes": 1476,
+            "executable_sha256": "ac11fcae422ea0b27553979940a4789a004abd1c1f213116028fed79f2e80008",
+            "native": {
+              "exit": 0,
+              "stdout": "42\n",
+              "stderr": ""
+            }
+          }
+        }
+      },
+      {
+        "case": "function-pointer",
+        "source": "fn inc(x:i32)->i32=>x+1;fn result()->i32{let f:fn(i32)->i32=inc;return f(41)}",
+        "source_path": "/tmp/cp11c-review-toolchain-setup/function-pointer/main.zil",
+        "source_sha256": "88fe01b72596638cede9f83102981756a93b7dd10c979657d53f78ddb266c6e2",
+        "expected_stdout": "42\n",
+        "expected_exit": 0,
+        "arms": {
+          "baseline": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/function-pointer/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/function-pointer/baseline",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 0,
+            "compiler_stdout_sha256": "f18e82edb8b7f276badcf2942899e620ae1488b801737b40e557c937bbcc2668",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "Success",
+              "phase": "link",
+              "diagnostics": [],
+              "artifacts": {
+                "executable": "/tmp/cp11c-review-toolchain-setup/function-pointer/baseline",
+                "llvm": "/tmp/cp11c-review-toolchain-setup/function-pointer/baseline.ll"
+              },
+              "input_fingerprint": "adb50c5921fe9e6173bc1dbc5a7b2f9163c7c12570bb101b3e0d302f79a03565",
+              "seconds": 0.045797046,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [
+                [
+                  "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+                  "--target=x86_64-unknown-linux-gnu",
+                  "-O0",
+                  "/tmp/cp11c-review-toolchain-setup/function-pointer/.zil-driver-8-0/.zil-build-8-0/unit-0.o",
+                  "-o",
+                  "/tmp/cp11c-review-toolchain-setup/function-pointer/.zil-driver-8-0/.zil-build-8-0/program",
+                  "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+                ]
+              ],
+              "native_codegen": {
+                "backend": "llvm-api",
+                "object_reports": [
+                  {
+                    "backend": "llvm-api",
+                    "llvm_version": "23.1.4",
+                    "triple": "x86_64-unknown-linux-gnu",
+                    "cpu": "x86-64",
+                    "features": "",
+                    "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                    "pipeline": "default<O0>",
+                    "relocation": "PIC",
+                    "code_model": "default",
+                    "verify_before_after": true,
+                    "object_bytes": 1336,
+                    "input_kind": "builder",
+                    "preflight_ns": 22764,
+                    "builder_ns": 1024176,
+                    "parse_ns": 0,
+                    "optimize_ns": 153136,
+                    "emit_ns": 1397247,
+                    "total_ns": 3007691
+                  }
+                ],
+                "object_cache": {
+                  "requested": false,
+                  "enabled": false,
+                  "hits": 0,
+                  "misses": 0,
+                  "corrupt": 0,
+                  "stored": 0,
+                  "write_failures": 0,
+                  "key_ns": 0,
+                  "lookup_ns": 0,
+                  "current_preflight_ns": 0,
+                  "disabled_reason": null
+                },
+                "requested_units": 1,
+                "actual_units": 1,
+                "jobs": 1,
+                "fallback": null
+              },
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "lower",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "link",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/function-pointer/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "88fe01b72596638cede9f83102981756a93b7dd10c979657d53f78ddb266c6e2",
+                  "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+                  "result_origins": [],
+                  "callable_contracts": [],
+                  "callable_returns": [],
+                  "exports": []
+                }
+              ]
+            },
+            "machine_ir_sha256": "46f307e0466c5af8466cceb6501ee71e89d8022e7a979e3dd8900a898254e48f",
+            "machine_ir_bytes": 1382,
+            "executable_sha256": "47683e68886fc1c663da17d31a11ba6305952931913b8f583ac887afc7c6cb04",
+            "native": {
+              "exit": 0,
+              "stdout": "42\n",
+              "stderr": ""
+            }
+          },
+          "candidate": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/cp11c-4b2beb13",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/function-pointer/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/function-pointer/candidate",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 0,
+            "compiler_stdout_sha256": "99b6ec771764f204b5fb48cc6b17372f9922f98b83c7655a60bf20f80c49ae50",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "Success",
+              "phase": "link",
+              "diagnostics": [],
+              "artifacts": {
+                "executable": "/tmp/cp11c-review-toolchain-setup/function-pointer/candidate",
+                "llvm": "/tmp/cp11c-review-toolchain-setup/function-pointer/candidate.ll"
+              },
+              "input_fingerprint": "adb50c5921fe9e6173bc1dbc5a7b2f9163c7c12570bb101b3e0d302f79a03565",
+              "seconds": 0.045983236,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [
+                [
+                  "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+                  "--target=x86_64-unknown-linux-gnu",
+                  "-O0",
+                  "/tmp/cp11c-review-toolchain-setup/function-pointer/.zil-driver-22-0/.zil-build-22-0/unit-0.o",
+                  "-o",
+                  "/tmp/cp11c-review-toolchain-setup/function-pointer/.zil-driver-22-0/.zil-build-22-0/program",
+                  "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+                ]
+              ],
+              "native_codegen": {
+                "backend": "llvm-api",
+                "object_reports": [
+                  {
+                    "backend": "llvm-api",
+                    "llvm_version": "23.1.4",
+                    "triple": "x86_64-unknown-linux-gnu",
+                    "cpu": "x86-64",
+                    "features": "",
+                    "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                    "pipeline": "default<O0>",
+                    "relocation": "PIC",
+                    "code_model": "default",
+                    "verify_before_after": true,
+                    "object_bytes": 1336,
+                    "input_kind": "builder",
+                    "preflight_ns": 28893,
+                    "builder_ns": 245684,
+                    "parse_ns": 0,
+                    "optimize_ns": 177933,
+                    "emit_ns": 1795036,
+                    "total_ns": 2962835
+                  }
+                ],
+                "object_cache": {
+                  "requested": false,
+                  "enabled": false,
+                  "hits": 0,
+                  "misses": 0,
+                  "corrupt": 0,
+                  "stored": 0,
+                  "write_failures": 0,
+                  "key_ns": 0,
+                  "lookup_ns": 0,
+                  "current_preflight_ns": 0,
+                  "disabled_reason": null
+                },
+                "requested_units": 1,
+                "actual_units": 1,
+                "jobs": 1,
+                "fallback": null
+              },
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "lower",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "link",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/function-pointer/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "88fe01b72596638cede9f83102981756a93b7dd10c979657d53f78ddb266c6e2",
+                  "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+                  "result_origins": [],
+                  "callable_contracts": [],
+                  "callable_returns": [],
+                  "exports": []
+                }
+              ]
+            },
+            "machine_ir_sha256": "46f307e0466c5af8466cceb6501ee71e89d8022e7a979e3dd8900a898254e48f",
+            "machine_ir_bytes": 1382,
+            "executable_sha256": "47683e68886fc1c663da17d31a11ba6305952931913b8f583ac887afc7c6cb04",
+            "native": {
+              "exit": 0,
+              "stdout": "42\n",
+              "stderr": ""
+            }
+          }
+        }
+      },
+      {
+        "case": "copy-environment",
+        "source": "fn calculate(base:i64)->i64{let f=move(delta)=>base+delta;return f(1)+f(2)}fn result()->i64{return calculate(40)+calculate(100)}",
+        "source_path": "/tmp/cp11c-review-toolchain-setup/copy-environment/main.zil",
+        "source_sha256": "fbaa74e47211427f90136c95acafac63aba3e01bdd6deed0d311e710b4318402",
+        "expected_stdout": "286\n",
+        "expected_exit": 0,
+        "arms": {
+          "baseline": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/copy-environment/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/copy-environment/baseline",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 0,
+            "compiler_stdout_sha256": "c4250cf837a9549d4795061f90d4720f44481c130c27916cd74f8c0c6808432c",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "Success",
+              "phase": "link",
+              "diagnostics": [],
+              "artifacts": {
+                "executable": "/tmp/cp11c-review-toolchain-setup/copy-environment/baseline",
+                "llvm": "/tmp/cp11c-review-toolchain-setup/copy-environment/baseline.ll"
+              },
+              "input_fingerprint": "f9d42a96dd85cab3bc13d303684b2b3658c8a474de698ac4fa39680b3d9827cb",
+              "seconds": 0.029577269,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [
+                [
+                  "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+                  "--target=x86_64-unknown-linux-gnu",
+                  "-O0",
+                  "/tmp/cp11c-review-toolchain-setup/copy-environment/.zil-driver-36-0/.zil-build-36-0/unit-0.o",
+                  "-o",
+                  "/tmp/cp11c-review-toolchain-setup/copy-environment/.zil-driver-36-0/.zil-build-36-0/program",
+                  "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+                ]
+              ],
+              "native_codegen": {
+                "backend": "llvm-api",
+                "object_reports": [
+                  {
+                    "backend": "llvm-api",
+                    "llvm_version": "23.1.4",
+                    "triple": "x86_64-unknown-linux-gnu",
+                    "cpu": "x86-64",
+                    "features": "",
+                    "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                    "pipeline": "default<O0>",
+                    "relocation": "PIC",
+                    "code_model": "default",
+                    "verify_before_after": true,
+                    "object_bytes": 1744,
+                    "input_kind": "builder",
+                    "preflight_ns": 33078,
+                    "builder_ns": 163142,
+                    "parse_ns": 0,
+                    "optimize_ns": 142130,
+                    "emit_ns": 2318862,
+                    "total_ns": 3335967
+                  }
+                ],
+                "object_cache": {
+                  "requested": false,
+                  "enabled": false,
+                  "hits": 0,
+                  "misses": 0,
+                  "corrupt": 0,
+                  "stored": 0,
+                  "write_failures": 0,
+                  "key_ns": 0,
+                  "lookup_ns": 0,
+                  "current_preflight_ns": 0,
+                  "disabled_reason": null
+                },
+                "requested_units": 1,
+                "actual_units": 1,
+                "jobs": 1,
+                "fallback": null
+              },
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "lower",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "link",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/copy-environment/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "fbaa74e47211427f90136c95acafac63aba3e01bdd6deed0d311e710b4318402",
+                  "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+                  "result_origins": [],
+                  "callable_contracts": [],
+                  "callable_returns": [],
+                  "exports": []
+                }
+              ]
+            },
+            "machine_ir_sha256": "7016cb5ed87758770c1e2fdebfcf44b4d3d184ea89b9fef43908d7a7653079af",
+            "machine_ir_bytes": 2607,
+            "executable_sha256": "c92e1e2055cc226ade974ece3bc20686aad220063bbf74bd1ec9967318ee5a19",
+            "native": {
+              "exit": 0,
+              "stdout": "286\n",
+              "stderr": ""
+            }
+          },
+          "candidate": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/cp11c-4b2beb13",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/copy-environment/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/copy-environment/candidate",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 0,
+            "compiler_stdout_sha256": "e453b3ab0478d8c0164428577374662a46dfab29e391289a22f0770ee4deaba3",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "Success",
+              "phase": "link",
+              "diagnostics": [],
+              "artifacts": {
+                "executable": "/tmp/cp11c-review-toolchain-setup/copy-environment/candidate",
+                "llvm": "/tmp/cp11c-review-toolchain-setup/copy-environment/candidate.ll"
+              },
+              "input_fingerprint": "f9d42a96dd85cab3bc13d303684b2b3658c8a474de698ac4fa39680b3d9827cb",
+              "seconds": 0.025387949,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [
+                [
+                  "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+                  "--target=x86_64-unknown-linux-gnu",
+                  "-O0",
+                  "/tmp/cp11c-review-toolchain-setup/copy-environment/.zil-driver-50-0/.zil-build-50-0/unit-0.o",
+                  "-o",
+                  "/tmp/cp11c-review-toolchain-setup/copy-environment/.zil-driver-50-0/.zil-build-50-0/program",
+                  "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+                ]
+              ],
+              "native_codegen": {
+                "backend": "llvm-api",
+                "object_reports": [
+                  {
+                    "backend": "llvm-api",
+                    "llvm_version": "23.1.4",
+                    "triple": "x86_64-unknown-linux-gnu",
+                    "cpu": "x86-64",
+                    "features": "",
+                    "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                    "pipeline": "default<O0>",
+                    "relocation": "PIC",
+                    "code_model": "default",
+                    "verify_before_after": true,
+                    "object_bytes": 1744,
+                    "input_kind": "builder",
+                    "preflight_ns": 33319,
+                    "builder_ns": 152466,
+                    "parse_ns": 0,
+                    "optimize_ns": 148810,
+                    "emit_ns": 2048231,
+                    "total_ns": 2843528
+                  }
+                ],
+                "object_cache": {
+                  "requested": false,
+                  "enabled": false,
+                  "hits": 0,
+                  "misses": 0,
+                  "corrupt": 0,
+                  "stored": 0,
+                  "write_failures": 0,
+                  "key_ns": 0,
+                  "lookup_ns": 0,
+                  "current_preflight_ns": 0,
+                  "disabled_reason": null
+                },
+                "requested_units": 1,
+                "actual_units": 1,
+                "jobs": 1,
+                "fallback": null
+              },
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "lower",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "link",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/copy-environment/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "fbaa74e47211427f90136c95acafac63aba3e01bdd6deed0d311e710b4318402",
+                  "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+                  "result_origins": [],
+                  "callable_contracts": [],
+                  "callable_returns": [],
+                  "exports": []
+                }
+              ]
+            },
+            "machine_ir_sha256": "7016cb5ed87758770c1e2fdebfcf44b4d3d184ea89b9fef43908d7a7653079af",
+            "machine_ir_bytes": 2607,
+            "executable_sha256": "c92e1e2055cc226ade974ece3bc20686aad220063bbf74bd1ec9967318ee5a19",
+            "native": {
+              "exit": 0,
+              "stdout": "286\n",
+              "stderr": ""
+            }
+          }
+        }
+      },
+      {
+        "case": "borrowed-mut-environment",
+        "source": "fn result()->i32{var x=1;var f=()=>{x=2;return x;};let n=f();return n+x;}",
+        "source_path": "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/main.zil",
+        "source_sha256": "c7ab19564269e68c99ac4833715861a146f80f09cd05cf6a4078be30e8a39dc9",
+        "expected_stdout": "4\n",
+        "expected_exit": 0,
+        "arms": {
+          "baseline": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/baseline",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 0,
+            "compiler_stdout_sha256": "4509a2238ec26c4af34c5b3f826db357800ac75413ac11a012b22b0a9ae26edb",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "Success",
+              "phase": "link",
+              "diagnostics": [],
+              "artifacts": {
+                "executable": "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/baseline",
+                "llvm": "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/baseline.ll"
+              },
+              "input_fingerprint": "8353ec1bbb8863121f3df65f7f9fa360d887d1aef30bb3e082865acba60194c7",
+              "seconds": 0.041745401,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [
+                [
+                  "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+                  "--target=x86_64-unknown-linux-gnu",
+                  "-O0",
+                  "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/.zil-driver-64-0/.zil-build-64-0/unit-0.o",
+                  "-o",
+                  "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/.zil-driver-64-0/.zil-build-64-0/program",
+                  "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+                ]
+              ],
+              "native_codegen": {
+                "backend": "llvm-api",
+                "object_reports": [
+                  {
+                    "backend": "llvm-api",
+                    "llvm_version": "23.1.4",
+                    "triple": "x86_64-unknown-linux-gnu",
+                    "cpu": "x86-64",
+                    "features": "",
+                    "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                    "pipeline": "default<O0>",
+                    "relocation": "PIC",
+                    "code_model": "default",
+                    "verify_before_after": true,
+                    "object_bytes": 1488,
+                    "input_kind": "builder",
+                    "preflight_ns": 683897,
+                    "builder_ns": 286484,
+                    "parse_ns": 0,
+                    "optimize_ns": 198153,
+                    "emit_ns": 1874534,
+                    "total_ns": 3504631
+                  }
+                ],
+                "object_cache": {
+                  "requested": false,
+                  "enabled": false,
+                  "hits": 0,
+                  "misses": 0,
+                  "corrupt": 0,
+                  "stored": 0,
+                  "write_failures": 0,
+                  "key_ns": 0,
+                  "lookup_ns": 0,
+                  "current_preflight_ns": 0,
+                  "disabled_reason": null
+                },
+                "requested_units": 1,
+                "actual_units": 1,
+                "jobs": 1,
+                "fallback": null
+              },
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "lower",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "link",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "c7ab19564269e68c99ac4833715861a146f80f09cd05cf6a4078be30e8a39dc9",
+                  "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+                  "result_origins": [],
+                  "callable_contracts": [],
+                  "callable_returns": [],
+                  "exports": []
+                }
+              ]
+            },
+            "machine_ir_sha256": "c8b09da9d24826c2f442ed2685bccc089731ddbd85529f2c7c4d5a089db28802",
+            "machine_ir_bytes": 2068,
+            "executable_sha256": "a5b3f25e46e746ce0fb8f3c3597787affb24bf647b942c12a23323d0c9f86aaa",
+            "native": {
+              "exit": 0,
+              "stdout": "4\n",
+              "stderr": ""
+            }
+          },
+          "candidate": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/cp11c-4b2beb13",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/candidate",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 0,
+            "compiler_stdout_sha256": "755caa1499e060337175ce54c6f46504d4e91f750928f925e7aaa52c41f82a47",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "Success",
+              "phase": "link",
+              "diagnostics": [],
+              "artifacts": {
+                "executable": "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/candidate",
+                "llvm": "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/candidate.ll"
+              },
+              "input_fingerprint": "8353ec1bbb8863121f3df65f7f9fa360d887d1aef30bb3e082865acba60194c7",
+              "seconds": 0.023900739,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [
+                [
+                  "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+                  "--target=x86_64-unknown-linux-gnu",
+                  "-O0",
+                  "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/.zil-driver-78-0/.zil-build-78-0/unit-0.o",
+                  "-o",
+                  "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/.zil-driver-78-0/.zil-build-78-0/program",
+                  "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+                ]
+              ],
+              "native_codegen": {
+                "backend": "llvm-api",
+                "object_reports": [
+                  {
+                    "backend": "llvm-api",
+                    "llvm_version": "23.1.4",
+                    "triple": "x86_64-unknown-linux-gnu",
+                    "cpu": "x86-64",
+                    "features": "",
+                    "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                    "pipeline": "default<O0>",
+                    "relocation": "PIC",
+                    "code_model": "default",
+                    "verify_before_after": true,
+                    "object_bytes": 1488,
+                    "input_kind": "builder",
+                    "preflight_ns": 27691,
+                    "builder_ns": 151525,
+                    "parse_ns": 0,
+                    "optimize_ns": 134069,
+                    "emit_ns": 1473626,
+                    "total_ns": 2151651
+                  }
+                ],
+                "object_cache": {
+                  "requested": false,
+                  "enabled": false,
+                  "hits": 0,
+                  "misses": 0,
+                  "corrupt": 0,
+                  "stored": 0,
+                  "write_failures": 0,
+                  "key_ns": 0,
+                  "lookup_ns": 0,
+                  "current_preflight_ns": 0,
+                  "disabled_reason": null
+                },
+                "requested_units": 1,
+                "actual_units": 1,
+                "jobs": 1,
+                "fallback": null
+              },
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "lower",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "link",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/borrowed-mut-environment/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "c7ab19564269e68c99ac4833715861a146f80f09cd05cf6a4078be30e8a39dc9",
+                  "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+                  "result_origins": [],
+                  "callable_contracts": [],
+                  "callable_returns": [],
+                  "exports": []
+                }
+              ]
+            },
+            "machine_ir_sha256": "c8b09da9d24826c2f442ed2685bccc089731ddbd85529f2c7c4d5a089db28802",
+            "machine_ir_bytes": 2068,
+            "executable_sha256": "a5b3f25e46e746ce0fb8f3c3597787affb24bf647b942c12a23323d0c9f86aaa",
+            "native": {
+              "exit": 0,
+              "stdout": "4\n",
+              "stderr": ""
+            }
+          }
+        }
+      },
+      {
+        "case": "unit-closure",
+        "source": "fn unit(){}fn result()->i64{let blank=unit();let f=move(x)=>{blank;return x;};let run=()=>{};run();return f(42);}",
+        "source_path": "/tmp/cp11c-review-toolchain-setup/unit-closure/main.zil",
+        "source_sha256": "20afb3f3ecac0e6a0624a975d4520fb71ca00abf3ac568aa3a1e50cb9578d037",
+        "expected_stdout": "42\n",
+        "expected_exit": 0,
+        "arms": {
+          "baseline": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/unit-closure/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/unit-closure/baseline",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 0,
+            "compiler_stdout_sha256": "97cd5e653a48e1b9eef6dc01af179f40f606412b0990933287e33c9fee6e3b74",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "Success",
+              "phase": "link",
+              "diagnostics": [],
+              "artifacts": {
+                "executable": "/tmp/cp11c-review-toolchain-setup/unit-closure/baseline",
+                "llvm": "/tmp/cp11c-review-toolchain-setup/unit-closure/baseline.ll"
+              },
+              "input_fingerprint": "3fc449413f44c15300dd63a92972b37513081f6ae29c82ca034df8e035048d5a",
+              "seconds": 0.034720429,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [
+                [
+                  "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+                  "--target=x86_64-unknown-linux-gnu",
+                  "-O0",
+                  "/tmp/cp11c-review-toolchain-setup/unit-closure/.zil-driver-92-0/.zil-build-92-0/unit-0.o",
+                  "-o",
+                  "/tmp/cp11c-review-toolchain-setup/unit-closure/.zil-driver-92-0/.zil-build-92-0/program",
+                  "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+                ]
+              ],
+              "native_codegen": {
+                "backend": "llvm-api",
+                "object_reports": [
+                  {
+                    "backend": "llvm-api",
+                    "llvm_version": "23.1.4",
+                    "triple": "x86_64-unknown-linux-gnu",
+                    "cpu": "x86-64",
+                    "features": "",
+                    "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                    "pipeline": "default<O0>",
+                    "relocation": "PIC",
+                    "code_model": "default",
+                    "verify_before_after": true,
+                    "object_bytes": 1728,
+                    "input_kind": "builder",
+                    "preflight_ns": 31006,
+                    "builder_ns": 149461,
+                    "parse_ns": 0,
+                    "optimize_ns": 230241,
+                    "emit_ns": 1943502,
+                    "total_ns": 2842826
+                  }
+                ],
+                "object_cache": {
+                  "requested": false,
+                  "enabled": false,
+                  "hits": 0,
+                  "misses": 0,
+                  "corrupt": 0,
+                  "stored": 0,
+                  "write_failures": 0,
+                  "key_ns": 0,
+                  "lookup_ns": 0,
+                  "current_preflight_ns": 0,
+                  "disabled_reason": null
+                },
+                "requested_units": 1,
+                "actual_units": 1,
+                "jobs": 1,
+                "fallback": null
+              },
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "lower",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "link",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/unit-closure/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "20afb3f3ecac0e6a0624a975d4520fb71ca00abf3ac568aa3a1e50cb9578d037",
+                  "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+                  "result_origins": [],
+                  "callable_contracts": [],
+                  "callable_returns": [],
+                  "exports": []
+                }
+              ]
+            },
+            "machine_ir_sha256": "ae868a8a347962453d99b6a545231fe1bcf9b83e542c28aa609ae31b09e46c78",
+            "machine_ir_bytes": 1798,
+            "executable_sha256": "5330a636312be5d928ab4e1b153bc5149f4e2bcb995ac40327f95c01d5b30601",
+            "native": {
+              "exit": 0,
+              "stdout": "42\n",
+              "stderr": ""
+            }
+          },
+          "candidate": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/cp11c-4b2beb13",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/unit-closure/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/unit-closure/candidate",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 0,
+            "compiler_stdout_sha256": "fd555855b545aa14168a3665cd0d8979af610f2bb898784e358e24e9f0b8a50c",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "Success",
+              "phase": "link",
+              "diagnostics": [],
+              "artifacts": {
+                "executable": "/tmp/cp11c-review-toolchain-setup/unit-closure/candidate",
+                "llvm": "/tmp/cp11c-review-toolchain-setup/unit-closure/candidate.ll"
+              },
+              "input_fingerprint": "3fc449413f44c15300dd63a92972b37513081f6ae29c82ca034df8e035048d5a",
+              "seconds": 0.035125131,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [
+                [
+                  "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+                  "--target=x86_64-unknown-linux-gnu",
+                  "-O0",
+                  "/tmp/cp11c-review-toolchain-setup/unit-closure/.zil-driver-106-0/.zil-build-106-0/unit-0.o",
+                  "-o",
+                  "/tmp/cp11c-review-toolchain-setup/unit-closure/.zil-driver-106-0/.zil-build-106-0/program",
+                  "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+                ]
+              ],
+              "native_codegen": {
+                "backend": "llvm-api",
+                "object_reports": [
+                  {
+                    "backend": "llvm-api",
+                    "llvm_version": "23.1.4",
+                    "triple": "x86_64-unknown-linux-gnu",
+                    "cpu": "x86-64",
+                    "features": "",
+                    "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                    "pipeline": "default<O0>",
+                    "relocation": "PIC",
+                    "code_model": "default",
+                    "verify_before_after": true,
+                    "object_bytes": 1728,
+                    "input_kind": "builder",
+                    "preflight_ns": 27791,
+                    "builder_ns": 160778,
+                    "parse_ns": 0,
+                    "optimize_ns": 152536,
+                    "emit_ns": 2337666,
+                    "total_ns": 3196180
+                  }
+                ],
+                "object_cache": {
+                  "requested": false,
+                  "enabled": false,
+                  "hits": 0,
+                  "misses": 0,
+                  "corrupt": 0,
+                  "stored": 0,
+                  "write_failures": 0,
+                  "key_ns": 0,
+                  "lookup_ns": 0,
+                  "current_preflight_ns": 0,
+                  "disabled_reason": null
+                },
+                "requested_units": 1,
+                "actual_units": 1,
+                "jobs": 1,
+                "fallback": null
+              },
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "lower",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "link",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/unit-closure/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "20afb3f3ecac0e6a0624a975d4520fb71ca00abf3ac568aa3a1e50cb9578d037",
+                  "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+                  "result_origins": [],
+                  "callable_contracts": [],
+                  "callable_returns": [],
+                  "exports": []
+                }
+              ]
+            },
+            "machine_ir_sha256": "ae868a8a347962453d99b6a545231fe1bcf9b83e542c28aa609ae31b09e46c78",
+            "machine_ir_bytes": 1798,
+            "executable_sha256": "5330a636312be5d928ab4e1b153bc5149f4e2bcb995ac40327f95c01d5b30601",
+            "native": {
+              "exit": 0,
+              "stdout": "42\n",
+              "stderr": ""
+            }
+          }
+        }
+      },
+      {
+        "case": "owned-once-cleanup",
+        "source": "extern \"C\" fn putchar(x:i32)->i32;\nresource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}\npackage State<F>{manages ticket:R;callback:F}\nfn pack<F:FnOnce()->i32>(callback:F)->State<F>{return State::<F>{ticket:R{code:84},callback:callback}}\nfn make(n:i32)->impl FnOnce()->i32{let r=R{code:n};return move()=>{let value=give r;return value.code}}\nfn main()->i32{let state=pack(make(65));let once=state.callback;return once()-65}\n",
+        "source_path": "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/main.zil",
+        "source_sha256": "28a39c8850744cdcd9503b5ecb0a7cabb9f0b5c166ae8662fb48bc97f17b8ce0",
+        "expected_stdout": "AT",
+        "expected_exit": 0,
+        "arms": {
+          "baseline": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/baseline",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1"
+            ],
+            "compiler_exit": 0,
+            "compiler_stdout_sha256": "8e528fc56d452201129cbfabd72be0c4bb38dbd09149da910606cc1d09f4a245",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "Success",
+              "phase": "link",
+              "diagnostics": [],
+              "artifacts": {
+                "executable": "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/baseline",
+                "llvm": "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/baseline.ll"
+              },
+              "input_fingerprint": "0c55e3340d617b3f4b3d667b8e2dbcf03b0383bb0770b5f6e1bf34fcc837aa44",
+              "seconds": 0.031928896,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [
+                [
+                  "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+                  "--target=x86_64-unknown-linux-gnu",
+                  "-O0",
+                  "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/.zil-driver-120-0/.zil-build-120-0/unit-0.o",
+                  "-o",
+                  "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/.zil-driver-120-0/.zil-build-120-0/program",
+                  "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+                ]
+              ],
+              "native_codegen": {
+                "backend": "llvm-api",
+                "object_reports": [
+                  {
+                    "backend": "llvm-api",
+                    "llvm_version": "23.1.4",
+                    "triple": "x86_64-unknown-linux-gnu",
+                    "cpu": "x86-64",
+                    "features": "",
+                    "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                    "pipeline": "default<O0>",
+                    "relocation": "PIC",
+                    "code_model": "default",
+                    "verify_before_after": true,
+                    "object_bytes": 2752,
+                    "input_kind": "builder",
+                    "preflight_ns": 86639,
+                    "builder_ns": 387846,
+                    "parse_ns": 0,
+                    "optimize_ns": 164063,
+                    "emit_ns": 2777219,
+                    "total_ns": 3888707
+                  }
+                ],
+                "object_cache": {
+                  "requested": false,
+                  "enabled": false,
+                  "hits": 0,
+                  "misses": 0,
+                  "corrupt": 0,
+                  "stored": 0,
+                  "write_failures": 0,
+                  "key_ns": 0,
+                  "lookup_ns": 0,
+                  "current_preflight_ns": 0,
+                  "disabled_reason": null
+                },
+                "requested_units": 1,
+                "actual_units": 1,
+                "jobs": 1,
+                "fallback": null
+              },
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "lower",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "link",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "28a39c8850744cdcd9503b5ecb0a7cabb9f0b5c166ae8662fb48bc97f17b8ce0",
+                  "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+                  "result_origins": [],
+                  "callable_contracts": [],
+                  "callable_returns": [],
+                  "exports": []
+                }
+              ]
+            },
+            "machine_ir_sha256": "75cf406338bf1acfe179c2f3606c7a3f41f69873f8a6c97ade68b9501c50c50e",
+            "machine_ir_bytes": 12062,
+            "executable_sha256": "c02e554347f9858b963f00da3502b3ff5aeafd643f90601c3e95e9e21cadd863",
+            "native": {
+              "exit": 0,
+              "stdout": "AT",
+              "stderr": ""
+            }
+          },
+          "candidate": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/cp11c-4b2beb13",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/candidate",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1"
+            ],
+            "compiler_exit": 0,
+            "compiler_stdout_sha256": "0a2f5d0b0e007ddca1ee38a6264c2d8025ff1085ad57bbaa13d45fb26c379480",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "Success",
+              "phase": "link",
+              "diagnostics": [],
+              "artifacts": {
+                "executable": "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/candidate",
+                "llvm": "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/candidate.ll"
+              },
+              "input_fingerprint": "0c55e3340d617b3f4b3d667b8e2dbcf03b0383bb0770b5f6e1bf34fcc837aa44",
+              "seconds": 0.028244513,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [
+                [
+                  "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+                  "--target=x86_64-unknown-linux-gnu",
+                  "-O0",
+                  "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/.zil-driver-134-0/.zil-build-134-0/unit-0.o",
+                  "-o",
+                  "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/.zil-driver-134-0/.zil-build-134-0/program",
+                  "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+                ]
+              ],
+              "native_codegen": {
+                "backend": "llvm-api",
+                "object_reports": [
+                  {
+                    "backend": "llvm-api",
+                    "llvm_version": "23.1.4",
+                    "triple": "x86_64-unknown-linux-gnu",
+                    "cpu": "x86-64",
+                    "features": "",
+                    "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                    "pipeline": "default<O0>",
+                    "relocation": "PIC",
+                    "code_model": "default",
+                    "verify_before_after": true,
+                    "object_bytes": 2752,
+                    "input_kind": "builder",
+                    "preflight_ns": 87330,
+                    "builder_ns": 285183,
+                    "parse_ns": 0,
+                    "optimize_ns": 176913,
+                    "emit_ns": 3807085,
+                    "total_ns": 4849982
+                  }
+                ],
+                "object_cache": {
+                  "requested": false,
+                  "enabled": false,
+                  "hits": 0,
+                  "misses": 0,
+                  "corrupt": 0,
+                  "stored": 0,
+                  "write_failures": 0,
+                  "key_ns": 0,
+                  "lookup_ns": 0,
+                  "current_preflight_ns": 0,
+                  "disabled_reason": null
+                },
+                "requested_units": 1,
+                "actual_units": 1,
+                "jobs": 1,
+                "fallback": null
+              },
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "lower",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "link",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/owned-once-cleanup/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "28a39c8850744cdcd9503b5ecb0a7cabb9f0b5c166ae8662fb48bc97f17b8ce0",
+                  "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+                  "result_origins": [],
+                  "callable_contracts": [],
+                  "callable_returns": [],
+                  "exports": []
+                }
+              ]
+            },
+            "machine_ir_sha256": "75cf406338bf1acfe179c2f3606c7a3f41f69873f8a6c97ade68b9501c50c50e",
+            "machine_ir_bytes": 12062,
+            "executable_sha256": "c02e554347f9858b963f00da3502b3ff5aeafd643f90601c3e95e9e21cadd863",
+            "native": {
+              "exit": 0,
+              "stdout": "AT",
+              "stderr": ""
+            }
+          }
+        }
+      },
+      {
+        "case": "reject-arity",
+        "source": "fn add(x:i64,y:i64)->i64=>x+y;fn result()->i64=>add(42)",
+        "source_path": "/tmp/cp11c-review-toolchain-setup/reject-arity/main.zil",
+        "source_sha256": "f4ffd98cb9d0a782bfbc17497654e60c8251232d75f3fe113e358d84eb3e1618",
+        "expected_stdout": null,
+        "expected_exit": null,
+        "arms": {
+          "baseline": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/reject-arity/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/reject-arity/baseline",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 1,
+            "compiler_stdout_sha256": "23e26c4fd68f1febdd54651f14ba73db53c7cc747d5f075dd0b0f6fee42ff917",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "SafeReject",
+              "phase": "types",
+              "diagnostics": [
+                {
+                  "phase": "types",
+                  "category": "SafeReject",
+                  "code": "E-CALL-ARITY",
+                  "message": "2 arguments required, 1 supplied",
+                  "span": {
+                    "file": 0,
+                    "start": 48,
+                    "end": 55
+                  },
+                  "notes": []
+                }
+              ],
+              "artifacts": {},
+              "input_fingerprint": "12561a8001c5b74313e2d74a2151ea68367c7529a6c55629e9785e9f08aab9b0",
+              "seconds": 0.00049275,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [],
+              "native_codegen": null,
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 0,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/reject-arity/main.zil"
+              },
+              "scalar_interfaces": []
+            },
+            "previous_executable_preserved": true,
+            "previous_machine_sidecar_preserved": true
+          },
+          "candidate": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/cp11c-4b2beb13",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/reject-arity/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/reject-arity/candidate",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 1,
+            "compiler_stdout_sha256": "24fe3a4c3bf04f0c6d20b28dcd7a10df48acb88f055782242538212c022b7b5d",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "SafeReject",
+              "phase": "types",
+              "diagnostics": [
+                {
+                  "phase": "types",
+                  "category": "SafeReject",
+                  "code": "E-CALL-ARITY",
+                  "message": "2 arguments required, 1 supplied",
+                  "span": {
+                    "file": 0,
+                    "start": 48,
+                    "end": 55
+                  },
+                  "notes": []
+                }
+              ],
+              "artifacts": {},
+              "input_fingerprint": "12561a8001c5b74313e2d74a2151ea68367c7529a6c55629e9785e9f08aab9b0",
+              "seconds": 0.000443417,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [],
+              "native_codegen": null,
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 0,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/reject-arity/main.zil"
+              },
+              "scalar_interfaces": []
+            },
+            "previous_executable_preserved": true,
+            "previous_machine_sidecar_preserved": true
+          }
+        }
+      },
+      {
+        "case": "reject-live-borrow-write",
+        "source": "fn result()->i32{var x=1;let f=()=>x;x=2;return f();}",
+        "source_path": "/tmp/cp11c-review-toolchain-setup/reject-live-borrow-write/main.zil",
+        "source_sha256": "42dc515ca9418477f137f8de1cd4dd3474fb3e361299bff5e54dbb3d32652b78",
+        "expected_stdout": null,
+        "expected_exit": null,
+        "arms": {
+          "baseline": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/reject-live-borrow-write/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/reject-live-borrow-write/baseline",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 1,
+            "compiler_stdout_sha256": "84f23d8d5644230f9244555d58456bd4cfac52957deb4a745771afe1bdc48567",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "SafeReject",
+              "phase": "verify",
+              "diagnostics": [
+                {
+                  "phase": "verify",
+                  "category": "SafeReject",
+                  "code": "E-BORROW-CONFLICT",
+                  "message": "write or storage change overlaps a shared address still required by a later use",
+                  "span": {
+                    "file": 0,
+                    "start": 37,
+                    "end": 41
+                  },
+                  "notes": []
+                }
+              ],
+              "artifacts": {},
+              "input_fingerprint": "1748f288cbbd643047a4d4bd4c2f0adf9643c8b2310ffdfc496fa1d179669ec9",
+              "seconds": 0.000888427,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [],
+              "native_codegen": null,
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/reject-live-borrow-write/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "42dc515ca9418477f137f8de1cd4dd3474fb3e361299bff5e54dbb3d32652b78",
+                  "contract_fingerprint": null,
+                  "result_origins": null,
+                  "callable_contracts": null,
+                  "callable_returns": null,
+                  "exports": []
+                }
+              ]
+            },
+            "previous_executable_preserved": true,
+            "previous_machine_sidecar_preserved": true
+          },
+          "candidate": {
+            "argv": [
+              "/workspace/scratch/ac5966c4c370/binaries/cp11c-4b2beb13",
+              "build",
+              "/tmp/cp11c-review-toolchain-setup/reject-live-borrow-write/main.zil",
+              "-o",
+              "/tmp/cp11c-review-toolchain-setup/reject-live-borrow-write/candidate",
+              "--json",
+              "--backend",
+              "llvm-api",
+              "--clang",
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--opt",
+              "O0",
+              "--codegen-units",
+              "1",
+              "--codegen-jobs",
+              "1",
+              "--entry",
+              "result"
+            ],
+            "compiler_exit": 1,
+            "compiler_stdout_sha256": "b2854e247be1c775ad00a44ceb0ee85ccacb24287f8691309e93f668db92430b",
+            "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "report": {
+              "status": "SafeReject",
+              "phase": "verify",
+              "diagnostics": [
+                {
+                  "phase": "verify",
+                  "category": "SafeReject",
+                  "code": "E-BORROW-CONFLICT",
+                  "message": "write or storage change overlaps a shared address still required by a later use",
+                  "span": {
+                    "file": 0,
+                    "start": 37,
+                    "end": 41
+                  },
+                  "notes": []
+                }
+              ],
+              "artifacts": {},
+              "input_fingerprint": "1748f288cbbd643047a4d4bd4c2f0adf9643c8b2310ffdfc496fa1d179669ec9",
+              "seconds": 0.000722891,
+              "timings": null,
+              "cache_hit": false,
+              "commands": [],
+              "native_codegen": null,
+              "disk_cache": "disabled",
+              "query_events": [
+                {
+                  "phase": "parse",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "expand",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "ct",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "types",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "analyze",
+                  "disposition": "executed"
+                },
+                {
+                  "phase": "verify",
+                  "disposition": "executed"
+                }
+              ],
+              "verification_runs": 1,
+              "source_files": {
+                "0": "/tmp/cp11c-review-toolchain-setup/reject-live-borrow-write/main.zil"
+              },
+              "scalar_interfaces": [
+                {
+                  "module": 0,
+                  "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+                  "implementation_fingerprint": "42dc515ca9418477f137f8de1cd4dd3474fb3e361299bff5e54dbb3d32652b78",
+                  "contract_fingerprint": null,
+                  "result_origins": null,
+                  "callable_contracts": null,
+                  "callable_returns": null,
+                  "exports": []
+                }
+              ]
+            },
+            "previous_executable_preserved": true,
+            "previous_machine_sidecar_preserved": true
+          }
+        }
+      }
+    ],
+    "equal_machine_text": {
+      "direct-unit": "; ZIL verified LLVM module\n; verified-fingerprint: 9abe9c3f9e6741010120524e5acfc4d38794f046dd90bc95b810a9d996959f4f\ntarget triple = \"x86_64-unknown-linux-gnu\"\n\ndeclare void @llvm.trap()\ndeclare { i64, i1 } @llvm.sadd.with.overflow.i64(i64, i64)\n@zil.return.format = private unnamed_addr constant [6 x i8] c\"%lld\\0A\\00\"\ndeclare i32 @printf(ptr, ...)\ndefine void @zil.fn.0() {\nentry:\n  br label %bb.0\nbb.0:\n  ret void\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i64 @zil.fn.1(i64 %arg.0, i64 %arg.1) {\nentry:\n  %local.0 = alloca i64, align 8\n  %local.1 = alloca i64, align 8\n  store i64 %arg.0, ptr %local.0, align 8\n  store i64 %arg.1, ptr %local.1, align 8\n  br label %bb.0\nbb.0:\n  %v.0 = load i64, ptr %local.0, align 8\n  %v.1 = load i64, ptr %local.1, align 8\n  %tmp.0 = call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 %v.0, i64 %v.1)\n  %v.2 = extractvalue { i64, i1 } %tmp.0, 0\n  %tmp.1 = extractvalue { i64, i1 } %tmp.0, 1\n  br i1 %tmp.1, label %zil.trap, label %checked.0\nchecked.0:\n  ret i64 %v.2\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i64 @zil.fn.2() {\nentry:\n  br label %bb.0\nbb.0:\n  call void @zil.fn.0()\n  %v.2 = add i64 0, 20\n  %v.3 = add i64 0, 22\n  %v.4 = call i64 @zil.fn.1(i64 %v.2, i64 %v.3)\n  ret i64 %v.4\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i32 @main() {\nentry:\n  %entry.wide = call i64 @zil.fn.2()\n  %entry.printed = call i32 (ptr, ...) @printf(ptr @zil.return.format, i64 %entry.wide)\n  ret i32 0\n}\n",
+      "function-pointer": "; ZIL verified LLVM module\n; verified-fingerprint: 3b6adaf7b8dfae54536d98e0ab0fe34c9ccb2b3c97db4d43007de0a658a815a4\ntarget triple = \"x86_64-unknown-linux-gnu\"\n\ndeclare void @llvm.trap()\ndeclare { i32, i1 } @llvm.sadd.with.overflow.i32(i32, i32)\n@zil.return.format = private unnamed_addr constant [6 x i8] c\"%lld\\0A\\00\"\ndeclare i32 @printf(ptr, ...)\ndefine i32 @zil.fn.0(i32 %arg.0) {\nentry:\n  %local.0 = alloca i32, align 4\n  store i32 %arg.0, ptr %local.0, align 4\n  br label %bb.0\nbb.0:\n  %v.0 = load i32, ptr %local.0, align 4\n  %v.1 = add i32 0, 1\n  %tmp.0 = call { i32, i1 } @llvm.sadd.with.overflow.i32(i32 %v.0, i32 %v.1)\n  %v.2 = extractvalue { i32, i1 } %tmp.0, 0\n  %tmp.1 = extractvalue { i32, i1 } %tmp.0, 1\n  br i1 %tmp.1, label %zil.trap, label %checked.0\nchecked.0:\n  ret i32 %v.2\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i32 @zil.fn.1() {\nentry:\n  %local.0 = alloca ptr, align 8\n  br label %bb.0\nbb.0:\n  %v.0 = freeze ptr @zil.fn.0\n  store ptr %v.0, ptr %local.0, align 8\n  %v.1 = load ptr, ptr %local.0, align 8\n  %v.2 = add i32 0, 41\n  %v.3 = call i32 %v.1(i32 %v.2)\n  ret i32 %v.3\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i32 @main() {\nentry:\n  %entry.result = call i32 @zil.fn.1()\n  %entry.wide = sext i32 %entry.result to i64\n  %entry.printed = call i32 (ptr, ...) @printf(ptr @zil.return.format, i64 %entry.wide)\n  ret i32 0\n}\n",
+      "copy-environment": "; ZIL verified LLVM module\n; verified-fingerprint: 26d632e3f6bee7a0bc1dad279818c246915ad68bfc18316b07d66706daffa077\ntarget triple = \"x86_64-unknown-linux-gnu\"\n\n%zil_env_0 = type { i64 }\ndefine internal void @zil.closure.drop.0(ptr %env) {\nentry:\n  ret void\n}\ndeclare void @llvm.trap()\ndeclare { i64, i1 } @llvm.sadd.with.overflow.i64(i64, i64)\n@zil.return.format = private unnamed_addr constant [6 x i8] c\"%lld\\0A\\00\"\ndeclare i32 @printf(ptr, ...)\ndefine i64 @zil.fn.0(i64 %arg.0) {\nentry:\n  %local.0 = alloca i64, align 8\n  %local.1 = alloca %zil_env_0, align 8\n  store i64 %arg.0, ptr %local.0, align 8\n  br label %bb.0\nbb.0:\n  %v.0 = load i64, ptr %local.0, align 8\n  %v.1 = insertvalue %zil_env_0 zeroinitializer, i64 %v.0, 0\n  store %zil_env_0 %v.1, ptr %local.1, align 8\n  %v.2 = load %zil_env_0, ptr %local.1, align 8\n  %v.3 = add i64 0, 1\n  %v.4 = call i64 @zil.fn.2(%zil_env_0 %v.2, i64 %v.3)\n  %v.5 = load %zil_env_0, ptr %local.1, align 8\n  %v.6 = add i64 0, 2\n  %v.7 = call i64 @zil.fn.2(%zil_env_0 %v.5, i64 %v.6)\n  %tmp.0 = call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 %v.4, i64 %v.7)\n  %v.8 = extractvalue { i64, i1 } %tmp.0, 0\n  %tmp.1 = extractvalue { i64, i1 } %tmp.0, 1\n  br i1 %tmp.1, label %zil.trap, label %checked.0\nchecked.0:\n  ret i64 %v.8\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i64 @zil.fn.1() {\nentry:\n  br label %bb.0\nbb.0:\n  %v.0 = add i64 0, 40\n  %v.1 = call i64 @zil.fn.0(i64 %v.0)\n  %v.2 = add i64 0, 100\n  %v.3 = call i64 @zil.fn.0(i64 %v.2)\n  %tmp.0 = call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 %v.1, i64 %v.3)\n  %v.4 = extractvalue { i64, i1 } %tmp.0, 0\n  %tmp.1 = extractvalue { i64, i1 } %tmp.0, 1\n  br i1 %tmp.1, label %zil.trap, label %checked.0\nchecked.0:\n  ret i64 %v.4\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i64 @zil.fn.2(%zil_env_0 %env, i64 %arg.0) {\nentry:\n  %local.0 = alloca i64, align 8\n  %local.1 = alloca i64, align 8\n  store i64 %arg.0, ptr %local.0, align 8\n  br label %bb.0\nbb.0:\n  %v.0 = extractvalue %zil_env_0 %env, 0\n  store i64 %v.0, ptr %local.1, align 8\n  %v.1 = load i64, ptr %local.1, align 8\n  %v.2 = load i64, ptr %local.0, align 8\n  %tmp.0 = call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 %v.1, i64 %v.2)\n  %v.3 = extractvalue { i64, i1 } %tmp.0, 0\n  %tmp.1 = extractvalue { i64, i1 } %tmp.0, 1\n  br i1 %tmp.1, label %zil.trap, label %checked.0\nchecked.0:\n  ret i64 %v.3\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i32 @main() {\nentry:\n  %entry.wide = call i64 @zil.fn.1()\n  %entry.printed = call i32 (ptr, ...) @printf(ptr @zil.return.format, i64 %entry.wide)\n  ret i32 0\n}\n",
+      "borrowed-mut-environment": "; ZIL verified LLVM module\n; verified-fingerprint: 0b62f2d6a49dce17beb0184e205cfa9062b049fc353e0648a130fe0616b74f6c\ntarget triple = \"x86_64-unknown-linux-gnu\"\n\n%zil_env_0 = type { ptr }\ndefine internal void @zil.closure.drop.0(ptr %env) {\nentry:\n  ret void\n}\ndeclare void @llvm.trap()\ndeclare { i32, i1 } @llvm.sadd.with.overflow.i32(i32, i32)\n@zil.return.format = private unnamed_addr constant [6 x i8] c\"%lld\\0A\\00\"\ndeclare i32 @printf(ptr, ...)\ndefine i32 @zil.fn.0() {\nentry:\n  %local.0 = alloca i32, align 4\n  %local.1 = alloca %zil_env_0, align 8\n  %local.2 = alloca i32, align 4\n  br label %bb.0\nbb.0:\n  %v.0 = add i32 0, 1\n  store i32 %v.0, ptr %local.0, align 4\n  %v.1 = getelementptr i8, ptr %local.0, i64 0\n  %v.2 = getelementptr i8, ptr %v.1, i64 0\n  %v.3 = insertvalue %zil_env_0 zeroinitializer, ptr %v.2, 0\n  store %zil_env_0 %v.3, ptr %local.1, align 8\n  %v.4 = load %zil_env_0, ptr %local.1, align 8\n  %v.5 = call i32 @zil.fn.1(ptr %local.1)\n  store i32 %v.5, ptr %local.2, align 4\n  %v.6 = load i32, ptr %local.2, align 4\n  %v.7 = load i32, ptr %local.0, align 4\n  %tmp.0 = call { i32, i1 } @llvm.sadd.with.overflow.i32(i32 %v.6, i32 %v.7)\n  %v.8 = extractvalue { i32, i1 } %tmp.0, 0\n  %tmp.1 = extractvalue { i32, i1 } %tmp.0, 1\n  br i1 %tmp.1, label %zil.trap, label %checked.0\nchecked.0:\n  ret i32 %v.8\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i32 @zil.fn.1(ptr %env) {\nentry:\n  %local.0 = alloca ptr, align 8\n  br label %bb.0\nbb.0:\n  %tmp.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 0\n  %v.0 = load ptr, ptr %tmp.0, align 8\n  store ptr %v.0, ptr %local.0, align 8\n  %v.1 = load ptr, ptr %local.0, align 8\n  %v.2 = add i32 0, 2\n  store i32 %v.2, ptr %v.1, align 4\n  %v.3 = load ptr, ptr %local.0, align 8\n  %v.4 = load i32, ptr %v.3, align 4\n  ret i32 %v.4\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i32 @main() {\nentry:\n  %entry.result = call i32 @zil.fn.0()\n  %entry.wide = sext i32 %entry.result to i64\n  %entry.printed = call i32 (ptr, ...) @printf(ptr @zil.return.format, i64 %entry.wide)\n  ret i32 0\n}\n",
+      "unit-closure": "; ZIL verified LLVM module\n; verified-fingerprint: 6801477a7870d4e56eb4355e53befd23cf7d2017d0c160995f629e3caadd2925\ntarget triple = \"x86_64-unknown-linux-gnu\"\n\n%zil_env_0 = type { i8 }\n%zil_env_1 = type {  }\ndefine internal void @zil.closure.drop.0(ptr %env) {\nentry:\n  ret void\n}\ndefine internal void @zil.closure.drop.1(ptr %env) {\nentry:\n  ret void\n}\ndeclare void @llvm.trap()\n@zil.return.format = private unnamed_addr constant [6 x i8] c\"%lld\\0A\\00\"\ndeclare i32 @printf(ptr, ...)\ndefine void @zil.fn.0() {\nentry:\n  br label %bb.0\nbb.0:\n  ret void\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i64 @zil.fn.1() {\nentry:\n  %local.1 = alloca %zil_env_0, align 1\n  %local.2 = alloca %zil_env_1, align 1\n  br label %bb.0\nbb.0:\n  call void @zil.fn.0()\n  %v.2 = insertvalue %zil_env_0 zeroinitializer, i8 0, 0\n  store %zil_env_0 %v.2, ptr %local.1, align 1\n  %v.3 = freeze %zil_env_1 zeroinitializer\n  store %zil_env_1 %v.3, ptr %local.2, align 1\n  %v.4 = load %zil_env_1, ptr %local.2, align 1\n  call void @zil.fn.3(%zil_env_1 %v.4)\n  %v.6 = load %zil_env_0, ptr %local.1, align 1\n  %v.7 = add i64 0, 42\n  %v.8 = call i64 @zil.fn.2(%zil_env_0 %v.6, i64 %v.7)\n  ret i64 %v.8\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i64 @zil.fn.2(%zil_env_0 %env, i64 %arg.0) {\nentry:\n  %local.0 = alloca i64, align 8\n  store i64 %arg.0, ptr %local.0, align 8\n  br label %bb.0\nbb.0:\n  %v.2 = load i64, ptr %local.0, align 8\n  ret i64 %v.2\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine void @zil.fn.3(%zil_env_1 %env) {\nentry:\n  br label %bb.0\nbb.0:\n  ret void\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i32 @main() {\nentry:\n  %entry.wide = call i64 @zil.fn.1()\n  %entry.printed = call i32 (ptr, ...) @printf(ptr @zil.return.format, i64 %entry.wide)\n  ret i32 0\n}\n",
+      "owned-once-cleanup": "; ZIL verified LLVM module\n; verified-fingerprint: 80f3985d17a6992b165702bb6a058cafe2ea3b7f94c6a0381b53699d82409a6b\ntarget triple = \"x86_64-unknown-linux-gnu\"\n\n%zil_env_0 = type { { i32 }, i1 }\ndefine internal void @zil.closure.drop.0(ptr %env) {\nentry:\n  %flag.ptr.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 1\n  %live.0 = load i1, ptr %flag.ptr.0, align 1\n  br i1 %live.0, label %drop.0, label %done.0\ndrop.0:\n  store i1 false, ptr %flag.ptr.0, align 1\n  %payload.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 0\n  call void @zil.fn.1(ptr %payload.0)\n  br label %done.0\ndone.0:\n  ret void\n}\ndeclare void @llvm.trap()\ndeclare { i32, i1 } @llvm.ssub.with.overflow.i32(i32, i32)\ndeclare i32 @putchar(i32) nonlazybind\ndefine void @zil.fn.1(ptr %arg.0) {\nentry:\n  %local.0 = alloca ptr, align 8\n  store ptr %arg.0, ptr %local.0, align 8\n  br label %bb.0\nbb.0:\n  %v.0 = load ptr, ptr %local.0, align 8\n  %tmp.0 = getelementptr { i32 }, ptr %v.0, i32 0, i32 0\n  %v.1 = load i32, ptr %tmp.0, align 4\n  %v.2 = call i32 @putchar(i32 %v.1)\n  ret void\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine %zil_env_0 @zil.fn.2(i32 %arg.0) {\nentry:\n  %local.0 = alloca i32, align 4\n  %local.1 = alloca i32, align 4\n  %resource.live.2 = alloca i1, align 1\n  store i1 false, ptr %resource.live.2, align 1\n  %local.2 = alloca { i32 }, align 4\n  store i32 %arg.0, ptr %local.0, align 4\n  br label %bb.0\nbb.0:\n  %v.0 = load i32, ptr %local.0, align 4\n  store i32 %v.0, ptr %local.1, align 4\n  %v.1 = load i32, ptr %local.1, align 4\n  %v.2 = insertvalue { i32 } zeroinitializer, i32 %v.1, 0\n  store i1 false, ptr %resource.live.2, align 1\n  store { i32 } %v.2, ptr %local.2, align 4\n  store i1 true, ptr %resource.live.2, align 1\n  %v.3 = load { i32 }, ptr %local.2, align 4\n  store i1 false, ptr %resource.live.2, align 1\n  %tmp.0 = insertvalue %zil_env_0 zeroinitializer, { i32 } %v.3, 0\n  %v.4 = insertvalue %zil_env_0 %tmp.0, i1 true, 1\n  %tmp.1 = load i1, ptr %resource.live.2, align 1\n  br i1 %tmp.1, label %resource.drop.0, label %resource.done.0\nresource.drop.0:\n  store i1 false, ptr %resource.live.2, align 1\n  call void @zil.fn.1(ptr %local.2)\n  br label %resource.done.0\nresource.done.0:\n  store i1 false, ptr %resource.live.2, align 1\n  ret %zil_env_0 %v.4\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i32 @zil.fn.3() {\nentry:\n  %resource.live.0 = alloca i1, align 1\n  store i1 false, ptr %resource.live.0, align 1\n  %local.0 = alloca %zil_env_0, align 4\n  %resource.live.1 = alloca i1, align 1\n  store i1 false, ptr %resource.live.1, align 1\n  %local.1 = alloca { { i32 }, %zil_env_0 }, align 4\n  %package.live.1.0 = alloca i1, align 1\n  store i1 false, ptr %package.live.1.0, align 1\n  %package.live.1.1 = alloca i1, align 1\n  store i1 false, ptr %package.live.1.1, align 1\n  %resource.live.2 = alloca i1, align 1\n  store i1 false, ptr %resource.live.2, align 1\n  %local.2 = alloca %zil_env_0, align 4\n  %resource.live.3 = alloca i1, align 1\n  store i1 false, ptr %resource.live.3, align 1\n  %local.3 = alloca %zil_env_0, align 4\n  %closure.once.6 = alloca %zil_env_0, align 4\n  br label %bb.0\nbb.0:\n  store i1 false, ptr %resource.live.3, align 1\n  store i1 false, ptr %resource.live.0, align 1\n  %v.0 = add i32 0, 65\n  %v.1 = call %zil_env_0 @zil.fn.2(i32 %v.0)\n  store %zil_env_0 %v.1, ptr %local.0, align 4\n  store i1 true, ptr %resource.live.0, align 1\n  %v.2 = load %zil_env_0, ptr %local.0, align 4\n  store i1 false, ptr %resource.live.0, align 1\n  %v.3 = call { { i32 }, %zil_env_0 } @zil.fn.5(%zil_env_0 %v.2)\n  %tmp.0 = load i1, ptr %resource.live.0, align 1\n  br i1 %tmp.0, label %closure.drop.0, label %closure.done.0\nclosure.drop.0:\n  store i1 false, ptr %resource.live.0, align 1\n  call void @zil.closure.drop.0(ptr %local.0)\n  br label %closure.done.0\nclosure.done.0:\n  store i1 false, ptr %resource.live.1, align 1\n  store i1 false, ptr %package.live.1.0, align 1\n  store i1 false, ptr %package.live.1.1, align 1\n  store { { i32 }, %zil_env_0 } %v.3, ptr %local.1, align 4\n  store i1 true, ptr %resource.live.1, align 1\n  store i1 true, ptr %package.live.1.0, align 1\n  store i1 true, ptr %package.live.1.1, align 1\n  %tmp.1 = getelementptr { { i32 }, %zil_env_0 }, ptr %local.1, i32 0, i32 1\n  %v.4 = load %zil_env_0, ptr %tmp.1, align 4\n  store i1 false, ptr %package.live.1.1, align 1\n  store i1 false, ptr %resource.live.2, align 1\n  store %zil_env_0 %v.4, ptr %local.2, align 4\n  store i1 true, ptr %resource.live.2, align 1\n  %v.5 = load %zil_env_0, ptr %local.2, align 4\n  store i1 false, ptr %resource.live.2, align 1\n  store %zil_env_0 %v.5, ptr %local.3, align 4\n  store i1 true, ptr %resource.live.3, align 1\n  %v.6 = load %zil_env_0, ptr %local.3, align 4\n  store i1 false, ptr %resource.live.3, align 1\n  store %zil_env_0 %v.6, ptr %closure.once.6, align 4\n  %v.7 = call i32 @zil.fn.4(ptr %closure.once.6)\n  call void @zil.closure.drop.0(ptr %closure.once.6)\n  %v.8 = add i32 0, 65\n  %tmp.2 = call { i32, i1 } @llvm.ssub.with.overflow.i32(i32 %v.7, i32 %v.8)\n  %v.9 = extractvalue { i32, i1 } %tmp.2, 0\n  %tmp.3 = extractvalue { i32, i1 } %tmp.2, 1\n  br i1 %tmp.3, label %zil.trap, label %checked.1\nchecked.1:\n  %tmp.4 = load i1, ptr %resource.live.3, align 1\n  br i1 %tmp.4, label %closure.drop.2, label %closure.done.2\nclosure.drop.2:\n  store i1 false, ptr %resource.live.3, align 1\n  call void @zil.closure.drop.0(ptr %local.3)\n  br label %closure.done.2\nclosure.done.2:\n  store i1 false, ptr %resource.live.3, align 1\n  %tmp.5 = load i1, ptr %resource.live.2, align 1\n  br i1 %tmp.5, label %closure.drop.3, label %closure.done.3\nclosure.drop.3:\n  store i1 false, ptr %resource.live.2, align 1\n  call void @zil.closure.drop.0(ptr %local.2)\n  br label %closure.done.3\nclosure.done.3:\n  store i1 false, ptr %resource.live.2, align 1\n  %tmp.6 = load i1, ptr %resource.live.1, align 1\n  br i1 %tmp.6, label %package.drop.4, label %package.done.4\npackage.drop.4:\n  store i1 false, ptr %resource.live.1, align 1\n  %tmp.7 = load i1, ptr %package.live.1.0, align 1\n  br i1 %tmp.7, label %package.field.drop.5, label %package.field.done.5\npackage.field.drop.5:\n  store i1 false, ptr %package.live.1.0, align 1\n  %tmp.8 = getelementptr { { i32 }, %zil_env_0 }, ptr %local.1, i32 0, i32 0\n  call void @zil.fn.1(ptr %tmp.8)\n  br label %package.field.done.5\npackage.field.done.5:\n  %tmp.9 = load i1, ptr %package.live.1.1, align 1\n  br i1 %tmp.9, label %package.field.drop.6, label %package.field.done.6\npackage.field.drop.6:\n  store i1 false, ptr %package.live.1.1, align 1\n  %tmp.10 = getelementptr { { i32 }, %zil_env_0 }, ptr %local.1, i32 0, i32 1\n  call void @zil.closure.drop.0(ptr %tmp.10)\n  br label %package.field.done.6\npackage.field.done.6:\n  br label %package.done.4\npackage.done.4:\n  store i1 false, ptr %resource.live.1, align 1\n  store i1 false, ptr %package.live.1.0, align 1\n  store i1 false, ptr %package.live.1.1, align 1\n  store i1 false, ptr %resource.live.0, align 1\n  ret i32 %v.9\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i32 @zil.fn.4(ptr %env) {\nentry:\n  %local.0 = alloca ptr, align 8\n  %resource.live.1 = alloca i1, align 1\n  store i1 false, ptr %resource.live.1, align 1\n  %local.1 = alloca { i32 }, align 4\n  br label %bb.0\nbb.0:\n  %v.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 0\n  store ptr %v.0, ptr %local.0, align 8\n  %tmp.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 1\n  store i1 false, ptr %tmp.0, align 1\n  %tmp.1 = getelementptr %zil_env_0, ptr %env, i32 0, i32 0\n  %v.1 = load { i32 }, ptr %tmp.1, align 4\n  store i1 false, ptr %resource.live.1, align 1\n  store { i32 } %v.1, ptr %local.1, align 4\n  store i1 true, ptr %resource.live.1, align 1\n  %v.2 = getelementptr i8, ptr %local.1, i64 0\n  %tmp.2 = getelementptr { i32 }, ptr %v.2, i32 0, i32 0\n  %v.3 = load i32, ptr %tmp.2, align 4\n  %tmp.3 = load i1, ptr %resource.live.1, align 1\n  br i1 %tmp.3, label %resource.drop.0, label %resource.done.0\nresource.drop.0:\n  store i1 false, ptr %resource.live.1, align 1\n  call void @zil.fn.1(ptr %local.1)\n  br label %resource.done.0\nresource.done.0:\n  store i1 false, ptr %resource.live.1, align 1\n  ret i32 %v.3\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine { { i32 }, %zil_env_0 } @zil.fn.5(%zil_env_0 %arg.0) {\nentry:\n  %resource.live.0 = alloca i1, align 1\n  store i1 true, ptr %resource.live.0, align 1\n  %local.0 = alloca %zil_env_0, align 4\n  %local.1 = alloca i32, align 4\n  %resource.live.2 = alloca i1, align 1\n  store i1 false, ptr %resource.live.2, align 1\n  %local.2 = alloca { i32 }, align 4\n  %resource.live.3 = alloca i1, align 1\n  store i1 false, ptr %resource.live.3, align 1\n  %local.3 = alloca %zil_env_0, align 4\n  %resource.live.4 = alloca i1, align 1\n  store i1 false, ptr %resource.live.4, align 1\n  %local.4 = alloca { i32 }, align 4\n  %resource.live.5 = alloca i1, align 1\n  store i1 false, ptr %resource.live.5, align 1\n  %local.5 = alloca %zil_env_0, align 4\n  store %zil_env_0 %arg.0, ptr %local.0, align 4\n  br label %bb.0\nbb.0:\n  store i1 false, ptr %resource.live.5, align 1\n  store i1 false, ptr %resource.live.4, align 1\n  %v.0 = add i32 0, 84\n  store i32 %v.0, ptr %local.1, align 4\n  %v.1 = load i32, ptr %local.1, align 4\n  %v.2 = insertvalue { i32 } zeroinitializer, i32 %v.1, 0\n  store i1 false, ptr %resource.live.2, align 1\n  store { i32 } %v.2, ptr %local.2, align 4\n  store i1 true, ptr %resource.live.2, align 1\n  %v.3 = load %zil_env_0, ptr %local.0, align 4\n  store i1 false, ptr %resource.live.0, align 1\n  store i1 false, ptr %resource.live.3, align 1\n  store %zil_env_0 %v.3, ptr %local.3, align 4\n  store i1 true, ptr %resource.live.3, align 1\n  %v.4 = load { i32 }, ptr %local.2, align 4\n  store i1 false, ptr %resource.live.2, align 1\n  store { i32 } %v.4, ptr %local.4, align 4\n  store i1 true, ptr %resource.live.4, align 1\n  %v.5 = load %zil_env_0, ptr %local.3, align 4\n  store i1 false, ptr %resource.live.3, align 1\n  store %zil_env_0 %v.5, ptr %local.5, align 4\n  store i1 true, ptr %resource.live.5, align 1\n  %v.6 = load { i32 }, ptr %local.4, align 4\n  store i1 false, ptr %resource.live.4, align 1\n  %v.7 = load %zil_env_0, ptr %local.5, align 4\n  store i1 false, ptr %resource.live.5, align 1\n  %tmp.0 = insertvalue { { i32 }, %zil_env_0 } zeroinitializer, { i32 } %v.6, 0\n  %v.8 = insertvalue { { i32 }, %zil_env_0 } %tmp.0, %zil_env_0 %v.7, 1\n  %tmp.1 = load i1, ptr %resource.live.5, align 1\n  br i1 %tmp.1, label %closure.drop.0, label %closure.done.0\nclosure.drop.0:\n  store i1 false, ptr %resource.live.5, align 1\n  call void @zil.closure.drop.0(ptr %local.5)\n  br label %closure.done.0\nclosure.done.0:\n  store i1 false, ptr %resource.live.5, align 1\n  %tmp.2 = load i1, ptr %resource.live.4, align 1\n  br i1 %tmp.2, label %resource.drop.1, label %resource.done.1\nresource.drop.1:\n  store i1 false, ptr %resource.live.4, align 1\n  call void @zil.fn.1(ptr %local.4)\n  br label %resource.done.1\nresource.done.1:\n  store i1 false, ptr %resource.live.4, align 1\n  %tmp.3 = load i1, ptr %resource.live.3, align 1\n  br i1 %tmp.3, label %closure.drop.2, label %closure.done.2\nclosure.drop.2:\n  store i1 false, ptr %resource.live.3, align 1\n  call void @zil.closure.drop.0(ptr %local.3)\n  br label %closure.done.2\nclosure.done.2:\n  store i1 false, ptr %resource.live.3, align 1\n  %tmp.4 = load i1, ptr %resource.live.2, align 1\n  br i1 %tmp.4, label %resource.drop.3, label %resource.done.3\nresource.drop.3:\n  store i1 false, ptr %resource.live.2, align 1\n  call void @zil.fn.1(ptr %local.2)\n  br label %resource.done.3\nresource.done.3:\n  store i1 false, ptr %resource.live.2, align 1\n  %tmp.5 = load i1, ptr %resource.live.0, align 1\n  br i1 %tmp.5, label %closure.drop.4, label %closure.done.4\nclosure.drop.4:\n  store i1 false, ptr %resource.live.0, align 1\n  call void @zil.closure.drop.0(ptr %local.0)\n  br label %closure.done.4\nclosure.done.4:\n  store i1 false, ptr %resource.live.0, align 1\n  ret { { i32 }, %zil_env_0 } %v.8\nzil.trap:\n  call void @llvm.trap()\n  unreachable\n}\ndefine i32 @main() {\nentry:\n  %entry.result = call i32 @zil.fn.3()\n  ret i32 %entry.result\n}\n"
+    }
+  },
+  "first_attempt_retained": {
+    "status": "Reviewer source-fixture error, not candidate regression",
+    "exit_code": 1,
+    "reason": "The new direct-call fixture placed a function declaration directly after an arrow-expression function without a declaration terminator. Both fixed compilers rejected it identically with E-PARSE-TERMINATOR before Verify. A corrected newline-separated source was compiled only for this pair; the other completed pairs were retained, not repeated.",
+    "run_log": "{\"case\": \"direct-unit\", \"baseline_status\": \"SafeReject\", \"candidate_status\": \"SafeReject\", \"failures_so_far\": 2}\n{\"case\": \"function-pointer\", \"baseline_status\": \"Success\", \"candidate_status\": \"Success\", \"failures_so_far\": 2}\n{\"case\": \"copy-environment\", \"baseline_status\": \"Success\", \"candidate_status\": \"Success\", \"failures_so_far\": 2}\n{\"case\": \"borrowed-mut-environment\", \"baseline_status\": \"Success\", \"candidate_status\": \"Success\", \"failures_so_far\": 2}\n{\"case\": \"unit-closure\", \"baseline_status\": \"Success\", \"candidate_status\": \"Success\", \"failures_so_far\": 2}\n{\"case\": \"owned-once-cleanup\", \"baseline_status\": \"Success\", \"candidate_status\": \"Success\", \"failures_so_far\": 2}\n{\"case\": \"reject-arity\", \"baseline_status\": \"SafeReject\", \"candidate_status\": \"SafeReject\", \"failures_so_far\": 2}\n{\"case\": \"reject-live-borrow-write\", \"baseline_status\": \"SafeReject\", \"candidate_status\": \"SafeReject\", \"failures_so_far\": 2}\n{\"source_cases\": 8, \"positive_cases\": 6, \"negative_cases\": 2, \"failures\": [{\"case\": \"direct-unit\", \"arm\": \"baseline\", \"reason\": \"expected successful complete compilation with exactly one Verify\", \"report\": {\"status\": \"SafeReject\", \"phase\": \"parse\", \"diagnostics\": [{\"phase\": \"parse\", \"category\": \"SafeReject\", \"code\": \"E-PARSE-TERMINATOR\", \"message\": \"expected a semicolon, logical newline, or closing brace after the complete statement\", \"span\": {\"file\": 0, \"start\": 49, \"end\": 51}, \"notes\": []}], \"artifacts\": {}, \"input_fingerprint\": \"e3a2a6e31894a1c219ccc19058e841b8b2d3be12e9178338ef64021cce4531ec\", \"seconds\": 0.000110363, \"timings\": null, \"cache_hit\": false, \"commands\": [], \"native_codegen\": null, \"disk_cache\": \"disabled\", \"query_events\": [], \"verification_runs\": 0, \"source_files\": {\"0\": \"/tmp/cp11c-review-toolchain-setup/direct-unit/main.zil\"}, \"scalar_interfaces\": []}}, {\"case\": \"direct-unit\", \"arm\": \"candidate\", \"reason\": \"expected successful complete compilation with exactly one Verify\", \"report\": {\"status\": \"SafeReject\", \"phase\": \"parse\", \"diagnostics\": [{\"phase\": \"parse\", \"category\": \"SafeReject\", \"code\": \"E-PARSE-TERMINATOR\", \"message\": \"expected a semicolon, logical newline, or closing brace after the complete statement\", \"span\": {\"file\": 0, \"start\": 49, \"end\": 51}, \"notes\": []}], \"artifacts\": {}, \"input_fingerprint\": \"e3a2a6e31894a1c219ccc19058e841b8b2d3be12e9178338ef64021cce4531ec\", \"seconds\": 9.1035e-05, \"timings\": null, \"cache_hit\": false, \"commands\": [], \"native_codegen\": null, \"disk_cache\": \"disabled\", \"query_events\": [], \"verification_runs\": 0, \"source_files\": {\"0\": \"/tmp/cp11c-review-toolchain-setup/direct-unit/main.zil\"}, \"scalar_interfaces\": []}}]}\n",
+    "failed_pair": {
+      "case": "direct-unit",
+      "source": "fn consume(u:()){} fn sum(x:i64,y:i64)->i64=>x+y fn result()->i64{consume(());return sum(20,22)}",
+      "source_path": "/tmp/cp11c-review-toolchain-setup/direct-unit/main.zil",
+      "source_sha256": "e3a2a6e31894a1c219ccc19058e841b8b2d3be12e9178338ef64021cce4531ec",
+      "expected_stdout": "42\n",
+      "expected_exit": 0,
+      "arms": {
+        "baseline": {
+          "argv": [
+            "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1",
+            "build",
+            "/tmp/cp11c-review-toolchain-setup/direct-unit/main.zil",
+            "-o",
+            "/tmp/cp11c-review-toolchain-setup/direct-unit/baseline",
+            "--json",
+            "--backend",
+            "llvm-api",
+            "--clang",
+            "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+            "--opt",
+            "O0",
+            "--codegen-units",
+            "1",
+            "--codegen-jobs",
+            "1",
+            "--entry",
+            "result"
+          ],
+          "compiler_exit": 1,
+          "compiler_stdout_sha256": "08d50245c50758ee46b4097ea945fadad555fc26573c12f368ca2f3034f276eb",
+          "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "report": {
+            "status": "SafeReject",
+            "phase": "parse",
+            "diagnostics": [
+              {
+                "phase": "parse",
+                "category": "SafeReject",
+                "code": "E-PARSE-TERMINATOR",
+                "message": "expected a semicolon, logical newline, or closing brace after the complete statement",
+                "span": {
+                  "file": 0,
+                  "start": 49,
+                  "end": 51
+                },
+                "notes": []
+              }
+            ],
+            "artifacts": {},
+            "input_fingerprint": "e3a2a6e31894a1c219ccc19058e841b8b2d3be12e9178338ef64021cce4531ec",
+            "seconds": 0.000110363,
+            "timings": null,
+            "cache_hit": false,
+            "commands": [],
+            "native_codegen": null,
+            "disk_cache": "disabled",
+            "query_events": [],
+            "verification_runs": 0,
+            "source_files": {
+              "0": "/tmp/cp11c-review-toolchain-setup/direct-unit/main.zil"
+            },
+            "scalar_interfaces": []
+          }
+        },
+        "candidate": {
+          "argv": [
+            "/workspace/scratch/ac5966c4c370/binaries/cp11c-4b2beb13",
+            "build",
+            "/tmp/cp11c-review-toolchain-setup/direct-unit/main.zil",
+            "-o",
+            "/tmp/cp11c-review-toolchain-setup/direct-unit/candidate",
+            "--json",
+            "--backend",
+            "llvm-api",
+            "--clang",
+            "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+            "--opt",
+            "O0",
+            "--codegen-units",
+            "1",
+            "--codegen-jobs",
+            "1",
+            "--entry",
+            "result"
+          ],
+          "compiler_exit": 1,
+          "compiler_stdout_sha256": "8936e3105795d84d710142f2a95ed84f762bd630105de9ea76ce2a08696ef621",
+          "compiler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "report": {
+            "status": "SafeReject",
+            "phase": "parse",
+            "diagnostics": [
+              {
+                "phase": "parse",
+                "category": "SafeReject",
+                "code": "E-PARSE-TERMINATOR",
+                "message": "expected a semicolon, logical newline, or closing brace after the complete statement",
+                "span": {
+                  "file": 0,
+                  "start": 49,
+                  "end": 51
+                },
+                "notes": []
+              }
+            ],
+            "artifacts": {},
+            "input_fingerprint": "e3a2a6e31894a1c219ccc19058e841b8b2d3be12e9178338ef64021cce4531ec",
+            "seconds": 9.1035e-05,
+            "timings": null,
+            "cache_hit": false,
+            "commands": [],
+            "native_codegen": null,
+            "disk_cache": "disabled",
+            "query_events": [],
+            "verification_runs": 0,
+            "source_files": {
+              "0": "/tmp/cp11c-review-toolchain-setup/direct-unit/main.zil"
+            },
+            "scalar_interfaces": []
+          }
+        }
+      }
+    },
+    "failed_compile_stdout": {
+      "baseline": "{\"status\":\"SafeReject\",\"phase\":\"parse\",\"diagnostics\":[{\"phase\":\"parse\",\"category\":\"SafeReject\",\"code\":\"E-PARSE-TERMINATOR\",\"message\":\"expected a semicolon, logical newline, or closing brace after the complete statement\",\"span\":{\"file\":0,\"start\":49,\"end\":51},\"notes\":[]}],\"artifacts\":{},\"input_fingerprint\":\"e3a2a6e31894a1c219ccc19058e841b8b2d3be12e9178338ef64021cce4531ec\",\"seconds\":0.000110363,\"timings\":null,\"cache_hit\":false,\"commands\":[],\"native_codegen\":null,\"disk_cache\":\"disabled\",\"query_events\":[],\"verification_runs\":0,\"source_files\":{\"0\":\"/tmp/cp11c-review-toolchain-setup/direct-unit/main.zil\"},\"scalar_interfaces\":[]}\n",
+      "candidate": "{\"status\":\"SafeReject\",\"phase\":\"parse\",\"diagnostics\":[{\"phase\":\"parse\",\"category\":\"SafeReject\",\"code\":\"E-PARSE-TERMINATOR\",\"message\":\"expected a semicolon, logical newline, or closing brace after the complete statement\",\"span\":{\"file\":0,\"start\":49,\"end\":51},\"notes\":[]}],\"artifacts\":{},\"input_fingerprint\":\"e3a2a6e31894a1c219ccc19058e841b8b2d3be12e9178338ef64021cce4531ec\",\"seconds\":0.000091035,\"timings\":null,\"cache_hit\":false,\"commands\":[],\"native_codegen\":null,\"disk_cache\":\"disabled\",\"query_events\":[],\"verification_runs\":0,\"source_files\":{\"0\":\"/tmp/cp11c-review-toolchain-setup/direct-unit/main.zil\"},\"scalar_interfaces\":[]}\n"
+    },
+    "failed_compile_stderr": {
+      "baseline": "",
+      "candidate": ""
+    },
+    "failures": [
+      {
+        "case": "direct-unit",
+        "arm": "baseline",
+        "reason": "expected successful complete compilation with exactly one Verify",
+        "report": {
+          "status": "SafeReject",
+          "phase": "parse",
+          "diagnostics": [
+            {
+              "phase": "parse",
+              "category": "SafeReject",
+              "code": "E-PARSE-TERMINATOR",
+              "message": "expected a semicolon, logical newline, or closing brace after the complete statement",
+              "span": {
+                "file": 0,
+                "start": 49,
+                "end": 51
+              },
+              "notes": []
+            }
+          ],
+          "artifacts": {},
+          "input_fingerprint": "e3a2a6e31894a1c219ccc19058e841b8b2d3be12e9178338ef64021cce4531ec",
+          "seconds": 0.000110363,
+          "timings": null,
+          "cache_hit": false,
+          "commands": [],
+          "native_codegen": null,
+          "disk_cache": "disabled",
+          "query_events": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/tmp/cp11c-review-toolchain-setup/direct-unit/main.zil"
+          },
+          "scalar_interfaces": []
+        }
+      },
+      {
+        "case": "direct-unit",
+        "arm": "candidate",
+        "reason": "expected successful complete compilation with exactly one Verify",
+        "report": {
+          "status": "SafeReject",
+          "phase": "parse",
+          "diagnostics": [
+            {
+              "phase": "parse",
+              "category": "SafeReject",
+              "code": "E-PARSE-TERMINATOR",
+              "message": "expected a semicolon, logical newline, or closing brace after the complete statement",
+              "span": {
+                "file": 0,
+                "start": 49,
+                "end": 51
+              },
+              "notes": []
+            }
+          ],
+          "artifacts": {},
+          "input_fingerprint": "e3a2a6e31894a1c219ccc19058e841b8b2d3be12e9178338ef64021cce4531ec",
+          "seconds": 9.1035e-05,
+          "timings": null,
+          "cache_hit": false,
+          "commands": [],
+          "native_codegen": null,
+          "disk_cache": "disabled",
+          "query_events": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/tmp/cp11c-review-toolchain-setup/direct-unit/main.zil"
+          },
+          "scalar_interfaces": []
+        }
+      }
+    ]
+  },
+  "probe": {
+    "first_script": "import hashlib\nimport json\nimport pathlib\nimport subprocess\nimport sys\n\nROOT = pathlib.Path('/workspace/scratch/ac5966c4c370')\nOUT = pathlib.Path('/tmp/cp11c-review-toolchain-setup')\nOUT.mkdir(exist_ok=True)\nBINS = {\n    'baseline': (ROOT / 'binaries/combined-e8e274c1', '3ae400c2eaa83d5643362b5cd1aa29915844904fe95ee01d69900b2a2612b0ba'),\n    'candidate': (ROOT / 'binaries/cp11c-4b2beb13', '65281f6c3f86c7be8ee82d76263eb52fb6ccdf0352ad88737a09b0702af4d414'),\n}\nCLANG = ROOT / 'toolchains/llvm-23.1.4/bin/clang'\nCASES = [\n    ('direct-unit', 'fn consume(u:()){} fn sum(x:i64,y:i64)->i64=>x+y fn result()->i64{consume(());return sum(20,22)}', 'result', '42\\n', 0),\n    ('function-pointer', 'fn inc(x:i32)->i32=>x+1;fn result()->i32{let f:fn(i32)->i32=inc;return f(41)}', 'result', '42\\n', 0),\n    ('copy-environment', 'fn calculate(base:i64)->i64{let f=move(delta)=>base+delta;return f(1)+f(2)}fn result()->i64{return calculate(40)+calculate(100)}', 'result', '286\\n', 0),\n    ('borrowed-mut-environment', 'fn result()->i32{var x=1;var f=()=>{x=2;return x;};let n=f();return n+x;}', 'result', '4\\n', 0),\n    ('unit-closure', 'fn unit(){}fn result()->i64{let blank=unit();let f=move(x)=>{blank;return x;};let run=()=>{};run();return f(42);}', 'result', '42\\n', 0),\n    ('owned-once-cleanup', '''extern \"C\" fn putchar(x:i32)->i32;\nresource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}\npackage State<F>{manages ticket:R;callback:F}\nfn pack<F:FnOnce()->i32>(callback:F)->State<F>{return State::<F>{ticket:R{code:84},callback:callback}}\nfn make(n:i32)->impl FnOnce()->i32{let r=R{code:n};return move()=>{let value=give r;return value.code}}\nfn main()->i32{let state=pack(make(65));let once=state.callback;return once()-65}\n''', None, 'AT', 0),\n    ('reject-arity', 'fn add(x:i64,y:i64)->i64=>x+y;fn result()->i64=>add(42)', 'result', None, None),\n    ('reject-live-borrow-write', 'fn result()->i32{var x=1;let f=()=>x;x=2;return f();}', 'result', None, None),\n]\n\ndef sha(data):\n    return hashlib.sha256(data).hexdigest()\n\nfor path, expected in BINS.values():\n    assert sha(path.read_bytes()) == expected\n\nrecords = []\nfailures = []\nfor name, text, entry, expected_stdout, expected_exit in CASES:\n    work = OUT / name\n    work.mkdir(exist_ok=True)\n    source = work / 'main.zil'\n    source.write_text(text)\n    rows = {}\n    for arm, (binary, _) in BINS.items():\n        output = work / arm\n        ll = output.with_suffix('.ll')\n        sentinel = b'previous executable must survive rejection\\n'\n        ll_sentinel = b'previous machine sidecar must survive rejection\\n'\n        if expected_stdout is None:\n            output.write_bytes(sentinel)\n            ll.write_bytes(ll_sentinel)\n        argv = [str(binary), 'build', str(source), '-o', str(output), '--json', '--backend', 'llvm-api', '--clang', str(CLANG), '--opt', 'O0', '--codegen-units', '1', '--codegen-jobs', '1']\n        if entry is not None:\n            argv.extend(['--entry', entry])\n        run = subprocess.run(argv, capture_output=True, timeout=60)\n        (work / f'{arm}.compile.stdout').write_bytes(run.stdout)\n        (work / f'{arm}.compile.stderr').write_bytes(run.stderr)\n        report = json.loads(run.stdout)\n        row = {'argv': argv, 'compiler_exit': run.returncode, 'compiler_stdout_sha256': sha(run.stdout), 'compiler_stderr_sha256': sha(run.stderr), 'report': report}\n        rows[arm] = row\n        if expected_stdout is not None:\n            if run.returncode or report.get('status') != 'Success' or report.get('verification_runs') != 1:\n                failures.append({'case': name, 'arm': arm, 'reason': 'expected successful complete compilation with exactly one Verify', 'report': report})\n                continue\n            model = pathlib.Path(report['artifacts']['llvm']).read_bytes()\n            row['machine_ir_sha256'] = sha(model)\n            row['machine_ir_bytes'] = len(model)\n            row['executable_sha256'] = sha(output.read_bytes())\n            native = subprocess.run([str(output)], capture_output=True, timeout=5)\n            row['native'] = {'exit': native.returncode, 'stdout': native.stdout.decode(), 'stderr': native.stderr.decode()}\n            if row['native'] != {'exit': expected_exit, 'stdout': expected_stdout, 'stderr': ''}:\n                failures.append({'case': name, 'arm': arm, 'reason': 'native result mismatch', 'observed': row['native']})\n        else:\n            row['previous_executable_preserved'] = output.read_bytes() == sentinel\n            row['previous_machine_sidecar_preserved'] = ll.read_bytes() == ll_sentinel\n            if report.get('status') == 'Success' or not run.returncode or not row['previous_executable_preserved'] or not row['previous_machine_sidecar_preserved']:\n                failures.append({'case': name, 'arm': arm, 'reason': 'rejection/publication contract mismatch', 'observed': row})\n    old, new = rows['baseline'], rows['candidate']\n    for field in ['status', 'phase', 'diagnostics', 'verification_runs']:\n        if old['report'].get(field) != new['report'].get(field):\n            failures.append({'case': name, 'field': field, 'reason': 'report mismatch'})\n    if expected_stdout is not None and 'machine_ir_sha256' in old and 'machine_ir_sha256' in new:\n        old_ir = pathlib.Path(old['report']['artifacts']['llvm']).read_bytes()\n        new_ir = pathlib.Path(new['report']['artifacts']['llvm']).read_bytes()\n        if old_ir != new_ir:\n            failures.append({'case': name, 'reason': 'machine text differs'})\n    records.append({'case': name, 'source': text, 'source_path': str(source), 'source_sha256': sha(source.read_bytes()), 'expected_stdout': expected_stdout, 'expected_exit': expected_exit, 'arms': rows})\n    (OUT / 'results.json').write_text(json.dumps({'records': records, 'failures': failures}, indent=2) + '\\n')\n    print(json.dumps({'case': name, 'baseline_status': old['report'].get('status'), 'candidate_status': new['report'].get('status'), 'failures_so_far': len(failures)}), flush=True)\n\nprint(json.dumps({'source_cases': len(CASES), 'positive_cases': sum(case[3] is not None for case in CASES), 'negative_cases': sum(case[3] is None for case in CASES), 'failures': failures}), flush=True)\nsys.exit(bool(failures))\n",
+    "first_script_sha256": "cfb95612ec492c522a138bfb2c960f3f0d2b483df7c7b4db732644e12d2a55c0",
+    "corrected_direct_script": "import hashlib\nimport json\nimport pathlib\nimport subprocess\nimport sys\n\nROOT = pathlib.Path('/workspace/scratch/ac5966c4c370')\nOUT = pathlib.Path('/tmp/cp11c-review-toolchain-setup-corrected-direct')\nOUT.mkdir(exist_ok=True)\nBINS = {\n    'baseline': (ROOT / 'binaries/combined-e8e274c1', '3ae400c2eaa83d5643362b5cd1aa29915844904fe95ee01d69900b2a2612b0ba'),\n    'candidate': (ROOT / 'binaries/cp11c-4b2beb13', '65281f6c3f86c7be8ee82d76263eb52fb6ccdf0352ad88737a09b0702af4d414'),\n}\nCLANG = ROOT / 'toolchains/llvm-23.1.4/bin/clang'\nCASES = [\n    ('direct-unit', 'fn consume(u:()){}\\nfn sum(x:i64,y:i64)->i64=>x+y\\nfn result()->i64{consume(());return sum(20,22)}', 'result', '42\\n', 0),\n    ('function-pointer', 'fn inc(x:i32)->i32=>x+1;fn result()->i32{let f:fn(i32)->i32=inc;return f(41)}', 'result', '42\\n', 0),\n    ('copy-environment', 'fn calculate(base:i64)->i64{let f=move(delta)=>base+delta;return f(1)+f(2)}fn result()->i64{return calculate(40)+calculate(100)}', 'result', '286\\n', 0),\n    ('borrowed-mut-environment', 'fn result()->i32{var x=1;var f=()=>{x=2;return x;};let n=f();return n+x;}', 'result', '4\\n', 0),\n    ('unit-closure', 'fn unit(){}fn result()->i64{let blank=unit();let f=move(x)=>{blank;return x;};let run=()=>{};run();return f(42);}', 'result', '42\\n', 0),\n    ('owned-once-cleanup', '''extern \"C\" fn putchar(x:i32)->i32;\nresource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}\npackage State<F>{manages ticket:R;callback:F}\nfn pack<F:FnOnce()->i32>(callback:F)->State<F>{return State::<F>{ticket:R{code:84},callback:callback}}\nfn make(n:i32)->impl FnOnce()->i32{let r=R{code:n};return move()=>{let value=give r;return value.code}}\nfn main()->i32{let state=pack(make(65));let once=state.callback;return once()-65}\n''', None, 'AT', 0),\n    ('reject-arity', 'fn add(x:i64,y:i64)->i64=>x+y;fn result()->i64=>add(42)', 'result', None, None),\n    ('reject-live-borrow-write', 'fn result()->i32{var x=1;let f=()=>x;x=2;return f();}', 'result', None, None),\n]\n\nCASES = [case for case in CASES if case[0] == 'direct-unit']\n\ndef sha(data):\n    return hashlib.sha256(data).hexdigest()\n\nfor path, expected in BINS.values():\n    assert sha(path.read_bytes()) == expected\n\nrecords = []\nfailures = []\nfor name, text, entry, expected_stdout, expected_exit in CASES:\n    work = OUT / name\n    work.mkdir(exist_ok=True)\n    source = work / 'main.zil'\n    source.write_text(text)\n    rows = {}\n    for arm, (binary, _) in BINS.items():\n        output = work / arm\n        ll = output.with_suffix('.ll')\n        sentinel = b'previous executable must survive rejection\\n'\n        ll_sentinel = b'previous machine sidecar must survive rejection\\n'\n        if expected_stdout is None:\n            output.write_bytes(sentinel)\n            ll.write_bytes(ll_sentinel)\n        argv = [str(binary), 'build', str(source), '-o', str(output), '--json', '--backend', 'llvm-api', '--clang', str(CLANG), '--opt', 'O0', '--codegen-units', '1', '--codegen-jobs', '1']\n        if entry is not None:\n            argv.extend(['--entry', entry])\n        run = subprocess.run(argv, capture_output=True, timeout=60)\n        (work / f'{arm}.compile.stdout').write_bytes(run.stdout)\n        (work / f'{arm}.compile.stderr').write_bytes(run.stderr)\n        report = json.loads(run.stdout)\n        row = {'argv': argv, 'compiler_exit': run.returncode, 'compiler_stdout_sha256': sha(run.stdout), 'compiler_stderr_sha256': sha(run.stderr), 'report': report}\n        rows[arm] = row\n        if expected_stdout is not None:\n            if run.returncode or report.get('status') != 'Success' or report.get('verification_runs') != 1:\n                failures.append({'case': name, 'arm': arm, 'reason': 'expected successful complete compilation with exactly one Verify', 'report': report})\n                continue\n            model = pathlib.Path(report['artifacts']['llvm']).read_bytes()\n            row['machine_ir_sha256'] = sha(model)\n            row['machine_ir_bytes'] = len(model)\n            row['executable_sha256'] = sha(output.read_bytes())\n            native = subprocess.run([str(output)], capture_output=True, timeout=5)\n            row['native'] = {'exit': native.returncode, 'stdout': native.stdout.decode(), 'stderr': native.stderr.decode()}\n            if row['native'] != {'exit': expected_exit, 'stdout': expected_stdout, 'stderr': ''}:\n                failures.append({'case': name, 'arm': arm, 'reason': 'native result mismatch', 'observed': row['native']})\n        else:\n            row['previous_executable_preserved'] = output.read_bytes() == sentinel\n            row['previous_machine_sidecar_preserved'] = ll.read_bytes() == ll_sentinel\n            if report.get('status') == 'Success' or not run.returncode or not row['previous_executable_preserved'] or not row['previous_machine_sidecar_preserved']:\n                failures.append({'case': name, 'arm': arm, 'reason': 'rejection/publication contract mismatch', 'observed': row})\n    old, new = rows['baseline'], rows['candidate']\n    for field in ['status', 'phase', 'diagnostics', 'verification_runs']:\n        if old['report'].get(field) != new['report'].get(field):\n            failures.append({'case': name, 'field': field, 'reason': 'report mismatch'})\n    if expected_stdout is not None and 'machine_ir_sha256' in old and 'machine_ir_sha256' in new:\n        old_ir = pathlib.Path(old['report']['artifacts']['llvm']).read_bytes()\n        new_ir = pathlib.Path(new['report']['artifacts']['llvm']).read_bytes()\n        if old_ir != new_ir:\n            failures.append({'case': name, 'reason': 'machine text differs'})\n    records.append({'case': name, 'source': text, 'source_path': str(source), 'source_sha256': sha(source.read_bytes()), 'expected_stdout': expected_stdout, 'expected_exit': expected_exit, 'arms': rows})\n    (OUT / 'results.json').write_text(json.dumps({'records': records, 'failures': failures}, indent=2) + '\\n')\n    print(json.dumps({'case': name, 'baseline_status': old['report'].get('status'), 'candidate_status': new['report'].get('status'), 'failures_so_far': len(failures)}), flush=True)\n\nprint(json.dumps({'source_cases': len(CASES), 'positive_cases': sum(case[3] is not None for case in CASES), 'negative_cases': sum(case[3] is None for case in CASES), 'failures': failures}), flush=True)\nsys.exit(bool(failures))\n",
+    "corrected_direct_script_sha256": "404aeea3932ba20732ef81ff05628ff4565be9741dbed811c5a85c5d6e6c2321",
+    "corrected_run_log": "{\"case\": \"direct-unit\", \"baseline_status\": \"Success\", \"candidate_status\": \"Success\", \"failures_so_far\": 0}\n{\"source_cases\": 1, \"positive_cases\": 1, \"negative_cases\": 0, \"failures\": []}\n"
+  },
+  "limitations": [
+    "Finite source/machine/native cases do not establish whole-language or platform equivalence.",
+    "Only Linux x86_64 O0/one-CGU execution was independently repeated; O2/native Windows and full workspace were not rerun.",
+    "This review does not infer compile/runtime speed or a Rust comparison from functional equality.",
+    "Counts overlap authored fixture classes; they must not be added as new unique language coverage on top of root tests."
+  ]
+}

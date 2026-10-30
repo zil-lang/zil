@@ -1,0 +1,36 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp11/crates/zil-expand)
+    Finished `test` profile [unoptimized] target(s) in 0.33s
+     Running tests/normalize_move_cp11.rs (/workspace/scratch/ac5966c4c370/target-cp11/debug/deps/normalize_move_cp11-ffac9b12541a2e6c)
+
+running 4 tests
+test borrowed_items_keep_defining_files_restore_order_and_imports ... CP11_NORMALIZE_SNAPSHOT:borrowed:421a64372cb38589d96a9ac39543ee5063df15ace48aebf8bd74b86f847b2dca
+CP11_NORMALIZE_BOUNDARY:borrowed:work:606:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(29), start: 42, end: 48 }), notes: [] }]
+CP11_NORMALIZE_BOUNDARY:borrowed:nodes:103:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(29), start: 42, end: 48 }), notes: [] }]
+CP11_NORMALIZE_SNAPSHOT:borrowed-rotated:2073275a1c915d0a99ef7327d0f725a3cf53434c5d6b22a3eca9763953be3a57
+ok
+test declaration_and_private_template_errors_keep_the_original_precedence ... CP11_NORMALIZE_ERROR:duplicate-before-alias:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(11), start: 22, end: 43 }), notes: [] }]
+CP11_NORMALIZE_ERROR:private-template:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(11), start: 31, end: 41 }), notes: [] }]
+ok
+test owned_generic_and_alias_items_keep_template_sources_and_exports ... 
+thread 'owned_generic_and_alias_items_keep_template_sources_and_exports' (42) panicked at crates/zil-expand/tests/normalize_move_cp11.rs:31:67:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Parse, category: SafeReject, code: "E-PARSE-FUNCTION-BODY", message: "function requires a block, arrow expression, or declaration semicolon", span: Some(Span { file: FileId(5), start: 60, end: 61 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test raw_item_with_lost_definition_file_retains_work_and_source_error_order ... CP11_NORMALIZE_RAW_FILE:0:Err([Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(11), start: 0, end: 18 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:1:Err([Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:16:Err([Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:64:Err([Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(11), start: 11, end: 14 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:256:Err([Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-ID", message: "instantiated declaration lost its definition source", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:512:Err([Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-ID", message: "instantiated declaration lost its definition source", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:1024:Err([Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-ID", message: "instantiated declaration lost its definition source", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:10000000:Err([Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-ID", message: "instantiated declaration lost its definition source", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])
+ok
+
+failures:
+
+failures:
+    owned_generic_and_alias_items_keep_template_sources_and_exports
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p zil-expand --test normalize_move_cp11`
