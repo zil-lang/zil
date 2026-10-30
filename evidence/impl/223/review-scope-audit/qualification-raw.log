@@ -1,0 +1,11 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-review-223/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.06s
+     Running tests/impl223_product_store.rs (/workspace/scratch/d286b3aeeb6b/targets/review223/debug/deps/impl223_product_store-d48ec78a41075cdb)
+
+running 3 tests
+test raw_and_wire_canonical_store_definition_cannot_hide_a_different_product ... ok
+test raw_and_wire_rebuild_unused_product_storage_and_leaf_qualification ... ok
+test raw_and_wire_duplicate_push_cannot_manufacture_a_second_element ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.02s
+
