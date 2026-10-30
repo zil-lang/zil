@@ -8,14 +8,14 @@
     "task_root": ".task",
     "current_is_main": true
   },
-  "current_head": "918de0208229010e54183690d61a0453216b7b2a",
-  "main_head": "918de0208229010e54183690d61a0453216b7b2a",
+  "current_head": "b896eb363c5a3abb9dd895d5ddbb185d19e34ff9",
+  "main_head": "b896eb363c5a3abb9dd895d5ddbb185d19e34ff9",
   "spec_hash": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
   "normative_hash": "8b4b3d219999c8f2904b276e051745bf65f9761e421630bdb4bbe0ec2781e02d",
   "worktrees": [
     {
       "branch": "refs/heads/main",
-      "head": "918de0208229010e54183690d61a0453216b7b2a",
+      "head": "b896eb363c5a3abb9dd895d5ddbb185d19e34ff9",
       "is_main": true
     }
   ],
@@ -33,7 +33,7 @@
       "status": "Doing",
       "baseline": "c9ee2e81de661bb0789ac6a0c6a130d864c4d5a9",
       "record_sha256": "89cbcc129acc091fe905cbbdae41462deacc762597a212186ffc65c28eec7287",
-      "committed": false,
+      "committed": true,
       "evidence": [
         {
           "path": "evidence/B0/20261022T141438Z-245fbe4c/result.json"
@@ -59,7 +59,7 @@
       "status": "Planned",
       "baseline": null,
       "record_sha256": "c60c3feddc6f47f9c9bcece75d076d187c510790f0fb3036b0c6d906df02ad39",
-      "committed": false,
+      "committed": true,
       "evidence": [
         {
           "path": "evidence/T01/20261022T141443Z-6f935e0b/result.json"
@@ -84,7 +84,7 @@
       "status": "Planned",
       "baseline": null,
       "record_sha256": "0dd3c55d5d0ad65d6ad296465a2787d427c8f0881a039f511079dbed1b753800",
-      "committed": false,
+      "committed": true,
       "evidence": [
         {
           "path": "evidence/T02/20261022T141446Z-041bcee1/result.json"
@@ -106,7 +106,7 @@
       "status": "Planned",
       "baseline": null,
       "record_sha256": "91df78a75a6431136ae13b68d8c7072fd8ce5550c04ff792b26f95e4a29f13bf",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -126,7 +126,7 @@
       "status": "Planned",
       "baseline": null,
       "record_sha256": "9e66977c8b92ea5406a5c4b0d33faa022f082c515fff34cf1048c58a4c3c3b4b",
-      "committed": false,
+      "committed": true,
       "evidence": [
         {
           "path": "evidence/T04/20261022T141443Z-939f8dfe/result.json"
@@ -151,7 +151,7 @@
       "status": "Planned",
       "baseline": null,
       "record_sha256": "3ed4e764c4c149bdae1c0dbae0eab05078d0b4b9ec78540e6ab7f4513bee1ec0",
-      "committed": false,
+      "committed": true,
       "evidence": [
         {
           "path": "evidence/T05/20261022T141443Z-d55307c9/result.json"
@@ -173,7 +173,7 @@
       "status": "Planned",
       "baseline": null,
       "record_sha256": "c9953e9bf813d1d26b116e80983a436f34986e99229df82e4c67998a2356bd61",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -192,7 +192,7 @@
       "status": "Planned",
       "baseline": null,
       "record_sha256": "3b9956a9b76ceacef6131c2cc9fc3f7c872071e71503ab211d7beb9d4ea0bb0a",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -210,7 +210,7 @@
       "status": "Planned",
       "baseline": null,
       "record_sha256": "f1839dc816529351390aa5ce397449042fdc5e6583910d2e4dd2346e27c952c6",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -228,7 +228,7 @@
       "status": "Planned",
       "baseline": null,
       "record_sha256": "1c5ad3d99cfdb046ef708a75f3bd49506731377831f824a840a466113df59da0",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -247,7 +247,7 @@
       "status": "Planned",
       "baseline": null,
       "record_sha256": "5cd7673d71617c57470b1c6118a920afd645cb41e25759f7738f24725f2a1082",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -270,7 +270,7 @@
       "status": "Planned",
       "baseline": null,
       "record_sha256": "1db15e4cc3bc43efbca9c825284bfe71be8603ab43d185f0e2ecedac1200918d",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -290,7 +290,7 @@
       "status": "Planned",
       "baseline": null,
       "record_sha256": "569aac40d714acf1183baf6d65a110a91100cce4701a0dd23d68f515c82fd0cf",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -309,7 +309,7 @@
       "status": "Planned",
       "baseline": null,
       "record_sha256": "4072604699ebca26288ad8ad9d7ac558e41368db8715be31b3fb048868ef0481",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -7423,7 +7423,7 @@
       "status": "施工",
       "baseline": "8c4ed992138fc103c0fbaf6318e2e34d261bda81",
       "record_sha256": "28e03d90d6cfd5428716bfb5837c291954a716d47722565f57f646f0e1418df1",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -9262,7 +9262,7 @@
       "status": "施工",
       "baseline": "08cb9e6ff57492e11eec6c8592d37d601ee71f10",
       "record_sha256": "21e51058ef756897f37c55f23cdf875bdeac8237d3edd1bbaf7abd0523eacd61",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -9295,7 +9295,7 @@
       "status": "施工",
       "baseline": "272878c48e2a018b767244de0e1f10a0ccbfb617",
       "record_sha256": "00d8893498c1f82dd02da8d532127242acc352d65f8e9205e202bb8f8772fa8d",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -9328,7 +9328,7 @@
       "status": "施工",
       "baseline": "9b1f4f3c746063bf013b0ed6ccba68da9280b31e",
       "record_sha256": "4759491cc786710a0ccf388812ebf5b4d8dcc38413caf85eb3957c80a310b068",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -9355,7 +9355,7 @@
       "status": "施工",
       "baseline": "6aa9b9b2336d5bb754f6c17cd9054da565c5c559",
       "record_sha256": "f52b2806ddc855c5ffebbfa64277bb829641a75c7a72095c81017e6f66c35a16",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -9381,7 +9381,7 @@
       "status": "施工",
       "baseline": "b8e34416c2a1673a4be8955739cf4f10133fec1e",
       "record_sha256": "3891ccf79a9a5c36b85cfb2d3b9f9a9bdd739c00b3c19a8e30b4c95bae8392b7",
-      "committed": false,
+      "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
@@ -9689,6 +9689,30 @@
           }
         ]
       }
+    },
+    {
+      "id": "218",
+      "path": ".task/impl/218.md",
+      "status": "卡住",
+      "baseline": "cb6ae2fc75945c0c7596a8a64ff807c1b7238fa1",
+      "record_sha256": "53b6511b23c548d4a30969dec917b5b71547c77080d10732183f22450f0269ae",
+      "committed": true,
+      "evidence": [],
+      "specification": {
+        "source": "current",
+        "revision": null,
+        "spec_hash": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+        "normative_hash": "8b4b3d219999c8f2904b276e051745bf65f9761e421630bdb4bbe0ec2781e02d"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "changes/218-owning-callable-factory.md",
+        "tools/language/218/**",
+        "evidence/impl/218/**"
+      ],
+      "implementation_author": null,
+      "implementation_commit": null,
+      "integration_commit": null
     }
   ],
   "next": [
@@ -9816,6 +9840,11 @@
       "id": "212",
       "status": "施工",
       "authoritative_task": ".task/impl/212.md"
+    },
+    {
+      "id": "218",
+      "status": "卡住",
+      "authoritative_task": ".task/impl/218.md"
     }
   ],
   "commands": {
@@ -9825,88 +9854,7 @@
     "plan": "python3 tools/check-plan.py --self-test",
     "draft": "python3 tools/validate-draft.py"
   },
-  "warnings": [
-    {
-      "id": "B0",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "T01",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "T02",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "T03",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "T04",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "T05",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "T06",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "T07",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "T08",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "T09",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "W1",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "W2",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "W3",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "W4",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "181",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "208",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "209",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "210",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "211",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    },
-    {
-      "id": "212",
-      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
-    }
-  ],
+  "warnings": [],
   "errors": [
     {
       "id": "B0",
