@@ -516,6 +516,69 @@ fn nested_shared_projection_executes_with_real_drop_order_at_o0_and_o2() {
     }
 }
 
+#[test]
+fn direct_owning_field_addresses_reach_native_storage_and_nll() {
+    let resource = r#"
+extern "C" fn putchar(c:i32)->i32;
+resource Token{code:i32;value:i32}
+impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Packet{manages owned:Token;weight:i32}
+fn head(p:&Token)->i32{return p.value}
+fn main()->i32{
+ let packet=Packet{owned:Token{code:65,value:5},weight:7}
+ let p=&packet.owned
+ let n=head(p)
+ let owner=packet.owned
+ unsafe{putchar(88)}
+ return n-5
+}
+"#;
+    for (label, text, expected) in [
+        (
+            "direct-child-review",
+            include_str!("../../../examples/mainline/shared_product224/child-nll-control.zil"),
+            b"XAB".as_slice(),
+        ),
+        ("direct-resource", resource, b"XA".as_slice()),
+    ] {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory(&format!("{label}-{optimization:?}"));
+            let executable = dir.join("program");
+            fs::write(dir.join("source.zil"), text).unwrap();
+            let report = compile_source(
+                &SourceUnit::new(FileId(0), ModuleId(0), "direct224.zil", text),
+                &CompileOptions {
+                    backend: native_backend(),
+                    stop_after: Stage::Build,
+                    optimization,
+                    output: Some(executable.clone()),
+                    emit_dir: Some(dir.join("phases")),
+                    ..CompileOptions::default()
+                },
+            );
+            fs::write(dir.join("report.json"), report.to_json()).unwrap();
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{label}: {}",
+                report.to_json()
+            );
+            assert_native_route(&report);
+            let output = Command::new(executable).output().unwrap();
+            fs::write(dir.join("stdout"), &output.stdout).unwrap();
+            fs::write(dir.join("stderr"), &output.stderr).unwrap();
+            fs::write(
+                dir.join("exit.json"),
+                format!("{{\"exit_code\":{}}}\n", output.status.code().unwrap()),
+            )
+            .unwrap();
+            assert_eq!(output.status.code(), Some(0));
+            assert_eq!(output.stdout, expected);
+            assert!(output.stderr.is_empty());
+        }
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn allocated_product_leaves_are_cleaned_on_each_real_allocator_failure() {
