@@ -1,0 +1,25 @@
+{
+  "status": "NotRecovered",
+  "checked_at_utc": "2026-10-30T03:02:09.746072+00:00",
+  "requested_commits": [
+    "7157b502c3f8e29b36349338752d7abc51a4624f",
+    "2f6110f46c17c575aeb5a0b38166a5f839a951ae",
+    "9dbc175063d2363ccd880ae877db74cafd5a8ca6"
+  ],
+  "local_git_stores_checked": [
+    "/workspace/scratch/037bacfed72a/zil-llvm23-integration/.git",
+    "/workspace/scratch/037bacfed72a/llvm23-preupgrade-check/.git",
+    "/workspace/scratch/39be3faa4442/cold-173-audit-review/repository.git"
+  ],
+  "all_three_commits_absent_in_checked_git_stores": true,
+  "github_exact_objects": "All three 404; current cb6ae2f positive control succeeded using same git/commits endpoint.",
+  "existing_bundles": "173 history and LLVM23 integration recovery bundle were enumerated; neither advertises218; checked corresponding object stores lack requested commits.",
+  "targeted_filename_search_receipt": "targeted-file-search.json",
+  "prior_work_directory": "Requested zil/recovery/worktrees from prior turn are absent; current recovery directory contains only new diagnostic records.",
+  "scope_limit": "Only currently accessible local ZIL sources and GitHub objects checked; no claim about inaccessible backend snapshots. Library checked separately by parent.",
+  "mutations": "Only new diagnostic JSON files under current recovery/recovered218; no repository/ref/old receipt changes.",
+  "conclusion": "No exact218 source, bundle or final evidence recovered. Prior conversation counts are historical claims and cannot authorize publishing a reconstruction as the original candidate.",
+  "all_discovered_zil_worktrees": 22,
+  "all_discovered_unique_git_stores": 3,
+  "all_store_inventory": "all-discovered-zil-object-stores.json"
+}

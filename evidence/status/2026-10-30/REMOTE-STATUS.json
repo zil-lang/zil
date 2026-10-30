@@ -1,0 +1,95 @@
+{
+  "status": "PassForReadOnlyCurrentStatusCheck",
+  "checked_at_utc": "2026-10-30T03:01:31.502850+00:00",
+  "repository": "zil-lang/zil",
+  "current_main": "cb6ae2fc75945c0c7596a8a64ff807c1b7238fa1",
+  "main_ci": {
+    "id": 40992007032,
+    "job_id": 123856671366,
+    "url": "https://github.com/zil-lang/zil/actions/runs/40992007032",
+    "status": "completed",
+    "conclusion": "success",
+    "counts": {
+      "workspace": {
+        "groups": 285,
+        "passed": 2743,
+        "failed": 0,
+        "ignored": 0,
+        "states": [
+          "ok"
+        ]
+      },
+      "reference": {
+        "groups": 285,
+        "passed": 2711,
+        "failed": 0,
+        "ignored": 0,
+        "states": [
+          "ok"
+        ]
+      },
+      "text_reference": {
+        "groups": 8,
+        "passed": 36,
+        "failed": 0,
+        "ignored": 0,
+        "states": [
+          "ok"
+        ]
+      }
+    },
+    "consumer208": {
+      "status": "Pass",
+      "builds": 16,
+      "executions": 128,
+      "injected_failures": 56
+    },
+    "raw_log_sha256": "418794e53243ef2dd8222c2bae906028fbc8c2de961e577485a7e32a55e8bcfe",
+    "log_has_expected_head": true
+  },
+  "toolchain": {
+    "llvm": "23.1.4",
+    "rust": "1.99.1",
+    "merged_pr": 7,
+    "integration_commit": "918de0208229010e54183690d61a0453216b7b2a",
+    "performance": "NotMeasured"
+  },
+  "branches": [
+    {
+      "ref": "refs/heads/main",
+      "node_id": "REF_kwDOVXdqJK9yZWZzL2hlYWRzL21haW4",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/refs/heads/main",
+      "object": {
+        "sha": "cb6ae2fc75945c0c7596a8a64ff807c1b7238fa1",
+        "type": "commit",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/commits/cb6ae2fc75945c0c7596a8a64ff807c1b7238fa1"
+      }
+    },
+    {
+      "ref": "refs/heads/research/compile-performance",
+      "node_id": "REF_kwDOVXdqJNoAJ3JlZnMvaGVhZHMvcmVzZWFyY2gvY29tcGlsZS1wZXJmb3JtYW5jZQ",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/refs/heads/research/compile-performance",
+      "object": {
+        "sha": "fb87916d5e7f64a460408f75893928511c0fa35b",
+        "type": "commit",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/commits/fb87916d5e7f64a460408f75893928511c0fa35b"
+      }
+    }
+  ],
+  "research": {
+    "head": "fb87916d5e7f64a460408f75893928511c0fa35b",
+    "status": "Doing; mainline Hold",
+    "authority": "User-authorized long-lived research branch; explicit retain policy in its README",
+    "CP01": "NoGo/reverted",
+    "CP02": "Research usable; production Hold pending disabled-path costs",
+    "CP03": "Bounded tooling review passed",
+    "CP04": "NoGo/reverted",
+    "production_speedup_proven": false,
+    "research_is_main_ancestor": false
+  },
+  "open_pull_requests": 0,
+  "old_branch_policy_conflict": "main .agent/git-branches.md still says all tasks use task/<ID>; newer user-authorized research README and toolchain task document long-lived research/compile-performance and one-time chore/llvm-23-upgrade. Do not silently delete or rename active work. Reconcile documentation if needed.",
+  "remote_writes": 0,
+  "new_compiler_executions": 0,
+  "other_workspace_modified": false
+}

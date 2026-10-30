@@ -1,0 +1,88 @@
+{
+  "schema": "zil.document-review/status20261030-v1",
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root/remote_status",
+  "checked_at_utc": "2026-10-30T03:11:23.365551+00:00",
+  "reviewed_directory": "/workspace/scratch/3cf12ce32e36/publish-status20261030",
+  "scope": "Read-only factual consistency and execution-identity review of four proposed status/branch-policy/task documents. This is not language implementation acceptance and contains no new compiler test execution.",
+  "source_main": "cb6ae2fc75945c0c7596a8a64ff807c1b7238fa1",
+  "files": {
+    "docs/STATUS-20261030.md": {
+      "bytes": 6072,
+      "sha256": "d8a2ba5ff58d99410dce13ad01bdf4ea67ecb70598ad36695dbc1eedb9a3fb08"
+    },
+    ".agent/git-branches.md": {
+      "bytes": 4758,
+      "sha256": "ac687bf950c03673c7cfc8c22e127e6d2db5e7426479a53d4125864fee5985a3"
+    },
+    "_zil_goal.md": {
+      "bytes": 23392,
+      "sha256": "5006ee7da01b53763b4d3dee85578dfee62a21266342af9bfa13fb16d958defe"
+    },
+    ".task/impl/218.md": {
+      "bytes": 1669,
+      "sha256": "53b6511b23c548d4a30969dec917b5b71547c77080d10732183f22450f0269ae"
+    }
+  },
+  "checks": {
+    "current_ci_exact_head": "40992007032@cb6ae2fc75945c0c7596a8a64ff807c1b7238fa1",
+    "counts_match_fresh_original_job_log": {
+      "workspace": {
+        "groups": 285,
+        "passed": 2743,
+        "failed": 0,
+        "ignored": 0,
+        "states": [
+          "ok"
+        ]
+      },
+      "reference": {
+        "groups": 285,
+        "passed": 2711,
+        "failed": 0,
+        "ignored": 0,
+        "states": [
+          "ok"
+        ]
+      },
+      "text_reference": {
+        "groups": 8,
+        "passed": 36,
+        "failed": 0,
+        "ignored": 0,
+        "states": [
+          "ok"
+        ]
+      }
+    },
+    "consumer208_matches_original_job_log": {
+      "status": "Pass",
+      "builds": 16,
+      "executions": 128,
+      "injected_failures": 56
+    },
+    "llvm23_merge_and_branch_deletion_match_remote": true,
+    "document_date_matches_2026_10_30_shanghai": true,
+    "previous_218_counts_not_reaccepted": true,
+    "218_task_blocked_with_null_implementation_review_and_integration": true,
+    "current_normative_hashes_match_cb6_registry": true,
+    "recovery_claims_match_available_RECOVERY_RESULT_and_inventory_counts": true,
+    "recovery_scope_limited_to_accessible_sources": true,
+    "library_and_personal_context_search_referenced_as_parent_checks_not_reperformed_by_reviewer": true,
+    "long_lived_research_exception_matches_user_authorized_task_and_readme": true,
+    "no_active_research_branch_deletion_or_rename_authorized_by_document": true,
+    "main_goal_historical_prefix_preserved": true,
+    "full_language_zui_product_gates_not_promoted": true,
+    "checkpoint_policy_requires_exact_remote_readback_and_does_not_equal_acceptance": true
+  },
+  "limitations": [
+    "Only the supplied four documents and referenced current status/recovery bytes were reviewed; personal-context/Library recovery searches were performed by root and are not newly repeated here.",
+    "No new source/raw/Wire/native/performance/full-workspace execution.",
+    "Any later edits require checking this file hash binding before publication."
+  ],
+  "new_compiler_executions": 0,
+  "remote_writes": 0,
+  "reviewed_files_modified": false,
+  "blocking_findings": []
+}

@@ -1,0 +1,25 @@
+{
+  "status": "Recorded",
+  "scope": "Read-only construction status, documentation and recovery check; no new semantic implementation or language test execution.",
+  "checked_at_utc": "2026-10-30T03:12:19.181757+00:00",
+  "inspected_source": "cb6ae2fc75945c0c7596a8a64ff807c1b7238fa1",
+  "handoff": {
+    "status": "Fail",
+    "historical_errors": 1138,
+    "new_218_errors": []
+  },
+  "plan": {
+    "status": "Pass",
+    "path": "PLAN-CHECK.json"
+  },
+  "library_recovery_check": {
+    "scope": "Complete metadata inventory since2026-10-29T00:00:00Z and specific218 bundle/archive/commit searches",
+    "recoverable_218_file_found": false,
+    "existing_v6_and_213_217_delivery_files_found": true,
+    "other_file_names_exported": false
+  },
+  "implementation_218": "NotRecovered; previous local acceptance claims cannot authorize current publication",
+  "production_changed": false,
+  "workflow_changed": false,
+  "new_language_tests": 0
+}
