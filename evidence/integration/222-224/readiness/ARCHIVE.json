@@ -1,0 +1,9 @@
+{
+  "source_directory": "/workspace/scratch/d286b3aeeb6b/recovery/readiness222-224-6b0d974b",
+  "archive_sha256": "b5af873d70231e7e93387fd97f24d90165c97a122bc6fb6cbc33e6ef5849e9c6",
+  "archive_bytes": 137084,
+  "file_count": 105,
+  "uncompressed_bytes": 345066,
+  "all_original_and_prior_failures_preserved": true,
+  "all_archived_bytes_reverified": true
+}
