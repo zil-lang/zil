@@ -1,0 +1,383 @@
+{
+  "reviewer": "/root/incremental_review",
+  "pass": true,
+  "scope": "Additional raw cache engagement audit; not a timing estimator or complete runner validation",
+  "plan_sha256": "0c053d2a51aed9bea32ef9eac8b081e8ad4af3f52d6b25932f389bafd1c52797",
+  "records_sha256": "6123b7042cdf5f44bd18c2be16e52368dda17c7ac10af8ee59c904adbe8f505d",
+  "script_sha256": "5347b29349fe392dc3bc18dfa44f399a6bbe4919e05f922b3bb8eb1b25e6ccf1",
+  "candidate_parse_reports_checked": 20,
+  "older_baseline_without_parse_report": {
+    "A": 20
+  },
+  "prediction": "For each isolated four-request sequence, retain identities (file/module discovery ordinal, relative path, source SHA256) from all preceding successes; hits equal current identities already retained, misses/parsed/stored equal new identities.",
+  "preconditions": [
+    "Explicit trusted local query cache enabled on the frozen relevant arms",
+    "All current requests successful and fresh Verify=1",
+    "No bypass, quota miss, corrupt entry or session hit in candidate syntax reports",
+    "All current generated modules fit codec bounds and publish successfully; this is checked via stored counts and absent write_reason",
+    "FileId equals ModuleId in the filesystem adapter; source/compiler/rule/options identity is fixed within one sequence"
+  ],
+  "by_arm_case_request": {
+    "B/tree4x2/cold_process": {
+      "rows": 1,
+      "modules": [
+        7
+      ],
+      "hits": [
+        0
+      ],
+      "parsed": [
+        7
+      ],
+      "stored": [
+        7
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/tree4x2/unchanged": {
+      "rows": 1,
+      "modules": [
+        7
+      ],
+      "hits": [
+        7
+      ],
+      "parsed": [
+        0
+      ],
+      "stored": [
+        0
+      ],
+      "query_states": {
+        "hit": 1
+      }
+    },
+    "B/tree4x2/private_edit": {
+      "rows": 1,
+      "modules": [
+        7
+      ],
+      "hits": [
+        6
+      ],
+      "parsed": [
+        1
+      ],
+      "stored": [
+        1
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/tree4x2/public_edit": {
+      "rows": 1,
+      "modules": [
+        7
+      ],
+      "hits": [
+        5
+      ],
+      "parsed": [
+        2
+      ],
+      "stored": [
+        2
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/tree32x8/cold_process": {
+      "rows": 1,
+      "modules": [
+        35
+      ],
+      "hits": [
+        0
+      ],
+      "parsed": [
+        35
+      ],
+      "stored": [
+        35
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/tree32x8/unchanged": {
+      "rows": 1,
+      "modules": [
+        35
+      ],
+      "hits": [
+        35
+      ],
+      "parsed": [
+        0
+      ],
+      "stored": [
+        0
+      ],
+      "query_states": {
+        "hit": 1
+      }
+    },
+    "B/tree32x8/private_edit": {
+      "rows": 1,
+      "modules": [
+        35
+      ],
+      "hits": [
+        34
+      ],
+      "parsed": [
+        1
+      ],
+      "stored": [
+        1
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/tree32x8/public_edit": {
+      "rows": 1,
+      "modules": [
+        35
+      ],
+      "hits": [
+        33
+      ],
+      "parsed": [
+        2
+      ],
+      "stored": [
+        2
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/tree256x8/cold_process": {
+      "rows": 1,
+      "modules": [
+        259
+      ],
+      "hits": [
+        0
+      ],
+      "parsed": [
+        259
+      ],
+      "stored": [
+        259
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/tree256x8/unchanged": {
+      "rows": 1,
+      "modules": [
+        259
+      ],
+      "hits": [
+        259
+      ],
+      "parsed": [
+        0
+      ],
+      "stored": [
+        0
+      ],
+      "query_states": {
+        "hit": 1
+      }
+    },
+    "B/tree256x8/private_edit": {
+      "rows": 1,
+      "modules": [
+        259
+      ],
+      "hits": [
+        258
+      ],
+      "parsed": [
+        1
+      ],
+      "stored": [
+        1
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/tree256x8/public_edit": {
+      "rows": 1,
+      "modules": [
+        259
+      ],
+      "hits": [
+        257
+      ],
+      "parsed": [
+        2
+      ],
+      "stored": [
+        2
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/tree1024x8/cold_process": {
+      "rows": 1,
+      "modules": [
+        1027
+      ],
+      "hits": [
+        0
+      ],
+      "parsed": [
+        1027
+      ],
+      "stored": [
+        1027
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/tree1024x8/unchanged": {
+      "rows": 1,
+      "modules": [
+        1027
+      ],
+      "hits": [
+        1027
+      ],
+      "parsed": [
+        0
+      ],
+      "stored": [
+        0
+      ],
+      "query_states": {
+        "hit": 1
+      }
+    },
+    "B/tree1024x8/private_edit": {
+      "rows": 1,
+      "modules": [
+        1027
+      ],
+      "hits": [
+        1026
+      ],
+      "parsed": [
+        1
+      ],
+      "stored": [
+        1
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/tree1024x8/public_edit": {
+      "rows": 1,
+      "modules": [
+        1027
+      ],
+      "hits": [
+        1025
+      ],
+      "parsed": [
+        2
+      ],
+      "stored": [
+        2
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/retained/cold_process": {
+      "rows": 1,
+      "modules": [
+        4
+      ],
+      "hits": [
+        0
+      ],
+      "parsed": [
+        4
+      ],
+      "stored": [
+        4
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/retained/unchanged": {
+      "rows": 1,
+      "modules": [
+        4
+      ],
+      "hits": [
+        4
+      ],
+      "parsed": [
+        0
+      ],
+      "stored": [
+        0
+      ],
+      "query_states": {
+        "hit": 1
+      }
+    },
+    "B/retained/private_edit": {
+      "rows": 1,
+      "modules": [
+        4
+      ],
+      "hits": [
+        3
+      ],
+      "parsed": [
+        1
+      ],
+      "stored": [
+        1
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    },
+    "B/retained/public_edit": {
+      "rows": 1,
+      "modules": [
+        4
+      ],
+      "hits": [
+        2
+      ],
+      "parsed": [
+        2
+      ],
+      "stored": [
+        2
+      ],
+      "query_states": {
+        "miss": 1
+      }
+    }
+  },
+  "failures": []
+}

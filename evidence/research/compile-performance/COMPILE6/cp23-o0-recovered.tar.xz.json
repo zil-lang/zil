@@ -1,0 +1,11 @@
+{
+  "source_directory": "/workspace/scratch/4ab361722127/measurements/cp23-o0-recovered",
+  "archive": "cp23-o0-recovered.tar.xz",
+  "files": 10414,
+  "source_bytes": 63575570,
+  "archive_bytes": 547948,
+  "sha256": "8c152183aafa6da9ed81b30e9a7714a828504325b42ca0e67b669199ae780050",
+  "git_blob_sha": "9c611a4eecfa08b5c3915fea623e0fef6999fe3e",
+  "verification": "Every tar entry decoded and byte-compared with the source; all source files retained",
+  "retention": "Completed and incomplete windows remain distinguishable by their original receipts and logs"
+}

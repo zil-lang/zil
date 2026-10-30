@@ -1,0 +1,35 @@
+{
+  "versions": {
+    "rust/bin/rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+    "rust/bin/cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "rust/bin/rustfmt": "rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13)",
+    "llvm/bin/clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/4ab361722127/.toolchain/llvm/bin",
+    "llvm/bin/ld.lld": "LLD 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5) (compatible with GNU linkers)",
+    "llvm/bin/llvm-config": "23.1.4"
+  },
+  "rust_smoke": "rust-1.99.1-ok",
+  "clang_lld_smoke": "llvm-23.1.4-ok",
+  "llvm_shared_library": {
+    "version": [
+      23,
+      1,
+      4
+    ],
+    "sha256": "882e5f026688e2fe19af43b372b3c670b05e1471f1fb7c12b7007c5d0fc0f1d8",
+    "size": 67715776,
+    "required_api_symbols": 104,
+    "missing_symbols": [],
+    "source_static_receipt": "llvm-static-receipt.json",
+    "link_command": "llvm-shared-link-command.json"
+  },
+  "official_llvm_archive": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.4/LLVM-23.1.4-Linux-X64.tar.zst",
+  "official_llvm_archive_sha256": "efdd1dbd089b99bfcfcde7b8eb1236163f2e88df5a981cca4f783ec9cb5e0378",
+  "rust_manifest": "downloads/channel-rust-1.99.1.toml",
+  "rust_archives_sha256_verified": [
+    "rustc",
+    "cargo",
+    "rust-std",
+    "rustfmt-preview"
+  ],
+  "scope": "Local test toolchain. LLVM shared library derived by linking official same-version static components, x86 target only. No project configuration changed."
+}

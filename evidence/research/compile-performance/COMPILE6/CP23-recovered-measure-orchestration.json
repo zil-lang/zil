@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "python3",
+    "tools/research/compile-performance/bench.py",
+    "measure",
+    "--plan",
+    "/workspace/scratch/4ab361722127/measurements/cp23-o0-recovered/plan.json",
+    "--preflight",
+    "/workspace/scratch/4ab361722127/measurements/cp23-o0-recovered/preflight/result.json",
+    "--out",
+    "/workspace/scratch/4ab361722127/measurements/cp23-o0-recovered/measure",
+    "--quiet-window"
+  ],
+  "started_at_utc": "2026-10-30T18:56:50.923395+00:00",
+  "finished_at_utc": "2026-10-30T19:00:14.450214+00:00",
+  "exit_code": 0,
+  "log_sha256": "bbd6251827d42db3da91912b7da1a431c63b7e3a52c4fe12b2650667d6c941c1",
+  "quiet_window": "All three subagents instructed to stop builds/CLI; own workspace compiler-process scan empty before start. Read-only and static edits only; no physical host isolation claimed.",
+  "original_window": "cp23-o0 retained unchanged; separate recovered window, no score pooling"
+}

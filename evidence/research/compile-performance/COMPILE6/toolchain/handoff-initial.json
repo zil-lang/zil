@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "scope": "Live handoff record integrity; not language correctness, review quality or full task acceptance.",
+  "status": "Fail",
+  "snapshot_only": true,
+  "authority": {
+    "method": "archive-without-git",
+    "task_root": ".task",
+    "current_is_main": true,
+    "main_tree_now": "/workspace/scratch/4ab361722127/zil"
+  },
+  "current_head": null,
+  "main_head": null,
+  "spec_hash": null,
+  "normative_hash": null,
+  "worktrees": [],
+  "measured": null,
+  "tasks": [],
+  "slices": [],
+  "next": [],
+  "commands": {
+    "cold_start": "node tools/handoff.mjs --check",
+    "restore": "git clone --branch main HISTORY_BUNDLE_PATH zil-checkout",
+    "restore_hint": "Replace HISTORY_BUNDLE_PATH with the actual companion path named by PACKAGE.json companions.history.file",
+    "plan": "python3 tools/check-plan.py --self-test",
+    "draft": "python3 tools/validate-draft.py"
+  },
+  "warnings": [],
+  "errors": [
+    {
+      "id": "checkout",
+      "reason": "Git checkout required: git clone --branch main HISTORY_BUNDLE_PATH zil-checkout ; choose the actual companion path from PACKAGE.json companions.history.file"
+    },
+    {
+      "id": "data/normative-inputs.json",
+      "reason": "Cannot read JSON: ENOENT: no such file or directory, open '/workspace/scratch/4ab361722127/zil/data/normative-inputs.json'"
+    },
+    {
+      "id": "spec",
+      "reason": "Language specification is missing."
+    },
+    {
+      "id": "normative",
+      "reason": "Normative input registry has no file hashes."
+    },
+    {
+      "id": "tasks",
+      "reason": "Task directory is missing."
+    },
+    {
+      "id": "tasks",
+      "reason": "No formal task records were found."
+    }
+  ],
+  "output": null
+}

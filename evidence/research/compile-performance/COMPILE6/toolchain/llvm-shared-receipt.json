@@ -1,0 +1,13 @@
+{
+  "version": [
+    23,
+    1,
+    4
+  ],
+  "sha256": "882e5f026688e2fe19af43b372b3c670b05e1471f1fb7c12b7007c5d0fc0f1d8",
+  "size": 67715776,
+  "required_api_symbols": 104,
+  "missing_symbols": [],
+  "source_static_receipt": "llvm-static-receipt.json",
+  "link_command": "llvm-shared-link-command.json"
+}

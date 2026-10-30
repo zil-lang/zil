@@ -1,0 +1,10 @@
+{
+  "base": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+  "tree": "49366802dcf5d303b6caf789cb64cb36a3ac63ad",
+  "tree_entries": 112663,
+  "materialized_files": 225,
+  "unmaterialized_files": 87398,
+  "normalized_newline": [],
+  "history": "exact shallow boundary; older commits not materialized",
+  "source_hashes_verified": true
+}

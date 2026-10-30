@@ -1,0 +1,79 @@
+{
+  "attempt": 2,
+  "started_at_utc": "2026-10-30T19:08:12.875971+00:00",
+  "previous_rejection": "CP27-baseline-preparation.json; original stderr retained; no plan created",
+  "metadata_repair": {
+    "file": "tools/research/212/bench.py",
+    "git_mode": "100755",
+    "mode_before": "0o755",
+    "mode_after": "0o755",
+    "git_blob": "048f8e0fc454aef32afbef33b14040547b780a3f",
+    "content_unchanged": true,
+    "runner_and_git_checks_unchanged": true
+  },
+  "stages": [
+    {
+      "phase": "prepare",
+      "argv": [
+        "python3",
+        "tools/research/compile-performance/bench.py",
+        "prepare",
+        "--out",
+        "/workspace/scratch/4ab361722127/measurements/cp27-vs-baseline-o0-query",
+        "--baseline",
+        "/workspace/scratch/4ab361722127/build-base/release/zil",
+        "--candidate",
+        "/workspace/scratch/4ab361722127/build-cp27/release/zil",
+        "--clang",
+        "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/clang-23",
+        "--baseline-source",
+        "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+        "--candidate-source",
+        "d9a71f603d73c1df4a367189cc5b41ca15bf7d70",
+        "--phase",
+        "build",
+        "--blocks",
+        "3",
+        "--profile",
+        "O0",
+        "--units",
+        "8",
+        "--jobs",
+        "4",
+        "--object-cache",
+        "--query-cache",
+        "--cpus",
+        "0,1",
+        "--seed",
+        "20261029",
+        "--timeout",
+        "180",
+        "--tool",
+        "/workspace/scratch/4ab361722127/.toolchain/llvm/lib/libLLVM-23.so",
+        "--tool",
+        "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/lld"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/zil-review/CP27-baseline-prepare-attempt2.log",
+      "log_sha256": "1db9429c69d5a573cf4a7a855ca85137586151edf06314ba52c7a4b7c231d1ba"
+    },
+    {
+      "phase": "preflight",
+      "argv": [
+        "python3",
+        "tools/research/compile-performance/bench.py",
+        "preflight",
+        "--plan",
+        "/workspace/scratch/4ab361722127/measurements/cp27-vs-baseline-o0-query/plan.json",
+        "--out",
+        "/workspace/scratch/4ab361722127/measurements/cp27-vs-baseline-o0-query/preflight"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/zil-review/CP27-baseline-preflight-attempt2.log",
+      "log_sha256": "affb940acc7daa3b2d6a0df89f29f4af2b378cdc9199a3f3b8315fd2561f103e"
+    }
+  ],
+  "scope": "prepare/preflight only; no formal measurement",
+  "finished_at_utc": "2026-10-30T19:08:46.872696+00:00",
+  "plan_sha256": "0c053d2a51aed9bea32ef9eac8b081e8ad4af3f52d6b25932f389bafd1c52797"
+}

@@ -434,7 +434,7 @@ Doing
       "result": "docs/research/compile-performance/CP22-RESULT.md"
     },
     "CP23": {
-      "status": "Doing",
+      "status": "NoGo",
       "author": "/root/toolchain_recovery",
       "reviewer": "/root/incremental_review",
       "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
@@ -447,7 +447,9 @@ Doing
         "evidence/research/compile-performance/CP23"
       ],
       "candidate": "4496b1ab6c62ff1131dfbe4e09b33467f346099c",
-      "performance": "Original full window: 240 rows, two LLD failures, IncompleteOrFailed_NoScore. Distinct recovered window preflight 40/40 and 128 native checks passed; formal measurement pending."
+      "performance": "Original full window retains two LLD failures and NoScore. Separate recovered window 240/240 plus768native, wall B/A1.0270763911589396, CPU1.035669598423132, exploratory95[0.9757440034850736,1.0528941508185157]. Independently recomputed; no established complete-request gain.",
+      "result": "docs/research/compile-performance/CP23-RESULT.md",
+      "review": "evidence/research/compile-performance/COMPILE6/CP23-recovered-full-cli-review.json"
     },
     "CP24": {
       "status": "ReviewPass",
@@ -484,7 +486,7 @@ Doing
       "performance": "NotRun; scoped correctness Pass only, preexisting query/object findings assigned CP27."
     },
     "CP27": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/toolchain_recovery",
       "reviewer": "/root/incremental_review",
       "baseline": "d8872b52f5a215c2efd33aaadba5083f471e0bc2",
@@ -501,7 +503,31 @@ Doing
       "findings": [
         "evidence/research/compile-performance/COMPILE6/CP12-review-finding.json",
         "evidence/research/compile-performance/COMPILE6/OBJECT-review-finding.json"
-      ]
+      ],
+      "candidate": "d9a71f603d73c1df4a367189cc5b41ca15bf7d70",
+      "author_validation": "31 targeted tests passed; independent review and final release pending.",
+      "delivery": "a1ff78eb8b3cee0a9ba2720ac4bbaa6aa8174dd0",
+      "review": "evidence/research/compile-performance/COMPILE6/CP27-review.json",
+      "delivery_review": "evidence/research/compile-performance/COMPILE6/CP27-delivery-review.json",
+      "published_source": "abefce0c2c1731a085ce97f941e32b3286209b30",
+      "published_delivery": "79bb5348fe426a62aecaae808321f70966cbc24c",
+      "validation": "31 author and independently rerun targeted tests; independent query4CLI/4native and object5CLI/5native. Overlapping executions not added as unique tests.",
+      "performance": "Pending; final candidate versus baseline and native Rust windows prepared/preflight passed, formal measurements separately controlled."
+    },
+    "CP25": {
+      "status": "Planned",
+      "author": "/root/toolchain_recovery",
+      "reviewer": "/root/incremental_review",
+      "baseline": "474e0d84a0e2a941e318533f8558441731d738fe",
+      "scope": "Read-only feasibility study completed; no new production stable-owner/transaction collector implemented or performance measured.",
+      "purpose": "Separate stable owner from complete invocation identity, capture actual dependencies transactionally, and only then investigate result-surface point-to-point propagation and ensure-current.",
+      "write_set": [
+        "docs/research/compile-performance/CP25-FEASIBILITY.md",
+        "docs/research/compile-performance/ZIT-QUERY-REVIEW.md",
+        "docs/research/compile-performance/ZIT-FULL-COVERAGE-ADDENDUM.md"
+      ],
+      "result": "docs/research/compile-performance/CP25-FEASIBILITY.md",
+      "adoption": "Hold: present project-level query granularity, globally assigned IDs, negative lookups, semantic summaries and shared budgets prevent a safe scheduling-only shortcut."
     }
   },
   "mainline_acceptance": "Hold: main not changed by this research round; targeted correctness passed, composite-type performance risk signals unresolved; full workspace/product gates NotRun.",
@@ -523,7 +549,7 @@ Doing
     "source_scope": "No production compiler change after951471d5."
   },
   "compile6_baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
-  "compile6_status": "Doing: CP21 full-cost NoGo; CP22 mixed performance and late publication defect NoGo; CP23 original failed window retained, recovered preflight passed; CP26 and CP27 correctness successors under independent review; no new overall Rust advantage."
+  "compile6_status": "Doing: CP21/23 full-cost NoGo and CP22 late defect/initial mixed-cost NoGo retained. CP26/27 correctness Pass. Final candidate and all native Rust windows preflight passed; formal publication-cost and final incremental windows in progress, no final speedup claim."
 }
 ```
 

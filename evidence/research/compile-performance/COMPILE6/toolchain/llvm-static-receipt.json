@@ -1,0 +1,313 @@
+{
+  "source": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.4/LLVM-23.1.4-Linux-X64.tar.zst",
+  "sha256": "efdd1dbd089b99bfcfcde7b8eb1236163f2e88df5a981cca4f783ec9cb5e0378",
+  "bytes": 1190060068,
+  "elapsed_seconds": 22.998646681000537,
+  "retained": [
+    {
+      "path": "lib/libLLVMAsmParser.a",
+      "size": 1163438,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMBitReader.a",
+      "size": 1069126,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMTarget.a",
+      "size": 123972,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMDebugInfoDWARF.a",
+      "size": 2028102,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMX86AsmParser.a",
+      "size": 1342894,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMMC.a",
+      "size": 2789230,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMInstCombine.a",
+      "size": 4175764,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMDebugInfoPDB.a",
+      "size": 2682400,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMDebugInfoBTF.a",
+      "size": 106278,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMDebugInfoDWARFLowLevel.a",
+      "size": 80806,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMSupport.a",
+      "size": 5329258,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMHipStdPar.a",
+      "size": 63748,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMCFGuard.a",
+      "size": 33596,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMDebugInfoGSYM.a",
+      "size": 656094,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMCore.a",
+      "size": 9839556,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMScalarOpts.a",
+      "size": 7941334,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMRemarks.a",
+      "size": 378756,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMObjectYAML.a",
+      "size": 4379830,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMCodeGenTypes.a",
+      "size": 14160,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMDebugInfoMSF.a",
+      "size": 124098,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMAsmPrinter.a",
+      "size": 2442342,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMMCA.a",
+      "size": 326814,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMipo.a",
+      "size": 9750572,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMTextAPI.a",
+      "size": 772816,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMBinaryFormat.a",
+      "size": 479398,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMBitWriter.a",
+      "size": 626400,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMIRPrinter.a",
+      "size": 10632,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMIRReader.a",
+      "size": 29916,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMDemangle.a",
+      "size": 553058,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMLinker.a",
+      "size": 221820,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMProfileData.a",
+      "size": 3156554,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMAnalysis.a",
+      "size": 13208756,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMDebugInfoCodeView.a",
+      "size": 1522974,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMFrontendAtomic.a",
+      "size": 27984,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMFrontendOffloading.a",
+      "size": 150930,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMSandboxIR.a",
+      "size": 936806,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMMCParser.a",
+      "size": 1043198,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMFrontendOpenMP.a",
+      "size": 1313462,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMFrontendHLSL.a",
+      "size": 153304,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMFrontendDirective.a",
+      "size": 1762,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMTargetParser.a",
+      "size": 979268,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMX86Info.a",
+      "size": 6812,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMSymbolize.a",
+      "size": 369778,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMCodeGen.a",
+      "size": 18907998,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMInstrumentation.a",
+      "size": 3580386,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMX86Disassembler.a",
+      "size": 1431302,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMSelectionDAG.a",
+      "size": 8199270,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMX86Desc.a",
+      "size": 4159152,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMVectorize.a",
+      "size": 9120134,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMTransformUtils.a",
+      "size": 6323120,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMX86CodeGen.a",
+      "size": 11075704,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMBitstreamReader.a",
+      "size": 84850,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMObject.a",
+      "size": 3521834,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMPasses.a",
+      "size": 7146264,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMAggressiveInstCombine.a",
+      "size": 240246,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMGlobalISel.a",
+      "size": 2923716,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMCoroutines.a",
+      "size": 678032,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMMCDisassembler.a",
+      "size": 40424,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMObjCARCOpts.a",
+      "size": 308894,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMCGData.a",
+      "size": 370734,
+      "type": "b'0'"
+    },
+    {
+      "path": "lib/libLLVMX86TargetMCA.a",
+      "size": 6320,
+      "type": "b'0'"
+    }
+  ]
+}

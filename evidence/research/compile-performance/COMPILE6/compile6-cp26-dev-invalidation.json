@@ -1,0 +1,754 @@
+{
+  "time_utc": "2026-10-30T19:06:02.288645+00:00",
+  "purpose": "Reclaim completed reproducible CP26 development/test cache before remaining complete-process measurements; previous unlink cleanup rehydrated in this execution environment. Keep paths but invalidate bytes; do not reuse this Cargo target without a clean rebuild.",
+  "target": "/workspace/scratch/4ab361722127/target-cp26",
+  "tests_already_completed": "Author and independent CP26 22/22 tests, committed author and independent raw evidence. Subsequent work uses immutable release or distinct CP27 target.",
+  "files": 126,
+  "logical_bytes_reclaimed": 189079731,
+  "free_bytes_before": 759373824,
+  "free_bytes_after": 947814400,
+  "protected_metadata_unchanged": true,
+  "protected": {
+    "/workspace/scratch/4ab361722127/build-base/release/zil": {
+      "device": 27,
+      "inode": 704643,
+      "size": 7422280,
+      "nlink": 2,
+      "mode": 33261,
+      "mtime_ns": 1793382131004127094,
+      "ctime_ns": 1793382131016127057
+    },
+    "/workspace/scratch/4ab361722127/build-cp21/release/zil": {
+      "device": 27,
+      "inode": 706829,
+      "size": 7422344,
+      "nlink": 2,
+      "mode": 33261,
+      "mtime_ns": 1793382496418527242,
+      "ctime_ns": 1793382496430527181
+    },
+    "/workspace/scratch/4ab361722127/build-cp22/release/zil": {
+      "device": 27,
+      "inode": 883470,
+      "size": 7612224,
+      "nlink": 2,
+      "mode": 33261,
+      "mtime_ns": 1793383810060620275,
+      "ctime_ns": 1793383810072620221
+    },
+    "/workspace/scratch/4ab361722127/build-cp23/release/zil": {
+      "device": 27,
+      "inode": 707969,
+      "size": 7422568,
+      "nlink": 2,
+      "mode": 33261,
+      "mtime_ns": 1793382572394170319,
+      "ctime_ns": 1793382572410170248
+    },
+    "/workspace/scratch/4ab361722127/build-cp26/release/zil": {
+      "device": 27,
+      "inode": 912428,
+      "size": 7614936,
+      "nlink": 2,
+      "mode": 33261,
+      "mtime_ns": 1793385671372689474,
+      "ctime_ns": 1793385671396689353
+    },
+    "/workspace/scratch/4ab361722127/build-cp27/release/zil": {
+      "device": 27,
+      "inode": 1000081,
+      "size": 7614536,
+      "nlink": 2,
+      "mode": 33261,
+      "mtime_ns": 1793387042618647667,
+      "ctime_ns": 1793387042630647624
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/rust/bin/rustc": {
+      "device": 27,
+      "inode": 1964354,
+      "size": 648536,
+      "nlink": 1,
+      "mode": 33261,
+      "mtime_ns": 1791856129000000000,
+      "ctime_ns": 1793381322675559133
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/rust/bin/cargo": {
+      "device": 27,
+      "inode": 1964469,
+      "size": 36148320,
+      "nlink": 1,
+      "mode": 33261,
+      "mtime_ns": 1791856129000000000,
+      "ctime_ns": 1793381322682963170
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/clang": {
+      "device": 27,
+      "inode": 1965167,
+      "size": 282507120,
+      "nlink": 1,
+      "mode": 33261,
+      "mtime_ns": 1793381409306848032,
+      "ctime_ns": 1793381409306848032
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/ld.lld": {
+      "device": 27,
+      "inode": 1964642,
+      "size": 213124752,
+      "nlink": 1,
+      "mode": 33261,
+      "mtime_ns": 1793381415702807449,
+      "ctime_ns": 1793381415702807449
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/lib/libLLVM-23.so": {
+      "device": 27,
+      "inode": 1965447,
+      "size": 67715776,
+      "nlink": 1,
+      "mode": 33261,
+      "mtime_ns": 1793381550858102406,
+      "ctime_ns": 1793381550862102391
+    }
+  },
+  "skipped": [
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/build/zil-llvm-api-23d92e4f3dc6b35c/build-script-build",
+      "reason": "protected inode or shared link"
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/build/zil-llvm-api-23d92e4f3dc6b35c/build_script_build-23d92e4f3dc6b35c",
+      "reason": "protected inode or shared link"
+    }
+  ],
+  "invalidated_files": [
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/.rustc_info.json",
+      "previous_bytes": 1253,
+      "inode": 913718
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/CACHEDIR.TAG",
+      "previous_bytes": 177,
+      "inode": 913460
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.cargo-artifact-lock",
+      "previous_bytes": 0,
+      "inode": 913464
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.cargo-build-lock",
+      "previous_bytes": 0,
+      "inode": 913462
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.cargo-lock",
+      "previous_bytes": 0,
+      "inode": 913463
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-analyze-a6a245e582c2103c/dep-lib-zil_analyze",
+      "previous_bytes": 320,
+      "inode": 913634
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-analyze-a6a245e582c2103c/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913587
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-analyze-a6a245e582c2103c/lib-zil_analyze",
+      "previous_bytes": 16,
+      "inode": 913637
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-analyze-a6a245e582c2103c/lib-zil_analyze.json",
+      "previous_bytes": 473,
+      "inode": 913640
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-backend-llvm-4b4b6ceb821c4280/dep-lib-zil_backend_llvm",
+      "previous_bytes": 382,
+      "inode": 913573
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-backend-llvm-4b4b6ceb821c4280/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913554
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-backend-llvm-4b4b6ceb821c4280/lib-zil_backend_llvm",
+      "previous_bytes": 16,
+      "inode": 913575
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-backend-llvm-4b4b6ceb821c4280/lib-zil_backend_llvm.json",
+      "previous_bytes": 656,
+      "inode": 913576
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-base-a5cb5dbca91c1029/dep-lib-zil_base",
+      "previous_bytes": 72,
+      "inode": 913496
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-base-a5cb5dbca91c1029/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913492
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-base-a5cb5dbca91c1029/lib-zil_base",
+      "previous_bytes": 16,
+      "inode": 913497
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-base-a5cb5dbca91c1029/lib-zil_base.json",
+      "previous_bytes": 350,
+      "inode": 913499
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-ct-16c2caf82848955b/dep-lib-zil_ct",
+      "previous_bytes": 93,
+      "inode": 913589
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-ct-16c2caf82848955b/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913585
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-ct-16c2caf82848955b/lib-zil_ct",
+      "previous_bytes": 16,
+      "inode": 913607
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-ct-16c2caf82848955b/lib-zil_ct.json",
+      "previous_bytes": 525,
+      "inode": 913609
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-db-0c95043596840708/dep-lib-zil_db",
+      "previous_bytes": 48,
+      "inode": 913646
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-db-0c95043596840708/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913641
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-db-0c95043596840708/lib-zil_db",
+      "previous_bytes": 16,
+      "inode": 913648
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-db-0c95043596840708/lib-zil_db.json",
+      "previous_bytes": 406,
+      "inode": 913650
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-16018e175bfc7df4/dep-test-integration-test-parse_publication_cp26",
+      "previous_bytes": 51,
+      "inode": 913713
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-16018e175bfc7df4/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913680
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-16018e175bfc7df4/test-integration-test-parse_publication_cp26",
+      "previous_bytes": 16,
+      "inode": 913714
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-16018e175bfc7df4/test-integration-test-parse_publication_cp26.json",
+      "previous_bytes": 1162,
+      "inode": 913715
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-1b1290d3146c0e79/dep-lib-zil_driver",
+      "previous_bytes": 312,
+      "inode": 913669
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-1b1290d3146c0e79/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913654
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-1b1290d3146c0e79/lib-zil_driver",
+      "previous_bytes": 16,
+      "inode": 913671
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-1b1290d3146c0e79/lib-zil_driver.json",
+      "previous_bytes": 1071,
+      "inode": 913672
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-1c4e5c23cc7fbd89/dep-test-integration-test-parse_cache_cp22",
+      "previous_bytes": 45,
+      "inode": 913677
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-1c4e5c23cc7fbd89/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913674
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-1c4e5c23cc7fbd89/test-integration-test-parse_cache_cp22",
+      "previous_bytes": 16,
+      "inode": 913678
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-1c4e5c23cc7fbd89/test-integration-test-parse_cache_cp22.json",
+      "previous_bytes": 1155,
+      "inode": 913679
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-3929aabdec51c2a1/dep-test-integration-test-query_cache_cp12",
+      "previous_bytes": 45,
+      "inode": 913682
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-3929aabdec51c2a1/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913673
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-3929aabdec51c2a1/test-integration-test-query_cache_cp12",
+      "previous_bytes": 16,
+      "inode": 913711
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-driver-3929aabdec51c2a1/test-integration-test-query_cache_cp12.json",
+      "previous_bytes": 1156,
+      "inode": 913712
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-expand-dd2700c7a1d08ec9/dep-lib-zil_expand",
+      "previous_bytes": 729,
+      "inode": 913606
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-expand-dd2700c7a1d08ec9/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913610
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-expand-dd2700c7a1d08ec9/lib-zil_expand",
+      "previous_bytes": 16,
+      "inode": 913636
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-expand-dd2700c7a1d08ec9/lib-zil_expand.json",
+      "previous_bytes": 531,
+      "inode": 913638
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-ir-b9f5982dc757d842/dep-lib-zil_ir",
+      "previous_bytes": 67,
+      "inode": 913516
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-ir-b9f5982dc757d842/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913504
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-ir-b9f5982dc757d842/lib-zil_ir",
+      "previous_bytes": 16,
+      "inode": 913518
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-ir-b9f5982dc757d842/lib-zil_ir.json",
+      "previous_bytes": 407,
+      "inode": 913521
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-llvm-api-23d92e4f3dc6b35c/build-script-build-script-build",
+      "previous_bytes": 16,
+      "inode": 913501
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-llvm-api-23d92e4f3dc6b35c/build-script-build-script-build.json",
+      "previous_bytes": 438,
+      "inode": 913502
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-llvm-api-23d92e4f3dc6b35c/dep-build-script-build-script-build",
+      "previous_bytes": 123,
+      "inode": 913500
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-llvm-api-23d92e4f3dc6b35c/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913493
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-llvm-api-423ce3b2ae016d7d/run-build-script-build-script-build",
+      "previous_bytes": 16,
+      "inode": 913512
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-llvm-api-423ce3b2ae016d7d/run-build-script-build-script-build.json",
+      "previous_bytes": 462,
+      "inode": 913513
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-llvm-api-ab3e25d5c7bfa480/dep-lib-zil_llvm_api",
+      "previous_bytes": 156,
+      "inode": 913532
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-llvm-api-ab3e25d5c7bfa480/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913525
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-llvm-api-ab3e25d5c7bfa480/lib-zil_llvm_api",
+      "previous_bytes": 16,
+      "inode": 913534
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-llvm-api-ab3e25d5c7bfa480/lib-zil_llvm_api.json",
+      "previous_bytes": 491,
+      "inode": 913535
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-lower-83413a68482e75e6/dep-lib-zil_lower",
+      "previous_bytes": 30,
+      "inode": 913581
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-lower-83413a68482e75e6/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913577
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-lower-83413a68482e75e6/lib-zil_lower",
+      "previous_bytes": 16,
+      "inode": 913583
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-lower-83413a68482e75e6/lib-zil_lower.json",
+      "previous_bytes": 530,
+      "inode": 913584
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-syntax-85e178f3f1cb215e/dep-lib-zil_syntax",
+      "previous_bytes": 349,
+      "inode": 913519
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-syntax-85e178f3f1cb215e/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913514
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-syntax-85e178f3f1cb215e/lib-zil_syntax",
+      "previous_bytes": 16,
+      "inode": 913523
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-syntax-85e178f3f1cb215e/lib-zil_syntax.json",
+      "previous_bytes": 413,
+      "inode": 913524
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-types-5cf87fbec5b9f0fc/dep-lib-zil_types",
+      "previous_bytes": 776,
+      "inode": 913556
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-types-5cf87fbec5b9f0fc/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913536
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-types-5cf87fbec5b9f0fc/lib-zil_types",
+      "previous_bytes": 16,
+      "inode": 913579
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-types-5cf87fbec5b9f0fc/lib-zil_types.json",
+      "previous_bytes": 530,
+      "inode": 913580
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-verify-56204ae9930c84aa/dep-lib-zil_verify",
+      "previous_bytes": 553,
+      "inode": 913549
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-verify-56204ae9930c84aa/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913522
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-verify-56204ae9930c84aa/lib-zil_verify",
+      "previous_bytes": 16,
+      "inode": 913552
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/.fingerprint/zil-verify-56204ae9930c84aa/lib-zil_verify.json",
+      "previous_bytes": 471,
+      "inode": 913553
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/build/zil-llvm-api-23d92e4f3dc6b35c/build_script_build-23d92e4f3dc6b35c.d",
+      "previous_bytes": 486,
+      "inode": 913494
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/build/zil-llvm-api-423ce3b2ae016d7d/invoked.timestamp",
+      "previous_bytes": 48,
+      "inode": 913505
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/build/zil-llvm-api-423ce3b2ae016d7d/out/llvm_version.rs",
+      "previous_bytes": 122,
+      "inode": 913507
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/build/zil-llvm-api-423ce3b2ae016d7d/output",
+      "previous_bytes": 96,
+      "inode": 913508
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/build/zil-llvm-api-423ce3b2ae016d7d/root-output",
+      "previous_bytes": 89,
+      "inode": 913510
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/build/zil-llvm-api-423ce3b2ae016d7d/stderr",
+      "previous_bytes": 0,
+      "inode": 913509
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_analyze-a6a245e582c2103c.rlib",
+      "previous_bytes": 7394928,
+      "inode": 913665
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_analyze-a6a245e582c2103c.rmeta",
+      "previous_bytes": 444417,
+      "inode": 913635
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_backend_llvm-4b4b6ceb821c4280.rlib",
+      "previous_bytes": 5993896,
+      "inode": 913604
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_backend_llvm-4b4b6ceb821c4280.rmeta",
+      "previous_bytes": 353866,
+      "inode": 913574
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_base-a5cb5dbca91c1029.rlib",
+      "previous_bytes": 738140,
+      "inode": 913511
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_base-a5cb5dbca91c1029.rmeta",
+      "previous_bytes": 201485,
+      "inode": 913498
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_ct-16c2caf82848955b.rlib",
+      "previous_bytes": 3006978,
+      "inode": 913624
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_ct-16c2caf82848955b.rmeta",
+      "previous_bytes": 160794,
+      "inode": 913591
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_db-0c95043596840708.rlib",
+      "previous_bytes": 743374,
+      "inode": 913661
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_db-0c95043596840708.rmeta",
+      "previous_bytes": 90427,
+      "inode": 913647
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_driver-1b1290d3146c0e79.rlib",
+      "previous_bytes": 7184580,
+      "inode": 913719
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_driver-1b1290d3146c0e79.rmeta",
+      "previous_bytes": 462422,
+      "inode": 913670
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_expand-dd2700c7a1d08ec9.rlib",
+      "previous_bytes": 15834078,
+      "inode": 913668
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_expand-dd2700c7a1d08ec9.rmeta",
+      "previous_bytes": 990122,
+      "inode": 913608
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_ir-b9f5982dc757d842.rlib",
+      "previous_bytes": 2519696,
+      "inode": 913530
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_ir-b9f5982dc757d842.rmeta",
+      "previous_bytes": 976207,
+      "inode": 913517
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_llvm_api-ab3e25d5c7bfa480.rlib",
+      "previous_bytes": 2140726,
+      "inode": 913548
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_llvm_api-ab3e25d5c7bfa480.rmeta",
+      "previous_bytes": 361905,
+      "inode": 913533
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_lower-83413a68482e75e6.rlib",
+      "previous_bytes": 206804,
+      "inode": 913590
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_lower-83413a68482e75e6.rmeta",
+      "previous_bytes": 14703,
+      "inode": 913582
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_syntax-85e178f3f1cb215e.rlib",
+      "previous_bytes": 3823758,
+      "inode": 913542
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_syntax-85e178f3f1cb215e.rmeta",
+      "previous_bytes": 921219,
+      "inode": 913520
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_types-5cf87fbec5b9f0fc.rlib",
+      "previous_bytes": 23484682,
+      "inode": 913633
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_types-5cf87fbec5b9f0fc.rmeta",
+      "previous_bytes": 1337449,
+      "inode": 913557
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_verify-56204ae9930c84aa.rlib",
+      "previous_bytes": 9251252,
+      "inode": 913572
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/libzil_verify-56204ae9930c84aa.rmeta",
+      "previous_bytes": 619876,
+      "inode": 913550
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/parse_cache_cp22-1c4e5c23cc7fbd89",
+      "previous_bytes": 33178952,
+      "inode": 913716
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/parse_cache_cp22-1c4e5c23cc7fbd89.d",
+      "previous_bytes": 317,
+      "inode": 913675
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/parse_publication_cp26-16018e175bfc7df4",
+      "previous_bytes": 33347992,
+      "inode": 913724
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/parse_publication_cp26-16018e175bfc7df4.d",
+      "previous_bytes": 347,
+      "inode": 913681
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/query_cache_cp12-3929aabdec51c2a1",
+      "previous_bytes": 33248248,
+      "inode": 913717
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/query_cache_cp12-3929aabdec51c2a1.d",
+      "previous_bytes": 317,
+      "inode": 913676
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/zil_analyze-a6a245e582c2103c.d",
+      "previous_bytes": 2242,
+      "inode": 913588
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/zil_backend_llvm-4b4b6ceb821c4280.d",
+      "previous_bytes": 2919,
+      "inode": 913555
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/zil_base-a5cb5dbca91c1029.d",
+      "previous_bytes": 635,
+      "inode": 913495
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/zil_ct-16c2caf82848955b.d",
+      "previous_bytes": 726,
+      "inode": 913586
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/zil_db-0c95043596840708.d",
+      "previous_bytes": 472,
+      "inode": 913642
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/zil_driver-1b1290d3146c0e79.d",
+      "previous_bytes": 2137,
+      "inode": 913657
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/zil_expand-dd2700c7a1d08ec9.d",
+      "previous_bytes": 4618,
+      "inode": 913613
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/zil_ir-b9f5982dc757d842.d",
+      "previous_bytes": 585,
+      "inode": 913506
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/zil_llvm_api-ab3e25d5c7bfa480.d",
+      "previous_bytes": 1358,
+      "inode": 913531
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/zil_lower-83413a68482e75e6.d",
+      "previous_bytes": 384,
+      "inode": 913578
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/zil_syntax-85e178f3f1cb215e.d",
+      "previous_bytes": 2409,
+      "inode": 913515
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/zil_types-5cf87fbec5b9f0fc.d",
+      "previous_bytes": 4887,
+      "inode": 913551
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/target-cp26/debug/deps/zil_verify-56204ae9930c84aa.d",
+      "previous_bytes": 3649,
+      "inode": 913526
+    }
+  ]
+}

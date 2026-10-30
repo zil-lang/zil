@@ -1,0 +1,15 @@
+{
+  "reviewer": "/root/incremental_review",
+  "verdict": "Pass",
+  "scope": "Evidence-only delivery binding after independent CP27 source/binary review; no new compiler or program execution.",
+  "source_commit": "d9a71f603d73c1df4a367189cc5b41ca15bf7d70",
+  "delivery_commit": "a1ff78eb8b3cee0a9ba2720ac4bbaa6aa8174dd0",
+  "crates_tree": "efd735f8821637c1876708cd19d5b649fa70530c",
+  "production_diff_between_source_and_delivery": "empty",
+  "independent_review_sha256": "e5119e546c21ebfa2a130be520126861c3a247af84b7fad233fed56b778f0824",
+  "manifest_sha256": "07734a58743c37c4aa584e75eed64f635898d4bc2216a88b6b4310469c07a33e",
+  "archived_files_checked_against_original_and_git_blob": 63,
+  "external_compiled_or_cache_payload_hashes_checked": 10,
+  "binary_sha256": "b82d690e8e26c6337f02d67cf515d816ed833db6b6d69ff6f66db49a889db7d3",
+  "preservation": "Original archived reviewer JSON/logs/raw/source/LLVM text are byte-identical, including trailing blank lines. Original failing findings were not relabeled. Existing review is not rewritten to self-reference its delivery commit."
+}

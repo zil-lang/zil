@@ -1,0 +1,256 @@
+{
+  "reviewer": "/root/incremental_review",
+  "verdict": "Pass",
+  "scope": "Read-only preflight identity/raw/source/native-oracle and actual cache-engagement audit; no repeat CLI, no performance score.",
+  "window": "/workspace/scratch/4ab361722127/measurements/compile6-rust-o0-incremental",
+  "source_identity": {
+    "B": {
+      "commit": "d9a71f603d73c1df4a367189cc5b41ca15bf7d70",
+      "crates_tree": "efd735f8821637c1876708cd19d5b649fa70530c"
+    }
+  },
+  "plan_sha256": "f6d3c133f1a8e6a8d46f8affe9559b724d5a6e1a5ca628d6aa399b6a72b54552",
+  "receipt_sha256": "a478fc42b3597aa970e4942e8e46dc4f94789ad04d4382954d148957450a70a7",
+  "records_sha256": "41a47799d183ea02c9d8cd852de7f9bed9c0fed9f89703a6fb30ac43f209dd18",
+  "rows": 40,
+  "native_oracle_checks": 128,
+  "startup_and_warmups": 20,
+  "original_runner_identity_and_validation_passed": true,
+  "raw_source_fixture_tool_hashes_checked": true,
+  "fresh_verify_zil_rows": 20,
+  "actual_query_states": {
+    "miss": 15,
+    "hit": 5
+  },
+  "raw_parse_supplement": "RUST-o0-incremental-preflight-parse-review.json",
+  "raw_parse_supplement_sha256": "55e8d114e66f7e44f217244f154963f4b80f3ba62e80248bc1033c627c90ba2b",
+  "cache_rows": [
+    {
+      "arm": "B",
+      "case": "tree4x2",
+      "request": "cold_process",
+      "modules": 7,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 7,
+      "parsed": 7,
+      "parse_hits": 0
+    },
+    {
+      "arm": "B",
+      "case": "tree4x2",
+      "request": "unchanged",
+      "modules": 7,
+      "query_state": "hit",
+      "object_hits": 7,
+      "actual_units": 7,
+      "parsed": 0,
+      "parse_hits": 7
+    },
+    {
+      "arm": "B",
+      "case": "tree4x2",
+      "request": "private_edit",
+      "modules": 7,
+      "query_state": "miss",
+      "object_hits": 6,
+      "actual_units": 7,
+      "parsed": 1,
+      "parse_hits": 6
+    },
+    {
+      "arm": "B",
+      "case": "tree4x2",
+      "request": "public_edit",
+      "modules": 7,
+      "query_state": "miss",
+      "object_hits": 5,
+      "actual_units": 7,
+      "parsed": 2,
+      "parse_hits": 5
+    },
+    {
+      "arm": "B",
+      "case": "tree32x8",
+      "request": "cold_process",
+      "modules": 35,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 8,
+      "parsed": 35,
+      "parse_hits": 0
+    },
+    {
+      "arm": "B",
+      "case": "tree32x8",
+      "request": "unchanged",
+      "modules": 35,
+      "query_state": "hit",
+      "object_hits": 8,
+      "actual_units": 8,
+      "parsed": 0,
+      "parse_hits": 35
+    },
+    {
+      "arm": "B",
+      "case": "tree32x8",
+      "request": "private_edit",
+      "modules": 35,
+      "query_state": "miss",
+      "object_hits": 7,
+      "actual_units": 8,
+      "parsed": 1,
+      "parse_hits": 34
+    },
+    {
+      "arm": "B",
+      "case": "tree32x8",
+      "request": "public_edit",
+      "modules": 35,
+      "query_state": "miss",
+      "object_hits": 6,
+      "actual_units": 8,
+      "parsed": 2,
+      "parse_hits": 33
+    },
+    {
+      "arm": "B",
+      "case": "tree256x8",
+      "request": "cold_process",
+      "modules": 259,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 8,
+      "parsed": 259,
+      "parse_hits": 0
+    },
+    {
+      "arm": "B",
+      "case": "tree256x8",
+      "request": "unchanged",
+      "modules": 259,
+      "query_state": "hit",
+      "object_hits": 8,
+      "actual_units": 8,
+      "parsed": 0,
+      "parse_hits": 259
+    },
+    {
+      "arm": "B",
+      "case": "tree256x8",
+      "request": "private_edit",
+      "modules": 259,
+      "query_state": "miss",
+      "object_hits": 7,
+      "actual_units": 8,
+      "parsed": 1,
+      "parse_hits": 258
+    },
+    {
+      "arm": "B",
+      "case": "tree256x8",
+      "request": "public_edit",
+      "modules": 259,
+      "query_state": "miss",
+      "object_hits": 6,
+      "actual_units": 8,
+      "parsed": 2,
+      "parse_hits": 257
+    },
+    {
+      "arm": "B",
+      "case": "tree1024x8",
+      "request": "cold_process",
+      "modules": 1027,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 8,
+      "parsed": 1027,
+      "parse_hits": 0
+    },
+    {
+      "arm": "B",
+      "case": "tree1024x8",
+      "request": "unchanged",
+      "modules": 1027,
+      "query_state": "hit",
+      "object_hits": 8,
+      "actual_units": 8,
+      "parsed": 0,
+      "parse_hits": 1027
+    },
+    {
+      "arm": "B",
+      "case": "tree1024x8",
+      "request": "private_edit",
+      "modules": 1027,
+      "query_state": "miss",
+      "object_hits": 7,
+      "actual_units": 8,
+      "parsed": 1,
+      "parse_hits": 1026
+    },
+    {
+      "arm": "B",
+      "case": "tree1024x8",
+      "request": "public_edit",
+      "modules": 1027,
+      "query_state": "miss",
+      "object_hits": 6,
+      "actual_units": 8,
+      "parsed": 2,
+      "parse_hits": 1025
+    },
+    {
+      "arm": "B",
+      "case": "retained",
+      "request": "cold_process",
+      "modules": 4,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 3,
+      "parsed": 4,
+      "parse_hits": 0
+    },
+    {
+      "arm": "B",
+      "case": "retained",
+      "request": "unchanged",
+      "modules": 4,
+      "query_state": "hit",
+      "object_hits": 3,
+      "actual_units": 3,
+      "parsed": 0,
+      "parse_hits": 4
+    },
+    {
+      "arm": "B",
+      "case": "retained",
+      "request": "private_edit",
+      "modules": 4,
+      "query_state": "miss",
+      "object_hits": 3,
+      "actual_units": 3,
+      "parsed": 1,
+      "parse_hits": 3
+    },
+    {
+      "arm": "B",
+      "case": "retained",
+      "request": "public_edit",
+      "modules": 4,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 3,
+      "parsed": 2,
+      "parse_hits": 2
+    }
+  ],
+  "cross_arm_same_case_request_elf_groups": "Not a Rust/ZIL identity gate; each native result checked against the shared oracle.",
+  "native_Rust_command_override_omissions_checked": 20,
+  "limits": [
+    "Native Rust retains fixed checked-overflow/panic/target/debug settings while omitting CGU/LTO/linker overrides; not all rustc defaults.",
+    "Original failed prepare attempts and any earlier NoScore windows are outside this successful frozen plan.",
+    "These unscored preflight observations establish validity and actual cache engagement, not timing improvement."
+  ]
+}

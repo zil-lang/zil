@@ -1,0 +1,480 @@
+{
+  "reviewer": "/root/incremental_review",
+  "verdict": "Pass",
+  "scope": "Read-only preflight identity/raw/source/native-oracle and actual cache-engagement audit; no repeat CLI, no performance score.",
+  "window": "/workspace/scratch/4ab361722127/measurements/cp27-vs-baseline-o0-query",
+  "source_identity": {
+    "A": {
+      "commit": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+      "crates_tree": "b583bc62e4aa39b206afb27f76f2f8262120fe9d"
+    },
+    "B": {
+      "commit": "d9a71f603d73c1df4a367189cc5b41ca15bf7d70",
+      "crates_tree": "efd735f8821637c1876708cd19d5b649fa70530c"
+    }
+  },
+  "plan_sha256": "0c053d2a51aed9bea32ef9eac8b081e8ad4af3f52d6b25932f389bafd1c52797",
+  "receipt_sha256": "9c35741de99fdfbd85ffca3d9a4f5d046d9ce3bf8009dce591695a28e400fe6f",
+  "records_sha256": "6123b7042cdf5f44bd18c2be16e52368dda17c7ac10af8ee59c904adbe8f505d",
+  "rows": 40,
+  "native_oracle_checks": 128,
+  "startup_and_warmups": 0,
+  "original_runner_identity_and_validation_passed": true,
+  "raw_source_fixture_tool_hashes_checked": true,
+  "fresh_verify_zil_rows": 40,
+  "actual_query_states": {
+    "miss": 30,
+    "hit": 10
+  },
+  "raw_parse_supplement": "CP27-baseline-preflight-parse-review.json",
+  "raw_parse_supplement_sha256": "f4737e2240a9dd6497b9b452d02bf5fa31f8771a8db6cf9f7a2b5c25779c1a81",
+  "cache_rows": [
+    {
+      "arm": "A",
+      "case": "tree4x2",
+      "request": "cold_process",
+      "modules": 7,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 7,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "tree4x2",
+      "request": "unchanged",
+      "modules": 7,
+      "query_state": "hit",
+      "object_hits": 7,
+      "actual_units": 7,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "tree4x2",
+      "request": "private_edit",
+      "modules": 7,
+      "query_state": "miss",
+      "object_hits": 6,
+      "actual_units": 7,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "tree4x2",
+      "request": "public_edit",
+      "modules": 7,
+      "query_state": "miss",
+      "object_hits": 5,
+      "actual_units": 7,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "B",
+      "case": "tree4x2",
+      "request": "cold_process",
+      "modules": 7,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 7,
+      "parsed": 7,
+      "parse_hits": 0
+    },
+    {
+      "arm": "B",
+      "case": "tree4x2",
+      "request": "unchanged",
+      "modules": 7,
+      "query_state": "hit",
+      "object_hits": 7,
+      "actual_units": 7,
+      "parsed": 0,
+      "parse_hits": 7
+    },
+    {
+      "arm": "B",
+      "case": "tree4x2",
+      "request": "private_edit",
+      "modules": 7,
+      "query_state": "miss",
+      "object_hits": 6,
+      "actual_units": 7,
+      "parsed": 1,
+      "parse_hits": 6
+    },
+    {
+      "arm": "B",
+      "case": "tree4x2",
+      "request": "public_edit",
+      "modules": 7,
+      "query_state": "miss",
+      "object_hits": 5,
+      "actual_units": 7,
+      "parsed": 2,
+      "parse_hits": 5
+    },
+    {
+      "arm": "A",
+      "case": "tree32x8",
+      "request": "cold_process",
+      "modules": 35,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 8,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "tree32x8",
+      "request": "unchanged",
+      "modules": 35,
+      "query_state": "hit",
+      "object_hits": 8,
+      "actual_units": 8,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "tree32x8",
+      "request": "private_edit",
+      "modules": 35,
+      "query_state": "miss",
+      "object_hits": 7,
+      "actual_units": 8,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "tree32x8",
+      "request": "public_edit",
+      "modules": 35,
+      "query_state": "miss",
+      "object_hits": 6,
+      "actual_units": 8,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "B",
+      "case": "tree32x8",
+      "request": "cold_process",
+      "modules": 35,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 8,
+      "parsed": 35,
+      "parse_hits": 0
+    },
+    {
+      "arm": "B",
+      "case": "tree32x8",
+      "request": "unchanged",
+      "modules": 35,
+      "query_state": "hit",
+      "object_hits": 8,
+      "actual_units": 8,
+      "parsed": 0,
+      "parse_hits": 35
+    },
+    {
+      "arm": "B",
+      "case": "tree32x8",
+      "request": "private_edit",
+      "modules": 35,
+      "query_state": "miss",
+      "object_hits": 7,
+      "actual_units": 8,
+      "parsed": 1,
+      "parse_hits": 34
+    },
+    {
+      "arm": "B",
+      "case": "tree32x8",
+      "request": "public_edit",
+      "modules": 35,
+      "query_state": "miss",
+      "object_hits": 6,
+      "actual_units": 8,
+      "parsed": 2,
+      "parse_hits": 33
+    },
+    {
+      "arm": "A",
+      "case": "tree256x8",
+      "request": "cold_process",
+      "modules": 259,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 8,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "tree256x8",
+      "request": "unchanged",
+      "modules": 259,
+      "query_state": "hit",
+      "object_hits": 8,
+      "actual_units": 8,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "tree256x8",
+      "request": "private_edit",
+      "modules": 259,
+      "query_state": "miss",
+      "object_hits": 7,
+      "actual_units": 8,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "tree256x8",
+      "request": "public_edit",
+      "modules": 259,
+      "query_state": "miss",
+      "object_hits": 6,
+      "actual_units": 8,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "B",
+      "case": "tree256x8",
+      "request": "cold_process",
+      "modules": 259,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 8,
+      "parsed": 259,
+      "parse_hits": 0
+    },
+    {
+      "arm": "B",
+      "case": "tree256x8",
+      "request": "unchanged",
+      "modules": 259,
+      "query_state": "hit",
+      "object_hits": 8,
+      "actual_units": 8,
+      "parsed": 0,
+      "parse_hits": 259
+    },
+    {
+      "arm": "B",
+      "case": "tree256x8",
+      "request": "private_edit",
+      "modules": 259,
+      "query_state": "miss",
+      "object_hits": 7,
+      "actual_units": 8,
+      "parsed": 1,
+      "parse_hits": 258
+    },
+    {
+      "arm": "B",
+      "case": "tree256x8",
+      "request": "public_edit",
+      "modules": 259,
+      "query_state": "miss",
+      "object_hits": 6,
+      "actual_units": 8,
+      "parsed": 2,
+      "parse_hits": 257
+    },
+    {
+      "arm": "A",
+      "case": "tree1024x8",
+      "request": "cold_process",
+      "modules": 1027,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 8,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "tree1024x8",
+      "request": "unchanged",
+      "modules": 1027,
+      "query_state": "hit",
+      "object_hits": 8,
+      "actual_units": 8,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "tree1024x8",
+      "request": "private_edit",
+      "modules": 1027,
+      "query_state": "miss",
+      "object_hits": 7,
+      "actual_units": 8,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "tree1024x8",
+      "request": "public_edit",
+      "modules": 1027,
+      "query_state": "miss",
+      "object_hits": 6,
+      "actual_units": 8,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "B",
+      "case": "tree1024x8",
+      "request": "cold_process",
+      "modules": 1027,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 8,
+      "parsed": 1027,
+      "parse_hits": 0
+    },
+    {
+      "arm": "B",
+      "case": "tree1024x8",
+      "request": "unchanged",
+      "modules": 1027,
+      "query_state": "hit",
+      "object_hits": 8,
+      "actual_units": 8,
+      "parsed": 0,
+      "parse_hits": 1027
+    },
+    {
+      "arm": "B",
+      "case": "tree1024x8",
+      "request": "private_edit",
+      "modules": 1027,
+      "query_state": "miss",
+      "object_hits": 7,
+      "actual_units": 8,
+      "parsed": 1,
+      "parse_hits": 1026
+    },
+    {
+      "arm": "B",
+      "case": "tree1024x8",
+      "request": "public_edit",
+      "modules": 1027,
+      "query_state": "miss",
+      "object_hits": 6,
+      "actual_units": 8,
+      "parsed": 2,
+      "parse_hits": 1025
+    },
+    {
+      "arm": "A",
+      "case": "retained",
+      "request": "cold_process",
+      "modules": 4,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 3,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "retained",
+      "request": "unchanged",
+      "modules": 4,
+      "query_state": "hit",
+      "object_hits": 3,
+      "actual_units": 3,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "retained",
+      "request": "private_edit",
+      "modules": 4,
+      "query_state": "miss",
+      "object_hits": 3,
+      "actual_units": 3,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "A",
+      "case": "retained",
+      "request": "public_edit",
+      "modules": 4,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 3,
+      "parsed": null,
+      "parse_hits": null
+    },
+    {
+      "arm": "B",
+      "case": "retained",
+      "request": "cold_process",
+      "modules": 4,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 3,
+      "parsed": 4,
+      "parse_hits": 0
+    },
+    {
+      "arm": "B",
+      "case": "retained",
+      "request": "unchanged",
+      "modules": 4,
+      "query_state": "hit",
+      "object_hits": 3,
+      "actual_units": 3,
+      "parsed": 0,
+      "parse_hits": 4
+    },
+    {
+      "arm": "B",
+      "case": "retained",
+      "request": "private_edit",
+      "modules": 4,
+      "query_state": "miss",
+      "object_hits": 3,
+      "actual_units": 3,
+      "parsed": 1,
+      "parse_hits": 3
+    },
+    {
+      "arm": "B",
+      "case": "retained",
+      "request": "public_edit",
+      "modules": 4,
+      "query_state": "miss",
+      "object_hits": 0,
+      "actual_units": 3,
+      "parsed": 2,
+      "parse_hits": 2
+    }
+  ],
+  "cross_arm_same_case_request_elf_groups": 20,
+  "native_Rust_command_override_omissions_checked": 0,
+  "limits": [
+    "Native Rust retains fixed checked-overflow/panic/target/debug settings while omitting CGU/LTO/linker overrides; not all rustc defaults.",
+    "Original failed prepare attempts and any earlier NoScore windows are outside this successful frozen plan.",
+    "These unscored preflight observations establish validity and actual cache engagement, not timing improvement."
+  ]
+}

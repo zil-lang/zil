@@ -1,0 +1,29 @@
+{
+  "reviewer": "/root/incremental_review",
+  "verdict": "Pass",
+  "plans_sha256": {
+    "compile6-rust-o0-incremental": "f6d3c133f1a8e6a8d46f8affe9559b724d5a6e1a5ca628d6aa399b6a72b54552",
+    "compile6-rust-o0-cold": "d9a2186967930648ee634a001cfb633d0a89a0697170b0ee1e3559a8c805ea30",
+    "compile6-rust-o2-closed": "55b8eae93918d10a1506fa5485ea03dd94e63e7433c343fc5c2bfa720fa7f170"
+  },
+  "same_frozen_tool_source_corpus_case_weights_order_environment_and_limits": true,
+  "differences_against_o0_incremental": {
+    "compile6-rust-o0-incremental": [],
+    "compile6-rust-o0-cold": [
+      "created_unix",
+      "cache_mode",
+      "query_cache",
+      "request_weights"
+    ],
+    "compile6-rust-o2-closed": [
+      "created_unix",
+      "profile",
+      "cache_mode",
+      "query_cache",
+      "closed_executable",
+      "request_weights"
+    ]
+  },
+  "intentional_differences": "created_unix and mode-specific profile/cache_mode/query_cache/closed_executable/request_weights only; case weights and paired sequence order are identical, request weights differ by cache mode.",
+  "scope": "Three distinct predeclared experiments, never pooled into one estimate."
+}

@@ -1,0 +1,2798 @@
+diff --git a/crates/zil-backend-llvm/src/object_cache.rs b/crates/zil-backend-llvm/src/object_cache.rs
+index 7ab3d4e700124f0e4c747f76800ec465c3081d02..f46e8dc09a45c9daac68925cdffcd7f3c9100ff5 100644
+--- a/crates/zil-backend-llvm/src/object_cache.rs
++++ b/crates/zil-backend-llvm/src/object_cache.rs
+@@ -292,8 +292,9 @@ fn store(directory: &Path, key: Fingerprint, bytes: &[u8]) -> io::Result<()> {
+         use std::os::unix::fs::OpenOptionsExt;
+         options.mode(0o600);
+     }
++    // Only a successful create_new grants cleanup ownership of this path.
++    let mut file = options.open(&temp)?;
+     let result = (|| {
+-        let mut file = options.open(&temp)?;
+         file.write_all(MAGIC)?;
+         file.write_all(&key.0)?;
+         file.write_all(&Fingerprint::of(bytes).0)?;
+@@ -632,4 +633,143 @@ mod tests {
+         symlink(d.0.join("missing"), entry_path(&d.0, key)).unwrap();
+         assert!(load(&d.0, key).is_err());
+     }
++
++    #[cfg(target_os = "linux")]
++    mod publication_cp27 {
++        use super::*;
++        use std::os::unix::fs::MetadataExt;
++        use std::process::Command;
++
++        const CHILD: &str = "ZIL_CP27_OBJECT_PUBLICATION_DIRECTORY";
++
++        fn key() -> Fingerprint {
++            Fingerprint::of(b"cp27-object")
++        }
++        fn child(directory: &Path, test: &str, zero_file_limit: bool) {
++            let exe = std::env::current_exe().unwrap();
++            let mut command = if zero_file_limit {
++                let mut command = Command::new("sh");
++                command
++                    .arg("-c")
++                    .arg("ulimit -f 0 || exit 91; trap '' XFSZ; exec \"$@\"")
++                    .arg("cp27-object-file-limit")
++                    .arg(&exe);
++                command
++            } else {
++                Command::new(&exe)
++            };
++            let output = command
++                .args(["--exact", test, "--nocapture", "--test-threads=1"])
++                .env(CHILD, directory)
++                .output()
++                .unwrap();
++            assert!(
++                output.status.success()
++                    && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
++                "child {test}: {}\n{}\n{}",
++                output.status,
++                String::from_utf8_lossy(&output.stdout),
++                String::from_utf8_lossy(&output.stderr)
++            );
++        }
++        fn only_final(directory: &Path) {
++            let paths: Vec<_> = fs::read_dir(directory)
++                .unwrap()
++                .map(|entry| entry.unwrap().path())
++                .collect();
++            assert_eq!(paths, vec![entry_path(directory, key())]);
++        }
++
++        #[test]
++        fn create_new_collision_preserves_unowned_file_and_old_entry() {
++            if let Some(directory) = std::env::var_os(CHILD) {
++                let directory = PathBuf::from(directory);
++                let path = entry_path(&directory, key());
++                let old = fs::read(&path).unwrap();
++                // No other test or directory allocation runs in this child.
++                let pending = directory.join(format!(".pending-{}-0", std::process::id()));
++                fs::write(&pending, b"another owner's file").unwrap();
++                let before = fs::metadata(&pending).unwrap();
++                let error = store(&directory, key(), b"replacement").unwrap_err();
++                assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
++                assert_eq!(fs::read(&pending).unwrap(), b"another owner's file");
++                let after = fs::metadata(&pending).unwrap();
++                assert_eq!((before.dev(), before.ino()), (after.dev(), after.ino()));
++                assert_eq!(before.modified().unwrap(), after.modified().unwrap());
++                assert_eq!(fs::read(path).unwrap(), old);
++                assert_eq!(load(&directory, key()).unwrap(), b"previous");
++                fs::remove_file(pending).unwrap();
++                only_final(&directory);
++                return;
++            }
++            let directory = Dir::new();
++            store(&directory.0, key(), b"previous").unwrap();
++            child(
++                &directory.0,
++                "object_cache::tests::publication_cp27::create_new_collision_preserves_unowned_file_and_old_entry",
++                false,
++            );
++            store(&directory.0, key(), b"retry").unwrap();
++            assert_eq!(load(&directory.0, key()).unwrap(), b"retry");
++            only_final(&directory.0);
++        }
++
++        #[test]
++        fn rename_failure_preserves_destination_and_cleans_owned_file() {
++            let directory = Dir::new();
++            let path = entry_path(&directory.0, key());
++            fs::create_dir(&path).unwrap();
++            let sentinel = path.join("keep");
++            fs::write(&sentinel, b"existing directory contents").unwrap();
++            assert!(store(&directory.0, key(), b"replacement").is_err());
++            assert_eq!(fs::read(&sentinel).unwrap(), b"existing directory contents");
++            only_final(&directory.0);
++            fs::remove_file(sentinel).unwrap();
++            fs::remove_dir(path).unwrap();
++            store(&directory.0, key(), b"retry").unwrap();
++            assert_eq!(load(&directory.0, key()).unwrap(), b"retry");
++            only_final(&directory.0);
++        }
++
++        #[test]
++        fn real_write_failure_preserves_old_entry_and_atomic_retry() {
++            if let Some(directory) = std::env::var_os(CHILD) {
++                let directory = PathBuf::from(directory);
++                let old = fs::read(entry_path(&directory, key())).unwrap();
++                let error = store(&directory, key(), b"replacement").unwrap_err();
++                assert_eq!(error.raw_os_error(), Some(27), "{error}");
++                let mut summary = ObjectCacheSummary::default();
++                PendingObjectCache {
++                    directory: Some(directory.clone()),
++                    objects: vec![PendingObject {
++                        key: key(),
++                        bytes: b"replacement".to_vec(),
++                    }],
++                }
++                .commit(&mut summary);
++                assert_eq!((summary.stored, summary.write_failures), (0, 1));
++                assert_eq!(fs::read(entry_path(&directory, key())).unwrap(), old);
++                assert_eq!(load(&directory, key()).unwrap(), b"previous");
++                only_final(&directory);
++                return;
++            }
++            let directory = Dir::new();
++            store(&directory.0, key(), b"previous").unwrap();
++            let path = entry_path(&directory.0, key());
++            let old = fs::read(&path).unwrap();
++            let mut old_reader = File::open(&path).unwrap();
++            child(
++                &directory.0,
++                "object_cache::tests::publication_cp27::real_write_failure_preserves_old_entry_and_atomic_retry",
++                true,
++            );
++            assert_eq!(fs::read(&path).unwrap(), old);
++            store(&directory.0, key(), b"retry").unwrap();
++            assert_eq!(load(&directory.0, key()).unwrap(), b"retry");
++            let mut still_old = Vec::new();
++            old_reader.read_to_end(&mut still_old).unwrap();
++            assert_eq!(still_old, old);
++            only_final(&directory.0);
++        }
++    }
+ }
+diff --git a/crates/zil-cli/src/main.rs b/crates/zil-cli/src/main.rs
+index 90d1ba5eccd5a53902a80fc1dd2ec2ac73ca8dd2..8c990f47b36ab0fab3157c7a38ac070dc3adeafa 100644
+--- a/crates/zil-cli/src/main.rs
++++ b/crates/zil-cli/src/main.rs
+@@ -17,7 +17,7 @@ const DEFAULT_BACKEND: NativeBackend = if cfg!(feature = "llvm-api") {
+     NativeBackend::Clang
+ };
+ 
+-const HELP: &str = "ZIL 0.1.0 — compiler draft\n\nUsage:\n  zil check FILE [--stop-after parse|core|types|analyze|verify] [--json]\n  zil build FILE [-o OUTPUT] [--entry NAME] [--emit-dir DIR] [--json]\n  zil run FILE [--entry NAME] [--emit-dir DIR] [--json]\n  zil qc [--tool PATH] COMMAND [OPTIONS]\n  zil version\n\nOptions:\n  --timings                 Record phase wall times (requires timings build feature)\n  --cache-dir DIR           Store unverified source candidates\n  --object-cache DIR        Trusted local LLVM API object cache (opt-in)\n  --query-cache DIR         Trusted private local full-input frontend checkpoint (opt-in)\n  --backend clang|llvm-api  Object generation strategy (standard build: llvm-api)\n  --clang PATH              LLVM clang executable (default: ZIL_CLANG or clang)\n  --emit-dir DIR            Write actual phase artifacts\n  --target native|win64     Select the checked target ABI\n  --windows-lib PATH        Explicit Win64 import archive (repeatable)\n  --linker PATH             Win64 lld-link executable\n  --opt O0|O2               Native LLVM optimization level\n  --closed-executable       Opt-in Linux build; generated ZIL symbols have no export contract\n  --codegen-units N         Maximum native units, 1..64 (default: 1)\n  --codegen-jobs N          Concurrent native compiles, 1..64 (default: 1)\n  --compile-timeout-ms N    Cooperative deadline checked between compiler phases\n  --profile native|managed  Managed is explicitly Unsupported\n\nNative run requires an explicit main; it adds no implicit module execution or GC.\nUnsupported language features return Unsupported; they are never silently accepted.\n";
++const HELP: &str = "ZIL 0.1.0 — compiler draft\n\nUsage:\n  zil check FILE [--stop-after parse|core|types|analyze|verify] [--json]\n  zil build FILE [-o OUTPUT] [--entry NAME] [--emit-dir DIR] [--json]\n  zil run FILE [--entry NAME] [--emit-dir DIR] [--json]\n  zil qc [--tool PATH] COMMAND [OPTIONS]\n  zil version\n\nOptions:\n  --timings                 Record phase wall times (requires timings build feature)\n  --cache-dir DIR           Store unverified source candidates\n  --object-cache DIR        Trusted local LLVM API object cache (opt-in)\n  --query-cache DIR         Trusted private local syntax memo and frontend checkpoint (opt-in)\n  --backend clang|llvm-api  Object generation strategy (standard build: llvm-api)\n  --clang PATH              LLVM clang executable (default: ZIL_CLANG or clang)\n  --emit-dir DIR            Write actual phase artifacts\n  --target native|win64     Select the checked target ABI\n  --windows-lib PATH        Explicit Win64 import archive (repeatable)\n  --linker PATH             Win64 lld-link executable\n  --opt O0|O2               Native LLVM optimization level\n  --closed-executable       Opt-in Linux build; generated ZIL symbols have no export contract\n  --codegen-units N         Maximum native units, 1..64 (default: 1)\n  --codegen-jobs N          Concurrent native compiles, 1..64 (default: 1)\n  --compile-timeout-ms N    Cooperative deadline checked between compiler phases\n  --profile native|managed  Managed is explicitly Unsupported\n\nNative run requires an explicit main; it adds no implicit module execution or GC.\nUnsupported language features return Unsupported; they are never silently accepted.\n";
+ fn usage(message: &str, json: bool) -> ExitCode {
+     let diagnostic = Diagnostic::error(Phase::Driver, "E-CLI-ARGUMENT", None, message);
+     if json {
+diff --git a/crates/zil-driver/src/lib.rs b/crates/zil-driver/src/lib.rs
+index 4c209f7dedb7d1b9352afb036929a886b6aad252..9b8fa729c8de3cbd91fa62b5b21a2e8dd6d3501c 100644
+--- a/crates/zil-driver/src/lib.rs
++++ b/crates/zil-driver/src/lib.rs
+@@ -6,9 +6,11 @@ mod artifacts;
+ mod contracts;
+ mod ct_program;
+ mod ct_selection;
++mod parse_cache;
+ mod project;
+ mod query_cache;
+ mod session;
++pub use parse_cache::ParseCacheReport;
+ pub use project::{ProjectSources, compile_project};
+ pub use query_cache::QueryCacheReport;
+ pub use session::CompilationSession;
+@@ -69,7 +71,7 @@ pub struct CompileOptions {
+     pub cache_dir: Option<PathBuf>,
+     /// Trusted local machine-object cache; independent of source-candidate cache.
+     pub object_cache: Option<PathBuf>,
+-    /// Opt-in trusted private local checkpoint of complete, identical builds.
++    /// Opt-in trusted private local parse memo and complete-build checkpoint.
+     /// This is separate from untrusted source candidates and never stores Verified.
+     pub query_cache: Option<PathBuf>,
+     pub clang: Option<PathBuf>,
+@@ -158,13 +160,14 @@ pub struct CompileReport {
+     pub seconds: f64,
+     pub timings: Option<TimingReport>,
+     pub(crate) trace: TimingTrace,
+-    /// Compatibility summary; inspect query_events and disk_cache to determine
++    /// Compatibility summary; inspect query_events, disk_cache and parse_cache to determine
+     /// what was reused. This flag never indicates a cached Verified object.
+     pub cache_hit: bool,
+     pub commands: Vec<Vec<String>>,
+     pub native_codegen: Option<CodegenSummary>,
+     pub disk_cache: DiskCacheStatus,
+     pub query_cache: QueryCacheReport,
++    pub parse_cache: ParseCacheReport,
+     pub query_events: Vec<QueryEvent>,
+     pub verification_runs: usize,
+     pub source_files: BTreeMap<FileId, String>,
+@@ -186,6 +189,7 @@ impl CompileReport {
+             native_codegen: None,
+             disk_cache: DiskCacheStatus::Disabled,
+             query_cache: QueryCacheReport::default(),
++            parse_cache: ParseCacheReport::default(),
+             query_events: vec![],
+             verification_runs: 0,
+             source_files: BTreeMap::from([(source.file_id, source.path.clone())]),
+@@ -194,7 +198,7 @@ impl CompileReport {
+     }
+     pub fn to_json(&self) -> String {
+         format!(
+-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"timings\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}]}}",
++            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"timings\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_cache\":{},\"parse_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}]}}",
+             json_string(self.status.as_str()),
+             json_string(self.phase.as_str()),
+             self.diagnostics
+@@ -230,6 +234,7 @@ impl CompileReport {
+             self.native_codegen.as_ref().map_or_else(|| "null".into(), CodegenSummary::to_json),
+             json_string(self.disk_cache.as_str()),
+             self.query_cache.to_json(),
++            self.parse_cache.to_json(),
+             self.query_events
+                 .iter()
+                 .map(|event| format!(
+diff --git a/crates/zil-driver/src/parse_cache.rs b/crates/zil-driver/src/parse_cache.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..d68b5c071e5521c8ee7196c886ff691495b867bb
+--- /dev/null
++++ b/crates/zil-driver/src/parse_cache.rs
+@@ -0,0 +1,315 @@
++//! Opt-in trusted-local syntax memoization. Source discovery remains current;
++//! only successful immutable syntax is reused. No verifier permit is stored.
++use super::*;
++use std::collections::{BTreeMap, BTreeSet};
++use std::io::{self, BufWriter, Write};
++use std::sync::{
++    Arc,
++    atomic::{AtomicU64, Ordering},
++};
++use zil_syntax::{ParseResult, cache};
++
++const MAGIC: &[u8; 8] = b"ZILPSC01";
++const HEADER: usize = 80;
++static NEXT: AtomicU64 = AtomicU64::new(0);
++
++#[derive(Clone, Debug, Default)]
++pub struct ParseCacheReport {
++    pub requested: bool,
++    pub hits: usize,
++    pub misses: usize,
++    pub corrupt: usize,
++    pub quota_misses: usize,
++    pub stored: usize,
++    pub session_hits: usize,
++    pub parsed: usize,
++    pub reason: Option<String>,
++    pub write_reason: Option<String>,
++}
++impl ParseCacheReport {
++    pub(super) fn to_json(&self) -> String {
++        let optional = |s: &Option<String>| s.as_deref().map_or_else(|| "null".into(), json_string);
++        format!(
++            "{{\"requested\":{},\"hits\":{},\"misses\":{},\"corrupt\":{},\"quota_misses\":{},\"stored\":{},\"session_hits\":{},\"parsed\":{},\"reason\":{},\"write_reason\":{}}}",
++            self.requested,
++            self.hits,
++            self.misses,
++            self.corrupt,
++            self.quota_misses,
++            self.stored,
++            self.session_hits,
++            self.parsed,
++            optional(&self.reason),
++            optional(&self.write_reason)
++        )
++    }
++}
++fn invalid(message: &str) -> io::Error {
++    io::Error::new(io::ErrorKind::InvalidData, message)
++}
++fn private_directory(path: &Path, create: bool) -> io::Result<()> {
++    if create {
++        let mut builder = fs::DirBuilder::new();
++        builder.recursive(true);
++        #[cfg(unix)]
++        {
++            use std::os::unix::fs::DirBuilderExt;
++            builder.mode(0o700);
++        }
++        builder.create(path)?;
++    }
++    let meta = match fs::symlink_metadata(path) {
++        Err(e) if !create && e.kind() == io::ErrorKind::NotFound => return Ok(()),
++        result => result?,
++    };
++    if !meta.is_dir() || meta.file_type().is_symlink() {
++        return Err(invalid(
++            "parse cache directory must be a real private directory",
++        ));
++    }
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::PermissionsExt;
++        if meta.permissions().mode() & 0o022 != 0 {
++            return Err(invalid("parse cache directory is group/other writable"));
++        }
++    }
++    Ok(())
++}
++
++pub(super) struct Prepared {
++    root: PathBuf,
++    directory: PathBuf,
++    producer: Fingerprint,
++    keys: BTreeMap<ModuleId, Fingerprint>,
++    loaded: BTreeSet<ModuleId>,
++    write_ready: bool,
++}
++impl Prepared {
++    /// Read-only preparation: even missing directories are not created until a
++    /// complete request has passed artifact guards and finished successfully.
++    pub(super) fn new(options: &CompileOptions, report: &mut ParseCacheReport) -> Option<Self> {
++        let root = options.query_cache.as_ref()?;
++        report.requested = true;
++        let bypass = if options.cancellation.is_cancelled() {
++            Some("request was already cancelled")
++        } else if options.stop_after == Stage::Parse {
++            Some("syntax-only entry retains the original single-file path")
++        } else if !cfg!(target_os = "linux") || options.windows.is_some() {
++            Some("trusted syntax cache requires a Linux host")
++        } else if ["LD_PRELOAD", "LD_AUDIT"]
++            .into_iter()
++            .any(|n| std::env::var_os(n).is_some_and(|v| !v.is_empty()))
++        {
++            Some("dynamic-loader interposition prevents trusted producer identity")
++        } else {
++            None
++        };
++        if let Some(reason) = bypass {
++            report.reason = Some(reason.into());
++            return None;
++        }
++        let prepare = || -> io::Result<Self> {
++            let root = if root.is_absolute() {
++                root.clone()
++            } else {
++                std::env::current_dir()?.join(root)
++            };
++            private_directory(&root, false)?;
++            let directory = root.join("parse-cp22-v1");
++            private_directory(&directory, false)?;
++            // Once per request, never once per source module.
++            let producer =
++                zil_backend_llvm::trusted_installed_tool_identity(&std::env::current_exe()?)?;
++            Ok(Self {
++                root,
++                directory,
++                producer,
++                keys: BTreeMap::new(),
++                loaded: BTreeSet::new(),
++                write_ready: false,
++            })
++        };
++        match prepare() {
++            Ok(cache) => Some(cache),
++            Err(e) => {
++                report.reason = Some(e.to_string());
++                None
++            }
++        }
++    }
++    fn key(&mut self, source: &SourceUnit, options: &CompileOptions) -> Fingerprint {
++        *self.keys.entry(source.module_id).or_insert_with(|| {
++            let mut bytes = b"ZIL-TRUSTED-PARSE-CP22-v1\0".to_vec();
++            bytes.extend_from_slice(&self.producer.0);
++            bytes.extend_from_slice(
++                &super::session::parse_identity(source, options)
++                    .fingerprint()
++                    .0,
++            );
++            Fingerprint::of(&bytes)
++        })
++    }
++    pub(super) fn load(
++        &mut self,
++        source: &SourceUnit,
++        options: &CompileOptions,
++        limits: &Limits,
++        report: &mut ParseCacheReport,
++    ) -> Option<Arc<ParseResult>> {
++        let key = self.key(source, options);
++        let path = self.directory.join(format!("{key}.psyn"));
++        let load = || -> io::Result<Vec<u8>> {
++            let meta = fs::symlink_metadata(&path)?;
++            if !meta.is_file()
++                || meta.file_type().is_symlink()
++                || meta.len() < HEADER as u64
++                || meta.len() > (HEADER + cache::MAX_PAYLOAD) as u64
++            {
++                return Err(invalid("invalid parse cache file/size"));
++            }
++            #[cfg(unix)]
++            {
++                use std::os::unix::fs::PermissionsExt;
++                if meta.permissions().mode() & 0o022 != 0 {
++                    return Err(invalid("parse cache file is group/other writable"));
++                }
++            }
++            let mut bytes = Vec::new();
++            bytes
++                .try_reserve_exact(meta.len() as usize)
++                .map_err(|_| invalid("parse cache allocation bound"))?;
++            File::open(&path)?
++                .take((HEADER + cache::MAX_PAYLOAD + 1) as u64)
++                .read_to_end(&mut bytes)?;
++            if bytes.len() < HEADER
++                || bytes.len() > HEADER + cache::MAX_PAYLOAD
++                || &bytes[..8] != MAGIC
++                || bytes[8..40] != key.0
++            {
++                return Err(invalid("parse cache identity/protocol mismatch"));
++            }
++            let length = u64::from_le_bytes(
++                bytes[72..80]
++                    .try_into()
++                    .map_err(|_| invalid("truncated header"))?,
++            );
++            if length != (bytes.len() - HEADER) as u64
++                || Fingerprint::of(&bytes[HEADER..]).0 != bytes[40..72]
++            {
++                return Err(invalid("parse cache checksum/length mismatch"));
++            }
++            Ok(bytes)
++        };
++        match load() {
++            Ok(bytes) => match cache::decode(source, &bytes[HEADER..], limits) {
++                Ok(parsed) => {
++                    report.hits += 1;
++                    self.loaded.insert(source.module_id);
++                    Some(Arc::new(parsed))
++                }
++                Err(cache::CacheError::Budget) => {
++                    report.misses += 1;
++                    report.quota_misses += 1;
++                    None
++                }
++                Err(_) => {
++                    report.misses += 1;
++                    report.corrupt += 1;
++                    None
++                }
++            },
++            Err(error) => {
++                report.misses += 1;
++                if error.kind() != io::ErrorKind::NotFound {
++                    report.corrupt += 1;
++                }
++                None
++            }
++        }
++    }
++    pub(super) fn store(
++        &mut self,
++        project: &ProjectSources,
++        parsed: &[Arc<ParseResult>],
++        options: &CompileOptions,
++        artifacts: &BTreeMap<String, PathBuf>,
++        report: &mut ParseCacheReport,
++    ) {
++        let protected: BTreeSet<&Path> = project
++            .modules
++            .iter()
++            .map(|source| Path::new(&source.path))
++            .chain(artifacts.values().map(PathBuf::as_path))
++            .collect();
++        for (source, parsed) in project.modules.iter().zip(parsed) {
++            if self.loaded.contains(&source.module_id) || options.cancellation.is_cancelled() {
++                continue;
++            }
++            let key = self.key(source, options);
++            let result = (|| -> io::Result<()> {
++                let payload = cache::encode(source, parsed)
++                    .map_err(|_| invalid("syntax exceeds memo codec bounds"))?;
++                if !self.write_ready {
++                    private_directory(&self.root, true)?;
++                    private_directory(&self.directory, true)?;
++                    self.directory = fs::canonicalize(&self.directory)?;
++                    self.write_ready = true;
++                }
++                let path = self.directory.join(format!("{key}.psyn"));
++                if protected.contains(path.as_path()) {
++                    return Err(invalid(
++                        "parse cache destination overlaps request input/output",
++                    ));
++                }
++                if options.cancellation.is_cancelled() {
++                    return Err(invalid("parse cache publication cancelled"));
++                }
++                let temp = self.directory.join(format!(
++                    ".{key}.{}.{}.tmp",
++                    std::process::id(),
++                    NEXT.fetch_add(1, Ordering::Relaxed)
++                ));
++                let mut open = fs::OpenOptions::new();
++                open.write(true).create_new(true);
++                #[cfg(unix)]
++                {
++                    use std::os::unix::fs::OpenOptionsExt;
++                    open.mode(0o600);
++                }
++                let file = open.open(&temp)?;
++                // The cleanup guard owns only a file this request created.
++                // A create_new collision must leave the existing path intact.
++                let mut cleanup = Temporary(Some(temp.clone()));
++                let mut file = BufWriter::new(file);
++                file.write_all(MAGIC)?;
++                file.write_all(&key.0)?;
++                file.write_all(&Fingerprint::of(&payload).0)?;
++                file.write_all(&(payload.len() as u64).to_le_bytes())?;
++                file.write_all(&payload)?;
++                // This memo can be rebuilt after a crash. Flush all buffered
++                // bytes before close/rename; no power-loss durability is promised.
++                file.flush()?;
++                drop(file);
++                if options.cancellation.is_cancelled() {
++                    return Err(invalid("parse cache publication cancelled"));
++                }
++                fs::rename(&temp, &path)?;
++                cleanup.0 = None;
++                Ok(())
++            })();
++            match result {
++                Ok(()) => report.stored += 1,
++                Err(error) => report.write_reason = Some(error.to_string()),
++            }
++        }
++    }
++}
++struct Temporary(Option<PathBuf>);
++impl Drop for Temporary {
++    fn drop(&mut self) {
++        if let Some(path) = &self.0 {
++            let _ = fs::remove_file(path);
++        }
++    }
++}
+diff --git a/crates/zil-driver/src/project.rs b/crates/zil-driver/src/project.rs
+index 3287df5c17a9778b191b3a9d5cdfd37b864d2a98..d19dbde69f400dc67b6118eca065be812fcb4694 100644
+--- a/crates/zil-driver/src/project.rs
++++ b/crates/zil-driver/src/project.rs
+@@ -108,6 +108,12 @@ impl CompilationSession {
+         let start = Instant::now();
+         let trace = TimingTrace::new(options.timings);
+         let mut request = trace.scope("compile_path", "request");
++        let mut parse_report = ParseCacheReport::default();
++        let mut parse_cache = request
++            .trace()
++            .value("parse_cache_prepare", || {
++                super::parse_cache::Prepared::new(options, &mut parse_report)
++            });
+         // Discovery may borrow immutable syntax from the previous request.
+         // The existing compile_project_request capacity guard still clears
+         // cache ownership before publishing this request; the lent Arcs do
+@@ -136,10 +142,18 @@ impl CompilationSession {
+                             Vec::new()
+                         })
+                 } else {
+-                    load_sources(&mut project, path, options, self, trace)
++                    load_sources_cached(
++                        &mut project,
++                        path,
++                        options,
++                        self,
++                        trace,
++                        parse_cache.as_mut(),
++                        &mut parse_report,
++                    )
+                 }
+             });
+-        let mut report = match loaded {
++        let mut report = match &loaded {
+             Ok(_) if options.stop_after == Stage::Parse => self.compile_source_traced(
+                 &project.modules[0],
+                 options,
+@@ -150,7 +164,7 @@ impl CompilationSession {
+                 &project,
+                 options,
+                 &mut |_| {},
+-                Some(&parsed),
++                Some(parsed),
+                 request.trace(),
+             ),
+             Err(errors) => {
+@@ -164,10 +178,25 @@ impl CompilationSession {
+                     .iter()
+                     .map(|m| (m.file_id, m.path.clone()))
+                     .collect();
+-                report.fail(errors);
++                report.fail(errors.clone());
+                 report
+             }
+         };
++        if report.status == ResultCategory::Success
++            && let (Some(cache), Ok(parsed)) = (parse_cache.as_mut(), &loaded)
++        {
++            request.trace().value("parse_cache_store", || {
++                cache.store(
++                    &project,
++                    parsed,
++                    options,
++                    &report.artifacts,
++                    &mut parse_report,
++                );
++            });
++        }
++        report.cache_hit |= parse_report.hits != 0;
++        report.parse_cache = parse_report;
+         report.seconds = start.elapsed().as_secs_f64();
+         request.finish(report.status.as_str());
+         report.timings = trace.report();
+@@ -227,7 +256,7 @@ impl CompilationSession {
+             // conservative project quota, including trivia and EOF tokens.
+             parse_options.limits.max_tokens = remaining.max_tokens.min(remaining.max_nodes);
+             let (raw, snapshot) = self.query(
+-                query_key(source, &parse_options, Phase::Parse, false),
++                self.parse_key(source, &parse_options),
+                 &[],
+                 options,
+                 report,
+@@ -848,12 +877,14 @@ fn resolve_file_module(root: &Path, logical: &[String], span: Span) -> CompileRe
+     Ok(canonical)
+ }
+ 
+-fn load_sources(
++fn load_sources_cached(
+     project: &mut ProjectSources,
+     path: &Path,
+     options: &CompileOptions,
+     session: &CompilationSession,
+     trace: &TimingTrace,
++    mut parse_cache: Option<&mut super::parse_cache::Prepared>,
++    parse_report: &mut ParseCacheReport,
+ ) -> CompileResult<Vec<Arc<ParseResult>>> {
+     options
+         .cancellation
+@@ -903,7 +934,7 @@ fn load_sources(
+         let mut query_options = options.clone();
+         query_options.limits.max_tokens = parse_limits.max_tokens;
+         query_options.limits.max_nodes = remaining.max_nodes;
+-        let key = query_key(&project.modules[index], &query_options, Phase::Parse, false);
++        let key = session.parse_key(&project.modules[index], &query_options);
+         let cached = if trace
+             .measure("discovery_query", "stage", |_| {
+                 session.database.read(&key).map_err(|e| vec![e])
+@@ -917,7 +948,22 @@ fn load_sources(
+         } else {
+             None
+         };
+-        let parsed = cached.unwrap_or_else(|| {
++        let parsed = if let Some(parsed) = cached {
++            parse_report.session_hits += 1;
++            parsed
++        } else if let Some(parsed) = parse_cache.as_mut().and_then(|cache| {
++            trace.value("parse_cache_load", || {
++                cache.load(
++                    &project.modules[index],
++                    options,
++                    &parse_limits,
++                    parse_report,
++                )
++            })
++        }) {
++            parsed
++        } else {
++            parse_report.parsed += 1;
+             let mut timing = trace.scope("parse", "stage");
+             let parsed = Arc::new(zil_syntax::parse_with_limits(
+                 &project.modules[index],
+@@ -929,7 +975,7 @@ fn load_sources(
+                 "error"
+             });
+             parsed
+-        });
++        };
+         if !parsed.diagnostics.is_empty() {
+             return Err(parsed.diagnostics.clone());
+         }
+@@ -1000,6 +1046,25 @@ fn load_sources(
+     Ok(syntax)
+ }
+ 
++#[cfg(test)]
++fn load_sources(
++    project: &mut ProjectSources,
++    path: &Path,
++    options: &CompileOptions,
++    session: &CompilationSession,
++    trace: &TimingTrace,
++) -> CompileResult<Vec<Arc<ParseResult>>> {
++    load_sources_cached(
++        project,
++        path,
++        options,
++        session,
++        trace,
++        None,
++        &mut ParseCacheReport::default(),
++    )
++}
++
+ #[cfg(test)]
+ mod discovery158_tests {
+     use super::*;
+diff --git a/crates/zil-driver/src/query_cache.rs b/crates/zil-driver/src/query_cache.rs
+index 80a1bd105c0fe836c345ee5b6b7d83442592c633..998420ee09294f5dfbc1f57e10c3b88a7e997f28 100644
+--- a/crates/zil-driver/src/query_cache.rs
++++ b/crates/zil-driver/src/query_cache.rs
+@@ -388,11 +388,11 @@ impl Prepared {
+ 
+     fn publish(&self, payload: &[u8], cancellation: &CancellationToken) -> io::Result<()> {
+         private_directory(&self.directory)?;
+-        let temporary = Temporary(self.directory.join(format!(
++        let temp = self.directory.join(format!(
+             ".pending-{}-{}",
+             std::process::id(),
+             NEXT.fetch_add(1, Ordering::Relaxed)
+-        )));
++        ));
+         let mut options = fs::OpenOptions::new();
+         options.write(true).create_new(true);
+         #[cfg(unix)]
+@@ -400,7 +400,9 @@ impl Prepared {
+             use std::os::unix::fs::OpenOptionsExt;
+             options.mode(0o600);
+         }
+-        let mut file = options.open(&temporary.0)?;
++        let mut file = options.open(&temp)?;
++        // A create_new collision leaves a file owned by someone else intact.
++        let mut temporary = Temporary(Some(temp.clone()));
+         file.write_all(MAGIC)?;
+         file.write_all(&self.key.0)?;
+         file.write_all(&Fingerprint::of(payload).0)?;
+@@ -411,7 +413,9 @@ impl Prepared {
+         if cancellation.is_cancelled() {
+             return Err(invalid("checkpoint publication cancelled"));
+         }
+-        fs::rename(&temporary.0, &self.path)
++        fs::rename(&temp, &self.path)?;
++        temporary.0 = None;
++        Ok(())
+     }
+ }
+ 
+@@ -444,10 +448,12 @@ fn record_usage(usage: &[CtUsage], report: &mut QueryCacheReport) {
+     report.ct_nodes = usage.iter().map(|r| r.nodes).sum();
+     report.ct_functions = usage.iter().map(|r| r.functions).sum();
+ }
+-struct Temporary(PathBuf);
++struct Temporary(Option<PathBuf>);
+ impl Drop for Temporary {
+     fn drop(&mut self) {
+-        let _ = fs::remove_file(&self.0);
++        if let Some(path) = &self.0 {
++            let _ = fs::remove_file(path);
++        }
+     }
+ }
+ struct Cursor<'a> {
+@@ -762,4 +768,171 @@ mod tests {
+         assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+         fs::remove_dir_all(directory).unwrap();
+     }
++
++    #[cfg(target_os = "linux")]
++    mod publication_cp27 {
++        use super::*;
++        use std::os::unix::fs::MetadataExt;
++        use std::process::Command;
++
++        const CHILD: &str = "ZIL_CP27_QUERY_PUBLICATION_DIRECTORY";
++
++        struct Case(Prepared);
++        impl Case {
++            fn new() -> Self {
++                let directory = std::env::temp_dir().join(format!(
++                    "zil-cp27-query-{}-{}",
++                    std::process::id(),
++                    NEXT.fetch_add(1, Ordering::Relaxed)
++                ));
++                private_directory(&directory).unwrap();
++                Self(prepared(directory))
++            }
++        }
++        impl Drop for Case {
++            fn drop(&mut self) {
++                if std::thread::panicking() {
++                    eprintln!(
++                        "CP27 query failure retained: {}",
++                        self.0.directory.display()
++                    );
++                } else {
++                    let _ = fs::remove_dir_all(&self.0.directory);
++                }
++            }
++        }
++        fn prepared(directory: PathBuf) -> Prepared {
++            Prepared {
++                path: directory.join("entry.qcp"),
++                directory,
++                key: Fingerprint::of(b"cp27-query"),
++                maximum: 1000,
++            }
++        }
++        fn child(case: &Case, test: &str, zero_file_limit: bool) {
++            let exe = std::env::current_exe().unwrap();
++            let mut command = if zero_file_limit {
++                let mut command = Command::new("sh");
++                command
++                    .arg("-c")
++                    .arg("ulimit -f 0 || exit 91; trap '' XFSZ; exec \"$@\"")
++                    .arg("cp27-query-file-limit")
++                    .arg(&exe);
++                command
++            } else {
++                Command::new(&exe)
++            };
++            let output = command
++                .args(["--exact", test, "--nocapture", "--test-threads=1"])
++                .env(CHILD, &case.0.directory)
++                .output()
++                .unwrap();
++            assert!(
++                output.status.success()
++                    && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
++                "child {test}: {}\n{}\n{}",
++                output.status,
++                String::from_utf8_lossy(&output.stdout),
++                String::from_utf8_lossy(&output.stderr)
++            );
++        }
++        fn only_final(cache: &Prepared) {
++            let paths: Vec<_> = fs::read_dir(&cache.directory)
++                .unwrap()
++                .map(|entry| entry.unwrap().path())
++                .collect();
++            assert_eq!(paths, vec![cache.path.clone()]);
++        }
++
++        #[test]
++        fn create_new_collision_preserves_unowned_file_and_old_entry() {
++            if let Some(directory) = std::env::var_os(CHILD) {
++                let cache = prepared(directory.into());
++                let old = fs::read(&cache.path).unwrap();
++                // An isolated exact-test process has not allocated a name yet.
++                let pending = cache
++                    .directory
++                    .join(format!(".pending-{}-0", std::process::id()));
++                fs::write(&pending, b"another owner's file").unwrap();
++                let before = fs::metadata(&pending).unwrap();
++                let error = cache
++                    .publish(b"replacement", &CancellationToken::new())
++                    .unwrap_err();
++                assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
++                assert_eq!(fs::read(&pending).unwrap(), b"another owner's file");
++                let after = fs::metadata(&pending).unwrap();
++                assert_eq!((before.dev(), before.ino()), (after.dev(), after.ino()));
++                assert_eq!(before.modified().unwrap(), after.modified().unwrap());
++                assert_eq!(fs::read(&cache.path).unwrap(), old);
++                fs::remove_file(pending).unwrap();
++                only_final(&cache);
++                return;
++            }
++            let case = Case::new();
++            case.0
++                .publish(b"previous", &CancellationToken::new())
++                .unwrap();
++            child(
++                &case,
++                "query_cache::tests::publication_cp27::create_new_collision_preserves_unowned_file_and_old_entry",
++                false,
++            );
++            case.0.publish(b"retry", &CancellationToken::new()).unwrap();
++            assert_eq!(&fs::read(&case.0.path).unwrap()[HEADER..], b"retry");
++            only_final(&case.0);
++        }
++
++        #[test]
++        fn rename_failure_preserves_destination_and_cleans_owned_file() {
++            let case = Case::new();
++            fs::create_dir(&case.0.path).unwrap();
++            let sentinel = case.0.path.join("keep");
++            fs::write(&sentinel, b"existing directory contents").unwrap();
++            assert!(
++                case.0
++                    .publish(b"replacement", &CancellationToken::new())
++                    .is_err()
++            );
++            assert_eq!(fs::read(&sentinel).unwrap(), b"existing directory contents");
++            only_final(&case.0);
++            fs::remove_file(sentinel).unwrap();
++            fs::remove_dir(&case.0.path).unwrap();
++            case.0.publish(b"retry", &CancellationToken::new()).unwrap();
++            assert_eq!(&fs::read(&case.0.path).unwrap()[HEADER..], b"retry");
++            only_final(&case.0);
++        }
++
++        #[test]
++        fn real_write_failure_preserves_old_entry_and_atomic_retry() {
++            if let Some(directory) = std::env::var_os(CHILD) {
++                let cache = prepared(directory.into());
++                let old = fs::read(&cache.path).unwrap();
++                let error = cache
++                    .publish(b"replacement", &CancellationToken::new())
++                    .unwrap_err();
++                assert_eq!(error.raw_os_error(), Some(27), "{error}");
++                assert_eq!(fs::read(&cache.path).unwrap(), old);
++                only_final(&cache);
++                return;
++            }
++            let case = Case::new();
++            case.0
++                .publish(b"previous", &CancellationToken::new())
++                .unwrap();
++            let old = fs::read(&case.0.path).unwrap();
++            let mut old_reader = fs::File::open(&case.0.path).unwrap();
++            child(
++                &case,
++                "query_cache::tests::publication_cp27::real_write_failure_preserves_old_entry_and_atomic_retry",
++                true,
++            );
++            assert_eq!(fs::read(&case.0.path).unwrap(), old);
++            case.0.publish(b"retry", &CancellationToken::new()).unwrap();
++            assert_eq!(&fs::read(&case.0.path).unwrap()[HEADER..], b"retry");
++            let mut still_old = Vec::new();
++            old_reader.read_to_end(&mut still_old).unwrap();
++            assert_eq!(still_old, old);
++            only_final(&case.0);
++        }
++    }
+ }
+diff --git a/crates/zil-driver/src/session.rs b/crates/zil-driver/src/session.rs
+index aa780b0ccccea431b0ed3437ee5abbd0a8c6dd33..526adfaa8ae96258a59a3274a3261862d615862f 100644
+--- a/crates/zil-driver/src/session.rs
++++ b/crates/zil-driver/src/session.rs
+@@ -19,6 +19,8 @@ use zil_syntax::ParseResult;
+ 
+ /// Only unverified, immutable data can be retained across requests. There is no
+ /// VerifiedModule/VerifiedCTIR variant and no disk deserializer for this enum.
++/// Parse components alone may enter through the explicit trusted-local syntax
++/// memo, with current source identity and resource receipts checked first.
+ #[derive(Clone, Debug)]
+ pub(super) enum RawSnapshot {
+     Parse(Arc<ParseResult>),
+@@ -33,9 +35,12 @@ pub(super) enum RawSnapshot {
+ impl RawSnapshot {
+     /// Identity of a deterministic, private, process-local construction. This is
+     /// NOT a content checksum or a verifier capability. Its complete query key
+-    /// binds source bytes/positions, rules, every limit and target; ordered
++    /// binds source bytes/positions, rules and target; ordinary phase identities
++    /// bind every limit. Parse alone uses a checked token/node usage receipt;
++    /// ordered
+     /// dependency identities bind the exact upstream constructions observed.
+-    /// Raw snapshots cannot be deserialized or injected through the public API.
++    /// Raw snapshots cannot be injected through the public compilation API;
++    /// trusted syntax memoization restores only the unverified Parse component.
+     /// The public Typed/Verified fingerprints and independent Verify are intact.
+     fn digest(&self, key: &QueryKey, dependencies: &[Arc<QuerySnapshot>]) -> Fingerprint {
+         if let Self::Typed(typed) = self {
+@@ -97,6 +102,18 @@ impl CompilationSession {
+     pub fn active_query_count(&self) -> usize {
+         self.database.active_count()
+     }
++    /// Successful syntax does not depend on another module's already consumed
++    /// quota. A cached result that cannot prove the current quota sufficient
++    /// uses the original budget-specific query, retaining its exact first error.
++    pub(super) fn parse_key(&self, source: &SourceUnit, options: &CompileOptions) -> QueryKey {
++        let key = parse_identity(source, options);
++        if matches!(self.raw.get(&key), Some(RawSnapshot::Parse(parsed)) if !parsed.fits_limits(&options.limits))
++        {
++            query_key(source, options, Phase::Parse, false)
++        } else {
++            key
++        }
++    }
+     pub fn compile_path(&mut self, path: &Path, options: &CompileOptions) -> CompileReport {
+         self.compile_project_path(path, options)
+     }
+@@ -252,15 +269,15 @@ impl CompilationSession {
+             )]);
+         }
+         let artifacts = ArtifactPlan::new(source, options)?;
+-        let parse_key = query_key(source, options, Phase::Parse, false);
++        let identity = query_key(source, options, Phase::Parse, false);
+         report.trace.clone().measure("source_cache", "stage", |_| {
+-            disk_source(source, options, report, &parse_key)
++            disk_source(source, options, report, &identity)
+         })?;
+         // These immutable identities describe this request, not a proof. Reuse
+         // them vertically instead of rehashing source bytes for every phase.
+         let target = options.target.fingerprint();
+-        let key =
+-            |phase, depends_on_target| phase_key(&parse_key, phase, depends_on_target, target);
++        let key = |phase, depends_on_target| phase_key(&identity, phase, depends_on_target, target);
++        let parse_key = self.parse_key(source, options);
+         let (parsed, parse_snapshot) =
+             self.query(parse_key.clone(), &[], options, report, observer, || {
+                 let parsed = zil_syntax::parse_with_limits(source, &options.limits);
+@@ -624,6 +641,15 @@ pub(super) fn query_key(
+     options: &CompileOptions,
+     phase: Phase,
+     target_dependent: bool,
++) -> QueryKey {
++    query_key_with_limits(source, options, phase, target_dependent, &options.limits)
++}
++fn query_key_with_limits(
++    source: &SourceUnit,
++    options: &CompileOptions,
++    phase: Phase,
++    target_dependent: bool,
++    limits: &Limits,
+ ) -> QueryKey {
+     let mut input = b"ZIL-DRIVER-SOURCE-2\0".to_vec();
+     input.extend_from_slice(&source.file_id.0.to_le_bytes());
+@@ -636,7 +662,6 @@ pub(super) fn query_key(
+         env!("CARGO_PKG_VERSION")
+     )
+     .into_bytes();
+-    let limits = &options.limits;
+     for value in [
+         limits.max_source_bytes as u64,
+         limits.max_tokens as u64,
+@@ -665,6 +690,16 @@ pub(super) fn query_key(
+         },
+     }
+ }
++pub(super) fn parse_identity(source: &SourceUnit, options: &CompileOptions) -> QueryKey {
++    let mut neutral = options.limits.clone();
++    neutral.max_tokens = 0;
++    neutral.max_nodes = 0;
++    let mut key = query_key_with_limits(source, options, Phase::Parse, false, &neutral);
++    let mut rules = b"ZIL-PARSE-RECEIPT-CP22-v1\0".to_vec();
++    rules.extend_from_slice(&key.rules.0);
++    key.rules = Fingerprint::of(&rules);
++    key
++}
+ pub(super) fn phase_key(
+     identity: &QueryKey,
+     phase: Phase,
+diff --git a/crates/zil-driver/tests/cache_publication_cp27.rs b/crates/zil-driver/tests/cache_publication_cp27.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..84a9c9c72d1dc62dc51e1d8ff5b08c278cbe5840
+--- /dev/null
++++ b/crates/zil-driver/tests/cache_publication_cp27.rs
+@@ -0,0 +1,114 @@
++#![cfg(target_os = "linux")]
++//! A newly built ELF can occupy a predicted memo temporary path. A cache miss
++//! must remain advisory when create_new finds that independently owned output.
++use std::{fs, path::PathBuf, process::Command};
++use zil_base::ResultCategory;
++use zil_driver::{CompileOptions, CompileReport, NativeBackend, Stage, compile_path};
++
++const CHILD: &str = "ZIL_CP27_QUERY_OUTPUT_COLLISION";
++
++fn success(report: &CompileReport) {
++    assert_eq!(
++        report.status,
++        ResultCategory::Success,
++        "{}",
++        report.to_json()
++    );
++    assert_eq!(report.verification_runs, 1, "{}", report.to_json());
++    let executable = &report.artifacts["executable"];
++    assert!(fs::read(executable).unwrap().starts_with(b"\x7fELF"));
++    let native = Command::new(executable).output().unwrap();
++    assert!(native.status.success(), "{native:?}");
++    assert!(native.stdout.is_empty());
++    assert!(native.stderr.is_empty());
++}
++
++#[test]
++fn checkpoint_temp_collision_keeps_real_elf_and_allows_repair_and_hit() {
++    let Some(root) = std::env::var_os(CHILD) else {
++        let root = std::env::temp_dir().join(format!("zil-cp27-output-{}", std::process::id()));
++        fs::create_dir(&root).unwrap();
++        fs::write(root.join("main.zil"), "fn main()->i32=>0\n").unwrap();
++        let output = Command::new(std::env::current_exe().unwrap())
++            .args([
++                "--exact",
++                "checkpoint_temp_collision_keeps_real_elf_and_allows_repair_and_hit",
++                "--nocapture",
++                "--test-threads=1",
++            ])
++            .env(CHILD, &root)
++            .output()
++            .unwrap();
++        assert!(
++            output.status.success() && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
++            "failure retained at {}: {}\n{}\n{}",
++            root.display(),
++            output.status,
++            String::from_utf8_lossy(&output.stdout),
++            String::from_utf8_lossy(&output.stderr)
++        );
++        fs::remove_dir_all(root).unwrap();
++        return;
++    };
++    let root = PathBuf::from(root);
++    let directory = root.join("cache/frontend-cp12-v1");
++    fs::create_dir_all(&directory).unwrap();
++    let output = directory.join(format!(".pending-{}-0", std::process::id()));
++    let mut options = CompileOptions {
++        stop_after: Stage::Build,
++        backend: NativeBackend::Clang,
++        output: Some(output.clone()),
++        ..CompileOptions::default()
++    };
++    let source = root.join("main.zil");
++    let control = compile_path(&source, &options);
++    success(&control);
++    assert_eq!(control.query_cache.state, "disabled");
++
++    options.query_cache = Some(root.join("cache"));
++    let collision = compile_path(&source, &options);
++    success(&collision);
++    assert_eq!(collision.query_cache.state, "miss");
++    assert!(!collision.query_cache.stored);
++    assert!(
++        collision
++            .query_cache
++            .write_reason
++            .as_deref()
++            .is_some_and(|reason| {
++                reason.contains("File exists") || reason.contains("os error 17")
++            })
++    );
++    let entry = directory.join(format!("{}.qcp", collision.query_cache.key.unwrap()));
++    assert!(!entry.exists());
++
++    let repaired = compile_path(&source, &options);
++    success(&repaired);
++    assert_eq!(repaired.query_cache.state, "miss");
++    assert!(repaired.query_cache.stored);
++    assert_eq!(repaired.query_cache.key, collision.query_cache.key);
++    assert!(entry.is_file());
++
++    let warm = compile_path(&source, &options);
++    success(&warm);
++    assert_eq!(warm.query_cache.state, "hit");
++    assert!(!warm.query_cache.stored);
++    assert_eq!(warm.query_cache.key, collision.query_cache.key);
++    for path in fs::read_dir(directory)
++        .unwrap()
++        .map(|entry| entry.unwrap().path())
++    {
++        if path
++            .file_name()
++            .unwrap()
++            .to_string_lossy()
++            .starts_with(".pending-")
++        {
++            assert!(
++                path == output || path == output.with_extension("ll"),
++                "{}",
++                path.display()
++            );
++        }
++    }
++}
+diff --git a/crates/zil-driver/tests/parse_cache_cp22.rs b/crates/zil-driver/tests/parse_cache_cp22.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..ae5cc1abbd9257f0af8910028fc06d36cbdd2993
+--- /dev/null
++++ b/crates/zil-driver/tests/parse_cache_cp22.rs
+@@ -0,0 +1,257 @@
++#![cfg(target_os = "linux")]
++use std::{
++    fs,
++    path::PathBuf,
++    sync::atomic::{AtomicU64, Ordering},
++};
++use zil_base::{Phase, ResultCategory};
++use zil_driver::{
++    CompilationSession, CompileOptions, CompileReport, QueryDisposition, Stage, compile_path,
++};
++static NEXT: AtomicU64 = AtomicU64::new(0);
++const MAIN: &str = "import a\nimport b\nfn main()->i32=>a.answer()+b.zero()-42\n";
++struct Case(PathBuf);
++impl Case {
++    fn new() -> Self {
++        let path = std::env::temp_dir().join(format!(
++            "zil-cp22-{}-{}",
++            std::process::id(),
++            NEXT.fetch_add(1, Ordering::Relaxed)
++        ));
++        fs::create_dir(&path).unwrap();
++        let case = Self(path);
++        case.put("main.zil", MAIN);
++        case.put("a.zil", "pub fn answer()->i32=>42\n");
++        case.put("b.zil", "pub fn zero()->i32=>0\n");
++        case
++    }
++    fn put(&self, name: &str, text: &str) {
++        let path = self.0.join(name);
++        fs::create_dir_all(path.parent().unwrap()).unwrap();
++        fs::write(path, text).unwrap();
++    }
++    fn path(&self) -> PathBuf {
++        self.0.join("main.zil")
++    }
++    fn options(&self) -> CompileOptions {
++        CompileOptions {
++            query_cache: Some(self.0.join("cache")),
++            ..CompileOptions::default()
++        }
++    }
++    fn run(&self, options: &CompileOptions) -> CompileReport {
++        compile_path(&self.path(), options)
++    }
++    fn entries(&self) -> Vec<PathBuf> {
++        fs::read_dir(self.0.join("cache/parse-cp22-v1"))
++            .into_iter()
++            .flatten()
++            .map(|e| e.unwrap().path())
++            .collect()
++    }
++}
++impl Drop for Case {
++    fn drop(&mut self) {
++        if !std::thread::panicking() {
++            let _ = fs::remove_dir_all(&self.0);
++        } else {
++            eprintln!("CP22 failure retained: {}", self.0.display());
++        }
++    }
++}
++fn success(report: &CompileReport) {
++    assert_eq!(
++        report.status,
++        ResultCategory::Success,
++        "{}",
++        report.to_json()
++    );
++    assert_eq!(report.verification_runs, 1, "{}", report.to_json());
++}
++fn equivalent(warm: &CompileReport, cold: &CompileReport) {
++    assert_eq!(
++        warm.status,
++        cold.status,
++        "{}\n{}",
++        warm.to_json(),
++        cold.to_json()
++    );
++    assert_eq!(warm.phase, cold.phase);
++    assert_eq!(warm.diagnostics, cold.diagnostics);
++    assert_eq!(warm.source_files, cold.source_files);
++    assert_eq!(warm.verification_runs, cold.verification_runs);
++}
++#[test]
++fn separate_sessions_reuse_unchanged_modules_after_early_token_count_edit() {
++    let case = Case::new();
++    let options = case.options();
++    let first = case.run(&options);
++    success(&first);
++    assert_eq!(
++        (
++            first.parse_cache.hits,
++            first.parse_cache.parsed,
++            first.parse_cache.stored
++        ),
++        (0, 3, 3),
++        "{}",
++        first.to_json()
++    );
++    let warm = case.run(&options);
++    success(&warm);
++    assert_eq!(
++        (
++            warm.parse_cache.hits,
++            warm.parse_cache.parsed,
++            warm.parse_cache.stored
++        ),
++        (3, 0, 0)
++    );
++    case.put("main.zil", &format!("// additional input token\n{MAIN}"));
++    let edit = case.run(&options);
++    success(&edit);
++    assert_eq!(
++        (
++            edit.parse_cache.hits,
++            edit.parse_cache.parsed,
++            edit.parse_cache.stored
++        ),
++        (2, 1, 1),
++        "{}",
++        edit.to_json()
++    );
++    let mut cold = options.clone();
++    cold.query_cache = None;
++    equivalent(&edit, &case.run(&cold));
++    assert!(
++        edit.query_events
++            .iter()
++            .any(|e| e.phase == Phase::Types && e.disposition == QueryDisposition::Executed)
++    );
++}
++#[test]
++fn session_parse_keys_do_not_depend_on_preceding_module_consumption() {
++    let case = Case::new();
++    let options = CompileOptions::default();
++    let mut session = CompilationSession::with_capacity(128);
++    success(&session.compile_path(&case.path(), &options));
++    case.put("main.zil", &format!("// another token\n{MAIN}"));
++    let second = session.compile_path(&case.path(), &options);
++    success(&second);
++    assert_eq!(second.parse_cache.session_hits, 2);
++    assert_eq!(second.parse_cache.parsed, 1);
++    assert_eq!(
++        second
++            .query_events
++            .iter()
++            .filter(|e| e.phase == Phase::Parse && e.disposition == QueryDisposition::Reused)
++            .count(),
++        2
++    );
++}
++#[test]
++fn quota_depth_and_source_byte_failures_match_uncached_first_diagnostics() {
++    let case = Case::new();
++    let options = case.options();
++    success(&case.run(&options));
++    let mut quota_misses = 0;
++    for axis in 0..4 {
++        for value in [0, 1, 3, 8, 16, 24, 32, 48, 64, 96, 128, 256] {
++            let mut warm = options.clone();
++            match axis {
++                0 => warm.limits.max_tokens = value,
++                1 => warm.limits.max_nodes = value,
++                2 => warm.limits.max_call_depth = value,
++                _ => warm.limits.max_source_bytes = value,
++            };
++            let mut cold = warm.clone();
++            cold.query_cache = None;
++            let a = case.run(&warm);
++            let b = case.run(&cold);
++            equivalent(&a, &b);
++            quota_misses += a.parse_cache.quota_misses;
++        }
++    }
++    assert!(quota_misses > 0);
++}
++#[test]
++fn module_reordering_missing_files_and_ambiguous_paths_use_current_discovery() {
++    let case = Case::new();
++    let options = case.options();
++    success(&case.run(&options));
++    case.put(
++        "main.zil",
++        "import b\nimport a\nfn main()->i32=>a.answer()+b.zero()-42\n",
++    );
++    let reordered = case.run(&options);
++    success(&reordered);
++    assert_eq!(reordered.parse_cache.hits, 0);
++    assert_eq!(reordered.parse_cache.parsed, 3);
++    let mut cold = options.clone();
++    cold.query_cache = None;
++    equivalent(&reordered, &case.run(&cold));
++    assert_eq!(case.run(&options).parse_cache.hits, 3);
++    fs::remove_file(case.0.join("a.zil")).unwrap();
++    equivalent(&case.run(&options), &case.run(&cold));
++    case.put("a.zil", "pub fn answer()->i32=>42\n");
++    case.put("a/mod.zil", "pub fn answer()->i32=>42\n");
++    let ambiguous = case.run(&options);
++    equivalent(&ambiguous, &case.run(&cold));
++    assert!(
++        ambiguous
++            .diagnostics
++            .iter()
++            .any(|d| d.code == "E-MODULE-AMBIGUOUS")
++    );
++}
++#[test]
++fn damaged_entries_fall_back_and_repair_without_skipping_verify() {
++    let case = Case::new();
++    let options = case.options();
++    success(&case.run(&options));
++    for path in case.entries() {
++        let mut bytes = fs::read(&path).unwrap();
++        let end = bytes.len() - 1;
++        bytes[end] ^= 1;
++        fs::write(path, bytes).unwrap();
++    }
++    let repaired = case.run(&options);
++    success(&repaired);
++    assert_eq!(
++        (
++            repaired.parse_cache.corrupt,
++            repaired.parse_cache.parsed,
++            repaired.parse_cache.stored
++        ),
++        (3, 3, 3)
++    );
++    assert_eq!(case.run(&options).parse_cache.hits, 3);
++    let path = case.entries().pop().unwrap();
++    fs::write(&path, b"truncated").unwrap();
++    let repaired = case.run(&options);
++    success(&repaired);
++    assert_eq!(repaired.parse_cache.corrupt, 1);
++}
++#[test]
++fn failed_cancelled_or_invalid_artifact_requests_do_not_create_cache_directories() {
++    let case = Case::new();
++    let options = case.options();
++    case.put("a.zil", "pub fn answer( ->");
++    assert_ne!(case.run(&options).status, ResultCategory::Success);
++    assert!(!case.0.join("cache").exists());
++    case.put("a.zil", "pub fn answer()->i32=>true\n");
++    assert_ne!(case.run(&options).status, ResultCategory::Success);
++    assert!(!case.0.join("cache").exists());
++    case.put("a.zil", "pub fn answer()->i32=>42\n");
++    let cancelled = options.clone();
++    cancelled.cancellation.cancel();
++    assert_eq!(case.run(&cancelled).status, ResultCategory::Cancelled);
++    assert!(!case.0.join("cache").exists());
++    let mut invalid = case.options();
++    invalid.stop_after = Stage::Build;
++    invalid.output = Some(case.path());
++    let result = case.run(&invalid);
++    assert_ne!(result.status, ResultCategory::Success);
++    assert!(!case.0.join("cache").exists());
++    success(&case.run(&case.options()));
++}
+diff --git a/crates/zil-driver/tests/parse_publication_cp26.rs b/crates/zil-driver/tests/parse_publication_cp26.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..4d88a9ace9227371d07af9a3555bd2d92f22bcb4
+--- /dev/null
++++ b/crates/zil-driver/tests/parse_publication_cp26.rs
+@@ -0,0 +1,324 @@
++#![cfg(target_os = "linux")]
++//! Publication controls use real source compilation and real filesystem errors.
++//! Child processes isolate the file-size limit and temporary-name sequence.
++use std::{
++    collections::BTreeMap,
++    fs,
++    io::Read,
++    path::PathBuf,
++    process::Command,
++    sync::atomic::{AtomicU64, Ordering},
++};
++use zil_base::ResultCategory;
++use zil_driver::{CompilationSession, CompileOptions, CompileReport, compile_path};
++
++static NEXT: AtomicU64 = AtomicU64::new(0);
++const CHILD_CASE: &str = "ZIL_CP26_PUBLICATION_CHILD_CASE";
++const MAIN: &str = "import a\nimport b\nfn main()->i32=>a.answer()+b.zero()-42\n";
++
++struct Case {
++    root: PathBuf,
++    owns: bool,
++}
++impl Case {
++    fn new() -> Self {
++        let root = std::env::temp_dir().join(format!(
++            "zil-cp26-{}-{}",
++            std::process::id(),
++            NEXT.fetch_add(1, Ordering::Relaxed)
++        ));
++        fs::create_dir(&root).unwrap();
++        let case = Self { root, owns: true };
++        fs::write(case.root.join("main.zil"), MAIN).unwrap();
++        fs::write(case.root.join("a.zil"), "pub fn answer()->i32=>42\n").unwrap();
++        fs::write(case.root.join("b.zil"), "pub fn zero()->i32=>0\n").unwrap();
++        case
++    }
++    fn child() -> Option<Self> {
++        std::env::var_os(CHILD_CASE).map(|root| Self {
++            root: root.into(),
++            owns: false,
++        })
++    }
++    fn path(&self) -> PathBuf {
++        self.root.join("main.zil")
++    }
++    fn options(&self) -> CompileOptions {
++        CompileOptions {
++            query_cache: Some(self.root.join("cache")),
++            ..CompileOptions::default()
++        }
++    }
++    fn run(&self) -> CompileReport {
++        compile_path(&self.path(), &self.options())
++    }
++    fn directory(&self) -> PathBuf {
++        self.root.join("cache/parse-cp22-v1")
++    }
++    fn entries(&self) -> Vec<PathBuf> {
++        let mut paths: Vec<_> = fs::read_dir(self.directory())
++            .into_iter()
++            .flatten()
++            .map(|entry| entry.unwrap().path())
++            .collect();
++        paths.sort();
++        paths
++    }
++    fn payloads(&self) -> BTreeMap<PathBuf, Vec<u8>> {
++        self.entries()
++            .into_iter()
++            .filter(|path| path.extension().is_some_and(|ext| ext == "psyn"))
++            .map(|path| {
++                let bytes = fs::read(&path).unwrap();
++                (path, bytes)
++            })
++            .collect()
++    }
++    fn no_pending(&self) {
++        assert!(
++            self.entries()
++                .iter()
++                .all(|path| path.extension().is_some_and(|ext| ext == "psyn")),
++            "orphaned publication file: {:?}",
++            self.entries()
++        );
++    }
++}
++impl Drop for Case {
++    fn drop(&mut self) {
++        if self.owns {
++            if std::thread::panicking() {
++                eprintln!("CP26 failure retained: {}", self.root.display());
++            } else {
++                let _ = fs::remove_dir_all(&self.root);
++            }
++        }
++    }
++}
++fn success(report: &CompileReport) {
++    assert_eq!(
++        report.status,
++        ResultCategory::Success,
++        "{}",
++        report.to_json()
++    );
++    assert_eq!(report.verification_runs, 1, "{}", report.to_json());
++}
++fn equivalent(a: &CompileReport, b: &CompileReport) {
++    assert_eq!(a.status, b.status);
++    assert_eq!(a.phase, b.phase);
++    assert_eq!(a.diagnostics, b.diagnostics);
++    assert_eq!(a.source_files, b.source_files);
++    assert_eq!(a.input_fingerprint, b.input_fingerprint);
++    assert_eq!(a.verification_runs, b.verification_runs);
++}
++fn child(case: &Case, test: &str, zero_file_limit: bool) {
++    let exe = std::env::current_exe().unwrap();
++    let mut command = if zero_file_limit {
++        let mut command = Command::new("sh");
++        // The limit and ignored signal affect only this subprocess. Source
++        // files already exist; the Verify request has no native output writes.
++        command
++            .arg("-c")
++            .arg("ulimit -f 0 || exit 91; trap '' XFSZ; exec \"$@\"")
++            .arg("cp26-file-limit")
++            .arg(&exe);
++        command
++    } else {
++        Command::new(&exe)
++    };
++    let result = command
++        .arg("--exact")
++        .arg(test)
++        .arg("--nocapture")
++        .arg("--test-threads=1")
++        .env(CHILD_CASE, &case.root)
++        .output()
++        .unwrap();
++    assert!(
++        result.status.success(),
++        "child {test} failed: {}\n{}\n{}",
++        result.status,
++        String::from_utf8_lossy(&result.stdout),
++        String::from_utf8_lossy(&result.stderr)
++    );
++    assert!(
++        String::from_utf8_lossy(&result.stdout).contains("1 passed"),
++        "child did not execute its control: {}",
++        String::from_utf8_lossy(&result.stdout)
++    );
++}
++
++#[test]
++fn large_payload_roundtrip_and_repair_are_complete_atomic_publications() {
++    let case = Case::new();
++    let source = format!("{}{MAIN}", "// 多字节 publication boundary\n".repeat(2048));
++    fs::write(case.path(), source).unwrap();
++    let cold = case.run();
++    success(&cold);
++    assert_eq!((cold.parse_cache.parsed, cold.parse_cache.stored), (3, 3));
++    let payloads = case.payloads();
++    let (path, complete) = payloads
++        .iter()
++        .max_by_key(|(_, bytes)| bytes.len())
++        .unwrap();
++    assert!(complete.len() > 16 * 1024);
++    let warm = case.run();
++    success(&warm);
++    equivalent(&cold, &warm);
++    assert_eq!((warm.parse_cache.hits, warm.parse_cache.stored), (3, 0));
++
++    // An already-open reader must keep the old inode after repair. Rewriting
++    // the final path in place would change the bytes visible through this fd.
++    let damaged = b"interrupted previous cache publication";
++    fs::write(path, damaged).unwrap();
++    let mut old_reader = fs::File::open(path).unwrap();
++    let repaired = case.run();
++    success(&repaired);
++    equivalent(&cold, &repaired);
++    assert_eq!(
++        (
++            repaired.parse_cache.hits,
++            repaired.parse_cache.corrupt,
++            repaired.parse_cache.parsed,
++            repaired.parse_cache.stored
++        ),
++        (2, 1, 1, 1)
++    );
++    let mut still_old = Vec::new();
++    old_reader.read_to_end(&mut still_old).unwrap();
++    assert_eq!(still_old, damaged);
++    assert_eq!(fs::read(path).unwrap(), *complete);
++    assert_eq!(case.run().parse_cache.hits, 3);
++    case.no_pending();
++}
++
++#[test]
++fn create_new_collision_preserves_unowned_files_and_existing_cache() {
++    let Some(case) = Case::child() else {
++        let case = Case::new();
++        child(
++            &case,
++            "create_new_collision_preserves_unowned_files_and_existing_cache",
++            false,
++        );
++        return;
++    };
++    let options = case.options();
++    let mut session = CompilationSession::with_capacity(128);
++    let first = session.compile_path(&case.path(), &options);
++    success(&first);
++    assert_eq!(first.parse_cache.stored, 3);
++    let original = case.payloads();
++    assert_eq!(original.len(), 3);
++
++    // This isolated process has published exactly three files. Occupy every
++    // key/order combination of the next three names, without assuming which
++    // hashed filename represents each source module.
++    let mut sentinels = BTreeMap::new();
++    for path in original.keys() {
++        let key = path.file_stem().unwrap().to_str().unwrap();
++        for sequence in 3..6 {
++            let pending = case
++                .directory()
++                .join(format!(".{key}.{}.{sequence}.tmp", std::process::id()));
++            let bytes = format!("preexisting owner: {key}/{sequence}").into_bytes();
++            fs::write(&pending, &bytes).unwrap();
++            sentinels.insert(pending, bytes);
++        }
++    }
++    let collision = session.compile_path(&case.path(), &options);
++    success(&collision);
++    equivalent(&first, &collision);
++    assert_eq!(collision.parse_cache.session_hits, 3);
++    assert_eq!(collision.parse_cache.stored, 0);
++    assert!(collision.parse_cache.write_reason.is_some());
++    for (path, expected) in &sentinels {
++        assert_eq!(fs::read(path).unwrap(), *expected, "{}", path.display());
++    }
++    assert_eq!(case.payloads(), original);
++    let fresh = case.run();
++    success(&fresh);
++    assert_eq!(fresh.parse_cache.hits, 3);
++    for path in sentinels.keys() {
++        fs::remove_file(path).unwrap();
++    }
++    case.no_pending();
++}
++
++#[test]
++fn rename_failure_preserves_destination_and_cleans_only_owned_temporary() {
++    let case = Case::new();
++    let cold = case.run();
++    success(&cold);
++    let original = case.payloads();
++    let (path, bytes) = original.iter().next().unwrap();
++    fs::remove_file(path).unwrap();
++    fs::create_dir(path).unwrap();
++    let sentinel = path.join("existing-destination");
++    fs::write(&sentinel, b"keep directory contents").unwrap();
++
++    let failed_write = case.run();
++    success(&failed_write);
++    equivalent(&cold, &failed_write);
++    assert_eq!(failed_write.parse_cache.hits, 2);
++    assert_eq!(failed_write.parse_cache.corrupt, 1);
++    assert_eq!(failed_write.parse_cache.parsed, 1);
++    assert_eq!(failed_write.parse_cache.stored, 0);
++    assert!(failed_write.parse_cache.write_reason.is_some());
++    assert_eq!(fs::read(&sentinel).unwrap(), b"keep directory contents");
++    case.no_pending();
++
++    fs::remove_file(sentinel).unwrap();
++    fs::remove_dir(path).unwrap();
++    let repaired = case.run();
++    success(&repaired);
++    assert_eq!(
++        (repaired.parse_cache.parsed, repaired.parse_cache.stored),
++        (1, 1)
++    );
++    assert_eq!(fs::read(path).unwrap(), *bytes);
++    assert_eq!(case.run().parse_cache.hits, 3);
++    case.no_pending();
++}
++
++#[test]
++fn write_or_flush_failure_is_advisory_and_retry_restores_cache() {
++    if let Some(case) = Case::child() {
++        let report = case.run();
++        success(&report);
++        assert_eq!(report.parse_cache.parsed, 3);
++        assert_eq!(report.parse_cache.stored, 0);
++        assert!(report.parse_cache.reason.is_none());
++        assert!(
++            report
++                .parse_cache
++                .write_reason
++                .as_deref()
++                .is_some_and(|reason| {
++                    reason.contains("File too large") || reason.contains("os error 27")
++                }),
++            "{}",
++            report.to_json()
++        );
++        assert!(case.entries().is_empty());
++        return;
++    }
++    let case = Case::new();
++    child(
++        &case,
++        "write_or_flush_failure_is_advisory_and_retry_restores_cache",
++        true,
++    );
++    assert!(case.entries().is_empty());
++    let retry = case.run();
++    success(&retry);
++    assert_eq!((retry.parse_cache.parsed, retry.parse_cache.stored), (3, 3));
++    let warm = case.run();
++    success(&warm);
++    assert_eq!((warm.parse_cache.hits, warm.parse_cache.stored), (3, 0));
++    let mut cold = case.options();
++    cold.query_cache = None;
++    equivalent(&warm, &compile_path(&case.path(), &cold));
++    case.no_pending();
++}
+diff --git a/crates/zil-syntax/src/attributes/mod.rs b/crates/zil-syntax/src/attributes/mod.rs
+index de86b7ad01f2ea0b050624fb1ac796e04784dcf8..5188807a58c7aef7112f5e078fb656c6c6208343 100644
+--- a/crates/zil-syntax/src/attributes/mod.rs
++++ b/crates/zil-syntax/src/attributes/mod.rs
+@@ -138,6 +138,14 @@ pub fn validate(
+     context: &AttributeContext,
+     limits: &Limits,
+ ) -> AttributeValidation {
++    validate_with_usage(module, context, limits).0
++}
++
++pub(crate) fn validate_with_usage(
++    module: &Module,
++    context: &AttributeContext,
++    limits: &Limits,
++) -> (AttributeValidation, usize) {
+     let mut validator = Validator {
+         context,
+         limits,
+@@ -148,7 +156,7 @@ pub fn validate(
+     for item in &module.items {
+         validator.item(item, Retention::Keep);
+     }
+-    validator.result
++    (validator.result, validator.work)
+ }
+ struct Validator<'a> {
+     context: &'a AttributeContext,
+diff --git a/crates/zil-syntax/src/cache.rs b/crates/zil-syntax/src/cache.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..78dd2ed4b20298585336d4abd23880f60b8addd3
+--- /dev/null
++++ b/crates/zil-syntax/src/cache.rs
+@@ -0,0 +1,773 @@
++//! Bounded syntax memo codec for a trusted, compiler-identified local producer.
++//! The transport owner must bind source bytes, parser rules, attribute context
++//! and depth limits. Checksums are not authentication. Decoded AST is unverified.
++use crate::{
++    ParseResult, ParseUsage,
++    ast::*,
++    attributes::{DeferredAttribute, DeferredReason},
++    token::{Symbol, Token, TokenKind},
++};
++use std::mem::size_of;
++use zil_base::{Limits, ModuleId, SourceUnit, Span};
++
++pub const MAX_PAYLOAD: usize = 32 * 1024 * 1024;
++const MAX_ALLOCATION: usize = 64 * 1024 * 1024;
++const MAX_DEPTH: usize = 128;
++const MAGIC: &[u8; 8] = b"ZILAST01";
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum CacheError {
++    Invalid,
++    Limit,
++    Budget,
++}
++type Result<T> = std::result::Result<T, CacheError>;
++
++pub fn encode(source: &SourceUnit, parsed: &ParseResult) -> Result<Vec<u8>> {
++    if !parsed.diagnostics.is_empty() || !valid_root(source, parsed) {
++        return Err(CacheError::Invalid);
++    }
++    let mut w = Writer {
++        bytes: Vec::new(),
++        depth: 0,
++        source,
++    };
++    w.put(MAGIC)?;
++    parsed.usage.nodes_required.encode(&mut w)?;
++    parsed.tokens.len().encode(&mut w)?;
++    parsed.module.encode(&mut w)?;
++    parsed.tokens.encode(&mut w)?;
++    parsed.deferred_attributes.encode(&mut w)?;
++    parsed.cfg_removed.encode(&mut w)?;
++    Ok(w.bytes)
++}
++
++pub fn decode(source: &SourceUnit, bytes: &[u8], limits: &Limits) -> Result<ParseResult> {
++    if source.text.len() > limits.max_source_bytes {
++        return Err(CacheError::Budget);
++    }
++    if bytes.len() > MAX_PAYLOAD {
++        return Err(CacheError::Limit);
++    }
++    let mut r = Reader {
++        bytes,
++        position: 0,
++        depth: 0,
++        allocation: MAX_ALLOCATION,
++        source,
++    };
++    if r.take(8)? != MAGIC {
++        return Err(CacheError::Invalid);
++    }
++    let nodes_required = usize::decode(&mut r)?;
++    let tokens = usize::decode(&mut r)?;
++    if nodes_required > limits.max_nodes || tokens > limits.max_tokens {
++        return Err(CacheError::Budget);
++    }
++    let result = ParseResult {
++        module: Module::decode(&mut r)?,
++        tokens: Vec::decode(&mut r)?,
++        diagnostics: Vec::new(),
++        deferred_attributes: Vec::decode(&mut r)?,
++        cfg_removed: Vec::decode(&mut r)?,
++        usage: ParseUsage { nodes_required },
++    };
++    if r.position != bytes.len() || result.tokens.len() != tokens || !valid_root(source, &result) {
++        return Err(CacheError::Invalid);
++    }
++    Ok(result)
++}
++
++fn valid_root(source: &SourceUnit, parsed: &ParseResult) -> bool {
++    if parsed.module.id != source.module_id
++        || parsed.module.span != source.span()
++        || parsed.tokens.is_empty()
++    {
++        return false;
++    }
++    let mut end = 0;
++    for (index, token) in parsed.tokens.iter().enumerate() {
++        if !token.span.is_valid_for(source) || token.span.start != end {
++            return false;
++        }
++        if index + 1 == parsed.tokens.len() {
++            if token.kind != TokenKind::Eof
++                || token.span.start != source.text.len()
++                || token.span.end != source.text.len()
++            {
++                return false;
++            }
++        } else if matches!(token.kind, TokenKind::Eof | TokenKind::Invalid)
++            || token.span.start == token.span.end
++        {
++            return false;
++        }
++        end = token.span.end;
++    }
++    end == source.text.len()
++}
++
++struct Writer<'a> {
++    bytes: Vec<u8>,
++    depth: usize,
++    source: &'a SourceUnit,
++}
++impl Writer<'_> {
++    fn put(&mut self, bytes: &[u8]) -> Result<()> {
++        if bytes.len() > MAX_PAYLOAD.saturating_sub(self.bytes.len()) {
++            return Err(CacheError::Limit);
++        }
++        self.bytes
++            .try_reserve(bytes.len())
++            .map_err(|_| CacheError::Limit)?;
++        self.bytes.extend_from_slice(bytes);
++        Ok(())
++    }
++    fn nested<T>(&mut self, f: impl FnOnce(&mut Self) -> Result<T>) -> Result<T> {
++        if self.depth >= MAX_DEPTH {
++            return Err(CacheError::Limit);
++        }
++        self.depth += 1;
++        let result = f(self);
++        self.depth -= 1;
++        result
++    }
++}
++struct Reader<'a> {
++    bytes: &'a [u8],
++    position: usize,
++    depth: usize,
++    allocation: usize,
++    source: &'a SourceUnit,
++}
++impl Reader<'_> {
++    fn take(&mut self, count: usize) -> Result<&[u8]> {
++        let end = self
++            .position
++            .checked_add(count)
++            .filter(|end| *end <= self.bytes.len())
++            .ok_or(CacheError::Invalid)?;
++        let bytes = &self.bytes[self.position..end];
++        self.position = end;
++        Ok(bytes)
++    }
++    fn allocate(&mut self, bytes: usize) -> Result<()> {
++        self.allocation = self
++            .allocation
++            .checked_sub(bytes)
++            .ok_or(CacheError::Limit)?;
++        Ok(())
++    }
++    fn nested<T>(&mut self, f: impl FnOnce(&mut Self) -> Result<T>) -> Result<T> {
++        if self.depth >= MAX_DEPTH {
++            return Err(CacheError::Limit);
++        }
++        self.depth += 1;
++        let result = f(self);
++        self.depth -= 1;
++        result
++    }
++}
++trait Codec: Sized {
++    fn encode(&self, w: &mut Writer<'_>) -> Result<()>;
++    fn decode(r: &mut Reader<'_>) -> Result<Self>;
++}
++impl Codec for u8 {
++    fn encode(&self, w: &mut Writer<'_>) -> Result<()> {
++        w.put(&[*self])
++    }
++    fn decode(r: &mut Reader<'_>) -> Result<Self> {
++        Ok(r.take(1)?[0])
++    }
++}
++impl Codec for u32 {
++    fn encode(&self, w: &mut Writer<'_>) -> Result<()> {
++        w.put(&self.to_le_bytes())
++    }
++    fn decode(r: &mut Reader<'_>) -> Result<Self> {
++        Ok(Self::from_le_bytes(
++            r.take(4)?.try_into().map_err(|_| CacheError::Invalid)?,
++        ))
++    }
++}
++impl Codec for usize {
++    fn encode(&self, w: &mut Writer<'_>) -> Result<()> {
++        w.put(&(*self as u64).to_le_bytes())
++    }
++    fn decode(r: &mut Reader<'_>) -> Result<Self> {
++        Self::try_from(u64::from_le_bytes(
++            r.take(8)?.try_into().map_err(|_| CacheError::Invalid)?,
++        ))
++        .map_err(|_| CacheError::Limit)
++    }
++}
++impl Codec for bool {
++    fn encode(&self, w: &mut Writer<'_>) -> Result<()> {
++        (*self as u8).encode(w)
++    }
++    fn decode(r: &mut Reader<'_>) -> Result<Self> {
++        match u8::decode(r)? {
++            0 => Ok(false),
++            1 => Ok(true),
++            _ => Err(CacheError::Invalid),
++        }
++    }
++}
++impl Codec for String {
++    fn encode(&self, w: &mut Writer<'_>) -> Result<()> {
++        u32::try_from(self.len())
++            .map_err(|_| CacheError::Limit)?
++            .encode(w)?;
++        w.put(self.as_bytes())
++    }
++    fn decode(r: &mut Reader<'_>) -> Result<Self> {
++        let n = u32::decode(r)? as usize;
++        r.allocate(n)?;
++        let bytes = r.take(n)?;
++        let text = std::str::from_utf8(bytes).map_err(|_| CacheError::Invalid)?;
++        let mut out = String::new();
++        out.try_reserve_exact(n).map_err(|_| CacheError::Limit)?;
++        out.push_str(text);
++        Ok(out)
++    }
++}
++impl<T: Codec> Codec for Vec<T> {
++    fn encode(&self, w: &mut Writer<'_>) -> Result<()> {
++        u32::try_from(self.len())
++            .map_err(|_| CacheError::Limit)?
++            .encode(w)?;
++        for item in self {
++            item.encode(w)?;
++        }
++        Ok(())
++    }
++    fn decode(r: &mut Reader<'_>) -> Result<Self> {
++        let n = u32::decode(r)? as usize;
++        if n > r.bytes.len() - r.position {
++            return Err(CacheError::Invalid);
++        }
++        r.allocate(n.checked_mul(size_of::<T>()).ok_or(CacheError::Limit)?)?;
++        let mut out = Vec::new();
++        out.try_reserve_exact(n).map_err(|_| CacheError::Limit)?;
++        for _ in 0..n {
++            out.push(T::decode(r)?);
++        }
++        Ok(out)
++    }
++}
++impl<T: Codec> Codec for Option<T> {
++    fn encode(&self, w: &mut Writer<'_>) -> Result<()> {
++        self.is_some().encode(w)?;
++        if let Some(value) = self {
++            value.encode(w)?;
++        }
++        Ok(())
++    }
++    fn decode(r: &mut Reader<'_>) -> Result<Self> {
++        if bool::decode(r)? {
++            Ok(Some(T::decode(r)?))
++        } else {
++            Ok(None)
++        }
++    }
++}
++impl<T: Codec> Codec for Box<T> {
++    fn encode(&self, w: &mut Writer<'_>) -> Result<()> {
++        (**self).encode(w)
++    }
++    fn decode(r: &mut Reader<'_>) -> Result<Self> {
++        r.allocate(size_of::<T>())?;
++        Ok(Box::new(T::decode(r)?))
++    }
++}
++impl Codec for Span {
++    fn encode(&self, w: &mut Writer<'_>) -> Result<()> {
++        if !self.is_valid_for(w.source) {
++            return Err(CacheError::Invalid);
++        }
++        u32::try_from(self.start)
++            .map_err(|_| CacheError::Limit)?
++            .encode(w)?;
++        u32::try_from(self.end)
++            .map_err(|_| CacheError::Limit)?
++            .encode(w)
++    }
++    fn decode(r: &mut Reader<'_>) -> Result<Self> {
++        let span = Self::new(
++            r.source.file_id,
++            u32::decode(r)? as usize,
++            u32::decode(r)? as usize,
++        );
++        if !span.is_valid_for(r.source) {
++            return Err(CacheError::Invalid);
++        }
++        Ok(span)
++    }
++}
++impl Codec for ModuleId {
++    fn encode(&self, w: &mut Writer<'_>) -> Result<()> {
++        self.0.encode(w)
++    }
++    fn decode(r: &mut Reader<'_>) -> Result<Self> {
++        Ok(Self(u32::decode(r)?))
++    }
++}
++macro_rules! structure {
++    ($name:ident {$($field:ident),* $(,)?}) => {
++        impl Codec for $name {
++            fn encode(&self,w:&mut Writer<'_>)->Result<()>{w.nested(|w|{$(self.$field.encode(w)?;)*Ok(())})}
++            fn decode(r:&mut Reader<'_>)->Result<Self>{r.nested(|r|Ok(Self{$($field:Codec::decode(r)?),*}))}
++        }
++    };
++}
++macro_rules! read_field {
++    ($r:ident,$field:ident) => {
++        Codec::decode($r)?
++    };
++}
++macro_rules! enumeration {
++    ($name:ident {$($tag:literal => $variant:ident $(($($value:ident),* ))? $({$($field:ident),*})?),* $(,)?}) => {
++        impl Codec for $name {
++            fn encode(&self,w:&mut Writer<'_>)->Result<()>{w.nested(|w|match self{$(Self::$variant $(($($value),*))? $({$($field),*})? => {($tag as u8).encode(w)?;$($($value.encode(w)?;)*)?$($($field.encode(w)?;)*)?Ok(())}),*})}
++            fn decode(r:&mut Reader<'_>)->Result<Self>{r.nested(|r|Ok(match u8::decode(r)?{$($tag=>Self::$variant $(( $(read_field!(r,$value)),* ))? $({$($field:Codec::decode(r)?),*})?),*,_=>return Err(CacheError::Invalid)}))}
++        }
++    };
++}
++
++structure!(Module { id, items, span });
++
++structure!(Item {
++    kind,
++    attributes,
++    public,
++    span
++});
++
++enumeration!(ItemKind {
++    0 => Import(v0),
++    1 => Function(v0),
++    2 => Aggregate(v0),
++    3 => Enum(v0),
++    4 => Trait(v0),
++    5 => Impl(v0),
++    6 => TypeAlias(v0),
++    7 => Const(v0),
++    8 => Extern {abi, function},
++    9 => Meta(v0)
++});
++
++structure!(Import {
++    path,
++    alias,
++    syntax
++});
++
++structure!(Function {
++    name,
++    generics,
++    params,
++    return_type,
++    where_clause,
++    contract,
++    body,
++    span
++});
++
++enumeration!(FunctionBody {
++    0 => Block(v0),
++    1 => Expression(v0),
++    2 => Declaration
++});
++
++structure!(Param {
++    name,
++    ty,
++    give,
++    attributes,
++    span
++});
++
++structure!(GenericParam { name, kind, span });
++
++enumeration!(GenericParamKind {
++    0 => Type(v0),
++    1 => Lifetime,
++    2 => Const(v0)
++});
++
++structure!(BoundClause {
++    subject,
++    bounds,
++    lifetime_bound,
++    span
++});
++
++enumeration!(BoundSubject {
++    0 => Type(v0),
++    1 => Lifetime(v0)
++});
++
++structure!(TypeRef { kind, span });
++
++enumeration!(TypeKind {
++    0 => Named {path, args},
++    1 => Reference {lifetime, mutable, inner},
++    2 => Tuple(v0),
++    3 => Group(v0),
++    4 => Array {element, length},
++    5 => Function {params, result},
++    6 => ForeignFunction {abi, params, result},
++    7 => Optional(v0),
++    8 => Error {error, result},
++    9 => Union(v0),
++    10 => Dyn {path, args},
++    11 => ForLifetime {lifetime, inner},
++    12 => Impl(v0),
++    13 => MetaEval(v0),
++    14 => MetaBlock(v0)
++});
++
++enumeration!(GenericArg {
++    0 => Type(v0),
++    1 => Const(v0)
++});
++
++enumeration!(AggregateKind {
++    0 => Struct,
++    1 => Resource,
++    2 => Package
++});
++
++structure!(Aggregate {
++    kind,
++    name,
++    generics,
++    fields,
++    methods
++});
++
++structure!(Field {
++    name,
++    ty,
++    default,
++    public,
++    manages,
++    attributes,
++    span
++});
++
++structure!(EnumDecl {
++    name,
++    generics,
++    variants
++});
++
++structure!(Variant {
++    name,
++    fields,
++    attributes,
++    span
++});
++
++enumeration!(VariantFields {
++    0 => Unit,
++    1 => Tuple(v0),
++    2 => Record(v0)
++});
++
++structure!(TraitDecl {
++    name,
++    generics,
++    bounds,
++    members
++});
++
++structure!(ImplBlock {
++    generics,
++    trait_type,
++    target,
++    receiver_default,
++    where_clause,
++    members
++});
++
++structure!(TypeAlias {
++    name,
++    generics,
++    bounds,
++    value
++});
++
++structure!(ConstDecl { name, ty, value });
++
++structure!(ContractClause { name, terms, span });
++
++structure!(ContractTerm {
++    path,
++    type_args,
++    arguments,
++    index,
++    span
++});
++
++structure!(Attribute {
++    path,
++    arguments,
++    string_value,
++    span
++});
++
++structure!(Block { statements, span });
++
++structure!(Stmt { kind, span });
++
++enumeration!(StmtKind {
++    0 => Binding {mutable, pattern, ty, value},
++    1 => Return(v0),
++    2 => Yield(v0),
++    3 => Break,
++    4 => Continue,
++    5 => Defer(v0),
++    6 => If {condition, then_body, else_body},
++    7 => While {condition, body},
++    8 => For {pattern, iterable, body},
++    9 => Loop(v0),
++    10 => Match {value, arms},
++    11 => With {name, value, body},
++    12 => Unsafe(v0),
++    13 => Assign {target, op, value},
++    14 => Expression(v0),
++    15 => Meta(v0)
++});
++
++enumeration!(Condition {
++    0 => Expression(v0),
++    1 => Let {pattern, value}
++});
++
++enumeration!(ElseBranch {
++    0 => Block(v0),
++    1 => If(v0)
++});
++
++structure!(MatchArm {
++    pattern,
++    body,
++    span
++});
++
++enumeration!(AssignOp {
++    0 => Set,
++    1 => Add,
++    2 => Subtract,
++    3 => Multiply,
++    4 => Divide,
++    5 => Remainder,
++    6 => BitAnd,
++    7 => BitOr,
++    8 => BitXor
++});
++
++structure!(Pattern { kind, span });
++
++enumeration!(PatternKind {
++    0 => Name(v0),
++    1 => Wildcard,
++    2 => Literal(v0),
++    3 => Reference {mutable, pattern},
++    4 => Tuple(v0),
++    5 => Constructor {path, arguments}
++});
++
++structure!(Expr { kind, span });
++
++enumeration!(ExprKind {
++    0 => Literal(v0),
++    1 => Name(v0),
++    2 => ReceiverMember(v0),
++    3 => Group(v0),
++    4 => Tuple(v0),
++    5 => Array(v0),
++    6 => Unary {op, operand},
++    7 => Binary {op, left, right},
++    8 => Pipeline {input, target},
++    9 => Member {object, member},
++    10 => TypeApply {callee, arguments},
++    11 => Call {callee, arguments},
++    12 => Index {object, index},
++    13 => Slice {object, start, end},
++    14 => Try(v0),
++    15 => Record {ty, base, fields},
++    16 => Closure {move_capture, params, return_type, body},
++    17 => If {condition, then_value, else_value},
++    18 => MetaEval(v0),
++    19 => MetaBlock(v0),
++    20 => SyntaxIsland {path, tree}
++});
++
++enumeration!(Literal {
++    0 => Integer(v0),
++    1 => Float(v0),
++    2 => String(v0),
++    3 => Char(v0),
++    4 => Bool(v0)
++});
++
++enumeration!(UnaryOp {
++    0 => Not,
++    1 => Negate,
++    2 => BitNot,
++    3 => Dereference,
++    4 => Borrow,
++    5 => BorrowMut,
++    6 => Give
++});
++
++enumeration!(BinaryOp {
++    0 => Multiply,
++    1 => Divide,
++    2 => Remainder,
++    3 => MultiplyWrapping,
++    4 => Add,
++    5 => Subtract,
++    6 => AddWrapping,
++    7 => SubtractWrapping,
++    8 => ShiftLeft,
++    9 => ShiftRight,
++    10 => BitAnd,
++    11 => BitXor,
++    12 => BitOr,
++    13 => Range,
++    14 => Equal,
++    15 => NotEqual,
++    16 => Less,
++    17 => LessEqual,
++    18 => Greater,
++    19 => GreaterEqual,
++    20 => And,
++    21 => Or
++});
++
++enumeration!(MemberName {
++    0 => Name(v0),
++    1 => TupleIndex(v0)
++});
++
++structure!(Argument {
++    spread,
++    value,
++    span
++});
++
++structure!(RecordField { name, value, span });
++
++structure!(ClosureParam { name, ty, span });
++
++enumeration!(ArrowBody {
++    0 => Expression(v0),
++    1 => Block(v0)
++});
++
++structure!(TokenTree {
++    delimiter,
++    children,
++    span
++});
++
++enumeration!(Delimiter {
++    0 => Parenthesis,
++    1 => Bracket,
++    2 => Brace
++});
++
++enumeration!(TokenTreeEntry {
++    0 => Token {text, span},
++    1 => Tree(v0)
++});
++
++enumeration!(MetaItem {
++    0 => If {condition, then_items, else_items},
++    1 => For {binding, iterable, items},
++    2 => Emit(v0)
++});
++
++enumeration!(MetaStatement {
++    0 => If {condition, then_body, else_body},
++    1 => For {binding, iterable, body},
++    2 => Emit(v0)
++});
++
++structure!(Token { kind, span });
++
++enumeration!(TokenKind {
++    0 => Identifier,
++    1 => Integer,
++    2 => Float,
++    3 => String,
++    4 => Char,
++    5 => Lifetime,
++    6 => TupleIndex,
++    7 => Whitespace,
++    8 => Newline,
++    9 => LineComment,
++    10 => BlockComment,
++    11 => Symbol(v0),
++    12 => Invalid,
++    13 => Eof
++});
++
++enumeration!(Symbol {
++    0 => LParen,
++    1 => RParen,
++    2 => LBracket,
++    3 => RBracket,
++    4 => LBrace,
++    5 => RBrace,
++    6 => Comma,
++    7 => Semicolon,
++    8 => Colon,
++    9 => Dot,
++    10 => DotDot,
++    11 => Ellipsis,
++    12 => ColonColon,
++    13 => Hash,
++    14 => Question,
++    15 => Arrow,
++    16 => FatArrow,
++    17 => Pipe,
++    18 => Plus,
++    19 => Minus,
++    20 => Star,
++    21 => Slash,
++    22 => Percent,
++    23 => PlusWrapping,
++    24 => MinusWrapping,
++    25 => StarWrapping,
++    26 => Amp,
++    27 => Bar,
++    28 => Caret,
++    29 => Tilde,
++    30 => Bang,
++    31 => AmpAmp,
++    32 => BarBar,
++    33 => Eq,
++    34 => EqEq,
++    35 => BangEq,
++    36 => Lt,
++    37 => LtEq,
++    38 => Gt,
++    39 => GtEq,
++    40 => Shl,
++    41 => Shr,
++    42 => PlusEq,
++    43 => MinusEq,
++    44 => StarEq,
++    45 => SlashEq,
++    46 => PercentEq,
++    47 => AmpEq,
++    48 => BarEq,
++    49 => CaretEq
++});
++
++structure!(DeferredAttribute { attachment, reason });
++enumeration!(DeferredReason {0 => Configuration, 1 => CompileTimeSelection});
+diff --git a/crates/zil-syntax/src/lib.rs b/crates/zil-syntax/src/lib.rs
+index e76d49329cba8a57083fce53f05c84490ccf2ff1..46f6c547b0ed2074537948c4dabf1a0c24a05f78 100644
+--- a/crates/zil-syntax/src/lib.rs
++++ b/crates/zil-syntax/src/lib.rs
+@@ -4,6 +4,7 @@
+ 
+ pub mod ast;
+ pub mod attributes;
++pub mod cache;
+ pub mod format;
+ pub mod lexer;
+ mod parser;
+@@ -25,9 +26,27 @@ pub struct ParseResult {
+     /// source tools can preserve their spelling; later phases must materialize
+     /// configuration before using declarations.
+     pub cfg_removed: Vec<Span>,
++    /// Logical parser/attribute work, retained when immutable syntax is reused.
++    /// This is a resource receipt, never a verifier capability.
++    pub usage: ParseUsage,
++}
++
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub struct ParseUsage {
++    pub nodes_required: usize,
+ }
+ 
+ impl ParseResult {
++    /// A sufficient reuse condition. EOF is included conservatively because
++    /// project accounting charges it even though the lexer loop does not.
++    /// The caller must separately bind source identity, max_source_bytes,
++    /// max_call_depth and all other parser/context inputs not checked here.
++    pub fn fits_limits(&self, limits: &Limits) -> bool {
++        self.diagnostics.is_empty()
++            && self.tokens.len() <= limits.max_tokens
++            && self.usage.nodes_required <= limits.max_nodes
++    }
++
+     pub fn is_ok(&self) -> bool {
+         self.diagnostics.is_empty()
+     }
+@@ -59,13 +78,13 @@ pub fn parse_with_attribute_context(
+     context: &attributes::AttributeContext,
+ ) -> ParseResult {
+     let lexed = lexer::lex_with_limits(source, limits);
+-    let (module, mut diagnostics) = parser::module(source, &lexed.tokens, limits);
++    let (module, mut diagnostics, parser_nodes) = parser::module(source, &lexed.tokens, limits);
+     let mut all = lexed.diagnostics;
+     all.append(&mut diagnostics);
+-    let validation = if all.is_empty() {
+-        attributes::validate(&module, context, limits)
++    let (validation, attribute_work) = if all.is_empty() {
++        attributes::validate_with_usage(&module, context, limits)
+     } else {
+-        attributes::AttributeValidation::default()
++        (attributes::AttributeValidation::default(), 0)
+     };
+     all.extend(validation.diagnostics);
+     ParseResult {
+@@ -74,5 +93,8 @@ pub fn parse_with_attribute_context(
+         diagnostics: all,
+         deferred_attributes: validation.deferred,
+         cfg_removed: validation.removed,
++        usage: ParseUsage {
++            nodes_required: parser_nodes.max(attribute_work),
++        },
+     }
+ }
+diff --git a/crates/zil-syntax/src/parser/mod.rs b/crates/zil-syntax/src/parser/mod.rs
+index 9b43e2a20b1136e8f5a57ffde979f1ebe3f10dd5..3bb37315992493390a15b8f03ac1d6b17597564c 100644
+--- a/crates/zil-syntax/src/parser/mod.rs
++++ b/crates/zil-syntax/src/parser/mod.rs
+@@ -14,7 +14,7 @@ pub(crate) fn module(
+     source: &SourceUnit,
+     raw: &[Token],
+     limits: &Limits,
+-) -> (Module, Vec<Diagnostic>) {
++) -> (Module, Vec<Diagnostic>, usize) {
+     let mut tokens = Vec::new();
+     for token in raw {
+         match token.kind {
+@@ -58,6 +58,7 @@ pub(crate) fn module(
+             span: source.span(),
+         },
+         parser.diagnostics,
++        parser.nodes,
+     )
+ }
+ 
+diff --git a/crates/zil-syntax/tests/parse_cache_cp22.rs b/crates/zil-syntax/tests/parse_cache_cp22.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..fb248861824f77248c3274b926144116788158bf
+--- /dev/null
++++ b/crates/zil-syntax/tests/parse_cache_cp22.rs
+@@ -0,0 +1,123 @@
++use zil_base::{FileId, Limits, ModuleId, SourceUnit};
++use zil_syntax::{
++    cache::{self, CacheError},
++    parse, parse_with_limits,
++};
++
++fn unit(text: &str) -> SourceUnit {
++    SourceUnit::new(FileId(7), ModuleId(9), "memo.zil", text)
++}
++fn roundtrip(text: &str) {
++    let source = unit(text);
++    let parsed = parse(&source);
++    assert!(parsed.is_ok(), "{text}: {:?}", parsed.diagnostics);
++    let bytes = cache::encode(&source, &parsed).unwrap();
++    let decoded = cache::decode(&source, &bytes, &Limits::default()).unwrap();
++    assert_eq!(parsed.module, decoded.module);
++    assert_eq!(parsed.tokens, decoded.tokens);
++    assert_eq!(parsed.deferred_attributes, decoded.deferred_attributes);
++    assert_eq!(parsed.cfg_removed, decoded.cfg_removed);
++    assert_eq!(parsed.usage, decoded.usage);
++    assert!(decoded.is_ok());
++}
++#[test]
++fn source_roundtrips_preserve_syntax_positions_attributes_and_tokens() {
++    for text in [
++        "",
++        "// Unicode 中文\n/* nested /* comment */ */\nfn 答案()->i32=>42\n",
++        "import a.b as c\nsyntax use html as h\nfn f() {}",
++        "struct S<T> { x:T; pub y:i32=1; fn f(){} }\nresource R { x:i32 }\npackage P { x:i32 }\nenum E { A, B(i32), C{x:i32} }",
++        "trait T<A> { fn f(x:A)->i32; }\nimpl T<i32> for S { fn f(x:i32)->i32=>x }\ntype X = i32\nconst x:i32=1\nextern \"C\" fn foreign(x:i32)->i32;",
++        "fn f(){let a=move(x:i32)=>x+1;let b=()=>{return 2};let c=3|>(x=>x+1);let d=.{x:2};let e=.{...d,x:3}}",
++        "type A = fn()->i32?\ntype B = (fn()->i32)?\ntype C = fn(i32)->E!i32\nfn make(n:i64)->impl Fn()->i64=>move()=>n",
++        "fn f(){let a=[1,2];let b=(1,2);let c=a[0];let d=a[0..1];if true {return} else {loop {break}};while false {continue};for x in a {defer {x;}};match true {true=>1,false=>2}}",
++        "#[cfg(false)]\n#[unknown]\nfn removed(){}\n#[cfg(feature)]\n#[unknown]\nfn pending(){}\n#if(true){#[doc=\"text\"]fn selected(){}}",
++    ] {
++        roundtrip(text);
++    }
++    for op in [
++        "+", "-", "*", "/", "%", "+%", "-%", "*%", "<<", ">>", "&", "|", "^", "==", "!=", "<",
++        "<=", ">", ">=", "&&", "||", "..",
++    ] {
++        roundtrip(&format!("fn f(a:i32,b:i32)=>a{op}b"));
++    }
++}
++#[test]
++fn receipts_cover_parser_and_attribute_budgets_and_preserve_low_budget_errors() {
++    for text in [
++        "fn f()->i32=>1+2*3",
++        "#[doc=\"a\"]\n#[doc=\"b\"]\n#[doc=\"c\"]\nfn f(){}",
++        "struct S{x:i32;y:i32;z:i32}",
++    ] {
++        let source = unit(text);
++        let full = parse(&source);
++        assert!(full.is_ok(), "{:?}", full.diagnostics);
++        let bytes = cache::encode(&source, &full).unwrap();
++        for nodes in 0..=full.usage.nodes_required + 1 {
++            let limits = Limits {
++                max_nodes: nodes,
++                ..Limits::default()
++            };
++            let fresh = parse_with_limits(&source, &limits);
++            let loaded = cache::decode(&source, &bytes, &limits);
++            assert_eq!(loaded.is_ok(), fresh.is_ok(), "node budget {nodes}: {text}");
++        }
++        let low = Limits {
++            max_tokens: full.tokens.len() - 1,
++            ..Limits::default()
++        };
++        assert_eq!(
++            cache::decode(&source, &bytes, &low).unwrap_err(),
++            CacheError::Budget
++        );
++        let low = Limits {
++            max_source_bytes: source.text.len() - 1,
++            ..Limits::default()
++        };
++        assert_eq!(
++            cache::decode(&source, &bytes, &low).unwrap_err(),
++            CacheError::Budget
++        );
++    }
++}
++#[test]
++fn malformed_or_incomplete_bytes_never_construct_a_successful_tree() {
++    let source = unit("fn f()->i32=>42");
++    let bytes = cache::encode(&source, &parse(&source)).unwrap();
++    for end in 0..bytes.len() {
++        assert!(
++            cache::decode(&source, &bytes[..end], &Limits::default()).is_err(),
++            "prefix {end}"
++        );
++    }
++    let mut huge = bytes.clone();
++    huge[28..32].copy_from_slice(&u32::MAX.to_le_bytes());
++    assert!(cache::decode(&source, &huge, &Limits::default()).is_err());
++    let mut unknown = bytes.clone();
++    unknown[32] = 255;
++    assert!(cache::decode(&source, &unknown, &Limits::default()).is_err());
++    let mut trailing = bytes.clone();
++    trailing.push(0);
++    assert!(cache::decode(&source, &trailing, &Limits::default()).is_err());
++    let different = SourceUnit {
++        module_id: ModuleId(10),
++        ..source.clone()
++    };
++    assert!(cache::decode(&different, &bytes, &Limits::default()).is_err());
++    let bad = unit("fn f( ->");
++    assert!(cache::encode(&bad, &parse(&bad)).is_err());
++}
++#[test]
++fn deep_valid_syntax_bypasses_memo_without_changing_parse_acceptance() {
++    let source = unit(&format!(
++        "fn f()->i32=>{}42{}",
++        "(".repeat(70),
++        ")".repeat(70)
++    ));
++    let parsed = parse(&source);
++    assert!(parsed.is_ok(), "{:?}", parsed.diagnostics);
++    assert_eq!(
++        cache::encode(&source, &parsed).unwrap_err(),
++        CacheError::Limit
++    );
++}

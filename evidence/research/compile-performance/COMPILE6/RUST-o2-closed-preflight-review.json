@@ -1,0 +1,84 @@
+{
+  "reviewer": "/root/incremental_review",
+  "verdict": "Pass",
+  "scope": "Read-only frozen native Rust cold preflight validation; no repeat compiler/native execution and no timing score.",
+  "window": "/workspace/scratch/4ab361722127/measurements/compile6-rust-o2-closed",
+  "plan_sha256": "55b8eae93918d10a1506fa5485ea03dd94e63e7433c343fc5c2bfa720fa7f170",
+  "preflight_sha256": "ae127a8e254a44e2d339d5ba2bc2eb06012c3e054dacc716e9303bf335eac802",
+  "records_sha256": "c9ab8f7f830817e21734ea1f37f8625d45f3c916e8b1484d3bbe66b9d4cbd156",
+  "rows": 10,
+  "native_oracle_checks": 32,
+  "startup_and_warmups": 20,
+  "source_identity": {
+    "B": {
+      "commit": "d9a71f603d73c1df4a367189cc5b41ca15bf7d70",
+      "crates_tree": "efd735f8821637c1876708cd19d5b649fa70530c"
+    }
+  },
+  "original_runner_frozen_identity_and_raw_validation_passed": true,
+  "native_Rust_no_CGU_LTO_linker_incremental_override": true,
+  "profile": "O2",
+  "closed_executable": true,
+  "actual_zil_rows": [
+    {
+      "case": "tree4x2",
+      "modules": 7,
+      "parse_requested": false,
+      "parsed": 7,
+      "query_state": "disabled",
+      "object_requested": false,
+      "closed_executable": true,
+      "internalized_functions": 16,
+      "verification_runs": 1
+    },
+    {
+      "case": "tree32x8",
+      "modules": 35,
+      "parse_requested": false,
+      "parsed": 35,
+      "query_state": "disabled",
+      "object_requested": false,
+      "closed_executable": true,
+      "internalized_functions": 261,
+      "verification_runs": 1
+    },
+    {
+      "case": "tree256x8",
+      "modules": 259,
+      "parse_requested": false,
+      "parsed": 259,
+      "query_state": "disabled",
+      "object_requested": false,
+      "closed_executable": true,
+      "internalized_functions": 2081,
+      "verification_runs": 1
+    },
+    {
+      "case": "tree1024x8",
+      "modules": 1027,
+      "parse_requested": false,
+      "parsed": 1027,
+      "query_state": "disabled",
+      "object_requested": false,
+      "closed_executable": true,
+      "internalized_functions": 8321,
+      "verification_runs": 1
+    },
+    {
+      "case": "retained",
+      "modules": 4,
+      "parse_requested": false,
+      "parsed": 4,
+      "query_state": "disabled",
+      "object_requested": false,
+      "closed_executable": true,
+      "internalized_functions": 11,
+      "verification_runs": 1
+    }
+  ],
+  "limits": [
+    "Native refers to retained compiler CGU/LTO/linker policy; the declared target/overflow/panic/debug flags remain explicit.",
+    "Only the cold-process request is weighted here, unlike the four-request incremental window.",
+    "Correctness/preflight and actual cache-disabled behavior are established; no performance advantage inferred."
+  ]
+}

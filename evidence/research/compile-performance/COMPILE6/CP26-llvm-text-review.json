@@ -1,0 +1,37 @@
+{
+  "reviewer": "/root/incremental_review",
+  "verdict": "Pass",
+  "scope": "Exact retained text and artifact comparison for tree4x2/cold_process only; no compiler re-execution by reviewer.",
+  "window": "/workspace/scratch/4ab361722127/measurements/cp26-vs-cp22-o0-query",
+  "author_control_result_sha256": "f4c3931c4ed9df40506b8e280271939b39ef7af48106923a94e345c5cc2cdda9",
+  "records_sha256": "35a9306544c0fe8007576de36abe138ee479b6b6a819c6f4f0c3eb0196b92ade",
+  "script_sha256": "45ae5f590e3467c43540ee28cbf0600d3e933cf8bc5a731edb7c314b14f364a3",
+  "checks": [
+    "Both frozen compiler binary hashes rechecked unchanged.",
+    "Both new CLI invocations use exact original argv/source paths and all seven original source hashes.",
+    "Both retained LLVM texts and both native ELF artifacts reproduce their original preflight SHA256.",
+    "Both ELF files are byte-for-byte equal.",
+    "Both LLVM texts have 489 lines, and only line 2 differs: the verified-fingerprint comment.",
+    "Removing only that exact second comment line gives byte-identical complete remaining text.",
+    "New raw CLI reports show Success and fresh Verify=1; original preflight records still match original hash."
+  ],
+  "exact_diff": "--- A.ll\n+++ B.ll\n@@ -1,5 +1,5 @@\n ; ZIL verified LLVM module\n-; verified-fingerprint: fcef17fb0e62aaa475b67f7a16e1be83897218cc12b04d59625346ca8f18ab1b\n+; verified-fingerprint: 897bf668e26516b5854d5c4a482c0bcfa6b301ba8b403e522e87f96e42f793be\n target triple = \"x86_64-unknown-linux-gnu\"\n \n declare void @llvm.trap()\n",
+  "attribution": "The source chain in CP26-preflight-llvm-static-review.json binds absolute per-arm source paths into project source identity, then TypedModule/Verify fingerprint, then the LLVM diagnostic comment. This retained pair confirms the concrete comment-only difference consistent with that path identity; machine instructions and ELF bytes are equal for this pair.",
+  "limits": [
+    "No text-level comparison was performed for the other 19 preflight pairs; their observed ELF equality and differing LLVM hashes remain as originally recorded.",
+    "The original auxiliary all-pairs ELF-and-LLVM byte-equality assertion failure remains archived; no benchmark runner or required gate was changed.",
+    "These two new executions are correctness diagnosis and are excluded from performance scoring."
+  ],
+  "files_sha256": {
+    "B.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "A.ll": "76184021f335b28ecb234978262e3af367fbb13379504abc663ef8c9304594ab",
+    "A.observation.json": "ee203a23075d74ad270de46acd6bcda26754cdd64be6648db776ebb07230539a",
+    "B.stdout.json": "87633fc1af30b9c5c07c43ec80498e73e54742c201a875eb15a96f807910b10a",
+    "B.observation.json": "586c047c183defcdfbc0f6c7d4b8e7e7fc7d95eed61e293a6c26f10687004ef6",
+    "B.ll": "9a372306317a328f6289d2f2b7cd65fc491f4878886f477c6554504963b27b4f",
+    "A.stdout.json": "d833266bb0199d2ad326c159970b7d6e97dc34655f0f58ad2dd0ddfec8b9da8f",
+    "A-B.diff": "5a56b07e9e45122db8838267326bf08677045f3740f7adb914138f565c4f9899",
+    "result.json": "f4c3931c4ed9df40506b8e280271939b39ef7af48106923a94e345c5cc2cdda9",
+    "A.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

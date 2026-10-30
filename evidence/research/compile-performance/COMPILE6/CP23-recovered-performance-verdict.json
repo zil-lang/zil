@@ -1,0 +1,38 @@
+{
+  "reviewer": "/root/incremental_review",
+  "candidate": "4496b1ab6c62ff1131dfbe4e09b33467f346099c",
+  "data_and_arithmetic_verdict": "Pass",
+  "performance_adoption_verdict": "NoGo",
+  "window": "/workspace/scratch/4ab361722127/measurements/cp23-o0-recovered",
+  "audit_sha256": "ea47d20990b9d1a68623343038e70ff8dd9e4566993b29464646ac1f4c6a4130",
+  "summary_sha256": "dd6f26a2ac875785321e5676ae35a24b205c7c68303333df939174e9842ca51c",
+  "complete_rows": 240,
+  "native_checks": 768,
+  "preflight_rows": 40,
+  "wall_B_over_A": 1.0270763911589398,
+  "cpu_B_over_A": 1.0356695984231323,
+  "exploratory_paired_block_bootstrap95": [
+    0.9757440034850735,
+    1.052894150818516
+  ],
+  "wall_by_request": {
+    "cold_process": 0.9862550543539331,
+    "unchanged": 1.0415450362914243,
+    "private_edit": 1.061110495145772,
+    "public_edit": 0.9544384520070752
+  },
+  "wall_by_case": {
+    "tree4x2": 1.1084639753988,
+    "tree32x8": 1.070785910213104,
+    "tree256x8": 0.9860923571548348,
+    "tree1024x8": 1.031498647924018,
+    "retained": 1.0544660098619132
+  },
+  "interpretation": "The complete weighted wall and CPU estimates are above 1; unchanged and private-edit paths are slower, and 13 of 20 wall cells exceed 1. The three-block exploratory interval crosses 1, so this does not establish a universal regression, but it does not establish an adoption-worthy full-process improvement. Microbench wins are insufficient.",
+  "historical_handling": "Earlier failed CP23 windows remain separate NoScore evidence; no rows from them were pooled into this independently frozen recovered window and no failure cause is asserted.",
+  "scope_limits": [
+    "O0 native ZIL-vs-ZIL build only; 8 CGU,4 jobs,object cache enabled,query cache disabled,2 CPUs,three paired blocks.",
+    "No Rust, runtime or memory advantage follows from this review.",
+    "No compiler execution performed during this retained-data audit."
+  ]
+}

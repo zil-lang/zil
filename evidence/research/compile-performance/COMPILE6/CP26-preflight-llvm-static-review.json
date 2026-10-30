@@ -1,0 +1,201 @@
+{
+  "reviewer": "/root/incremental_review",
+  "status": "StaticExplanationPendingTextControl",
+  "window": "/workspace/scratch/4ab361722127/measurements/cp26-vs-cp22-o0-query",
+  "records_sha256": "35a9306544c0fe8007576de36abe138ee479b6b6a819c6f4f0c3eb0196b92ade",
+  "author_audit_sha256": "7aba288a14e8393d92a3f7410a4d1b3b9a2f69e1a0c486827caf365f2f94a22b",
+  "rows": 40,
+  "paired_groups": 20,
+  "observations": [
+    {
+      "case": "tree4x2",
+      "request": "cold_process",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree4x2",
+      "request": "unchanged",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree4x2",
+      "request": "private_edit",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree4x2",
+      "request": "public_edit",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree32x8",
+      "request": "cold_process",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree32x8",
+      "request": "unchanged",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree32x8",
+      "request": "private_edit",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree32x8",
+      "request": "public_edit",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree256x8",
+      "request": "cold_process",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree256x8",
+      "request": "unchanged",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree256x8",
+      "request": "private_edit",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree256x8",
+      "request": "public_edit",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree1024x8",
+      "request": "cold_process",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree1024x8",
+      "request": "unchanged",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree1024x8",
+      "request": "private_edit",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "tree1024x8",
+      "request": "public_edit",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "retained",
+      "request": "cold_process",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "retained",
+      "request": "unchanged",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "retained",
+      "request": "private_edit",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    },
+    {
+      "case": "retained",
+      "request": "public_edit",
+      "same_source_bytes": true,
+      "same_elf_sha256": true,
+      "different_llvm_sha256": true,
+      "different_input_fingerprint": true,
+      "ll_text_present": false
+    }
+  ],
+  "source_chain": [
+    "crates/zil-driver/src/project.rs project_fingerprint includes source.path bytes.",
+    "CoreProgram.source_fingerprint carries that project identity into TypedModule.",
+    "crates/zil-ir/src/lib.rs TypedModule fingerprint includes module.source_fingerprint.",
+    "crates/zil-backend-llvm/src/emit.rs sets model fingerprint from verified.fingerprint().",
+    "crates/zil-llvm-api/src/model.rs Module::to_text emits fingerprint as its second-line LLVM comment."
+  ],
+  "conclusion": "Separate A/B source directories provide a concrete source of path-bound verified-fingerprint comment differences; the recorded input fingerprint differences are consistent with this source chain. Original LLVM text was removed by normal runner cleanup, so this evidence does not yet prove all text differences are confined to that comment.",
+  "next": "After root releases measurement exclusivity, author will retain one minimal two-arm LLVM reproduction for exact line comparison; no repeated preflight, no gate change.",
+  "executed_compiler_or_cargo": false
+}
