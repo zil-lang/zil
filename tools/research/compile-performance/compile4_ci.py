@@ -287,6 +287,7 @@ class Run:
                     or (report.get("query_cache") or {}).get("requested")):
                 raise ValueError("Bridge changed the LLVM API / no-timings / no-query contract")
         self.research("bench.py", "bridge", "summarize", "--plan", bridge_plan, "--records", bridge / "build/records.jsonl",
+                      "--preflight", bridge / "preflight/result.json",
                       "--out", bridge / "summary.json")
         self.summary("o0-bridge-source-object-no-query", bridge / "summary.json")
         for label, profile, cache, flags in (("rust-o0-cold", "O0", "cold", []),
