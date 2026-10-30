@@ -1,0 +1,1102 @@
+{
+  "schema_version": 1,
+  "task": "CP10",
+  "reviewer": "/root/toolchain_setup",
+  "implementation_author": "/root/llvm_strategy",
+  "implementation_commit": "c317862f4f9b821645238b30ef03b4508a122038",
+  "reviewed_commits": [
+    "c5ed700131e4e8f6309a8e37faf40ef82ed262d5",
+    "c317862f4f9b821645238b30ef03b4508a122038"
+  ],
+  "baseline_commit": "0d28a51452f57c2cd27c1007058056c021bf3481",
+  "verdict": "Pass",
+  "scope": "Independent source review, finite source-to-Expand/Core+SourceMap-to-Types differential and dedicated regression re-execution. No native execution, full-workspace or performance claim.",
+  "timestamp": "2026-10-30T07:21:30.896851+00:00",
+  "source_hashes": {
+    "crates/zil-expand/src/lib.rs": "11c349edc98cbe42a3b820af7a4d7027704457c04116f22e3b994e617e732363",
+    "crates/zil-expand/src/receivers.rs": "8a9cda4adc8faf22144af133911b7dc58de2afd3e104a12b2b1dc5796631209d",
+    "crates/zil-expand/tests/project_lookup_cp10.rs": "304db0d2862a1feafd9878f1e3edd05a4f4991d02799d959d85136417c01fe88",
+    "crates/zil-types/src/aggregates.rs": "f429d587c45559cdb4e6127f98fb0118ec3fed81bb04d0b8f0b4b1ed03e1bf82",
+    "crates/zil-types/tests/project_lookup_cp10.rs": "aebf32cbc5bad2d3d7e8f6b2281e8d6b3f11d33444758f58954ac95e7467c252"
+  },
+  "subreviews": [
+    {
+      "id": "CP10a",
+      "implementation_commit": "c5ed700131e4e8f6309a8e37faf40ef82ed262d5",
+      "verdict": "Pass",
+      "findings": [
+        "AggregateDeclarations traverses the same specialized module/item order and uses entry(name.clone()).or_insert(original_aggregate_reference), preserving first declaration selection.",
+        "The project map is built after specialization and default-helper processing, at the same project stage as the old borrowed-module list. Per-module expansion order, cumulative node/analysis limits and SourceMap validation are unchanged.",
+        "Each Expander borrows the one immutable request-local map. The standalone API still constructs its own local map once; there is no cross-request storage or mutation.",
+        "receivers.rs only removes an extra reference at the existing callable-template expansion call. Default helper ownership, public export/import identities and diagnostic source spans remain on the existing path."
+      ]
+    },
+    {
+      "id": "CP10b",
+      "implementation_commit": "c317862f4f9b821645238b30ef03b4508a122038",
+      "verdict": "Pass",
+      "findings": [
+        "For a project call, each resolving core is an unmodified clone of one core in the same immutable program. Thus D(core) union D(program) equals D(program), for both callable parameters and State binding names. BTreeSet membership and cardinality are identical despite the changed insertion traversal order.",
+        "Standalone resolve collects D(core) with no project. Each aggregates::resolve_program invocation creates a fresh set, including the separate calls before and after closure inference.",
+        "The existing Store placeholder cost depends on callable_names.len(); equal set cardinality preserves this charge as well as all contains lookups. All aggregate/enum owner indexing charges, local duplicate/member checks and function/body validation remain in their original per-module order.",
+        "No core function or declaration is mutated before the old set-construction position. Moving the uncharged collection earlier cannot change the validation data; the set is borrowed read-only through Resolver and is not reused across phases or requests."
+      ]
+    }
+  ],
+  "independent_differential": {
+    "baseline_commit": "0d28a51452f57c2cd27c1007058056c021bf3481",
+    "candidate_commit": "c317862f4f9b821645238b30ef03b4508a122038",
+    "baseline_source_identity": {
+      "crates/zil-base": {
+        "baseline_tree": "f347eba31b18c4a55e6d4257a460eed8c047aaa5",
+        "build_tree": "f347eba31b18c4a55e6d4257a460eed8c047aaa5"
+      },
+      "crates/zil-ir": {
+        "baseline_tree": "f4e9dc7497d38651e0a4fc22ba3785aab86baa49",
+        "build_tree": "f4e9dc7497d38651e0a4fc22ba3785aab86baa49"
+      },
+      "crates/zil-syntax": {
+        "baseline_tree": "e2aaa0a9939e622cc972d3a83b1117f060d511f6",
+        "build_tree": "e2aaa0a9939e622cc972d3a83b1117f060d511f6"
+      },
+      "crates/zil-expand": {
+        "baseline_tree": "cd7dc88f33d4e210d5fa6d5579cc37d67346cf66",
+        "build_tree": "cd7dc88f33d4e210d5fa6d5579cc37d67346cf66"
+      },
+      "crates/zil-types": {
+        "baseline_tree": "0d13f12f37c9990a767803ac34416351a61e94e8",
+        "build_tree": "0d13f12f37c9990a767803ac34416351a61e94e8"
+      }
+    },
+    "run_argv": [
+      "/tmp/cp10-review-toolchain-setup/candidate-probe",
+      "/workspace/scratch/ac5966c4c370/zil-cp10"
+    ],
+    "exit_code": 0,
+    "output_records": 31,
+    "mismatches": [],
+    "source_cases": 11,
+    "positive_cases": 5,
+    "budget_boundaries": [
+      {
+        "label": "nominal-same-spelling:expand-work",
+        "n": 775,
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "generic expansion budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 84,
+                "end": 86
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "label": "nominal-same-spelling:types-work",
+        "n": 462,
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "factory dependency budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 82,
+                "end": 86
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "label": "nominal-reversed-modules:expand-work",
+        "n": 775,
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "generic expansion budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 82,
+                "end": 84
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "label": "nominal-reversed-modules:types-work",
+        "n": 462,
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "factory dependency budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 80,
+                "end": 84
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "label": "defining-default-and-two-callers:expand-work",
+        "n": 681,
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "generic expansion budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 62,
+                "end": 63
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "label": "defining-default-and-two-callers:types-work",
+        "n": 642,
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "factory dependency budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 62,
+                "end": 63
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "label": "defining-default-and-two-callers:expand-nodes",
+        "n": 168,
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "generic expansion budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 62,
+                "end": 63
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "label": "same-generic-name-in-two-modules:expand-work",
+        "n": 857,
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "generic metadata budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 32,
+                "end": 33
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "label": "same-generic-name-in-two-modules:types-work",
+        "n": 593,
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "closure lookup snapshot budget exceeded",
+              "span": {
+                "file": 0,
+                "start": 106,
+                "end": 125
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "label": "copy-type-callable-state:expand-work",
+        "n": 4102,
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "generic expansion budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 57,
+                "end": 58
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "label": "copy-type-callable-state:types-work",
+        "n": 5988,
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "closure lookup snapshot budget exceeded",
+              "span": {
+                "file": 0,
+                "start": 159,
+                "end": 177
+              },
+              "notes": []
+            }
+          ]
+        }
+      }
+    ],
+    "bounded_api_invocations_per_side": 299,
+    "baseline_source_verification_worktree_head": "bd1ed246d064a1ba9ae1f6c009bbc3469459d3b0",
+    "builds": {
+      "baseline": {
+        "argv": [
+          "rustc",
+          "--edition=2024",
+          "-C",
+          "panic=abort",
+          "/tmp/cp10-review-toolchain-setup/probe.rs",
+          "-L",
+          "dependency=/workspace/scratch/ac5966c4c370/zil-research/target/release/deps",
+          "--extern",
+          "zil_base=/workspace/scratch/ac5966c4c370/zil-research/target/release/deps/libzil_base-e7f463e530140758.rlib",
+          "--extern",
+          "zil_ir=/workspace/scratch/ac5966c4c370/zil-research/target/release/deps/libzil_ir-1b5d967475aa5e49.rlib",
+          "--extern",
+          "zil_syntax=/workspace/scratch/ac5966c4c370/zil-research/target/release/deps/libzil_syntax-c507ec0227ccb0d3.rlib",
+          "--extern",
+          "zil_expand=/workspace/scratch/ac5966c4c370/zil-research/target/release/deps/libzil_expand-732b897022079d2d.rlib",
+          "--extern",
+          "zil_types=/workspace/scratch/ac5966c4c370/zil-research/target/release/deps/libzil_types-0f2f4cb04f032d1a.rlib",
+          "-o",
+          "/tmp/cp10-review-toolchain-setup/baseline-probe"
+        ],
+        "exit_code": 0,
+        "libraries": {
+          "zil_base": {
+            "path": "/workspace/scratch/ac5966c4c370/zil-research/target/release/deps/libzil_base-e7f463e530140758.rlib",
+            "sha256": "63104449023f984d42233805a43008e9a6c425dd9e06946d8503fb413a318f82"
+          },
+          "zil_ir": {
+            "path": "/workspace/scratch/ac5966c4c370/zil-research/target/release/deps/libzil_ir-1b5d967475aa5e49.rlib",
+            "sha256": "1feb7451dd2bcbe86de32a69447f6b251500fbd8c05197799015df9c8cdfc206"
+          },
+          "zil_syntax": {
+            "path": "/workspace/scratch/ac5966c4c370/zil-research/target/release/deps/libzil_syntax-c507ec0227ccb0d3.rlib",
+            "sha256": "b77a6b2d1a1ece1f82aaf5482cc71b3f4a2cfee7e4a3bbecf0281fd434666244"
+          },
+          "zil_expand": {
+            "path": "/workspace/scratch/ac5966c4c370/zil-research/target/release/deps/libzil_expand-732b897022079d2d.rlib",
+            "sha256": "949b8e21ab5062f7345c4b791e9cc19b74010a5f2c01a939fe7cc56ce4f3a311"
+          },
+          "zil_types": {
+            "path": "/workspace/scratch/ac5966c4c370/zil-research/target/release/deps/libzil_types-0f2f4cb04f032d1a.rlib",
+            "sha256": "c6afe8b56b4da1818bd0cdf151d211dfe3792d6ef738993d12cac9c9d43eb46e"
+          }
+        }
+      },
+      "candidate": {
+        "candidate_commit": "c317862f4f9b821645238b30ef03b4508a122038",
+        "argv": [
+          "rustc",
+          "--edition=2024",
+          "-C",
+          "panic=abort",
+          "/tmp/cp10-review-toolchain-setup/probe.rs",
+          "-L",
+          "dependency=/workspace/scratch/ac5966c4c370/zil-cp10/target/debug/deps",
+          "--extern",
+          "zil_base=/workspace/scratch/ac5966c4c370/zil-cp10/target/debug/deps/libzil_base-5c35b8d75b11b027.rlib",
+          "--extern",
+          "zil_ir=/workspace/scratch/ac5966c4c370/zil-cp10/target/debug/deps/libzil_ir-6c546f30e52478f3.rlib",
+          "--extern",
+          "zil_syntax=/workspace/scratch/ac5966c4c370/zil-cp10/target/debug/deps/libzil_syntax-6f618e86e17ef189.rlib",
+          "--extern",
+          "zil_expand=/workspace/scratch/ac5966c4c370/zil-cp10/target/debug/deps/libzil_expand-6d9139c291fa803d.rlib",
+          "--extern",
+          "zil_types=/workspace/scratch/ac5966c4c370/zil-cp10/target/debug/deps/libzil_types-775b2d3108eff98d.rlib",
+          "-o",
+          "/tmp/cp10-review-toolchain-setup/candidate-probe"
+        ],
+        "exit_code": 0,
+        "libraries": {
+          "zil_base": {
+            "path": "/workspace/scratch/ac5966c4c370/zil-cp10/target/debug/deps/libzil_base-5c35b8d75b11b027.rlib",
+            "sha256": "b91d517b768742a223af2b6bfa1b76ccd7c972212a42e66aba47d6c8d8709997"
+          },
+          "zil_ir": {
+            "path": "/workspace/scratch/ac5966c4c370/zil-cp10/target/debug/deps/libzil_ir-6c546f30e52478f3.rlib",
+            "sha256": "78f433d7dda73055c48591c304d6a5d91bb332aac0d1f191a7f58bc852cc37ab"
+          },
+          "zil_syntax": {
+            "path": "/workspace/scratch/ac5966c4c370/zil-cp10/target/debug/deps/libzil_syntax-6f618e86e17ef189.rlib",
+            "sha256": "4b27d29677cad0577370440f17e0157593cabceb23339434b719b4af3fa2af7b"
+          },
+          "zil_expand": {
+            "path": "/workspace/scratch/ac5966c4c370/zil-cp10/target/debug/deps/libzil_expand-6d9139c291fa803d.rlib",
+            "sha256": "43ebc2dc303b1fe4c4f18437883c96e7c6421f5a1cf45b49a501ca10083f5dd3"
+          },
+          "zil_types": {
+            "path": "/workspace/scratch/ac5966c4c370/zil-cp10/target/debug/deps/libzil_types-775b2d3108eff98d.rlib",
+            "sha256": "7f65c3d9671d5a801b1bd1a43a52e1a88690a2463968d026491a397a876bd6be"
+          }
+        },
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    "baseline_build_provenance": {
+      "command": "cargo build --release -p zil-expand -p zil-types --locked --offline -j2",
+      "worktree": "/workspace/scratch/ac5966c4c370/zil-research",
+      "note": "Reused existing release libraries after a successful cargo freshness check. The five crates are the complete dependency closure; their Git tree identities and workspace manifests/Cargo.lock match 0d28a514. A later read-only check also confirmed no live source diff in those paths."
+    },
+    "profile_note": "Baseline libraries are release; candidate libraries are debug. The reviewer probe is compiled with the same rustc and panic=abort. This is a result/diagnostic comparison, never a timing comparison.",
+    "comparison_method": "The complete Debug form of each accepted output, including Core/Typed ordering and SourceMap contents, is SHA-256 hashed with zil_base::Fingerprint. Errors retain their complete Diagnostic JSON. The entire 31-line baseline and candidate output is also byte-identical.",
+    "identical_output_sha256": "4434d620d7c8083ee7b3243fb5cf39d52d4bd87836eaa7f2aff05fe4721cfe3d",
+    "result_records": [
+      {
+        "kind": "expand",
+        "case": "nominal-same-spelling",
+        "input_digest": "c2bc664f9a17221f21a4695ff93c38c3b11a201321e6c119cedada5eb361e3e7",
+        "result": {
+          "status": "ok",
+          "digest": "b5d852b4b6ce24a92d4a0450901393d43fa68e2f19f47a8916f1d8e38aee6f4a"
+        }
+      },
+      {
+        "kind": "types",
+        "case": "nominal-same-spelling",
+        "result": {
+          "status": "ok",
+          "digest": "14411cf31f457b5cdde2eb68601614fdde814ddef07fdf02f9000ca30b1c03fc"
+        }
+      },
+      {
+        "kind": "boundary",
+        "label": "nominal-same-spelling:expand-work",
+        "n": 775,
+        "binary_search_queries": 24,
+        "exact": {
+          "status": "ok",
+          "digest": "b5d852b4b6ce24a92d4a0450901393d43fa68e2f19f47a8916f1d8e38aee6f4a"
+        },
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "generic expansion budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 84,
+                "end": 86
+              },
+              "notes": []
+            }
+          ]
+        },
+        "fresh_exact": {
+          "status": "ok",
+          "digest": "b5d852b4b6ce24a92d4a0450901393d43fa68e2f19f47a8916f1d8e38aee6f4a"
+        }
+      },
+      {
+        "kind": "boundary",
+        "label": "nominal-same-spelling:types-work",
+        "n": 462,
+        "binary_search_queries": 23,
+        "exact": {
+          "status": "ok",
+          "digest": "14411cf31f457b5cdde2eb68601614fdde814ddef07fdf02f9000ca30b1c03fc"
+        },
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "factory dependency budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 82,
+                "end": 86
+              },
+              "notes": []
+            }
+          ]
+        },
+        "fresh_exact": {
+          "status": "ok",
+          "digest": "14411cf31f457b5cdde2eb68601614fdde814ddef07fdf02f9000ca30b1c03fc"
+        }
+      },
+      {
+        "kind": "expand",
+        "case": "nominal-reversed-modules",
+        "input_digest": "4bca817cd3d806563b040a7034d522c2ca38b287027478b308323f693d04b28e",
+        "result": {
+          "status": "ok",
+          "digest": "3651dfba39c2931c177e34caff85e12e6d93796ccb9bddbaba39be1ae71b8e82"
+        }
+      },
+      {
+        "kind": "types",
+        "case": "nominal-reversed-modules",
+        "result": {
+          "status": "ok",
+          "digest": "ab43d1b5539c5cd62187619673c29d45114be65f30fbd5c4d9d956c488018ee3"
+        }
+      },
+      {
+        "kind": "boundary",
+        "label": "nominal-reversed-modules:expand-work",
+        "n": 775,
+        "binary_search_queries": 24,
+        "exact": {
+          "status": "ok",
+          "digest": "3651dfba39c2931c177e34caff85e12e6d93796ccb9bddbaba39be1ae71b8e82"
+        },
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "generic expansion budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 82,
+                "end": 84
+              },
+              "notes": []
+            }
+          ]
+        },
+        "fresh_exact": {
+          "status": "ok",
+          "digest": "3651dfba39c2931c177e34caff85e12e6d93796ccb9bddbaba39be1ae71b8e82"
+        }
+      },
+      {
+        "kind": "boundary",
+        "label": "nominal-reversed-modules:types-work",
+        "n": 462,
+        "binary_search_queries": 23,
+        "exact": {
+          "status": "ok",
+          "digest": "ab43d1b5539c5cd62187619673c29d45114be65f30fbd5c4d9d956c488018ee3"
+        },
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "factory dependency budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 80,
+                "end": 84
+              },
+              "notes": []
+            }
+          ]
+        },
+        "fresh_exact": {
+          "status": "ok",
+          "digest": "ab43d1b5539c5cd62187619673c29d45114be65f30fbd5c4d9d956c488018ee3"
+        }
+      },
+      {
+        "kind": "expand",
+        "case": "defining-default-and-two-callers",
+        "input_digest": "f2452fedfa08f8098cb79df07487e4262bc87d167d879791b57e4470b065c206",
+        "result": {
+          "status": "ok",
+          "digest": "50d563da61ac39180cc77657d82a75aa9a100b9db92e8b2adb98ffa65a658d65"
+        }
+      },
+      {
+        "kind": "types",
+        "case": "defining-default-and-two-callers",
+        "result": {
+          "status": "ok",
+          "digest": "54c87b5106c5a3b163d385122c6ef8f47190352dd200f5ad02a4acc12e6a96e7"
+        }
+      },
+      {
+        "kind": "boundary",
+        "label": "defining-default-and-two-callers:expand-work",
+        "n": 681,
+        "binary_search_queries": 24,
+        "exact": {
+          "status": "ok",
+          "digest": "50d563da61ac39180cc77657d82a75aa9a100b9db92e8b2adb98ffa65a658d65"
+        },
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "generic expansion budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 62,
+                "end": 63
+              },
+              "notes": []
+            }
+          ]
+        },
+        "fresh_exact": {
+          "status": "ok",
+          "digest": "50d563da61ac39180cc77657d82a75aa9a100b9db92e8b2adb98ffa65a658d65"
+        }
+      },
+      {
+        "kind": "boundary",
+        "label": "defining-default-and-two-callers:types-work",
+        "n": 642,
+        "binary_search_queries": 24,
+        "exact": {
+          "status": "ok",
+          "digest": "54c87b5106c5a3b163d385122c6ef8f47190352dd200f5ad02a4acc12e6a96e7"
+        },
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "factory dependency budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 62,
+                "end": 63
+              },
+              "notes": []
+            }
+          ]
+        },
+        "fresh_exact": {
+          "status": "ok",
+          "digest": "54c87b5106c5a3b163d385122c6ef8f47190352dd200f5ad02a4acc12e6a96e7"
+        }
+      },
+      {
+        "kind": "boundary",
+        "label": "defining-default-and-two-callers:expand-nodes",
+        "n": 168,
+        "binary_search_queries": 20,
+        "exact": {
+          "status": "ok",
+          "digest": "50d563da61ac39180cc77657d82a75aa9a100b9db92e8b2adb98ffa65a658d65"
+        },
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "generic expansion budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 62,
+                "end": 63
+              },
+              "notes": []
+            }
+          ]
+        },
+        "fresh_exact": {
+          "status": "ok",
+          "digest": "50d563da61ac39180cc77657d82a75aa9a100b9db92e8b2adb98ffa65a658d65"
+        }
+      },
+      {
+        "kind": "expand",
+        "case": "same-generic-name-in-two-modules",
+        "input_digest": "cd33f9229d6d5965d331fea9d4fd500e9564df638b071ec9575db092aac0245a",
+        "result": {
+          "status": "ok",
+          "digest": "60386a65e1bbaab53e1de99ba63fc896faa5aefa583e664068e4842b05cd2c7c"
+        }
+      },
+      {
+        "kind": "types",
+        "case": "same-generic-name-in-two-modules",
+        "result": {
+          "status": "ok",
+          "digest": "668b35c8c979445288983efcedecdd737eeaf1a011937eebe3129e260cfd2c70"
+        }
+      },
+      {
+        "kind": "boundary",
+        "label": "same-generic-name-in-two-modules:expand-work",
+        "n": 857,
+        "binary_search_queries": 24,
+        "exact": {
+          "status": "ok",
+          "digest": "60386a65e1bbaab53e1de99ba63fc896faa5aefa583e664068e4842b05cd2c7c"
+        },
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "generic metadata budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 32,
+                "end": 33
+              },
+              "notes": []
+            }
+          ]
+        },
+        "fresh_exact": {
+          "status": "ok",
+          "digest": "60386a65e1bbaab53e1de99ba63fc896faa5aefa583e664068e4842b05cd2c7c"
+        }
+      },
+      {
+        "kind": "boundary",
+        "label": "same-generic-name-in-two-modules:types-work",
+        "n": 593,
+        "binary_search_queries": 23,
+        "exact": {
+          "status": "ok",
+          "digest": "668b35c8c979445288983efcedecdd737eeaf1a011937eebe3129e260cfd2c70"
+        },
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "closure lookup snapshot budget exceeded",
+              "span": {
+                "file": 0,
+                "start": 106,
+                "end": 125
+              },
+              "notes": []
+            }
+          ]
+        },
+        "fresh_exact": {
+          "status": "ok",
+          "digest": "668b35c8c979445288983efcedecdd737eeaf1a011937eebe3129e260cfd2c70"
+        }
+      },
+      {
+        "kind": "expand",
+        "case": "copy-type-callable-state",
+        "input_digest": "27b904a4faf551cdddfbfcfc32b00d456a3983e0658fef37a086d6ae28a71ea8",
+        "result": {
+          "status": "ok",
+          "digest": "83d2411a19ca3abe4e4eea11850fa4746a52b507b05c77d49584bb2346519ad9"
+        }
+      },
+      {
+        "kind": "types",
+        "case": "copy-type-callable-state",
+        "result": {
+          "status": "ok",
+          "digest": "45d2f2d970f74fc52972f4c8d9b21451cb2c221c91d694d40e741c23744f3e9e"
+        }
+      },
+      {
+        "kind": "boundary",
+        "label": "copy-type-callable-state:expand-work",
+        "n": 4102,
+        "binary_search_queries": 23,
+        "exact": {
+          "status": "ok",
+          "digest": "83d2411a19ca3abe4e4eea11850fa4746a52b507b05c77d49584bb2346519ad9"
+        },
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "generic expansion budget exceeded",
+              "span": {
+                "file": 2,
+                "start": 57,
+                "end": 58
+              },
+              "notes": []
+            }
+          ]
+        },
+        "fresh_exact": {
+          "status": "ok",
+          "digest": "83d2411a19ca3abe4e4eea11850fa4746a52b507b05c77d49584bb2346519ad9"
+        }
+      },
+      {
+        "kind": "boundary",
+        "label": "copy-type-callable-state:types-work",
+        "n": 5988,
+        "binary_search_queries": 23,
+        "exact": {
+          "status": "ok",
+          "digest": "45d2f2d970f74fc52972f4c8d9b21451cb2c221c91d694d40e741c23744f3e9e"
+        },
+        "below": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "ResourceLimit",
+              "code": "E-RESOURCE-LIMIT",
+              "message": "closure lookup snapshot budget exceeded",
+              "span": {
+                "file": 0,
+                "start": 159,
+                "end": 177
+              },
+              "notes": []
+            }
+          ]
+        },
+        "fresh_exact": {
+          "status": "ok",
+          "digest": "45d2f2d970f74fc52972f4c8d9b21451cb2c221c91d694d40e741c23744f3e9e"
+        }
+      },
+      {
+        "kind": "expand",
+        "case": "original-private-copy-state",
+        "input_digest": "e4d4ca538d8054f4841c92266b3443253fdefd823b391a6ad1d34223450577bc",
+        "result": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "SafeReject",
+              "code": "E-FIELD-PRIVATE",
+              "message": "record construction requires access to every private field",
+              "span": {
+                "file": 0,
+                "start": 78,
+                "end": 101
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "kind": "expand",
+        "case": "duplicate-local-record",
+        "input_digest": "f08144c28a7745b54c1cfc0504336a602e45bec4fd2b0b12faaf7850fb625a51",
+        "result": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "SafeReject",
+              "code": "E-NAME-DUPLICATE",
+              "message": "duplicate declaration name",
+              "span": {
+                "file": 0,
+                "start": 15,
+                "end": 30
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "kind": "expand",
+        "case": "private-default",
+        "input_digest": "6c812d77203e86ae3c8e648a9b9aba7cb91e6c1db2f13de6bc403598276e0ab5",
+        "result": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "SafeReject",
+              "code": "E-FIELD-PRIVATE",
+              "message": "record construction requires access to every private field",
+              "span": {
+                "file": 0,
+                "start": 35,
+                "end": 50
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "kind": "expand",
+        "case": "unused-public-default-error",
+        "input_digest": "2b02454663e3eaf6171f250827960831d2e4a5275848ec3a261f65404395d174",
+        "result": {
+          "status": "ok",
+          "digest": "197668892c400c41ef2931f05d64d3224ac86d22646d2a121b16c6a40a917fda"
+        }
+      },
+      {
+        "kind": "types",
+        "case": "unused-public-default-error",
+        "result": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "SafeReject",
+              "code": "E-UNKNOWN-NAME",
+              "message": "unknown function missing",
+              "span": {
+                "file": 1,
+                "start": 28,
+                "end": 35
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "kind": "expand",
+        "case": "duplicate-field-before-later-module",
+        "input_digest": "11ac1af38ce8e3505724eafb301ecc948fed9346c6e97498f3189e02d707196e",
+        "result": {
+          "status": "ok",
+          "digest": "4b5950bf11b34ac18cde6fc24bffe255971817b08383b8b05eaaedcc2271e182"
+        }
+      },
+      {
+        "kind": "types",
+        "case": "duplicate-field-before-later-module",
+        "result": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "SafeReject",
+              "code": "E-FIELD-DUPLICATE",
+              "message": "duplicate declared field",
+              "span": {
+                "file": 1,
+                "start": 23,
+                "end": 32
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "kind": "expand",
+        "case": "missing-binder-after-generic-request",
+        "input_digest": "6e2cc46295cfd0a1d85c3bdaf4500cfac679b727e2965f7acd39ee5bb61a54b9",
+        "result": {
+          "status": "ok",
+          "digest": "24697692ca8ea11c0dd763de7ecc1c3d87b01395be1bcd119b5d545a801008d5"
+        }
+      },
+      {
+        "kind": "types",
+        "case": "missing-binder-after-generic-request",
+        "result": {
+          "status": "error",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "aggregate field requires finite Copy, an explicit package manages resource, or a complete fixed Package array",
+              "span": {
+                "file": 0,
+                "start": 39,
+                "end": 54
+              },
+              "notes": []
+            }
+          ]
+        }
+      },
+      {
+        "kind": "summary",
+        "source_cases": 11,
+        "positive_cases": 5,
+        "budget_boundaries": 11
+      }
+    ],
+    "probe_source_sha256": "cf64feb3610d401e306d67a2fbbab18559a3d5062161983a6453cac25ad41101",
+    "probe_source": "use zil_base::{Diagnostic,FileId,Fingerprint,Limits,ModuleId,ResultCategory,SourceUnit,TargetProfile,json_string};\nuse zil_ir::{CoreImport,CoreProgram};\nuse std::{fmt::Debug,path::Path};\ntype Files=Vec<(String,String)>;\nfn files(raw:&[(&str,&str)])->Files {raw.iter().map(|(n,s)|(n.to_string(),s.to_string())).collect()}\nfn cases(root:&Path)->Vec<(&'static str,Files,bool)> {\n    let nominal=files(&[\n      (\"main\",\"import left\\nimport right\\nfn main()->i32{let a=left.make();let b=right.make();return a.get()+b.get()-42}\"),\n      (\"left\",\"pub struct C{v:i32} impl C{pub fn get(self:&Self)->i32=>.v} pub fn make()->C=>C{v:10}\"),\n      (\"right\",\"pub struct C{v:i32} impl C{pub fn get(self:&Self)->i32=>.v*2} pub fn make()->C=>C{v:16}\")]);\n    let defaults=files(&[\n      (\"main\",\"import config\\nimport consumer\\nfn seed()->i64=>999\\nfn value()->i64{let a=config.Cell{x:20};return a.n+consumer.get()}\"),\n      (\"config\",\"fn seed()->i64=>21\\npub struct Cell{pub x:i64;pub n:i64=seed();}\"),\n      (\"consumer\",\"import config\\npub fn get()->i64{let a=config.Cell{x:1};return a.n}\")]);\n    let callbacks=files(&[\n      (\"main\",\"import first\\nimport second\\nfn main()->i32{let f=(x:i32)=>x+1;let g=(x:i32)=>x+2;return first.apply(&f,10)+second.apply(&g,20)}\"),\n      (\"first\",\"pub fn apply<F:Fn(i32)->i32>(f:&F,x:i32)->i32{return f(x)}\"),\n      (\"second\",\"pub fn apply<F:Fn(i32)->i32>(f:&F,x:i32)->i32{return f(x)}\")]);\n    let original_state:Files=[\"main\",\"model\",\"state\"].into_iter().map(|n| (n.to_string(),std::fs::read_to_string(root.join(format!(\"crates/zil-driver/tests/impl197_cases/09-cross-module-copy-state/{n}.zil\"))).unwrap())).collect();\n    let mut state=original_state.clone();\n    state.iter_mut().find(|(name,_)|name==\"model\").unwrap().1=state.iter().find(|(name,_)|name==\"model\").unwrap().1.replace(\"struct Data{n:\",\"struct Data{pub n:\");\n    let mut reversed=nominal.clone();reversed.swap(1,2);\n    vec![\n      (\"nominal-same-spelling\",nominal,true),(\"nominal-reversed-modules\",reversed,true),\n      (\"defining-default-and-two-callers\",defaults,true),(\"same-generic-name-in-two-modules\",callbacks,true),(\"copy-type-callable-state\",state,true),\n      (\"original-private-copy-state\",original_state,false),\n      (\"duplicate-local-record\",files(&[(\"main\",\"struct C{x:i32}struct C{y:i32}fn main()->i32=>0\")]),false),\n      (\"private-default\",files(&[(\"main\",\"import config\\nfn main()->i32{let a=config.Config{};return 0}\"),(\"config\",\"pub struct Config{x:i32=42}\")]),false),\n      (\"unused-public-default-error\",files(&[(\"main\",\"import config\\nfn main()->i32{let a=config.Config{x:42};return a.x}\"),(\"config\",\"pub struct Config{pub x:i32=missing();}\")]),false),\n      (\"duplicate-field-before-later-module\",files(&[(\"main\",\"import first\\nimport second\\nfn main()->i32=>0\"),(\"first\",\"pub struct C{pub x:i32;pub x:i32}\"),(\"second\",\"pub struct C{pub y:Missing}\")]),false),\n      (\"missing-binder-after-generic-request\",files(&[(\"main\",\"package State{manages bytes:ByteBuffer;callback:FreshF}fn main()->i32=>0\")]),false),\n    ]\n}\nfn digest<T:Debug>(value:&T)->String {Fingerprint::of(format!(\"{value:#?}\").as_bytes()).to_hex()}\nfn result<T:Debug>(value:&Result<T,Vec<Diagnostic>>)->String {match value{Ok(v)=>format!(\"{{\\\"status\\\":\\\"ok\\\",\\\"digest\\\":{}}}\",json_string(&digest(v))),Err(e)=>format!(\"{{\\\"status\\\":\\\"error\\\",\\\"diagnostics\\\":[{}]}}\",e.iter().map(Diagnostic::to_json).collect::<Vec<_>>().join(\",\"))}}\nfn boundary<T:Debug>(label:&str,maximum:usize,mut run:impl FnMut(usize)->Result<T,Vec<Diagnostic>>) {\n    let expected=run(maximum).unwrap();let hash=digest(&expected);let(mut low,mut high)=(0,maximum);let mut probes=0;\n    while low+1<high{let n=low+(high-low)/2;let actual=run(n);probes+=1;match actual {Ok(value)=>{assert_eq!(digest(&value),hash);high=n},Err(errors)=>{assert!(errors.iter().all(|e|e.category==ResultCategory::ResourceLimit),\"{label} unexpected error at {n}: {errors:?}\");low=n}}}\n    let exact=run(high);assert_eq!(digest(exact.as_ref().unwrap()),hash);\n    let below=run(high-1);assert!(below.is_err());let again=run(high);assert_eq!(digest(again.as_ref().unwrap()),hash);\n    println!(\"{{\\\"kind\\\":\\\"boundary\\\",\\\"label\\\":{},\\\"n\\\":{high},\\\"binary_search_queries\\\":{probes},\\\"exact\\\":{},\\\"below\\\":{},\\\"fresh_exact\\\":{}}}\",json_string(label),result(&exact),result(&below),result(&again));\n}\nfn main(){\n    let root=std::env::args().nth(1).unwrap();let defaults=Limits::default();let mut positives=0;\n    for (name,entries,expected_success) in cases(Path::new(&root)) {\n      let sources=entries.iter().enumerate().map(|(i,(name,text))|SourceUnit::new(FileId(i as u32),ModuleId(i as u32),format!(\"{name}.zil\"),text)).collect::<Vec<_>>();\n      let syntax=sources.iter().map(|s|zil_syntax::parse(s).into_result().unwrap()).collect::<Vec<_>>();\n      let imports=syntax.iter().map(|m|m.items.iter().filter_map(|i|if let zil_syntax::ast::ItemKind::Import(import)=&i.kind {\n        let index=entries.iter().position(|(name,_)|import.path==[name.clone()]).unwrap();Some(CoreImport{alias:import.alias.clone().unwrap_or_else(||import.path.last().unwrap().clone()),module:ModuleId(index as u32),span:i.span})\n      }else{None}).collect::<Vec<_>>()).collect::<Vec<_>>();\n      let refs=syntax.iter().collect::<Vec<_>>();\n      let expand=|limits:&Limits|zil_expand::expand_program_with_limits(&sources,&refs,&imports,limits);\n      let expanded=expand(&defaults);println!(\"{{\\\"kind\\\":\\\"expand\\\",\\\"case\\\":{},\\\"input_digest\\\":{},\\\"result\\\":{}}}\",json_string(name),json_string(&digest(&entries)),result(&expanded));\n      if let Ok(expanded)=expanded {\n        for (_,map) in &expanded{map.validate(&sources,&defaults).unwrap();}\n        let program=CoreProgram{root:ModuleId(0),source_fingerprint:Fingerprint::of(name.as_bytes()),modules:expanded.iter().map(|(m,_)|m.clone()).collect()};\n        let typed=zil_types::check_program(&program,&TargetProfile::host_llvm(),&defaults);\n        println!(\"{{\\\"kind\\\":\\\"types\\\",\\\"case\\\":{},\\\"result\\\":{}}}\",json_string(name),result(&typed));\n        assert_eq!(typed.is_ok(),expected_success,\"{name}: {typed:?}\");\n        if expected_success {\n          positives+=1;\n          boundary(&format!(\"{name}:expand-work\"),defaults.max_analysis_steps,|n|expand(&Limits{max_analysis_steps:n,..defaults.clone()}));\n          boundary(&format!(\"{name}:types-work\"),defaults.max_analysis_steps,|n|zil_types::check_program(&program,&TargetProfile::host_llvm(),&Limits{max_analysis_steps:n,..defaults.clone()}));\n          if name==\"defining-default-and-two-callers\"{boundary(&format!(\"{name}:expand-nodes\"),defaults.max_nodes,|n|expand(&Limits{max_nodes:n,..defaults.clone()}));}\n        }\n      } else {assert!(!expected_success,\"{name}: {expanded:?}\");}\n    }\n    assert_eq!(positives,5);\n    println!(\"{{\\\"kind\\\":\\\"summary\\\",\\\"source_cases\\\":11,\\\"positive_cases\\\":5,\\\"budget_boundaries\\\":11}}\");\n}\n",
+    "comparison_driver_sha256": "94931e1fa2bdaf34c5aea51ad0af6be3bdfe4e0be4d4429f0e36e1b21a51ef73",
+    "comparison_driver": "import hashlib\nimport json\nimport pathlib\nimport subprocess\nimport sys\n\nscratch = pathlib.Path('/tmp/cp10-review-toolchain-setup')\nrepo = pathlib.Path('/workspace/scratch/ac5966c4c370/zil-cp10')\nbaseline_repo = pathlib.Path('/workspace/scratch/ac5966c4c370/zil-research')\nbaseline = '0d28a51452f57c2cd27c1007058056c021bf3481'\ncandidate = sys.argv[1]\ncrates = ['zil-base', 'zil-ir', 'zil-syntax', 'zil-expand', 'zil-types']\n\ndef git(path, *args):\n    return subprocess.check_output(['git', '-C', str(path), *args], text=True).strip()\n\nassert git(repo, 'rev-parse', 'HEAD') == candidate\nsource_paths = [f'crates/{name}' for name in crates]\nassert not git(repo, 'diff', '--name-only', candidate, '--', *source_paths)\nassert not git(baseline_repo, 'diff', '--name-only', baseline, 'HEAD', '--', *source_paths, 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml')\n\ndeps = repo / 'target/debug/deps'\nargv = ['rustc', '--edition=2024', '-C', 'panic=abort', str(scratch / 'probe.rs'), '-L', f'dependency={deps}']\nlibraries = {}\nfor name in crates:\n    rust_name = name.replace('-', '_')\n    files = list(deps.glob(f'lib{rust_name}-*.rlib'))\n    assert len(files) == 1, (rust_name, files)\n    lib = files[0]\n    libraries[rust_name] = {'path': str(lib), 'sha256': hashlib.sha256(lib.read_bytes()).hexdigest()}\n    argv.extend(['--extern', f'{rust_name}={lib}'])\nargv.extend(['-o', str(scratch / 'candidate-probe')])\nbuilt = subprocess.run(argv, capture_output=True, text=True)\nbuild_record = {'candidate_commit': candidate, 'argv': argv, 'exit_code': built.returncode, 'libraries': libraries, 'stdout': built.stdout, 'stderr': built.stderr}\n(scratch / 'candidate-build.json').write_text(json.dumps(build_record, indent=2) + '\\n')\nassert built.returncode == 0, built.stderr\n\nrun_argv = [str(scratch / 'candidate-probe'), str(repo)]\ncompleted = subprocess.run(run_argv, capture_output=True, text=True)\n(scratch / 'candidate.stdout').write_text(completed.stdout)\n(scratch / 'candidate.stderr').write_text(completed.stderr)\nassert completed.returncode == 0, completed.stderr\nold = [json.loads(line) for line in (scratch / 'baseline.stdout').read_text().splitlines()]\nnew = [json.loads(line) for line in completed.stdout.splitlines()]\nassert len(old) == len(new), (len(old), len(new))\ndifferent = [{'line': i + 1, 'baseline': a, 'candidate': b} for i, (a, b) in enumerate(zip(old, new)) if a != b]\nboundaries = [{'label': row['label'], 'n': row['n'], 'below': row['below']} for row in old if row['kind'] == 'boundary']\nmetadata = {\n    'baseline_commit': baseline,\n    'baseline_source_verification_worktree_head': git(baseline_repo, 'rev-parse', 'HEAD'),\n    'candidate_commit': candidate,\n    'baseline_source_identity': {\n        path: {'baseline_tree': git(baseline_repo, 'rev-parse', f'{baseline}:{path}'), 'build_tree': git(baseline_repo, 'rev-parse', f'HEAD:{path}')}\n        for path in source_paths\n    },\n    'run_argv': run_argv,\n    'exit_code': completed.returncode,\n    'output_records': len(old),\n    'mismatches': different,\n    'source_cases': old[-1]['source_cases'],\n    'positive_cases': old[-1]['positive_cases'],\n    'budget_boundaries': boundaries,\n    'bounded_api_invocations_per_side': sum(row['binary_search_queries'] + 4 for row in old if row['kind'] == 'boundary'),\n}\n(scratch / 'comparison.json').write_text(json.dumps(metadata, indent=2) + '\\n')\nassert not different, different\nprint(json.dumps({key: metadata[key] for key in ['candidate_commit', 'output_records', 'mismatches', 'source_cases', 'positive_cases', 'bounded_api_invocations_per_side']}))\n",
+    "repository_source_fixtures": {
+      "crates/zil-driver/tests/impl197_cases/09-cross-module-copy-state/main.zil": {
+        "baseline_and_candidate_sha256": "c247bc23d1c93bd96c086082a75ad0ecb1733186cdfadaf3b5c847857c1d9e00",
+        "source": "import model\nimport state\nfn main()->i32{let callback=move(value:model.Data)=>model.Data{n:value.n+1};let current=state.make(callback,model.make());let answer=state.run(current);return answer.n-42}\n"
+      },
+      "crates/zil-driver/tests/impl197_cases/09-cross-module-copy-state/model.zil": {
+        "baseline_and_candidate_sha256": "7f8ee2bf3628473352538487dbbbebb8ad9237f8827f8eb7db59154dd32a670f",
+        "source": "pub struct Data{n:i32}\npub fn make()->Data{return Data{n:41}}\n"
+      },
+      "crates/zil-driver/tests/impl197_cases/09-cross-module-copy-state/state.zil": {
+        "baseline_and_candidate_sha256": "9fdcbed92c074804de6364452b683344ca4ac37508635d90fd1b4952bfc64108",
+        "source": "pub package State<T,F>{manages bytes:ByteBuffer;callback:F;value:T}\npub fn make<T:Copy,F:Fn(T)->T>(callback:F,value:T)->State<T,F>{return State::<T,F>{bytes:bytes_new(),callback:callback,value:value}}\npub fn run<T:Copy,F:Fn(T)->T>(state:State<T,F>)->T{return state.callback(state.value)}\n"
+      }
+    },
+    "fixture_adjustment": "The original cross-module State fixture constructs private Data.n and is retained unchanged as a negative case. A separate positive case changes only that fixture text from struct Data{n: to struct Data{pub n: in memory; no repository source was edited.",
+    "first_attempt_retained": {
+      "status": "Reviewer fixture expectation failure, not a compiler regression",
+      "exit_code": -6,
+      "reason": "The original private Data.n fixture was initially marked as a positive source-level case. The baseline correctly rejected it at Expand with E-FIELD-PRIVATE. The final probe retains that rejection and adds the distinct public-field case.",
+      "stderr": "\nthread 'main' (35) panicked at /tmp/cp10-review-toolchain-setup/probe.rs:63:15:\ncopy-type-callable-state: Err([Diagnostic { phase: Expand, category: SafeReject, code: \"E-FIELD-PRIVATE\", message: \"record construction requires access to every private field\", span: Some(Span { file: FileId(0), start: 78, end: 101 }), notes: [] }])\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "stdout": "{\"kind\":\"expand\",\"case\":\"nominal-same-spelling\",\"input_digest\":\"c2bc664f9a17221f21a4695ff93c38c3b11a201321e6c119cedada5eb361e3e7\",\"result\":{\"status\":\"ok\",\"digest\":\"b5d852b4b6ce24a92d4a0450901393d43fa68e2f19f47a8916f1d8e38aee6f4a\"}}\n{\"kind\":\"types\",\"case\":\"nominal-same-spelling\",\"result\":{\"status\":\"ok\",\"digest\":\"14411cf31f457b5cdde2eb68601614fdde814ddef07fdf02f9000ca30b1c03fc\"}}\n{\"kind\":\"boundary\",\"label\":\"nominal-same-spelling:expand-work\",\"n\":775,\"binary_search_queries\":24,\"exact\":{\"status\":\"ok\",\"digest\":\"b5d852b4b6ce24a92d4a0450901393d43fa68e2f19f47a8916f1d8e38aee6f4a\"},\"below\":{\"status\":\"error\",\"diagnostics\":[{\"phase\":\"expand\",\"category\":\"ResourceLimit\",\"code\":\"E-RESOURCE-LIMIT\",\"message\":\"generic expansion budget exceeded\",\"span\":{\"file\":2,\"start\":84,\"end\":86},\"notes\":[]}]},\"fresh_exact\":{\"status\":\"ok\",\"digest\":\"b5d852b4b6ce24a92d4a0450901393d43fa68e2f19f47a8916f1d8e38aee6f4a\"}}\n{\"kind\":\"boundary\",\"label\":\"nominal-same-spelling:types-work\",\"n\":462,\"binary_search_queries\":23,\"exact\":{\"status\":\"ok\",\"digest\":\"14411cf31f457b5cdde2eb68601614fdde814ddef07fdf02f9000ca30b1c03fc\"},\"below\":{\"status\":\"error\",\"diagnostics\":[{\"phase\":\"types\",\"category\":\"ResourceLimit\",\"code\":\"E-RESOURCE-LIMIT\",\"message\":\"factory dependency budget exceeded\",\"span\":{\"file\":2,\"start\":82,\"end\":86},\"notes\":[]}]},\"fresh_exact\":{\"status\":\"ok\",\"digest\":\"14411cf31f457b5cdde2eb68601614fdde814ddef07fdf02f9000ca30b1c03fc\"}}\n{\"kind\":\"expand\",\"case\":\"nominal-reversed-modules\",\"input_digest\":\"4bca817cd3d806563b040a7034d522c2ca38b287027478b308323f693d04b28e\",\"result\":{\"status\":\"ok\",\"digest\":\"3651dfba39c2931c177e34caff85e12e6d93796ccb9bddbaba39be1ae71b8e82\"}}\n{\"kind\":\"types\",\"case\":\"nominal-reversed-modules\",\"result\":{\"status\":\"ok\",\"digest\":\"ab43d1b5539c5cd62187619673c29d45114be65f30fbd5c4d9d956c488018ee3\"}}\n{\"kind\":\"boundary\",\"label\":\"nominal-reversed-modules:expand-work\",\"n\":775,\"binary_search_queries\":24,\"exact\":{\"status\":\"ok\",\"digest\":\"3651dfba39c2931c177e34caff85e12e6d93796ccb9bddbaba39be1ae71b8e82\"},\"below\":{\"status\":\"error\",\"diagnostics\":[{\"phase\":\"expand\",\"category\":\"ResourceLimit\",\"code\":\"E-RESOURCE-LIMIT\",\"message\":\"generic expansion budget exceeded\",\"span\":{\"file\":2,\"start\":82,\"end\":84},\"notes\":[]}]},\"fresh_exact\":{\"status\":\"ok\",\"digest\":\"3651dfba39c2931c177e34caff85e12e6d93796ccb9bddbaba39be1ae71b8e82\"}}\n{\"kind\":\"boundary\",\"label\":\"nominal-reversed-modules:types-work\",\"n\":462,\"binary_search_queries\":23,\"exact\":{\"status\":\"ok\",\"digest\":\"ab43d1b5539c5cd62187619673c29d45114be65f30fbd5c4d9d956c488018ee3\"},\"below\":{\"status\":\"error\",\"diagnostics\":[{\"phase\":\"types\",\"category\":\"ResourceLimit\",\"code\":\"E-RESOURCE-LIMIT\",\"message\":\"factory dependency budget exceeded\",\"span\":{\"file\":2,\"start\":80,\"end\":84},\"notes\":[]}]},\"fresh_exact\":{\"status\":\"ok\",\"digest\":\"ab43d1b5539c5cd62187619673c29d45114be65f30fbd5c4d9d956c488018ee3\"}}\n{\"kind\":\"expand\",\"case\":\"defining-default-and-two-callers\",\"input_digest\":\"f2452fedfa08f8098cb79df07487e4262bc87d167d879791b57e4470b065c206\",\"result\":{\"status\":\"ok\",\"digest\":\"50d563da61ac39180cc77657d82a75aa9a100b9db92e8b2adb98ffa65a658d65\"}}\n{\"kind\":\"types\",\"case\":\"defining-default-and-two-callers\",\"result\":{\"status\":\"ok\",\"digest\":\"54c87b5106c5a3b163d385122c6ef8f47190352dd200f5ad02a4acc12e6a96e7\"}}\n{\"kind\":\"boundary\",\"label\":\"defining-default-and-two-callers:expand-work\",\"n\":681,\"binary_search_queries\":24,\"exact\":{\"status\":\"ok\",\"digest\":\"50d563da61ac39180cc77657d82a75aa9a100b9db92e8b2adb98ffa65a658d65\"},\"below\":{\"status\":\"error\",\"diagnostics\":[{\"phase\":\"expand\",\"category\":\"ResourceLimit\",\"code\":\"E-RESOURCE-LIMIT\",\"message\":\"generic expansion budget exceeded\",\"span\":{\"file\":2,\"start\":62,\"end\":63},\"notes\":[]}]},\"fresh_exact\":{\"status\":\"ok\",\"digest\":\"50d563da61ac39180cc77657d82a75aa9a100b9db92e8b2adb98ffa65a658d65\"}}\n{\"kind\":\"boundary\",\"label\":\"defining-default-and-two-callers:types-work\",\"n\":642,\"binary_search_queries\":24,\"exact\":{\"status\":\"ok\",\"digest\":\"54c87b5106c5a3b163d385122c6ef8f47190352dd200f5ad02a4acc12e6a96e7\"},\"below\":{\"status\":\"error\",\"diagnostics\":[{\"phase\":\"types\",\"category\":\"ResourceLimit\",\"code\":\"E-RESOURCE-LIMIT\",\"message\":\"factory dependency budget exceeded\",\"span\":{\"file\":2,\"start\":62,\"end\":63},\"notes\":[]}]},\"fresh_exact\":{\"status\":\"ok\",\"digest\":\"54c87b5106c5a3b163d385122c6ef8f47190352dd200f5ad02a4acc12e6a96e7\"}}\n{\"kind\":\"boundary\",\"label\":\"defining-default-and-two-callers:expand-nodes\",\"n\":168,\"binary_search_queries\":20,\"exact\":{\"status\":\"ok\",\"digest\":\"50d563da61ac39180cc77657d82a75aa9a100b9db92e8b2adb98ffa65a658d65\"},\"below\":{\"status\":\"error\",\"diagnostics\":[{\"phase\":\"expand\",\"category\":\"ResourceLimit\",\"code\":\"E-RESOURCE-LIMIT\",\"message\":\"generic expansion budget exceeded\",\"span\":{\"file\":2,\"start\":62,\"end\":63},\"notes\":[]}]},\"fresh_exact\":{\"status\":\"ok\",\"digest\":\"50d563da61ac39180cc77657d82a75aa9a100b9db92e8b2adb98ffa65a658d65\"}}\n{\"kind\":\"expand\",\"case\":\"same-generic-name-in-two-modules\",\"input_digest\":\"cd33f9229d6d5965d331fea9d4fd500e9564df638b071ec9575db092aac0245a\",\"result\":{\"status\":\"ok\",\"digest\":\"60386a65e1bbaab53e1de99ba63fc896faa5aefa583e664068e4842b05cd2c7c\"}}\n{\"kind\":\"types\",\"case\":\"same-generic-name-in-two-modules\",\"result\":{\"status\":\"ok\",\"digest\":\"668b35c8c979445288983efcedecdd737eeaf1a011937eebe3129e260cfd2c70\"}}\n{\"kind\":\"boundary\",\"label\":\"same-generic-name-in-two-modules:expand-work\",\"n\":857,\"binary_search_queries\":24,\"exact\":{\"status\":\"ok\",\"digest\":\"60386a65e1bbaab53e1de99ba63fc896faa5aefa583e664068e4842b05cd2c7c\"},\"below\":{\"status\":\"error\",\"diagnostics\":[{\"phase\":\"expand\",\"category\":\"ResourceLimit\",\"code\":\"E-RESOURCE-LIMIT\",\"message\":\"generic metadata budget exceeded\",\"span\":{\"file\":2,\"start\":32,\"end\":33},\"notes\":[]}]},\"fresh_exact\":{\"status\":\"ok\",\"digest\":\"60386a65e1bbaab53e1de99ba63fc896faa5aefa583e664068e4842b05cd2c7c\"}}\n{\"kind\":\"boundary\",\"label\":\"same-generic-name-in-two-modules:types-work\",\"n\":593,\"binary_search_queries\":23,\"exact\":{\"status\":\"ok\",\"digest\":\"668b35c8c979445288983efcedecdd737eeaf1a011937eebe3129e260cfd2c70\"},\"below\":{\"status\":\"error\",\"diagnostics\":[{\"phase\":\"types\",\"category\":\"ResourceLimit\",\"code\":\"E-RESOURCE-LIMIT\",\"message\":\"closure lookup snapshot budget exceeded\",\"span\":{\"file\":0,\"start\":106,\"end\":125},\"notes\":[]}]},\"fresh_exact\":{\"status\":\"ok\",\"digest\":\"668b35c8c979445288983efcedecdd737eeaf1a011937eebe3129e260cfd2c70\"}}\n{\"kind\":\"expand\",\"case\":\"copy-type-callable-state\",\"input_digest\":\"e4d4ca538d8054f4841c92266b3443253fdefd823b391a6ad1d34223450577bc\",\"result\":{\"status\":\"error\",\"diagnostics\":[{\"phase\":\"expand\",\"category\":\"SafeReject\",\"code\":\"E-FIELD-PRIVATE\",\"message\":\"record construction requires access to every private field\",\"span\":{\"file\":0,\"start\":78,\"end\":101},\"notes\":[]}]}}\n",
+      "stdout_sha256": "815ded74c075214fa4282faaa14b758db46784c9d1f24c9ec3304c1f78204b9f"
+    }
+  },
+  "dedicated_regression": {
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-expand",
+      "-p",
+      "zil-types",
+      "--test",
+      "project_lookup_cp10",
+      "-j2",
+      "--",
+      "--nocapture"
+    ],
+    "worktree": "/workspace/scratch/ac5966c4c370/zil-cp10",
+    "source_commit": "c317862f4f9b821645238b30ef03b4508a122038",
+    "exit_code": 0,
+    "passed": 11,
+    "failed": 0,
+    "expand_passed": 5,
+    "types_passed": 6,
+    "log_sha256": "6f60a6167af5b73e0fa7ac791298ca33fd432acfb4bfefd927c652779e4e5bb6",
+    "log": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running tests/project_lookup_cp10.rs (target/debug/deps/project_lookup_cp10-28931705e26c890b)\n\nrunning 5 tests\ntest duplicate_declaration_rejection_still_precedes_consumer_lowering ... ok\ntest private_field_errors_keep_the_first_consumer_source ... ok\ntest single_module_uses_first_written_aggregate_until_duplicate_check ... ok\ntest project_analysis_budget_has_an_exact_fresh_boundary ... ok\ntest shared_named_declarations_keep_owner_defaults_and_source_maps ... ok\n\ntest result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n     Running tests/project_lookup_cp10.rs (target/debug/deps/project_lookup_cp10-4a296781889e637b)\n\nrunning 6 tests\ntest declaration_errors_keep_precedence_over_later_invalid_shapes ... ok\ntest a_previous_request_cannot_supply_missing_callable_declarations ... ok\ntest standalone_inference_keeps_its_local_state_declarations ... ok\ntest aggregate_and_enum_index_charges_remain_per_module ... ok\ntest project_collects_callable_and_state_names_from_all_modules ... ok\ntest symbolic_store_and_state_have_exact_fresh_analysis_budgets ... ok\n\ntest result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n",
+    "note": "These are independent re-executions of the authored dedicated tests, not 11 additional unique scenarios on top of the author count. Types test inputs are raw Core, whereas the separate reviewer probe begins from parsed source."
+  },
+  "format_checks": {
+    "production_and_test_source_diff": {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "0d28a51452f57c2cd27c1007058056c021bf3481",
+        "c317862f4f9b821645238b30ef03b4508a122038",
+        "--",
+        "crates/zil-expand",
+        "crates/zil-types"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "complete_commit_diff": {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "0d28a51452f57c2cd27c1007058056c021bf3481",
+        "c317862f4f9b821645238b30ef03b4508a122038",
+        "--"
+      ],
+      "exit_code": 2,
+      "stdout": "evidence/research/compile-performance/CP10/expand-baseline-tests.log:13: new blank line at EOF.\nevidence/research/compile-performance/CP10/expand-candidate-tests.log:78: new blank line at EOF.\nevidence/research/compile-performance/CP10/types-baseline-tests.log:14: new blank line at EOF.\nevidence/research/compile-performance/CP10/types-candidate-tests.log:46: new blank line at EOF.\n",
+      "stderr": ""
+    },
+    "assessment": "Four preserved raw test logs contain a final extra blank line, so complete commit diff --check exits 2. Production/test source diff --check exits 0. This is an evidence-log formatting observation, not a semantic blocker; no claim is made that the full committed diff passes that check."
+  },
+  "limitations": [
+    "The finite probe proves equality for these inputs and budget values only; it is not a formal proof of full language equivalence.",
+    "The review does not execute Analyze/Verify, LLVM code generation or native programs. Root owns the combined workspace gate and quiet full-request measurement.",
+    "No compile-speed, runtime-speed, memory or Rust victory conclusion follows from these semantic checks.",
+    "Inherited repository handoff status is not upgraded to a global Pass by this bounded review."
+  ]
+}
