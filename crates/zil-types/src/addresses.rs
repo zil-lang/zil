@@ -154,7 +154,11 @@ impl Builder<'_, '_> {
     ) -> R<(ValueId, Type)> {
         let work = inference::type_snapshot_work(&field, span, self.limits)?;
         self.closures.snapshot(work.saturating_mul(2), span)?;
-        if !field.is_copy_value() && !matches!(field, Type::Closure(_)) {
+        let shared_owned = !mutable
+            && (packages::product::supported(&field)
+                || matches!(&field, Type::Managed(payload)
+                    if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
+        if !field.is_copy_value() && !matches!(field, Type::Closure(_)) && !shared_owned {
             return Err(unsupported(
                 span,
                 "package field addresses require a finite Copy field or concrete callback",
@@ -255,6 +259,17 @@ impl Builder<'_, '_> {
                         decl.ty,
                     ));
                 }
+                let product_head = !mutable && matches!(decl.ty, Type::Package { .. });
+                if product_head {
+                    let work = inference::type_snapshot_work(&decl.ty, e.span, self.limits)?;
+                    self.closures.snapshot(work, e.span)?;
+                    if !packages::product::supported(&decl.ty) {
+                        return Err(unsupported(
+                            e.span,
+                            "shared Product heads require finite complete ordinary children",
+                        ));
+                    }
+                }
                 let resource_head = !mutable
                     && matches!(&decl.ty, Type::Managed(payload)
                         if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
@@ -267,6 +282,7 @@ impl Builder<'_, '_> {
                 if !decl.ty.is_copy_value()
                     && !matches!(decl.ty, Type::Closure(_))
                     && !resource_head
+                    && !product_head
                 {
                     return Err(unsupported(
                         e.span,
@@ -309,21 +325,39 @@ impl Builder<'_, '_> {
                 Ok(result)
             }
             CoreExprKind::Member { object, member } => {
-                if let Some((local, index, field)) = self.package_place(e)? {
+                if !self.indirect_place(e)
+                    && let Some((local, index, field)) = self.package_place(e)?
+                {
                     return self.borrow_package_field(local, index, field, mutable, e.span);
                 }
                 let (address, ty) = self.projection_base(object, mutable)?;
                 let Type::Address { mutable, inner } = ty else {
                     unreachable!()
                 };
+                // This new owning-child address path retains the full field
+                // type. Reserve its snapshots before field() clones it or the
+                // finite Product qualifier traverses its descendants.
+                if !mutable
+                    && let Type::Package { fields, .. } = inner.as_ref()
+                    && let Some((_, field)) = fields.iter().find(|(name, _)| name == member)
+                    && matches!(field, Type::Package { .. } | Type::Managed(_))
+                {
+                    let work = inference::type_snapshot_work(field, e.span, self.limits)?;
+                    self.closures.snapshot(work.saturating_mul(2), e.span)?;
+                }
                 let (index, field) = aggregates::field(&inner, member, e.span)?;
+                let shared_owned = !mutable
+                    && (packages::product::supported(&field)
+                        || matches!(&field, Type::Managed(payload)
+                            if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
                 if matches!(inner.as_ref(), Type::Package { .. })
                     && !field.is_copy_value()
                     && !matches!(field, Type::Closure(_))
+                    && !shared_owned
                 {
                     return Err(unsupported(
                         e.span,
-                        "Store element windows only project finite Copy or concrete callback fields",
+                        "Package windows only project finite Copy or concrete callback fields, or shared finite Product/resource heads",
                     ));
                 }
                 if matches!(field, Type::Closure(_)) {
