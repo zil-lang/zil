@@ -1,0 +1,116 @@
+{
+  "status": "PredeclaredBeforeExecution",
+  "scope": "221 author source/raw/native controls, not independent acceptance",
+  "backend": "LLVM API ordinary build; separately linked Clang allocator observation",
+  "ordinary": [
+    {
+      "source": "fn-owned.zil",
+      "stdout": "XAB",
+      "exit": 0,
+      "allocation_calls": 0
+    },
+    {
+      "source": "once-identities.zil",
+      "stdout": "AXB",
+      "exit": 0,
+      "allocation_calls": 0
+    },
+    {
+      "source": "mut-owned.zil",
+      "stdout": "XC",
+      "exit": 0,
+      "allocation_calls": 0
+    },
+    {
+      "source": "discard-and-eager.zil",
+      "stdout": "ABX",
+      "exit": 0,
+      "allocation_calls": 0
+    },
+    {
+      "source": "cross-module/main.zil",
+      "stdout": "XA",
+      "exit": 0
+    },
+    {
+      "source": "prepare-failure.zil",
+      "stdout": "PSAX",
+      "exit": 0
+    },
+    {
+      "source": "callback-store.zil",
+      "stdout": "AB",
+      "exit": 0
+    }
+  ],
+  "prepare_failure": {
+    "single_actual_allocation": 1,
+    "bytes": 32,
+    "success_stdout": "PSAX",
+    "failure_stdout": "PAX",
+    "exit": 0,
+    "normal_frees": 1,
+    "failed_frees": 0,
+    "live": 0,
+    "fail_at_controls": [
+      0,
+      1,
+      2
+    ]
+  },
+  "callback_store": {
+    "independent_inline_layout": {
+      "marker_payload": 4,
+      "marker_environment_with_live_flag": 8,
+      "wrapper_environment_with_child_flag": 12,
+      "bytebuffer_header": 24,
+      "state_stride_aligned_to_8": 40
+    },
+    "fail_at_controls": [
+      {
+        "fail_at": 0,
+        "stdout": "AB",
+        "exit": 0,
+        "calls": 2,
+        "allocated": 1,
+        "failures": 0,
+        "peak_bytes": 160
+      },
+      {
+        "fail_at": 1,
+        "stdout": "BA",
+        "exit": 1,
+        "calls": 1,
+        "allocated": 0,
+        "failures": 1,
+        "peak_bytes": 0
+      },
+      {
+        "fail_at": 2,
+        "stdout": "AB",
+        "exit": 2,
+        "calls": 2,
+        "allocated": 1,
+        "failures": 1,
+        "peak_bytes": 80
+      },
+      {
+        "fail_at": 3,
+        "stdout": "AB",
+        "exit": 0,
+        "calls": 2,
+        "allocated": 1,
+        "failures": 0,
+        "peak_bytes": 160
+      }
+    ],
+    "frees": "equal allocated",
+    "live": 0
+  },
+  "optimization": [
+    "O0",
+    "O2"
+  ],
+  "raw_wire": "matching independent Verify diagnostic; never plan identity or ResourceLimit for structural negatives",
+  "budgets": "exact N, N-1 ResourceLimit, fresh N with matching fingerprint"
+}
