@@ -25,6 +25,7 @@ pub struct ProjectSources {
 pub(super) struct ExpandedProject {
     core: CoreProgram,
     maps: Vec<SourceMap>,
+    selection: super::ct_selection::Receipt,
 }
 
 pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> CompileReport {
@@ -217,8 +218,9 @@ impl CompilationSession {
             return Ok(());
         }
         let imports = resolve_imports(project, &parsed, &options.limits)?;
+        let selection_needed = project.modules.iter().zip(&parsed).any(|(source, parsed)| super::ct_selection::needed(source, parsed));
         let (raw, expand_snapshot) = self.query(
-            key(Phase::Expand, false),
+            key(Phase::Expand, selection_needed),
             &dependencies,
             options,
             report,
@@ -227,9 +229,14 @@ impl CompilationSession {
                 let mut modules = Vec::new();
                 let mut maps = Vec::new();
                 let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+                let selected = if selection_needed {
+                    Some(super::ct_selection::select(&project.modules, &syntax, &imports, project.root, fingerprint, &options.target, &options.limits)?)
+                } else { None };
+                let materialized = selected.as_ref().map(|selected| selected.modules.iter().collect::<Vec<_>>());
+                let syntax = materialized.as_deref().unwrap_or(&syntax);
                 for (module, map) in zil_expand::expand_program_with_limits(
                     &project.modules,
-                    &syntax,
+                    syntax,
                     &imports,
                     &options.limits,
                 )? {
@@ -243,6 +250,7 @@ impl CompilationSession {
                         modules,
                     },
                     maps,
+                    selection: selected.map_or_else(super::ct_selection::Receipt::default, |selected| selected.receipt),
                 })))
             },
         )?;
@@ -257,6 +265,9 @@ impl CompilationSession {
         artifacts.dump_lazy(report, options, "source-map", |_| {
             format!("{:#?}", expanded.maps)
         })?;
+        if selection_needed {
+            artifacts.dump_lazy(report, options, "selection", |_| expanded.selection.to_json())?;
+        }
         if options.stop_after == Stage::Core {
             return Ok(());
         }
@@ -268,9 +279,9 @@ impl CompilationSession {
             observer,
             || {
                 let inferred = zil_types::infer_program_closures(&expanded.core, &options.limits)?;
-                let context = zil_ct::SourceProgramContext::new(&inferred, &options.limits)?;
+                let mut remaining = expanded.selection.remaining(&options.limits)?;
+                let context = zil_ct::SourceProgramContext::new(&inferred, &remaining)?;
                 let mut modules = Vec::new();
-                let mut remaining = options.limits.clone();
                 for module in &inferred.modules {
                     // Restrict execution to the remaining graph allowance BEFORE
                     // entering the CT verifier/VM, then deduct actual usage.
