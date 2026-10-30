@@ -1,29 +1,32 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-30T15:07:34.630265+00:00",
-  "status": "Reviewing",
+  "observed_at_utc": "2026-10-30T15:33:56.193470+00:00",
+  "status": "AwaitingGitHubCI",
   "conversation": "zil施工8",
   "accepted_main_at_start": "a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
   "milestone": "222–224 finite generation, Product Store, shared Product borrow",
-  "active_development_agents": 4,
+  "active_development_agents": 2,
   "tasks": [
     {
       "id": "222",
       "state": "待验",
       "owner": "/root/ct_for",
-      "branch": "impl/222-ct-for"
+      "branch": "impl/222-ct-for",
+      "review": "evidence/reviews/222-224/REVIEW-222.json"
     },
     {
       "id": "223",
       "state": "待验",
       "owner": "/root/product_store",
-      "branch": "impl/223-product-store"
+      "branch": "impl/223-product-store",
+      "review": "evidence/reviews/222-224/REVIEW-223.json"
     },
     {
       "id": "224",
       "state": "待验",
       "owner": "/root/scope_audit",
-      "branch": "impl/224-readonly-product"
+      "branch": "impl/224-readonly-product",
+      "review": "evidence/reviews/222-224/REVIEW-224.json"
     }
   ],
   "local_affected_regression": {
@@ -68,5 +71,27 @@
   "full_language": "NotSatisfied",
   "full_zui": "NotSatisfied",
   "product": "NotRun",
-  "native_windows": "NotRun"
+  "native_windows": "NotRun",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "independent_scope_reviews": "Pass",
+  "final_affected_regression": {
+    "passed": 19,
+    "failed": 0,
+    "ignored": 0,
+    "receipt": "evidence/integration/222-224/final-generation/RESULT.json"
+  },
+  "readiness_recheck": {
+    "source_commit": "6b0d974bedfb40c93eb36e491ceb18a138718dac",
+    "unchanged_original_sources": 29,
+    "success": 15,
+    "unsupported": 12,
+    "malformed_excluded": 2,
+    "promoted": [
+      "product-store-element",
+      "product-error-union"
+    ],
+    "old_success_regressions": 0,
+    "receipt": "evidence/integration/222-224/readiness/READINESS.json",
+    "full_readiness": false
+  }
 }

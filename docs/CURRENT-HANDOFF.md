@@ -1,6 +1,6 @@
 # 当前接续入口：施工8 / 222–224
 
-当前真实 GitHub `main` 是开发基准，接续前重新读取远端 ref。施工8从 `a8e8831a9e28ac2ec83be6eac740a8f04a00af7d` 接续已验收的218–221；本批222–224的实现与返修正在独审/正式集成，当前状态以 `.task/impl/222.md`–`224.md`、`data/construction-progress.json` 和 `evidence/integration/222-224/` 为准。
+当前真实 GitHub `main` 是开发基准，接续前重新读取远端 ref。施工8从 `a8e8831a9e28ac2ec83be6eac740a8f04a00af7d` 接续已验收的218–221；本批222–224的实现与返修已通过三份非作者范围审查，正在进行GitHub整仓验收/正式集成，当前状态以 `.task/impl/222.md`–`224.md`、`data/construction-progress.json` 和 `evidence/integration/222-224/` 为准。
 
 ## 本批范围
 
