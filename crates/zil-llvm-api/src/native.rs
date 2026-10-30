@@ -26,6 +26,7 @@ unsafe extern "C" {
     fn LLVMInitializeX86AsmParser();
     fn LLVMContextCreate() -> Handle;
     fn LLVMContextDispose(ctx: Handle);
+    fn LLVMContextSetDiscardValueNames(ctx: Handle, discard: c_int);
     #[cfg(feature = "text-reference")]
     fn LLVMCreateMemoryBufferWithMemoryRangeCopy(
         data: *const c_char,
@@ -340,6 +341,11 @@ fn compile_input(
             })?;
             let preflight_ns = nanos(t);
             check(cancelled)?;
+            // Names of local values are only diagnostic. Builder resolves all
+            // uses through its own checked maps; the original machine model
+            // still supplies the readable sidecar. LLVM retains GlobalValue
+            // names, including the functions/globals that form the link ABI.
+            unsafe { LLVMContextSetDiscardValueNames(context.0, 1) };
             let t = Instant::now();
             let module = trace.measure("llvm_builder", "stage", |_| {
                 builder::build(context.0, program, layout.0, &schedule, cancelled)

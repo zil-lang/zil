@@ -33,7 +33,6 @@ unsafe extern "C" {
     fn LLVMSetInitializer(global: Handle, value: Handle);
     fn LLVMSetAlignment(value: Handle, align: c_uint);
     fn LLVMGetParam(function: Handle, index: c_uint) -> Handle;
-    fn LLVMSetValueName2(value: Handle, name: *const c_char, len: usize);
     fn LLVMAppendBasicBlockInContext(
         context: Handle,
         function: Handle,
@@ -278,8 +277,9 @@ impl<'a> Construction<'a> {
         Ok(())
     }
     fn emit(&mut self, inst: &'a m::Inst) -> Result<Handle, Error> {
-        let name = inst.result.as_deref().map(cstring).transpose()?;
-        let n = name.as_ref().map_or(c"".as_ptr(), |name| name.as_ptr());
+        // The checked model and local handle map retain diagnostic identity.
+        // Avoid building C strings and a second local name table inside LLVM.
+        let n = c"".as_ptr();
         let b = self.builder.0;
         // SAFETY: the whole module has passed type/SSA/CFG preflight. The
         // dependency schedule makes operands available before use. Index and
@@ -470,17 +470,14 @@ impl<'a> Construction<'a> {
                 .name
                 .as_deref()
                 .ok_or_else(|| error(ErrorKind::Verify, "parameter name absent"))?;
-            // SAFETY: signature has this parameter and name is a checked atom.
+            // SAFETY: signature has this parameter. Its checked model name is
+            // used only by our map; LLVM parameter identity is positional.
             let value = unsafe { LLVMGetParam(function, i as u32) };
-            unsafe {
-                LLVMSetValueName2(value, name.as_ptr().cast(), name.len());
-            }
             self.locals.insert(name, value);
         }
         for block in blocks {
-            let name = cstring(&block.name)?;
             let raw =
-                unsafe { LLVMAppendBasicBlockInContext(self.context, function, name.as_ptr()) };
+                unsafe { LLVMAppendBasicBlockInContext(self.context, function, c"".as_ptr()) };
             if raw.is_null() {
                 return Err(error(ErrorKind::Emit, "LLVM block creation failed"));
             }

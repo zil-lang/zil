@@ -604,6 +604,10 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
         }
     };
     let mut uses = Vec::new();
+    // Phi handles are created before every non-phi instruction. Track whether
+    // the existing textual order is already a valid handle-creation schedule
+    // while performing the mandatory operand and dominance checks below.
+    let mut textual_order = true;
     for (b, block) in blocks.iter().enumerate() {
         for (j, i) in block.instructions.iter().enumerate() {
             world
@@ -647,12 +651,15 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
                     uses.clear();
                     value.local_uses(&mut uses);
                     for &name in &uses {
-                        if let Some((d, pos)) = defs[name].place
-                            && ((d == b && pos >= j) || (d != b && !dominates(d, b)))
-                        {
-                            return fail(format!(
-                                "SSA definition %{name} does not dominate its use"
-                            ));
+                        if let Some((d, pos)) = defs[name].place {
+                            if (d == b && pos >= j) || (d != b && !dominates(d, b)) {
+                                return fail(format!(
+                                    "SSA definition %{name} does not dominate its use"
+                                ));
+                            }
+                            if d > b && !matches!(blocks[d].instructions[pos].op, Op::Phi { .. }) {
+                                textual_order = false;
+                            }
                         }
                     }
                 }
@@ -662,18 +669,27 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
     // Phi nodes are created first. Sort all other instructions by operand and
     // per-block sequencing edges, so forward textual block order is irrelevant.
     let mut positions = vec![];
+    for (b, block) in blocks.iter().enumerate() {
+        for (j, i) in block.instructions.iter().enumerate() {
+            if !matches!(i.op, Op::Phi { .. }) {
+                positions.push((b, j));
+            }
+        }
+    }
+    // This return is after ALL type, CFG, SSA, phi and dominance checks. Every
+    // non-phi dependency is now either a parameter/phi or an earlier position,
+    // and the source order preserves each block's side effects. No scheduling
+    // graph is needed; forward non-phi references use the original fallback.
+    if textual_order {
+        return Ok(positions);
+    }
     // Positions are dense within each block; do not allocate a tree node per instruction.
     let mut ids = blocks
         .iter()
         .map(|b| vec![usize::MAX; b.instructions.len()])
         .collect::<Vec<_>>();
-    for (b, block) in blocks.iter().enumerate() {
-        for (j, i) in block.instructions.iter().enumerate() {
-            if !matches!(i.op, Op::Phi { .. }) {
-                ids[b][j] = positions.len();
-                positions.push((b, j));
-            }
-        }
+    for (id, &(b, j)) in positions.iter().enumerate() {
+        ids[b][j] = id;
     }
     let mut counts = vec![0; positions.len()];
     let mut users = vec![vec![]; positions.len()];
