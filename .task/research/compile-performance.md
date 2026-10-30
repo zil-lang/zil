@@ -64,7 +64,7 @@ Doing
       "result": "docs/research/compile-performance/CP04-RESULT.md"
     },
     "CP05": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root",
       "baseline": "11e05a70419a5f64191a06f72bc3f16744d01f7b",
       "write_set": [
@@ -80,10 +80,12 @@ Doing
         "changes/compile-performance-cp05-timing-feature.md"
       ],
       "purpose": "Compile-time removal of disabled timing collection",
-      "plan": "docs/research/compile-performance/CP05-08-PLAN.md"
+      "plan": "docs/research/compile-performance/CP05-08-PLAN.md",
+      "candidate": "124158826aab043882f4ee29e45ff379465874e8",
+      "performance": "Pending fresh quiet-window results"
     },
     "CP06": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/llvm_strategy",
       "baseline": "11e05a70419a5f64191a06f72bc3f16744d01f7b",
       "write_set": [
@@ -94,10 +96,12 @@ Doing
         "evidence/research/compile-performance/CP06"
       ],
       "purpose": "LLVM local-name elimination and validated instruction-order fast path, separate commits",
-      "plan": "docs/research/compile-performance/CP05-08-PLAN.md"
+      "plan": "docs/research/compile-performance/CP05-08-PLAN.md",
+      "candidate": "d4c152ed15a7c0b05dd209cb8008e374cf2ec6c8",
+      "performance": "Pending fresh quiet-window results"
     },
     "CP07": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/toolchain_setup",
       "baseline": "11e05a70419a5f64191a06f72bc3f16744d01f7b",
       "write_set": [
@@ -106,10 +110,12 @@ Doing
         "evidence/research/compile-performance/CP07"
       ],
       "purpose": "Explicit paired LLVM LLD link selection, preserve failures and publication",
-      "plan": "docs/research/compile-performance/CP05-08-PLAN.md"
+      "plan": "docs/research/compile-performance/CP05-08-PLAN.md",
+      "candidate": "6339ed8b5f2b8250982a3511371e91ad9ba71bc2",
+      "performance": "Pending fresh quiet-window results"
     },
     "CP08": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/benchmark_audit",
       "baseline": "11e05a70419a5f64191a06f72bc3f16744d01f7b",
       "write_set": [
@@ -118,18 +124,21 @@ Doing
         "docs/research/compile-performance/CP08-BENCHMARK.md"
       ],
       "purpose": "Real LLVM23 ZIL/Rust complete-build and runtime comparison",
-      "plan": "docs/research/compile-performance/CP05-08-PLAN.md"
+      "plan": "docs/research/compile-performance/CP05-08-PLAN.md",
+      "candidate": "de4b3a65673d246b8e88789b1c4ad0675662334c",
+      "performance": "Pending fresh quiet-window results"
     },
     "CP10": {
       "status": "Doing",
       "author": "/root/llvm_strategy",
-      "baseline": "6c3b3adb2435137fac9f4a1c8257c44e47d909e8",
+      "baseline": "0d28a51452f57c2cd27c1007058056c021bf3481",
       "write_set": [
         "crates/zil-expand/src/lib.rs",
         "crates/zil-expand/tests",
         "crates/zil-types/src/aggregates.rs",
         "crates/zil-types/tests",
-        "evidence/research/compile-performance/CP10"
+        "evidence/research/compile-performance/CP10",
+        "crates/zil-expand/src/receivers.rs"
       ],
       "purpose": "Build immutable project aggregate/callable-name lookup tables once per request; preserve all budget charges, input order, diagnostics and validation",
       "plan": "docs/research/compile-performance/CP10-PLAN.md"
