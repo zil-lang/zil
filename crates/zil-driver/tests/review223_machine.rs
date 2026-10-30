@@ -1,5 +1,5 @@
 //! Independent machines: a different layout, actual API objects, every exit.
-#![cfg(unix)]
+#![cfg(all(unix, feature = "llvm-api"))]
 use std::{
     fs,
     io::Write,
