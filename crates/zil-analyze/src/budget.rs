@@ -252,6 +252,14 @@ fn local_value(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    if let Type::Address {
+        mutable: false,
+        inner,
+    } = ty
+        && super::resources::product::nested(inner)
+    {
+        return super::resources::product::admit(inner, budget);
+    }
     if super::resources::product::nested(ty) {
         super::resources::product::admit(ty, budget)
     } else {

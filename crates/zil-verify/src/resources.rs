@@ -1180,6 +1180,24 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::BorrowLocal { local }
+                    if matches!(f.locals[local.0 as usize].ty, Type::Package { .. }) =>
+                {
+                    self.package_shell(state, *local, span, validate)?;
+                    let fields = &slots.package_fields[local.0 as usize];
+                    budget.spend(fields.len())?;
+                    if validate
+                        && fields
+                            .iter()
+                            .flatten()
+                            .any(|&field| state.debt[field] != LIVE)
+                    {
+                        return Err(bad(
+                            span,
+                            "shared Product borrow requires every owned child live on every path",
+                        ));
+                    }
+                }
+                InstructionKind::BorrowLocal { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     let debt = slots.managed_local[local.0 as usize].expect("typed managed head");
