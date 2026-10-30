@@ -364,10 +364,8 @@ impl Dependencies<'_, '_, '_> {
                     }
                     for import in &module.imports {
                         self.budget.text(alias, object.span)?;
-                        if import.alias == *alias {
-                            if found.replace(import.module).is_some() {
-                                return Ok(None);
-                            }
+                        if import.alias == *alias && found.replace(import.module).is_some() {
+                            return Ok(None);
                         }
                     }
                 }
@@ -537,6 +535,16 @@ impl Visitor for Dependencies<'_, '_, '_> {
     fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
         match &expression.kind {
             s::ExprKind::Call { callee, .. } => self.name(callee, true)?,
+            s::ExprKind::Pipeline { target, .. } => {
+                // Ordinary pipeline lowering inserts a real call. Its static
+                // callee must join the same closed dependency graph as f(x),
+                // including helper bodies and their phase dependencies.
+                let callee = match &target.kind {
+                    s::ExprKind::Call { callee, .. } => callee.as_ref(),
+                    _ => target.as_ref(),
+                };
+                self.name(callee, true)?;
+            }
             s::ExprKind::Name(_) | s::ExprKind::Member { .. } => self.name(expression, false)?,
             s::ExprKind::Closure { .. } => {
                 return Err(forbidden(
