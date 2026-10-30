@@ -9,8 +9,8 @@
   "pointer_bits": 64,
   "endian": "little",
   "native_host": "linux-x86_64",
-  "linker": "Clang 23.1.4 with system linker; LLD 23.1.4 lld-link for Win64",
-  "configuration": "tools/llvm/version.txt pin; ZIL_CLANG for link driver; ZIL_LLVM_LIB_DIR at Cargo build; dynamic loader path for pinned LLVM 23.1.4",
+  "linker": "Clang 23.1.4 with sibling ld.lld preferred on Linux, system driver fallback if absent; explicit ZIL_LINUX_LINKER override; LLD 23.1.4 lld-link for Win64",
+  "configuration": "tools/llvm/version.txt pin; ZIL_CLANG for link driver; ZIL_LLVM_LIB_DIR at Cargo build; dynamic loader path for pinned LLVM 23.1.4; optional timings Cargo feature for phase collector",
   "llvm_api": {
     "feature": "llvm-api",
     "module_input": "direct Builder from verified machine IR; text parser only under explicit text-reference test feature",
