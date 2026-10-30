@@ -32,6 +32,8 @@ pub(super) fn validate_parametric<'l>(
     // Type keys reject unresolved lifetime/const forms rather than erasing them.
     let mut parameter_names = BTreeSet::new();
     let variables = function.generics.iter().map(|p| p.name.clone()).collect();
+    let callable = callable::template(function)?;
+    let owned_factory = callable.as_ref().is_some_and(|bounds| bounds.owned_factory);
     for p in &function.params {
         if super::super::primitive_name(&p.name) {
             return Err(super::super::primitive_name_error(&p.name, p.span));
@@ -43,10 +45,9 @@ pub(super) fn validate_parametric<'l>(
         super::super::foreign::callback_type_tree(&p.ty, &variables, budget, 0)?;
     }
     if let Some(t) = &function.return_type {
-        type_key(t, budget)?;
+        if owned_factory { budget.ty(t)?; } else { type_key(t, budget)?; }
         super::super::foreign::callback_type_tree(t, &variables, budget, 0)?;
     }
-    let callable = callable::template(function)?;
     if callable.is_some() {
         dependencies.register(&function.name, function.span, budget)?;
     }
@@ -188,7 +189,9 @@ pub(super) fn validate_parametric<'l>(
         FunctionBody::Expression(value) => {
             let result = check.result.clone();
             let actual = check.return_expression(value, &mut state)?;
-            if check.callable.is_some() || matches!(group(&result).kind, TypeKind::Error { .. }) {
+            if owned_factory {
+                check.factory_same_result(&actual, &result, value.span)?;
+            } else if check.callable.is_some() || matches!(group(&result).kind, TypeKind::Error { .. }) {
                 same_return(&actual, &result, value.span, check.budget)?;
             } else {
                 same(&actual, &result, value.span, check.budget)?;
@@ -2960,7 +2963,9 @@ impl Check<'_, '_, '_> {
                         Some(e) => self.return_expression(e, state)?,
                         None => unit(statement.span),
                     };
-                    if self.callable.is_some()
+                    if self.callable.as_ref().is_some_and(|bounds| bounds.owned_factory) {
+                        self.factory_same_result(&actual, &expected, statement.span)?;
+                    } else if self.callable.is_some()
                         || matches!(group(&expected).kind, TypeKind::Error { .. })
                     {
                         same_return(&actual, &expected, statement.span, self.budget)?;
