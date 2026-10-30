@@ -1,0 +1,12 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-verify)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-llvm-api)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-syntax)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-lower)
+   Compiling zil-db v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 16.43s
+  Executable tests/impl220_factory_source.rs (/workspace/scratch/3cf12ce32e36/targets/220/debug/deps/impl220_factory_source-25d4e509963ae94f)

@@ -1,0 +1,9 @@
+{
+  "status": "CompiledOnly",
+  "production_commit": "8ae43ecb21f4d91b7a7ba1916529b89b71fbf42b",
+  "command": "cargo test -p zil-driver --test impl220_factory_source --offline --no-run",
+  "test_sha256": "bf84c25bf70dea39a10614fdd7b1597f9609ef1f18e905298c9a68452cd127d8",
+  "executed_tests": 0,
+  "source_acceptance": false,
+  "note": "Frozen source-derived Analyze controls ready for frontend dispatch fix; not reported as tests passed."
+}

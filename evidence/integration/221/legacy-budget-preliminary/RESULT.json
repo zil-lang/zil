@@ -1,0 +1,35 @@
+{
+  "status": "Pass",
+  "command": [
+    "cargo",
+    "run",
+    "--offline",
+    "--manifest-path",
+    "/workspace/scratch/3cf12ce32e36/recovery/budget220-8ae/Cargo.toml",
+    "--",
+    "/workspace/scratch/3cf12ce32e36/zil-221/tools/language/221/budget-sources",
+    "/workspace/scratch/3cf12ce32e36/zil-220/evidence/integration/221/legacy-budget-preliminary"
+  ],
+  "started": 1793337372.2615895,
+  "compiler_commit": "8ae43ecb21f4d91b7a7ba1916529b89b71fbf42b",
+  "compiler_ref": "8ae43ecb21f4d91b7a7ba1916529b89b71fbf42b",
+  "compiler_worktree": "?? evidence/integration/221/",
+  "harness_inputs": {
+    "budget.rs": "c330fc1b0ebed18377b30cb24fb32103b29cbe3670046171ac1bb6b2e58f82f8",
+    "run-budget.py": "7d3c6ae8582fc99b657c13f9ddf471700bc40a8760b74e6dd083d561f5b59427",
+    "budget-sources/helper.zil": "0d39319801dac9d8f6307c420dc2d33dfeccec67fd549760d201e6f5b03ad0c9",
+    "budget-sources/opaque.zil": "f6a8f7a274a0aeea329df1174d5eddd2f0b8280770349336480d281aeb5025f9",
+    "budget-sources/state.zil": "63784cf122e4e0172b97ed02494fb25dfb093f517aaeeca530fd9a725bd49bfa"
+  },
+  "scope": "three fixed legacy source budgets; no native, full-workspace or product result",
+  "exit_code": 0,
+  "finished": 1793337388.6442506,
+  "compiler_commit_after": "8ae43ecb21f4d91b7a7ba1916529b89b71fbf42b",
+  "compiler_inputs_unchanged": true,
+  "private_manifest_sha256": "29176077826e44bba6b668a163ea1b5ba79d685b9f6edc7d3b7e95e5732d0824",
+  "comparison": {
+    "against": "/workspace/scratch/3cf12ce32e36/zil-221/evidence/impl/221/legacy-budget-baseline",
+    "same_harness_inputs": true,
+    "same_boundaries_and_identities": true
+  }
+}

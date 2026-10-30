@@ -1,0 +1,11 @@
+     Locking 7 packages to highest Rust 1.99.1 compatible versions
+   Compiling zil-base v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-syntax)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-types)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-analyze)
+   Compiling zil-budget221 v0.0.0 (/workspace/scratch/3cf12ce32e36/recovery/budget220-8ae)
+    Finished `dev` profile [unoptimized] target(s) in 15.90s
+     Running `/workspace/scratch/3cf12ce32e36/targets/220-budget/debug/zil-budget221 /workspace/scratch/3cf12ce32e36/zil-221/tools/language/221/budget-sources /workspace/scratch/3cf12ce32e36/zil-220/evidence/integration/221/legacy-budget-preliminary`
