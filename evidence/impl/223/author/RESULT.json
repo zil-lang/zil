@@ -1,0 +1,206 @@
+{
+  "status": "Pass",
+  "scope": "Author limited implementation evidence only; not independent review or integration",
+  "source_commit": "7061edabbb620840cf26e0fbd343efef1fde405a",
+  "compiler_source_commit": "7061edabbb620840cf26e0fbd343efef1fde405a",
+  "git_status_at_run": "",
+  "cli_sha256": "e82924ae16901416019b93f8416a004e09629c42a4ba58c9268bfec156b95412",
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm": "23.1.4"
+  },
+  "source_checkout_design_sha256": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+  "authoritative_main_contract": {
+    "design_sha256": "58e6c031b059a1efbdbe49a7f0c2eecd61fed0518be1e9d04a0af2f75b07a9cf",
+    "task_sha256": "2417938920f3257cca6c6132df82d65966dc1747fee2b1c31e4f890ab6dd79f1",
+    "change_sha256": "ce5668ad49f34d72af6447725771bff56512f925d51278fde372708f93d9f4c3",
+    "main_HEAD_when_snapshot_copied": "a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
+    "status": "Main specification/task edits are authoritative during construction; snapshot is not represented as part of the code commit"
+  },
+  "tests": {
+    "passed": 49,
+    "failed": 0,
+    "ignored": 0,
+    "new_slice": 13,
+    "existing_selected": 36,
+    "suites": {
+      "impl223_product_store": 12,
+      "impl223_budget": 1,
+      "impl172_owned_store": 18,
+      "impl201_source": 16,
+      "impl206_budget": 2
+    },
+    "new_test_native_executions": 16,
+    "new_test_native_backend": "llvm-api"
+  },
+  "quality": {
+    "production_lib_clippy": "Pass",
+    "new_test_clippy": "Pass",
+    "warnings": "denied",
+    "format": "Pass",
+    "diff_check": "Pass"
+  },
+  "consumer": {
+    "status": "Pass",
+    "backend": "llvm-api",
+    "source_modules": 3,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "native_executions": 74,
+    "ordinary_executions": 12,
+    "allocator_observer_executions": 62,
+    "actual_allocation_failures": 38,
+    "all_final_live_zero": true,
+    "maximum_requested_payload_bytes": 334,
+    "meaning": "tracked realloc request payload, not RSS or Rust comparison"
+  },
+  "budget": {
+    "source_sha256": "d82f945c15d4117b460395b3ecba8df8c34b51e8fe25b4d6f3e63a71cf8999ed",
+    "Types": 731,
+    "Analyze": 11820,
+    "Verify": 17398,
+    "N_pass": true,
+    "N_minus_1_ResourceLimit": true,
+    "fresh_N_pass": true,
+    "defaults_unchanged": true,
+    "old_flat_Types": 418,
+    "old_flat_Analyze": 8673
+  },
+  "historical_input_controls": {
+    "compiler_source_commit": "a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
+    "cli_sha256": "63310ba14e42499b1a66045c447b652a4ba3c5fb497a1b3685c1f2a3c90a4dda",
+    "cases": [
+      {
+        "name": "217-original",
+        "source_path": "tools/language/217/probes/product-store-element/main.zil",
+        "sha256": "ec2fe34c2c8a9b52cd66015160b7cbf4caa4fb1cfc66e4a38c8b516a66ff6376",
+        "command": [
+          "/workspace/scratch/d286b3aeeb6b/targets/223-baseline/debug/zil",
+          "check",
+          "/workspace/scratch/d286b3aeeb6b/recovery/223/baseline/217-original/source.zil",
+          "--json",
+          "--emit-dir",
+          "/workspace/scratch/d286b3aeeb6b/recovery/223/baseline/217-original/phases"
+        ],
+        "exit": 3,
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "Store elements require nonzero complete direct-Managed Packages",
+            "span": {
+              "file": 0,
+              "start": 97,
+              "end": 131
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "name": "206-unused",
+        "source_path": "crates/zil-driver/tests/impl206_independent_fixtures/23_store_parent.zil",
+        "sha256": "d2f2b76b4cd2f6580ecd73347361ec288687fd4649e901e714c138959b0b6874",
+        "command": [
+          "/workspace/scratch/d286b3aeeb6b/targets/223-baseline/debug/zil",
+          "check",
+          "/workspace/scratch/d286b3aeeb6b/recovery/223/baseline/206-unused/source.zil",
+          "--json",
+          "--emit-dir",
+          "/workspace/scratch/d286b3aeeb6b/recovery/223/baseline/206-unused/phases"
+        ],
+        "exit": 3,
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "Store elements require nonzero complete direct-Managed Packages",
+            "span": {
+              "file": 0,
+              "start": 92,
+              "end": 109
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "name": "206-sum-stays-outside",
+        "source_path": "crates/zil-driver/tests/impl206_independent_fixtures/25_sum_parent.zil",
+        "sha256": "7bd766dcbd96741f240a3f14565bd66ddd6c066194b72f7014e8320642358752",
+        "command": [
+          "/workspace/scratch/d286b3aeeb6b/targets/223-baseline/debug/zil",
+          "check",
+          "/workspace/scratch/d286b3aeeb6b/recovery/223/baseline/206-sum-stays-outside/source.zil",
+          "--json",
+          "--emit-dir",
+          "/workspace/scratch/d286b3aeeb6b/recovery/223/baseline/206-sum-stays-outside/phases"
+        ],
+        "exit": 3,
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
+            "span": {
+              "file": 0,
+              "start": 104,
+              "end": 116
+            },
+            "notes": []
+          }
+        ]
+      }
+    ]
+  },
+  "known_test_migrations_pending_root": [
+    {
+      "test": "impl206_independent::source_23_store_parent",
+      "from": "Types Unsupported",
+      "to": "Verify Success",
+      "frozen_fixture_manifest": "unchanged"
+    },
+    {
+      "test": "impl206_analyze::ordinary_product_admission_does_not_widen_other_raw_parent_contexts [store]",
+      "from": "Analyze Unsupported",
+      "to": "Analyze SafeReject E-ANALYZE-IR: Product Store lacks its exact canonical element definition",
+      "observed_old_suite": {
+        "passed": 6,
+        "failed": 1
+      },
+      "included_in_49": false
+    }
+  ],
+  "development_failures_preserved": [
+    "Expand generic StoreElement direct-managed-only qualification",
+    "incoherent zero-layout test mutant expected a later diagnostic",
+    "missing llvm-api Cargo feature in an intermediate native test command",
+    "old 206 Analyze classification migration"
+  ],
+  "shared_product_windows": "Requires combined 223+224 replay; ordinary Product address edits owned by 224",
+  "independent_review": "Pending",
+  "integration": "Pending",
+  "full_workspace": "NotRun",
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "archive": {
+    "path": "raw-evidence.tar.gz",
+    "sha256": "25c1570e120f7646047d0d97b2dff14c6abdb4b6c7fac0f661af2b5a3e9a151f",
+    "bytes": 7681692
+  },
+  "counts_note": "Native internal samples, Rust tests, development reruns and later reviews are separate; overlapping runs are not summed",
+  "recorded_unix_time": 1793370328.702228
+}
