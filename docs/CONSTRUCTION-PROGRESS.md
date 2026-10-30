@@ -1,18 +1,16 @@
 # 当前语言施工进度
 
-2026-10-30 20:58 北京时间：四个工单的独立审查均已按有限范围 Pass，统一绑定组合源码 [`69931f83`](https://github.com/zil-lang/zil/commit/69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf)。当前为**待验**，完整语言和全部 ZUI 保持未完成。
+2026-10-30 21:12 北京时间：**218–221 本批有限语言能力已验收并合入 main**，受验联合源码 [`69931f83`](https://github.com/zil-lang/zil/commit/69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf)。完整语言 1.4、全部 ZUI 前置、B0/181 和 Rust 产品目标仍未完成。
 
-[PR #8](https://github.com/zil-lang/zil/pull/8) 的 [GitHub 完整验收](https://github.com/zil-lang/zil/actions/runs/41057841800) 已通过默认工作区测试，参考后端与其余门正在执行。完整工作流成功后再合入代码。
+[PR #8](https://github.com/zil-lang/zil/pull/8) 的 [GitHub 完整验收](https://github.com/zil-lang/zil/actions/runs/41057841800) 全部通过：默认2817/0/0，参考2785/0/0，格式、all-target Clippy、text-reference36、迁移运行器9、208消费者16构建/128执行/56实际分配失败。CI实际合并提交的完整tree与受验源码相同，身份分别记录。
 
-|任务|独立审查与实际进展|
+|本批成果|实际状态|
 |---|---|
-|218 公共拥有工厂前端|原条件转交误拒已关闭；真实声明模式、拥有位置和旧预算复核通过。|
-|219 源级 #if|括号模块别名依赖遗漏已关闭；四份原字节独审探针通过，作者同修复提交54项限定回归和100次机器执行通过。|
-|220 独立 Analyze|独立重建输入/结果/捕获资格；相同ClosureId不同ValueId仍按真实位置验证，重复值拒绝、合法交换接受。|
-|221 独立 Verify与机器证据|新增raw/Wire反例及非作者O0/O2通过；非作者另在最终源码重放既有42次机器执行、6个实际分配失败，终态live0。|
+|公共拥有F工厂与新的闭包结果|前端、独立Analyze和独立Verify联合完成；声明模式、真实值责任与失败清理均有源码和机器证据。|
+|声明级和语句级 #if|纯标量函数条件、不可变配置快照、累计预算和缓存接入；选中源继续经过普通安全核。|
+|独立审查返修|括号模块调用依赖遗漏、捕获F条件转交误拒均按原输入关闭。|
+|当前ZUI缺口重查|29原输入为13成功、14 Unsupported、2原语法无效；额外 #if 生成公共工厂组合通过O0/O2。|
 
-当前29份原始缺口探针为13成功、14 Unsupported、2原语法无效，只有声明级和语句级 #if 两项晋升；额外 #if 生成公共工厂的组合控制通过Verify与O0/O2。
+完整结果、边界、原始失败与下一语言责任见 [LANGUAGE-218-221.md](LANGUAGE-218-221.md)。两次本地容量失败未计完整Pass；正式整仓采用GitHub结果。历史217的有限容量/O(n)删除和其余未开放能力保持原结论。
 
-两次本地全量因沙盒容量不足而中断/失败，均保留完整日志、源码清单和错误见证，不计完整Pass。成功中间样本的临时机器文件已释放，文件摘要保留；失败目标的实际产物另行归档。独立安全审查、限定运行和GitHub正式全量分开记账。
-
-机器记录见 [construction-progress.json](../data/construction-progress.json)。[zil-log](https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab) 由本对话在施工期间约每10分钟更新“zil施工7”一行，使用北京时间。更新时间只证明最近一次观察/工作；超过20分钟未更新为“待检查”，不等于仍在运行或已停止。没有创建自动假心跳任务。
+机器入口：[construction-progress.json](../data/construction-progress.json)。施工期间约每10分钟更新 [zil-log](https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab) 的“zil施工7”一行，使用北京时间。记录只随实际施工更新；超过20分钟未更新为“待检查”，不能据此断言后台仍在运行或已经停止。阶段收尾会明确写明已完成，避免把结束施工误判成卡住。

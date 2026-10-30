@@ -547,6 +547,17 @@ pub(super) fn check_module(
                 "a callback helper must be an ordinary checked function",
             ));
         }
+        // retained::check_claim independently checked the ordinary factory's
+        // exact envelope, input self-containment, signature and companions.
+        // Reconstruct its one actual owned input here; it is not a synchronous
+        // callback helper and must not advertise an empty helper contract.
+        if let [(.., input, false, _)] = parameters.as_slice()
+            && f.callable_contract.is_none()
+            && f.callable_return_contract.is_some()
+            && matches!(f.return_type, Type::Closure(result) if result != *input)
+        {
+            continue;
+        }
         // Preserve the single self-contained owning State value boundary.
         if let [(.., closure, false, _)] = parameters.as_slice()
             && f.callable_contract.is_none()

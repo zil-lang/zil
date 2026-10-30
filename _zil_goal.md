@@ -145,3 +145,5 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-30：218重建与219–221并行接续
 
 按当前LLVM23主线重新冻结218单F公共拥有工厂，218前端、220独立Analyze、221独立Verify并行；219独立推进已封闭纯标量函数条件的源级#if。旧218不可恢复，不复用旧成绩。输入及实际工具链/基线构建见evidence/planning/218-221/FREEZE.json，实时可核进度入口docs/CONSTRUCTION-PROGRESS.md。有限候选须交叉独审与组合全量后合入；完整1.4、全部ZUI、B0/181与四目标保持原状态。
+
+218–221在冻结组合69931f83完成单F公共拥有工厂、独立Analyze/Verify与源级纯标量#if，两个独审缺口经原字节闭合。GitHub run41057841800的实际合并tree与该组合相同，默认2817/0/0、参考2785/0/0、Clippy、text-reference36、迁移9及208真实机器门通过；作者、独审新增、既有oracle重放和两次本地容量失败分别记账。详见docs/LANGUAGE-218-221.md。当前29旧探针13成功/14Unsupported/2原无效，不把本片当作全部ZUI或完整1.4完成；B0/181与Rust四目标保持原门。

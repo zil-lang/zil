@@ -170,7 +170,7 @@ pub fn check_program(
             .core
             .functions
             .iter()
-            .filter(|f| f.callable_return.is_some())
+            .filter(|f| f.callable_return.is_some() && f.callable_parameters.is_empty())
         {
             let id = table[&f.name].concrete_id(f.span).map_err(|e| vec![e])?;
             let dependencies = retained::factory_dependencies(

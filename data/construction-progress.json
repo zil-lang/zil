@@ -1,44 +1,44 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-30T12:58:01.576115+00:00",
-  "status": "AwaitingFinalCI",
+  "observed_at_utc": "2026-10-30T13:12:39.047426+00:00",
+  "status": "MilestoneAccepted",
   "accepted_main_at_start": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
-  "milestone": "Independent reviews passed; exact candidate default workspace passed on GitHub; remaining workflow gates running",
+  "milestone": "218–221 independently reviewed and complete GitHub CI passed; merge to main",
   "tasks": [
     {
       "id": "218",
-      "state": "待验",
+      "state": "已合入",
       "owner": "/root/language218",
       "branch": "task/218",
       "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-      "observed_work": "独立审查Pass；原审查缺陷已关闭，等待同源完整CI验收",
+      "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
       "author_delivery_checkpoint": "4d331dd6b321685ea575a132c05dfb03aa7758fc"
     },
     {
       "id": "219",
-      "state": "待验",
+      "state": "已合入",
       "owner": "/root/language_parallel",
       "branch": "task/219",
       "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-      "observed_work": "独立审查Pass；原审查缺陷已关闭，等待同源完整CI验收",
+      "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
       "author_delivery_checkpoint": "19375551b7963f4c44536895322c9502fa4945e5"
     },
     {
       "id": "220",
-      "state": "待验",
+      "state": "已合入",
       "owner": "/root",
       "branch": "task/220",
       "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-      "observed_work": "独立审查Pass；原审查缺陷已关闭，等待同源完整CI验收",
+      "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
       "author_delivery_checkpoint": "e115ba5cfdc2cf56d092b912ae5077cffd0d92a3"
     },
     {
       "id": "221",
-      "state": "待验",
+      "state": "已合入",
       "owner": "/root/language_review_plan",
       "branch": "task/221",
       "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-      "observed_work": "独立审查Pass；原审查缺陷已关闭，等待同源完整CI验收",
+      "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
       "author_delivery_checkpoint": "d61264ba57af08ddb7e0b8dafe2fc584632c6833"
     }
   ],
@@ -67,7 +67,7 @@
     "url": "https://github.com/zil-lang/zil/actions/runs/41005715432",
     "conclusion": "success"
   },
-  "new_language_acceptance": false,
+  "new_language_acceptance": true,
   "readiness_recheck": {
     "source_commit": "2212505a667508dc9c7565cbab674c8e59700457",
     "unchanged_original_sources": 29,
@@ -85,8 +85,22 @@
     "run_id": 41057841800,
     "url": "https://github.com/zil-lang/zil/actions/runs/41057841800",
     "pr": 8,
-    "observed_status": "in_progress",
+    "observed_status": "completed",
     "default_workspace": "success",
-    "full_workflow_conclusion": null
+    "full_workflow_conclusion": "success",
+    "actual_checkout": "fc5b3c058c1f4c112cbadffdb4f9f41705049ea6",
+    "same_tree": true
+  },
+  "accepted_source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "last_acceptance_ci": {
+    "source": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+    "run_id": 41057841800,
+    "url": "https://github.com/zil-lang/zil/actions/runs/41057841800",
+    "pr": 8,
+    "observed_status": "completed",
+    "default_workspace": "success",
+    "full_workflow_conclusion": "success",
+    "actual_checkout": "fc5b3c058c1f4c112cbadffdb4f9f41705049ea6",
+    "same_tree": true
   }
 }

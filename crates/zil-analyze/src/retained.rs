@@ -2,6 +2,9 @@
 //! from this module are exported as authority: Verify reconstructs its own.
 use super::*;
 
+#[path = "owning_factory.rs"]
+mod owning_factory;
+
 pub(super) fn check_function(
     module: &TypedModule,
     function: &TypedFunction,
@@ -36,8 +39,15 @@ pub(super) fn check_function(
     }
     budget.spend(function.parameters.len(), "factory parameter envelope")?;
     let mut parameters_supported = true;
+    let mut owned_input = None;
     for parameter in &function.parameters {
         let ty = &function.locals[parameter.0 as usize].ty;
+        if let Type::Closure(id) = ty {
+            if owned_input.replace(*id).is_some() {
+                parameters_supported = false;
+            }
+            continue;
+        }
         if ty.is_copy_value()
             || matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer || payload.is_copy_value())
             || matches!(ty, Type::Package { .. })
@@ -66,6 +76,9 @@ pub(super) fn check_function(
         return Err(bad(
             "callable return contract requires an ordinary self-contained factory with its exact kind",
         ));
+    }
+    if let Some(input) = owned_input {
+        owning_factory::check(module, function, input, definition, budget)?;
     }
     budget.spend(definition.captures.len(), "factory cleanup reconstruction")?;
     let mut cleanup = Vec::new();
