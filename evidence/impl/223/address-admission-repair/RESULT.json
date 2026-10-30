@@ -1,0 +1,51 @@
+{
+  "status": "Pass",
+  "scope": "Author repair evidence, independent review pending",
+  "source_commit": "ab964e484ca96889ccb80c5b76385e706588cea1",
+  "cli_sha256": "99fee67790e140ce129981c3c8da5c16e760a21df03172df4865fed416208e10",
+  "cargo_manifest": "/workspace/scratch/d286b3aeeb6b/zil-223/Cargo.toml",
+  "cwd": "/workspace/scratch/d286b3aeeb6b/zil-223",
+  "target": "/workspace/scratch/d286b3aeeb6b/targets/223-repair",
+  "discovery": {
+    "reviewer": "/root/scope_audit",
+    "original_delivery": "9ca5d5b0ecc6ad531d497217df3b90b77616f5ef",
+    "original_verdict": "Fail",
+    "finding": "Coherent incoming mutable Product addresses gained permission from the expanded Store element checker."
+  },
+  "repair": "Separate legacy address admission from explicit Product Store and Unit-protocol admission; no edit of 224 shared address entry.",
+  "author_tests": {
+    "passed": 14,
+    "failed": 0,
+    "ignored": 0,
+    "native_backend": "llvm-api"
+  },
+  "quality": {
+    "verify_lib_clippy": "Pass",
+    "new_tests_clippy": "Pass",
+    "format": "Pass",
+    "diff": "Pass"
+  },
+  "budget": {
+    "Types": 731,
+    "Analyze": 11820,
+    "Verify": 17398,
+    "N_pass": true,
+    "N_minus_1_limit": true,
+    "fresh_N_pass": true
+  },
+  "consumer": {
+    "executions": 74,
+    "actual_allocation_failures": 38,
+    "all_final_live_zero": true,
+    "peak_requested_payload_bytes": 334
+  },
+  "invalid_evidence": "One earlier shared-target development run reused a stale Types dependency and is classified Infrastructure/InvalidEvidence, not a production failure or a pass.",
+  "independent_review": "Pending",
+  "integration": "Pending",
+  "full_workspace": "NotRun",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "archive_sha256": "4bac6e5742b920eb8b0bc4a2e34f511b6093e3107495d2a7e1739e88eefbdbcc",
+  "archive_bytes": 1181129,
+  "counts_note": "Do not add repeat executions to the original 7061 author evidence."
+}

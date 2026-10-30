@@ -1,5 +1,17 @@
 # 223：完整 Product 作为动态 Store 元素
 
+## 独审退回与地址准入返修
+
+非作者 `/root/scope_audit` 在交付 `9ca5d5b0` 上发现真实 raw/Wire 接受越界：把合法未用 `write(p:&mut Leaf)` 的签名、局部和 SSA 地址类型一致改成 nested Product，保持实际 Copy 字段 index/type、WriteAddress 和 Hold，再刷新 fingerprint，Verify 仍接受。原 `store_at_mut` 指令守卫没有覆盖 incoming 参数；旧普通地址入口复用了被扩大的 Store 元素 checker。原独审 Fail 必须保留，下面 7061 的限定作者结果不能解释为该交付可接受。
+
+返修代码 `ab964e484ca96889ccb80c5b76385e706588cea1` 显式分离消费上下文：旧 `check_element` 保留原有限地址资格，Product 地址必须经过自己的共享资格；新 `check_store_element` 仅用于实际 Store 与精确 Unit 协议。共同的收费/字段扫描骨架不重复旧路径工作。没有编辑 224 的 `verify/lib.rs`，也不依靠 224 替 223 挡住越界。
+
+全新独立 target 上，返修提交的作者限定 **14 tests**、修改 Verify lib 与新测试 Clippy、格式检查通过；新 native 测试继续实际 O0/O2。新预算仍为 **731 / 11820 / 17398**。同一三模块消费者在 clean ab964 重新执行 **74 次、38 次真实分配失败、全部 live0**。这些与下方旧 49/74 的重放集合不相加。精确 CLI、manifest、source commit 和原始日志见 `evidence/impl/223/address-admission-repair/RESULT.json`。
+
+一条开发命令在跨工作树复用旧 target 后错误复用了旧 Types 依赖，已标为 **Infrastructure/InvalidEvidence** 并保留；它既不是代码回退，也不计 Pass。修复后的所有作者验收使用全新 `targets/223-repair`。非作者原字节复核与 223+224 组合验收仍由 root 单独裁决。
+
+## 首次作者实现记录（原身份保留）
+
 作者实现和限定验证绑定 clean `7061edabbb620840cf26e0fbd343efef1fde405a`。本片关闭 217 的 `product-store-element` 原始探针及 206 的未用 `Store<Root>` 声明边界；独立审核、223+224 共享窗口组合和整仓验收由 root 另行记录。本报告不是这些后续验收的 Pass。
 
 主树 `_zil_design.md` §8.2.4、`changes/223-product-store.md` 和 `.task/impl/223.md` 是施工合同。作者分树按派工从 `a8e8831a` 建立，未把主树尚未提交的规范变更伪写成受测源码提交的一部分。收据分别保存分树实际规范摘要 `de431dc8…` 与施工时主树规范摘要 `58e6c031…`；规范和工单快照随证据保存。后续集成须绑定 root 实际提交的规范身份。
