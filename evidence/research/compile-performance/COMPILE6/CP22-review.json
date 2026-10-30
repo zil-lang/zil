@@ -1,0 +1,91 @@
+{
+  "reviewer": "/root/incremental_review",
+  "verdict": "Pass",
+  "scope": "Independent syntax/driver cache-correctness review and targeted controls; performance adoption remains pending the frozen full-CLI comparison.",
+  "delivery_commit": "7ca57fb61aa6fe4f7cac963a531a6cf2851792e4",
+  "production_source_commit": "f660aeb68e4cf86eab0bc7c9e219d5bcf8bdb5ea",
+  "core_source_test_commit": "096f1173a3a6f09bbf802d3daaded9e85495f773",
+  "crates_tree": "a598b9f6b04feff21fc2eed24566726a1a79ef12",
+  "reviewed_files_sha256": {
+    "crates/zil-cli/src/main.rs": "ea3eed686bd57a43b4e49a94944a4ee4df2eff7af29faf9a2efc83649f6befa6",
+    "crates/zil-driver/src/lib.rs": "f2f9eb7b4b7dc22c067b1af0e2dff2b5cf3280aaf211ad9bafa3381b74fd83ac",
+    "crates/zil-driver/src/parse_cache.rs": "6dcb19a1ce2bfd84002d546723154a99830b079031693747b24f15b6c6d472ef",
+    "crates/zil-driver/src/project.rs": "f06b2cda3f76f5cf82ab44e6bb8f659d336840f89409dae1930523ae4927440f",
+    "crates/zil-driver/src/session.rs": "e07381def130cd2ac04ed5d95d9d7377f7a584d63adf0b854be65174d5f299f8",
+    "crates/zil-driver/tests/parse_cache_cp22.rs": "482790cca07fb18bfdb6f7786e3cbe3829786927a1010a6cfbab08313710b6fa",
+    "crates/zil-syntax/src/attributes/mod.rs": "ec1f5af8a0809200ff7e429b3069b8c081c0a3d6714d0a3eee6f60a46d717da9",
+    "crates/zil-syntax/src/cache.rs": "778c7d6f7f43662d2786ca49b45c5f7a42692381e8f656486371f43807aa1185",
+    "crates/zil-syntax/src/lib.rs": "fc71c47fca5e50b70d8eb9e6b82d33d24f9dc33afd3c4763db86d0ff408092e1",
+    "crates/zil-syntax/src/parser/mod.rs": "0c08564b0e738b9b5b40059b45d9dc355465a68d3e134e3405cb0b923bea4049",
+    "crates/zil-syntax/tests/parse_cache_cp22.rs": "c14a3b684dc3bd065faf22f8bf7516c5163faeb8f9f045d62ea46efceb4ffffe"
+  },
+  "source_binding_notes": [
+    "096f1173 to f660aeb changes only CLI help text in crates; driver and syntax code independently tested is unchanged.",
+    "f660aeb to delivery 7ca57fb changes only evidence, with the same crates tree.",
+    "The final release binary was frozen before independent CLI runs and its SHA256 was checked before and after all invocations."
+  ],
+  "candidate_binary_sha256": "650e8cd97c0fae262ae8c2a28e3ea6b31532978b9e419c0d2854babfea69373a",
+  "independent_validation": {
+    "targeted_tests": {
+      "passed": 10,
+      "failed": 0,
+      "log": "CP22-targeted-test.log",
+      "command": "CARGO_TARGET_DIR=/workspace/scratch/4ab361722127/target-cp22 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 cargo test --offline --locked -p zil-syntax -p zil-driver --test parse_cache_cp22 -j 2",
+      "note": "Executed independently using author target dependencies to avoid duplicate disk use; not an independent clean rebuild."
+    },
+    "stateful_api": {
+      "controls": 94,
+      "passed": 94,
+      "log": "CP22-api-test.log",
+      "harness": "cp22-api/src/main.rs",
+      "manifest": "cp22-api/Cargo.toml",
+      "lock": "cp22-api/Cargo.lock",
+      "raw_reports": "CP22-api-raw",
+      "raw_report_count": 188,
+      "scope": "Reviewer-written warm-session versus fresh-cold controls through public CompileOptions API; not CLI budget flags."
+    },
+    "real_cli": {
+      "scenarios": 16,
+      "new_process_invocations": 60,
+      "successful_complete_invocations": 45,
+      "native_controls": 12,
+      "script": "cp22-cli-controls.py",
+      "result": "CP22-cli-review/result.json",
+      "raw_records": "CP22-cli-review/records.jsonl",
+      "log": "CP22-cli-test.log",
+      "scope": "Baseline cold / candidate cold / candidate explicit persistent cache, same paths and source bytes; correctness only, not timing evidence."
+    }
+  },
+  "static_findings": [
+    "Parse identity normalizes only max_tokens and max_nodes. FileId, ModuleId, path, source bytes, build inputs, depth and other limits stay bound; ordinary downstream query identities still use the original complete limits.",
+    "The usage receipt is max(parser nested calls, attribute validator work), matching the original independent max_nodes tests. Project charge_frontend remains the original tokens.len deduction from both token and frontend-work allowances, in original module order.",
+    "Insufficient receipts select the original budget-specific parse key or return a disk quota miss, then invoke the original parser. No synthetic cache diagnostic replaces the original first error or span.",
+    "The codec is exhaustive over AST/token enums and struct fields, checks recursive depth, payload, vector lengths and total declared allocation before construction, and validates spans, root module identity and contiguous EOF token tape.",
+    "Disk identities additionally bind the trusted installed producer. Magic/key/checksum/length mismatches, decoding failures and cache-specific bounds fall back. This is trusted-local memoization, not authentication or a serialized verifier permit.",
+    "Prepare and source discovery do not create cache directories. Stores occur only after successful requested pipeline completion and artifact guards. Filesystem imports, ambiguity, escape, current source bytes and sequential quotas are rechecked on every request.",
+    "Fresh Verify stays on the original full compilation path. Only successful unverified ParseResult components are serialized; no Verified value or semantic-cache shortcut was introduced."
+  ],
+  "distinct_independent_risks_exercised": [
+    "31 doc attributes make attribute-work the limiting counter: a warm high-budget result lowered below that threshold matches the exact cold attribute-budget first diagnostic, then recovers at full limits.",
+    "The receipt conservatively counts EOF; when the lexer would still accept exactly N real tokens, falling back preserves success instead of manufacturing a quota failure.",
+    "Seven downstream budget axes remain isolated from the neutral parse key; warm and cold status, phase, all diagnostics/spans/notes, fingerprints and verifier counts match.",
+    "An earlier module increases token cost, then a persistent session crosses cumulative token/node thresholds at each of three module boundaries in both directions; cold diagnostics and recovery match.",
+    "Real CLI imports reorder IDs, add a module, remove a file, create file/directory ambiguity and escape by symlink; cache reuse does not conceal current filesystem facts.",
+    "Failed syntax/type/import requests retain previous cache bytes without adding or replacing entries; truncated caches are reparsed and repaired.",
+    "Four successful native programs retain expected exit values 11/13/15/17 and identical ELF/LLVM hashes across baseline cold, candidate cold and candidate persistent-cache arms."
+  ],
+  "author_evidence": {
+    "reported_distinct_tests": 106,
+    "manifest_log_hashes_rechecked": true,
+    "not_claimed_as_independent_rerun": true
+  },
+  "limitations": [
+    "No complete workspace or product gate was independently run.",
+    "Targeted tests reuse already-built author dependencies; the independent API harness and all CLI controls were actually executed by the reviewer.",
+    "The CLI exposes no token/node/byte/depth limit flags. Budget evidence is explicitly API-level; new-process CLI evidence covers default budgets and real filesystem/producer/cache behavior.",
+    "Cache depth/payload/allocation limits can bypass valid sources; they do not widen parser limits. Unsupported cache shapes are not a source acceptance failure.",
+    "Semantic incremental typing, equality barriers across function interfaces and SCC scheduling remain outside CP22. No compilation speed claim follows from these correctness controls.",
+    "Raw preserved logs contain original whitespace and earlier ENOSPC/fixture failures; diff --check findings in those raw logs were not repaired by rewriting evidence."
+  ],
+  "blocking_findings": []
+}

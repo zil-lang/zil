@@ -1,0 +1,1364 @@
+diff --git a/crates/zil-db/examples/query_read_cp23.rs b/crates/zil-db/examples/query_read_cp23.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..3568b2709b95abefbb45042ee19f794e9faac6db
+--- /dev/null
++++ b/crates/zil-db/examples/query_read_cp23.rs
+@@ -0,0 +1,96 @@
++//! Query-read mechanism benchmark. Graph construction is outside the timer.
++use std::hint::black_box;
++use std::time::Instant;
++use zil_base::{Fingerprint, ModuleId, Phase, ResultCategory};
++use zil_db::{Database, Dependency, FingerprintKind, QueryKey, ResultFingerprints};
++
++fn publish(db: &mut Database, keys: &[QueryKey], id: usize, inputs: &[usize]) {
++    let fps = ResultFingerprints::default();
++    db.begin(keys[id].clone()).unwrap();
++    db.publish(
++        keys[id].clone(),
++        ResultCategory::Success,
++        fps.clone(),
++        inputs
++            .iter()
++            .map(|&input| Dependency {
++                key: keys[input].clone(),
++                kind: FingerprintKind::Semantic,
++                observed: fps.semantic,
++            })
++            .collect(),
++        vec![1],
++    )
++    .unwrap();
++}
++
++fn main() {
++    let args: Vec<_> = std::env::args().collect();
++    assert_eq!(
++        args.len(),
++        4,
++        "usage: query_read_cp23 SCENARIO N REPETITIONS"
++    );
++    let scenario = args[1].as_str();
++    let n: usize = args[2].parse().unwrap();
++    let repetitions: usize = args[3].parse().unwrap();
++    assert!(n > 0 && n < (u32::MAX as usize - 1) / 3 && repetitions > 0);
++    let count = if scenario == "diamond" { 3 * n + 1 } else { n };
++    let keys: Vec<_> = (0..=count)
++        .map(|id| QueryKey {
++            module: ModuleId(id as u32),
++            phase: Phase::Types,
++            input: Fingerprint::of(&(id as u64).to_le_bytes()),
++            rules: Fingerprint::of(b"cp23-rules"),
++            target: Fingerprint::of(b"cp23-target"),
++        })
++        .collect();
++    let mut db = Database::default();
++    let read_id = match scenario {
++        "missing" | "leaf" => {
++            for id in 0..count {
++                publish(&mut db, &keys, id, &[]);
++            }
++            if scenario == "missing" {
++                count
++            } else {
++                count / 2
++            }
++        }
++        "chain" => {
++            publish(&mut db, &keys, 0, &[]);
++            for id in 1..count {
++                publish(&mut db, &keys, id, &[id - 1]);
++            }
++            count - 1
++        }
++        "diamond" => {
++            publish(&mut db, &keys, 0, &[]);
++            for layer in 0..n {
++                let base = 3 * layer;
++                publish(&mut db, &keys, base + 1, &[base]);
++                publish(&mut db, &keys, base + 2, &[base]);
++                publish(&mut db, &keys, base + 3, &[base + 1, base + 2]);
++            }
++            count - 1
++        }
++        _ => panic!("unknown scenario: {scenario}"),
++    };
++    let mut checksum = 0usize;
++    let start = Instant::now();
++    for _ in 0..repetitions {
++        let result = black_box(db.read(black_box(&keys[read_id])).unwrap());
++        checksum = checksum.wrapping_add(result.map_or(0, |snapshot| snapshot.revision as usize));
++    }
++    let elapsed = start.elapsed().as_nanos();
++    let expected = if scenario == "missing" {
++        0
++    } else {
++        read_id + 1
++    };
++    assert_eq!(checksum, expected.wrapping_mul(repetitions));
++    assert_eq!(db.len(), count);
++    println!(
++        "{{\"scenario\":\"{scenario}\",\"n\":{n},\"nodes\":{count},\"repetitions\":{repetitions},\"elapsed_ns\":{elapsed},\"checksum\":{checksum}}}"
++    );
++}
+diff --git a/crates/zil-db/src/lib.rs b/crates/zil-db/src/lib.rs
+index 97f7998b6dad8195c7dbccab19367121c711f420..ece11815e9b14c4b94df801f5be5edaab89f5887 100644
+--- a/crates/zil-db/src/lib.rs
++++ b/crates/zil-db/src/lib.rs
+@@ -148,6 +148,20 @@ impl Database {
+     /// Looking only at direct fingerprints could expose a transitively stale
+     /// snapshot after one of its inputs was replaced.
+     pub fn read(&self, key: &QueryKey) -> Result<Option<Arc<QuerySnapshot>>, Diagnostic> {
++        if self.active.contains(key) {
++            return Err(query_error(
++                "E-QUERY-CYCLE",
++                "cannot observe an active query dependency",
++            ));
++        }
++        let Some(root) = self.snapshots.get(key) else {
++            return Ok(None);
++        };
++        // Missing and leaf queries have no dependency closure to traverse.
++        // Active queries must still reject before either of these fast paths.
++        if root.dependencies.is_empty() {
++            return Ok(Some(root.clone()));
++        }
+         let mut pending = vec![(key.clone(), false)];
+         let mut visiting = BTreeSet::new();
+         let mut complete = BTreeSet::new();
+@@ -185,7 +199,7 @@ impl Database {
+                 pending.push((dependency.key.clone(), false));
+             }
+         }
+-        Ok(self.snapshots.get(key).cloned())
++        Ok(Some(root.clone()))
+     }
+ 
+     /// Publish only a completed query. Failed publication aborts the active
+diff --git a/crates/zil-db/src/tests.rs b/crates/zil-db/src/tests.rs
+index a85f91fbe29f40a1e2b7bbb5f3afdd360f777d8a..2135421d1406135e1c0157836370067d832cc8f5 100644
+--- a/crates/zil-db/src/tests.rs
++++ b/crates/zil-db/src/tests.rs
+@@ -128,6 +128,24 @@ fn dependency_cycles_and_active_ancestors_cannot_be_observed_or_published() {
+     assert!(db.read(&key(2)).unwrap().is_some());
+ }
+ 
++#[test]
++fn active_missing_and_leaf_reads_reject_before_returning_cached_results() {
++    let mut db = Database::default();
++    assert!(db.read(&key(0)).unwrap().is_none());
++    db.begin(key(0)).unwrap();
++    let leaf = publish(&mut db, 1, fingerprints(), vec![]);
++    assert_eq!(db.read(&key(0)).unwrap_err().code, "E-QUERY-CYCLE");
++    assert!(Arc::ptr_eq(&db.read(&key(1)).unwrap().unwrap(), &leaf));
++    assert_eq!(db.active_count(), 1);
++    db.abort(&key(0));
++    assert!(db.read(&key(0)).unwrap().is_none());
++    db.begin(key(1)).unwrap();
++    assert_eq!(db.read(&key(1)).unwrap_err().code, "E-QUERY-CYCLE");
++    assert_eq!(db.active_count(), 1);
++    db.abort(&key(1));
++    assert!(Arc::ptr_eq(&db.read(&key(1)).unwrap().unwrap(), &leaf));
++}
++
+ #[test]
+ fn stale_input_and_cancelled_publication_abort_the_active_record() {
+     let mut db = Database::default();
+diff --git a/evidence/research/compile-performance/CP23/author-result.json b/evidence/research/compile-performance/CP23/author-result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..4ce8c0ff92a16deff25a2ceaeb87bc17d7b3728b
+--- /dev/null
++++ b/evidence/research/compile-performance/CP23/author-result.json
+@@ -0,0 +1,43 @@
++{
++  "experiment": "CP23 missing/leaf query read fast paths",
++  "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
++  "author": "/root/toolchain_recovery",
++  "status": "Targeted author validation passed; complete compiler performance adoption not determined",
++  "independence": "This branch does not contain CP21; its invalidation algorithm remains the baseline full scan.",
++  "proof": {
++    "priority": "The root active-query check occurs before either missing or leaf return, preserving E-QUERY-CYCLE even for an absent root.",
++    "missing": "The original DFS encounters the root first and returns None when no root snapshot exists; no dependency can be traversed.",
++    "leaf": "An inactive root with an empty dependency list has no transitive inputs, so the original DFS returns that same stored Arc.",
++    "nonleaf": "The original DFS loop, all dependency fingerprint checks, missing-input returns, active-ancestor errors and cycle detection are unchanged.",
++    "root_reuse": "Database::read borrows self immutably; the stored root Arc cannot change during traversal, so cloning the retained root reference equals the previous final map lookup."
++  },
++  "tests": {
++    "command": "CARGO_TARGET_DIR=/workspace/scratch/4ab361722127/target-cp23 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test -p zil-db --offline --locked --lib",
++    "passed": 12,
++    "failed": 0,
++    "ignored": 0,
++    "existing_oracle_combinations": 9600,
++    "added_behavior": "Active missing and active leaf roots reject; an unrelated inactive leaf remains readable; abort restores the same snapshot identity.",
++    "stdout": "   Compiling zil-base v0.1.0 (/workspace/scratch/4ab361722127/zil-cp23/crates/zil-base)\n   Compiling zil-db v0.1.0 (/workspace/scratch/4ab361722127/zil-cp23/crates/zil-db)\n    Finished `test` profile [unoptimized] target(s) in 0.56s\n     Running unittests src/lib.rs (/workspace/scratch/4ab361722127/target-cp23/debug/deps/zil_db-43877e21f1283294)\n\nrunning 12 tests\ntest tests::absent_invalidation_preserves_active_queries_revision_and_published_identity ... ok\ntest cache::tests::oversized_reads_and_writes_are_bounded ... ok\ntest tests::active_missing_and_leaf_reads_reject_before_returning_cached_results ... ok\ntest tests::cancellation_is_shared_and_deadlines_do_not_require_background_threads ... ok\ntest tests::failed_new_publications_cannot_create_forward_edges_or_replace_old_snapshots ... ok\ntest tests::dependency_cycles_and_active_ancestors_cannot_be_observed_or_published ... ok\ntest cache::tests::incomplete_temp_files_are_not_committed_candidates ... ok\ntest tests::all_fingerprint_kinds_control_the_actual_transitive_invalidation_set ... ok\ntest tests::stale_input_and_cancelled_publication_abort_the_active_record ... ok\ntest cache::tests::cancellation_after_real_temporary_write_cannot_publish_or_leave_partial_file ... ok\ntest cache::tests::each_corruption_class_is_untrusted_and_can_be_rebuilt ... ok\ntest tests::absent_producers_match_legacy_scanning_on_reachable_dags_and_after_eviction ... ok\n\ntest result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.80s\n\n"
++  },
++  "microbenchmark": {
++    "path": "microbench.json",
++    "samples": 96,
++    "method": "Same example compiled against baseline and candidate, ABBA three blocks, 16/128 sizes, missing/leaf/chain/diamond, single allowed CPU",
++    "boundary": "Graph/key construction and graph destruction excluded; repeated read, checksum and returned-Arc destruction included.",
++    "classification": "Exploratory mechanism measurement; no formal exclusive window; no end-to-end or Rust speed claim.",
++    "limitations": [
++      "Nonleaf controls show mixed directions, including regressions, and are retained.",
++      "Leaf/missing improvements do not establish a complete compilation speedup.",
++      "The larger diamond has 385 nodes, not 128 nodes."
++    ]
++  },
++  "safety_scope": "No cached verifier capability, mutation, public schema, accepted source language, budget or failure category change.",
++  "four_goals": {
++    "safety": "Targeted database behavior only; no whole-language proof.",
++    "runtime_memory": "Target-generated program unchanged by this source edit; comparative runtime/RSS not measured.",
++    "syntax_maintenance": "No language syntax or API change; comparative maintenance cost not measured.",
++    "compile": "Missing/leaf query microbench improvement measured; complete compilation and Rust comparison remain for integration."
++  },
++  "toolchain_receipt": "/workspace/scratch/4ab361722127/.toolchain/TOOLCHAIN-RECOVERY.json"
++}
+diff --git a/evidence/research/compile-performance/CP23/microbench.json b/evidence/research/compile-performance/CP23/microbench.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..155e04c5b0ca08e76e3cdc89c3bdf7794f70b3f8
+--- /dev/null
++++ b/evidence/research/compile-performance/CP23/microbench.json
+@@ -0,0 +1,1144 @@
++{
++  "scope": "Exploratory query-read mechanism microbenchmark only; not end-to-end compiler speed, not Rust comparison, no formal exclusive window. CP21 absent-key shortcut is not present.",
++  "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
++  "baseline_lib_sha256": "2a07435a5d585581219bea2cc8aa70d9dbd62fe9cb3e0555f2a2913563e768e4",
++  "candidate_lib_sha256": "1b3b7c84edcf903194d64c8c25542e99d353acce2e46ca67393ad046118bac2f",
++  "example_sha256": "42f6dc3c7a0f92fe4c71badf587c32af92ea5b20b0527a423361e52dc123a0f2",
++  "binary_sha256": {
++    "baseline": "0a1c0334921fdde8e901a892d01243558f44a814e7ddbfa8f484f127c41bb307",
++    "candidate": "1f125208eb1589715eaaf2d149b72fc8b722f5fb4e20ce3abcaf619f56d58be4"
++  },
++  "cpu": 0,
++  "available_cpus": [
++    0,
++    1,
++    2,
++    3,
++    4,
++    5,
++    6,
++    7,
++    8
++  ],
++  "order": "ABBA, three blocks per shape/size",
++  "timing_boundary": "Only repeated Database::read and result/checksum handling; graph/key construction and graph destruction excluded. Returned Arc destruction is included.",
++  "sizes": "n nodes in missing/leaf/chain; n diamond layers with 3*n+1 nodes",
++  "total_samples": 96,
++  "elapsed_seconds": 0.7998432480017073,
++  "summary": [
++    {
++      "n": 16,
++      "scenario": "missing",
++      "baseline_median_ns": 838780.5,
++      "candidate_median_ns": 354275.0,
++      "candidate_over_baseline": 0.4223691418672704
++    },
++    {
++      "n": 16,
++      "scenario": "leaf",
++      "baseline_median_ns": 2473958.0,
++      "candidate_median_ns": 287186.0,
++      "candidate_over_baseline": 0.11608361985126668
++    },
++    {
++      "n": 16,
++      "scenario": "chain",
++      "baseline_median_ns": 357976.0,
++      "candidate_median_ns": 372772.5,
++      "candidate_over_baseline": 1.0413337765660269
++    },
++    {
++      "n": 16,
++      "scenario": "diamond",
++      "baseline_median_ns": 1606351.5,
++      "candidate_median_ns": 1624458.5,
++      "candidate_over_baseline": 1.0112721281736905
++    },
++    {
++      "n": 128,
++      "scenario": "missing",
++      "baseline_median_ns": 937295.0,
++      "candidate_median_ns": 528819.0,
++      "candidate_over_baseline": 0.5641969710710075
++    },
++    {
++      "n": 128,
++      "scenario": "leaf",
++      "baseline_median_ns": 2866144.5,
++      "candidate_median_ns": 346093.5,
++      "candidate_over_baseline": 0.12075228586695472
++    },
++    {
++      "n": 128,
++      "scenario": "chain",
++      "baseline_median_ns": 4677134.5,
++      "candidate_median_ns": 4102314.0,
++      "candidate_over_baseline": 0.8770998567605871
++    },
++    {
++      "n": 128,
++      "scenario": "diamond",
++      "baseline_median_ns": 17060364.0,
++      "candidate_median_ns": 17657819.0,
++      "candidate_over_baseline": 1.0350200617056002
++    }
++  ],
++  "rows": [
++    {
++      "scenario": "missing",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 841302,
++      "checksum": 0,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "missing",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 583946,
++      "checksum": 0,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "missing",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 328507,
++      "checksum": 0,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "missing",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 846075,
++      "checksum": 0,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "missing",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 942548,
++      "checksum": 0,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "missing",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 313615,
++      "checksum": 0,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "missing",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 380043,
++      "checksum": 0,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "missing",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 816241,
++      "checksum": 0,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "missing",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 707920,
++      "checksum": 0,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "missing",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 478209,
++      "checksum": 0,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "missing",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 312013,
++      "checksum": 0,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "missing",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 836259,
++      "checksum": 0,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "leaf",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 2410064,
++      "checksum": 180000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "leaf",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 281787,
++      "checksum": 180000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "leaf",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 333785,
++      "checksum": 180000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "leaf",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 2401080,
++      "checksum": 180000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "leaf",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 2340320,
++      "checksum": 180000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "leaf",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 287186,
++      "checksum": 180000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "leaf",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 287186,
++      "checksum": 180000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "leaf",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 2784769,
++      "checksum": 180000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "leaf",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 2537852,
++      "checksum": 180000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "leaf",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 331191,
++      "checksum": 180000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "leaf",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 287176,
++      "checksum": 180000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "leaf",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 20000,
++      "elapsed_ns": 2555789,
++      "checksum": 180000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "chain",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 200,
++      "elapsed_ns": 356138,
++      "checksum": 3200,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "chain",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 200,
++      "elapsed_ns": 357720,
++      "checksum": 3200,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "chain",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 200,
++      "elapsed_ns": 377500,
++      "checksum": 3200,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "chain",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 200,
++      "elapsed_ns": 351070,
++      "checksum": 3200,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "chain",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 200,
++      "elapsed_ns": 371952,
++      "checksum": 3200,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "chain",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 200,
++      "elapsed_ns": 355758,
++      "checksum": 3200,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "chain",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 200,
++      "elapsed_ns": 404780,
++      "checksum": 3200,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "chain",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 200,
++      "elapsed_ns": 426212,
++      "checksum": 3200,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "chain",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 200,
++      "elapsed_ns": 359814,
++      "checksum": 3200,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "chain",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 200,
++      "elapsed_ns": 388556,
++      "checksum": 3200,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "chain",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 200,
++      "elapsed_ns": 368045,
++      "checksum": 3200,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "chain",
++      "n": 16,
++      "nodes": 16,
++      "repetitions": 200,
++      "elapsed_ns": 355437,
++      "checksum": 3200,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "diamond",
++      "n": 16,
++      "nodes": 49,
++      "repetitions": 200,
++      "elapsed_ns": 1616266,
++      "checksum": 9800,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "diamond",
++      "n": 16,
++      "nodes": 49,
++      "repetitions": 200,
++      "elapsed_ns": 1697257,
++      "checksum": 9800,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "diamond",
++      "n": 16,
++      "nodes": 49,
++      "repetitions": 200,
++      "elapsed_ns": 1477030,
++      "checksum": 9800,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "diamond",
++      "n": 16,
++      "nodes": 49,
++      "repetitions": 200,
++      "elapsed_ns": 1649205,
++      "checksum": 9800,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "diamond",
++      "n": 16,
++      "nodes": 49,
++      "repetitions": 200,
++      "elapsed_ns": 1603998,
++      "checksum": 9800,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "diamond",
++      "n": 16,
++      "nodes": 49,
++      "repetitions": 200,
++      "elapsed_ns": 1559112,
++      "checksum": 9800,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "diamond",
++      "n": 16,
++      "nodes": 49,
++      "repetitions": 200,
++      "elapsed_ns": 1716796,
++      "checksum": 9800,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "diamond",
++      "n": 16,
++      "nodes": 49,
++      "repetitions": 200,
++      "elapsed_ns": 1608705,
++      "checksum": 9800,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "diamond",
++      "n": 16,
++      "nodes": 49,
++      "repetitions": 200,
++      "elapsed_ns": 1483740,
++      "checksum": 9800,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "diamond",
++      "n": 16,
++      "nodes": 49,
++      "repetitions": 200,
++      "elapsed_ns": 1380236,
++      "checksum": 9800,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "diamond",
++      "n": 16,
++      "nodes": 49,
++      "repetitions": 200,
++      "elapsed_ns": 1689805,
++      "checksum": 9800,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "diamond",
++      "n": 16,
++      "nodes": 49,
++      "repetitions": 200,
++      "elapsed_ns": 1477431,
++      "checksum": 9800,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "missing",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 1007954,
++      "checksum": 0,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "missing",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 538789,
++      "checksum": 0,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "missing",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 677705,
++      "checksum": 0,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "missing",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 942558,
++      "checksum": 0,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "missing",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 862399,
++      "checksum": 0,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "missing",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 794197,
++      "checksum": 0,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "missing",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 507072,
++      "checksum": 0,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "missing",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 922157,
++      "checksum": 0,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "missing",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 1226478,
++      "checksum": 0,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "missing",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 516766,
++      "checksum": 0,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "missing",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 518849,
++      "checksum": 0,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "missing",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 932032,
++      "checksum": 0,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "leaf",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 2928162,
++      "checksum": 1300000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "leaf",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 332753,
++      "checksum": 1300000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "leaf",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 353164,
++      "checksum": 1300000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "leaf",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 2688076,
++      "checksum": 1300000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "leaf",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 2804127,
++      "checksum": 1300000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "leaf",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 475695,
++      "checksum": 1300000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "leaf",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 336049,
++      "checksum": 1300000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "leaf",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 6003326,
++      "checksum": 1300000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "leaf",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 2994550,
++      "checksum": 1300000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "leaf",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 339023,
++      "checksum": 1300000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "leaf",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 367264,
++      "checksum": 1300000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "leaf",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 20000,
++      "elapsed_ns": 2628458,
++      "checksum": 1300000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "chain",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 200,
++      "elapsed_ns": 5366226,
++      "checksum": 25600,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "chain",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 200,
++      "elapsed_ns": 4497539,
++      "checksum": 25600,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "chain",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 200,
++      "elapsed_ns": 4318567,
++      "checksum": 25600,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "chain",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 200,
++      "elapsed_ns": 3910037,
++      "checksum": 25600,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "chain",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 200,
++      "elapsed_ns": 4017897,
++      "checksum": 25600,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "chain",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 200,
++      "elapsed_ns": 3780055,
++      "checksum": 25600,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "chain",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 200,
++      "elapsed_ns": 3886061,
++      "checksum": 25600,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "chain",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 200,
++      "elapsed_ns": 4679848,
++      "checksum": 25600,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "chain",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 200,
++      "elapsed_ns": 7678985,
++      "checksum": 25600,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "chain",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 200,
++      "elapsed_ns": 3826163,
++      "checksum": 25600,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "chain",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 200,
++      "elapsed_ns": 7132044,
++      "checksum": 25600,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "chain",
++      "n": 128,
++      "nodes": 128,
++      "repetitions": 200,
++      "elapsed_ns": 4674421,
++      "checksum": 25600,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "diamond",
++      "n": 128,
++      "nodes": 385,
++      "repetitions": 200,
++      "elapsed_ns": 16205436,
++      "checksum": 77000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "diamond",
++      "n": 128,
++      "nodes": 385,
++      "repetitions": 200,
++      "elapsed_ns": 17015428,
++      "checksum": 77000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "diamond",
++      "n": 128,
++      "nodes": 385,
++      "repetitions": 200,
++      "elapsed_ns": 15825605,
++      "checksum": 77000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "diamond",
++      "n": 128,
++      "nodes": 385,
++      "repetitions": 200,
++      "elapsed_ns": 15836691,
++      "checksum": 77000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "diamond",
++      "n": 128,
++      "nodes": 385,
++      "repetitions": 200,
++      "elapsed_ns": 16475247,
++      "checksum": 77000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "diamond",
++      "n": 128,
++      "nodes": 385,
++      "repetitions": 200,
++      "elapsed_ns": 18103209,
++      "checksum": 77000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "diamond",
++      "n": 128,
++      "nodes": 385,
++      "repetitions": 200,
++      "elapsed_ns": 17573624,
++      "checksum": 77000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "diamond",
++      "n": 128,
++      "nodes": 385,
++      "repetitions": 200,
++      "elapsed_ns": 17645481,
++      "checksum": 77000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "diamond",
++      "n": 128,
++      "nodes": 385,
++      "repetitions": 200,
++      "elapsed_ns": 18749337,
++      "checksum": 77000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "diamond",
++      "n": 128,
++      "nodes": 385,
++      "repetitions": 200,
++      "elapsed_ns": 17742014,
++      "checksum": 77000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "diamond",
++      "n": 128,
++      "nodes": 385,
++      "repetitions": 200,
++      "elapsed_ns": 18492085,
++      "checksum": 77000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "diamond",
++      "n": 128,
++      "nodes": 385,
++      "repetitions": 200,
++      "elapsed_ns": 18151110,
++      "checksum": 77000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    }
++  ]
++}

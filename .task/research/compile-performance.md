@@ -385,7 +385,7 @@ Doing
       "combined_validation": "CI 41086451087: 231 targeted Rust tests, 64 Python controls, 600 compile and 240 runtime rows independently verified."
     },
     "CP21": {
-      "status": "Doing",
+      "status": "NoGo",
       "author": "/root/toolchain_recovery",
       "reviewer": "/root/incremental_review",
       "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
@@ -396,10 +396,13 @@ Doing
         "crates/zil-db/src/tests.rs",
         "crates/zil-db/examples/compile_performance.rs",
         "evidence/research/compile-performance/CP21"
-      ]
+      ],
+      "candidate": "f31fa58c4b0cf3f5fdd264e938dc2cb6646202bd",
+      "result": "docs/research/compile-performance/CP21-RESULT.md",
+      "performance": "Full CLI 240 requests, 768 native checks; wall B/A 1.0189467169, CPU 1.0257634777, exploratory wall interval [0.9655310566,1.0271433996]; no established gain"
     },
     "CP22": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/zit_analysis",
       "reviewer": "/root/incremental_review",
       "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
@@ -414,11 +417,17 @@ Doing
         "crates/zil-driver/src/session.rs",
         "crates/zil-driver/src/project.rs",
         "crates/zil-driver/src/parse_cache.rs",
+        "crates/zil-cli/src/main.rs",
         "crates/zil-driver/tests/parse_cache_cp22.rs",
         "crates/zil-syntax/tests/parse_cache_cp22.rs",
         "docs/research/compile-performance/CP22-PARSE-CACHE.md",
         "evidence/research/compile-performance/CP22"
-      ]
+      ],
+      "cli_scope": "HELP description only: syntax memo and frontend checkpoint; no CLI behavior change",
+      "candidate": "f660aeb68e4cf86eab0bc7c9e219d5bcf8bdb5ea",
+      "delivery": "7ca57fb61aa6fe4f7cac963a531a6cf2851792e4",
+      "review": "evidence/research/compile-performance/COMPILE6/CP22-review.json",
+      "performance": "Pending frozen full-CLI A/B and native Rust incremental comparison; correctness Pass is not adoption"
     },
     "CP23": {
       "status": "Doing",
@@ -435,16 +444,19 @@ Doing
       ]
     },
     "CP24": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root",
       "reviewer": "/root/incremental_review",
       "baseline": "8bc38b24a75e56cfb9ca07d454aa22bf60190f2b",
       "purpose": "Freeze a symmetric explicit frontend-cache A/B window and retain parse/checkpoint reports without changing default windows, weights or estimator",
       "write_set": [
         "tools/research/compile-performance/bench.py",
-        "tools/research/compile-performance/test_bench.py"
+        "tools/research/compile-performance/test_bench.py",
+        "tools/research/compile-performance/rust_bench.py (cache_scope/help text only)"
       ],
-      "plan": "docs/research/compile-performance/COMPILE6-PLAN.md"
+      "plan": "docs/research/compile-performance/COMPILE6-PLAN.md",
+      "reviewed_commit": "c24cc08333dfb4ee710a7443414093f82841e0eb",
+      "review": "evidence/research/compile-performance/COMPILE6/CP24-review.json"
     }
   },
   "mainline_acceptance": "Hold: main not changed by this research round; targeted correctness passed, composite-type performance risk signals unresolved; full workspace/product gates NotRun.",

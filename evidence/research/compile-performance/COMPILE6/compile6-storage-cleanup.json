@@ -1,0 +1,3564 @@
+{
+  "schema": "compile6-storage-cleanup-v1",
+  "time_utc": "2026-10-30T18:02:46Z",
+  "authorized_scope": "rebuildable toolchain downloads/unpack/smoke and completed build-base/cp21/cp23 intermediates only",
+  "preserve_rule": "Do not unlink any dev/inode also present in installed toolchain or release/zil; keep upstream version manifests, receipts, raw measurements, microbench executables, target-cp22 untouched",
+  "before_space": {
+    "available_bytes": 0,
+    "free_bytes": 797696000
+  },
+  "after_space": {
+    "available_bytes": 0,
+    "free_bytes": 1054519296
+  },
+  "free_bytes_delta": 256823296,
+  "summary": [
+    {
+      "target": "/workspace/scratch/4ab361722127/.toolchain/downloads/cargo.tar.xz",
+      "deleted_files": 1,
+      "apparent_bytes": 10954816,
+      "path_allocated_bytes": 10956800
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/.toolchain/downloads/rustc.tar.xz",
+      "deleted_files": 1,
+      "apparent_bytes": 84098960,
+      "path_allocated_bytes": 84103168
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/.toolchain/downloads/rust-std.tar.xz",
+      "deleted_files": 1,
+      "apparent_bytes": 31563228,
+      "path_allocated_bytes": 31567872
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/.toolchain/unpack",
+      "deleted_files": 47,
+      "apparent_bytes": 302874,
+      "path_allocated_bytes": 454656
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/.toolchain/rust-smoke",
+      "deleted_files": 1,
+      "apparent_bytes": 4538392,
+      "path_allocated_bytes": 4542464
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/.toolchain/llvm-smoke",
+      "deleted_files": 1,
+      "apparent_bytes": 6064,
+      "path_allocated_bytes": 8192
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint",
+      "deleted_files": 63,
+      "apparent_bytes": 15477,
+      "path_allocated_bytes": 258048
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-base/release/deps",
+      "deleted_files": 40,
+      "apparent_bytes": 40682693,
+      "path_allocated_bytes": 40816640
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-base/release/build",
+      "deleted_files": 8,
+      "apparent_bytes": 995378,
+      "path_allocated_bytes": 1019904
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-base/release/incremental",
+      "deleted_files": 0,
+      "apparent_bytes": 0,
+      "path_allocated_bytes": 0
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-base/release/examples",
+      "deleted_files": 0,
+      "apparent_bytes": 0,
+      "path_allocated_bytes": 0
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint",
+      "deleted_files": 62,
+      "apparent_bytes": 13382,
+      "path_allocated_bytes": 253952
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-cp21/release/deps",
+      "deleted_files": 40,
+      "apparent_bytes": 40685891,
+      "path_allocated_bytes": 40783872
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-cp21/release/build",
+      "deleted_files": 8,
+      "apparent_bytes": 995378,
+      "path_allocated_bytes": 1019904
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-cp21/release/incremental",
+      "deleted_files": 0,
+      "apparent_bytes": 0,
+      "path_allocated_bytes": 0
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-cp21/release/examples",
+      "deleted_files": 0,
+      "apparent_bytes": 0,
+      "path_allocated_bytes": 0
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint",
+      "deleted_files": 62,
+      "apparent_bytes": 13382,
+      "path_allocated_bytes": 253952
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-cp23/release/deps",
+      "deleted_files": 40,
+      "apparent_bytes": 40686287,
+      "path_allocated_bytes": 40787968
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-cp23/release/build",
+      "deleted_files": 8,
+      "apparent_bytes": 995378,
+      "path_allocated_bytes": 1019904
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-cp23/release/incremental",
+      "deleted_files": 0,
+      "apparent_bytes": 0,
+      "path_allocated_bytes": 0
+    },
+    {
+      "target": "/workspace/scratch/4ab361722127/build-cp23/release/examples",
+      "deleted_files": 0,
+      "apparent_bytes": 0,
+      "path_allocated_bytes": 0
+    }
+  ],
+  "deleted_files": [
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/downloads/cargo.tar.xz",
+      "bytes": 10954816,
+      "allocated_bytes": 10956800,
+      "dev": 27,
+      "inode": 1964645,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/downloads/rustc.tar.xz",
+      "bytes": 84098960,
+      "allocated_bytes": 84103168,
+      "dev": 27,
+      "inode": 1964710,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/downloads/rust-std.tar.xz",
+      "bytes": 31563228,
+      "allocated_bytes": 31567872,
+      "dev": 27,
+      "inode": 1964692,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/rust-installer-version",
+      "bytes": 2,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964754,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/git-commit-info",
+      "bytes": 62,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964756,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/install.sh",
+      "bytes": 29289,
+      "allocated_bytes": 32768,
+      "dev": 27,
+      "inode": 1964750,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/LICENSE-APACHE",
+      "bytes": 10852,
+      "allocated_bytes": 12288,
+      "dev": 27,
+      "inode": 1964744,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/git-commit-hash",
+      "bytes": 40,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964751,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/version",
+      "bytes": 6,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964755,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/components",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964757,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/rustfmt-preview/manifest.in",
+      "bytes": 142,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964752,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/LICENSE-MIT",
+      "bytes": 1076,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964746,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/README.md",
+      "bytes": 10651,
+      "allocated_bytes": 12288,
+      "dev": 27,
+      "inode": 1964748,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/builder-config",
+      "bytes": 9401,
+      "allocated_bytes": 12288,
+      "dev": 27,
+      "inode": 1964749,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rust-installer-version",
+      "bytes": 2,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964372,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/git-commit-info",
+      "bytes": 62,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964375,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/install.sh",
+      "bytes": 29287,
+      "allocated_bytes": 32768,
+      "dev": 27,
+      "inode": 1964364,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/LICENSE-APACHE",
+      "bytes": 9723,
+      "allocated_bytes": 12288,
+      "dev": 27,
+      "inode": 1964347,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/manifest.in",
+      "bytes": 1656,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964371,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/git-commit-hash",
+      "bytes": 40,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964365,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/version",
+      "bytes": 29,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964373,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/components",
+      "bytes": 6,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964210,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/LICENSE-MIT",
+      "bytes": 1068,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964349,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/COPYRIGHT",
+      "bytes": 1571,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964348,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/README.md",
+      "bytes": 3304,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964361,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/builder-config",
+      "bytes": 9401,
+      "allocated_bytes": 12288,
+      "dev": 27,
+      "inode": 1964363,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-installer-version",
+      "bytes": 2,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964550,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/git-commit-info",
+      "bytes": 62,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964552,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/manifest.in",
+      "bytes": 5136,
+      "allocated_bytes": 8192,
+      "dev": 27,
+      "inode": 1964549,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/install.sh",
+      "bytes": 29290,
+      "allocated_bytes": 32768,
+      "dev": 27,
+      "inode": 1964547,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/LICENSE-APACHE",
+      "bytes": 9723,
+      "allocated_bytes": 12288,
+      "dev": 27,
+      "inode": 1964477,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/git-commit-hash",
+      "bytes": 40,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964548,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/version",
+      "bytes": 29,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964551,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/components",
+      "bytes": 34,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964554,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/LICENSE-MIT",
+      "bytes": 1068,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964479,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/COPYRIGHT",
+      "bytes": 1571,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964478,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/README.md",
+      "bytes": 3304,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964544,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/builder-config",
+      "bytes": 9401,
+      "allocated_bytes": 12288,
+      "dev": 27,
+      "inode": 1964545,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/rust-installer-version",
+      "bytes": 2,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964464,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/git-commit-info",
+      "bytes": 62,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964467,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/install.sh",
+      "bytes": 29287,
+      "allocated_bytes": 32768,
+      "dev": 27,
+      "inode": 1964461,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/LICENSE-APACHE",
+      "bytes": 10860,
+      "allocated_bytes": 12288,
+      "dev": 27,
+      "inode": 1964453,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/git-commit-hash",
+      "bytes": 40,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964462,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/LICENSE-THIRD-PARTY",
+      "bytes": 68430,
+      "allocated_bytes": 69632,
+      "dev": 27,
+      "inode": 1964457,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/version",
+      "bytes": 30,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964465,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/components",
+      "bytes": 6,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964211,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/manifest.in",
+      "bytes": 1532,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964463,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/LICENSE-MIT",
+      "bytes": 1023,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 1964455,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/README.md",
+      "bytes": 4855,
+      "allocated_bytes": 8192,
+      "dev": 27,
+      "inode": 1964459,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/builder-config",
+      "bytes": 9401,
+      "allocated_bytes": 12288,
+      "dev": 27,
+      "inode": 1964460,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/rust-smoke",
+      "bytes": 4538392,
+      "allocated_bytes": 4542464,
+      "dev": 27,
+      "inode": 1965527,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/llvm-smoke",
+      "bytes": 6064,
+      "allocated_bytes": 8192,
+      "dev": 27,
+      "inode": 1965485,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-cli-2f41a60c16cc3f21/dep-bin-zil",
+      "bytes": 46,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 696568,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-cli-2f41a60c16cc3f21/bin-zil.json",
+      "bytes": 530,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 699856,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-cli-2f41a60c16cc3f21/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702928,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-cli-2f41a60c16cc3f21/bin-zil",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 696659,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-types-0f2f4cb04f032d1a/lib-zil_types",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702892,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-types-0f2f4cb04f032d1a/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 700857,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-types-0f2f4cb04f032d1a/dep-lib-zil_types",
+      "bytes": 776,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 701579,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-types-0f2f4cb04f032d1a/lib-zil_types.json",
+      "bytes": 529,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702896,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-ir-1b5d967475aa5e49/lib-zil_ir",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702301,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-ir-1b5d967475aa5e49/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 701218,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-ir-1b5d967475aa5e49/lib-zil_ir.json",
+      "bytes": 407,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702310,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-ir-1b5d967475aa5e49/dep-lib-zil_ir",
+      "bytes": 67,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702278,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/dep-lib-zil_llvm_api",
+      "bytes": 204,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702448,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/lib-zil_llvm_api",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702744,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702391,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/lib-zil_llvm_api.json",
+      "bytes": 505,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702748,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/lib-zil_backend_llvm",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 699862,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/lib-zil_backend_llvm.json",
+      "bytes": 671,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 699892,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702750,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/dep-lib-zil_backend_llvm",
+      "bytes": 382,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 699853,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-base-e7f463e530140758/lib-zil_base.json",
+      "bytes": 351,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 701252,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-base-e7f463e530140758/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 701215,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-base-e7f463e530140758/dep-lib-zil_base",
+      "bytes": 72,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 701239,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-base-e7f463e530140758/lib-zil_base",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 701249,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-verify-1f492929ef238afb/lib-zil_verify",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 698126,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-verify-1f492929ef238afb/dep-lib-zil_verify",
+      "bytes": 553,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 696608,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-verify-1f492929ef238afb/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702325,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-verify-1f492929ef238afb/lib-zil_verify.json",
+      "bytes": 471,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 699733,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-563b29a851094f13/output-build-script-build-script-build",
+      "bytes": 2100,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702774,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-563b29a851094f13/dep-build-script-build-script-build",
+      "bytes": 118,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702127,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-563b29a851094f13/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 701208,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-563b29a851094f13/build-script-build-script-build",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702130,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-563b29a851094f13/build-script-build-script-build.json",
+      "bytes": 453,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702137,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-analyze-470c3dfbc89d5c11/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 700599,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-analyze-470c3dfbc89d5c11/dep-lib-zil_analyze",
+      "bytes": 320,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 699820,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-analyze-470c3dfbc89d5c11/lib-zil_analyze",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 700760,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-analyze-470c3dfbc89d5c11/lib-zil_analyze.json",
+      "bytes": 473,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 700920,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-lower-c82675f114eb8aef/lib-zil_lower",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 700340,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-lower-c82675f114eb8aef/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 699739,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-lower-c82675f114eb8aef/dep-lib-zil_lower",
+      "bytes": 30,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 699780,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-lower-c82675f114eb8aef/lib-zil_lower.json",
+      "bytes": 531,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 700585,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-a33483193c9c5348/run-build-script-build-script-build.json",
+      "bytes": 464,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702246,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-a33483193c9c5348/run-build-script-build-script-build",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702243,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-ct-37a69dd877a1d367/dep-lib-zil_ct",
+      "bytes": 93,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 699789,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-ct-37a69dd877a1d367/lib-zil_ct",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 700473,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-ct-37a69dd877a1d367/lib-zil_ct.json",
+      "bytes": 526,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 700560,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-ct-37a69dd877a1d367/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 699907,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-expand-732b897022079d2d/lib-zil_expand",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702836,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-expand-732b897022079d2d/lib-zil_expand.json",
+      "bytes": 530,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702840,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-expand-732b897022079d2d/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702804,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-expand-732b897022079d2d/dep-lib-zil_expand",
+      "bytes": 729,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702820,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-driver-8b7b7327dd24ab30/lib-zil_driver.json",
+      "bytes": 1084,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702924,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-driver-8b7b7327dd24ab30/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702872,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-driver-8b7b7327dd24ab30/dep-lib-zil_driver",
+      "bytes": 288,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702880,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-driver-8b7b7327dd24ab30/lib-zil_driver",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702920,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-db-23385aa85197b59a/lib-zil_db",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702864,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-db-23385aa85197b59a/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702844,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-db-23385aa85197b59a/lib-zil_db.json",
+      "bytes": 406,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702868,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-db-23385aa85197b59a/dep-lib-zil_db",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702852,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-syntax-c507ec0227ccb0d3/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702249,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-syntax-c507ec0227ccb0d3/lib-zil_syntax.json",
+      "bytes": 413,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702388,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-syntax-c507ec0227ccb0d3/dep-lib-zil_syntax",
+      "bytes": 331,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702252,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-syntax-c507ec0227ccb0d3/lib-zil_syntax",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702375,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_driver-8b7b7327dd24ab30.rlib",
+      "bytes": 3193388,
+      "allocated_bytes": 3198976,
+      "dev": 27,
+      "inode": 702940,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil_analyze-470c3dfbc89d5c11.d",
+      "bytes": 2245,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 700803,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil_base-e7f463e530140758.d",
+      "bytes": 638,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 701232,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_verify-1f492929ef238afb.rmeta",
+      "bytes": 516521,
+      "allocated_bytes": 520192,
+      "dev": 27,
+      "inode": 702740,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil_syntax-c507ec0227ccb0d3.d",
+      "bytes": 2287,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702124,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_syntax-c507ec0227ccb0d3.rlib",
+      "bytes": 1618278,
+      "allocated_bytes": 1622016,
+      "dev": 27,
+      "inode": 702435,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil_ir-1b5d967475aa5e49.d",
+      "bytes": 588,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702114,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_types-0f2f4cb04f032d1a.rmeta",
+      "bytes": 1064380,
+      "allocated_bytes": 1069056,
+      "dev": 27,
+      "inode": 701599,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_db-23385aa85197b59a.rmeta",
+      "bytes": 90147,
+      "allocated_bytes": 94208,
+      "dev": 27,
+      "inode": 702860,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_expand-732b897022079d2d.rmeta",
+      "bytes": 939861,
+      "allocated_bytes": 946176,
+      "dev": 27,
+      "inode": 702824,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_expand-732b897022079d2d.rlib",
+      "bytes": 6283930,
+      "allocated_bytes": 6287360,
+      "dev": 27,
+      "inode": 702856,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_lower-c82675f114eb8aef.rmeta",
+      "bytes": 12428,
+      "allocated_bytes": 16384,
+      "dev": 27,
+      "inode": 699812,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_base-e7f463e530140758.rlib",
+      "bytes": 388840,
+      "allocated_bytes": 389120,
+      "dev": 27,
+      "inode": 701268,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil_backend_llvm-7807b9daafde6848.d",
+      "bytes": 2922,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702754,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_backend_llvm-7807b9daafde6848.rmeta",
+      "bytes": 318188,
+      "allocated_bytes": 319488,
+      "dev": 27,
+      "inode": 702770,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil_types-0f2f4cb04f032d1a.d",
+      "bytes": 4890,
+      "allocated_bytes": 8192,
+      "dev": 27,
+      "inode": 700968,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil_ct-37a69dd877a1d367.d",
+      "bytes": 729,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 700150,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil_db-23385aa85197b59a.d",
+      "bytes": 475,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702848,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_lower-c82675f114eb8aef.rlib",
+      "bytes": 99972,
+      "allocated_bytes": 102400,
+      "dev": 27,
+      "inode": 700869,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil_lower-c82675f114eb8aef.d",
+      "bytes": 387,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 699759,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil-2f41a60c16cc3f21.d",
+      "bytes": 353,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702932,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_analyze-470c3dfbc89d5c11.rlib",
+      "bytes": 2738470,
+      "allocated_bytes": 2744320,
+      "dev": 27,
+      "inode": 702816,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil_llvm_api-50db4fbf35314d61.d",
+      "bytes": 1672,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702426,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_ir-1b5d967475aa5e49.rlib",
+      "bytes": 1823166,
+      "allocated_bytes": 1826816,
+      "dev": 27,
+      "inode": 702351,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_verify-1f492929ef238afb.rlib",
+      "bytes": 3743838,
+      "allocated_bytes": 3747840,
+      "dev": 27,
+      "inode": 699767,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_db-23385aa85197b59a.rlib",
+      "bytes": 302106,
+      "allocated_bytes": 307200,
+      "dev": 27,
+      "inode": 702884,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_driver-8b7b7327dd24ab30.rmeta",
+      "bytes": 376754,
+      "allocated_bytes": 376832,
+      "dev": 27,
+      "inode": 702888,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_ir-1b5d967475aa5e49.rmeta",
+      "bytes": 1251995,
+      "allocated_bytes": 1257472,
+      "dev": 27,
+      "inode": 702288,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_types-0f2f4cb04f032d1a.rlib",
+      "bytes": 8800034,
+      "allocated_bytes": 8806400,
+      "dev": 27,
+      "inode": 702912,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil_verify-1f492929ef238afb.d",
+      "bytes": 3652,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702341,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_llvm_api-50db4fbf35314d61.rlib",
+      "bytes": 1355490,
+      "allocated_bytes": 1355776,
+      "dev": 27,
+      "inode": 702762,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_backend_llvm-7807b9daafde6848.rlib",
+      "bytes": 2535290,
+      "allocated_bytes": 2539520,
+      "dev": 27,
+      "inode": 700317,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_llvm_api-50db4fbf35314d61.rmeta",
+      "bytes": 516778,
+      "allocated_bytes": 520192,
+      "dev": 27,
+      "inode": 702594,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_ct-37a69dd877a1d367.rmeta",
+      "bytes": 138377,
+      "allocated_bytes": 139264,
+      "dev": 27,
+      "inode": 700885,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil_expand-732b897022079d2d.d",
+      "bytes": 4621,
+      "allocated_bytes": 8192,
+      "dev": 27,
+      "inode": 702808,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_analyze-470c3dfbc89d5c11.rmeta",
+      "bytes": 324674,
+      "allocated_bytes": 327680,
+      "dev": 27,
+      "inode": 700933,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_base-e7f463e530140758.rmeta",
+      "bytes": 247199,
+      "allocated_bytes": 249856,
+      "dev": 27,
+      "inode": 701246,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_syntax-c507ec0227ccb0d3.rmeta",
+      "bytes": 902199,
+      "allocated_bytes": 909312,
+      "dev": 27,
+      "inode": 702268,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil_driver-8b7b7327dd24ab30.d",
+      "bytes": 1991,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702876,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/libzil_ct-37a69dd877a1d367.rlib",
+      "bytes": 1072940,
+      "allocated_bytes": 1077248,
+      "dev": 27,
+      "inode": 701271,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/build/zil-llvm-api-563b29a851094f13/build_script_build-563b29a851094f13.d",
+      "bytes": 488,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 701225,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/build/zil-llvm-api-563b29a851094f13/build-script-build",
+      "bytes": 497208,
+      "allocated_bytes": 499712,
+      "dev": 27,
+      "inode": 702154,
+      "nlink_before": 2
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/build/zil-llvm-api-563b29a851094f13/build_script_build-563b29a851094f13",
+      "bytes": 497208,
+      "allocated_bytes": 499712,
+      "dev": 27,
+      "inode": 702154,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/build/zil-llvm-api-a33483193c9c5348/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702147,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/build/zil-llvm-api-a33483193c9c5348/root-output",
+      "bytes": 90,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702239,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/build/zil-llvm-api-a33483193c9c5348/out/llvm_version.rs",
+      "bytes": 122,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702206,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/build/zil-llvm-api-a33483193c9c5348/output",
+      "bytes": 214,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 702218,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/build/zil-llvm-api-a33483193c9c5348/stderr",
+      "bytes": 0,
+      "allocated_bytes": 0,
+      "dev": 27,
+      "inode": 702223,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-cli-2f41a60c16cc3f21/dep-bin-zil",
+      "bytes": 46,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706629,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-cli-2f41a60c16cc3f21/bin-zil.json",
+      "bytes": 530,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706657,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-cli-2f41a60c16cc3f21/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706417,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-cli-2f41a60c16cc3f21/bin-zil",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706653,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-types-0f2f4cb04f032d1a/lib-zil_types",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704982,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-types-0f2f4cb04f032d1a/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705559,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-types-0f2f4cb04f032d1a/dep-lib-zil_types",
+      "bytes": 776,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704970,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-types-0f2f4cb04f032d1a/lib-zil_types.json",
+      "bytes": 529,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704995,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-ir-1b5d967475aa5e49/lib-zil_ir",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705419,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-ir-1b5d967475aa5e49/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705337,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-ir-1b5d967475aa5e49/lib-zil_ir.json",
+      "bytes": 407,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705429,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-ir-1b5d967475aa5e49/dep-lib-zil_ir",
+      "bytes": 67,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705363,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/dep-lib-zil_llvm_api",
+      "bytes": 204,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705340,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/lib-zil_llvm_api",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705386,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705321,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/lib-zil_llvm_api.json",
+      "bytes": 505,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705396,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/lib-zil_backend_llvm",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705579,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/lib-zil_backend_llvm.json",
+      "bytes": 671,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705585,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705503,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/dep-lib-zil_backend_llvm",
+      "bytes": 382,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705511,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-base-e7f463e530140758/lib-zil_base.json",
+      "bytes": 351,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705334,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-base-e7f463e530140758/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705207,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-base-e7f463e530140758/dep-lib-zil_base",
+      "bytes": 72,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705260,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-base-e7f463e530140758/lib-zil_base",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705331,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-verify-1f492929ef238afb/lib-zil_verify",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705523,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-verify-1f492929ef238afb/dep-lib-zil_verify",
+      "bytes": 553,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705455,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-verify-1f492929ef238afb/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705406,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-verify-1f492929ef238afb/lib-zil_verify.json",
+      "bytes": 471,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705527,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-llvm-api-563b29a851094f13/dep-build-script-build-script-build",
+      "bytes": 123,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705227,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-llvm-api-563b29a851094f13/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705190,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-llvm-api-563b29a851094f13/build-script-build-script-build",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705234,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-llvm-api-563b29a851094f13/build-script-build-script-build.json",
+      "bytes": 453,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705242,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-analyze-470c3dfbc89d5c11/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705666,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-analyze-470c3dfbc89d5c11/dep-lib-zil_analyze",
+      "bytes": 320,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704523,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-analyze-470c3dfbc89d5c11/lib-zil_analyze",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704538,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-analyze-470c3dfbc89d5c11/lib-zil_analyze.json",
+      "bytes": 473,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704575,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-lower-c82675f114eb8aef/lib-zil_lower",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705551,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-lower-c82675f114eb8aef/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705531,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-lower-c82675f114eb8aef/dep-lib-zil_lower",
+      "bytes": 30,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705539,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-lower-c82675f114eb8aef/lib-zil_lower.json",
+      "bytes": 531,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705555,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-llvm-api-a33483193c9c5348/run-build-script-build-script-build.json",
+      "bytes": 464,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705314,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-llvm-api-a33483193c9c5348/run-build-script-build-script-build",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705307,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-ct-37a69dd877a1d367/dep-lib-zil_ct",
+      "bytes": 93,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705487,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-ct-37a69dd877a1d367/lib-zil_ct",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705495,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-ct-37a69dd877a1d367/lib-zil_ct.json",
+      "bytes": 526,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705499,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-ct-37a69dd877a1d367/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705471,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-expand-732b897022079d2d/lib-zil_expand",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705653,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-expand-732b897022079d2d/lib-zil_expand.json",
+      "bytes": 530,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705660,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-expand-732b897022079d2d/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705591,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-expand-732b897022079d2d/dep-lib-zil_expand",
+      "bytes": 729,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705630,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-driver-8b7b7327dd24ab30/lib-zil_driver.json",
+      "bytes": 1084,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706413,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-driver-8b7b7327dd24ab30/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705011,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-driver-8b7b7327dd24ab30/dep-lib-zil_driver",
+      "bytes": 288,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706377,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-driver-8b7b7327dd24ab30/lib-zil_driver",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706409,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-db-23385aa85197b59a/lib-zil_db",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705077,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-db-23385aa85197b59a/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704589,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-db-23385aa85197b59a/lib-zil_db.json",
+      "bytes": 406,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706373,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-db-23385aa85197b59a/dep-lib-zil_db",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704761,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-syntax-c507ec0227ccb0d3/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705433,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-syntax-c507ec0227ccb0d3/lib-zil_syntax.json",
+      "bytes": 413,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705467,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-syntax-c507ec0227ccb0d3/dep-lib-zil_syntax",
+      "bytes": 331,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705447,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-syntax-c507ec0227ccb0d3/lib-zil_syntax",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705463,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_driver-8b7b7327dd24ab30.rlib",
+      "bytes": 3193492,
+      "allocated_bytes": 3194880,
+      "dev": 27,
+      "inode": 706429,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil_analyze-470c3dfbc89d5c11.d",
+      "bytes": 2245,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705673,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil_base-e7f463e530140758.d",
+      "bytes": 638,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705213,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_verify-1f492929ef238afb.rmeta",
+      "bytes": 516751,
+      "allocated_bytes": 520192,
+      "dev": 27,
+      "inode": 705459,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil_syntax-c507ec0227ccb0d3.d",
+      "bytes": 2287,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705435,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_syntax-c507ec0227ccb0d3.rlib",
+      "bytes": 1618422,
+      "allocated_bytes": 1622016,
+      "dev": 27,
+      "inode": 705483,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil_ir-1b5d967475aa5e49.d",
+      "bytes": 588,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705360,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_types-0f2f4cb04f032d1a.rmeta",
+      "bytes": 1064700,
+      "allocated_bytes": 1064960,
+      "dev": 27,
+      "inode": 705623,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_db-23385aa85197b59a.rmeta",
+      "bytes": 90174,
+      "allocated_bytes": 94208,
+      "dev": 27,
+      "inode": 704779,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_expand-732b897022079d2d.rmeta",
+      "bytes": 940141,
+      "allocated_bytes": 942080,
+      "dev": 27,
+      "inode": 705637,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_expand-732b897022079d2d.rlib",
+      "bytes": 6284210,
+      "allocated_bytes": 6287360,
+      "dev": 27,
+      "inode": 705686,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_lower-c82675f114eb8aef.rmeta",
+      "bytes": 12438,
+      "allocated_bytes": 16384,
+      "dev": 27,
+      "inode": 705547,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_base-e7f463e530140758.rlib",
+      "bytes": 388872,
+      "allocated_bytes": 389120,
+      "dev": 27,
+      "inode": 705350,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil_backend_llvm-7807b9daafde6848.d",
+      "bytes": 2922,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705507,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_backend_llvm-7807b9daafde6848.rmeta",
+      "bytes": 318338,
+      "allocated_bytes": 319488,
+      "dev": 27,
+      "inode": 705519,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil_types-0f2f4cb04f032d1a.d",
+      "bytes": 4890,
+      "allocated_bytes": 8192,
+      "dev": 27,
+      "inode": 705563,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil_ct-37a69dd877a1d367.d",
+      "bytes": 729,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705475,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil_db-23385aa85197b59a.d",
+      "bytes": 475,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704712,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_lower-c82675f114eb8aef.rlib",
+      "bytes": 99980,
+      "allocated_bytes": 102400,
+      "dev": 27,
+      "inode": 705573,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil_lower-c82675f114eb8aef.d",
+      "bytes": 387,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705535,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil-2f41a60c16cc3f21.d",
+      "bytes": 353,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706421,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_analyze-470c3dfbc89d5c11.rlib",
+      "bytes": 2738598,
+      "allocated_bytes": 2740224,
+      "dev": 27,
+      "inode": 704728,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil_llvm_api-50db4fbf35314d61.d",
+      "bytes": 1672,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705220,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_ir-1b5d967475aa5e49.rlib",
+      "bytes": 1823198,
+      "allocated_bytes": 1826816,
+      "dev": 27,
+      "inode": 705443,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_verify-1f492929ef238afb.rlib",
+      "bytes": 3744062,
+      "allocated_bytes": 3747840,
+      "dev": 27,
+      "inode": 705543,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_db-23385aa85197b59a.rlib",
+      "bytes": 302214,
+      "allocated_bytes": 303104,
+      "dev": 27,
+      "inode": 706389,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_driver-8b7b7327dd24ab30.rmeta",
+      "bytes": 376864,
+      "allocated_bytes": 380928,
+      "dev": 27,
+      "inode": 706381,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_ir-1b5d967475aa5e49.rmeta",
+      "bytes": 1252025,
+      "allocated_bytes": 1253376,
+      "dev": 27,
+      "inode": 705366,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_types-0f2f4cb04f032d1a.rlib",
+      "bytes": 8800354,
+      "allocated_bytes": 8802304,
+      "dev": 27,
+      "inode": 704951,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil_verify-1f492929ef238afb.d",
+      "bytes": 3652,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705416,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_llvm_api-50db4fbf35314d61.rlib",
+      "bytes": 1355554,
+      "allocated_bytes": 1355776,
+      "dev": 27,
+      "inode": 705422,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_backend_llvm-7807b9daafde6848.rlib",
+      "bytes": 2535442,
+      "allocated_bytes": 2539520,
+      "dev": 27,
+      "inode": 705609,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_llvm_api-50db4fbf35314d61.rmeta",
+      "bytes": 516843,
+      "allocated_bytes": 520192,
+      "dev": 27,
+      "inode": 705347,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_ct-37a69dd877a1d367.rmeta",
+      "bytes": 138417,
+      "allocated_bytes": 139264,
+      "dev": 27,
+      "inode": 705491,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil_expand-732b897022079d2d.d",
+      "bytes": 4621,
+      "allocated_bytes": 8192,
+      "dev": 27,
+      "inode": 705597,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_analyze-470c3dfbc89d5c11.rmeta",
+      "bytes": 324804,
+      "allocated_bytes": 327680,
+      "dev": 27,
+      "inode": 706139,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_base-e7f463e530140758.rmeta",
+      "bytes": 247229,
+      "allocated_bytes": 249856,
+      "dev": 27,
+      "inode": 705267,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_syntax-c507ec0227ccb0d3.rmeta",
+      "bytes": 902339,
+      "allocated_bytes": 905216,
+      "dev": 27,
+      "inode": 705451,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil_driver-8b7b7327dd24ab30.d",
+      "bytes": 1991,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705043,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/libzil_ct-37a69dd877a1d367.rlib",
+      "bytes": 1072980,
+      "allocated_bytes": 1073152,
+      "dev": 27,
+      "inode": 705515,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/build/zil-llvm-api-563b29a851094f13/build_script_build-563b29a851094f13.d",
+      "bytes": 488,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705210,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/build/zil-llvm-api-563b29a851094f13/build-script-build",
+      "bytes": 497208,
+      "allocated_bytes": 499712,
+      "dev": 27,
+      "inode": 705277,
+      "nlink_before": 2
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/build/zil-llvm-api-563b29a851094f13/build_script_build-563b29a851094f13",
+      "bytes": 497208,
+      "allocated_bytes": 499712,
+      "dev": 27,
+      "inode": 705277,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/build/zil-llvm-api-a33483193c9c5348/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705250,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/build/zil-llvm-api-a33483193c9c5348/root-output",
+      "bytes": 90,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705304,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/build/zil-llvm-api-a33483193c9c5348/out/llvm_version.rs",
+      "bytes": 122,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705284,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/build/zil-llvm-api-a33483193c9c5348/output",
+      "bytes": 214,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705291,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/build/zil-llvm-api-a33483193c9c5348/stderr",
+      "bytes": 0,
+      "allocated_bytes": 0,
+      "dev": 27,
+      "inode": 705294,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-cli-2f41a60c16cc3f21/dep-bin-zil",
+      "bytes": 46,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707565,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-cli-2f41a60c16cc3f21/bin-zil.json",
+      "bytes": 530,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707619,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-cli-2f41a60c16cc3f21/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707406,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-cli-2f41a60c16cc3f21/bin-zil",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707610,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-types-0f2f4cb04f032d1a/lib-zil_types",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705679,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-types-0f2f4cb04f032d1a/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707312,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-types-0f2f4cb04f032d1a/dep-lib-zil_types",
+      "bytes": 776,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705039,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-types-0f2f4cb04f032d1a/lib-zil_types.json",
+      "bytes": 529,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706385,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-ir-1b5d967475aa5e49/lib-zil_ir",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706881,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-ir-1b5d967475aa5e49/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706841,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-ir-1b5d967475aa5e49/lib-zil_ir.json",
+      "bytes": 407,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706885,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-ir-1b5d967475aa5e49/dep-lib-zil_ir",
+      "bytes": 67,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706861,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/dep-lib-zil_llvm_api",
+      "bytes": 204,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706845,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/lib-zil_llvm_api",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706869,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706777,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/lib-zil_llvm_api.json",
+      "bytes": 505,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706873,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/lib-zil_backend_llvm",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707330,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/lib-zil_backend_llvm.json",
+      "bytes": 671,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707333,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707264,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/dep-lib-zil_backend_llvm",
+      "bytes": 382,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707288,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-base-e7f463e530140758/lib-zil_base.json",
+      "bytes": 351,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706837,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-base-e7f463e530140758/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706709,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-base-e7f463e530140758/dep-lib-zil_base",
+      "bytes": 72,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706745,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-base-e7f463e530140758/lib-zil_base",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706833,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-verify-1f492929ef238afb/lib-zil_verify",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707300,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-verify-1f492929ef238afb/dep-lib-zil_verify",
+      "bytes": 553,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706917,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-verify-1f492929ef238afb/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706877,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-verify-1f492929ef238afb/lib-zil_verify.json",
+      "bytes": 471,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707306,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-llvm-api-563b29a851094f13/dep-build-script-build-script-build",
+      "bytes": 123,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706725,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-llvm-api-563b29a851094f13/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706705,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-llvm-api-563b29a851094f13/build-script-build-script-build",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706729,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-llvm-api-563b29a851094f13/build-script-build-script-build.json",
+      "bytes": 453,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706733,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-analyze-470c3dfbc89d5c11/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704797,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-analyze-470c3dfbc89d5c11/dep-lib-zil_analyze",
+      "bytes": 320,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704899,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-analyze-470c3dfbc89d5c11/lib-zil_analyze",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704973,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-analyze-470c3dfbc89d5c11/lib-zil_analyze.json",
+      "bytes": 473,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704986,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-lower-c82675f114eb8aef/lib-zil_lower",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707167,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-lower-c82675f114eb8aef/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706934,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-lower-c82675f114eb8aef/dep-lib-zil_lower",
+      "bytes": 30,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707024,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-lower-c82675f114eb8aef/lib-zil_lower.json",
+      "bytes": 531,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707177,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-llvm-api-a33483193c9c5348/run-build-script-build-script-build.json",
+      "bytes": 464,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706773,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-llvm-api-a33483193c9c5348/run-build-script-build-script-build",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706769,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-ct-37a69dd877a1d367/dep-lib-zil_ct",
+      "bytes": 93,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707238,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-ct-37a69dd877a1d367/lib-zil_ct",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707252,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-ct-37a69dd877a1d367/lib-zil_ct.json",
+      "bytes": 526,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707258,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-ct-37a69dd877a1d367/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707185,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-expand-732b897022079d2d/lib-zil_expand",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704764,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-expand-732b897022079d2d/lib-zil_expand.json",
+      "bytes": 530,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704782,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-expand-732b897022079d2d/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707336,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-expand-732b897022079d2d/dep-lib-zil_expand",
+      "bytes": 729,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704731,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-driver-8b7b7327dd24ab30/lib-zil_driver.json",
+      "bytes": 1084,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706453,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-driver-8b7b7327dd24ab30/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706405,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-driver-8b7b7327dd24ab30/dep-lib-zil_driver",
+      "bytes": 288,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704556,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-driver-8b7b7327dd24ab30/lib-zil_driver",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705200,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-db-23385aa85197b59a/lib-zil_db",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707351,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-db-23385aa85197b59a/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705002,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-db-23385aa85197b59a/lib-zil_db.json",
+      "bytes": 406,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707373,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-db-23385aa85197b59a/dep-lib-zil_db",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705068,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-syntax-c507ec0227ccb0d3/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706893,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-syntax-c507ec0227ccb0d3/lib-zil_syntax.json",
+      "bytes": 413,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706927,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-syntax-c507ec0227ccb0d3/dep-lib-zil_syntax",
+      "bytes": 331,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706909,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-syntax-c507ec0227ccb0d3/lib-zil_syntax",
+      "bytes": 16,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706925,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_driver-8b7b7327dd24ab30.rlib",
+      "bytes": 3193492,
+      "allocated_bytes": 3194880,
+      "dev": 27,
+      "inode": 707424,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil_analyze-470c3dfbc89d5c11.d",
+      "bytes": 2245,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 704810,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil_base-e7f463e530140758.d",
+      "bytes": 638,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706717,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_verify-1f492929ef238afb.rmeta",
+      "bytes": 516751,
+      "allocated_bytes": 520192,
+      "dev": 27,
+      "inode": 706921,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil_syntax-c507ec0227ccb0d3.d",
+      "bytes": 2287,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706901,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_syntax-c507ec0227ccb0d3.rlib",
+      "bytes": 1618422,
+      "allocated_bytes": 1622016,
+      "dev": 27,
+      "inode": 707031,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil_ir-1b5d967475aa5e49.d",
+      "bytes": 588,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706857,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_types-0f2f4cb04f032d1a.rmeta",
+      "bytes": 1064700,
+      "allocated_bytes": 1064960,
+      "dev": 27,
+      "inode": 707354,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_db-23385aa85197b59a.rmeta",
+      "bytes": 90182,
+      "allocated_bytes": 94208,
+      "dev": 27,
+      "inode": 705080,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_expand-732b897022079d2d.rmeta",
+      "bytes": 940141,
+      "allocated_bytes": 942080,
+      "dev": 27,
+      "inode": 707357,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_expand-732b897022079d2d.rlib",
+      "bytes": 6284210,
+      "allocated_bytes": 6291456,
+      "dev": 27,
+      "inode": 704828,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_lower-c82675f114eb8aef.rmeta",
+      "bytes": 12438,
+      "allocated_bytes": 16384,
+      "dev": 27,
+      "inode": 707053,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_base-e7f463e530140758.rlib",
+      "bytes": 388872,
+      "allocated_bytes": 389120,
+      "dev": 27,
+      "inode": 706853,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil_backend_llvm-7807b9daafde6848.d",
+      "bytes": 2922,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707270,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_backend_llvm-7807b9daafde6848.rmeta",
+      "bytes": 318338,
+      "allocated_bytes": 319488,
+      "dev": 27,
+      "inode": 707294,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil_types-0f2f4cb04f032d1a.d",
+      "bytes": 4890,
+      "allocated_bytes": 8192,
+      "dev": 27,
+      "inode": 707318,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil_ct-37a69dd877a1d367.d",
+      "bytes": 729,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707211,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil_db-23385aa85197b59a.d",
+      "bytes": 475,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 705019,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_lower-c82675f114eb8aef.rlib",
+      "bytes": 99980,
+      "allocated_bytes": 102400,
+      "dev": 27,
+      "inode": 707227,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil_lower-c82675f114eb8aef.d",
+      "bytes": 387,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706960,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil-2f41a60c16cc3f21.d",
+      "bytes": 353,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 707418,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_analyze-470c3dfbc89d5c11.rlib",
+      "bytes": 2738598,
+      "allocated_bytes": 2740224,
+      "dev": 27,
+      "inode": 705050,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil_llvm_api-50db4fbf35314d61.d",
+      "bytes": 1672,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706721,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_ir-1b5d967475aa5e49.rlib",
+      "bytes": 1823198,
+      "allocated_bytes": 1826816,
+      "dev": 27,
+      "inode": 706905,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_verify-1f492929ef238afb.rlib",
+      "bytes": 3744062,
+      "allocated_bytes": 3747840,
+      "dev": 27,
+      "inode": 707327,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_db-23385aa85197b59a.rlib",
+      "bytes": 302602,
+      "allocated_bytes": 303104,
+      "dev": 27,
+      "inode": 707397,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_driver-8b7b7327dd24ab30.rmeta",
+      "bytes": 376864,
+      "allocated_bytes": 380928,
+      "dev": 27,
+      "inode": 707415,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_ir-1b5d967475aa5e49.rmeta",
+      "bytes": 1252025,
+      "allocated_bytes": 1253376,
+      "dev": 27,
+      "inode": 706865,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_types-0f2f4cb04f032d1a.rlib",
+      "bytes": 8800354,
+      "allocated_bytes": 8802304,
+      "dev": 27,
+      "inode": 706433,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil_verify-1f492929ef238afb.d",
+      "bytes": 3652,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706897,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_llvm_api-50db4fbf35314d61.rlib",
+      "bytes": 1355554,
+      "allocated_bytes": 1355776,
+      "dev": 27,
+      "inode": 706889,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_backend_llvm-7807b9daafde6848.rlib",
+      "bytes": 2535442,
+      "allocated_bytes": 2539520,
+      "dev": 27,
+      "inode": 707345,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_llvm_api-50db4fbf35314d61.rmeta",
+      "bytes": 516843,
+      "allocated_bytes": 520192,
+      "dev": 27,
+      "inode": 706849,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_ct-37a69dd877a1d367.rmeta",
+      "bytes": 138417,
+      "allocated_bytes": 139264,
+      "dev": 27,
+      "inode": 707246,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil_expand-732b897022079d2d.d",
+      "bytes": 4621,
+      "allocated_bytes": 8192,
+      "dev": 27,
+      "inode": 707348,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_analyze-470c3dfbc89d5c11.rmeta",
+      "bytes": 324804,
+      "allocated_bytes": 327680,
+      "dev": 27,
+      "inode": 704936,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_base-e7f463e530140758.rmeta",
+      "bytes": 247229,
+      "allocated_bytes": 249856,
+      "dev": 27,
+      "inode": 706753,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_syntax-c507ec0227ccb0d3.rmeta",
+      "bytes": 902339,
+      "allocated_bytes": 905216,
+      "dev": 27,
+      "inode": 706913,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil_driver-8b7b7327dd24ab30.d",
+      "bytes": 1991,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706425,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/libzil_ct-37a69dd877a1d367.rlib",
+      "bytes": 1072980,
+      "allocated_bytes": 1073152,
+      "dev": 27,
+      "inode": 707282,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/build/zil-llvm-api-563b29a851094f13/build_script_build-563b29a851094f13.d",
+      "bytes": 488,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706713,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/build/zil-llvm-api-563b29a851094f13/build-script-build",
+      "bytes": 497208,
+      "allocated_bytes": 499712,
+      "dev": 27,
+      "inode": 706741,
+      "nlink_before": 2
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/build/zil-llvm-api-563b29a851094f13/build_script_build-563b29a851094f13",
+      "bytes": 497208,
+      "allocated_bytes": 499712,
+      "dev": 27,
+      "inode": 706741,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/build/zil-llvm-api-a33483193c9c5348/invoked.timestamp",
+      "bytes": 48,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706737,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/build/zil-llvm-api-a33483193c9c5348/root-output",
+      "bytes": 90,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706765,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/build/zil-llvm-api-a33483193c9c5348/out/llvm_version.rs",
+      "bytes": 122,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706749,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/build/zil-llvm-api-a33483193c9c5348/output",
+      "bytes": 214,
+      "allocated_bytes": 4096,
+      "dev": 27,
+      "inode": 706757,
+      "nlink_before": 1
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/build/zil-llvm-api-a33483193c9c5348/stderr",
+      "bytes": 0,
+      "allocated_bytes": 0,
+      "dev": 27,
+      "inode": 706761,
+      "nlink_before": 1
+    }
+  ],
+  "removed_empty_directories": [
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/rustfmt-preview/bin",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/rustfmt-preview/share/doc/rustfmt",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/rustfmt-preview/share/doc",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/rustfmt-preview/share",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu/rustfmt-preview",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustfmt-1.99.1-x86_64-unknown-linux-gnu",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/etc",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/x86_64-unknown-linux-gnu/bin",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/x86_64-unknown-linux-gnu",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/bin",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/etc",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/libexec",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/licenses",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/man/man1",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/man",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rustc-1.99.1-x86_64-unknown-linux-gnu",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/self-contained",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/rust-std-1.99.1-x86_64-unknown-linux-gnu",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/bin",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/etc/bash_completion.d",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/etc",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/zsh/site-functions",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/zsh",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/doc/cargo",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/doc",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack/cargo-1.99.1-x86_64-unknown-linux-gnu",
+    "/workspace/scratch/4ab361722127/.toolchain/unpack",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-cli-2f41a60c16cc3f21",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-types-0f2f4cb04f032d1a",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-ir-1b5d967475aa5e49",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-50db4fbf35314d61",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-backend-llvm-7807b9daafde6848",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-base-e7f463e530140758",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-verify-1f492929ef238afb",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-563b29a851094f13",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-analyze-470c3dfbc89d5c11",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-lower-c82675f114eb8aef",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-llvm-api-a33483193c9c5348",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-ct-37a69dd877a1d367",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-expand-732b897022079d2d",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-driver-8b7b7327dd24ab30",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-db-23385aa85197b59a",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint/zil-syntax-c507ec0227ccb0d3",
+    "/workspace/scratch/4ab361722127/build-base/release/.fingerprint",
+    "/workspace/scratch/4ab361722127/build-base/release/deps/rmeta0mxPIk",
+    "/workspace/scratch/4ab361722127/build-base/release/build/zil-llvm-api-563b29a851094f13",
+    "/workspace/scratch/4ab361722127/build-base/release/build/zil-llvm-api-a33483193c9c5348/out",
+    "/workspace/scratch/4ab361722127/build-base/release/build/zil-llvm-api-a33483193c9c5348",
+    "/workspace/scratch/4ab361722127/build-base/release/build",
+    "/workspace/scratch/4ab361722127/build-base/release/incremental",
+    "/workspace/scratch/4ab361722127/build-base/release/examples",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-cli-2f41a60c16cc3f21",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-types-0f2f4cb04f032d1a",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-ir-1b5d967475aa5e49",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-llvm-api-50db4fbf35314d61",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-backend-llvm-7807b9daafde6848",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-base-e7f463e530140758",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-verify-1f492929ef238afb",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-llvm-api-563b29a851094f13",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-analyze-470c3dfbc89d5c11",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-lower-c82675f114eb8aef",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-llvm-api-a33483193c9c5348",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-ct-37a69dd877a1d367",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-expand-732b897022079d2d",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-driver-8b7b7327dd24ab30",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-db-23385aa85197b59a",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint/zil-syntax-c507ec0227ccb0d3",
+    "/workspace/scratch/4ab361722127/build-cp21/release/.fingerprint",
+    "/workspace/scratch/4ab361722127/build-cp21/release/deps/rmetaSUy3Di",
+    "/workspace/scratch/4ab361722127/build-cp21/release/build/zil-llvm-api-563b29a851094f13",
+    "/workspace/scratch/4ab361722127/build-cp21/release/build/zil-llvm-api-a33483193c9c5348/out",
+    "/workspace/scratch/4ab361722127/build-cp21/release/build/zil-llvm-api-a33483193c9c5348",
+    "/workspace/scratch/4ab361722127/build-cp21/release/build",
+    "/workspace/scratch/4ab361722127/build-cp21/release/incremental",
+    "/workspace/scratch/4ab361722127/build-cp21/release/examples",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-cli-2f41a60c16cc3f21",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-types-0f2f4cb04f032d1a",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-ir-1b5d967475aa5e49",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-llvm-api-50db4fbf35314d61",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-backend-llvm-7807b9daafde6848",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-base-e7f463e530140758",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-verify-1f492929ef238afb",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-llvm-api-563b29a851094f13",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-analyze-470c3dfbc89d5c11",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-lower-c82675f114eb8aef",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-llvm-api-a33483193c9c5348",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-ct-37a69dd877a1d367",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-expand-732b897022079d2d",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-driver-8b7b7327dd24ab30",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-db-23385aa85197b59a",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint/zil-syntax-c507ec0227ccb0d3",
+    "/workspace/scratch/4ab361722127/build-cp23/release/.fingerprint",
+    "/workspace/scratch/4ab361722127/build-cp23/release/deps/rmetaq8soZs",
+    "/workspace/scratch/4ab361722127/build-cp23/release/deps/rmetaVtbOVT",
+    "/workspace/scratch/4ab361722127/build-cp23/release/build/zil-llvm-api-563b29a851094f13",
+    "/workspace/scratch/4ab361722127/build-cp23/release/build/zil-llvm-api-a33483193c9c5348/out",
+    "/workspace/scratch/4ab361722127/build-cp23/release/build/zil-llvm-api-a33483193c9c5348",
+    "/workspace/scratch/4ab361722127/build-cp23/release/build",
+    "/workspace/scratch/4ab361722127/build-cp23/release/incremental",
+    "/workspace/scratch/4ab361722127/build-cp23/release/examples"
+  ],
+  "preserved_hardlink_aliases": [
+    {
+      "path": "/workspace/scratch/4ab361722127/build-base/release/deps/zil-2f41a60c16cc3f21",
+      "metadata": {
+        "dev": 27,
+        "inode": 704643,
+        "mode": 33261,
+        "size": 7422280,
+        "mtime_ns": 1793382131004127094,
+        "ctime_ns": 1793382131016127057,
+        "nlink": 2,
+        "blocks": 14504,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp21/release/deps/zil-2f41a60c16cc3f21",
+      "metadata": {
+        "dev": 27,
+        "inode": 706829,
+        "mode": 33261,
+        "size": 7422344,
+        "mtime_ns": 1793382496418527242,
+        "ctime_ns": 1793382496430527181,
+        "nlink": 2,
+        "blocks": 14496,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/build-cp23/release/deps/zil-2f41a60c16cc3f21",
+      "metadata": {
+        "dev": 27,
+        "inode": 707969,
+        "mode": 33261,
+        "size": 7422568,
+        "mtime_ns": 1793382572394170319,
+        "ctime_ns": 1793382572410170248,
+        "nlink": 2,
+        "blocks": 14496,
+        "symlink": false
+      }
+    }
+  ],
+  "protected_entries_checked": 566,
+  "critical_before": {
+    "/workspace/scratch/4ab361722127/.toolchain/rust/bin/rustc": {
+      "dev": 27,
+      "inode": 1964354,
+      "mode": 33261,
+      "size": 648536,
+      "mtime_ns": 1791856129000000000,
+      "ctime_ns": 1793381322675559133,
+      "nlink": 1,
+      "blocks": 1272,
+      "symlink": false
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/rust/bin/cargo": {
+      "dev": 27,
+      "inode": 1964469,
+      "mode": 33261,
+      "size": 36148320,
+      "mtime_ns": 1791856129000000000,
+      "ctime_ns": 1793381322682963170,
+      "nlink": 1,
+      "blocks": 70616,
+      "symlink": false
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/clang": {
+      "dev": 27,
+      "inode": 1965163,
+      "mode": 41471,
+      "size": 8,
+      "mtime_ns": 1793381406334866891,
+      "ctime_ns": 1793381406334866891,
+      "nlink": 1,
+      "blocks": 0,
+      "symlink": true
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/ld.lld": {
+      "dev": 27,
+      "inode": 1964262,
+      "mode": 41471,
+      "size": 3,
+      "mtime_ns": 1793381410486840544,
+      "ctime_ns": 1793381410486840544,
+      "nlink": 1,
+      "blocks": 0,
+      "symlink": true
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/lib/libLLVM-23.so": {
+      "dev": 27,
+      "inode": 1965447,
+      "mode": 33261,
+      "size": 67715776,
+      "mtime_ns": 1793381550858102406,
+      "ctime_ns": 1793381550862102391,
+      "nlink": 1,
+      "blocks": 132272,
+      "symlink": false
+    },
+    "/workspace/scratch/4ab361722127/build-base/release/zil": {
+      "dev": 27,
+      "inode": 704643,
+      "mode": 33261,
+      "size": 7422280,
+      "mtime_ns": 1793382131004127094,
+      "ctime_ns": 1793382131016127057,
+      "nlink": 2,
+      "blocks": 14504,
+      "symlink": false
+    },
+    "/workspace/scratch/4ab361722127/build-cp21/release/zil": {
+      "dev": 27,
+      "inode": 706829,
+      "mode": 33261,
+      "size": 7422344,
+      "mtime_ns": 1793382496418527242,
+      "ctime_ns": 1793382496430527181,
+      "nlink": 2,
+      "blocks": 14496,
+      "symlink": false
+    },
+    "/workspace/scratch/4ab361722127/build-cp23/release/zil": {
+      "dev": 27,
+      "inode": 707969,
+      "mode": 33261,
+      "size": 7422568,
+      "mtime_ns": 1793382572394170319,
+      "ctime_ns": 1793382572410170248,
+      "nlink": 2,
+      "blocks": 14496,
+      "symlink": false
+    }
+  },
+  "critical_after": {
+    "/workspace/scratch/4ab361722127/.toolchain/rust/bin/rustc": {
+      "dev": 27,
+      "inode": 1964354,
+      "mode": 33261,
+      "size": 648536,
+      "mtime_ns": 1791856129000000000,
+      "ctime_ns": 1793381322675559133,
+      "nlink": 1,
+      "blocks": 1272,
+      "symlink": false
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/rust/bin/cargo": {
+      "dev": 27,
+      "inode": 1964469,
+      "mode": 33261,
+      "size": 36148320,
+      "mtime_ns": 1791856129000000000,
+      "ctime_ns": 1793381322682963170,
+      "nlink": 1,
+      "blocks": 70616,
+      "symlink": false
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/clang": {
+      "dev": 27,
+      "inode": 1965163,
+      "mode": 41471,
+      "size": 8,
+      "mtime_ns": 1793381406334866891,
+      "ctime_ns": 1793381406334866891,
+      "nlink": 1,
+      "blocks": 0,
+      "symlink": true
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/ld.lld": {
+      "dev": 27,
+      "inode": 1964262,
+      "mode": 41471,
+      "size": 3,
+      "mtime_ns": 1793381410486840544,
+      "ctime_ns": 1793381410486840544,
+      "nlink": 1,
+      "blocks": 0,
+      "symlink": true
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/lib/libLLVM-23.so": {
+      "dev": 27,
+      "inode": 1965447,
+      "mode": 33261,
+      "size": 67715776,
+      "mtime_ns": 1793381550858102406,
+      "ctime_ns": 1793381550862102391,
+      "nlink": 1,
+      "blocks": 132272,
+      "symlink": false
+    },
+    "/workspace/scratch/4ab361722127/build-base/release/zil": {
+      "dev": 27,
+      "inode": 704643,
+      "mode": 33261,
+      "size": 7422280,
+      "mtime_ns": 1793382131004127094,
+      "ctime_ns": 1793382131016127057,
+      "nlink": 2,
+      "blocks": 14504,
+      "symlink": false
+    },
+    "/workspace/scratch/4ab361722127/build-cp21/release/zil": {
+      "dev": 27,
+      "inode": 706829,
+      "mode": 33261,
+      "size": 7422344,
+      "mtime_ns": 1793382496418527242,
+      "ctime_ns": 1793382496430527181,
+      "nlink": 2,
+      "blocks": 14496,
+      "symlink": false
+    },
+    "/workspace/scratch/4ab361722127/build-cp23/release/zil": {
+      "dev": 27,
+      "inode": 707969,
+      "mode": 33261,
+      "size": 7422568,
+      "mtime_ns": 1793382572394170319,
+      "ctime_ns": 1793382572410170248,
+      "nlink": 2,
+      "blocks": 14496,
+      "symlink": false
+    }
+  },
+  "compiler_sha256_before": {
+    "/workspace/scratch/4ab361722127/build-base/release/zil": "0f8325ebd29ed14afc159f2def11998ac829043c8900ed7b799fb06ce69cd553",
+    "/workspace/scratch/4ab361722127/build-cp21/release/zil": "bd821394c63ae31467a48d37e754a41cdb3618a483874a32df07e50a5d3bfc17",
+    "/workspace/scratch/4ab361722127/build-cp23/release/zil": "627ebcf0757b5ba17e8ff37eca3f0c1653246c74cb313fad5f1011a39822564c"
+  },
+  "compiler_sha256_after": {
+    "/workspace/scratch/4ab361722127/build-base/release/zil": "0f8325ebd29ed14afc159f2def11998ac829043c8900ed7b799fb06ce69cd553",
+    "/workspace/scratch/4ab361722127/build-cp21/release/zil": "bd821394c63ae31467a48d37e754a41cdb3618a483874a32df07e50a5d3bfc17",
+    "/workspace/scratch/4ab361722127/build-cp23/release/zil": "627ebcf0757b5ba17e8ff37eca3f0c1653246c74cb313fad5f1011a39822564c"
+  },
+  "protected_metadata_changes": [],
+  "preservation_pass": true
+}

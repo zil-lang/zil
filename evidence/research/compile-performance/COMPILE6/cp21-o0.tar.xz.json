@@ -1,0 +1,11 @@
+{
+  "source_directory": "/workspace/scratch/4ab361722127/measurements/cp21-o0",
+  "archive": "cp21-o0.tar.xz",
+  "files": 10414,
+  "source_bytes": 62766438,
+  "archive_bytes": 547016,
+  "sha256": "f951d4f8184d553651b4fb0195d42ab2153aaa104425f6b83e6cf3f957b6deca",
+  "git_blob_sha": "c0aa0b138ae31306b002ca0c8ce2f8e1166ecb69",
+  "verification": "Every tar entry decoded and byte-compared with the source; all source files retained",
+  "retention": "Completed and incomplete windows remain distinguishable by their original receipts and logs"
+}

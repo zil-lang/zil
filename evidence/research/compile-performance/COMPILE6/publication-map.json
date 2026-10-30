@@ -1,0 +1,15 @@
+{
+  "note": "GitHub connector creates commit metadata; verified full Git tree equality maps local reviewed/measured identities to remote publication. No claim that commit metadata hashes are equal.",
+  "rows": [
+    {
+      "local": "c24cc08333dfb4ee710a7443414093f82841e0eb",
+      "remote": "405a4b9c27f22d06c45b1151b50284bc9b4e6f2c",
+      "tree": "eef8224cab2cb2544b3c0d99a6738ca3250907d9"
+    },
+    {
+      "local": "474e0d84a0e2a941e318533f8558441731d738fe",
+      "remote": "8b5c57cbe51a8836019b1568648b620e129f6a8d",
+      "tree": "717d8d23180cd8e2ff3bbac0e562952c5c4cce5d"
+    }
+  ]
+}

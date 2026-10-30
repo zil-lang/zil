@@ -1,0 +1,9 @@
+{
+  "path": "/workspace/scratch/4ab361722127/target-cp22",
+  "reason": "Author and independent tests completed; remove only regenerable development/test target",
+  "files": 407,
+  "free_before": 259031040,
+  "free_after": 952934400,
+  "frozen_release_inode_size_mtime_ctime_nlink_unchanged": true,
+  "time_unix": 1793384007.003357
+}

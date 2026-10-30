@@ -1,0 +1,1509 @@
+diff --git a/crates/zil-db/examples/compile_performance.rs b/crates/zil-db/examples/compile_performance.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..2ff9aafd6914b6c2f5506ac7b756df407090a6a2
+--- /dev/null
++++ b/crates/zil-db/examples/compile_performance.rs
+@@ -0,0 +1,111 @@
++//! Focused query-metadata microbenchmark; not an end-to-end compiler score.
++//! Build the same example against each revision and alternate the binaries.
++use std::hint::black_box;
++use std::time::{Duration, Instant};
++use zil_base::{Fingerprint, ModuleId, Phase, ResultCategory};
++use zil_db::{Database, Dependency, FingerprintKind, QueryKey, ResultFingerprints};
++
++fn publish(db: &mut Database, key: &QueryKey, fps: &ResultFingerprints, input: Option<&QueryKey>) {
++    let dependencies = input
++        .map(|key| Dependency {
++            key: key.clone(),
++            kind: FingerprintKind::Semantic,
++            observed: fps.semantic,
++        })
++        .into_iter()
++        .collect();
++    db.begin(key.clone()).unwrap();
++    black_box(
++        db.publish(
++            key.clone(),
++            ResultCategory::Success,
++            fps.clone(),
++            dependencies,
++            vec![1],
++        )
++        .unwrap(),
++    );
++}
++
++fn populate(keys: &[QueryKey], fps: &ResultFingerprints, fanout: bool) -> Database {
++    let mut db = Database::default();
++    for (index, key) in keys.iter().enumerate() {
++        publish(&mut db, key, fps, (fanout && index > 0).then_some(&keys[0]));
++    }
++    db
++}
++
++fn main() {
++    let args: Vec<_> = std::env::args().collect();
++    assert_eq!(
++        args.len(),
++        4,
++        "usage: compile_performance SCENARIO N REPETITIONS"
++    );
++    let scenario = args[1].as_str();
++    let n: u32 = args[2].parse().unwrap();
++    let repetitions: u32 = args[3].parse().unwrap();
++    assert!(n > 0 && repetitions > 0 && n < u32::MAX);
++    let keys: Vec<_> = (0..=n)
++        .map(|id| QueryKey {
++            module: ModuleId(id),
++            phase: Phase::Types,
++            input: Fingerprint::of(&id.to_le_bytes()),
++            rules: Fingerprint::of(b"cp21-rules"),
++            target: Fingerprint::of(b"cp21-target"),
++        })
++        .collect();
++    let fps = ResultFingerprints {
++        semantic: Fingerprint::of(b"semantic"),
++        abi: Fingerprint::of(b"abi"),
++        private_implementation: Fingerprint::of(b"body"),
++        source_positions: Fingerprint::of(b"positions"),
++        build_inputs: Fingerprint::of(b"inputs"),
++    };
++    let mut elapsed = Duration::ZERO;
++    let mut checksum = 0usize;
++    match scenario {
++        "new-independent" | "new-fanout" => {
++            for _ in 0..repetitions {
++                let start = Instant::now();
++                let db = populate(&keys[..n as usize], &fps, scenario == "new-fanout");
++                elapsed += start.elapsed();
++                assert_eq!(db.len(), n as usize);
++                checksum += black_box(db.len());
++            }
++        }
++        "absent-invalidate" | "existing-unchanged" => {
++            let mut db = populate(&keys[..n as usize], &fps, true);
++            let start = Instant::now();
++            for _ in 0..repetitions {
++                if scenario == "absent-invalidate" {
++                    assert!(black_box(db.invalidate(&keys[n as usize], &fps)).is_empty());
++                } else {
++                    publish(&mut db, &keys[0], &fps, None);
++                }
++                checksum += black_box(db.len());
++            }
++            elapsed += start.elapsed();
++            assert_eq!(db.len(), n as usize);
++        }
++        "existing-changed" => {
++            let changed = ResultFingerprints {
++                semantic: Fingerprint::of(b"changed"),
++                ..fps.clone()
++            };
++            for _ in 0..repetitions {
++                let mut db = populate(&keys[..n as usize], &fps, true);
++                let start = Instant::now();
++                publish(&mut db, &keys[0], &changed, None);
++                elapsed += start.elapsed();
++                assert_eq!(db.len(), 1);
++                checksum += black_box(db.len());
++            }
++        }
++        _ => panic!("unknown scenario: {scenario}"),
++    }
++    println!(
++        "{{\"scenario\":\"{scenario}\",\"n\":{n},\"repetitions\":{repetitions},\"elapsed_ns\":{},\"checksum\":{checksum}}}",
++        elapsed.as_nanos()
++    );
++}
+diff --git a/crates/zil-db/src/lib.rs b/crates/zil-db/src/lib.rs
+index 97f7998b6dad8195c7dbccab19367121c711f420..0752c8ceaa0131e7598f5faed671f1d04eaf8e29 100644
+--- a/crates/zil-db/src/lib.rs
++++ b/crates/zil-db/src/lib.rs
+@@ -247,6 +247,13 @@ impl Database {
+     /// follow the actual reverse dependency closure. Replacing an input through
+     /// `publish` invokes this operation automatically.
+     pub fn invalidate(&mut self, key: &QueryKey, new: &ResultFingerprints) -> Vec<QueryKey> {
++        // Publication requires existing dependencies, and invalidation removes
++        // their entire reverse closure. No surviving edge can therefore point
++        // to an absent producer, including a key being published for the first
++        // time. Existing producers retain the original kind-selective scan.
++        if !self.snapshots.contains_key(key) {
++            return Vec::new();
++        }
+         let mut gone = BTreeSet::new();
+         loop {
+             let next = self
+diff --git a/evidence/research/compile-performance/CP21/author-result.json b/evidence/research/compile-performance/CP21/author-result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..afa1a9cd946b4f1634193e2a658bbc15e5543eaf
+--- /dev/null
++++ b/evidence/research/compile-performance/CP21/author-result.json
+@@ -0,0 +1,52 @@
++{
++  "experiment": "CP21 absent-producer shortcut",
++  "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
++  "author": "/root/toolchain_recovery",
++  "status": "Targeted author validation passed; performance adoption not determined",
++  "history": {
++    "previous_experiment": "084",
++    "previous_candidate": "7c59f7c0bdec2a372094fca0a1ee3b2a32abaf92",
++    "previous_verdict": "Production NoGo; baseline restored",
++    "source": ".task/impl/084.md at 485301e1f1dcdfb0b4e24f6249355104243c3fe3",
++    "interpretation": "Remeasurement of an old candidate on the current compiler, not a novel graph technique"
++  },
++  "proof": {
++    "invariant": "Every stored Dependency.key refers to a stored QuerySnapshot",
++    "initial": "Empty database satisfies closure",
++    "publish": "Validates every dependency through read before inserting any snapshot",
++    "invalidate": "Removes the full reverse closure, so deletion leaves no dangling edge",
++    "clear": "Removes all snapshots",
++    "failure": "Failed publication inserts no snapshot; abort only changes active set",
++    "consequence": "An absent key cannot be the producer of any surviving dependency; legacy invalidation returns the empty set",
++    "existing_keys": "Original kind-selective full scan is unchanged"
++  },
++  "tests": {
++    "command": "CARGO_TARGET_DIR=/workspace/scratch/4ab361722127/target-cp21 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test -p zil-db --offline --locked --lib",
++    "baseline_passed": 11,
++    "candidate_passed": 11,
++    "failed": 0,
++    "ignored": 0,
++    "existing_oracle_combinations": 9600,
++    "stdout": "   Compiling zil-db v0.1.0 (/workspace/scratch/4ab361722127/zil-cp21/crates/zil-db)\n    Finished `test` profile [unoptimized] target(s) in 0.39s\n     Running unittests src/lib.rs (/workspace/scratch/4ab361722127/target-cp21/debug/deps/zil_db-43877e21f1283294)\n\nrunning 11 tests\ntest tests::cancellation_is_shared_and_deadlines_do_not_require_background_threads ... ok\ntest tests::absent_invalidation_preserves_active_queries_revision_and_published_identity ... ok\ntest tests::dependency_cycles_and_active_ancestors_cannot_be_observed_or_published ... ok\ntest tests::failed_new_publications_cannot_create_forward_edges_or_replace_old_snapshots ... ok\ntest tests::stale_input_and_cancelled_publication_abort_the_active_record ... ok\ntest cache::tests::oversized_reads_and_writes_are_bounded ... ok\ntest cache::tests::incomplete_temp_files_are_not_committed_candidates ... ok\ntest cache::tests::cancellation_after_real_temporary_write_cannot_publish_or_leave_partial_file ... ok\ntest tests::all_fingerprint_kinds_control_the_actual_transitive_invalidation_set ... ok\ntest cache::tests::each_corruption_class_is_untrusted_and_can_be_rebuilt ... ok\ntest tests::absent_producers_match_legacy_scanning_on_reachable_dags_and_after_eviction ... ok\n\ntest result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.09s\n\n"
++  },
++  "microbenchmark": {
++    "path": "microbench.json",
++    "samples": 120,
++    "method": "Same example compiled before and after guard; ABBA three blocks at each of two sizes and five scenarios; single allowed CPU",
++    "classification": "Exploratory mechanism measurement, not end-to-end compiler speed or Rust comparison",
++    "limitations": [
++      "No formal exclusive measurement window",
++      "Small existing-key controls are noisy and include regression signals; do not suppress them",
++      "New population excludes destruction; replacement excludes fixture population",
++      "Historical NoGo remains; integration must measure full CLI"
++    ]
++  },
++  "safety_scope": "No language acceptance, ABI, budget, failure category or Verify capability change",
++  "four_goals": {
++    "safety": "Existing DB correctness invariants only; not whole-language proof",
++    "runtime_memory": "No target program generation changes; performance not measured",
++    "syntax_maintenance": "No language syntax changes; no comparative maintenance conclusion",
++    "compile": "Query metadata microbench only; complete CLI and Rust comparison not run"
++  },
++  "toolchain_receipt": "/workspace/scratch/4ab361722127/.toolchain/TOOLCHAIN-RECOVERY.json"
++}
+diff --git a/evidence/research/compile-performance/CP21/microbench.json b/evidence/research/compile-performance/CP21/microbench.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..a12e4f9e7c1ec20a7e7ade2c4edb2ed25b1ead25
+--- /dev/null
++++ b/evidence/research/compile-performance/CP21/microbench.json
+@@ -0,0 +1,1310 @@
++{
++  "scope": "Exploratory query-metadata microbenchmark only; not full compiler, not Rust comparison, not a formal exclusive measurement window.",
++  "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
++  "baseline_lib_sha256": "2a07435a5d585581219bea2cc8aa70d9dbd62fe9cb3e0555f2a2913563e768e4",
++  "candidate_sources_sha256": {
++    "crates/zil-db/src/lib.rs": "da575b90458f70be23611679007e156fdbd6b92815df6f36ebac1c9cf71d4726",
++    "crates/zil-db/examples/compile_performance.rs": "cf671401d84681248a6645b0c2d41eecf11a9decfbf458b35f1c38d2a4cbb3fa"
++  },
++  "binaries_sha256": {
++    "baseline": "1cd74b7df66e09df7c63058bda7551db1e0a2d2265b0dbafcd05345c8b94da46",
++    "candidate": "6b15325b62773d58fc131797902505bb59395eb5f93113703d32e6ab81710fe9"
++  },
++  "cpu": 0,
++  "available_cpus": [
++    0,
++    1,
++    2,
++    3,
++    4,
++    5,
++    6,
++    7,
++    8
++  ],
++  "order": "ABBA, three blocks, each scenario/size independently",
++  "repetitions": "8 for publication/changed, 500 for absent and unchanged",
++  "total_samples": 120,
++  "elapsed_seconds": 2.6227189030032605,
++  "summary": [
++    {
++      "n": 128,
++      "scenario": "new-independent",
++      "baseline_median_ns": 405109.0,
++      "candidate_median_ns": 178313.5,
++      "candidate_over_baseline": 0.44016178361872976
++    },
++    {
++      "n": 128,
++      "scenario": "new-fanout",
++      "baseline_median_ns": 636003.0,
++      "candidate_median_ns": 301048.5,
++      "candidate_over_baseline": 0.4733444653562955
++    },
++    {
++      "n": 128,
++      "scenario": "absent-invalidate",
++      "baseline_median_ns": 269249.0,
++      "candidate_median_ns": 11106.5,
++      "candidate_over_baseline": 0.0412499210767728
++    },
++    {
++      "n": 128,
++      "scenario": "existing-unchanged",
++      "baseline_median_ns": 568548.0,
++      "candidate_median_ns": 594987.0,
++      "candidate_over_baseline": 1.0465026699592646
++    },
++    {
++      "n": 128,
++      "scenario": "existing-changed",
++      "baseline_median_ns": 198489.0,
++      "candidate_median_ns": 188189.5,
++      "candidate_over_baseline": 0.9481104746358741
++    },
++    {
++      "n": 2048,
++      "scenario": "new-independent",
++      "baseline_median_ns": 64795137.5,
++      "candidate_median_ns": 4625017.0,
++      "candidate_over_baseline": 0.07137907532027384
++    },
++    {
++      "n": 2048,
++      "scenario": "new-fanout",
++      "baseline_median_ns": 104371032.0,
++      "candidate_median_ns": 8009521.5,
++      "candidate_over_baseline": 0.07674084797781822
++    },
++    {
++      "n": 2048,
++      "scenario": "absent-invalidate",
++      "baseline_median_ns": 5004543.5,
++      "candidate_median_ns": 17291.0,
++      "candidate_over_baseline": 0.0034550603866266723
++    },
++    {
++      "n": 2048,
++      "scenario": "existing-unchanged",
++      "baseline_median_ns": 10943287.5,
++      "candidate_median_ns": 12751137.5,
++      "candidate_over_baseline": 1.1652017275430258
++    },
++    {
++      "n": 2048,
++      "scenario": "existing-changed",
++      "baseline_median_ns": 7809368.0,
++      "candidate_median_ns": 6411940.0,
++      "candidate_over_baseline": 0.8210574786589645
++    }
++  ],
++  "rows": [
++    {
++      "scenario": "new-independent",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 420622,
++      "checksum": 1024,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "new-independent",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 190441,
++      "checksum": 1024,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "new-independent",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 163223,
++      "checksum": 1024,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "new-independent",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 1270514,
++      "checksum": 1024,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "new-independent",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 367076,
++      "checksum": 1024,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "new-independent",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 166186,
++      "checksum": 1024,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "new-independent",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 159786,
++      "checksum": 1024,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "new-independent",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 389596,
++      "checksum": 1024,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "new-independent",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 363598,
++      "checksum": 1024,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "new-independent",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 230161,
++      "checksum": 1024,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "new-independent",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 233405,
++      "checksum": 1024,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "new-independent",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 517746,
++      "checksum": 1024,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 593941,
++      "checksum": 1024,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 399964,
++      "checksum": 1024,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 305862,
++      "checksum": 1024,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 687880,
++      "checksum": 1024,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 551557,
++      "checksum": 1024,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 303283,
++      "checksum": 1024,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 298814,
++      "checksum": 1024,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 548332,
++      "checksum": 1024,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 696271,
++      "checksum": 1024,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 296639,
++      "checksum": 1024,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 297301,
++      "checksum": 1024,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 678065,
++      "checksum": 1024,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 254478,
++      "checksum": 64000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 11286,
++      "checksum": 64000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 11206,
++      "checksum": 64000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 324851,
++      "checksum": 64000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 285714,
++      "checksum": 64000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 11007,
++      "checksum": 64000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 10967,
++      "checksum": 64000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 258824,
++      "checksum": 64000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 256290,
++      "checksum": 64000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 10936,
++      "checksum": 64000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 11587,
++      "checksum": 64000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 279674,
++      "checksum": 64000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 853325,
++      "checksum": 64000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 574902,
++      "checksum": 64000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 692477,
++      "checksum": 64000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 542755,
++      "checksum": 64000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 545388,
++      "checksum": 64000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 609634,
++      "checksum": 64000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 580340,
++      "checksum": 64000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 624045,
++      "checksum": 64000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 578568,
++      "checksum": 64000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 570957,
++      "checksum": 64000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 627520,
++      "checksum": 64000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 128,
++      "repetitions": 500,
++      "elapsed_ns": 558528,
++      "checksum": 64000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 212246,
++      "checksum": 8,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 188410,
++      "checksum": 8,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 186155,
++      "checksum": 8,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 190842,
++      "checksum": 8,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 441497,
++      "checksum": 8,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 187701,
++      "checksum": 8,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 218785,
++      "checksum": 8,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 183583,
++      "checksum": 8,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 206136,
++      "checksum": 8,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 189020,
++      "checksum": 8,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 187969,
++      "checksum": 8,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 128,
++      "repetitions": 8,
++      "elapsed_ns": 186156,
++      "checksum": 8,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "new-independent",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 64981769,
++      "checksum": 16384,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "new-independent",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 4858283,
++      "checksum": 16384,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "new-independent",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 4425710,
++      "checksum": 16384,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "new-independent",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 73566736,
++      "checksum": 16384,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "new-independent",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 65562191,
++      "checksum": 16384,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "new-independent",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 4506541,
++      "checksum": 16384,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "new-independent",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 4860083,
++      "checksum": 16384,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "new-independent",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 63656966,
++      "checksum": 16384,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "new-independent",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 61913500,
++      "checksum": 16384,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "new-independent",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 4743493,
++      "checksum": 16384,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "new-independent",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 4133306,
++      "checksum": 16384,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "new-independent",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 64608506,
++      "checksum": 16384,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 94852650,
++      "checksum": 16384,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 7933780,
++      "checksum": 16384,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 8141488,
++      "checksum": 16384,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 113914216,
++      "checksum": 16384,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 111155182,
++      "checksum": 16384,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 8085263,
++      "checksum": 16384,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 11759807,
++      "checksum": 16384,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 109623599,
++      "checksum": 16384,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 99118465,
++      "checksum": 16384,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 7774305,
++      "checksum": 16384,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 7449824,
++      "checksum": 16384,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "new-fanout",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 87625226,
++      "checksum": 16384,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 9418762,
++      "checksum": 1024000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 14541,
++      "checksum": 1024000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 16815,
++      "checksum": 1024000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 4923699,
++      "checksum": 1024000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 4716552,
++      "checksum": 1024000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 17296,
++      "checksum": 1024000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 17286,
++      "checksum": 1024000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 4718655,
++      "checksum": 1024000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 5085388,
++      "checksum": 1024000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 26379,
++      "checksum": 1024000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 26959,
++      "checksum": 1024000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "absent-invalidate",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 8316869,
++      "checksum": 1024000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 16825041,
++      "checksum": 1024000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 16844130,
++      "checksum": 1024000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 16887685,
++      "checksum": 1024000,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 11051443,
++      "checksum": 1024000,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 10615106,
++      "checksum": 1024000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 11528741,
++      "checksum": 1024000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 13435447,
++      "checksum": 1024000,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 10724329,
++      "checksum": 1024000,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 10932397,
++      "checksum": 1024000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 10890875,
++      "checksum": 1024000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 12066828,
++      "checksum": 1024000,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "existing-unchanged",
++      "n": 2048,
++      "repetitions": 500,
++      "elapsed_ns": 10954178,
++      "checksum": 1024000,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 7182628,
++      "checksum": 8,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 0
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 6852678,
++      "checksum": 8,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 1
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 6887271,
++      "checksum": 8,
++      "variant": "candidate",
++      "block": 0,
++      "ordinal": 2
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 8962738,
++      "checksum": 8,
++      "variant": "baseline",
++      "block": 0,
++      "ordinal": 3
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 7449474,
++      "checksum": 8,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 0
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 5101142,
++      "checksum": 8,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 1
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 4905933,
++      "checksum": 8,
++      "variant": "candidate",
++      "block": 1,
++      "ordinal": 2
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 8169262,
++      "checksum": 8,
++      "variant": "baseline",
++      "block": 1,
++      "ordinal": 3
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 8251664,
++      "checksum": 8,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 0
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 5971202,
++      "checksum": 8,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 1
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 7829367,
++      "checksum": 8,
++      "variant": "candidate",
++      "block": 2,
++      "ordinal": 2
++    },
++    {
++      "scenario": "existing-changed",
++      "n": 2048,
++      "repetitions": 8,
++      "elapsed_ns": 6246662,
++      "checksum": 8,
++      "variant": "baseline",
++      "block": 2,
++      "ordinal": 3
++    }
++  ],
++  "timing_boundaries": {
++    "new-independent": "populate timed; destruction excluded",
++    "new-fanout": "populate timed; destruction excluded",
++    "absent-invalidate": "repeated invalidate loop timed; populate excluded",
++    "existing-unchanged": "repeated same-key/same-fingerprint publish loop timed; populate excluded",
++    "existing-changed": "single changing publish timed per populated DB; populate/destruction excluded"
++  }
++}

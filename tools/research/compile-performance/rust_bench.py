@@ -161,7 +161,7 @@ def prepare(args):
         "cases": cases, "selected_original_weight": original_weight, "order": order_for(cases, args.blocks, args.seed),
         "fixtures_sha256": fixtures(out), "timeout_seconds": args.timeout, "runtime_timeout_seconds": args.runtime_timeout,
         "scope": "Full compiler process to complete executable, with current Verify/lowering/codegen/link/publication; no Cargo no-op, no persistent-session shortcut; OS pages not flushed",
-        "cache_scope": "cold: no ZIL source/object/query cache or Rust incremental; incremental: fresh sequence then unchanged/private/public using isolated per-arm caches; explicit query_cache requires a new current Verify and only identical whole-input hits",
+        "cache_scope": "cold: no ZIL source/object/query cache or Rust incremental; incremental: fresh sequence then unchanged/private/public using isolated per-arm caches; explicit query_cache requires a new current Verify; whole-input checkpoints and any per-module syntax memo are reported separately in raw CLI JSON",
         "linkage_scope": "closed_executable explicitly permits internalizing generated ZIL-only symbols in complete Linux executables; compare runtime quality independently; Rust native CGU and existing flags unchanged",
         "rust_lto_scope": "native omits -C lto and retains the toolchain policy; off explicitly disables Rust LTO for a separate mechanism diagnostic, never a replacement for native results; compare runtime quality for each mode",
         "runtime_scope": "Separate complete native processes including startup and file I/O on one CPU; base binaries from preflight only; compilation/correctness/warmup are not runtime samples",
@@ -517,7 +517,7 @@ def main():
     p.add_argument("--tool", type=Path, action="append", required=True, help="Actual LLVM shared library and any additional tool dependency; repeatable")
     p.add_argument("--profile", choices=["O0", "O2"], default="O0")
     p.add_argument("--cache-mode", choices=["cold", "incremental"], default="cold")
-    p.add_argument("--query-cache", action="store_true", help="Explicit CP12 trusted-local full-input checkpoints; incremental profile only")
+    p.add_argument("--query-cache", action="store_true", help="Explicit trusted-local syntax memo and frontend checkpoint; incremental profile only")
     p.add_argument("--closed-executable", action="store_true", help="Explicit CP13 Linux executable linkage optimization; independently check runtime quality")
     p.add_argument("--rust-profile", choices=["native", "matched"], default="native")
     p.add_argument("--rust-lto", choices=["native", "off"], default="native",
