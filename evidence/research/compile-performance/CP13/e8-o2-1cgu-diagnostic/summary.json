@@ -1,0 +1,193 @@
+{
+  "schema": "zil-compile-performance-cp13-diagnostic/1",
+  "scope": "One diagnostic request only; not a performance score or baseline/candidate comparison",
+  "source_commit": "e8e274c1b28509547a4854d46708ae1601e756e4",
+  "invocation": {
+    "purpose": "single diagnostic only; no scored timing",
+    "argv": [
+      "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1-timings",
+      "build",
+      "/tmp/cp13-e8-o2-8cgu4jobs-plan/corpus/tree1024x8/base/zil/main.zil",
+      "-o",
+      "/tmp/cp13-e8-o2-1cgu-diagnostic/program",
+      "--json",
+      "--timings",
+      "--backend",
+      "llvm-api",
+      "--clang",
+      "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+      "--opt",
+      "O2",
+      "--codegen-units",
+      "1",
+      "--codegen-jobs",
+      "1"
+    ],
+    "cpus": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "binary_sha256": "ef66010b430fefcdd298b58740db27d99f3a94672676dbcde2dbf5a5ec5bdfce"
+  },
+  "report_sha256": "a9b48c4eccc352e089935292dca21e2b2ee9ba95dc18f5704b1bde39a401fca1",
+  "status": "Success",
+  "verification_runs": 1,
+  "native_codegen": {
+    "backend": "llvm-api",
+    "object_reports": [
+      {
+        "backend": "llvm-api",
+        "llvm_version": "23.1.4",
+        "triple": "x86_64-unknown-linux-gnu",
+        "cpu": "x86-64",
+        "features": "",
+        "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+        "pipeline": "default<O2>",
+        "relocation": "PIC",
+        "code_model": "default",
+        "verify_before_after": true,
+        "object_bytes": 1611392,
+        "input_kind": "builder",
+        "preflight_ns": 115815247,
+        "builder_ns": 146117895,
+        "parse_ns": 0,
+        "optimize_ns": 3247297411,
+        "emit_ns": 7238091675,
+        "total_ns": 10813819824
+      }
+    ],
+    "object_cache": {
+      "requested": false,
+      "enabled": false,
+      "hits": 0,
+      "misses": 0,
+      "corrupt": 0,
+      "stored": 0,
+      "write_failures": 0,
+      "key_ns": 0,
+      "lookup_ns": 0,
+      "current_preflight_ns": 0,
+      "disabled_reason": null
+    },
+    "requested_units": 1,
+    "actual_units": 1,
+    "jobs": 1,
+    "fallback": null
+  },
+  "selected_spans": [
+    {
+      "id": 0,
+      "parent": null,
+      "name": "compile_path",
+      "kind": "request",
+      "unit_index": null,
+      "start_ns": 6109,
+      "wall_ns": 12965525587,
+      "outcome": "Success"
+    },
+    {
+      "id": 6181,
+      "parent": 3083,
+      "name": "backend",
+      "kind": "stage",
+      "unit_index": null,
+      "start_ns": 1237336500,
+      "wall_ns": 11707623500,
+      "outcome": "ok"
+    },
+    {
+      "id": 6182,
+      "parent": 6181,
+      "name": "machine_lower",
+      "kind": "stage",
+      "unit_index": null,
+      "start_ns": 1237337592,
+      "wall_ns": 397067883,
+      "outcome": "ok"
+    },
+    {
+      "id": 6183,
+      "parent": 6181,
+      "name": "llvm_text_render",
+      "kind": "stage",
+      "unit_index": null,
+      "start_ns": 1634406777,
+      "wall_ns": 120550958,
+      "outcome": "ok"
+    },
+    {
+      "id": 6190,
+      "parent": 6188,
+      "name": "machine_preflight",
+      "kind": "stage",
+      "unit_index": 0,
+      "start_ns": 1763467571,
+      "wall_ns": 115813434,
+      "outcome": "ok"
+    },
+    {
+      "id": 6191,
+      "parent": 6188,
+      "name": "llvm_builder",
+      "kind": "stage",
+      "unit_index": 0,
+      "start_ns": 1879293023,
+      "wall_ns": 146116984,
+      "outcome": "ok"
+    },
+    {
+      "id": 6192,
+      "parent": 6188,
+      "name": "llvm_verify_before",
+      "kind": "stage",
+      "unit_index": 0,
+      "start_ns": 2027194811,
+      "wall_ns": 22117574,
+      "outcome": "ok"
+    },
+    {
+      "id": 6194,
+      "parent": 6188,
+      "name": "llvm_optimize",
+      "kind": "stage",
+      "unit_index": 0,
+      "start_ns": 2049327647,
+      "wall_ns": 3247298263,
+      "outcome": "ok"
+    },
+    {
+      "id": 6195,
+      "parent": 6188,
+      "name": "llvm_verify_after",
+      "kind": "stage",
+      "unit_index": 0,
+      "start_ns": 5296627071,
+      "wall_ns": 41631932,
+      "outcome": "ok"
+    },
+    {
+      "id": 6196,
+      "parent": 6188,
+      "name": "llvm_object_emit",
+      "kind": "stage",
+      "unit_index": 0,
+      "start_ns": 5338263399,
+      "wall_ns": 7238092456,
+      "outcome": "ok"
+    },
+    {
+      "id": 6198,
+      "parent": 6181,
+      "name": "link",
+      "kind": "stage",
+      "unit_index": null,
+      "start_ns": 12693179911,
+      "wall_ns": 251179719,
+      "outcome": "ok"
+    }
+  ],
+  "accounting": "parents include children; parallel workers overlap; not CPU time",
+  "executable_preserved": "/tmp/cp13-e8-o2-1cgu-diagnostic/program"
+}

@@ -1,0 +1,204 @@
+{
+  "implementation_commit": "53f3c0ac64306a3730448123d13dbd9c88e7d7e1",
+  "baseline_commit": "0093420b178a75717c406c6fa54c0c9d0b99d243",
+  "rlibs": {
+    "baseline": {
+      "base": {
+        "path": "/tmp/cp11-toolchain-setup/cp11a-libs/libzil_base-a5cb5dbca91c1029.rlib",
+        "sha256": "f6f4a3c704aa4a96b8c232908e4dbc8cc23cb1e17494e38fc3118ccb8d50a07c"
+      },
+      "ir": {
+        "path": "/tmp/cp11-toolchain-setup/cp11a-libs/libzil_ir-b9f5982dc757d842.rlib",
+        "sha256": "33d0f5aef268300cbf82d3fa09c4d14bac854f4f247b2c1d37fffd2ff95e95b0"
+      },
+      "syntax": {
+        "path": "/tmp/cp11-toolchain-setup/cp11a-libs/libzil_syntax-85e178f3f1cb215e.rlib",
+        "sha256": "70f8077b5a429d32d257e4071c8b26b29330fa3abf43ed0b5b0985b58a5e1ed3"
+      },
+      "expand": {
+        "path": "/tmp/cp11-toolchain-setup/cp11a-libs/libzil_expand-dd2700c7a1d08ec9.rlib",
+        "sha256": "1c89d292e541a1dbf68b45198fe26329cf5842a5fb1cf5755574f41b930e8e8f"
+      }
+    },
+    "candidate": {
+      "base": {
+        "path": "/tmp/cp11-toolchain-setup/cp11b-libs/libzil_base-a5cb5dbca91c1029.rlib",
+        "sha256": "f6f4a3c704aa4a96b8c232908e4dbc8cc23cb1e17494e38fc3118ccb8d50a07c"
+      },
+      "ir": {
+        "path": "/tmp/cp11-toolchain-setup/cp11b-libs/libzil_ir-b9f5982dc757d842.rlib",
+        "sha256": "33d0f5aef268300cbf82d3fa09c4d14bac854f4f247b2c1d37fffd2ff95e95b0"
+      },
+      "syntax": {
+        "path": "/tmp/cp11-toolchain-setup/cp11b-libs/libzil_syntax-85e178f3f1cb215e.rlib",
+        "sha256": "70f8077b5a429d32d257e4071c8b26b29330fa3abf43ed0b5b0985b58a5e1ed3"
+      },
+      "expand": {
+        "path": "/tmp/cp11-toolchain-setup/cp11b-libs/libzil_expand-dd2700c7a1d08ec9.rlib",
+        "sha256": "4a265b8db23bb9013d6f206f6fbf8bd72bde9d58ffc95dc34649f21df03e7e3c"
+      }
+    }
+  },
+  "independent_records": 182,
+  "independent_boundary_records": 12,
+  "trace_sha256": "2b33c627edf2bba38c744b048cfeaed897ae59991af5efad939b3a208a6a9800",
+  "author_control_records": 20,
+  "author_records_equal": true,
+  "independent_records_equal": true,
+  "checks": [
+    {
+      "name": "normalize-review-compile-baseline-probe",
+      "argv": [
+        "rustc",
+        "--edition",
+        "2024",
+        "-C",
+        "debuginfo=0",
+        "-C",
+        "codegen-units=2",
+        "/workspace/scratch/ac5966c4c370/zil-cp13/evidence/research/compile-performance/CP11/normalize-independent-probe.rs",
+        "-L",
+        "dependency=/tmp/cp11-toolchain-setup/cp11a-libs",
+        "-o",
+        "/tmp/cp11b-review-llvm-strategy/baseline-probe",
+        "--extern",
+        "zil_base=/tmp/cp11-toolchain-setup/cp11a-libs/libzil_base-a5cb5dbca91c1029.rlib",
+        "--extern",
+        "zil_ir=/tmp/cp11-toolchain-setup/cp11a-libs/libzil_ir-b9f5982dc757d842.rlib",
+        "--extern",
+        "zil_syntax=/tmp/cp11-toolchain-setup/cp11a-libs/libzil_syntax-85e178f3f1cb215e.rlib",
+        "--extern",
+        "zil_expand=/tmp/cp11-toolchain-setup/cp11a-libs/libzil_expand-dd2700c7a1d08ec9.rlib"
+      ],
+      "exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "normalize-review-run-baseline-probe",
+      "argv": [
+        "/tmp/cp11b-review-llvm-strategy/baseline-probe"
+      ],
+      "exit": 0,
+      "stdout_sha256": "2b33c627edf2bba38c744b048cfeaed897ae59991af5efad939b3a208a6a9800",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "normalize-review-compile-baseline-author",
+      "argv": [
+        "rustc",
+        "--edition",
+        "2024",
+        "-C",
+        "debuginfo=0",
+        "-C",
+        "codegen-units=2",
+        "/tmp/cp11b-review-llvm-strategy/author-control.rs",
+        "-L",
+        "dependency=/tmp/cp11-toolchain-setup/cp11a-libs",
+        "-o",
+        "/tmp/cp11b-review-llvm-strategy/baseline-author",
+        "--extern",
+        "zil_base=/tmp/cp11-toolchain-setup/cp11a-libs/libzil_base-a5cb5dbca91c1029.rlib",
+        "--extern",
+        "zil_ir=/tmp/cp11-toolchain-setup/cp11a-libs/libzil_ir-b9f5982dc757d842.rlib",
+        "--extern",
+        "zil_syntax=/tmp/cp11-toolchain-setup/cp11a-libs/libzil_syntax-85e178f3f1cb215e.rlib",
+        "--extern",
+        "zil_expand=/tmp/cp11-toolchain-setup/cp11a-libs/libzil_expand-dd2700c7a1d08ec9.rlib",
+        "--test"
+      ],
+      "exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "normalize-review-run-baseline-author",
+      "argv": [
+        "/tmp/cp11b-review-llvm-strategy/baseline-author",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 0,
+      "stdout_sha256": "44c5313578cf962373c8249679e4ff661c614b6670674ad7171dee7b1335def9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "normalize-review-compile-candidate-probe",
+      "argv": [
+        "rustc",
+        "--edition",
+        "2024",
+        "-C",
+        "debuginfo=0",
+        "-C",
+        "codegen-units=2",
+        "/workspace/scratch/ac5966c4c370/zil-cp13/evidence/research/compile-performance/CP11/normalize-independent-probe.rs",
+        "-L",
+        "dependency=/tmp/cp11-toolchain-setup/cp11b-libs",
+        "-o",
+        "/tmp/cp11b-review-llvm-strategy/candidate-probe",
+        "--extern",
+        "zil_base=/tmp/cp11-toolchain-setup/cp11b-libs/libzil_base-a5cb5dbca91c1029.rlib",
+        "--extern",
+        "zil_ir=/tmp/cp11-toolchain-setup/cp11b-libs/libzil_ir-b9f5982dc757d842.rlib",
+        "--extern",
+        "zil_syntax=/tmp/cp11-toolchain-setup/cp11b-libs/libzil_syntax-85e178f3f1cb215e.rlib",
+        "--extern",
+        "zil_expand=/tmp/cp11-toolchain-setup/cp11b-libs/libzil_expand-dd2700c7a1d08ec9.rlib"
+      ],
+      "exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "normalize-review-run-candidate-probe",
+      "argv": [
+        "/tmp/cp11b-review-llvm-strategy/candidate-probe"
+      ],
+      "exit": 0,
+      "stdout_sha256": "2b33c627edf2bba38c744b048cfeaed897ae59991af5efad939b3a208a6a9800",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "normalize-review-compile-candidate-author",
+      "argv": [
+        "rustc",
+        "--edition",
+        "2024",
+        "-C",
+        "debuginfo=0",
+        "-C",
+        "codegen-units=2",
+        "/tmp/cp11b-review-llvm-strategy/author-control.rs",
+        "-L",
+        "dependency=/tmp/cp11-toolchain-setup/cp11b-libs",
+        "-o",
+        "/tmp/cp11b-review-llvm-strategy/candidate-author",
+        "--extern",
+        "zil_base=/tmp/cp11-toolchain-setup/cp11b-libs/libzil_base-a5cb5dbca91c1029.rlib",
+        "--extern",
+        "zil_ir=/tmp/cp11-toolchain-setup/cp11b-libs/libzil_ir-b9f5982dc757d842.rlib",
+        "--extern",
+        "zil_syntax=/tmp/cp11-toolchain-setup/cp11b-libs/libzil_syntax-85e178f3f1cb215e.rlib",
+        "--extern",
+        "zil_expand=/tmp/cp11-toolchain-setup/cp11b-libs/libzil_expand-dd2700c7a1d08ec9.rlib",
+        "--test"
+      ],
+      "exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "normalize-review-run-candidate-author",
+      "argv": [
+        "/tmp/cp11b-review-llvm-strategy/candidate-author",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 0,
+      "stdout_sha256": "621a5390eac245012b805e6651f19034368362f178c1fa6c55cee6c81c56548a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

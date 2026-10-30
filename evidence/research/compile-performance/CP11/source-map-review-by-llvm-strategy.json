@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "experiment": "CP11a",
+  "implementation_commit": "0093420b178a75717c406c6fa54c0c9d0b99d243",
+  "baseline_commit": "542d30676c42e1b691287bcab55874799ca910c1",
+  "implementation_author": "/root/toolchain_setup",
+  "reviewer": "/root/llvm_strategy",
+  "verdict": "Pass",
+  "reviewed_source_sha256": {
+    "crates/zil-base/src/source_map.rs": "7df94d58791b5af98b97f60d49680e554775db52a0255ad5bc8d322ddcd70153",
+    "crates/zil-expand/src/lib.rs": "b216b17791e874bf5728d2f39000540c1cc1cc6376e4cf11dabda80fe4538c20"
+  },
+  "scope": "Exact-source independent review and bounded semantic/budget differential; no global handoff or performance claim",
+  "static_findings": [
+    "SourceMapValidator stores only a private immutable SourceUnit slice and an optional complete FileId lookup; SourceUnit contains plain IDs and Strings, so the borrow prevents source mutation while the index lives.",
+    "Construction performs no validation or work charge. Expand invokes validate at its unchanged position after e.diagnostics, so earlier source errors keep priority.",
+    "Cold scan charges exactly one before each insertion/duplicate check; all failing scans return before publishing the table.",
+    "Warm scan is reachable only after a complete unique-source scan and charges the full sources.len each time. Each call rechecks both max_nodes conditions and creates fresh remaining/target state.",
+    "Entry identity, parent, target uniqueness, origin, related, and generated-span checks remain in the original order. Empty maps still validate and pay for all sources; an empty map with no sources remains valid without a new module_id constraint.",
+    "Standalone SourceMap::validate retains its signature and uses a temporary validator. No validation capability, remaining budget, map outcome, or cross-request state is cached."
+  ],
+  "independent_validation": {
+    "probe": "source-map-independent-probe.rs",
+    "probe_sha256": "c58004437da71aa58a5b50b306611a96fe79447aaf9acaae2b692c584846339b",
+    "frozen_libraries_sha256_verified": true,
+    "baseline_commit_binding": "Author baseline receipt at exact implementation commit; rlib bytes independently checked before use",
+    "variants": [
+      "baseline standalone",
+      "candidate standalone",
+      "candidate shared"
+    ],
+    "calls_per_variant": 9840,
+    "complete_debug_outcomes_byte_equal": true,
+    "trace_sha256": "3b7c2abe42d684360b170d49a0f6709112c92e6c755127fa14e74d4f86e90c05",
+    "covered": [
+      "six source sets including empty/unique/early and late duplicates",
+      "four initial states: valid warm, entry-error warm, source budget failure, node budget failure",
+      "node and work limits including zero and usize::MAX",
+      "identity error before malformed origin; parent error; duplicate target before absent origin",
+      "multibyte UTF-8 origin/related/generated spans",
+      "same target across separate map module IDs",
+      "lower-budget failure after cached-source success then fresh N success"
+    ],
+    "author_controls_independently_recompiled_and_rerun": {
+      "base_tests": 5,
+      "expand_source_tests": 1,
+      "pass": 6,
+      "fail": 0,
+      "source_commit": "0093420b178a75717c406c6fa54c0c9d0b99d243",
+      "expand_boundary": "N=352, N-1=351, fresh N with complete Core/source-map fingerprint"
+    }
+  },
+  "blocking_findings": [],
+  "limitations": [
+    "Finite deterministic control set; static reasoning is required for the general immutable-source argument.",
+    "Frozen baseline and candidate rlibs were reused read-only to avoid another Cargo build and target contention; their hashes and exact commands are recorded.",
+    "No workspace-wide tests, native program tests, runtime benchmark, or compilation-speed score was performed by this review."
+  ],
+  "checks": "source-map-review-checks.json"
+}

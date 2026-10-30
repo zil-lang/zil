@@ -1,0 +1,29 @@
+{
+  "purpose": "single diagnostic only; no scored timing",
+  "argv": [
+    "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1-timings",
+    "build",
+    "/tmp/cp13-e8-o2-8cgu4jobs-plan/corpus/tree1024x8/base/zil/main.zil",
+    "-o",
+    "/tmp/cp13-e8-o2-1cgu-diagnostic/program",
+    "--json",
+    "--timings",
+    "--backend",
+    "llvm-api",
+    "--clang",
+    "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+    "--opt",
+    "O2",
+    "--codegen-units",
+    "1",
+    "--codegen-jobs",
+    "1"
+  ],
+  "cpus": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "binary_sha256": "ef66010b430fefcdd298b58740db27d99f3a94672676dbcde2dbf5a5ec5bdfce"
+}

@@ -1,0 +1,9 @@
+{
+  "plan_sha256": "939b83b046e5747a2aa7e7aee96d9c7de08cf5b53d68e9bcfcc1653bc7b435ff",
+  "rows": 10,
+  "failures": [],
+  "pass": true,
+  "records_sha256": "9603a51b671cf85bdf13bf3914c0f346befbe5e70e7d123c8617a18da6802d38",
+  "warmup": true,
+  "artifacts_sha256": "37399dc4bab8d6db7a95e399ada12ff5f1d11518a5618b85b17acb786ab8601d"
+}
