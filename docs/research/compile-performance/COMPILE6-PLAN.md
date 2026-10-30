@@ -37,3 +37,17 @@ CP24已由非作者绑定 `c24cc08333dfb4ee710a7443414093f82841e0eb` 独审Pass�
 CP22写集补充：仅更新 `crates/zil-cli/src/main.rs` 的HELP描述，准确说明既有 `--query-cache` 同时支持逐模块syntax memo与frontend checkpoint，不更改CLI参数行为。最终release、独审与性能窗口均绑定带该说明的精确源码和二进制。
 
 Rust对照新增窗口明确固定 `--rust-profile native --rust-lto native --cache-mode incremental --query-cache`，ZIL继续8units/4jobs、两CPU亲和。rust_bench只更新cache_scope与help文字以涵盖syntax memo，命令/模式校验/权重/估计器不改。原始stdout保留并hash绑定parse_cache；额外逐case/request审核hits/misses/parsed/stored，Rust原生CGU/LTO和链接策略不改。
+
+## CP26 独立缓存发布成本切片
+
+CP22首个完整窗口240请求/768原生校验通过，实际解析命中经独审逐条核回，但wall B/A=1.0205131985、CPU=0.9917486312；私有编辑wall=0.9329474997，首次建缓存wall=1.3299064214，整体采用Hold。原数据不改。下一候选仅针对逐模块同步发布：先核对可重建trusted-local memo的既有合同，使用缓冲完整写入、flush、close与原子rename，减少每条sync_all和成功后的无效unlink；不承诺断电缓存耐久。丢失、截断或损坏仍回当前冷路径；成功/ArtifactPlan/取消及key/length/checksum全部保留。CP26由原作者独立分树实施，非作者审核，单独冻结后与CP22及原基线分别计量，不从跨窗口差值直接归因。
+
+CP26独审在CP22既有发布边界发现并用冻结binary复现：Temporary guard先于create_new构造，临时路径已存在时会误删并非本次创建的文件；真实output路径碰撞可导致CLI报Success但已发布ELF被删除。CP22完整发布正确性Pass因此撤回为NoGo，原106/10/94/60控制和240行性能仍保留其各自事实。CP26同一发布写集内把guard移到create_new成功后，rename成功后再disarm，并加入sentinel和真实ELF碰撞对照，不修改输入/预算/codec。
+
+## CP27 既有缓存临时路径所有权修复
+
+非作者在原485301e冻结CLI分别复现CP12 frontend checkpoint与LLVM object cache同类问题：确定性临时路径已经是本请求刚发布的ELF时，create_new返回AlreadyExists，旧清理仍删除未拥有路径；报告仍为Success且Verify=1。原始脚本、stdout、ELF存在性和运行对照单独封存，不归因给CP22，也不把先前测试改写为覆盖了此边界。
+
+CP27由 `/root/toolchain_recovery` 从CP26精确源码d8872b52另建分树，独审仍为 `/root/incremental_review`。生产写集仅 `crates/zil-driver/src/query_cache.rs` 与 `crates/zil-backend-llvm/src/object_cache.rs`，补对应有意义的失败与真实产物回归、CP27文档/证据。create_new成功后才接管删除权，后续错误只清理自己的临时文件，rename成功后解除清理；不改变codec、key、资源计费、接受性、Verify或持久化策略。限定同类审查共4处：raw ArtifactCache已有正确open后arm顺序，未见此缺陷；CP26仅修parse，其余两处由CP27完成。
+
+CP26与CP22的正常路径性能隔离仍单独计量；最终可用组合另与485301e和原生Rust配对，不能把不同窗口比率相乘。任何候选需先修复实际产物丢失问题，保留原失败和负收益，主线采用仍Hold。

@@ -204,7 +204,8 @@ Doing
       "measurement_plan": "docs/research/compile-performance/LLVM23-ROUND2-MEASUREMENT-PLAN.md",
       "candidate": "397bf24fef0d7f58aaefb444c17c733652b5e12f",
       "review": "8d8bf861df1b33883002398907ed82d05379a711",
-      "result": "docs/research/compile-performance/LLVM23-RESULT.md"
+      "result": "docs/research/compile-performance/LLVM23-RESULT.md",
+      "compile6_addendum": "Previously untested publication-temp collision independently reproduced on original 485301e baseline; original Pass scope/data retained, current unqualified publication correctness blocked until CP27. See COMPILE6/CP12-review-finding.json."
     },
     "CP13": {
       "status": "NoGo",
@@ -402,7 +403,7 @@ Doing
       "performance": "Full CLI 240 requests, 768 native checks; wall B/A 1.0189467169, CPU 1.0257634777, exploratory wall interval [0.9655310566,1.0271433996]; no established gain"
     },
     "CP22": {
-      "status": "ReviewPass",
+      "status": "NoGo",
       "author": "/root/zit_analysis",
       "reviewer": "/root/incremental_review",
       "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
@@ -427,7 +428,10 @@ Doing
       "candidate": "f660aeb68e4cf86eab0bc7c9e219d5bcf8bdb5ea",
       "delivery": "7ca57fb61aa6fe4f7cac963a531a6cf2851792e4",
       "review": "evidence/research/compile-performance/COMPILE6/CP22-review.json",
-      "performance": "Pending frozen full-CLI A/B and native Rust incremental comparison; correctness Pass is not adoption"
+      "performance": "Initial targeted/engagement checks passed; later publication review ChangesRequested. Full CLI wall B/A 1.0205131985, CPU 0.9917486312, cold wall 1.3299064214, private-edit wall 0.9329474997; NoGo, original observations retained, successor CP26 separate.",
+      "known_correctness_issue": "Independent late review reproduced existing-temp collision: cleanup guard constructed before create_new can unlink a previously published output on AlreadyExists. Initial tests/data retained; CP26 must fix ownership before adoption.",
+      "review_addendum": "evidence/research/compile-performance/COMPILE6/CP22-review-addendum.json",
+      "result": "docs/research/compile-performance/CP22-RESULT.md"
     },
     "CP23": {
       "status": "Doing",
@@ -441,7 +445,9 @@ Doing
         "crates/zil-db/src/tests.rs",
         "crates/zil-db/examples/query_read_cp23.rs",
         "evidence/research/compile-performance/CP23"
-      ]
+      ],
+      "candidate": "4496b1ab6c62ff1131dfbe4e09b33467f346099c",
+      "performance": "Original full window: 240 rows, two LLD failures, IncompleteOrFailed_NoScore. Distinct recovered window preflight 40/40 and 128 native checks passed; formal measurement pending."
     },
     "CP24": {
       "status": "ReviewPass",
@@ -457,6 +463,45 @@ Doing
       "plan": "docs/research/compile-performance/COMPILE6-PLAN.md",
       "reviewed_commit": "c24cc08333dfb4ee710a7443414093f82841e0eb",
       "review": "evidence/research/compile-performance/COMPILE6/CP24-review.json"
+    },
+    "CP26": {
+      "status": "ReviewPass",
+      "author": "/root/zit_analysis",
+      "reviewer": "/root/incremental_review",
+      "baseline": "7ca57fb61aa6fe4f7cac963a531a6cf2851792e4",
+      "purpose": "Isolate recoverable parse memo publication IO: buffered complete write/flush/close and atomic rename; no per-file durability promise, fresh verification and all failure gates preserved",
+      "write_set": [
+        "crates/zil-driver/src/parse_cache.rs",
+        "crates/zil-driver/tests/parse_publication_cp26.rs",
+        "docs/research/compile-performance/CP26-PARSE-PUBLICATION.md",
+        "evidence/research/compile-performance/CP26"
+      ],
+      "plan": "docs/research/compile-performance/COMPILE6-PLAN.md",
+      "candidate": "d8872b52f5a215c2efd33aaadba5083f471e0bc2",
+      "author_validation": "22 targeted tests and 5 real CLI requests / 4 native controls passed; independent review pending; release SHA256 c9f10a9840fd8bdbb884e4981c7dbb5895ebfe653ecb7b486b1979c16441278f.",
+      "delivery": "e6bf523eee3c83510505d74838fdfd298cbff502",
+      "review": "evidence/research/compile-performance/COMPILE6/CP26-review.json",
+      "performance": "NotRun; scoped correctness Pass only, preexisting query/object findings assigned CP27."
+    },
+    "CP27": {
+      "status": "Doing",
+      "author": "/root/toolchain_recovery",
+      "reviewer": "/root/incremental_review",
+      "baseline": "d8872b52f5a215c2efd33aaadba5083f471e0bc2",
+      "purpose": "Repair preexisting frontend checkpoint and LLVM object-cache temporary-file ownership; only delete a path after this request successfully creates it, and relinquish cleanup on rename success. Preserve formats, keys, budgets, verifier and publication policy.",
+      "write_set": [
+        "crates/zil-driver/src/query_cache.rs",
+        "crates/zil-backend-llvm/src/object_cache.rs",
+        "crates/zil-driver/tests/cache_publication_cp27.rs",
+        "crates/zil-backend-llvm/src/object_cache.rs (scoped regression tests)",
+        "docs/research/compile-performance/CP27-TEMP-OWNERSHIP.md",
+        "evidence/research/compile-performance/CP27"
+      ],
+      "plan": "docs/research/compile-performance/COMPILE6-PLAN.md",
+      "findings": [
+        "evidence/research/compile-performance/COMPILE6/CP12-review-finding.json",
+        "evidence/research/compile-performance/COMPILE6/OBJECT-review-finding.json"
+      ]
     }
   },
   "mainline_acceptance": "Hold: main not changed by this research round; targeted correctness passed, composite-type performance risk signals unresolved; full workspace/product gates NotRun.",
@@ -478,7 +523,7 @@ Doing
     "source_scope": "No production compiler change after951471d5."
   },
   "compile6_baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
-  "compile6_status": "Doing: CP21 and CP22 independently dispatched; no new measured performance claim"
+  "compile6_status": "Doing: CP21 full-cost NoGo; CP22 mixed performance and late publication defect NoGo; CP23 original failed window retained, recovered preflight passed; CP26 and CP27 correctness successors under independent review; no new overall Rust advantage."
 }
 ```
 
