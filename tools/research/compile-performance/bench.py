@@ -137,6 +137,7 @@ def prepare(args):
             "binaries": binaries, "extra_tools": extra, "versions": versions, "host": host(),
             "environment": environment(), "cpus": cpus, "blocks": args.blocks, "seed": args.seed,
             "profile": args.profile, "units": args.units, "jobs": args.jobs, "object_cache": args.object_cache,
+            "query_cache": bool(getattr(args, "query_cache", False)),
             "timeout_seconds": args.timeout, "native_timeout_seconds": 30, "phases": phases,
             "selected_cases": [c["id"] for c in cases], "selected_original_weight": weight_sum,
             "selection_note": "Selected case weights normalized once before measurement; phases never pooled",
@@ -184,6 +185,8 @@ def command(plan, seq, work):
         argv += ["-o", str(program)]
         if plan["object_cache"]:
             argv += ["--object-cache", str(work / "objects")]
+    if plan.get("query_cache", False):
+        argv += ["--query-cache", str(work / "queries")]
     return argv
 
 
@@ -213,7 +216,7 @@ def one(plan, root, case, seq, request, work, logs, tag):
         record.update(legacy.timed(argv, stdout, stderr, plan["cpus"], plan["timeout_seconds"]))
         record["source_after"] = file_hashes(work / "src")
         report = json.loads(stdout.read_text())
-        for field in ("status", "phase", "verification_runs", "native_codegen", "commands", "disk_cache", "diagnostics"):
+        for field in ("status", "phase", "verification_runs", "native_codegen", "commands", "disk_cache", "diagnostics", "query_cache", "parse_cache"):
             record["reported_" + field] = report.get(field)
         record["pass"] = (record["exit"] == 0 and not record["timeout"] and report.get("status") == "Success"
                           and report.get("verification_runs") == 1
@@ -319,6 +322,11 @@ def validate_rows(plan, root, records, rows, order):
                   and log_ok(logs, row) and report.get("status") == "Success" and report.get("verification_runs") == 1
                   and all(row["reported_" + name] == report.get(name) for name in
                           ("status", "phase", "verification_runs", "native_codegen", "commands", "disk_cache", "diagnostics")))
+            if plan.get("query_cache", False):
+                ok &= (row.get("reported_query_cache") == report.get("query_cache")
+                       and isinstance(report.get("query_cache"), dict)
+                       and report["query_cache"].get("requested") is True
+                       and row.get("reported_parse_cache") == report.get("parse_cache"))
             checks = row["checks"]
             if row["phase"] == "build":
                 ok &= (len(checks) == len(case["inputs"]) and row["executable_bytes"] > 0
@@ -454,6 +462,7 @@ def main():
     p.add_argument("--units", type=int, choices=range(1, 65), default=1)
     p.add_argument("--jobs", type=int, choices=range(1, 65), default=1)
     p.add_argument("--object-cache", action="store_true", help="Enable identically on both arms")
+    p.add_argument("--query-cache", action="store_true", help="Enable the same explicit frontend cache on both arms; a separate frozen incremental window")
     p.add_argument("--cpus"); p.add_argument("--seed", type=int, default=20261029)
     p.add_argument("--timeout", type=int, default=180)
     p.set_defaults(run=prepare)

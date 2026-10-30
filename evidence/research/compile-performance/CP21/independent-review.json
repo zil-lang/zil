@@ -1,0 +1,43 @@
+{
+  "reviewer": "/root/incremental_review",
+  "implementation_author": "/root/toolchain_recovery",
+  "implementation_commit": "f31fa58c4b0cf3f5fdd264e938dc2cb6646202bd",
+  "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+  "verdict": "Pass",
+  "scope": "Source correctness and targeted DB verification only. Performance adoption remains Hold pending complete CLI evidence.",
+  "source_review": {
+    "production_diff": "Seven lines at Database::invalidate entry; no other production edit; existing algorithm unchanged.",
+    "invariant": "Every stored dependency producer is stored. publish validates dependencies before insertion, invalidate removes the entire reverse closure, clear removes every snapshot, and failed publication/abort never add dangling edges.",
+    "absent": "No direct edge can name an absent producer, so the legacy closure is empty.",
+    "existing": "The original selective scan is unchanged.",
+    "active": "The shortcut changes neither active set nor revision. begin(absent) cannot have existing consumers; begin(existing) still follows original invalidation.",
+    "evicted": "A producer removed by reverse-closure deletion has no surviving consumers; republishing remains valid.",
+    "read_safety": "No Database::read or cycle/active-ancestor check changed."
+  },
+  "independent_execution": {
+    "worktree": "/workspace/scratch/4ab361722127/zil-cp21",
+    "command": "source /workspace/scratch/4ab361722127/.toolchain/env.sh && CARGO_TARGET_DIR=/tmp/cp21-review-target CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test -p zil-db --offline --locked --lib",
+    "exit": 0,
+    "passed": 11,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "oracle_dags": 9600,
+    "completion_stdout": "test tests::absent_producers_match_legacy_scanning_on_reachable_dags_and_after_eviction ... ok\n\ntest result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.03s\n\n"
+  },
+  "evidence_review": {
+    "candidate_source_sha256": "Verified both lib.rs and example against author microbench manifest.",
+    "baseline_source_sha256": "Verified exact Git baseline lib.rs against manifest.",
+    "raw_rows": 120,
+    "summaries_recomputed": 10,
+    "checks": "ABBA order, three blocks per case-size, repetitions, expected checksums, positive elapsed values, raw medians and ratios match.",
+    "limits": "Arithmetic consistency is independently checked; original sample process execution and binary hashes were not independently reproduced. No formal exclusive timing window was used."
+  },
+  "performance_signals": {
+    "existing_unchanged_128": 1.0465,
+    "existing_unchanged_2048": 1.1652,
+    "interpretation": "Retain slower controls. New-key/absent-key gains are mechanism measurements, not end-to-end compiler or Rust speedups."
+  },
+  "history": "This remeasures the old 084 shortcut, previously Production NoGo, rather than establishing a new graph technique.",
+  "issues": []
+}

@@ -1,0 +1,42 @@
+{
+  "reviewer": "/root/incremental_review",
+  "implementation_author": "/root/toolchain_recovery",
+  "implementation_commit": "4496b1ab6c62ff1131dfbe4e09b33467f346099c",
+  "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+  "verdict": "Pass",
+  "scope": "Source correctness and targeted DB verification only; complete compiler performance adoption pending.",
+  "source_review": {
+    "independence": "CP21 is not present in this candidate.",
+    "active_priority": "The same E-QUERY-CYCLE is returned before missing/leaf fast paths, matching the old DFS root check.",
+    "missing": "No snapshot means the previous traversal returned None before reading any edge.",
+    "leaf": "An inactive snapshot with no dependencies has no transitive validation work and returns the same Arc.",
+    "nonleaf": "Original DFS loop remains unchanged, including active ancestors, dependency observed fingerprints, missing-input handling and cycle checks.",
+    "root_reuse": "Immutable &self prevents root replacement during traversal; retained root Arc equals the previous final BTreeMap lookup.",
+    "mutation": "read still mutates no active state, snapshot, revision or graph."
+  },
+  "independent_execution": {
+    "worktree": "/workspace/scratch/4ab361722127/zil-cp23",
+    "command": "source /workspace/scratch/4ab361722127/.toolchain/env.sh && CARGO_TARGET_DIR=/tmp/cp23-review-target CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test -p zil-db --offline --locked --lib",
+    "exit": 0,
+    "passed": 12,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "oracle_dags": 9600,
+    "stdout_path": "/tmp/zil-review/CP23-test.log"
+  },
+  "evidence_review": {
+    "hashes": "Verified baseline lib from exact Git object, candidate lib, and example against microbench manifest.",
+    "raw_rows": 96,
+    "summaries_recomputed": 8,
+    "checks": "ABBA order, three blocks per shape-size, node-count definitions, checksums, positive elapsed time, all sample medians and ratios match.",
+    "limits": "Original process execution and binary identities were not independently reconstructed. The recorded measurement window was exploratory and non-exclusive."
+  },
+  "performance_signals": {
+    "chain_n16": 1.0413337765660269,
+    "diamond_n16": 1.0112721281736905,
+    "diamond_n128": 1.0350200617056002,
+    "interpretation": "Nonleaf controls include slower results. Missing/leaf microbench reductions do not establish end-to-end compilation or Rust advantage."
+  },
+  "issues": []
+}

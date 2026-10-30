@@ -52,6 +52,27 @@ class RunnerControls(unittest.TestCase):
         with patch.object(bench.legacy, "timed", side_effect=timing):
             return bench.one(self.plan, self.root, self.case, self.seq, "cold_process", work, logs, "0")
 
+    def test_query_cache_is_explicit_and_symmetric(self):
+        work = self.root / "sequence"
+        for arm in ("A", "B"):
+            seq = {**self.seq, "arm": arm}
+            self.assertNotIn("--query-cache", bench.command(self.plan, seq, work))
+            plan = {**self.plan, "query_cache": True}
+            argv = bench.command(plan, seq, work)
+            self.assertEqual(argv[-2:], ["--query-cache", str(work / "queries")])
+
+    def test_query_cache_report_tampering_is_not_scored(self):
+        self.plan["query_cache"] = True
+        rows = self.rows()
+        rows[0]["reported_query_cache"] = {"requested": False}
+        self.assert_no_score(rows)
+
+    def test_query_cache_window_requires_matching_request_reports(self):
+        self.plan["query_cache"] = True
+        result = self.summary(self.rows())
+        self.assertTrue(result["coverage_complete"])
+        self.assertEqual(result["by_phase"]["check"]["wall"]["B_over_A"], .5)
+
     def test_check_requires_current_verifier(self):
         def skipped(*args):
             result = self.timing(*args)
@@ -108,6 +129,8 @@ class RunnerControls(unittest.TestCase):
                 work = directory / ("s" + str(index // 4))
                 report = {"status": "Success", "verification_runs": 1, "phase": "Verify",
                           "native_codegen": None, "commands": [], "disk_cache": None, "diagnostics": []}
+                if self.plan.get("query_cache", False):
+                    report["query_cache"] = {"requested": True, "state": "bypass"}
                 stdout, stderr = logs / f"{index}.json", logs / f"{index}.err"
                 stdout.write_text(json.dumps(report)); stderr.write_text("")
                 source = bench.file_hashes(self.root / self.case["root"] / snapshot / "zil")
