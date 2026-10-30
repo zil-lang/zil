@@ -1,0 +1,1274 @@
+{
+  "schema": "zil.compile-performance.independent-review.v1",
+  "task": "CP13 CLI and driver adapter",
+  "implementation_commit": "ec089eab8088d1e616515fb573b66576323765e9",
+  "implementation_parent": "4b5a8430d8bad89b200bcb72045d817a5d9289ea",
+  "backend_core_commit": "6d3f01580c1ae921a1b26b410a8288acc8dff4ba",
+  "backend_core_local_cherry_pick": "4b5a8430d8bad89b200bcb72045d817a5d9289ea",
+  "frontend_checkpoint_commit": "397bf24fef0d7f58aaefb444c17c733652b5e12f",
+  "reviewer": "/root/toolchain_setup",
+  "author": "/root/benchmark_audit",
+  "verdict": "Pass",
+  "scope": "Exact adapter/default/entry rejection/real backend propagation and frontend-vs-object identity separation; not a second audit of the core internalization algorithm and not a performance result.",
+  "source_changes_by_reviewer": false,
+  "findings": [
+    {
+      "area": "default and propagation",
+      "verdict": "Pass",
+      "detail": "CompileOptions defaults closed_executable to false. The CLI switch only sets true explicitly. The driver copies it to BuildOptions after a fresh Verify and existing entry checks; the backend owns actual transformation/count. Independent LLVM API and Clang O0 builds verify once and produce 42. Default generated ZIL functions are global T symbols; closed mode changes them to local t symbols while main remains global T. This observes the real object/executable instead of trusting the report bool or prepartition sidecar."
+    },
+    {
+      "area": "CLI unsupported entry points",
+      "verdict": "Pass",
+      "detail": "Guard runs before compile_path/source I/O and requires action build, Stage::Build, Linux host, x86_64 Linux target and no Win64 configuration. Seven independent missing-source controls (check, run, Win64 target shorthand and full triple, Linux plus windows-lib, explicit linker, check stop-after=parse) return exit64/E-CLI-ARGUMENT; old executable is preserved and query directory is not created. HELP states the generated-symbol export contract restriction."
+    },
+    {
+      "area": "query cache identity",
+      "verdict": "Pass",
+      "detail": "Exclusion of closed_executable from frontend key is explicit and limited to a post-Verify machine-linkage choice. It cannot alter discovery, parse, CT, Types, Analyze or Verify inputs. Real false→true→true→false requests use one unchanged entry/key with states miss/hit/hit/hit and Verify=1 every time. Installed compiler identity still distinguishes the CP13-producing binary from CP12."
+    },
+    {
+      "area": "machine object identity",
+      "verdict": "Pass",
+      "detail": "Core internalization executes on actual partitioned Module items before PreparedCache lookup. machine_key hashes all actual items including Function.linkage, without normalizing them away. The same toggle sequence records object hits 0/0/1/1 and misses 1/1/0/0, leaving two distinct object entries. Restoring false reuses its old object instead of the closed one. The diagnostic LLVM sidecar remains prepartition text as documented; it is byte-equal across mode changes and is not used as the cache identity."
+    }
+  ],
+  "exact_source_blobs": {
+    "crates/zil-cli/src/main.rs": "90d1ba5eccd5a53902a80fc1dd2ec2ac73ca8dd2",
+    "crates/zil-driver/src/lib.rs": "847f2ee751c774f1de6b0ce067f76522bd8e65ce",
+    "crates/zil-driver/src/session.rs": "381ffcf178bdb614dc8177368ef5496581ee3469",
+    "crates/zil-driver/src/query_cache.rs": "80a1bd105c0fe836c345ee5b6b7d83442592c633",
+    "crates/zil-backend-llvm/src/build.rs": "38851bbbc30f5fdea5e71193775adea6826389ba",
+    "crates/zil-backend-llvm/src/object_cache.rs": "7ab3d4e700124f0e4c747f76800ec465c3081d02",
+    "docs/research/compile-performance/CP13-CLI.md": "909f87d4a4d307dcaf7c8b5247130244cf6441ce"
+  },
+  "core_cherry_pick_build_and_machine_cgu_equal": true,
+  "executables": {
+    "candidate_cli": {
+      "path": "/workspace/scratch/ac5966c4c370/zil-cp12/target/debug/zil",
+      "bytes": 31841432,
+      "sha256": "e4dcc2cf638a27d5117b1c579d6c81353b831f5b16e7878eb4eeccf472911141"
+    },
+    "author_test_binary_identity_only_not_counted": {
+      "path": "/workspace/scratch/ac5966c4c370/zil-cp12/target/debug/deps/closed_executable_cp13-caa3618bab0b6b40",
+      "bytes": 1224704,
+      "sha256": "ee8e341b235c7204d13aa14fe9a13a8d063aee2627d00df08f700900b7be98df"
+    }
+  },
+  "candidate_build_provenance": "Author confirmed debug0/incremental0/default llvm-api built at exact ec089; subsequent bf090 changes evidence only. Before/after independent SHA256 matches e4dcc2cf638a27d5117b1c579d6c81353b831f5b16e7878eb4eeccf472911141. No candidate rebuild performed.",
+  "execution": {
+    "command": "source /workspace/scratch/ac5966c4c370/toolchains/env.sh; python3 /tmp/cp13-adapter-review-toolchain-setup/review.py",
+    "new_rust_builds": 0,
+    "native_builds": 6,
+    "pre_read_configuration_rejections": 7,
+    "all_processes_finished_utc": "2026-10-30T08:21:09.516213+00:00",
+    "formal_performance": false
+  },
+  "new_failures": [],
+  "limitations": [
+    "Linux x86_64 existing frozen binary only; non-Linux branch was read, not executed.",
+    "Bounded O0/1 CGU adapter probes. Core multi-CGU/capture/external-symbol semantics and O2 runtime/compile-time quality remain separate core and coordinator review obligations.",
+    "Raw LLVM sidecar is diagnostic prepartition IR; actual linkage was verified with nm.",
+    "The preceding CP12 review remains separately bound to 397 and is not silently upgraded to later source."
+  ],
+  "probe": {
+    "identity": {
+      "path": "/tmp/cp13-adapter-review-toolchain-setup/review.py",
+      "bytes": 6304,
+      "sha256": "33470e7aedaf663c18a95ad0a3fed4470768160d73e96b528d44de387274cc6e"
+    },
+    "source": "import hashlib\nimport json\nimport pathlib\nimport subprocess\nfrom datetime import datetime, timezone\n\nROOT = pathlib.Path('/tmp/cp13-adapter-review-toolchain-setup/run-01')\nROOT.mkdir()\nBIN = pathlib.Path('/workspace/scratch/ac5966c4c370/zil-cp12/target/debug/zil')\nEXPECTED_SHA = 'e4dcc2cf638a27d5117b1c579d6c81353b831f5b16e7878eb4eeccf472911141'\nassert hashlib.sha256(BIN.read_bytes()).hexdigest() == EXPECTED_SHA\nSOURCE = 'fn plus(x:i32)->i32=>x+1\\nfn value()->i32{let f=plus;return f(41);}\\n'\nrecords = []\n\ndef execute(case, label, args):\n    result = subprocess.run([str(BIN), *args], capture_output=True, timeout=30)\n    (case / f'{label}.stdout').write_bytes(result.stdout)\n    (case / f'{label}.stderr').write_bytes(result.stderr)\n    report = json.loads(result.stdout)\n    (case / f'{label}.json').write_text(json.dumps(report, indent=2) + '\\n')\n    record = {'case': case.name, 'label': label, 'arguments': args, 'exit': result.returncode, 'report': report}\n    records.append(record)\n    return result, report, record\n\nfor backend in ['llvm-api', 'clang']:\n    case = ROOT / backend\n    case.mkdir()\n    (case / 'main.zil').write_text(SOURCE)\n    steps = [(False, 'miss', 0), (True, 'hit', 0), (True, 'hit', 1), (False, 'hit', 1)] if backend == 'llvm-api' else [(False, None, None), (True, None, None)]\n    snapshots = []\n    original_query = None\n    original_key = None\n    for index, (closed, state, object_hits) in enumerate(steps):\n        label = f'{index}-' + ('closed' if closed else 'default')\n        args = ['build', str(case / 'main.zil'), '-o', str(case / 'program'), '--entry', 'value', '--backend', backend, '--json']\n        if closed:\n            args.append('--closed-executable')\n        if backend == 'llvm-api':\n            args += ['--query-cache', str(case / 'queries'), '--object-cache', str(case / 'objects')]\n        result, report, record = execute(case, label, args)\n        assert result.returncode == 0, report\n        assert report['status'] == 'Success'\n        assert report['verification_runs'] == 1\n        assert report['native_codegen']['closed_executable'] is closed\n        count = report['native_codegen']['internalized_functions']\n        assert count > 0 if closed else count == 0\n        run = subprocess.run([str(case / 'program')], capture_output=True, timeout=10)\n        assert (run.returncode, run.stdout, run.stderr) == (0, b'42\\n', b'')\n        nm = subprocess.run(['nm', '--defined-only', '-P', str(case / 'program')], capture_output=True, check=True, timeout=10).stdout.decode()\n        (case / f'{label}.nm').write_text(nm)\n        symbols = {line.split()[0]: line.split()[1] for line in nm.splitlines() if line.startswith('zil.fn.')}\n        assert symbols, nm\n        assert ('t' in symbols.values()) if closed else all(s == 'T' for s in symbols.values())\n        assert any(line.startswith('main T ') for line in nm.splitlines()), nm\n        llvm = (case / 'program.ll').read_bytes()\n        snapshots.append(llvm)\n        record.update({'native': {'exit': run.returncode, 'stdout': run.stdout.decode()},\n                       'symbols': symbols, 'nm': nm,\n                       'llvm_sha256': hashlib.sha256(llvm).hexdigest(),\n                       'executable_sha256': hashlib.sha256((case / 'program').read_bytes()).hexdigest()})\n        if backend == 'llvm-api':\n            q = report['query_cache']\n            assert q['state'] == state, q\n            obj = report['native_codegen']['object_cache']\n            assert obj['hits'] == object_hits, obj\n            assert obj['misses'] == (0 if object_hits else 1), obj\n            if index == 0:\n                original_key = q['key']\n                original_query = next((case / 'queries/frontend-cp12-v1').glob('*.qcp')).read_bytes()\n            assert q['key'] == original_key\n            entries = list((case / 'queries/frontend-cp12-v1').glob('*.qcp'))\n            assert len(entries) == 1\n            assert entries[0].read_bytes() == original_query\n    # The sidecar is intentionally the prepartition reference, not proof of applied linkage.\n    assert all(x == snapshots[0] for x in snapshots)\n    if backend == 'llvm-api':\n        objects = sorted((case / 'objects').rglob('*.zobj'))\n        assert len(objects) == 2\n        (case / 'object-identities.json').write_text(json.dumps([{'path':str(p), 'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in objects], indent=2)+'\\n')\n\ncase = ROOT / 'reject-before-read'\ncase.mkdir()\nfor index, extra in enumerate([\n    ['check'],\n    ['run'],\n    ['build', '--target', 'win64'],\n    ['build', '--target', 'x86_64-pc-windows-msvc'],\n    ['build', '--target', 'native', '--windows-lib', str(case / 'missing-import.lib')],\n    ['build', '--linker', str(case / 'missing-lld-link')],\n    ['check', '--stop-after', 'parse'],\n]):\n    action, *flags = extra\n    label = str(index)\n    (case / 'program').write_bytes(b'old executable sentinel')\n    args = [action, str(case / 'missing-source.zil'), *flags, '-o', str(case / 'program'), '--query-cache', str(case / 'queries'), '--closed-executable', '--json']\n    result, report, _ = execute(case, label, args)\n    assert result.returncode == 64\n    assert report['diagnostics'][0]['code'] == 'E-CLI-ARGUMENT', report\n    assert 'complete Linux x86_64 build' in report['diagnostics'][0]['message']\n    assert (case / 'program').read_bytes() == b'old executable sentinel'\n    assert not (case / 'queries').exists()\n\nhelp_result = subprocess.run([str(BIN), '--help'], capture_output=True, timeout=10, check=True)\nassert b'--closed-executable' in help_result.stdout\nassert b'generated ZIL symbols have no export contract' in help_result.stdout\n(ROOT / 'help.txt').write_bytes(help_result.stdout)\nassert hashlib.sha256(BIN.read_bytes()).hexdigest() == EXPECTED_SHA\nresult = {'verdict':'Pass', 'implementation_commit':'ec089eab8088d1e616515fb573b66576323765e9',\n          'binary':str(BIN), 'binary_sha256':EXPECTED_SHA, 'cli_compile_requests':len(records),\n          'native_builds':6, 'pre-read_config_rejections':7, 'new_rust_builds':0,\n          'finished_utc':datetime.now(timezone.utc).isoformat(), 'records':records}\n(ROOT / 'result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2)+'\\n')\nprint(json.dumps({k:v for k,v in result.items() if k != 'records'}))\n"
+  },
+  "log": "{\"verdict\": \"Pass\", \"implementation_commit\": \"ec089eab8088d1e616515fb573b66576323765e9\", \"binary\": \"/workspace/scratch/ac5966c4c370/zil-cp12/target/debug/zil\", \"binary_sha256\": \"e4dcc2cf638a27d5117b1c579d6c81353b831f5b16e7878eb4eeccf472911141\", \"cli_compile_requests\": 13, \"native_builds\": 6, \"pre-read_config_rejections\": 7, \"new_rust_builds\": 0, \"finished_utc\": \"2026-10-30T08:21:09.516213+00:00\"}\n",
+  "results": {
+    "verdict": "Pass",
+    "implementation_commit": "ec089eab8088d1e616515fb573b66576323765e9",
+    "binary": "/workspace/scratch/ac5966c4c370/zil-cp12/target/debug/zil",
+    "binary_sha256": "e4dcc2cf638a27d5117b1c579d6c81353b831f5b16e7878eb4eeccf472911141",
+    "cli_compile_requests": 13,
+    "native_builds": 6,
+    "pre-read_config_rejections": 7,
+    "new_rust_builds": 0,
+    "finished_utc": "2026-10-30T08:21:09.516213+00:00",
+    "records": [
+      {
+        "case": "llvm-api",
+        "label": "0-default",
+        "arguments": [
+          "build",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/main.zil",
+          "-o",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/program",
+          "--entry",
+          "value",
+          "--backend",
+          "llvm-api",
+          "--json",
+          "--query-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/queries",
+          "--object-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/objects"
+        ],
+        "exit": 0,
+        "report": {
+          "status": "Success",
+          "phase": "link",
+          "diagnostics": [],
+          "artifacts": {
+            "executable": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/program",
+            "llvm": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/program.ll"
+          },
+          "input_fingerprint": "e221064c089040ecb97fc55294cee4c9b9581ff10ed1793bc005d982acdbe4d7",
+          "seconds": 0.058007674,
+          "timings": null,
+          "cache_hit": false,
+          "commands": [
+            [
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-O0",
+              "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/.zil-driver-6-0/.zil-build-6-0/unit-0.o",
+              "-o",
+              "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/.zil-driver-6-0/.zil-build-6-0/program",
+              "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+            ]
+          ],
+          "native_codegen": {
+            "backend": "llvm-api",
+            "object_reports": [
+              {
+                "backend": "llvm-api",
+                "llvm_version": "23.1.4",
+                "triple": "x86_64-unknown-linux-gnu",
+                "cpu": "x86-64",
+                "features": "",
+                "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                "pipeline": "default<O0>",
+                "relocation": "PIC",
+                "code_model": "default",
+                "verify_before_after": true,
+                "object_bytes": 1336,
+                "input_kind": "builder",
+                "preflight_ns": 136002,
+                "builder_ns": 307786,
+                "parse_ns": 0,
+                "optimize_ns": 266946,
+                "emit_ns": 2654717,
+                "total_ns": 3862849,
+                "cache": {
+                  "state": "miss",
+                  "action_key": "968c987ba805691f8f9847ef7aecdf18e2ce5fa62cc068f21b2d849ced8b0698",
+                  "corrupt": false,
+                  "key_ns": 334015,
+                  "lookup_ns": 20400,
+                  "current_preflight_ns": 0
+                }
+              }
+            ],
+            "object_cache": {
+              "requested": true,
+              "enabled": true,
+              "hits": 0,
+              "misses": 1,
+              "corrupt": 0,
+              "stored": 1,
+              "write_failures": 0,
+              "key_ns": 334015,
+              "lookup_ns": 20400,
+              "current_preflight_ns": 0,
+              "disabled_reason": null
+            },
+            "requested_units": 1,
+            "actual_units": 1,
+            "jobs": 1,
+            "fallback": null,
+            "closed_executable": false,
+            "internalized_functions": 0
+          },
+          "disk_cache": "disabled",
+          "query_cache": {
+            "requested": true,
+            "state": "miss",
+            "key": "0266628d85f9fbad88d3e455accb6c96d44f7b7e9c80c01d8bcd38ca377005b0",
+            "reason": null,
+            "stored": true,
+            "write_reason": null,
+            "ct_steps": 0,
+            "ct_nodes": 20,
+            "ct_functions": 2
+          },
+          "query_events": [
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "expand",
+              "disposition": "executed"
+            },
+            {
+              "phase": "ct",
+              "disposition": "executed"
+            },
+            {
+              "phase": "types",
+              "disposition": "executed"
+            },
+            {
+              "phase": "analyze",
+              "disposition": "executed"
+            },
+            {
+              "phase": "verify",
+              "disposition": "executed"
+            },
+            {
+              "phase": "lower",
+              "disposition": "executed"
+            },
+            {
+              "phase": "link",
+              "disposition": "executed"
+            }
+          ],
+          "verification_runs": 1,
+          "source_files": {
+            "0": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/main.zil"
+          },
+          "scalar_interfaces": [
+            {
+              "module": 0,
+              "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+              "implementation_fingerprint": "2201dff1149ad822f813c02c64cb7202a9a86f87dc016c66b8606f3f27228b76",
+              "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+              "result_origins": [],
+              "callable_contracts": [],
+              "callable_returns": [],
+              "exports": []
+            }
+          ]
+        },
+        "native": {
+          "exit": 0,
+          "stdout": "42\n"
+        },
+        "symbols": {
+          "zil.fn.0": "T",
+          "zil.fn.1": "T"
+        },
+        "nm": "_DYNAMIC d 27e0 \n_GLOBAL_OFFSET_TABLE_ d 39b8 \n_IO_stdin_used R 570 4\n__FRAME_END__ r 5a8 \n__TMC_END__ d 39b8 \n__TMC_LIST__ d 39b8 \n__abi_tag r 2c4 20\n__data_start D 39a8 \n__do_global_dtors_aux t 16c0 \n__do_global_dtors_aux_fini_array_entry d 27d0 \n__dso_handle d 39b0 \n__frame_dummy_init_array_entry d 27d8 \n_fini t 1788 \n_init t 176c \n_start T 1620 26\ncompleted.0 b 39e0 1\ndata_start W 39a8 \nderegister_tm_clones t 1650 \nframe_dummy t 1700 \nmain T 1750 1b\nregister_tm_clones t 1680 \nzil.fn.0 T 1710 1a\nzil.fn.1 T 1730 16\n",
+        "llvm_sha256": "165967123ee25a97752614c2aa9f78d5934155ad9741ea05f9205a6d16994bf1",
+        "executable_sha256": "47683e68886fc1c663da17d31a11ba6305952931913b8f583ac887afc7c6cb04"
+      },
+      {
+        "case": "llvm-api",
+        "label": "1-closed",
+        "arguments": [
+          "build",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/main.zil",
+          "-o",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/program",
+          "--entry",
+          "value",
+          "--backend",
+          "llvm-api",
+          "--json",
+          "--closed-executable",
+          "--query-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/queries",
+          "--object-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/objects"
+        ],
+        "exit": 0,
+        "report": {
+          "status": "Success",
+          "phase": "link",
+          "diagnostics": [],
+          "artifacts": {
+            "executable": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/program",
+            "llvm": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/program.ll"
+          },
+          "input_fingerprint": "e221064c089040ecb97fc55294cee4c9b9581ff10ed1793bc005d982acdbe4d7",
+          "seconds": 0.058560223,
+          "timings": null,
+          "cache_hit": true,
+          "commands": [
+            [
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-O0",
+              "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/.zil-driver-21-0/.zil-build-21-0/unit-0.o",
+              "-o",
+              "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/.zil-driver-21-0/.zil-build-21-0/program",
+              "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+            ]
+          ],
+          "native_codegen": {
+            "backend": "llvm-api",
+            "object_reports": [
+              {
+                "backend": "llvm-api",
+                "llvm_version": "23.1.4",
+                "triple": "x86_64-unknown-linux-gnu",
+                "cpu": "x86-64",
+                "features": "",
+                "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+                "pipeline": "default<O0>",
+                "relocation": "PIC",
+                "code_model": "default",
+                "verify_before_after": true,
+                "object_bytes": 1288,
+                "input_kind": "builder",
+                "preflight_ns": 92627,
+                "builder_ns": 239665,
+                "parse_ns": 0,
+                "optimize_ns": 249430,
+                "emit_ns": 10968283,
+                "total_ns": 12168712,
+                "cache": {
+                  "state": "miss",
+                  "action_key": "feaa5911e4e2871fe09bc68d9854dc349202bc108376260934593ddcb77791f4",
+                  "corrupt": false,
+                  "key_ns": 347075,
+                  "lookup_ns": 22383,
+                  "current_preflight_ns": 0
+                }
+              }
+            ],
+            "object_cache": {
+              "requested": true,
+              "enabled": true,
+              "hits": 0,
+              "misses": 1,
+              "corrupt": 0,
+              "stored": 1,
+              "write_failures": 0,
+              "key_ns": 347075,
+              "lookup_ns": 22383,
+              "current_preflight_ns": 0,
+              "disabled_reason": null
+            },
+            "requested_units": 1,
+            "actual_units": 1,
+            "jobs": 1,
+            "fallback": null,
+            "closed_executable": true,
+            "internalized_functions": 2
+          },
+          "disk_cache": "disabled",
+          "query_cache": {
+            "requested": true,
+            "state": "hit",
+            "key": "0266628d85f9fbad88d3e455accb6c96d44f7b7e9c80c01d8bcd38ca377005b0",
+            "reason": null,
+            "stored": false,
+            "write_reason": null,
+            "ct_steps": 0,
+            "ct_nodes": 20,
+            "ct_functions": 2
+          },
+          "query_events": [
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "expand",
+              "disposition": "reused"
+            },
+            {
+              "phase": "ct",
+              "disposition": "reused"
+            },
+            {
+              "phase": "types",
+              "disposition": "reused"
+            },
+            {
+              "phase": "analyze",
+              "disposition": "reused"
+            },
+            {
+              "phase": "verify",
+              "disposition": "executed"
+            },
+            {
+              "phase": "lower",
+              "disposition": "executed"
+            },
+            {
+              "phase": "link",
+              "disposition": "executed"
+            }
+          ],
+          "verification_runs": 1,
+          "source_files": {
+            "0": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/main.zil"
+          },
+          "scalar_interfaces": [
+            {
+              "module": 0,
+              "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+              "implementation_fingerprint": "2201dff1149ad822f813c02c64cb7202a9a86f87dc016c66b8606f3f27228b76",
+              "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+              "result_origins": [],
+              "callable_contracts": [],
+              "callable_returns": [],
+              "exports": []
+            }
+          ]
+        },
+        "native": {
+          "exit": 0,
+          "stdout": "42\n"
+        },
+        "symbols": {
+          "zil.fn.0": "t",
+          "zil.fn.1": "t"
+        },
+        "nm": "_DYNAMIC d 27e0 \n_GLOBAL_OFFSET_TABLE_ d 39b8 \n_IO_stdin_used R 570 4\n__FRAME_END__ r 5a8 \n__TMC_END__ d 39b8 \n__TMC_LIST__ d 39b8 \n__abi_tag r 2c4 20\n__data_start D 39a8 \n__do_global_dtors_aux t 16c0 \n__do_global_dtors_aux_fini_array_entry d 27d0 \n__dso_handle d 39b0 \n__frame_dummy_init_array_entry d 27d8 \n_fini t 1788 \n_init t 176c \n_start T 1620 26\ncompleted.0 b 39e0 1\ndata_start W 39a8 \nderegister_tm_clones t 1650 \nframe_dummy t 1700 \nmain T 1750 1b\nregister_tm_clones t 1680 \nzil.fn.0 t 1710 1a\nzil.fn.1 t 1730 16\n",
+        "llvm_sha256": "165967123ee25a97752614c2aa9f78d5934155ad9741ea05f9205a6d16994bf1",
+        "executable_sha256": "8c005336d55a03a6541795c06ad4d2c57cd9b5b4cf2a6277131e02b9b742c1ad"
+      },
+      {
+        "case": "llvm-api",
+        "label": "2-closed",
+        "arguments": [
+          "build",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/main.zil",
+          "-o",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/program",
+          "--entry",
+          "value",
+          "--backend",
+          "llvm-api",
+          "--json",
+          "--closed-executable",
+          "--query-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/queries",
+          "--object-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/objects"
+        ],
+        "exit": 0,
+        "report": {
+          "status": "Success",
+          "phase": "link",
+          "diagnostics": [],
+          "artifacts": {
+            "executable": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/program",
+            "llvm": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/program.ll"
+          },
+          "input_fingerprint": "e221064c089040ecb97fc55294cee4c9b9581ff10ed1793bc005d982acdbe4d7",
+          "seconds": 0.023680191,
+          "timings": null,
+          "cache_hit": true,
+          "commands": [
+            [
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-O0",
+              "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/.zil-driver-36-0/.zil-build-36-0/unit-0.o",
+              "-o",
+              "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/.zil-driver-36-0/.zil-build-36-0/program",
+              "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+            ]
+          ],
+          "native_codegen": {
+            "backend": "llvm-api",
+            "object_reports": [
+              {
+                "backend": "llvm-api",
+                "input_kind": "object-cache",
+                "llvm_version": "23.1.4",
+                "triple": "x86_64-unknown-linux-gnu",
+                "object_bytes": 1288,
+                "cache": {
+                  "state": "hit",
+                  "action_key": "feaa5911e4e2871fe09bc68d9854dc349202bc108376260934593ddcb77791f4",
+                  "corrupt": false,
+                  "key_ns": 130333,
+                  "lookup_ns": 76774,
+                  "current_preflight_ns": 89133
+                },
+                "llvm_verification_this_request": false,
+                "producer_verified_before_after": true,
+                "preflight_ns": 89133,
+                "builder_ns": 0,
+                "parse_ns": 0,
+                "optimize_ns": 0,
+                "emit_ns": 0,
+                "total_ns": 296240
+              }
+            ],
+            "object_cache": {
+              "requested": true,
+              "enabled": true,
+              "hits": 1,
+              "misses": 0,
+              "corrupt": 0,
+              "stored": 0,
+              "write_failures": 0,
+              "key_ns": 130333,
+              "lookup_ns": 76774,
+              "current_preflight_ns": 89133,
+              "disabled_reason": null
+            },
+            "requested_units": 1,
+            "actual_units": 1,
+            "jobs": 1,
+            "fallback": null,
+            "closed_executable": true,
+            "internalized_functions": 2
+          },
+          "disk_cache": "disabled",
+          "query_cache": {
+            "requested": true,
+            "state": "hit",
+            "key": "0266628d85f9fbad88d3e455accb6c96d44f7b7e9c80c01d8bcd38ca377005b0",
+            "reason": null,
+            "stored": false,
+            "write_reason": null,
+            "ct_steps": 0,
+            "ct_nodes": 20,
+            "ct_functions": 2
+          },
+          "query_events": [
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "expand",
+              "disposition": "reused"
+            },
+            {
+              "phase": "ct",
+              "disposition": "reused"
+            },
+            {
+              "phase": "types",
+              "disposition": "reused"
+            },
+            {
+              "phase": "analyze",
+              "disposition": "reused"
+            },
+            {
+              "phase": "verify",
+              "disposition": "executed"
+            },
+            {
+              "phase": "lower",
+              "disposition": "executed"
+            },
+            {
+              "phase": "link",
+              "disposition": "executed"
+            }
+          ],
+          "verification_runs": 1,
+          "source_files": {
+            "0": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/main.zil"
+          },
+          "scalar_interfaces": [
+            {
+              "module": 0,
+              "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+              "implementation_fingerprint": "2201dff1149ad822f813c02c64cb7202a9a86f87dc016c66b8606f3f27228b76",
+              "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+              "result_origins": [],
+              "callable_contracts": [],
+              "callable_returns": [],
+              "exports": []
+            }
+          ]
+        },
+        "native": {
+          "exit": 0,
+          "stdout": "42\n"
+        },
+        "symbols": {
+          "zil.fn.0": "t",
+          "zil.fn.1": "t"
+        },
+        "nm": "_DYNAMIC d 27e0 \n_GLOBAL_OFFSET_TABLE_ d 39b8 \n_IO_stdin_used R 570 4\n__FRAME_END__ r 5a8 \n__TMC_END__ d 39b8 \n__TMC_LIST__ d 39b8 \n__abi_tag r 2c4 20\n__data_start D 39a8 \n__do_global_dtors_aux t 16c0 \n__do_global_dtors_aux_fini_array_entry d 27d0 \n__dso_handle d 39b0 \n__frame_dummy_init_array_entry d 27d8 \n_fini t 1788 \n_init t 176c \n_start T 1620 26\ncompleted.0 b 39e0 1\ndata_start W 39a8 \nderegister_tm_clones t 1650 \nframe_dummy t 1700 \nmain T 1750 1b\nregister_tm_clones t 1680 \nzil.fn.0 t 1710 1a\nzil.fn.1 t 1730 16\n",
+        "llvm_sha256": "165967123ee25a97752614c2aa9f78d5934155ad9741ea05f9205a6d16994bf1",
+        "executable_sha256": "8c005336d55a03a6541795c06ad4d2c57cd9b5b4cf2a6277131e02b9b742c1ad"
+      },
+      {
+        "case": "llvm-api",
+        "label": "3-default",
+        "arguments": [
+          "build",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/main.zil",
+          "-o",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/program",
+          "--entry",
+          "value",
+          "--backend",
+          "llvm-api",
+          "--json",
+          "--query-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/queries",
+          "--object-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/objects"
+        ],
+        "exit": 0,
+        "report": {
+          "status": "Success",
+          "phase": "link",
+          "diagnostics": [],
+          "artifacts": {
+            "executable": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/program",
+            "llvm": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/program.ll"
+          },
+          "input_fingerprint": "e221064c089040ecb97fc55294cee4c9b9581ff10ed1793bc005d982acdbe4d7",
+          "seconds": 0.026489522,
+          "timings": null,
+          "cache_hit": true,
+          "commands": [
+            [
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-O0",
+              "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/.zil-driver-51-0/.zil-build-51-0/unit-0.o",
+              "-o",
+              "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/.zil-driver-51-0/.zil-build-51-0/program",
+              "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld"
+            ]
+          ],
+          "native_codegen": {
+            "backend": "llvm-api",
+            "object_reports": [
+              {
+                "backend": "llvm-api",
+                "input_kind": "object-cache",
+                "llvm_version": "23.1.4",
+                "triple": "x86_64-unknown-linux-gnu",
+                "object_bytes": 1336,
+                "cache": {
+                  "state": "hit",
+                  "action_key": "968c987ba805691f8f9847ef7aecdf18e2ce5fa62cc068f21b2d849ced8b0698",
+                  "corrupt": false,
+                  "key_ns": 117294,
+                  "lookup_ns": 79868,
+                  "current_preflight_ns": 99317
+                },
+                "llvm_verification_this_request": false,
+                "producer_verified_before_after": true,
+                "preflight_ns": 99317,
+                "builder_ns": 0,
+                "parse_ns": 0,
+                "optimize_ns": 0,
+                "emit_ns": 0,
+                "total_ns": 296479
+              }
+            ],
+            "object_cache": {
+              "requested": true,
+              "enabled": true,
+              "hits": 1,
+              "misses": 0,
+              "corrupt": 0,
+              "stored": 0,
+              "write_failures": 0,
+              "key_ns": 117294,
+              "lookup_ns": 79868,
+              "current_preflight_ns": 99317,
+              "disabled_reason": null
+            },
+            "requested_units": 1,
+            "actual_units": 1,
+            "jobs": 1,
+            "fallback": null,
+            "closed_executable": false,
+            "internalized_functions": 0
+          },
+          "disk_cache": "disabled",
+          "query_cache": {
+            "requested": true,
+            "state": "hit",
+            "key": "0266628d85f9fbad88d3e455accb6c96d44f7b7e9c80c01d8bcd38ca377005b0",
+            "reason": null,
+            "stored": false,
+            "write_reason": null,
+            "ct_steps": 0,
+            "ct_nodes": 20,
+            "ct_functions": 2
+          },
+          "query_events": [
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "expand",
+              "disposition": "reused"
+            },
+            {
+              "phase": "ct",
+              "disposition": "reused"
+            },
+            {
+              "phase": "types",
+              "disposition": "reused"
+            },
+            {
+              "phase": "analyze",
+              "disposition": "reused"
+            },
+            {
+              "phase": "verify",
+              "disposition": "executed"
+            },
+            {
+              "phase": "lower",
+              "disposition": "executed"
+            },
+            {
+              "phase": "link",
+              "disposition": "executed"
+            }
+          ],
+          "verification_runs": 1,
+          "source_files": {
+            "0": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/main.zil"
+          },
+          "scalar_interfaces": [
+            {
+              "module": 0,
+              "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+              "implementation_fingerprint": "2201dff1149ad822f813c02c64cb7202a9a86f87dc016c66b8606f3f27228b76",
+              "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+              "result_origins": [],
+              "callable_contracts": [],
+              "callable_returns": [],
+              "exports": []
+            }
+          ]
+        },
+        "native": {
+          "exit": 0,
+          "stdout": "42\n"
+        },
+        "symbols": {
+          "zil.fn.0": "T",
+          "zil.fn.1": "T"
+        },
+        "nm": "_DYNAMIC d 27e0 \n_GLOBAL_OFFSET_TABLE_ d 39b8 \n_IO_stdin_used R 570 4\n__FRAME_END__ r 5a8 \n__TMC_END__ d 39b8 \n__TMC_LIST__ d 39b8 \n__abi_tag r 2c4 20\n__data_start D 39a8 \n__do_global_dtors_aux t 16c0 \n__do_global_dtors_aux_fini_array_entry d 27d0 \n__dso_handle d 39b0 \n__frame_dummy_init_array_entry d 27d8 \n_fini t 1788 \n_init t 176c \n_start T 1620 26\ncompleted.0 b 39e0 1\ndata_start W 39a8 \nderegister_tm_clones t 1650 \nframe_dummy t 1700 \nmain T 1750 1b\nregister_tm_clones t 1680 \nzil.fn.0 T 1710 1a\nzil.fn.1 T 1730 16\n",
+        "llvm_sha256": "165967123ee25a97752614c2aa9f78d5934155ad9741ea05f9205a6d16994bf1",
+        "executable_sha256": "47683e68886fc1c663da17d31a11ba6305952931913b8f583ac887afc7c6cb04"
+      },
+      {
+        "case": "clang",
+        "label": "0-default",
+        "arguments": [
+          "build",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/main.zil",
+          "-o",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/program",
+          "--entry",
+          "value",
+          "--backend",
+          "clang",
+          "--json"
+        ],
+        "exit": 0,
+        "report": {
+          "status": "Success",
+          "phase": "link",
+          "diagnostics": [],
+          "artifacts": {
+            "executable": "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/program",
+            "llvm": "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/program.ll"
+          },
+          "input_fingerprint": "6219420c1bc117db76f13ae3560f833d1107bc25908276393381814fda6d0444",
+          "seconds": 0.039933071,
+          "timings": null,
+          "cache_hit": false,
+          "commands": [
+            [
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld",
+              "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/.zil-driver-66-0/.zil-build-66-0/module.ll",
+              "-o",
+              "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/.zil-driver-66-0/.zil-build-66-0/program"
+            ]
+          ],
+          "native_codegen": {
+            "backend": "clang",
+            "object_reports": [],
+            "object_cache": {
+              "requested": false,
+              "enabled": false,
+              "hits": 0,
+              "misses": 0,
+              "corrupt": 0,
+              "stored": 0,
+              "write_failures": 0,
+              "key_ns": 0,
+              "lookup_ns": 0,
+              "current_preflight_ns": 0,
+              "disabled_reason": null
+            },
+            "requested_units": 1,
+            "actual_units": 1,
+            "jobs": 1,
+            "fallback": null,
+            "closed_executable": false,
+            "internalized_functions": 0
+          },
+          "disk_cache": "disabled",
+          "query_cache": {
+            "requested": false,
+            "state": "disabled",
+            "key": null,
+            "reason": null,
+            "stored": false,
+            "write_reason": null,
+            "ct_steps": 0,
+            "ct_nodes": 0,
+            "ct_functions": 0
+          },
+          "query_events": [
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "expand",
+              "disposition": "executed"
+            },
+            {
+              "phase": "ct",
+              "disposition": "executed"
+            },
+            {
+              "phase": "types",
+              "disposition": "executed"
+            },
+            {
+              "phase": "analyze",
+              "disposition": "executed"
+            },
+            {
+              "phase": "verify",
+              "disposition": "executed"
+            },
+            {
+              "phase": "lower",
+              "disposition": "executed"
+            },
+            {
+              "phase": "link",
+              "disposition": "executed"
+            }
+          ],
+          "verification_runs": 1,
+          "source_files": {
+            "0": "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/main.zil"
+          },
+          "scalar_interfaces": [
+            {
+              "module": 0,
+              "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+              "implementation_fingerprint": "2201dff1149ad822f813c02c64cb7202a9a86f87dc016c66b8606f3f27228b76",
+              "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+              "result_origins": [],
+              "callable_contracts": [],
+              "callable_returns": [],
+              "exports": []
+            }
+          ]
+        },
+        "native": {
+          "exit": 0,
+          "stdout": "42\n"
+        },
+        "symbols": {
+          "zil.fn.0": "T",
+          "zil.fn.1": "T"
+        },
+        "nm": "_DYNAMIC d 27f0 \n_GLOBAL_OFFSET_TABLE_ d 39c8 \n_IO_stdin_used R 570 4\n__FRAME_END__ r 5a8 \n__TMC_END__ d 39c8 \n__TMC_LIST__ d 39c8 \n__abi_tag r 2c4 20\n__data_start D 39b8 \n__do_global_dtors_aux t 16c0 \n__do_global_dtors_aux_fini_array_entry d 27e0 \n__dso_handle d 39c0 \n__frame_dummy_init_array_entry d 27e8 \n_fini t 1798 \n_init t 177c \n_start T 1620 26\ncompleted.0 b 39f0 1\ndata_start W 39b8 \nderegister_tm_clones t 1650 \nframe_dummy t 1700 \nmain T 1760 1b\nregister_tm_clones t 1680 \nzil.fn.0 T 1710 22\nzil.fn.1 T 1740 1c\n",
+        "llvm_sha256": "d583de5f194df5b330e7845af7ae5bbbd7a711de25b1d4f2f848fcf5a8b8a2ba",
+        "executable_sha256": "c2e4a45b0ecc61a6064f48f33705acfc60c75c8b1a516d5ab4ecbc1a11788902"
+      },
+      {
+        "case": "clang",
+        "label": "1-closed",
+        "arguments": [
+          "build",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/main.zil",
+          "-o",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/program",
+          "--entry",
+          "value",
+          "--backend",
+          "clang",
+          "--json",
+          "--closed-executable"
+        ],
+        "exit": 0,
+        "report": {
+          "status": "Success",
+          "phase": "link",
+          "diagnostics": [],
+          "artifacts": {
+            "executable": "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/program",
+            "llvm": "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/program.ll"
+          },
+          "input_fingerprint": "6219420c1bc117db76f13ae3560f833d1107bc25908276393381814fda6d0444",
+          "seconds": 0.063489694,
+          "timings": null,
+          "cache_hit": false,
+          "commands": [
+            [
+              "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "--ld-path=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/ld.lld",
+              "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/.zil-driver-81-0/.zil-build-81-0/unit-0.ll",
+              "-o",
+              "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/.zil-driver-81-0/.zil-build-81-0/program"
+            ]
+          ],
+          "native_codegen": {
+            "backend": "clang",
+            "object_reports": [],
+            "object_cache": {
+              "requested": false,
+              "enabled": false,
+              "hits": 0,
+              "misses": 0,
+              "corrupt": 0,
+              "stored": 0,
+              "write_failures": 0,
+              "key_ns": 0,
+              "lookup_ns": 0,
+              "current_preflight_ns": 0,
+              "disabled_reason": null
+            },
+            "requested_units": 1,
+            "actual_units": 1,
+            "jobs": 1,
+            "fallback": null,
+            "closed_executable": true,
+            "internalized_functions": 2
+          },
+          "disk_cache": "disabled",
+          "query_cache": {
+            "requested": false,
+            "state": "disabled",
+            "key": null,
+            "reason": null,
+            "stored": false,
+            "write_reason": null,
+            "ct_steps": 0,
+            "ct_nodes": 0,
+            "ct_functions": 0
+          },
+          "query_events": [
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "expand",
+              "disposition": "executed"
+            },
+            {
+              "phase": "ct",
+              "disposition": "executed"
+            },
+            {
+              "phase": "types",
+              "disposition": "executed"
+            },
+            {
+              "phase": "analyze",
+              "disposition": "executed"
+            },
+            {
+              "phase": "verify",
+              "disposition": "executed"
+            },
+            {
+              "phase": "lower",
+              "disposition": "executed"
+            },
+            {
+              "phase": "link",
+              "disposition": "executed"
+            }
+          ],
+          "verification_runs": 1,
+          "source_files": {
+            "0": "/tmp/cp13-adapter-review-toolchain-setup/run-01/clang/main.zil"
+          },
+          "scalar_interfaces": [
+            {
+              "module": 0,
+              "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+              "implementation_fingerprint": "2201dff1149ad822f813c02c64cb7202a9a86f87dc016c66b8606f3f27228b76",
+              "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+              "result_origins": [],
+              "callable_contracts": [],
+              "callable_returns": [],
+              "exports": []
+            }
+          ]
+        },
+        "native": {
+          "exit": 0,
+          "stdout": "42\n"
+        },
+        "symbols": {
+          "zil.fn.0": "t",
+          "zil.fn.1": "t"
+        },
+        "nm": "_DYNAMIC d 27f0 \n_GLOBAL_OFFSET_TABLE_ d 39c8 \n_IO_stdin_used R 570 4\n__FRAME_END__ r 5a8 \n__TMC_END__ d 39c8 \n__TMC_LIST__ d 39c8 \n__abi_tag r 2c4 20\n__data_start D 39b8 \n__do_global_dtors_aux t 16c0 \n__do_global_dtors_aux_fini_array_entry d 27e0 \n__dso_handle d 39c0 \n__frame_dummy_init_array_entry d 27e8 \n_fini t 1798 \n_init t 177c \n_start T 1620 26\ncompleted.0 b 39f0 1\ndata_start W 39b8 \nderegister_tm_clones t 1650 \nframe_dummy t 1700 \nmain T 1760 1b\nregister_tm_clones t 1680 \nzil.fn.0 t 1710 22\nzil.fn.1 t 1740 1c\n",
+        "llvm_sha256": "d583de5f194df5b330e7845af7ae5bbbd7a711de25b1d4f2f848fcf5a8b8a2ba",
+        "executable_sha256": "93db461e18ccd1541c177e699a4ec974f9813ee61fc22558df903ae739664992"
+      },
+      {
+        "case": "reject-before-read",
+        "label": "0",
+        "arguments": [
+          "check",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/missing-source.zil",
+          "-o",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/program",
+          "--query-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/queries",
+          "--closed-executable",
+          "--json"
+        ],
+        "exit": 64,
+        "report": {
+          "status": "SafeReject",
+          "phase": "driver",
+          "diagnostics": [
+            {
+              "phase": "driver",
+              "category": "SafeReject",
+              "code": "E-CLI-ARGUMENT",
+              "message": "--closed-executable requires a complete Linux x86_64 build; generated ZIL symbols are not an export contract",
+              "span": null,
+              "notes": []
+            }
+          ],
+          "artifacts": {}
+        }
+      },
+      {
+        "case": "reject-before-read",
+        "label": "1",
+        "arguments": [
+          "run",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/missing-source.zil",
+          "-o",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/program",
+          "--query-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/queries",
+          "--closed-executable",
+          "--json"
+        ],
+        "exit": 64,
+        "report": {
+          "status": "SafeReject",
+          "phase": "driver",
+          "diagnostics": [
+            {
+              "phase": "driver",
+              "category": "SafeReject",
+              "code": "E-CLI-ARGUMENT",
+              "message": "--closed-executable requires a complete Linux x86_64 build; generated ZIL symbols are not an export contract",
+              "span": null,
+              "notes": []
+            }
+          ],
+          "artifacts": {}
+        }
+      },
+      {
+        "case": "reject-before-read",
+        "label": "2",
+        "arguments": [
+          "build",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/missing-source.zil",
+          "--target",
+          "win64",
+          "-o",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/program",
+          "--query-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/queries",
+          "--closed-executable",
+          "--json"
+        ],
+        "exit": 64,
+        "report": {
+          "status": "SafeReject",
+          "phase": "driver",
+          "diagnostics": [
+            {
+              "phase": "driver",
+              "category": "SafeReject",
+              "code": "E-CLI-ARGUMENT",
+              "message": "--closed-executable requires a complete Linux x86_64 build; generated ZIL symbols are not an export contract",
+              "span": null,
+              "notes": []
+            }
+          ],
+          "artifacts": {}
+        }
+      },
+      {
+        "case": "reject-before-read",
+        "label": "3",
+        "arguments": [
+          "build",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/missing-source.zil",
+          "--target",
+          "x86_64-pc-windows-msvc",
+          "-o",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/program",
+          "--query-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/queries",
+          "--closed-executable",
+          "--json"
+        ],
+        "exit": 64,
+        "report": {
+          "status": "SafeReject",
+          "phase": "driver",
+          "diagnostics": [
+            {
+              "phase": "driver",
+              "category": "SafeReject",
+              "code": "E-CLI-ARGUMENT",
+              "message": "--closed-executable requires a complete Linux x86_64 build; generated ZIL symbols are not an export contract",
+              "span": null,
+              "notes": []
+            }
+          ],
+          "artifacts": {}
+        }
+      },
+      {
+        "case": "reject-before-read",
+        "label": "4",
+        "arguments": [
+          "build",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/missing-source.zil",
+          "--target",
+          "native",
+          "--windows-lib",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/missing-import.lib",
+          "-o",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/program",
+          "--query-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/queries",
+          "--closed-executable",
+          "--json"
+        ],
+        "exit": 64,
+        "report": {
+          "status": "SafeReject",
+          "phase": "driver",
+          "diagnostics": [
+            {
+              "phase": "driver",
+              "category": "SafeReject",
+              "code": "E-CLI-ARGUMENT",
+              "message": "--closed-executable requires a complete Linux x86_64 build; generated ZIL symbols are not an export contract",
+              "span": null,
+              "notes": []
+            }
+          ],
+          "artifacts": {}
+        }
+      },
+      {
+        "case": "reject-before-read",
+        "label": "5",
+        "arguments": [
+          "build",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/missing-source.zil",
+          "--linker",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/missing-lld-link",
+          "-o",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/program",
+          "--query-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/queries",
+          "--closed-executable",
+          "--json"
+        ],
+        "exit": 64,
+        "report": {
+          "status": "SafeReject",
+          "phase": "driver",
+          "diagnostics": [
+            {
+              "phase": "driver",
+              "category": "SafeReject",
+              "code": "E-CLI-ARGUMENT",
+              "message": "--closed-executable requires a complete Linux x86_64 build; generated ZIL symbols are not an export contract",
+              "span": null,
+              "notes": []
+            }
+          ],
+          "artifacts": {}
+        }
+      },
+      {
+        "case": "reject-before-read",
+        "label": "6",
+        "arguments": [
+          "check",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/missing-source.zil",
+          "--stop-after",
+          "parse",
+          "-o",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/program",
+          "--query-cache",
+          "/tmp/cp13-adapter-review-toolchain-setup/run-01/reject-before-read/queries",
+          "--closed-executable",
+          "--json"
+        ],
+        "exit": 64,
+        "report": {
+          "status": "SafeReject",
+          "phase": "driver",
+          "diagnostics": [
+            {
+              "phase": "driver",
+              "category": "SafeReject",
+              "code": "E-CLI-ARGUMENT",
+              "message": "--closed-executable requires a complete Linux x86_64 build; generated ZIL symbols are not an export contract",
+              "span": null,
+              "notes": []
+            }
+          ],
+          "artifacts": {}
+        }
+      }
+    ]
+  },
+  "object_entries": [
+    {
+      "path": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/objects/objects-v1/5c93035cb9c256680194d87ba006bff8133e50e94796865d3323b4707dc8faa6/968c987ba805691f8f9847ef7aecdf18e2ce5fa62cc068f21b2d849ced8b0698.zobj",
+      "sha256": "6da8d3b47282dc85e0fd0f243da604a95ae996f37dd7a4bc0d2f754e1003826b"
+    },
+    {
+      "path": "/tmp/cp13-adapter-review-toolchain-setup/run-01/llvm-api/objects/objects-v1/5c93035cb9c256680194d87ba006bff8133e50e94796865d3323b4707dc8faa6/feaa5911e4e2871fe09bc68d9854dc349202bc108376260934593ddcb77791f4.zobj",
+      "sha256": "5e2db44a8b4e10a36f2e538d696d07cb335bcc54ce29bfaa2117cd366cb5f49f"
+    }
+  ],
+  "help": "ZIL 0.1.0 — compiler draft\n\nUsage:\n  zil check FILE [--stop-after parse|core|types|analyze|verify] [--json]\n  zil build FILE [-o OUTPUT] [--entry NAME] [--emit-dir DIR] [--json]\n  zil run FILE [--entry NAME] [--emit-dir DIR] [--json]\n  zil qc [--tool PATH] COMMAND [OPTIONS]\n  zil version\n\nOptions:\n  --timings                 Record phase wall times (requires timings build feature)\n  --cache-dir DIR           Store unverified source candidates\n  --object-cache DIR        Trusted local LLVM API object cache (opt-in)\n  --query-cache DIR         Trusted private local full-input frontend checkpoint (opt-in)\n  --backend clang|llvm-api  Object generation strategy (standard build: llvm-api)\n  --clang PATH              LLVM clang executable (default: ZIL_CLANG or clang)\n  --emit-dir DIR            Write actual phase artifacts\n  --target native|win64     Select the checked target ABI\n  --windows-lib PATH        Explicit Win64 import archive (repeatable)\n  --linker PATH             Win64 lld-link executable\n  --opt O0|O2               Native LLVM optimization level\n  --closed-executable       Opt-in Linux build; generated ZIL symbols have no export contract\n  --codegen-units N         Maximum native units, 1..64 (default: 1)\n  --codegen-jobs N          Concurrent native compiles, 1..64 (default: 1)\n  --compile-timeout-ms N    Cooperative deadline checked between compiler phases\n  --profile native|managed  Managed is explicitly Unsupported\n\nNative run requires an explicit main; it adds no implicit module execution or GC.\nUnsupported language features return Unsupported; they are never silently accepted.\n"
+}
