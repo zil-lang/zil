@@ -1,0 +1,21 @@
+{
+  "source_commit": "3f0f5ee43cf650297a6be18c93dd52c097768ecb",
+  "implementation_author": "/root/scope_audit",
+  "role": "author_limited_repair_validation",
+  "original_delivery": "2b799ed7f405c89c7725b86978286c144070e87f",
+  "reported_by": "/root/ct_for",
+  "defect": "BorrowPackageField backend finite Copy/Closure guard refused verified ordinary shared Product/resource heads",
+  "production_file": "crates/zil-backend-llvm/src/emit/packages.rs",
+  "original_reviewer_source_sha256": "ee559334aea2155013e494d19c7704d553570cc3cb0503d971b5994cfdd150b1",
+  "committed_regression_source_sha256": "ee559334aea2155013e494d19c7704d553570cc3cb0503d971b5994cfdd150b1",
+  "source_bytes_unchanged": true,
+  "fresh_target": "targets/224, fully cleaned and dedicated before rebuild",
+  "tests": {
+    "passed": 11,
+    "failed": 0,
+    "ignored": 0
+  },
+  "new_direct_field_executions": 4,
+  "native_backend": "llvm-api builder",
+  "independent_rereview": "Pending ct_for; author does not self-review"
+}

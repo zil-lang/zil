@@ -1,0 +1,78 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 3.31s
+     Running tests/impl224_shared_product.rs (/workspace/scratch/d286b3aeeb6b/targets/224/debug/deps/impl224_shared_product-af245a120ab6d27c)
+
+running 11 tests
+
+thread 'each_changed_phase_has_its_own_exact_budget_boundary' (104) panicked at crates/zil-driver/tests/impl224_shared_product.rs:752:34:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "Store element windows only project finite Copy or concrete callback fields", span: Some(Span { file: FileId(0), start: 118, end: 125 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'candidate_cannot_hide_live_loan_or_incomplete_product_attacks' (102) panicked at crates/zil-driver/tests/impl224_shared_product.rs:215:78:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "Store element windows only project finite Copy or concrete callback fields", span: Some(Span { file: FileId(0), start: 118, end: 125 }), notes: [] }]
+test candidate_cannot_hide_live_loan_or_incomplete_product_attacks ... FAILED
+test each_changed_phase_has_its_own_exact_budget_boundary ... FAILED
+
+thread 'real_source_has_independent_raw_and_wire_checks' (107) panicked at crates/zil-driver/tests/impl224_shared_product.rs:215:78:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "Store element windows only project finite Copy or concrete callback fields", span: Some(Span { file: FileId(0), start: 118, end: 125 }), notes: [] }]
+test real_source_has_independent_raw_and_wire_checks ... FAILED
+
+thread 'live_shared_borrows_prevent_consumption_replacement_and_mutation' (105) panicked at crates/zil-driver/tests/impl224_shared_product.rs:171:9:
+assertion `left == right` failed: whole-move: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"Store element windows only project finite Copy or concrete callback fields","span":{"file":0,"start":118,"end":125},"notes":[]}],"artifacts":{"core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-whole-move-100-4/phases/core.txt","ct-core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-whole-move-100-4/phases/ct-core.txt","source-map":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-whole-move-100-4/phases/source-map.txt","syntax":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-whole-move-100-4/phases/syntax.txt"},"input_fingerprint":"ddd9bedc3a8a8514608d404945083e72c8d53b1eb4d07ecee8fc43db428c4314","seconds":0.010300746,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"shared224.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: SafeReject
+test live_shared_borrows_prevent_consumption_replacement_and_mutation ... FAILED
+
+thread 'shared_parameter_local_alias_nested_fields_and_nll_are_usable' (108) panicked at crates/zil-driver/tests/impl224_shared_product.rs:109:9:
+assertion `left == right` failed: parameter: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"Store element windows only project finite Copy or concrete callback fields","span":{"file":0,"start":118,"end":125},"notes":[]}],"artifacts":{"core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-parameter-100-5/phases/core.txt","ct-core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-parameter-100-5/phases/ct-core.txt","source-map":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-parameter-100-5/phases/source-map.txt","syntax":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-parameter-100-5/phases/syntax.txt"},"input_fingerprint":"2288cfd9d9a69eb61e6761de0c4fdcb531c32a5d710f18e5cedd5afd0b5907d7","seconds":0.015180247,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"shared224.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test shared_parameter_local_alias_nested_fields_and_nll_are_usable ... FAILED
+
+thread 'zero_storage_ordinary_heads_do_not_inherit_store_element_rules' (111) panicked at crates/zil-driver/tests/impl224_shared_product.rs:123:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"head addresses require a shared finite user-resource head or a supported Store element; byte-storage and other Package heads are not implemented","span":{"file":0,"start":90,"end":97},"notes":[]}],"artifacts":{"core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-zero-storage-head-100-9/phases/core.txt","ct-core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-zero-storage-head-100-9/phases/ct-core.txt","source-map":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-zero-storage-head-100-9/phases/source-map.txt","syntax":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-zero-storage-head-100-9/phases/syntax.txt"},"input_fingerprint":"6b1733180e122668d0ab06a65546448468721793a239e9def095677f46cac19e","seconds":0.010767307,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"shared224.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test zero_storage_ordinary_heads_do_not_inherit_store_element_rules ... FAILED
+
+thread 'nested_shared_projection_executes_with_real_drop_order_at_o0_and_o2' (106) panicked at crates/zil-driver/tests/impl224_shared_product.rs:498:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"Store element windows only project finite Copy or concrete callback fields","span":{"file":0,"start":252,"end":259},"notes":[]}],"artifacts":{"core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-native-O0-100-2/phases/core.txt","ct-core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-native-O0-100-2/phases/ct-core.txt","source-map":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-native-O0-100-2/phases/source-map.txt","syntax":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-native-O0-100-2/phases/syntax.txt"},"input_fingerprint":"62f67d4a4f30af1e538d8fd61b4dc8d88d0747f87ededbace7b4deed8196f54a","seconds":0.018019545,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"native224.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test nested_shared_projection_executes_with_real_drop_order_at_o0_and_o2 ... FAILED
+
+thread 'direct_owning_field_addresses_reach_native_storage_and_nll' (103) panicked at crates/zil-driver/tests/impl224_shared_product.rs:560:13:
+assertion `left == right` failed: direct-child-review: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"Store element windows only project finite Copy or concrete callback fields","span":{"file":0,"start":284,"end":291},"notes":[]}],"artifacts":{"core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-direct-child-review-O0-100-0/phases/core.txt","ct-core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-direct-child-review-O0-100-0/phases/ct-core.txt","source-map":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-direct-child-review-O0-100-0/phases/source-map.txt","syntax":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-direct-child-review-O0-100-0/phases/syntax.txt"},"input_fingerprint":"ee559334aea2155013e494d19c7704d553570cc3cb0503d971b5994cfdd150b1","seconds":0.023961507,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"direct224.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test direct_owning_field_addresses_reach_native_storage_and_nll ... FAILED
+
+thread 'allocated_product_leaves_are_cleaned_on_each_real_allocator_failure' (101) panicked at crates/zil-driver/tests/impl224_shared_product.rs:622:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"Store element windows only project finite Copy or concrete callback fields","span":{"file":0,"start":264,"end":271},"notes":[]}],"artifacts":{"core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-allocation-O0-100-1/phases/core.txt","ct-core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-allocation-O0-100-1/phases/ct-core.txt","source-map":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-allocation-O0-100-1/phases/source-map.txt","syntax":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-allocation-O0-100-1/phases/syntax.txt"},"input_fingerprint":"c142688fe8cea3f8a90dfd90f4c5bbb6917213b8b6322d2c5ffaf9ec1780d33d","seconds":0.024911289,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"allocation224.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test allocated_product_leaves_are_cleaned_on_each_real_allocator_failure ... FAILED
+
+thread 'shared_product_work_has_exact_n_minus_one_and_fresh_boundaries' (109) panicked at crates/zil-driver/tests/impl224_shared_product.rs:720:22:
+unexpected budget result Unsupported: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"Store element windows only project finite Copy or concrete callback fields","span":{"file":0,"start":118,"end":125},"notes":[]}],"artifacts":{"core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-budget-search-100-7/phases/core.txt","ct-core":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-budget-search-100-7/phases/ct-core.txt","source-map":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-budget-search-100-7/phases/source-map.txt","syntax":"/workspace/scratch/d286b3aeeb6b/recovery/224-author-repair1/raw/shared224-budget-search-100-7/phases/syntax.txt"},"input_fingerprint":"37634b50b63d899a463f63bdc5a3e2300f76047068a9c7b57a93326d1129a6b7","seconds":0.021321514,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"shared224.zil"},"scalar_interfaces":[]}
+test shared_product_work_has_exact_n_minus_one_and_fresh_boundaries ... FAILED
+test sharing_does_not_add_mutable_owned_reads_retention_or_escape ... ok
+
+failures:
+
+failures:
+    allocated_product_leaves_are_cleaned_on_each_real_allocator_failure
+    candidate_cannot_hide_live_loan_or_incomplete_product_attacks
+    direct_owning_field_addresses_reach_native_storage_and_nll
+    each_changed_phase_has_its_own_exact_budget_boundary
+    live_shared_borrows_prevent_consumption_replacement_and_mutation
+    nested_shared_projection_executes_with_real_drop_order_at_o0_and_o2
+    real_source_has_independent_raw_and_wire_checks
+    shared_parameter_local_alias_nested_fields_and_nll_are_usable
+    shared_product_work_has_exact_n_minus_one_and_fresh_boundaries
+    zero_storage_ordinary_heads_do_not_inherit_store_element_rules
+
+test result: FAILED. 1 passed; 10 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `-p zil-driver --test impl224_shared_product`
