@@ -21,6 +21,7 @@ pub(super) fn supported(ty: &Type) -> bool {
             && (result.is_copy_value() || packages::supported(result)))
             || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
                 && resources::supported(result)))
+        || dynamic_store::product_protocol(ty)
 }
 
 pub(super) fn injection(actual: &Type, union: &Type, span: Span) -> R<Option<bool>> {
