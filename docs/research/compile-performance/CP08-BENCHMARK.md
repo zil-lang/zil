@@ -26,7 +26,7 @@
 | 预检 | 每语料A/B各一套完整请求；base产物另跑空输入启动诊断与长输入warmup，均不进入得分且不扣除 |
 | 完整性 | 工具、源码、输入、oracle、日志、产物或行序变化，任一失败/超时/缺行均禁止评分；不重试覆盖旧目录 |
 
-`--tool`至少显式传入实际LLVM动态库，可重复补充其它依赖。prepare自动冻结Rust sysroot中的std/alloc/core等库、rustc_driver/LLVM动态库和bundled linker，同时记录PATH内cc/gcc/ld/ld.lld/as及clang旁的LLD候选。Rust `-Vv`保存其内部LLVM版本；不能把ZIL LLVM23.1.4称作Rust同一个LLVM版本。系统libc/crt、动态加载器与OS属于共享宿主依赖，未在本工具内重编，也未宣称完整供应链鉴定。
+`--tool`至少显式传入实际LLVM动态库，可重复补充其它依赖。prepare自动冻结Rust sysroot中的std/alloc/core等库、rustc_driver/LLVM动态库和bundled linker，同时记录PATH内cc/gcc/ld/ld.lld/as及clang旁的LLD候选，以及`ZIL_LINUX_LINKER`显式指定的可执行路径或PATH名称。`system`保留为选择模式。所有编译器、链接器和库同时保留调用别名、解析目标、直接符号链接内容及目标文件哈希/元数据；不把`ld.lld`调用名改成底层`lld`。load复核这些身份，并按冻结的PATH重新核对候选选择，原文件未变但符号链接改指、PATH前端新增候选或clang旁新增LLD也拒绝。Rust `-Vv`保存其内部LLVM版本；不能把ZIL LLVM23.1.4称作Rust同一个LLVM版本。系统libc/crt、动态加载器与OS属于共享宿主依赖，未在本工具内重编，也未宣称完整供应链鉴定。
 
 源码提交由调用者声明并校验Git对象，二进制另行哈希；二进制无法反推源码来源，所以必须同时保留实际构建收据。工具拒绝dirty工作树prepare，之后固定runner/所有helper/oracle字节；新实现或新参数必须创建新计划。
 
@@ -92,7 +92,7 @@ preflight、measure和measure-runtime都使用新目录，已有目录拒绝覆�
 
 O2冷构建与O2增量是两种不同工作流；Rust官方提示增量可能抑制部分优化，因此二者分别报告，不把较慢配置拼接成有利参照。Rust原生配置与matched配置也不能逐语料择差混分。原生linker与显式driver的结果各自绑定计划，不把换链接器归因为前端改进。
 
-三/五区块bootstrap区间只描述本次共享宿主样本，产品门始终NotRun。工具交付和13项控制通过只证明本工具受测行为，不表示ZIL已经超过Rust。实际性能结论必须另附完整新窗口和非作者复算。
+三/五区块bootstrap区间只描述本次共享宿主样本，产品门始终NotRun。工具交付和17项控制通过只证明本工具受测行为，不表示ZIL已经超过Rust。实际性能结论必须另附完整新窗口和非作者复算。首版13项控制及旧smoke证据保留原身份；补修链接器冻结后需要另建计划，不能沿用旧runner哈希的计划冒充新实现验证。
 
 一手配置依据：
 
