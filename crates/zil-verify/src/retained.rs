@@ -137,11 +137,12 @@ pub(super) fn check_claim(
         budget.spend(f.parameters.len())?;
         for parameter in &f.parameters {
             let local = &f.locals[parameter.0 as usize];
-            if matches!(local.ty, Type::Package { .. }) {
+            if dynamic_store::is_carrier(&local.ty) {
+                dynamic_store::check_owned_capture(module, &local.ty, Some(limits), budget)?;
+            } else if matches!(local.ty, Type::Package { .. }) {
                 let work = closures::type_layout_work(&local.ty, budget)?;
                 budget.spend(work)?;
-                if packages::has_callable_fields(&local.ty)
-                    || packages::has_array_fields(&local.ty)
+                if packages::has_callable_fields(&local.ty) || packages::has_array_fields(&local.ty)
                 {
                     return Err(unsupported(
                         "owning callable factory companions cannot hide State callbacks or owned arrays",
@@ -149,12 +150,7 @@ pub(super) fn check_claim(
                     ));
                 }
                 if packages::has_store_fields(&local.ty) {
-                    dynamic_store::check_owned_capture(
-                        module,
-                        &local.ty,
-                        Some(limits),
-                        budget,
-                    )?;
+                    dynamic_store::check_owned_capture(module, &local.ty, Some(limits), budget)?;
                 }
                 packages::check_capture_type(module, &local.ty, Some(local.span), budget)?;
             }
