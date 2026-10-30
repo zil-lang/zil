@@ -347,7 +347,10 @@ Doing
       "purpose": "Require bridge summaries and preflight to bind complete receipts, exact frozen commands/sources, raw CLI/native log hashes and oracle bytes. Preserve all timing/weights.",
       "write_set": [
         "tools/research/compile-performance/bench.py",
-        "tools/research/compile-performance/test_bench.py"
+        "tools/research/compile-performance/test_bench.py",
+        "tools/research/compile-performance/runtime_bench.py",
+        "tools/research/compile-performance/compile4_ci.py",
+        "tools/research/compile-performance/test_runtime_bench.py"
       ],
       "plan": "docs/research/compile-performance/COMPILE5-PLAN.md"
     }
