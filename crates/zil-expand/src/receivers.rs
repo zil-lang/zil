@@ -28,6 +28,7 @@ impl Expander<'_> {
                 None
             }
         };
+        let owned_factory = template.as_ref().is_some_and(|bounds| bounds.owned_factory);
         let (callable_parameters, state_parameters) = match template {
             Some(template) => {
                 let state_parameters = if let Some(first) = template.state_bindings.first() {
@@ -150,7 +151,7 @@ impl Expander<'_> {
             .as_ref()
             .and_then(|ty| self.callable_return(ty));
         if callable_return.is_some()
-            && (!callable_parameters.is_empty()
+            && ((!callable_parameters.is_empty() && !owned_factory)
                 || !state_parameters.is_empty()
                 || !type_parameters.is_empty()
                 || host.is_some())

@@ -20,6 +20,7 @@ mod inference;
 mod lending;
 mod managed_slots;
 mod names;
+mod owning_factory;
 mod packages;
 mod program;
 mod resource_effects;
@@ -103,6 +104,10 @@ fn signatures(
             && f.state_parameters.is_empty()
         {
             concrete_index += 1;
+        }
+        if let Err(diagnostic) = owning_factory::preflight(f, &mut foreign_work, limits) {
+            errors.push(diagnostic);
+            continue;
         }
         if let Err(diagnostic) = retained::validate_factory(f) {
             errors.push(diagnostic);
@@ -304,7 +309,7 @@ pub fn check(
     for f in core
         .functions
         .iter()
-        .filter(|f| f.callable_return.is_some())
+        .filter(|f| f.callable_return.is_some() && f.callable_parameters.is_empty())
     {
         let id = signatures[&f.name]
             .concrete_id(f.span)
@@ -418,6 +423,7 @@ struct Builder<'a, 'c> {
     address_written_captures: BTreeMap<LocalId, u32>,
     managed_captures: BTreeMap<LocalId, (u32, Type)>,
     closure_captures: BTreeMap<LocalId, (u32, Type)>,
+    factory_modes: Option<owning_factory::Modes>,
     closure_slots: BTreeMap<LocalId, ClosureId>,
     package_captures: BTreeMap<LocalId, u32>,
     temporary_locals: std::collections::BTreeSet<LocalId>,
@@ -492,6 +498,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             address_written_captures: BTreeMap::new(),
             managed_captures: BTreeMap::new(),
             closure_captures: BTreeMap::new(),
+            factory_modes: owning_factory::template(f).then(owning_factory::Modes::default),
             closure_slots: BTreeMap::new(),
             package_captures: BTreeMap::new(),
             temporary_locals: std::collections::BTreeSet::new(),
@@ -513,6 +520,14 @@ impl<'a, 'c> Builder<'a, 'c> {
         for p in &f.parameters {
             let local = b.declare_local(&p.name, p.ty.clone(), false, p.span, false)?;
             b.function.parameters.push(local)
+        }
+        if let Some(modes) = &mut b.factory_modes {
+            b.closures.snapshot(f.callable_parameters.len(), f.span)?;
+            for bound in &f.callable_parameters {
+                modes
+                    .locals
+                    .insert(b.function.parameters[bound.index as usize], bound.kind);
+            }
         }
         Ok(b)
     }
@@ -775,6 +790,9 @@ impl<'a, 'c> Builder<'a, 'c> {
         } else {
             None
         };
+        if let Some(modes) = &mut self.factory_modes {
+            modes.record(&kind, result, self.closures, span)?;
+        }
         self.function.blocks[self.current.expect("live block").0 as usize]
             .instructions
             .push(Instruction { result, kind, span });
@@ -1604,6 +1622,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         .call_inferred_type_template(signature, arguments, expected, e.span);
                 }
                 if signature.callable_return.is_some()
+                    && signature.callable.is_empty()
                     && matches!(signature.result, Type::Opaque { .. })
                 {
                     return Err(unsupported(
@@ -1953,9 +1972,14 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
         }
         let span = input.span;
-        let id = self
-            .closures
-            .create(input, &outer, self.signatures, self.imports, self.enums)?;
+        let id = self.closures.create(
+            input,
+            &outer,
+            self.signatures,
+            self.imports,
+            self.enums,
+            self.factory_modes.as_ref().map(|modes| &modes.locals),
+        )?;
         if let Some(Type::FunctionPointer { parameters, result }) = expected {
             let pending = &mut self.closures.pending[id.0 as usize];
             if parameters.len() != pending.parameters.len() {
@@ -2196,8 +2220,17 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             if let Type::Closure(child) = &stored {
                 let mutable = capture.written
-                    && builder.closures.pending[child.0 as usize].callable_kind()
-                        != CallableKind::FnOnce;
+                    && capture.declared_kind.unwrap_or_else(|| {
+                        builder.closures.pending[child.0 as usize].callable_kind()
+                    }) != CallableKind::FnOnce;
+                if let Some(kind) = capture.declared_kind {
+                    builder.closures.snapshot(1, capture.span)?;
+                    builder
+                        .factory_modes
+                        .get_or_insert_with(owning_factory::Modes::default)
+                        .captures
+                        .insert(index as u32, kind);
+                }
                 let address = Type::Address {
                     mutable,
                     inner: Box::new(stored.clone()),
@@ -2281,8 +2314,9 @@ impl<'a, 'c> Builder<'a, 'c> {
         let field_callee = self.package_callable_callee(callee)?;
         // An owning environment is not a Copy callee value. Shared and
         // Exclusive invocation borrow the actual local; Consume transfers it.
+        let declared_capture = self.factory_declared_kind(callee)?;
         let captured_once = existing_place.and_then(|local| self.closure_captures.get(&local).cloned())
-            .filter(|(_, ty)| matches!(ty, Type::Closure(id) if self.closures.pending[id.0 as usize].callable_kind() == CallableKind::FnOnce));
+            .filter(|(_, ty)| matches!(ty, Type::Closure(id) if declared_capture.unwrap_or_else(|| self.closures.pending[id.0 as usize].callable_kind()) == CallableKind::FnOnce));
         let (mut callee_value, ty) = if let Some((value, id, kind)) = field_callee {
             if kind == CallableKind::FnOnce {
                 (Some(value), Type::Closure(id))
@@ -2344,7 +2378,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                 "called value is not a function pointer or concrete closure",
             ));
         };
-        let declared_kind = self.declared_state_kind(callee, None, id)?;
+        let mut declared_kind = self.declared_state_kind(callee, None, id)?;
+        if declared_kind.is_none()
+            && let Some(value) = callee_value
+        {
+            declared_kind = self.factory_value_kind(value, span)?;
+        }
         let kind = declared_kind.unwrap_or_else(|| {
             field_callee.map_or_else(
                 || {

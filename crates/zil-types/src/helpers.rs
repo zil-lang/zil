@@ -79,6 +79,9 @@ pub(super) fn parameter_mode(ty: &Type, name: &str) -> Option<Option<bool>> {
 }
 
 pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
+    if owning_factory::template(function) {
+        return owning_factory::validate(function);
+    }
     if !function.state_parameters.is_empty() {
         return state_origins::validate_shape(function);
     }
@@ -328,7 +331,11 @@ impl Builder<'_, '_> {
             ));
         }
         let owned_state = callable_fields::signature(signature);
-        if !owned_state && let Some(expected) = expected {
+        let owned_factory = owning_factory::signature(signature);
+        if !owned_state
+            && !owned_factory
+            && let Some(expected) = expected
+        {
             self.same(&signature.result, expected, span)?;
         }
         if arguments.len() != signature.parameters.len() {
@@ -473,6 +480,11 @@ impl Builder<'_, '_> {
                     }
                 };
                 self.require_state_kind(argument, None, closure, bound.kind)?;
+                self.factory_require_value(value, bound.kind, argument.span)?;
+                if owned_factory {
+                    self.closures
+                        .factory_self_contained(closure, argument.span)?;
+                }
                 self.validate_bound(closure, bound, owned_state, argument.span)?;
                 environments.bind(bound.generic_index, closure, argument.span)?;
                 (value, actual)
@@ -482,8 +494,7 @@ impl Builder<'_, '_> {
                 (value, actual)
             };
             let mut prepared = self.stage_argument(value, &actual, argument.span)?;
-            if owned_state
-                && signature.callable.len() == 2
+            if (owned_factory || owned_state && signature.callable.len() == 2)
                 && matches!(actual, Type::Closure(_))
                 && prepared.1.is_none()
             {
@@ -502,7 +513,7 @@ impl Builder<'_, '_> {
             environments,
             span,
         )?;
-        let result = if owned_state {
+        let result = if owned_state || owned_factory {
             self.closures
                 .snapshot(self.closures.helper_functions.len(), span)?;
             self.closures
@@ -644,6 +655,7 @@ impl Builder<'_, '_> {
         let bounds_view = state_origins::bounds(&template.function);
         let bounds = bounds_view.as_ref();
         let owned_state = callable_fields::template(&function);
+        let owned_factory = owning_factory::template(&function);
         if owned_state {
             if (template.function.state_parameters.is_empty()
                 && bounds
@@ -735,7 +747,7 @@ impl Builder<'_, '_> {
             "@module{}:helper{}:env{}",
             template.context.module.0, function.id.0, label
         );
-        if !owned_state {
+        if !owned_state && !owned_factory {
             self.closures.snapshot(bounds.len(), span)?;
             let mut roles = Vec::new();
             for bound in bounds {
@@ -795,7 +807,11 @@ impl Builder<'_, '_> {
                     .iter()
                     .map(|p| (p.mode, p.ty.clone()))
                     .collect(),
-                result: function.return_type,
+                result: if owned_factory {
+                    typed.return_type.clone()
+                } else {
+                    function.return_type
+                },
                 result_mode: function.result_mode,
             },
         });
