@@ -233,6 +233,18 @@ pub(super) fn check_element(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
+    // Existing address signatures and projections use this finite legacy
+    // qualification. Container admission must not grant them Product address
+    // capabilities; shared Product addresses have their own independent gate.
+    check_element_admission(module, element, span, None, false, budget)
+}
+
+pub(super) fn check_store_element(
+    module: &TypedModule,
+    element: &Type,
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<()> {
     check_element_with_limits(module, element, span, None, budget)
 }
 
@@ -243,8 +255,25 @@ fn check_element_with_limits(
     limits: Option<&Limits>,
     budget: &mut Budget,
 ) -> Check<()> {
+    check_element_admission(module, element, span, limits, true, budget)
+}
+
+fn check_element_admission(
+    module: &TypedModule,
+    element: &Type,
+    span: Option<Span>,
+    limits: Option<&Limits>,
+    product_container: bool,
+    budget: &mut Budget,
+) -> Check<()> {
     resources::charge_payload(element, budget)?;
     if packages::has_children(element) {
+        if !product_container {
+            return Err(unsupported(
+                "ordinary Product addresses require independent shared qualification",
+                span,
+            ));
+        }
         // Raw module/resource shapes are bounded before admission. Rebuild
         // complete nominal children, actual leaf definitions and the layout;
         // no producer classifier or claimed stride grants container ownership.
@@ -626,7 +655,7 @@ pub(super) fn check_carrier(
             "expected a Store carrier",
         ));
     };
-    check_element(module, element, span, budget)?;
+    check_store_element(module, element, span, budget)?;
     let name = definition_name(element);
     budget.spend(
         module
@@ -651,7 +680,7 @@ pub(super) fn check_instruction(
     target(&module.target, span)?;
     let bad = |message| reject("E-VERIFY-OWNED-STORE", span, message);
     if let InstructionKind::OwnedStoreNew { element } = &instruction.kind {
-        check_element(module, element, span, budget)?;
+        check_store_element(module, element, span, budget)?;
         let ty = Type::Managed(Box::new(Type::OwnedStore {
             element: Box::new(element.clone()),
         }));

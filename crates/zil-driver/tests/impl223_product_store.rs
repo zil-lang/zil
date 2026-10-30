@@ -293,8 +293,16 @@ fn candidate(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
 fn reject_raw(
     label: &str,
     module: zil_ir::TypedModule,
-    mut plan: zil_ir::CandidatePlan,
+    plan: zil_ir::CandidatePlan,
     expected: &str,
+) {
+    reject_raw_messages(label, module, plan, &[expected]);
+}
+fn reject_raw_messages(
+    label: &str,
+    module: zil_ir::TypedModule,
+    mut plan: zil_ir::CandidatePlan,
+    expected: &[&str],
 ) {
     let target = TargetProfile::host_llvm();
     let limits = Limits::default();
@@ -318,7 +326,7 @@ fn reject_raw(
             "{label}: {errors:?}"
         );
         assert!(
-            errors.iter().any(|d| d.message == expected
+            errors.iter().any(|d| expected.contains(&d.message.as_str())
                 && matches!(
                     d.category,
                     ResultCategory::SafeReject | ResultCategory::Unsupported
@@ -532,4 +540,45 @@ fn unused_user_resource_head_cannot_hide_the_new_product_store() {
         );
         fs::write(dir.join(format!("{name}.txt")), format!("{errors:#?}")).unwrap();
     }
+}
+
+#[test]
+fn store_qualification_cannot_open_an_incoming_mutable_product_address() {
+    // Regression for the non-author 223 review. Every type occurrence agrees;
+    // field index/type, WriteAddress and the incoming Hold are still valid.
+    let source = format!("{MODEL} fn write(p:&mut Leaf){{p.mark=7}}fn main(){{}}");
+    let (mut module, plan) = candidate(&source);
+    let product = module
+        .functions
+        .iter()
+        .find(|f| f.name == "make")
+        .unwrap()
+        .return_type
+        .clone();
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "write")
+        .unwrap();
+    for ty in function
+        .locals
+        .iter_mut()
+        .map(|local| &mut local.ty)
+        .chain(function.values.iter_mut())
+    {
+        if let Type::Address { inner, .. } = ty
+            && matches!(inner.as_ref(), Type::Package { name, .. } if name.ends_with(":Leaf"))
+        {
+            **inner = product.clone();
+        }
+    }
+    reject_raw_messages(
+        "incoming-mut-product",
+        module,
+        plan,
+        &[
+            "ordinary Product addresses require independent shared qualification",
+            "ordinary Product addresses are shared synchronous inputs",
+        ],
+    );
 }

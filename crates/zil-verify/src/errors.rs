@@ -34,7 +34,7 @@ pub(super) fn check_type_for(
         || (**result == Type::Unit && packages::has_children(error))
     {
         let payload = if **error == Type::Unit { result } else { error };
-        return dynamic_store::check_element(module, payload, span, budget);
+        return dynamic_store::check_store_element(module, payload, span, budget);
     }
     if matches!(result.as_ref(), Type::Managed(_)) {
         // Only the success arm is opened, with a finite Copy error. Check the
