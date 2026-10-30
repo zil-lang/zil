@@ -1,0 +1,28 @@
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp07/crates/zil-llvm-api)
+   Compiling zil-base v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp07/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp07/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp07/crates/zil-verify)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp07/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.48s
+     Running tests/linux_linker.rs (/workspace/scratch/ac5966c4c370/zil-cp06/target-cp07-review/debug/deps/linux_linker-5eb604b651ef4458)
+
+running 1 test
+CP07 auto: Pass
+CP07 split: Pass
+CP07 path: Pass
+CP07 symlink: Pass
+CP07 system: Pass
+CP07 absent: Pass
+CP07 explicit: Pass
+CP07 empty: Pass
+CP07 missing: Pass
+CP07 nonexecutable: Pass
+CP07 failed: Pass
+CP07 windows: Pass
+CP07 auto-api: Pass
+CP07 split-api: Pass
+CP07 failed-api: Pass
+test linux_linker_selection_and_publication ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+

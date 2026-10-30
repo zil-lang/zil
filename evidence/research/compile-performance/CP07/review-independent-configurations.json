@@ -1,0 +1,80 @@
+[
+  {
+    "case": "path-shadow",
+    "test_child_case": "path",
+    "command": [
+      "/workspace/scratch/ac5966c4c370/zil-cp06/target-cp07-review/debug/deps/linux_linker-5eb604b651ef4458",
+      "--exact",
+      "linux_linker_selection_and_publication",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "stdout": "\nrunning 1 test\ntest linux_linker_selection_and_publication ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s\n\n",
+    "stderr": ""
+  },
+  {
+    "case": "override-basename-api",
+    "test_child_case": "auto-api",
+    "command": [
+      "/workspace/scratch/ac5966c4c370/zil-cp06/target-cp07-review/debug/deps/linux_linker-5eb604b651ef4458",
+      "--exact",
+      "linux_linker_selection_and_publication",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "stdout": "\nrunning 1 test\ntest linux_linker_selection_and_publication ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s\n\n",
+    "stderr": ""
+  },
+  {
+    "case": "override-relative-api",
+    "test_child_case": "auto-api",
+    "command": [
+      "/workspace/scratch/ac5966c4c370/zil-cp06/target-cp07-review/debug/deps/linux_linker-5eb604b651ef4458",
+      "--exact",
+      "linux_linker_selection_and_publication",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "stdout": "\nrunning 1 test\ntest linux_linker_selection_and_publication ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s\n\n",
+    "stderr": ""
+  },
+  {
+    "case": "directory-override",
+    "test_child_case": "nonexecutable",
+    "command": [
+      "/workspace/scratch/ac5966c4c370/zil-cp06/target-cp07-review/debug/deps/linux_linker-5eb604b651ef4458",
+      "--exact",
+      "linux_linker_selection_and_publication",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "stdout": "\nrunning 1 test\ntest linux_linker_selection_and_publication ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n",
+    "stderr": ""
+  },
+  {
+    "case": "nonexec-sibling-fallback",
+    "test_child_case": "absent",
+    "command": [
+      "/workspace/scratch/ac5966c4c370/zil-cp06/target-cp07-review/debug/deps/linux_linker-5eb604b651ef4458",
+      "--exact",
+      "linux_linker_selection_and_publication",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "stdout": "\nrunning 1 test\ntest linux_linker_selection_and_publication ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s\n\n",
+    "stderr": ""
+  },
+  {
+    "case": "symlink-clang-and-lld",
+    "test_child_case": "symlink",
+    "command": [
+      "/workspace/scratch/ac5966c4c370/zil-cp06/target-cp07-review/debug/deps/linux_linker-5eb604b651ef4458",
+      "--exact",
+      "linux_linker_selection_and_publication",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "stdout": "\nrunning 1 test\ntest linux_linker_selection_and_publication ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s\n\n",
+    "stderr": ""
+  }
+]
