@@ -49,3 +49,9 @@ Analyze 的普通 Product 地址准入与完整性检查不依赖 Store 元素�
 | 实质进展 | 普通完整 Product 的共享读取由源码贯通至实际 LLVM API 机器行为 | 产品级四目标合取及可重复净突破 |
 
 完整语言、B0、产品门的状态由父任务维持，本片完成不自动关闭这些目标。
+
+## 独审后返修：直接拥有字段地址
+
+ct_for 在初始交付 `2b799ed7f405c89c7725b86978286c144070e87f` 发现 `&root.child` 经 Verify 成功后在后端被旧 Copy/Closure 字段资格误拒。此前作者直接 child 正例只验证到 Verify，而已有原生程序走 `&root` 后的 AddressField，未覆盖 BorrowPackageField 的真实机器路径。这一覆盖缺口和原 Codegen/SafeReject 失败必须保留，不把初始作者 Pass 解释为该路径已经原生通过。
+
+返修仅改 backend `emit/packages.rs::borrow_package_field`：对已核的 `mutable:false` 指令接受有限普通 Product 或有限 Managed Record 头；使用同一真实父 Package 布局和 local 指针发射字段 GEP，不加载拥有字段，不授予新的核验权限，也不放开 mutable/Desc/ByteBuffer 头。新增 reviewer 原字节 `child-nll-control.zil` 及直接资源字段借入的 O0/O2 机器回归，工具目标更新为11组。新代码与作者限定实证分开提交；非作者复核交还 ct_for，未自行宣布审核通过。

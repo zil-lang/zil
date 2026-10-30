@@ -36,7 +36,7 @@ def main():
         process = subprocess.run(command, cwd=repo, env=env, stdout=log, stderr=subprocess.STDOUT)
     log = (out / "cargo.log").read_text()
     totals = re.findall(r"test result: ok\. (\d+) passed; (\d+) failed; (\d+) ignored", log)
-    ok = process.returncode == 0 and totals == [("10", "0", "0")]
+    ok = process.returncode == 0 and totals == [("11", "0", "0")]
     raw_rows = []
     for path in sorted(raw.glob("*/input.wire")):
         row = {"case": path.parent.name, "wire_sha256": digest(path)}
