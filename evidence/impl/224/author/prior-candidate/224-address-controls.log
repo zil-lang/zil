@@ -1,0 +1,38 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 8.04s
+     Running tests/impl171_resource_heads.rs (/workspace/scratch/d286b3aeeb6b/targets/224/debug/deps/impl171_resource_heads-7a7a66298f4ff828)
+
+running 17 tests
+test descriptor_capturing_callbacks_cannot_write_under_a_live_head ... ok
+test active_head_prevents_write_move_replacement_and_old_address_revival ... ok
+test head_metadata_work_has_an_exact_finite_budget_boundary ... ok
+test desc_only_imported_helpers_export_writes_into_caller_head_window ... ok
+test failed_argument_preparation_ends_head_window_and_cleans_owner_once ... ok
+test descriptor_only_helper_exports_its_internal_callback_effect_across_modules ... ok
+test descriptor_callback_cannot_use_a_captured_field_address_as_write_permission ... ok
+test descriptor_callback_helpers_preserve_head_conflicts_and_disjoint_controls ... ok
+test original_159_resource_address_receiver_probe_is_unchanged_and_now_supported ... ok
+test raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head ... ok
+
+thread 'heads_are_not_descriptors_mutable_windows_returns_or_captures' (178) panicked at crates/zil-driver/tests/impl171_resource_heads.rs:204:9:
+assertion `left == right` failed: fn main(){var r=R{code:65,n:42};let p=&r;r=R{code:66,n:43};let x=p.n}: {"status":"SafeReject","phase":"verify","diagnostics":[{"phase":"verify","category":"SafeReject","code":"E-BORROW-CONFLICT","message":"write or storage change overlaps a shared address still required by a later use","span":{"file":0,"start":288,"end":289},"notes":[]}],"artifacts":{"candidate":"/workspace/scratch/d286b3aeeb6b/recovery/224-address-controls/resource-heads171-137-38/phases/candidate.txt","core":"/workspace/scratch/d286b3aeeb6b/recovery/224-address-controls/resource-heads171-137-38/phases/core.txt","ct-core":"/workspace/scratch/d286b3aeeb6b/recovery/224-address-controls/resource-heads171-137-38/phases/ct-core.txt","interfaces":"/workspace/scratch/d286b3aeeb6b/recovery/224-address-controls/resource-heads171-137-38/phases/interfaces.txt","source-map":"/workspace/scratch/d286b3aeeb6b/recovery/224-address-controls/resource-heads171-137-38/phases/source-map.txt","syntax":"/workspace/scratch/d286b3aeeb6b/recovery/224-address-controls/resource-heads171-137-38/phases/syntax.txt","typed":"/workspace/scratch/d286b3aeeb6b/recovery/224-address-controls/resource-heads171-137-38/phases/typed.txt"},"input_fingerprint":"ff530081ca9ebbbd3492dfd163035206a70d9b278b345ef11de931c48adc5598","seconds":0.019027556,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19","implementation_fingerprint":"5dee865e6def603d659e2c8614e1b77e44935c9d09c152f09dabac929f9176c7","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+  left: SafeReject
+ right: Unsupported
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test heads_are_not_descriptors_mutable_windows_returns_or_captures ... FAILED
+test resource_trait_nonshared_receivers_and_head_indirect_calls_stay_closed ... ok
+test actual_head_trait_and_inherent_methods_and_plain_parameters ... ok
+test imported_heads_keep_nominal_identity_visibility_and_actual_storage ... ok
+test last_use_then_descriptor_write_is_allowed ... ok
+test unrelated_owned_callback_and_shared_head_compose ... ok
+test descriptor_and_head_parameters_do_not_assume_distinct_origins ... ok
+
+failures:
+
+failures:
+    heads_are_not_descriptors_mutable_windows_returns_or_captures
+
+test result: FAILED. 16 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+error: test failed, to rerun pass `-p zil-driver --test impl171_resource_heads`

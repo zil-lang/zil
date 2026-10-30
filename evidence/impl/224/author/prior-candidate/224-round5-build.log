@@ -1,0 +1,18 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.53s
+     Running tests/impl224_shared_product.rs (/workspace/scratch/d286b3aeeb6b/targets/224/debug/deps/impl224_shared_product-af245a120ab6d27c)
+
+running 10 tests
+test real_source_has_independent_raw_and_wire_checks ... ok
+test sharing_does_not_add_mutable_owned_reads_retention_or_escape ... ok
+test live_shared_borrows_prevent_consumption_replacement_and_mutation ... ok
+test each_changed_phase_has_its_own_exact_budget_boundary ... ok
+test zero_storage_ordinary_heads_do_not_inherit_store_element_rules ... ok
+test candidate_cannot_hide_live_loan_or_incomplete_product_attacks ... ok
+test shared_parameter_local_alias_nested_fields_and_nll_are_usable ... ok
+test nested_shared_projection_executes_with_real_drop_order_at_o0_and_o2 ... ok
+test allocated_product_leaves_are_cleaned_on_each_real_allocator_failure ... ok
+test shared_product_work_has_exact_n_minus_one_and_fresh_boundaries ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+

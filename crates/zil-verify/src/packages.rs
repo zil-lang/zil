@@ -140,6 +140,40 @@ pub(super) fn check_capture_type(
     check_ordinary_type(module, ty, span, budget)
 }
 
+/// Qualification of an actual complete ordinary Product head. This does not
+/// establish a loan, lifetime, initialization or permission to consume fields.
+/// The complete raw type tree is bounded before this shape classification.
+pub(super) fn shared_product_head(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. }
+        if fields.iter().any(|(_, field)| matches!(field, Type::Managed(_) | Type::Package { .. }))
+            && fields.iter().all(|(_, field)| field.is_copy_value()
+                || matches!(field, Type::Managed(payload)
+                    if **payload == Type::ByteBuffer
+                        || (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()))
+                || shared_product_head(field)))
+}
+
+pub(super) fn check_shared_product_type(
+    module: &TypedModule,
+    ty: &Type,
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<()> {
+    check_ordinary_type(module, ty, span, budget)?;
+    if !has_children(ty) {
+        let Type::Package { fields, .. } = ty else {
+            unreachable!("checked Package")
+        };
+        budget.spend(fields.len())?;
+        if !fields.iter().all(|(_, field)| field.is_copy_value()
+            || matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. })))
+        {
+            return Err(unsupported("shared ordinary Product heads require Copy and finite Managed leaves", span));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn check_ordinary_type(
     module: &TypedModule,
     ty: &Type,
@@ -447,6 +481,12 @@ pub(super) fn check_instruction(
                 InstructionKind::BorrowPackageField { mutable, .. } => {
                     if let Type::Closure(id) = ty {
                         closures::self_contained(module, *id, budget)?;
+                    } else if !*mutable && matches!(ty, Type::Package { .. }) {
+                        check_shared_product_type(module, ty, span, budget)?;
+                    } else if !*mutable
+                        && matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
+                    {
+                        resources::check_type_for(module, ty, span, budget)?;
                     } else if !ty.is_copy_value() {
                         return Err(bad(
                             "field borrow requires a finite Copy or exact concrete Closure field",
