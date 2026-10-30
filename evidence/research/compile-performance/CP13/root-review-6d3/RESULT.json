@@ -1,0 +1,79 @@
+{
+  "candidate": "6d3f01580c1ae921a1b26b410a8288acc8dff4ba",
+  "reviewer": "/root",
+  "author_test_sha256": "9d91075af9c106abe60a02cc33902af33d642157b9a9e2c0f9027625aba799fb",
+  "review_source_sha256": "06470b74adc05ecc79268fe8aec4af73162ce3a089675facd71540b489676cff",
+  "commands": [
+    [
+      "rustc",
+      "--edition=2024",
+      "--test",
+      "/tmp/cp13-root-review/review.rs",
+      "--cfg",
+      "feature=\"llvm-api\"",
+      "-L",
+      "dependency=/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps",
+      "-L",
+      "native=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/lib",
+      "-o",
+      "/tmp/cp13-root-review/review",
+      "--extern",
+      "zil_base=/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_base-a5cb5dbca91c1029.rlib",
+      "--extern",
+      "zil_ir=/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_ir-b9f5982dc757d842.rlib",
+      "--extern",
+      "zil_verify=/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_verify-56204ae9930c84aa.rlib",
+      "--extern",
+      "zil_backend_llvm=/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_backend_llvm-a8852012bb6519fe.rlib"
+    ]
+  ],
+  "rlibs": {
+    "/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_base-a5cb5dbca91c1029.rlib": "5e9c2e21079bca93e37fc4c59cc72053acb576da3523c33895316bbbaddfc959",
+    "/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_ir-b9f5982dc757d842.rlib": "f3eb3c1ae03ad3dfa689887536832af26b2ccea02e454bd4b729d643ac48eb2f",
+    "/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_verify-56204ae9930c84aa.rlib": "4c94d3066756f47fe900982f84f13afe4b9fe3bc956bfb830f7faa07d0f67f9d",
+    "/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_backend_llvm-a8852012bb6519fe.rlib": "603e3a722502f2c6b387ca54f777d8630d75f41391c503651248467337458044"
+  },
+  "source_tree_diff": "",
+  "schema": "zil.compile-performance.independent-review.v1",
+  "task": "CP13-backend",
+  "verdict": "Pass",
+  "completed_utc": "2026-10-30T08:20:10.549000+00:00",
+  "tests": {
+    "passed": 6,
+    "failed": 0,
+    "ignored": 0,
+    "successful_native_builds_and_runs": 24,
+    "added_independent_function_ref_runs": 4,
+    "negative_build_calls": 5
+  },
+  "static_findings": [
+    {
+      "area": "policy scope",
+      "result": "BuildOptions defaults false. Transformation runs only in opt-in complete Linux executable build after existing LIR binding and ordinary CGU partition. Public emit/raw API paths are unchanged."
+    },
+    {
+      "area": "exact function identity and reference closure",
+      "result": "Candidates come from nonforeign LIR FunctionId identities, not arbitrary symbol prefixes. All actual function/global initializer references are scanned; cross-unit references retain External. Duplicate definitions leave original preflight rejection intact."
+    },
+    {
+      "area": "fresh validation and output preservation",
+      "result": "Existing per-unit preflight, verified LIR equality, object-cache linkage identity and publication behavior remain in place. Forged LIR matches default rejection; missing entry, unsupported target and link failures preserve previous executable and sidecar."
+    },
+    {
+      "area": "Clang versus API input",
+      "result": "Single-unit Clang closed path compiles transformed unit-0.ll while keeping reference sidecar unchanged; API and parallel Clang consume transformed units. Independently ran both backends and both unit configurations with FunctionRef and CallIndirect."
+    },
+    {
+      "area": "export contract",
+      "result": "Opt-in may hide generated function identity symbols inside a complete executable. No claim that such symbols remain an external callable ABI. Main, runtime helpers, foreign declarations and noncandidate items retain prior linkage."
+    }
+  ],
+  "limits": "Bounded backend contract review, not language-wide acceptance or a measured performance/runtime-quality gate. Actual function-address program passed native output/export checks in four configurations.",
+  "artifact_sha256": {
+    "review.rs": "06470b74adc05ecc79268fe8aec4af73162ce3a089675facd71540b489676cff",
+    "commands.json": "0bb7eabd804620a4e66130178ea618dd9bab6fc0879fd3f1645ffb173203b61f",
+    "build.sh": "9160c06e17e9239d754dd55187d05c6951512986f60890e4bca510983a6d7a7f",
+    "build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests.log": "b1e47eafaef7a6c032358d27af6d3fb8b3373ebb81f87b43e45ad7ef32518dc6"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "candidate": "6d3f01580c1ae921a1b26b410a8288acc8dff4ba",
+  "reviewer": "/root",
+  "author_test_sha256": "9d91075af9c106abe60a02cc33902af33d642157b9a9e2c0f9027625aba799fb",
+  "review_source_sha256": "06470b74adc05ecc79268fe8aec4af73162ce3a089675facd71540b489676cff",
+  "commands": [
+    [
+      "rustc",
+      "--edition=2024",
+      "--test",
+      "/tmp/cp13-root-review/review.rs",
+      "--cfg",
+      "feature=\"llvm-api\"",
+      "-L",
+      "dependency=/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps",
+      "-L",
+      "native=/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/lib",
+      "-o",
+      "/tmp/cp13-root-review/review",
+      "--extern",
+      "zil_base=/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_base-a5cb5dbca91c1029.rlib",
+      "--extern",
+      "zil_ir=/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_ir-b9f5982dc757d842.rlib",
+      "--extern",
+      "zil_verify=/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_verify-56204ae9930c84aa.rlib",
+      "--extern",
+      "zil_backend_llvm=/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_backend_llvm-a8852012bb6519fe.rlib"
+    ]
+  ],
+  "rlibs": {
+    "/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_base-a5cb5dbca91c1029.rlib": "5e9c2e21079bca93e37fc4c59cc72053acb576da3523c33895316bbbaddfc959",
+    "/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_ir-b9f5982dc757d842.rlib": "f3eb3c1ae03ad3dfa689887536832af26b2ccea02e454bd4b729d643ac48eb2f",
+    "/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_verify-56204ae9930c84aa.rlib": "4c94d3066756f47fe900982f84f13afe4b9fe3bc956bfb830f7faa07d0f67f9d",
+    "/workspace/scratch/ac5966c4c370/zil-cp13/target/debug/deps/libzil_backend_llvm-a8852012bb6519fe.rlib": "603e3a722502f2c6b387ca54f777d8630d75f41391c503651248467337458044"
+  },
+  "source_tree_diff": ""
+}
