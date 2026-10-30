@@ -1,6 +1,6 @@
 # 222：有限源级 `#for`
 
-状态：作者在 clean `d1f8d695f1770c7f95a4914fc2b61ac9bd8837ce` 完成限定验证，等待非作者审核与 root 组合验收。`evidence/impl/222/final/RESULT.json` 记录实际身份、命令与结果；`raw-evidence.tar.gz` 包含原始阶段产物、机器执行、分配计数和先前失败。本文的证据提交不改变被测源码身份。
+状态：最新作者限定结果绑定 clean `566bda6a12ab9dbe9be5adbf5b870a411189dc37`，包括非作者指出的 TypeRef 标量槽与 record 构造器名字返修。结果与原始产物在 `evidence/impl/222/author-repair/RESULT.json` 和同目录 `raw-evidence.tar.gz`。最初 `d1f8d695f` 的收据与原始包继续原样保存在 `evidence/impl/222/final/`；新文档、作者复跑不替代非作者裁决，也不改变任何旧运行身份。
 
 施工合同为主树 `changes/222-ct-for.md`、`_zil_design.md` §16.4 和 `spec/interfaces.json` 的 222 接口登记。被测独立分支基于 `a8e8831a`，规范文件仍为该基线的已提交内容；收据分别保存被测规范摘要与派工主树合同快照，不把主树后来发布的规范摘要追记成旧执行身份。
 
@@ -37,7 +37,7 @@ fn main() -> i32 {
 fn main() -> i32 => first() + second() - 8
 ```
 
-生成 struct、enum、trait、impl、type alias 等其他声明种类仍为 Unsupported。`#emit`、Type/Syntax 生成、迭代驱动类型或泛型常量形状、条件 import、任意 CT 全局、反射以及新增 CT 权限没有随本片开放。泛型、类型标注与属性等仍由普通前端的既有能力裁决，不能据此声称完整 §16。
+生成 struct、enum、trait、impl、type alias 等其他声明种类仍为 Unsupported。`#emit`、一般 Type/Syntax 与类型名生成、条件 import、任意 CT 全局、反射以及新增 CT 权限没有随本片开放。已有 TypeRef 中的标量表达式位置现在使用相同词法替换，覆盖函数参数/返回、局部类型、闭包参数/返回和类型实参中的固定数组长度。只有从真实迭代绑定取得的有类型整数在长度槽中转换为普通十进制基数；负数、运行期遮蔽和普通前端不支持的类型表达式继续沿原边界拒绝。泛型、类型标注与属性等仍由普通前端的既有能力裁决，不能据此声称完整 §16。
 
 ## 卫生、作用域与阶段
 
@@ -66,16 +66,17 @@ fn main() -> i32 => first() + second() - 8
 
 ## 作者实测
 
-工具链为 Rust/Cargo 1.99.1、LLVM/Clang 23.1.4，Linux 原生。clean `d1f8d695f` 的 CLI SHA256 为 `086951c42718192e41a5b2598b38dcc86dfc83d9cda0fef8a89019f745588e6c`。
+工具链为 Rust/Cargo 1.99.1、LLVM/Clang 23.1.4，Linux 原生。clean `566bda6a` 的 CLI SHA256 为 `7253b2c98df466d7328342001be5f0c3e20734a6e8ff28debcbf9752e6c81131`。
 
 | 限定检查 | 实际结果 |
 |---|---|
 | `cargo fmt --all --check` | Pass |
 | `cargo build --locked -p zil-cli` | Pass，记录 clean 源码与 CLI 身份 |
 | `impl222_generation` | 6 个 Rust 测试通过 |
+| 晋升的 `impl222_review_regressions` | 原非作者两组 fixture 的作者复跑通过；保留 `/root/product_store` / `ed77523f9` 发现归属 |
 | `impl219_selection` + `impl219_budget` | 原有 9 个 Rust 测试通过 |
-| 本片 driver lib/test Clippy `-D warnings` | Pass |
-| 19 个冻结正向源码，各执行 O0/O2 | 38 次真实 LLVM API 构建与原生执行通过 |
+| 本片 driver lib/两个测试目标 Clippy `-D warnings` | Pass |
+| 29 个冻结正向输入，各执行 O0/O2 | 58 次真实 LLVM API 构建与原生执行通过；包括 28 个生成输入及 1 个普通 API 对照 |
 
 正向源码覆盖整数/负数/u8/大 i64 范围、bool/Unit 数组、空范围/空数组、嵌套生成、长数组 wrapper 身份、函数卫生、选择后同名局部、外部局部、闭包、record shorthand、真实块、return 和接收循环 continue。反例覆盖运行期输入及影子绑定、迭代赋值、私有名字逃逸、同轮重复/公开重复、异型/嵌套数组、未开放声明/emit/import、两侧语法、阶段未就绪、超大范围和普通不可达边界。
 
@@ -96,13 +97,30 @@ fn main() -> i32 => first() + second() - 8
 | 最终活分配 | 全部 0 |
 | 最大同时活的请求 payload | 6 字节 |
 
-输入 0、1、2 分别提前正常返回，3 完成全部三轮；x 和 EOF 在资源建立前返回。每个分配点及最后分配点之后均有控制。正常完整路径输出 `abcZCBAR`；第二次分配失败输出 `aBAR`，enum 错误经普通 `?` 传播，同时清理已成功建立的资源。计数是本消费者的分配请求记录，不能解释为 RSS 或 Rust 性能对照。54 次资源矩阵与 38 次功能源码执行分别计数，不与开发阶段重复运行累加。
+输入 0、1、2 分别提前正常返回，3 完成全部三轮；x 和 EOF 在资源建立前返回。每个分配点及最后分配点之后均有控制。正常完整路径输出 `abcZCBAR`；第二次分配失败输出 `aBAR`，enum 错误经普通 `?` 传播，同时清理已成功建立的资源。计数是本消费者的分配请求记录，不能解释为 RSS 或 Rust 性能对照。54 次资源矩阵与 58 次功能源码执行分别计数，不与开发阶段重复运行累加。
 
 ## 保留的失败
 
 第一次开发测试没有解开 VM 聚合结果的 typed Ascribed wrapper，导致纯数组查询被拒绝；现只接受真实 reifier 生成的带数组类型结果，不凭未核语法猜值。首次测试还包含普通语言当前不支持的生成后无条件不可达正例，以及把超出 i32 的字面量先交给普通转换调用的错误正例；分别改成真实运行期条件 continue 和既有 i64 返回上下文，原不可达输入保留为负例。
 
-首次日志、原始阶段报告和开发草稿均原样压缩保存。它们没有 clean 提交身份，因此只作为开发失败记录，不混入最终 `d1f8d695f` 的 Pass 数量或预算结论。
+首次日志、原始阶段报告和开发草稿均原样压缩保存。它们没有 clean 提交身份，因此只作为开发失败记录，不混入最终 clean 运行的 Pass 数量或预算结论。
+
+## 非作者发现与本次返修
+
+`/root/product_store` 在原交付上冻结五个真实 TypeRef 反例：函数参数、返回、局部、闭包参数与类型实参中的 `[i32;n]`。这些原字节已晋升到 `examples/mainline/ct_for222/review_repair/`，原诊断与新结果分别保留。新遍历只在真实生成帧活动时执行，原 219 路径费用仍为 127/205/645；没有用宿主类型求值器计算一般类型。
+
+另一原字节在单源 `compile_source` API 中，普通 `let Cell=8; let c=Cell{x:3}` 接受，但包入一轮生成后，构造器类型名被值替换或私有变量的新名字捕获。最终修复只把 record 构造器的 callee 当作其原有名义类型位置保留，仍遍历类型实参中的标量槽；record 的 base 与字段值照旧按普通表达式处理。原独审 fixture `ed77523f9` 的语义断言与预算输入已带归属晋升，作者复跑不计作独立审核次数。
+
+此前 CLI 项目入口与单源 API 对同一普通手写控制已有差异，返修分别记录各入口的前后结果，不把一个入口的拒绝当另一个入口的证明：
+
+| 原字节输入与入口 | `7265b8dbe` | `566bda6a` |
+|---|---|---|
+| 普通同名控制，单源 API | Success | Success |
+| 对应单轮生成，单源 API | Types / SafeReject | Success |
+| 普通同名控制，CLI 项目入口 | Types / SafeReject | Types / SafeReject |
+| 对应单轮生成，CLI 项目入口 | Types / SafeReject | Success |
+
+普通 CLI 项目正规化差异未在本片修改。最新 17 个作者限定 Rust 测试包括本片 8 个和原 219 的 9 个；58 次功能原生与 54 次消费者矩阵均绑定最新 clean 源码。原中间提交、错误对照断言及其真实输出继续保留，不改写成曾经通过。
 
 ## Rust 四目标与未完成边界
 
