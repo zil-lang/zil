@@ -1,0 +1,11 @@
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-llvm-api)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-driver)
+   Compiling zil-cli v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-cli)
+error: crate `zil_expand` required to be available in rlib format, but was not found in this form
+
+error: the linked panic runtime `panic_unwind` is not compiled with this crate's panic strategy `abort`
+
+error: could not compile `zil-cli` (bin "zil") due to 2 previous errors

@@ -1,0 +1,26 @@
+{
+  "source": "4b2beb13b146d29683b9088b56346d4f15e97409",
+  "baseline": "542d30676c42e1b691287bcab55874799ca910c1",
+  "baseline_production_equal": "e8e274c1b28509547a4854d46708ae1601e756e4",
+  "tests_passed": 68,
+  "backend_tests": 40,
+  "driver_tests": 28,
+  "clippy": "Pass -p zil-backend-llvm --features llvm-api --all-targets -- -D warnings",
+  "fmt": "Pass",
+  "production_diff_check": "Pass",
+  "binary": {
+    "path": "/workspace/scratch/ac5966c4c370/binaries/cp11c-4b2beb13",
+    "sha256": "65281f6c3f86c7be8ee82d76263eb52fb6ccdf0352ad88737a09b0702af4d414",
+    "features": "default CLI llvm-api; timings disabled"
+  },
+  "initial_release_failure": "Reused workspace target reported missing rlib format and unwind/abort mismatch; preserved original log; same exact source/profile succeeded in fresh isolated target",
+  "scope": "Move already-owned call argument vectors, signature parameters and one-use name/type values; preserve fallible evaluation order and original raw LIR binding/preflight",
+  "performance": "Not measured",
+  "files": {
+    "cp11c-backend-tests.log": "86463f9161c00e92e543a71d8c90e33833e12665f54af5c4226bebd75590207a",
+    "cp11c-driver-tests.log": "a01494522a3efe16c25982a91c146e0eb3c21e446fbb3f6a417f80b1417017fd",
+    "cp11c-clippy.log": "cafd4a4ae55031e4e49d4c9ab36bf2066cadbebd2917a5145075300dd9be63e1",
+    "cp11c-4b2beb13-release-build.log": "a230c8236b81738f83268ad6dac58bd9485bbe6c62360b1576c629a4fc9a9ee0",
+    "cp11c-4b2beb13-release-isolated.log": "5a3920c3de3fb2da215ce7b9b8e1db035b236cfda1330bbef8d144ab0526f089"
+  }
+}
