@@ -388,11 +388,11 @@ impl Prepared {
 
     fn publish(&self, payload: &[u8], cancellation: &CancellationToken) -> io::Result<()> {
         private_directory(&self.directory)?;
-        let temporary = Temporary(self.directory.join(format!(
+        let temp = self.directory.join(format!(
             ".pending-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
-        )));
+        ));
         let mut options = fs::OpenOptions::new();
         options.write(true).create_new(true);
         #[cfg(unix)]
@@ -400,7 +400,9 @@ impl Prepared {
             use std::os::unix::fs::OpenOptionsExt;
             options.mode(0o600);
         }
-        let mut file = options.open(&temporary.0)?;
+        let mut file = options.open(&temp)?;
+        // A create_new collision leaves a file owned by someone else intact.
+        let mut temporary = Temporary(Some(temp.clone()));
         file.write_all(MAGIC)?;
         file.write_all(&self.key.0)?;
         file.write_all(&Fingerprint::of(payload).0)?;
@@ -411,7 +413,9 @@ impl Prepared {
         if cancellation.is_cancelled() {
             return Err(invalid("checkpoint publication cancelled"));
         }
-        fs::rename(&temporary.0, &self.path)
+        fs::rename(&temp, &self.path)?;
+        temporary.0 = None;
+        Ok(())
     }
 }
 
@@ -444,10 +448,12 @@ fn record_usage(usage: &[CtUsage], report: &mut QueryCacheReport) {
     report.ct_nodes = usage.iter().map(|r| r.nodes).sum();
     report.ct_functions = usage.iter().map(|r| r.functions).sum();
 }
-struct Temporary(PathBuf);
+struct Temporary(Option<PathBuf>);
 impl Drop for Temporary {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
+        if let Some(path) = &self.0 {
+            let _ = fs::remove_file(path);
+        }
     }
 }
 struct Cursor<'a> {
@@ -761,5 +767,172 @@ mod tests {
         assert_eq!(fs::read(path).unwrap(), original);
         assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    mod publication_cp27 {
+        use super::*;
+        use std::os::unix::fs::MetadataExt;
+        use std::process::Command;
+
+        const CHILD: &str = "ZIL_CP27_QUERY_PUBLICATION_DIRECTORY";
+
+        struct Case(Prepared);
+        impl Case {
+            fn new() -> Self {
+                let directory = std::env::temp_dir().join(format!(
+                    "zil-cp27-query-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+                private_directory(&directory).unwrap();
+                Self(prepared(directory))
+            }
+        }
+        impl Drop for Case {
+            fn drop(&mut self) {
+                if std::thread::panicking() {
+                    eprintln!(
+                        "CP27 query failure retained: {}",
+                        self.0.directory.display()
+                    );
+                } else {
+                    let _ = fs::remove_dir_all(&self.0.directory);
+                }
+            }
+        }
+        fn prepared(directory: PathBuf) -> Prepared {
+            Prepared {
+                path: directory.join("entry.qcp"),
+                directory,
+                key: Fingerprint::of(b"cp27-query"),
+                maximum: 1000,
+            }
+        }
+        fn child(case: &Case, test: &str, zero_file_limit: bool) {
+            let exe = std::env::current_exe().unwrap();
+            let mut command = if zero_file_limit {
+                let mut command = Command::new("sh");
+                command
+                    .arg("-c")
+                    .arg("ulimit -f 0 || exit 91; trap '' XFSZ; exec \"$@\"")
+                    .arg("cp27-query-file-limit")
+                    .arg(&exe);
+                command
+            } else {
+                Command::new(&exe)
+            };
+            let output = command
+                .args(["--exact", test, "--nocapture", "--test-threads=1"])
+                .env(CHILD, &case.0.directory)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success()
+                    && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+                "child {test}: {}\n{}\n{}",
+                output.status,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        fn only_final(cache: &Prepared) {
+            let paths: Vec<_> = fs::read_dir(&cache.directory)
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .collect();
+            assert_eq!(paths, vec![cache.path.clone()]);
+        }
+
+        #[test]
+        fn create_new_collision_preserves_unowned_file_and_old_entry() {
+            if let Some(directory) = std::env::var_os(CHILD) {
+                let cache = prepared(directory.into());
+                let old = fs::read(&cache.path).unwrap();
+                // An isolated exact-test process has not allocated a name yet.
+                let pending = cache
+                    .directory
+                    .join(format!(".pending-{}-0", std::process::id()));
+                fs::write(&pending, b"another owner's file").unwrap();
+                let before = fs::metadata(&pending).unwrap();
+                let error = cache
+                    .publish(b"replacement", &CancellationToken::new())
+                    .unwrap_err();
+                assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+                assert_eq!(fs::read(&pending).unwrap(), b"another owner's file");
+                let after = fs::metadata(&pending).unwrap();
+                assert_eq!((before.dev(), before.ino()), (after.dev(), after.ino()));
+                assert_eq!(before.modified().unwrap(), after.modified().unwrap());
+                assert_eq!(fs::read(&cache.path).unwrap(), old);
+                fs::remove_file(pending).unwrap();
+                only_final(&cache);
+                return;
+            }
+            let case = Case::new();
+            case.0
+                .publish(b"previous", &CancellationToken::new())
+                .unwrap();
+            child(
+                &case,
+                "query_cache::tests::publication_cp27::create_new_collision_preserves_unowned_file_and_old_entry",
+                false,
+            );
+            case.0.publish(b"retry", &CancellationToken::new()).unwrap();
+            assert_eq!(&fs::read(&case.0.path).unwrap()[HEADER..], b"retry");
+            only_final(&case.0);
+        }
+
+        #[test]
+        fn rename_failure_preserves_destination_and_cleans_owned_file() {
+            let case = Case::new();
+            fs::create_dir(&case.0.path).unwrap();
+            let sentinel = case.0.path.join("keep");
+            fs::write(&sentinel, b"existing directory contents").unwrap();
+            assert!(
+                case.0
+                    .publish(b"replacement", &CancellationToken::new())
+                    .is_err()
+            );
+            assert_eq!(fs::read(&sentinel).unwrap(), b"existing directory contents");
+            only_final(&case.0);
+            fs::remove_file(sentinel).unwrap();
+            fs::remove_dir(&case.0.path).unwrap();
+            case.0.publish(b"retry", &CancellationToken::new()).unwrap();
+            assert_eq!(&fs::read(&case.0.path).unwrap()[HEADER..], b"retry");
+            only_final(&case.0);
+        }
+
+        #[test]
+        fn real_write_failure_preserves_old_entry_and_atomic_retry() {
+            if let Some(directory) = std::env::var_os(CHILD) {
+                let cache = prepared(directory.into());
+                let old = fs::read(&cache.path).unwrap();
+                let error = cache
+                    .publish(b"replacement", &CancellationToken::new())
+                    .unwrap_err();
+                assert_eq!(error.raw_os_error(), Some(27), "{error}");
+                assert_eq!(fs::read(&cache.path).unwrap(), old);
+                only_final(&cache);
+                return;
+            }
+            let case = Case::new();
+            case.0
+                .publish(b"previous", &CancellationToken::new())
+                .unwrap();
+            let old = fs::read(&case.0.path).unwrap();
+            let mut old_reader = fs::File::open(&case.0.path).unwrap();
+            child(
+                &case,
+                "query_cache::tests::publication_cp27::real_write_failure_preserves_old_entry_and_atomic_retry",
+                true,
+            );
+            assert_eq!(fs::read(&case.0.path).unwrap(), old);
+            case.0.publish(b"retry", &CancellationToken::new()).unwrap();
+            assert_eq!(&fs::read(&case.0.path).unwrap()[HEADER..], b"retry");
+            let mut still_old = Vec::new();
+            old_reader.read_to_end(&mut still_old).unwrap();
+            assert_eq!(still_old, old);
+            only_final(&case.0);
+        }
     }
 }

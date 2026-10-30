@@ -292,8 +292,9 @@ fn store(directory: &Path, key: Fingerprint, bytes: &[u8]) -> io::Result<()> {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
+    // Only a successful create_new grants cleanup ownership of this path.
+    let mut file = options.open(&temp)?;
     let result = (|| {
-        let mut file = options.open(&temp)?;
         file.write_all(MAGIC)?;
         file.write_all(&key.0)?;
         file.write_all(&Fingerprint::of(bytes).0)?;
@@ -631,5 +632,144 @@ mod tests {
         let key = Fingerprint::ZERO;
         symlink(d.0.join("missing"), entry_path(&d.0, key)).unwrap();
         assert!(load(&d.0, key).is_err());
+    }
+
+    #[cfg(target_os = "linux")]
+    mod publication_cp27 {
+        use super::*;
+        use std::os::unix::fs::MetadataExt;
+        use std::process::Command;
+
+        const CHILD: &str = "ZIL_CP27_OBJECT_PUBLICATION_DIRECTORY";
+
+        fn key() -> Fingerprint {
+            Fingerprint::of(b"cp27-object")
+        }
+        fn child(directory: &Path, test: &str, zero_file_limit: bool) {
+            let exe = std::env::current_exe().unwrap();
+            let mut command = if zero_file_limit {
+                let mut command = Command::new("sh");
+                command
+                    .arg("-c")
+                    .arg("ulimit -f 0 || exit 91; trap '' XFSZ; exec \"$@\"")
+                    .arg("cp27-object-file-limit")
+                    .arg(&exe);
+                command
+            } else {
+                Command::new(&exe)
+            };
+            let output = command
+                .args(["--exact", test, "--nocapture", "--test-threads=1"])
+                .env(CHILD, directory)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success()
+                    && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+                "child {test}: {}\n{}\n{}",
+                output.status,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        fn only_final(directory: &Path) {
+            let paths: Vec<_> = fs::read_dir(directory)
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .collect();
+            assert_eq!(paths, vec![entry_path(directory, key())]);
+        }
+
+        #[test]
+        fn create_new_collision_preserves_unowned_file_and_old_entry() {
+            if let Some(directory) = std::env::var_os(CHILD) {
+                let directory = PathBuf::from(directory);
+                let path = entry_path(&directory, key());
+                let old = fs::read(&path).unwrap();
+                // No other test or directory allocation runs in this child.
+                let pending = directory.join(format!(".pending-{}-0", std::process::id()));
+                fs::write(&pending, b"another owner's file").unwrap();
+                let before = fs::metadata(&pending).unwrap();
+                let error = store(&directory, key(), b"replacement").unwrap_err();
+                assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+                assert_eq!(fs::read(&pending).unwrap(), b"another owner's file");
+                let after = fs::metadata(&pending).unwrap();
+                assert_eq!((before.dev(), before.ino()), (after.dev(), after.ino()));
+                assert_eq!(before.modified().unwrap(), after.modified().unwrap());
+                assert_eq!(fs::read(path).unwrap(), old);
+                assert_eq!(load(&directory, key()).unwrap(), b"previous");
+                fs::remove_file(pending).unwrap();
+                only_final(&directory);
+                return;
+            }
+            let directory = Dir::new();
+            store(&directory.0, key(), b"previous").unwrap();
+            child(
+                &directory.0,
+                "object_cache::tests::publication_cp27::create_new_collision_preserves_unowned_file_and_old_entry",
+                false,
+            );
+            store(&directory.0, key(), b"retry").unwrap();
+            assert_eq!(load(&directory.0, key()).unwrap(), b"retry");
+            only_final(&directory.0);
+        }
+
+        #[test]
+        fn rename_failure_preserves_destination_and_cleans_owned_file() {
+            let directory = Dir::new();
+            let path = entry_path(&directory.0, key());
+            fs::create_dir(&path).unwrap();
+            let sentinel = path.join("keep");
+            fs::write(&sentinel, b"existing directory contents").unwrap();
+            assert!(store(&directory.0, key(), b"replacement").is_err());
+            assert_eq!(fs::read(&sentinel).unwrap(), b"existing directory contents");
+            only_final(&directory.0);
+            fs::remove_file(sentinel).unwrap();
+            fs::remove_dir(path).unwrap();
+            store(&directory.0, key(), b"retry").unwrap();
+            assert_eq!(load(&directory.0, key()).unwrap(), b"retry");
+            only_final(&directory.0);
+        }
+
+        #[test]
+        fn real_write_failure_preserves_old_entry_and_atomic_retry() {
+            if let Some(directory) = std::env::var_os(CHILD) {
+                let directory = PathBuf::from(directory);
+                let old = fs::read(entry_path(&directory, key())).unwrap();
+                let error = store(&directory, key(), b"replacement").unwrap_err();
+                assert_eq!(error.raw_os_error(), Some(27), "{error}");
+                let mut summary = ObjectCacheSummary::default();
+                PendingObjectCache {
+                    directory: Some(directory.clone()),
+                    objects: vec![PendingObject {
+                        key: key(),
+                        bytes: b"replacement".to_vec(),
+                    }],
+                }
+                .commit(&mut summary);
+                assert_eq!((summary.stored, summary.write_failures), (0, 1));
+                assert_eq!(fs::read(entry_path(&directory, key())).unwrap(), old);
+                assert_eq!(load(&directory, key()).unwrap(), b"previous");
+                only_final(&directory);
+                return;
+            }
+            let directory = Dir::new();
+            store(&directory.0, key(), b"previous").unwrap();
+            let path = entry_path(&directory.0, key());
+            let old = fs::read(&path).unwrap();
+            let mut old_reader = File::open(&path).unwrap();
+            child(
+                &directory.0,
+                "object_cache::tests::publication_cp27::real_write_failure_preserves_old_entry_and_atomic_retry",
+                true,
+            );
+            assert_eq!(fs::read(&path).unwrap(), old);
+            store(&directory.0, key(), b"retry").unwrap();
+            assert_eq!(load(&directory.0, key()).unwrap(), b"retry");
+            let mut still_old = Vec::new();
+            old_reader.read_to_end(&mut still_old).unwrap();
+            assert_eq!(still_old, old);
+            only_final(&directory.0);
+        }
     }
 }
