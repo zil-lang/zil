@@ -4,6 +4,7 @@ use super::closures::{
     BOOL, Graph, I32, I64, INTEGER, Projection, SCALAR, U8, U16, UNIT, VALUE, Variable,
 };
 use super::*;
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
@@ -228,6 +229,24 @@ pub fn infer_program_closures(
     program: &CoreProgram,
     limits: &Limits,
 ) -> CompileResult<CoreProgram> {
+    infer_program_closures_borrowed(program, limits).map(Cow::into_owned)
+}
+
+/// Run the same bounded inference and validation, borrowing the original Core
+/// when no declaration or function needs rewriting. A borrowed result is still
+/// untrusted input: it grants no type, CT, or Verify qualification.
+pub fn infer_program_closures_borrowed<'a>(
+    program: &'a CoreProgram,
+    limits: &Limits,
+) -> CompileResult<Cow<'a, CoreProgram>> {
+    infer_program_closures_update(program, limits)
+        .map(|updated| updated.map_or(Cow::Borrowed(program), Cow::Owned))
+}
+
+fn infer_program_closures_update(
+    program: &CoreProgram,
+    limits: &Limits,
+) -> CompileResult<Option<CoreProgram>> {
     let mut budget = Budget::new(limits);
     let mut tables = BTreeMap::new();
     let mut count = 0usize;
@@ -375,31 +394,53 @@ pub fn infer_program_closures(
         let table = &tables[&module.core.module_id];
         validate_module_metadata(&module.core, &mut budget).map_err(|e| vec![e])?;
         let enum_types = enums::project_definitions(program, &module.core, &mut enum_work, limits)?;
-        let mut functions = Vec::new();
-        for (function, flag) in module.core.functions.iter().zip(flags) {
-            functions.push(
-                prepare(
-                    function,
-                    table,
-                    Some(&imports),
-                    &enum_types,
-                    flag,
-                    &mut budget,
-                )
-                .map_err(|e| vec![e])?,
-            );
+        let mut functions: Option<Vec<CoreFunction>> = None;
+        for (index, (function, flag)) in module.core.functions.iter().zip(flags).enumerate() {
+            let prepared = prepare_borrowed(
+                function,
+                table,
+                Some(&imports),
+                &enum_types,
+                flag,
+                &mut budget,
+            )
+            .map_err(|e| vec![e])?;
+            match prepared {
+                Cow::Borrowed(function) => {
+                    if let Some(functions) = &mut functions {
+                        functions.push(function.clone());
+                    }
+                }
+                Cow::Owned(function) => {
+                    functions
+                        .get_or_insert_with(|| module.core.functions[..index].to_vec())
+                        .push(function);
+                }
+            }
         }
-        modules.push(ProgramModule {
-            core: copy_module_metadata(&module.core, functions),
+        modules.push(functions);
+    }
+    if normalized.is_none() && modules.iter().all(Option::is_none) {
+        return Ok(None);
+    }
+    let modules = program
+        .modules
+        .iter()
+        .zip(modules)
+        .map(|(module, functions)| ProgramModule {
+            core: functions.map_or_else(
+                || module.core.clone(),
+                |functions| copy_module_metadata(&module.core, functions),
+            ),
             imports: module.imports.clone(),
             exports: module.exports.clone(),
-        });
-    }
-    Ok(CoreProgram {
+        })
+        .collect();
+    Ok(Some(CoreProgram {
         root: program.root,
         source_fingerprint: program.source_fingerprint,
         modules,
-    })
+    }))
 }
 
 fn headers(
@@ -557,6 +598,18 @@ fn prepare(
     has_closure: bool,
     budget: &mut Budget<'_>,
 ) -> R<CoreFunction> {
+    prepare_borrowed(function, signatures, imports, enums, has_closure, budget)
+        .map(Cow::into_owned)
+}
+
+fn prepare_borrowed<'a>(
+    function: &'a CoreFunction,
+    signatures: &BTreeMap<String, Signature>,
+    imports: Option<&program::Imports<'_>>,
+    enums: &BTreeMap<String, Type>,
+    has_closure: bool,
+    budget: &mut Budget<'_>,
+) -> R<Cow<'a, CoreFunction>> {
     // Scalar-only functions retain their existing inference/default behavior.
     if !has_closure && function.type_parameters.is_empty() && function.state_parameters.is_empty() {
         let dependencies = retained::dependencies(
@@ -567,12 +620,12 @@ fn prepare(
             budget.limits,
         )?;
         if dependencies.is_empty() {
-            return Ok(function.clone());
+            return Ok(Cow::Borrowed(function));
         }
     }
     let mut solver = Solver::new(function, signatures, imports, enums, budget)?;
     solver.block(&function.body, 0)?;
-    solver.finish(function)
+    solver.finish(function).map(Cow::Owned)
 }
 
 fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> CoreModule {

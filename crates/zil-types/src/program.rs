@@ -15,7 +15,7 @@ pub fn resolve_program_shapes(
 ) -> CompileResult<CoreProgram> {
     // Raw callers receive the same bounded preflight as the source driver;
     // no recursive Type clone in signatures may precede it.
-    let inferred = infer_program_closures(program, limits)?;
+    let inferred = infer_program_closures_borrowed(program, limits)?;
     aggregates::resolve_program(&inferred, limits)
 }
 
