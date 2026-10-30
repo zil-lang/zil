@@ -1,0 +1,20 @@
+{
+  "evidence_role": "pre_checkpoint_history_only",
+  "source_folders": [
+    "224-initial",
+    "224-round2",
+    "224-round3",
+    "224-round4",
+    "224-round5",
+    "224-old-controls",
+    "224-206-controls",
+    "224-address-controls",
+    "224-171-baseline",
+    "224-store-controls",
+    "224-default-feature"
+  ],
+  "archive_sha256": "433bd87122fd0d559b38cb705a90f25d81dcc341e0d68ab8e9ed3aee72ccc80f",
+  "bytes": 18407331,
+  "entries": 6527,
+  "note": "Preserves prior candidate failures, old guard classifications and limited controls; not exact final-code acceptance. Expanded workspace copies safely released after archive verification."
+}
