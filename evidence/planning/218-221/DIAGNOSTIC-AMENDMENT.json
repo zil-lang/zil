@@ -1,0 +1,9 @@
+{
+  "at_utc": "2026-10-30T05:06:19.793025+00:00",
+  "old_normative_hash": "40895de024c0718ab4fd1d7c73c8cc1dd19e3b7eadb0706c033351ef3b95617c",
+  "normative_hash": "51bce715057b382d1cf15de405c8ee7357aacd3935ed736df9b6268b5c3ec0d0",
+  "spec_hash": "14109fb881d03f4e3633d8d5f851287df9c5a4ed35f642ff6942c9fd7a9190f2",
+  "change": "Register E-CT-PHASE-DEPENDENCY for already-frozen ConfigReady dependency rejection",
+  "acceptance_changed": false,
+  "historical_acceptance_rewritten": false
+}

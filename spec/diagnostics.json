@@ -252,6 +252,15 @@
       ]
     },
     {
+      "code": "E-CT-PHASE-DEPENDENCY",
+      "phases": [
+        "ct"
+      ],
+      "requirements": [
+        "ZIL-COMPTIME"
+      ]
+    },
+    {
       "code": "E-CT-TRAP",
       "phases": [
         "ct"
