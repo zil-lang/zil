@@ -75,7 +75,9 @@ Doing
         "crates/zil-cli/Cargo.toml",
         "crates/zil-cli/src",
         "crates/zil-cli/tests",
-        "crates/zil-driver/tests"
+        "crates/zil-driver/tests",
+        "crates/zil-driver/src",
+        "changes/compile-performance-cp05-timing-feature.md"
       ],
       "purpose": "Compile-time removal of disabled timing collection",
       "plan": "docs/research/compile-performance/CP05-08-PLAN.md"
@@ -117,6 +119,20 @@ Doing
       ],
       "purpose": "Real LLVM23 ZIL/Rust complete-build and runtime comparison",
       "plan": "docs/research/compile-performance/CP05-08-PLAN.md"
+    },
+    "CP10": {
+      "status": "Doing",
+      "author": "/root/llvm_strategy",
+      "baseline": "6c3b3adb2435137fac9f4a1c8257c44e47d909e8",
+      "write_set": [
+        "crates/zil-expand/src/lib.rs",
+        "crates/zil-expand/tests",
+        "crates/zil-types/src/aggregates.rs",
+        "crates/zil-types/tests",
+        "evidence/research/compile-performance/CP10"
+      ],
+      "purpose": "Build immutable project aggregate/callable-name lookup tables once per request; preserve all budget charges, input order, diagnostics and validation",
+      "plan": "docs/research/compile-performance/CP10-PLAN.md"
     }
   },
   "mainline_acceptance": "Hold: CP02 disabled-path compile cost requires further validation",
