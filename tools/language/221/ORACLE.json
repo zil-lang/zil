@@ -112,5 +112,39 @@
     "O2"
   ],
   "raw_wire": "matching independent Verify diagnostic; never plan identity or ResourceLimit for structural negatives",
-  "budgets": "exact N, N-1 ResourceLimit, fresh N with matching fingerprint"
+  "budgets": "exact N, N-1 ResourceLimit, fresh N with matching fingerprint",
+  "extension_before_execution": [
+    {
+      "source": "address-signatures.zil",
+      "stdout": "",
+      "exit": 0,
+      "covers": [
+        "shared Copy address",
+        "mutable Copy address",
+        "shared Copy slice address",
+        "empty actual Fn environments"
+      ]
+    },
+    {
+      "source": "copy-error-result.zil",
+      "stdout": "ABXCDY",
+      "exit": 0,
+      "covers": [
+        "Copy ErrorUnion input/result",
+        "actual Fn to declared FnOnce adaptation",
+        "failed child consumes A then remaining B",
+        "successful child consumes C then remaining D"
+      ]
+    },
+    {
+      "source": "lending-child.zil",
+      "stdout": "",
+      "exit": 0,
+      "covers": [
+        "input/output root Copy results",
+        "nested child retains existing shared lending result",
+        "root signature restriction not applied to child"
+      ]
+    }
+  ]
 }

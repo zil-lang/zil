@@ -34,9 +34,13 @@ fn directory(label: &str) -> PathBuf {
 }
 
 fn source_control() -> (TypedModule, CandidatePlan) {
-    let path = directory("source-control");
-    fs::write(path.join("source.zil"), FN).unwrap();
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "factory221.zil", FN);
+    source_module("source-control", FN)
+}
+
+fn source_module(label: &str, text: &str) -> (TypedModule, CandidatePlan) {
+    let path = directory(label);
+    fs::write(path.join("source.zil"), text).unwrap();
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "factory221.zil", text);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &syntax).unwrap();
     fs::write(path.join("core.txt"), format!("{core:#?}")).unwrap();
@@ -511,6 +515,85 @@ fn native_callback_store_uses_inline_wrapper_stride_and_cleans_each_failure() {
                 "{{\"alloc_calls\":{calls},\"allocated\":{allocated},\"frees\":{allocated},\"failures\":{failures},\"live\":0,\"peak_live\":{allocated},\"peak_bytes\":{peak}}}"
             );
             assert_eq!(allocation.trim(), expected);
+        }
+    }
+}
+
+#[test]
+fn extended_signature_controls_keep_raw_wire_and_native_contracts() {
+    for (label, source, expected) in [
+        (
+            "address-signatures",
+            include_str!("../../../tools/language/221/cases/address-signatures.zil"),
+            "",
+        ),
+        (
+            "copy-error-result",
+            include_str!("../../../tools/language/221/cases/copy-error-result.zil"),
+            "ABXCDY",
+        ),
+        (
+            "lending-child",
+            include_str!("../../../tools/language/221/cases/lending-child.zil"),
+            "",
+        ),
+    ] {
+        let (module, plan) = source_module(label, source);
+        let (_, input, output) = factory(&module);
+        match label {
+            "address-signatures" => {
+                let factories = module.functions.iter().filter(|f| {
+                    matches!(f.return_type, Type::Closure(_))
+                        && f.parameters
+                            .iter()
+                            .any(|p| matches!(f.locals[p.0 as usize].ty, Type::Closure(_)))
+                });
+                assert_eq!(factories.count(), 3);
+                assert!(matches!(
+                    module.closures[input.0 as usize].parameters[0],
+                    Type::Address { .. }
+                ));
+            }
+            "copy-error-result" => {
+                assert!(matches!(
+                    module.closures[input.0 as usize].result,
+                    Type::ErrorUnion { .. }
+                ));
+                assert!(module.closures[input.0 as usize].result.is_copy_value());
+                assert_eq!(module.closures[input.0 as usize].kind, CallableKind::Fn);
+                assert_eq!(
+                    module.closures[output.0 as usize].kind,
+                    CallableKind::FnOnce
+                );
+            }
+            "lending-child" => {
+                assert!(module.closures[input.0 as usize].result.is_copy_value());
+                let child = module.closures[input.0 as usize]
+                    .captures
+                    .iter()
+                    .find_map(|ty| match ty {
+                        Type::Closure(id) => Some(*id),
+                        _ => None,
+                    })
+                    .expect("an actual inner lending environment");
+                assert!(matches!(
+                    module.closures[child.0 as usize].result,
+                    Type::Address { .. }
+                ));
+                assert!(
+                    !module.closures[child.0 as usize]
+                        .lending_captures
+                        .is_empty()
+                );
+            }
+            _ => unreachable!(),
+        }
+        both(label, &module, &plan, None);
+        for opt in [Optimization::O0, Optimization::O2] {
+            let path = build(label, source, opt, false);
+            assert!(
+                observe(&path.join("program"), &path, "ordinary", expected, 0, None).is_empty()
+            );
         }
     }
 }

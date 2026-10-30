@@ -1,0 +1,100 @@
+{
+  "status": "AuthorImplementationCompletePendingIndependentReview",
+  "task": "221",
+  "parent_task": "B0",
+  "author": "/root/language_review_plan",
+  "baseline": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
+  "current_spec_hash": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+  "current_normative_hash": "e4bd2d0f939a205b01618c0d5ce53a8725549be093db2658272633021131e44d",
+  "historical_receipts": "earlier freeze and tested compiler identities remain in each original receipt; no relabeling",
+  "production_inputs": {
+    "crates/zil-verify/src/retained.rs": "157ca1dfa3da9721154cac6a4e54217776dba2e93624131cb24d7bea39569831",
+    "crates/zil-verify/src/helpers.rs": "2430579b46636a1e631b8d123f61ebdba6da590bf3009f7433e97c4dc1b238d8"
+  },
+  "test_tools": {
+    "crates/zil-verify/src/retained_tests.rs": "d945736222ece430b0097b93a2ade49746157098b65e47226f9f2e84cae00902",
+    "crates/zil-driver/tests/impl221_factory_verify.rs": "12a661a6cc6e72f8626454bcc498b965a25d84f86f3f04f35ed646e71fc47ab6",
+    "tools/language/221/ORACLE.json": "1f93449620949cabd27b35de2806b68cc0ac8ea6368e68f788dd3e7bcc9516bf",
+    "tools/language/221/SOURCE-MANIFEST.json": "adfd425dfe04bede454b992bf586303d5178daeffc98ad79210d00191cfa6cca",
+    "tools/language/221/run-source.py": "44b48c46e336cc5c58005cff57aae290365ade41b91a25ca2f402882ced57384",
+    "tools/language/221/budget.rs": "c330fc1b0ebed18377b30cb24fb32103b29cbe3670046171ac1bb6b2e58f82f8",
+    "tools/language/221/run-budget.py": "7d3c6ae8582fc99b657c13f9ddf471700bc40a8760b74e6dd083d561f5b59427"
+  },
+  "public_schema": 27,
+  "public_wire": 27,
+  "no_new_runtime_abi": true,
+  "production_scope": [
+    "independent owning factory envelope/root signature/input qualification",
+    "capturable Package and leaf Store companion qualification",
+    "ordinary ownership boundary excluded from nonescaping helper role contracts"
+  ],
+  "reuse": [
+    "existing global acyclic inline environment layout checker",
+    "existing independent SSA/resource/borrow checks",
+    "existing recursive inline Closure and Store cleanup ABI"
+  ],
+  "author_validation": {
+    "raw_wire_unit_tests": {
+      "passed": 18,
+      "failed": 0,
+      "receipt": "raw-boundary/RESULT.json"
+    },
+    "source_raw_native_tests": {
+      "distinct_groups": 10,
+      "round1": 9,
+      "round2_extension": 1,
+      "receipts": [
+        "source-native/RESULT.json",
+        "source-native/ROUND2.json"
+      ]
+    },
+    "disjoint_native_runs": {
+      "ordinary_llvm_api": 20,
+      "additional_allocator_observer": 22,
+      "total": 42,
+      "actual_allocation_failures": 6,
+      "no_fallback": true
+    },
+    "budgets": {
+      "hand_built_owning_fixture_raw_and_wire": 2919,
+      "source_derived_raw_and_wire": 16559,
+      "old_controls": {
+        "helper": [
+          1464,
+          1908,
+          1908
+        ],
+        "state": [
+          4701,
+          7043,
+          7043
+        ],
+        "opaque": [
+          3960,
+          5479,
+          5479
+        ]
+      },
+      "old_column_order": [
+        "Analyze",
+        "raw Verify",
+        "Wire Verify"
+      ],
+      "old_baseline_receipt": "legacy-budget-baseline/RESULT.json",
+      "root_combination_comparison": "root reported identical boundaries/Typed/Verified identities at task/220 5f471b; final combined comparison remains root-owned"
+    }
+  },
+  "real_defect_closed": "direct canonical Store companion could hide a second callback in raw/Wire; original false acceptance and same-input fix preserved in raw-boundary",
+  "not_run_by_author": [
+    "full workspace",
+    "independent review of this implementation",
+    "native Windows",
+    "Rust paired runtime/RSS/maintenance/compiler benchmarks"
+  ],
+  "remaining_owner_actions": [
+    "root bind exact published candidate and integration identity",
+    "language_parallel non-author review of complete218/220/221",
+    "root final combination regression and old-source budget comparison"
+  ],
+  "rust_goals": "RUST-GOALS.md"
+}
