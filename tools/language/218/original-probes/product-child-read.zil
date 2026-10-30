@@ -1,0 +1,1 @@
+resource R{n:i32} package Leaf{manages owner:R;tag:i32} package Product{child:Leaf;tag:i32} fn old(value:Product)->impl Fn()->i32{return move()=>value.child.tag+value.tag} fn main()->i32{let output=old(Product{child:Leaf{owner:R{n:2},tag:4},tag:5});return output()}

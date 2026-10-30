@@ -876,7 +876,11 @@ impl Check<'_, '_, '_> {
         while let ExprKind::Group(inner) = &direct.kind {
             direct = inner;
         }
-        if self.two_input_state_constructor()
+        if (self.two_input_state_constructor()
+            || self
+                .callable
+                .as_ref()
+                .is_some_and(|bounds| bounds.owned_factory))
             && let ExprKind::Name(name) = &direct.kind
             && let Some(local) = state.locals.get(name)
             && self.concrete_helper_resource(&local.ty)
@@ -889,6 +893,7 @@ impl Check<'_, '_, '_> {
             }
             self.budget.ty(&local.ty)?;
             let (id, ty) = (local.id, local.ty.clone());
+            self.factory_use(id, false, true, operand.span)?;
             if !state.moved.insert(id) {
                 return Err(error(operand.span, "owned resource used after give"));
             }
@@ -900,6 +905,7 @@ impl Check<'_, '_, '_> {
         {
             let id = local.id;
             let ty = local.ty.clone();
+            self.factory_use(id, false, true, operand.span)?;
             if !state.store_owners.contains(&id) {
                 return Err(error(
                     operand.span,
@@ -980,7 +986,7 @@ impl Check<'_, '_, '_> {
         } else if !self
             .callable
             .as_ref()
-            .is_some_and(|bound| bound.owned_state)
+            .is_some_and(|bound| bound.owned_state || bound.owned_factory)
         {
             return Err(unsupported(
                 operand.span,
@@ -1009,6 +1015,7 @@ impl Check<'_, '_, '_> {
             ));
         }
         let slot = self.field_slot(owner, member, operand.span)?;
+        self.factory_field_use(owner, slot, operand.span)?;
         if !state.moved.insert(slot) {
             return Err(error(operand.span, "managed Package field used after give"));
         }
@@ -2522,7 +2529,17 @@ impl Check<'_, '_, '_> {
                 let aliases_a = self.alias_result_copy(e.span)?;
                 let rhs = self.expr(else_value, &mut b, Some(&lhs), borrowing)?;
                 let aliases_b = self.alias_result_copy(e.span)?;
-                same(&lhs, &rhs, e.span, self.budget)?;
+                if self
+                    .callable
+                    .as_ref()
+                    .is_some_and(|bounds| bounds.owned_factory)
+                    && callable::opaque_signature(&lhs).is_some()
+                    && callable::opaque_signature(&rhs).is_some()
+                {
+                    self.factory_same_result(&lhs, &rhs, e.span)?;
+                } else {
+                    same(&lhs, &rhs, e.span, self.budget)?;
+                }
                 self.join_states(state, &[&a, &b], e.span)?;
                 self.alias_result_join(aliases_a, aliases_b, e.span)?;
                 Ok(lhs)
@@ -2830,7 +2847,11 @@ impl Check<'_, '_, '_> {
                     }
                     let owns_store = self.owning_store_expression(value, state);
                     let fresh_store = owns_store && self.fresh_store_expression(value, state)?;
-                    let owns_resource = self.two_input_state_constructor()
+                    let owns_resource = (self.two_input_state_constructor()
+                        || self
+                            .callable
+                            .as_ref()
+                            .is_some_and(|bounds| bounds.owned_factory))
                         && self.owned_resource_expression(value, state)?;
                     let origins = self.store_origins(value, state)?;
                     let actual = self.expr(value, state, ty.as_ref(), false)?;

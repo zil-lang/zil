@@ -8,12 +8,14 @@ use zil_ir::CallableKind;
 struct Use {
     written: bool,
     consumed: bool,
+    partial: BTreeSet<usize>,
 }
 
 pub(super) struct Scope {
     outer: BTreeSet<usize>,
     captures: BTreeMap<usize, Use>,
     result: Option<TypeRef>,
+    exits: BTreeSet<usize>,
 }
 
 impl Check<'_, '_, '_> {
@@ -152,21 +154,35 @@ impl Check<'_, '_, '_> {
         Ok(())
     }
 
+    pub(super) fn factory_field_use(&mut self, owner: usize, slot: usize, span: Span) -> R<()> {
+        let Some(scope) = self.factory_scopes.last_mut() else {
+            return Ok(());
+        };
+        self.budget.node(span, 0)?;
+        if scope.outer.contains(&owner) {
+            self.budget.node(span, 0)?;
+            let usage = scope.captures.entry(owner).or_default();
+            usage.written = true;
+            usage.partial.insert(slot);
+        }
+        Ok(())
+    }
+
     pub(super) fn factory_body_return(
         &mut self,
         expression: Option<&Expr>,
         state: &mut State,
         span: Span,
     ) -> R<()> {
+        if let Some(expected) = &self.factory_scopes.last().expect("closure scope").result {
+            self.budget.ty(expected)?;
+        }
         let expected = self
             .factory_scopes
             .last()
             .expect("closure scope")
             .result
             .clone();
-        if let Some(ty) = &expected {
-            self.budget.ty(ty)?;
-        }
         let actual = if let Some(expression) = expression {
             self.expr(expression, state, expected.as_ref(), false)?
         } else {
@@ -182,6 +198,14 @@ impl Check<'_, '_, '_> {
                 .expect("closure scope")
                 .result = Some(actual);
         }
+        for _ in &state.moved {
+            self.tick(span)?;
+        }
+        self.factory_scopes
+            .last_mut()
+            .expect("closure scope")
+            .exits
+            .extend(state.moved.iter().copied());
         Ok(())
     }
 
@@ -246,6 +270,7 @@ impl Check<'_, '_, '_> {
             outer,
             captures: BTreeMap::new(),
             result: result.cloned(),
+            exits: BTreeSet::new(),
         });
         match body {
             ArrowBody::Expression(expression) => {
@@ -265,6 +290,9 @@ impl Check<'_, '_, '_> {
         let mut kind = CallableKind::Fn;
         for (id, usage) in scope.captures {
             self.tick(span)?;
+            for _ in 0..state.locals.len() {
+                self.tick(span)?;
+            }
             let local = state
                 .locals
                 .values()
@@ -272,10 +300,10 @@ impl Check<'_, '_, '_> {
                 .ok_or_else(|| error(span, "factory capture lost its lexical position"))?;
             self.budget.ty(&local.ty)?;
             let local = local.clone();
-            if !move_capture {
+            if !move_capture && !usage.consumed && usage.partial.is_empty() {
                 return Err(unsupported(
                     span,
-                    "retained generic factory captures require owned move values",
+                    "retained generic factory captures require explicit move or an actual owning use",
                 ));
             }
             if matches!(group(&local.ty).kind, TypeKind::Reference { .. }) {
@@ -290,16 +318,39 @@ impl Check<'_, '_, '_> {
                     "factory capture uses an already consumed position",
                 ));
             }
-            if usage.consumed {
+            if self.concrete_helper_resource(&local.ty) && !local.owned_resource {
+                return Err(unsupported(
+                    span,
+                    "retained factory resource capture requires an actual owner, not a description",
+                ));
+            }
+            if stores::element(&local.ty).is_some() && !state.store_owners.contains(&id) {
+                return Err(unsupported(
+                    span,
+                    "retained factory Store capture requires an actual owner, not a description",
+                ));
+            }
+            for _ in &usage.partial {
+                self.tick(span)?;
+            }
+            if usage.consumed || usage.partial.iter().any(|slot| scope.exits.contains(slot)) {
                 kind = CallableKind::FnOnce;
             } else if usage.written && kind != CallableKind::FnOnce {
                 kind = CallableKind::FnMut;
             }
-            let consumes = local.owned_resource || !self.known_copy(&local.ty)?;
+            let consumes = local.owned_resource
+                || state.store_owners.contains(&id)
+                || !self.known_copy(&local.ty)?;
             self.factory_use(id, false, consumes, span)?;
             if consumes {
                 self.alias_invalidate(state, id, None, span)?;
                 state.moved.insert(id);
+                if let Some(origins) = state.store_origins.get(&id) {
+                    for _ in origins {
+                        self.tick(span)?;
+                    }
+                    state.invalidated_stores.extend(origins);
+                }
             }
         }
         let name = match kind {
