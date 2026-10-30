@@ -6,9 +6,11 @@ mod artifacts;
 mod contracts;
 mod ct_program;
 mod ct_selection;
+mod parse_cache;
 mod project;
 mod query_cache;
 mod session;
+pub use parse_cache::ParseCacheReport;
 pub use project::{ProjectSources, compile_project};
 pub use query_cache::QueryCacheReport;
 pub use session::CompilationSession;
@@ -69,7 +71,7 @@ pub struct CompileOptions {
     pub cache_dir: Option<PathBuf>,
     /// Trusted local machine-object cache; independent of source-candidate cache.
     pub object_cache: Option<PathBuf>,
-    /// Opt-in trusted private local checkpoint of complete, identical builds.
+    /// Opt-in trusted private local parse memo and complete-build checkpoint.
     /// This is separate from untrusted source candidates and never stores Verified.
     pub query_cache: Option<PathBuf>,
     pub clang: Option<PathBuf>,
@@ -158,13 +160,14 @@ pub struct CompileReport {
     pub seconds: f64,
     pub timings: Option<TimingReport>,
     pub(crate) trace: TimingTrace,
-    /// Compatibility summary; inspect query_events and disk_cache to determine
+    /// Compatibility summary; inspect query_events, disk_cache and parse_cache to determine
     /// what was reused. This flag never indicates a cached Verified object.
     pub cache_hit: bool,
     pub commands: Vec<Vec<String>>,
     pub native_codegen: Option<CodegenSummary>,
     pub disk_cache: DiskCacheStatus,
     pub query_cache: QueryCacheReport,
+    pub parse_cache: ParseCacheReport,
     pub query_events: Vec<QueryEvent>,
     pub verification_runs: usize,
     pub source_files: BTreeMap<FileId, String>,
@@ -186,6 +189,7 @@ impl CompileReport {
             native_codegen: None,
             disk_cache: DiskCacheStatus::Disabled,
             query_cache: QueryCacheReport::default(),
+            parse_cache: ParseCacheReport::default(),
             query_events: vec![],
             verification_runs: 0,
             source_files: BTreeMap::from([(source.file_id, source.path.clone())]),
@@ -194,7 +198,7 @@ impl CompileReport {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"timings\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"timings\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_cache\":{},\"parse_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -230,6 +234,7 @@ impl CompileReport {
             self.native_codegen.as_ref().map_or_else(|| "null".into(), CodegenSummary::to_json),
             json_string(self.disk_cache.as_str()),
             self.query_cache.to_json(),
+            self.parse_cache.to_json(),
             self.query_events
                 .iter()
                 .map(|event| format!(
