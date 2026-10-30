@@ -1,0 +1,46 @@
+{
+  "schema": "zil-compile4-ci/1",
+  "run_id": "compile4-round1",
+  "base_revision": "64072793a0f41994f216a6207bf49ee1e2d224f8",
+  "candidate_revision": "HEAD",
+  "candidate_crates_tree": "0221fa705e8dc926c54f6b85f2dc9ef3af98559a",
+  "llvm_version": "23.1.4",
+  "rust_version": "1.99.1",
+  "blocks": 3,
+  "seed": 20261030,
+  "tests": [
+    {
+      "package": "zil-types",
+      "targets": [
+        "project_lookup_cp10"
+      ],
+      "lib": true,
+      "features": []
+    },
+    {
+      "package": "zil-backend-llvm",
+      "targets": [
+        "closed_executable_cp13"
+      ],
+      "lib": true,
+      "features": [
+        "llvm-api"
+      ]
+    },
+    {
+      "package": "zil-driver",
+      "targets": [
+        "borrowed_inference_cp15",
+        "query_cache_cp12",
+        "closures_frontend",
+        "projects",
+        "impl219_budget",
+        "impl219_selection"
+      ],
+      "lib": false,
+      "features": [
+        "llvm-api"
+      ]
+    }
+  ]
+}
