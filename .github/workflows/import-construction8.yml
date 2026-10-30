@@ -14,21 +14,31 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
-      - name: Verify full bundle and publish original evidence history
+      - name: Verify final implementation and review history before publishing
         shell: bash
         run: |
           set -euo pipefail
-          cat .construction8-history/part-*.bin > "$RUNNER_TEMP/history.bundle"
-          echo "c252966555c21f284c44f2896b1b85bba514501035af060e1fa597610e61f70b  $RUNNER_TEMP/history.bundle" | sha256sum --check
-          git bundle verify "$RUNNER_TEMP/history.bundle"
-          git fetch "$RUNNER_TEMP/history.bundle" refs/heads/impl/222-ct-for:refs/import/construction8/0
-          test "$(git rev-parse refs/import/construction8/0)" = "a54b7cd5ad8bad0f2022b15aeb58eb38a7429056"
-          git merge-base --is-ancestor a8e8831a9e28ac2ec83be6eac740a8f04a00af7d a54b7cd5ad8bad0f2022b15aeb58eb38a7429056
-          git fetch "$RUNNER_TEMP/history.bundle" refs/heads/impl/223-product-store:refs/import/construction8/1
-          test "$(git rev-parse refs/import/construction8/1)" = "9ca5d5b0ecc6ad531d497217df3b90b77616f5ef"
-          git merge-base --is-ancestor a8e8831a9e28ac2ec83be6eac740a8f04a00af7d 9ca5d5b0ecc6ad531d497217df3b90b77616f5ef
-          git fetch "$RUNNER_TEMP/history.bundle" refs/heads/impl/224-readonly-product:refs/import/construction8/2
-          test "$(git rev-parse refs/import/construction8/2)" = "2b799ed7f405c89c7725b86978286c144070e87f"
-          git merge-base --is-ancestor a8e8831a9e28ac2ec83be6eac740a8f04a00af7d 2b799ed7f405c89c7725b86978286c144070e87f
-          git push --atomic origin a54b7cd5ad8bad0f2022b15aeb58eb38a7429056:refs/heads/impl/222-ct-for 9ca5d5b0ecc6ad531d497217df3b90b77616f5ef:refs/heads/impl/223-product-store 2b799ed7f405c89c7725b86978286c144070e87f:refs/heads/impl/224-readonly-product
-          git ls-remote origin refs/heads/impl/222-ct-for refs/heads/impl/223-product-store refs/heads/impl/224-readonly-product
+          cat .construction8-history/round2/part-*.bin > "$RUNNER_TEMP/round2.bundle"
+          echo "4d7cc7ce49c4b23ce6401fa6d7112f081beb8d5c029fdc83d92dca2b25ae9627  $RUNNER_TEMP/round2.bundle" | sha256sum --check
+          git bundle verify "$RUNNER_TEMP/round2.bundle"
+          git fetch "$RUNNER_TEMP/round2.bundle" refs/heads/impl/222-ct-for:refs/import/construction8/round2/0
+          test "$(git rev-parse refs/import/construction8/round2/0)" = "566bda6a12ab9dbe9be5adbf5b870a411189dc37"
+          git fetch "$RUNNER_TEMP/round2.bundle" refs/heads/impl/223-product-store:refs/import/construction8/round2/1
+          test "$(git rev-parse refs/import/construction8/round2/1)" = "aefc031d83c92aaea0c6154fdfe9b94834a9b105"
+          git fetch "$RUNNER_TEMP/round2.bundle" refs/heads/impl/224-readonly-product:refs/import/construction8/round2/2
+          test "$(git rev-parse refs/import/construction8/round2/2)" = "2b98ac8b99c3a4f7dcdc29bb1b6e62d0a4da4ba0"
+          git fetch "$RUNNER_TEMP/round2.bundle" refs/heads/integration/222-224:refs/import/construction8/round2/3
+          test "$(git rev-parse refs/import/construction8/round2/3)" = "6b0d974bedfb40c93eb36e491ceb18a138718dac"
+          cat .construction8-history/round2-extra/part-*.bin > "$RUNNER_TEMP/round2-extra.bundle"
+          echo "179ba07b76f0e442c38fa86ae1a26cb20129a8c2ac051f2d97fa939c45183032  $RUNNER_TEMP/round2-extra.bundle" | sha256sum --check
+          git bundle verify "$RUNNER_TEMP/round2-extra.bundle"
+          git fetch "$RUNNER_TEMP/round2-extra.bundle" refs/heads/impl/222-ct-for:refs/import/construction8/round2-extra/0
+          test "$(git rev-parse refs/import/construction8/round2-extra/0)" = "a9aa46a8c32fbd52463c3de3b848984321a20c99"
+          git fetch "$RUNNER_TEMP/round2-extra.bundle" refs/heads/integration/222-224:refs/import/construction8/round2-extra/1
+          test "$(git rev-parse refs/import/construction8/round2-extra/1)" = "616c562ed6363df437c2d48358da624d86e6960d"
+          git merge-base --is-ancestor a8e8831a9e28ac2ec83be6eac740a8f04a00af7d a9aa46a8c32fbd52463c3de3b848984321a20c99
+          git merge-base --is-ancestor a8e8831a9e28ac2ec83be6eac740a8f04a00af7d aefc031d83c92aaea0c6154fdfe9b94834a9b105
+          git merge-base --is-ancestor a8e8831a9e28ac2ec83be6eac740a8f04a00af7d 2b98ac8b99c3a4f7dcdc29bb1b6e62d0a4da4ba0
+          git merge-base --is-ancestor a8e8831a9e28ac2ec83be6eac740a8f04a00af7d 616c562ed6363df437c2d48358da624d86e6960d
+          git push --atomic origin a9aa46a8c32fbd52463c3de3b848984321a20c99:refs/heads/impl/222-ct-for aefc031d83c92aaea0c6154fdfe9b94834a9b105:refs/heads/impl/223-product-store 2b98ac8b99c3a4f7dcdc29bb1b6e62d0a4da4ba0:refs/heads/impl/224-readonly-product 616c562ed6363df437c2d48358da624d86e6960d:refs/heads/integration/222-224
+          git ls-remote origin refs/heads/impl/222-ct-for refs/heads/impl/223-product-store refs/heads/impl/224-readonly-product refs/heads/integration/222-224
