@@ -419,6 +419,32 @@ Doing
         "docs/research/compile-performance/CP22-PARSE-CACHE.md",
         "evidence/research/compile-performance/CP22"
       ]
+    },
+    "CP23": {
+      "status": "Doing",
+      "author": "/root/toolchain_recovery",
+      "reviewer": "/root/incremental_review",
+      "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+      "purpose": "Fast-path missing or leaf query reads while preserving active-cycle priority and all nonleaf closure checks",
+      "plan": "docs/research/compile-performance/COMPILE6-PLAN.md",
+      "write_set": [
+        "crates/zil-db/src/lib.rs",
+        "crates/zil-db/src/tests.rs",
+        "crates/zil-db/examples/query_read_cp23.rs",
+        "evidence/research/compile-performance/CP23"
+      ]
+    },
+    "CP24": {
+      "status": "Doing",
+      "author": "/root",
+      "reviewer": "/root/incremental_review",
+      "baseline": "8bc38b24a75e56cfb9ca07d454aa22bf60190f2b",
+      "purpose": "Freeze a symmetric explicit frontend-cache A/B window and retain parse/checkpoint reports without changing default windows, weights or estimator",
+      "write_set": [
+        "tools/research/compile-performance/bench.py",
+        "tools/research/compile-performance/test_bench.py"
+      ],
+      "plan": "docs/research/compile-performance/COMPILE6-PLAN.md"
     }
   },
   "mainline_acceptance": "Hold: main not changed by this research round; targeted correctness passed, composite-type performance risk signals unresolved; full workspace/product gates NotRun.",
