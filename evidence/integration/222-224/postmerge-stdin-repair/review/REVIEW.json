@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/ct_for",
+  "verdict": "Pass",
+  "implementation_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+  "author_delivery_commit": "bcce4ca58cbd7edb1692c9140a0babb314491ddc",
+  "reviewed_checkout": "bcce4ca58cbd7edb1692c9140a0babb314491ddc",
+  "base_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+  "author": "/root/product_store",
+  "scope": "Only the post-merge review223 machine-test stdin protocol. This is not a new language acceptance or full workspace CI result.",
+  "static_findings": [],
+  "static_checks": {
+    "only_test_driver_code_changed": true,
+    "source_fixtures_unchanged": true,
+    "all_behavior_and_allocator_oracles_unchanged": true,
+    "none_uses_null_and_performs_no_write": true,
+    "some_uses_pipe_and_strict_write_all_unwrap": true,
+    "no_broken_pipe_suppression": true,
+    "receipts_encode_null_or_actual_input_byte": true,
+    "entry_error_has_no_stdin_read": true,
+    "heterogeneous_getchar_keeps_all_explicit_modes": true
+  },
+  "independent_execution": {
+    "fresh_target": true,
+    "features": [
+      "llvm-api"
+    ],
+    "test_result": {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    "native_executions": 60,
+    "no_input_executions": 2,
+    "explicit_byte_executions": 58,
+    "allocator_observations": 50,
+    "real_allocation_failures": 34,
+    "all_observed_live_zero": true,
+    "compiled_sources": 2,
+    "optimization_levels": [
+      "O0",
+      "O2"
+    ],
+    "builds": 4,
+    "additional_forced_schedule_native_children": 4,
+    "forced_old_write_failures": 2,
+    "fixed_none_controls": 2,
+    "command": "TEST-COMMAND.json",
+    "provenance": "PROVENANCE.json",
+    "native_summary": "NATIVE-SUMMARY.json",
+    "controlled_replay": "CONTROLS.json"
+  },
+  "author_evidence_check": {
+    "path": "AUTHOR-ARCHIVE-CHECK.json",
+    "regular_files": 253,
+    "archive_sha256": "786873ff7e7bd2dd830693317dd79c39e25aa93c4ff8d5059ae4c193f467a420",
+    "all_sizes_hashes_modes_verified": true,
+    "counted_as_reviewer_native_executions": 0,
+    "author_first_zero_selection_remains": "InvalidEvidence/ZeroSelection; not counted as acceptance"
+  },
+  "original_failure": {
+    "run_id": 41101248493,
+    "head": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+    "default": {
+      "passed": 2860,
+      "failed": 1,
+      "ignored": 0
+    },
+    "preservation_owner": "/root/scope_audit",
+    "audit_sha256_reported_by_owner": "2151648f7eb2c874cbd63519a24ac57dbb6047a94ec1192fd6e0bcd85b54f437",
+    "classification_preserved": "Fail",
+    "original_ci_stdout_verified_by_this_reviewer": false,
+    "note": "The old unconditional write can panic before wait_with_output and receipt collection. Our deliberately child-first stdio control independently demonstrates that failure point; the repaired None executions independently observe ABCDEF. Neither rewrites or certifies the original CI child output."
+  },
+  "archive": {
+    "path": "raw-evidence.tar.gz",
+    "bytes": 688715,
+    "sha256": "e8094b532be21c752b8285143643b843520aa972bc3042ec09f003e4faab5526",
+    "regular_files": 267,
+    "readback_hash_size_mode_verification": "Pass"
+  },
+  "formal_workspace_ci": "NotRun by reviewer; required on root final integration",
+  "language_or_product_claims": "Unchanged; no full-language, ZUI, product, native-Windows or performance completion claim",
+  "rust_goal_reflection": {
+    "safety": "Strict input and all cleanup/allocator assertions retained.",
+    "runtime_memory": "No new comparative runtime or memory result.",
+    "expression_maintenance": "Makes the two existing consumer input contracts explicit.",
+    "compile_cost": "No compile-speed result or budget change.",
+    "breakthrough": "Closes a concrete evidence-harness race only."
+  },
+  "reviewed_at_utc": "2026-10-30T18:17:10.561723+00:00"
+}

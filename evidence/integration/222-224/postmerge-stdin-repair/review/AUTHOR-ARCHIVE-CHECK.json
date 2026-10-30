@@ -1,0 +1,13 @@
+{
+  "status": "Pass",
+  "kind": "IndependentAuthorArchiveVerification",
+  "reviewer": "/root/ct_for",
+  "delivery_commit": "bcce4ca58cbd7edb1692c9140a0babb314491ddc",
+  "implementation_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+  "verified_regular_files": 253,
+  "archive_bytes": 482513,
+  "archive_sha256": "786873ff7e7bd2dd830693317dd79c39e25aa93c4ff8d5059ae4c193f467a420",
+  "all_member_hashes_sizes_modes_match": true,
+  "executions_by_this_check": 0,
+  "checked_at_utc": "2026-10-30T18:12:53.409280+00:00"
+}

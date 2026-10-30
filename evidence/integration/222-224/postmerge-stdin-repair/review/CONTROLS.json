@@ -1,0 +1,97 @@
+{
+  "status": "Pass",
+  "kind": "IndependentForcedScheduleStdioControl",
+  "reviewer": "/root/ct_for",
+  "implementation_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+  "delivery_commit": "bcce4ca58cbd7edb1692c9140a0babb314491ddc",
+  "build_argv": [
+    "/workspace/scratch/3cf12ce32e36/toolchains/rust-1.99.1/bin/rustc",
+    "--edition=2024",
+    "-C",
+    "debuginfo=0",
+    "-C",
+    "strip=symbols",
+    "-C",
+    "linker=/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+    "-C",
+    "link-arg=-fuse-ld=lld",
+    "/workspace/scratch/d286b3aeeb6b/zil-stdin-review/evidence/integration/222-224/postmerge-stdin-repair/review/closed_pipe_replay.rs",
+    "-o",
+    "/workspace/scratch/d286b3aeeb6b/targets/review223-stdin/closed-pipe-replay"
+  ],
+  "build_exit": 0,
+  "source_sha256": "df3dba18852fdc0086028670b63d7f2555119896a45874609c74f69087870570",
+  "binary_sha256": "fa46477ac754620cb4b824bdf2d4e0a13fb19136b6e0cb25a61153294db29e05",
+  "started_at_utc": "2026-10-30T18:15:16.842133+00:00",
+  "finished_at_utc": "2026-10-30T18:15:16.982332+00:00",
+  "results": [
+    {
+      "optimization": "O0",
+      "mode": "forced-old",
+      "argv": [
+        "/workspace/scratch/d286b3aeeb6b/targets/review223-stdin/closed-pipe-replay",
+        "forced-old",
+        "/workspace/scratch/d286b3aeeb6b/targets/review223-stdin/native/review223-entry-error-O0/program",
+        "/workspace/scratch/d286b3aeeb6b/zil-stdin-review/evidence/integration/222-224/postmerge-stdin-repair/review/controls/O0-forced-old"
+      ],
+      "driver_exit": 101,
+      "output_collected": false,
+      "native_program_sha256": "fff4b398e47ba9e78d3b22cdd49be72fb7014faa3ed0e13f5050a4ab06f74053",
+      "stderr_sha256": "cfc6c85a3ebb5ecc546dd97c0944867debdac324ac19842e4b2c9c46c2a7928d",
+      "verdict": "Pass",
+      "interpretation": "Expected strict write failure before output collection under a deliberately child-first schedule"
+    },
+    {
+      "optimization": "O0",
+      "mode": "fixed-none",
+      "argv": [
+        "/workspace/scratch/d286b3aeeb6b/targets/review223-stdin/closed-pipe-replay",
+        "fixed-none",
+        "/workspace/scratch/d286b3aeeb6b/targets/review223-stdin/native/review223-entry-error-O0/program",
+        "/workspace/scratch/d286b3aeeb6b/zil-stdin-review/evidence/integration/222-224/postmerge-stdin-repair/review/controls/O0-fixed-none"
+      ],
+      "driver_exit": 0,
+      "output_collected": true,
+      "native_program_sha256": "fff4b398e47ba9e78d3b22cdd49be72fb7014faa3ed0e13f5050a4ab06f74053",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "verdict": "Pass",
+      "interpretation": "Independent no-input execution collected exact exit 1, stdout ABCDEF, empty stderr"
+    },
+    {
+      "optimization": "O2",
+      "mode": "forced-old",
+      "argv": [
+        "/workspace/scratch/d286b3aeeb6b/targets/review223-stdin/closed-pipe-replay",
+        "forced-old",
+        "/workspace/scratch/d286b3aeeb6b/targets/review223-stdin/native/review223-entry-error-O2/program",
+        "/workspace/scratch/d286b3aeeb6b/zil-stdin-review/evidence/integration/222-224/postmerge-stdin-repair/review/controls/O2-forced-old"
+      ],
+      "driver_exit": 101,
+      "output_collected": false,
+      "native_program_sha256": "b7466aa88006093c02020d2f0af8158d1f293234a53e9a394d6464306d7fd95a",
+      "stderr_sha256": "2b7c9c4e61f3c6347b69d08f89dc600974d27093d06aea82419a01d5e0854bbe",
+      "verdict": "Pass",
+      "interpretation": "Expected strict write failure before output collection under a deliberately child-first schedule"
+    },
+    {
+      "optimization": "O2",
+      "mode": "fixed-none",
+      "argv": [
+        "/workspace/scratch/d286b3aeeb6b/targets/review223-stdin/closed-pipe-replay",
+        "fixed-none",
+        "/workspace/scratch/d286b3aeeb6b/targets/review223-stdin/native/review223-entry-error-O2/program",
+        "/workspace/scratch/d286b3aeeb6b/zil-stdin-review/evidence/integration/222-224/postmerge-stdin-repair/review/controls/O2-fixed-none"
+      ],
+      "driver_exit": 0,
+      "output_collected": true,
+      "native_program_sha256": "b7466aa88006093c02020d2f0af8158d1f293234a53e9a394d6464306d7fd95a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "verdict": "Pass",
+      "interpretation": "Independent no-input execution collected exact exit 1, stdout ABCDEF, empty stderr"
+    }
+  ],
+  "native_child_executions": 4,
+  "new_zil_compilations": 0,
+  "original_ci_stdout_verified": false,
+  "scope": "This forces an allowed schedule in a separate stdio driver. It does not reconstruct the original CI scheduling or claim original CI stdout passed."
+}
