@@ -1,0 +1,58 @@
+{
+  "experiment": "CP07",
+  "reviewer": "/root/llvm_strategy",
+  "implementation_author": "/root/toolchain_setup",
+  "implementation_commit": "6339ed8b5f2b8250982a3511371e91ad9ba71bc2",
+  "author_evidence_commit": "97cc38e6130809a63d52f514cb589cc4c88453e9",
+  "verdict": "Pass",
+  "date_utc": "2026-10-30T07:05:49.764031+00:00",
+  "source_sha256": {
+    "crates/zil-backend-llvm/src/build.rs": "a932992914b95152d5996024adf0cb825a4db763ca7a38657330757b6a6464fc",
+    "crates/zil-backend-llvm/tests/linux_linker.rs": "5e61cd609d1206d4ff7b6e878cefa50d03040776dbb4ef45697a4e2bf4bb1bc7"
+  },
+  "author_log_hashes": "All 10 streams rehashed and matched author receipt",
+  "static_review": [
+    "One Linux selection per complete request; Win64 bypasses Linux environment and retains WindowsLinkOptions.",
+    "Default chooses only executable ld.lld beside configured Clang; absent/nonexecutable sibling preserves existing Clang default.",
+    "Explicit system retains native driver behavior; empty/missing/nonexecutable/directory override fails as InfraError rather than falling back.",
+    "Absolute/relative and PATH names resolved without shell splitting; OsString preserves spaces/metacharacters; final ld.lld symlink name retained for driver dispatch.",
+    "Flag supplied only at real link steps: single-CGU Clang combined command or separate link after API/split-CGU; object-only commands unchanged.",
+    "Link errors propagate through existing staging guards; old executable/sidecar publication protected in the exercised failure paths; object cache namespace unchanged because object bytes are linker-independent.",
+    "No changed type/safety/ABI/budget/pass pipeline, raw LLVM boundary or public Rust structs."
+  ],
+  "independent_execution": [
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/scratch/ac5966c4c370/zil-cp06/target-cp07-review cargo test -p zil-backend-llvm --features llvm-api --test linux_linker -j2 -- --nocapture",
+      "workdir": "/workspace/scratch/ac5966c4c370/zil-cp07",
+      "exit_code": 0,
+      "configuration_cases": 15,
+      "log": "review-linker-tests.log",
+      "scope": "Independently rebuilt and reran author test assertions on exact source; not an independently implemented oracle."
+    },
+    {
+      "command": "Direct invocation of compiled linux_linker child with independently selected environments",
+      "exit_code": 0,
+      "configuration_cases": 6,
+      "log": "review-independent-configurations.json",
+      "coverage": [
+        "PATH first contains nonexecutable clang/ld.lld shadows",
+        "API explicit linker basename in PATH",
+        "API explicit relative linker path",
+        "Explicit directory rejected with old outputs intact",
+        "Nonexecutable auto sibling falls back",
+        "Configured Clang and ld.lld both use symlinks"
+      ]
+    }
+  ],
+  "limits": [
+    "No performance or full-workspace test run.",
+    "Linux real execution only; Win64 isolation reaches real unresolved-import error, not Windows native execution.",
+    "Selected linker is a driver configuration; compatible semantics on these fixtures do not establish universal GNU ld/LLD bug-for-bug compatibility."
+  ],
+  "performance_acceptance": "Pending coordinator paired benchmarks",
+  "product_gates": "NotRun",
+  "evidence_sha256": {
+    "review-independent-configurations.json": "29bda9ae4f039bd653cf59fefb3887d8ef6a819e560ad78c640d9b846083ad00",
+    "review-linker-tests.log": "034cf84ae1478d25b574626a048f9ddbb529646634f6d84f08d749d8f9630492"
+  }
+}
