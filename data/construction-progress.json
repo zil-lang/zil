@@ -1,41 +1,45 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-30T12:27:56.539560+00:00",
-  "status": "ReviewRepair",
+  "observed_at_utc": "2026-10-30T12:58:01.576115+00:00",
+  "status": "AwaitingFinalCI",
   "accepted_main_at_start": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
-  "milestone": "Independent reviews found grouped module dependency and captured FnOnce conditional-transfer gaps; first fix published, second under repair",
+  "milestone": "Independent reviews passed; exact candidate default workspace passed on GitHub; remaining workflow gates running",
   "tasks": [
     {
       "id": "218",
-      "state": "退回",
+      "state": "待验",
       "owner": "/root/language218",
       "branch": "task/218",
-      "latest_source_checkpoint": "dfaecfb0fd92f093f74857136af6baca9d17144b",
-      "observed_work": "前端限定检查与旧精确预算通过；非作者发现捕获F经if转交后合法源误拒，正在精确返修"
+      "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "observed_work": "独立审查Pass；原审查缺陷已关闭，等待同源完整CI验收",
+      "author_delivery_checkpoint": "4d331dd6b321685ea575a132c05dfb03aa7758fc"
     },
     {
       "id": "219",
-      "state": "施工",
+      "state": "待验",
       "owner": "/root/language_parallel",
       "branch": "task/219",
-      "latest_source_checkpoint": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
-      "observed_work": "原两配置100次机器执行/28次实际分配失败通过；括号模块alias依赖遗漏已修复并推送，正在同SHA构建和原反例复验"
+      "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "observed_work": "独立审查Pass；原审查缺陷已关闭，等待同源完整CI验收",
+      "author_delivery_checkpoint": "19375551b7963f4c44536895322c9502fa4945e5"
     },
     {
       "id": "220",
-      "state": "施工",
+      "state": "待验",
       "owner": "/root",
       "branch": "task/220",
-      "latest_source_checkpoint": "2212505a667508dc9c7565cbab674c8e59700457",
-      "observed_work": "Analyze源派生5组、raw/Wire11组和四组件558回归通过；新组合全量验收待两项返修闭合"
+      "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "observed_work": "独立审查Pass；原审查缺陷已关闭，等待同源完整CI验收",
+      "author_delivery_checkpoint": "e115ba5cfdc2cf56d092b912ae5077cffd0d92a3"
     },
     {
       "id": "221",
-      "state": "施工",
+      "state": "待验",
       "owner": "/root/language_review_plan",
       "branch": "task/221",
-      "latest_source_checkpoint": "d61264ba57af08ddb7e0b8dafe2fc584632c6833",
-      "observed_work": "10组源/机器检查、42次执行含6次实际分配失败通过；独审实测同ClosureId不同ValueId责任，重复值拒绝、独立值交换接受"
+      "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "observed_work": "独立审查Pass；原审查缺陷已关闭，等待同源完整CI验收",
+      "author_delivery_checkpoint": "d61264ba57af08ddb7e0b8dafe2fc584632c6833"
     }
   ],
   "proof": [
@@ -75,5 +79,14 @@
       "ct-statement-if"
     ],
     "full_readiness": false
+  },
+  "candidate_ci": {
+    "source": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+    "run_id": 41057841800,
+    "url": "https://github.com/zil-lang/zil/actions/runs/41057841800",
+    "pr": 8,
+    "observed_status": "in_progress",
+    "default_workspace": "success",
+    "full_workflow_conclusion": null
   }
 }
