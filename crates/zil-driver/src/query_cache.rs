@@ -143,6 +143,8 @@ fn action_key(
     // Conservative option identity; output/cache locations may reduce reuse,
     // but never widen it. Wall deadlines and diagnostic timing are not language
     // identities; cancellation is checked again on the current request.
+    // closed_executable is deliberately excluded: it only changes machine
+    // linkage after a fresh Verify; actual linkage is bound by the object key.
     options.backend.name().hash(&mut state);
     format!("{:?}", options.optimization).hash(&mut state);
     format!("{:?}", options.profile).hash(&mut state);
@@ -633,6 +635,7 @@ mod tests {
         );
         let mut observational = baseline.clone();
         observational.timings = true;
+        observational.closed_executable = true;
         observational.query_cache = Some("another-private-location".into());
         observational.cancellation.cancel();
         assert_eq!(key(&source, &observational), original);

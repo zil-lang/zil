@@ -42,7 +42,7 @@ zil build project/main.zil -o out/program --backend llvm-api --query-cache /priv
 
 编译器生产身份复用后端已存在的 `trusted_installed_tool_identity(current_exe)`：GNU ELF build ID 加文件安装元数据，缺 build ID 时读取完整文件 SHA-256。此 helper 的实现、对象键及原 fallback 均未改变。它以**受信任且运行中不可被替换的安装工具**为前提；不是对任意可替换生产者的内容证明，也不认证有人重新计算过 checksum 的错误源→IR 映射。`LD_PRELOAD` / `LD_AUDIT` 非空会显式 bypass。远端/共享/敌对写入不在此缓存信任范围内。
 
-每个条目有单独 payload SHA-256，检查头、完整 key、长度、实际字节及 codec；其中哈希是完整性检查。墙钟 deadline、诊断 timing 和 query-cache 所在目录不属于语言输入；当前请求仍独立检查取消。保守绑定 output 与其它 cache 路径会减少复用，不会扩大复用。仅影响 Verify 之后机器代码的选项须按独立授权适配，并由机器对象键承担实际生成输入的身份。
+每个条目有单独 payload SHA-256，检查头、完整 key、长度、实际字节及 codec；其中哈希是完整性检查。墙钟 deadline、诊断 timing 和 query-cache 所在目录不属于语言输入；当前请求仍独立检查取消。保守绑定 output 与其它 cache 路径会减少复用，不会扩大复用。单独 CP13 适配的 `closed_executable` 明确排除在前端键之外：它只改变本次独立 Verify 之后的机器 linkage，实际变换由机器对象键绑定。CLI 的 false→true→true 控制证实原始前端命中而对象先失效、随后命中；并非复用旧验证资格。
 
 ## 预算与持久化
 

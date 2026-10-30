@@ -74,6 +74,9 @@ pub struct CompileOptions {
     pub clang: Option<PathBuf>,
     pub optimization: zil_backend_llvm::Optimization,
     pub codegen: CodegenOptions,
+    /// Opt-in Linux executable linkage; generated ZIL symbols have no export ABI.
+    /// Applied only after a fresh Verify, independently of frontend checkpoints.
+    pub closed_executable: bool,
     pub windows: Option<zil_backend_llvm::WindowsLinkOptions>,
     pub target: TargetProfile,
     pub limits: Limits,
@@ -98,6 +101,7 @@ impl Default for CompileOptions {
             clang: None,
             optimization: zil_backend_llvm::Optimization::O0,
             codegen: CodegenOptions::default(),
+            closed_executable: false,
             windows: None,
             target: TargetProfile::host_llvm(),
             limits: Limits::default(),
