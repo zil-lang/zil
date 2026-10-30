@@ -91,6 +91,63 @@ class RuntimeControls(unittest.TestCase):
             bench.summarize(args)
         return json.loads(args.out.read_text())
 
+    def configured_arms(self):
+        self.plan["build_config"] = {
+            "A": {"profile": "O2", "units": 1, "jobs": 1, "closed_executable": False},
+            "B": {"profile": "O2", "units": 8, "jobs": 4, "closed_executable": True}}
+        self.plan_path.write_text(json.dumps(self.plan))
+
+    def test_distinct_frozen_build_configuration_and_actual_mode(self):
+        self.configured_arms()
+        def compiler(argv, stdout, stderr, cpus, timeout):
+            result = self.compiler(argv, stdout, stderr, cpus, timeout)
+            report = json.loads(stdout.read_text())
+            report["native_codegen"] = {"closed_executable": "--closed-executable" in argv}
+            stdout.write_text(json.dumps(report))
+            return result
+        self.build_control(compiler)
+        artifacts = bench.built(self.plan, self.plan_path, self.receipt)
+        for arm, units, jobs in (("A", "1", "1"), ("B", "8", "4")):
+            argv = artifacts[("x", arm)]["argv"]
+            self.assertEqual(argv[argv.index("--opt") + 1], "O2")
+            self.assertEqual(argv[argv.index("--codegen-units") + 1], units)
+            self.assertEqual(argv[argv.index("--codegen-jobs") + 1], jobs)
+            self.assertEqual("--closed-executable" in argv, arm == "B")
+        records = self.receipt.parent / "builds.jsonl"
+        rows = [json.loads(line) for line in records.read_text().splitlines()]
+        argv = rows[1]["argv"]
+        argv[argv.index("--codegen-units") + 1] = "1"
+        records.write_text("".join(json.dumps(row) + "\n" for row in rows))
+        receipt = json.loads(self.receipt.read_text())
+        receipt["builds_sha256"] = bench.sha(records)
+        self.receipt.write_text(json.dumps(receipt))
+        with self.assertRaisesRegex(SystemExit, "Frozen build configuration changed"):
+            bench.built(self.plan, self.plan_path, self.receipt)
+
+    def test_requested_closed_mode_cannot_be_missing_or_ignored(self):
+        self.configured_arms()
+        self.build_control()
+        receipt = json.loads(self.receipt.read_text())
+        self.assertFalse(receipt["pass"])
+        self.assertEqual(receipt["failures"], ["x/B"])
+        self.assertFalse(bench.reported_mode_matches(self.plan, "B", {
+            "native_codegen": {"closed_executable": "true"}}))
+        with self.assertRaises(SystemExit):
+            bench.built(self.plan, self.plan_path, self.receipt)
+
+    def test_legacy_plan_keeps_o0_one_unit_and_no_closed_flag(self):
+        argv = bench.build_argv(self.plan, self.root, self.case, "B", self.executable)
+        self.assertEqual(argv[argv.index("--opt") + 1], "O0")
+        self.assertEqual(argv[argv.index("--codegen-units") + 1], "1")
+        self.assertEqual(argv[argv.index("--codegen-jobs") + 1], "1")
+        self.assertNotIn("--closed-executable", argv)
+
+    def test_build_receipt_resolves_relative_plan_path(self):
+        self.build_control()
+        with contextlib.chdir(self.root):
+            artifacts = bench.built(self.plan, Path("plan.json"), self.receipt)
+        self.assertEqual(set(artifacts), {("x", "A"), ("x", "B")})
+
     def test_oracle_checks_stdout_and_empty_stderr(self):
         self.assertTrue(self.one(self.native, "good")["pass"])
         for label, wrong_stream in (("wrong-output", "stdout"), ("diagnostic", "stderr")):
@@ -257,7 +314,9 @@ class RuntimeControls(unittest.TestCase):
         args = argparse.Namespace(out=self.root / "frozen", corpus_plan=upstream_path,
                                   baseline=self.executable, candidate=self.executable, clang=self.executable,
                                   baseline_source="synthetic A", candidate_source="synthetic B", cpu=None,
-                                  blocks=5, seed=1, timeout=1, tool=[])
+                                  blocks=5, seed=1, timeout=1, tool=[], profile="O2",
+                                  baseline_units=1, baseline_jobs=1, baseline_closed_executable=False,
+                                  candidate_units=8, candidate_jobs=4, candidate_closed_executable=True)
         with patch.object(bench.common, "git", side_effect=lambda *args: "" if args[0] == "status" else "synthetic"), \
              patch.object(bench.common, "source_identity", side_effect=lambda ref: {"commit": ref}), \
              patch.object(bench.common, "capture", return_value={"synthetic": True}), \
@@ -267,6 +326,8 @@ class RuntimeControls(unittest.TestCase):
         plan_path = args.out / "plan.json"
         plan, root = bench.load(plan_path)
         self.assertEqual(plan["expected_rows"], 100)
+        self.assertEqual(plan["build_config"]["B"], {
+            "profile": "O2", "units": 8, "jobs": 4, "closed_executable": True})
         self.assertEqual([case["input_bytes"] for case in plan["cases"]], [7]*5)
         self.assertEqual(len(list((root / "sources").rglob("*.zil"))), 5)
         self.assertFalse((root / "corpus").exists())

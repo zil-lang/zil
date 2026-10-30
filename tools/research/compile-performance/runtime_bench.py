@@ -106,7 +106,12 @@ def prepare(args):
             "binaries": binaries, "extra_tools": [common.inventory(p) for p in args.tool],
             "versions": {name: common.capture([v["path"], "--version"]) for name, v in binaries.items()},
             "environment": common.environment(), "host": common.host(), "cpu": cpu,
-            "profile": "O0", "units": 1, "jobs": 1, "object_cache": False, "timings": False,
+            "profile": args.profile, "object_cache": False, "timings": False,
+            "build_config": {arm: {"profile": args.profile,
+                                   "units": getattr(args, label + "_units"),
+                                   "jobs": getattr(args, label + "_jobs"),
+                                   "closed_executable": getattr(args, label + "_closed_executable")}
+                             for arm, label in (("A", "baseline"), ("B", "candidate"))},
             "cases": cases, "blocks": args.blocks, "seed": args.seed, "order": order,
             "expected_rows": len(order), "fixtures_sha256": fixture_hashes(out),
             "build_timeout_seconds": 180, "runtime_timeout_seconds": args.timeout,
@@ -187,6 +192,29 @@ def run_native(plan, root, executable, input_path, expected_path, logs, tag):
     return row
 
 
+def build_config(plan, arm):
+    """Old CP04 plans retain their original O0/one-unit/default-linkage contract."""
+    return plan.get("build_config", {}).get(arm, {
+        "profile": "O0", "units": 1, "jobs": 1, "closed_executable": False})
+
+
+def build_argv(plan, root, case, arm, executable):
+    config = build_config(plan, arm)
+    argv = [plan["binaries"][arm]["path"], "build", str(root / case["source"] / "main.zil"),
+            "-o", str(executable), "--json", "--backend", "llvm-api", "--opt", config["profile"],
+            "--codegen-units", str(config["units"]), "--codegen-jobs", str(config["jobs"]),
+            "--clang", plan["binaries"]["clang"]["path"]]
+    if config["closed_executable"]:
+        argv.append("--closed-executable")
+    return argv
+
+
+def reported_mode_matches(plan, arm, report):
+    native = report.get("native_codegen") or {}
+    observed = native.get("closed_executable", False) if isinstance(native, dict) else None
+    return isinstance(observed, bool) and observed == build_config(plan, arm)["closed_executable"]
+
+
 def build(args):
     plan, root = load(args.plan)
     out, rows = fresh(args.out.resolve()), []
@@ -198,9 +226,7 @@ def build(args):
                 tag = case["id"] + "-" + arm
                 folder = fresh(out / "executables" / tag)
                 executable = folder / "program"
-                argv = [plan["binaries"][arm]["path"], "build", str(root / case["source"] / "main.zil"),
-                        "-o", str(executable), "--json", "--backend", "llvm-api", "--opt", "O0",
-                        "--codegen-units", "1", "--codegen-jobs", "1", "--clang", plan["binaries"]["clang"]["path"]]
+                argv = build_argv(plan, root, case, arm, executable)
                 row = {"case": case["id"], "arm": arm, "plan_sha256": plan_hash, "argv": argv,
                        "stdout": tag + ".build.stdout.json", "stderr": tag + ".build.stderr.txt", "pass": False}
                 try:
@@ -214,7 +240,8 @@ def build(args):
                     row["timings_disabled"] = report.get("timings") is None
                     row["pass"] = (row["build_process"]["exit"] == 0 and not row["build_process"]["timeout"]
                                    and row["compiler_status"] == "Success" and row["verification_runs"] == 1
-                                   and row["timings_disabled"] and row["source_before"] == row["source_after"] == case["source_sha256"])
+                                   and row["timings_disabled"] and reported_mode_matches(plan, arm, report)
+                                   and row["source_before"] == row["source_after"] == case["source_sha256"])
                     if row["pass"]:
                         row["executable"] = common.inventory(executable)
                         row["llvm_sha256"] = sha(executable.with_suffix(".ll"))
@@ -242,11 +269,17 @@ def built(plan, plan_path, receipt_path):
             or any(not r["pass"] or r["plan_sha256"] != sha(plan_path) for r in rows)):
         raise SystemExit("Complete matching successful build/preflight required")
     for row in rows:
+        case = next(c for c in plan["cases"] if c["id"] == row["case"])
+        if row["argv"] != build_argv(plan, plan_path.resolve().parent, case, row["arm"], row["executable"]["path"]):
+            raise SystemExit("Frozen build configuration changed: " + row["case"] + "/" + row["arm"])
         if common.inventory(row["executable"]["path"]) != row["executable"]:
             raise SystemExit("Native executable changed after build: " + row["case"] + "/" + row["arm"])
         for stream in ("stdout", "stderr"):
             if sha(receipt_path.parent / "logs" / row[stream]) != row[stream + "_sha256"]:
                 raise SystemExit("Raw build output changed: " + row[stream])
+        report = json.loads((receipt_path.parent / "logs" / row["stdout"]).read_text())
+        if not reported_mode_matches(plan, row["arm"], report):
+            raise SystemExit("Compiler did not confirm frozen closed-executable mode")
         for stage in ("startup", "warmup"):
             check = row[stage]
             if (not check["pass"] or check["exit"] != 0 or check["timeout"]
@@ -335,6 +368,7 @@ def summarize(args):
             failures.append(index)
     result = {"schema": SCHEMA, "plan_sha256": plan_hash, "build_receipt_sha256": build_hash,
               "records_sha256": sha(args.records), "source_identity": plan["source_identity"],
+              "build_config": {arm: build_config(plan, arm) for arm in "AB"},
               "rows": len(rows), "coverage_complete": complete, "completion_receipt_matches": receipt_ok, "failures": failures,
               "scope": plan["scope"], "product_gates": "NotRun", "independent_review": "NotRun"}
     if not complete or not receipt_ok or failures:
@@ -367,6 +401,11 @@ def main():
     for name in ("baseline-source", "candidate-source"):
         p.add_argument("--" + name, required=True)
     p.add_argument("--tool", type=Path, action="append", default=[])
+    p.add_argument("--profile", choices=["O0", "O2"], default="O0")
+    for label in ("baseline", "candidate"):
+        p.add_argument("--" + label + "-units", type=int, choices=range(1, 65), default=1)
+        p.add_argument("--" + label + "-jobs", type=int, choices=range(1, 65), default=1)
+        p.add_argument("--" + label + "-closed-executable", action="store_true")
     p.add_argument("--cpu", type=int); p.add_argument("--blocks", type=int, choices=[3, 5], default=5)
     p.add_argument("--seed", type=int, default=20261004); p.add_argument("--timeout", type=int, default=30)
     p.set_defaults(run=prepare)
