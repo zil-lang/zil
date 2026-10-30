@@ -1,0 +1,36 @@
+{
+  "status": "Pass",
+  "checks": {
+    "llvm": {
+      "path": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib/libLLVM.so.23.1",
+      "sha256": "4af7bc67bebd262ac4944cbd5a7996bdae1479cf61ee625ab1d98f44d1ceea75",
+      "version": "23.1.4"
+    },
+    "clang": {
+      "path": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang-23",
+      "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+      "version": "23.1.4",
+      "banner": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+    },
+    "lld_link": {
+      "path": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/lld",
+      "sha256": "0f8d53acaf6ff4990506a26739c12fb90315fdcc0430ec4c305ca75115774d4b",
+      "version": "23.1.4",
+      "banner": "LLD 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+    },
+    "rustc": {
+      "path": "/workspace/scratch/3cf12ce32e36/toolchains/rust-1.99.1/bin/rustc",
+      "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+      "version": "1.99.1",
+      "banner": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+    },
+    "cargo": {
+      "path": "/workspace/scratch/3cf12ce32e36/toolchains/rust-1.99.1/bin/cargo",
+      "sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+      "version": "1.99.1",
+      "banner": "cargo 1.99.1 (5f94df478 2026-08-27)"
+    }
+  },
+  "required_llvm": "23.1.4",
+  "required_rust": "1.99.1"
+}

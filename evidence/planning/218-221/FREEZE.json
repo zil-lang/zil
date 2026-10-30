@@ -1,0 +1,102 @@
+{
+  "status": "InputsFrozen",
+  "checked_at_utc": "2026-10-30T04:35:10.795832+00:00",
+  "source_baseline": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
+  "spec_hash": "14109fb881d03f4e3633d8d5f851287df9c5a4ed35f642ff6942c9fd7a9190f2",
+  "normative_hash": "40895de024c0718ab4fd1d7c73c8cc1dd19e3b7eadb0706c033351ef3b95617c",
+  "slices": [
+    {
+      "id": "218",
+      "author": "/root/language218",
+      "write_set": [
+        "crates/zil-expand/src/receivers.rs",
+        "crates/zil-expand/src/generic_callable.rs",
+        "crates/zil-expand/src/generic_check.rs",
+        "crates/zil-expand/src/generic_factory.rs",
+        "crates/zil-expand/src/generic_factory_flow.rs",
+        "crates/zil-expand/src/generic_helper_graph.rs",
+        "crates/zil-expand/src/generics.rs",
+        "crates/zil-types/src/helpers.rs",
+        "crates/zil-types/src/helper_plan.rs",
+        "crates/zil-types/src/helper_flow.rs",
+        "crates/zil-types/src/retained.rs",
+        "crates/zil-types/src/lib.rs",
+        "crates/zil-types/src/program.rs",
+        "crates/zil-types/src/inference.rs",
+        "crates/zil-types/src/closures.rs",
+        "crates/zil-types/src/state_origins.rs",
+        "crates/zil-types/src/owning_factory.rs",
+        "crates/zil-expand/tests/impl218*",
+        "crates/zil-types/tests/impl218*",
+        "crates/zil-driver/tests/impl218*",
+        "tools/language/218/**",
+        "examples/mainline/owning_factory218/**",
+        "evidence/impl/218/**",
+        "docs/LANGUAGE-218.md"
+      ]
+    },
+    {
+      "id": "219",
+      "author": "/root/language_parallel",
+      "write_set": [
+        "crates/zil-driver/src/lib.rs",
+        "crates/zil-driver/src/session.rs",
+        "crates/zil-driver/src/project.rs",
+        "crates/zil-driver/src/ct_program.rs",
+        "crates/zil-driver/src/ct_selection.rs",
+        "crates/zil-driver/src/ct_selection/**",
+        "crates/zil-expand/src/lib.rs",
+        "crates/zil-expand/src/ct_selection.rs",
+        "crates/zil-driver/tests/impl219*",
+        "crates/zil-expand/tests/impl219*",
+        "tools/language/219/**",
+        "examples/mainline/ct_selection219/**",
+        "evidence/impl/219/**",
+        "docs/LANGUAGE-219.md"
+      ]
+    },
+    {
+      "id": "220",
+      "author": "/root",
+      "write_set": [
+        "crates/zil-analyze/src/retained.rs",
+        "crates/zil-analyze/src/helpers.rs",
+        "crates/zil-analyze/src/retained_tests.rs",
+        "crates/zil-analyze/src/owning_factory.rs",
+        "crates/zil-analyze/tests/impl220*",
+        "crates/zil-driver/tests/impl220*",
+        "tools/language/220/**",
+        "evidence/impl/220/**",
+        "evidence/integration/221/**",
+        "docs/LANGUAGE-218-221.md"
+      ]
+    },
+    {
+      "id": "221",
+      "author": "/root/language_review_plan",
+      "write_set": [
+        "crates/zil-verify/src/retained.rs",
+        "crates/zil-verify/src/helpers.rs",
+        "crates/zil-verify/src/retained_tests.rs",
+        "crates/zil-driver/tests/impl221_factory_verify.rs",
+        "tools/language/221/**",
+        "evidence/impl/221/**"
+      ]
+    }
+  ],
+  "previous218": "NotRecovered; no prior acceptance reused",
+  "baseline_build": {
+    "status": "Pass",
+    "command": "cargo build --locked --release -p zil-cli",
+    "source_commit": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
+    "binary_sha256": "310d924701d7ddd91195953166aef16485fb0219179e34981071623dcee10f1e",
+    "log_sha256": "578f88397ebeb2cf61ef5ce58e1572507b653a7502d12c9ebbff1b9c0658dd88"
+  },
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm": "23.1.4",
+    "llvm_install_receipt_sha256": "86dc2ab3f4ed44f11263cfb30544bd7886e154bf7abcbc543ef5ac09a6ee9abe"
+  },
+  "new_language_acceptance": false,
+  "global_product_status_changed": false
+}
