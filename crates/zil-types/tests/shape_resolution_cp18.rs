@@ -1,4 +1,5 @@
 //! Untrusted Core controls for request-local sparse declaration views.
+use std::borrow::Cow;
 use zil_base::{
     FileId, Fingerprint, Limits, ModuleId, NodeId, Phase, ResultCategory, SCHEMA_VERSION, Span,
 };
@@ -39,6 +40,113 @@ fn tag(owner: u32, name: &str) -> CoreEnum {
         variants: vec![("Some".into(), vec![Type::I64])],
         span: span(owner, 2),
     }
+}
+
+fn scalar_function(id: u32) -> CoreFunction {
+    CoreFunction {
+        type_parameters: Vec::new(),
+        state_parameters: Vec::new(),
+        callable_return: None,
+        id: NodeId(id),
+        name: format!("f{id}"),
+        callable_parameters: Vec::new(),
+        foreign: None,
+        parameters: Vec::new(),
+        return_type: Type::Unit,
+        result_mode: PassingMode::Infer,
+        body: CoreBlock {
+            statements: vec![CoreStatement {
+                id: NodeId(id + 100),
+                kind: CoreStatementKind::Binding {
+                    name: "value".into(),
+                    mutable: false,
+                    ty: Some(Type::I64),
+                    initializer: Some(CoreExpr {
+                        id: NodeId(id + 200),
+                        kind: CoreExprKind::Integer("1".into()),
+                        span: span(0, id as usize + 20),
+                    }),
+                },
+                span: span(0, id as usize + 10),
+            }],
+            span: span(0, id as usize),
+        },
+        receiver: None,
+        span: span(0, id as usize),
+    }
+}
+
+#[test]
+fn checked_unchanged_shapes_borrow_the_original_program() {
+    let mut m = module(0);
+    m.core.functions = (0..3).map(scalar_function).collect();
+    m.exports.push(NodeId(0));
+    let input = program(vec![m, module(1)]);
+    let resolved = zil_types::resolve_program_shapes_borrowed(&input, &Limits::default()).unwrap();
+    assert!(matches!(resolved, Cow::Borrowed(_)));
+    assert!(std::ptr::eq(resolved.as_ref(), &input));
+    assert_eq!(
+        zil_types::resolve_program_shapes(&input, &Limits::default()).unwrap(),
+        input
+    );
+    // Borrowed success never changes the next request's budget or admission.
+    let errors = zil_types::resolve_program_shapes_borrowed(
+        &input,
+        &Limits {
+            max_analysis_steps: 0,
+            ..Limits::default()
+        },
+    )
+    .unwrap_err();
+    assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+}
+
+#[test]
+fn changed_shapes_preserve_borrowed_prefix_suffix_and_ownership_modes() {
+    let mut m = module(0);
+    m.core.functions = (0..3).map(scalar_function).collect();
+    let f = &mut m.core.functions[1];
+    f.return_type = Type::Named("ByteBuffer".into());
+    for (name, mode) in [
+        ("owned", PassingMode::Give),
+        ("borrowed", PassingMode::Infer),
+    ] {
+        f.parameters.push(CoreParameter {
+            name: name.into(),
+            ty: Type::Named("ByteBuffer".into()),
+            mode,
+            span: span(0, 40),
+        });
+    }
+    let CoreStatementKind::Binding {
+        ty, initializer, ..
+    } = &mut f.body.statements[0].kind
+    else {
+        unreachable!()
+    };
+    *ty = Some(Type::Named("ByteBuffer".into()));
+    *initializer = None;
+    m.exports = vec![NodeId(0), NodeId(1), NodeId(2)];
+    let input = program(vec![module(2), m, module(3)]);
+    let unchanged_input = input.clone();
+    let resolved = zil_types::resolve_program_shapes_borrowed(&input, &Limits::default()).unwrap();
+    assert!(matches!(resolved, Cow::Owned(_)));
+    let mut expected = input.clone();
+    let f = &mut expected.modules[1].core.functions[1];
+    f.return_type = Type::Desc(Box::new(Type::ByteBuffer));
+    f.parameters[0].ty = Type::Managed(Box::new(Type::ByteBuffer));
+    f.parameters[1].ty = Type::Desc(Box::new(Type::ByteBuffer));
+    f.parameters[1].mode = PassingMode::Describe;
+    let CoreStatementKind::Binding { ty, .. } = &mut f.body.statements[0].kind else {
+        unreachable!()
+    };
+    *ty = Some(Type::Desc(Box::new(Type::ByteBuffer)));
+    assert_eq!(resolved.as_ref(), &expected);
+    assert_eq!(input, unchanged_input);
+    assert_eq!(
+        zil_types::resolve_program_shapes(&input, &Limits::default()).unwrap(),
+        expected
+    );
 }
 
 #[test]

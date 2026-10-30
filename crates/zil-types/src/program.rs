@@ -1,4 +1,5 @@
 use super::*;
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 use zil_base::{Fingerprint, ModuleId};
 
@@ -13,10 +14,27 @@ pub fn resolve_program_shapes(
     program: &CoreProgram,
     limits: &Limits,
 ) -> CompileResult<CoreProgram> {
+    resolve_program_shapes_borrowed(program, limits).map(Cow::into_owned)
+}
+
+/// Resolve and check every shape, preserving the original allocation when the
+/// complete result is unchanged. Borrowing confers no verification authority.
+pub fn resolve_program_shapes_borrowed<'a>(
+    program: &'a CoreProgram,
+    limits: &Limits,
+) -> CompileResult<Cow<'a, CoreProgram>> {
     // Raw callers receive the same bounded preflight as the source driver;
     // no recursive Type clone in signatures may precede it.
-    let inferred = infer_program_closures_borrowed(program, limits)?;
-    aggregates::resolve_program(&inferred, limits)
+    match infer_program_closures_borrowed(program, limits)? {
+        Cow::Borrowed(inferred) => aggregates::resolve_program_borrowed(inferred, limits),
+        Cow::Owned(inferred) => {
+            let resolved = aggregates::resolve_program_borrowed(&inferred, limits)?;
+            Ok(Cow::Owned(match resolved {
+                Cow::Borrowed(_) => inferred,
+                Cow::Owned(resolved) => resolved,
+            }))
+        }
+    }
 }
 
 pub fn check_program(
@@ -24,7 +42,7 @@ pub fn check_program(
     target: &TargetProfile,
     limits: &Limits,
 ) -> CompileResult<TypedProgram> {
-    let inferred = resolve_program_shapes(program, limits)?;
+    let inferred = resolve_program_shapes_borrowed(program, limits)?;
     let program = &inferred;
     let project_enums = enums::ProjectDefinitions::new(program);
     let reject = |code: &str, text: &str| vec![Diagnostic::error(Phase::Types, code, None, text)];
