@@ -27,6 +27,15 @@ pub(super) fn check_type_for(
         ));
     };
     budget.spend(2)?;
+    // Store push/pop use these exact complete Product/Unit protocols. The
+    // active-tag and linear checks below remain the ordinary union checks;
+    // arbitrary error payload combinations keep their previous gate.
+    if (**error == Type::Unit && packages::has_children(result))
+        || (**result == Type::Unit && packages::has_children(error))
+    {
+        let payload = if **error == Type::Unit { result } else { error };
+        return dynamic_store::check_element(module, payload, span, budget);
+    }
     if matches!(result.as_ref(), Type::Managed(_)) {
         // Only the success arm is opened, with a finite Copy error. Check the
         // nominal/sealed resource table independently of the source resolver.

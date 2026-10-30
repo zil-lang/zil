@@ -209,7 +209,9 @@ fn error_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
         if ((error.is_copy_value() || package_type(error, resources))
             && (result.is_copy_value() || package_type(result, resources)))
             || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
-                && resource_type(result, resources)))
+                && resource_type(result, resources))
+            || (**error == Type::Unit && product_type(result, resources))
+            || (**result == Type::Unit && product_type(error, resources)))
 }
 
 fn owned_array_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
