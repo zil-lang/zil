@@ -1,0 +1,24 @@
+{
+  "status": "Pass",
+  "checks": {
+    "source": true,
+    "crates_tree": true,
+    "start_receipt": true,
+    "release_log": true,
+    "binary": true,
+    "binary_size": true,
+    "receipt_audited": true,
+    "incremental_disabled_receipt": true,
+    "feature_receipt": true,
+    "source_input:Cargo.toml": true,
+    "source_input:Cargo.lock": true,
+    "source_input:rust-toolchain.toml": true,
+    "source_input:tools/toolchain-profile.json": true
+  },
+  "receipt": "/tmp/zil-round2-build/receipt.json",
+  "receipt_sha256": "5048f6ed8a0a8db63b17af62cec06d7ec8c7159d99367237ca4761f23d9a2210",
+  "audit_03_sha256": "efeec76ab28849e407f129ba3cf5b325341997cb1df4f4bec44fe436c3e7f51c",
+  "source": "6e8e63a5ceae861447d0447c325bed78b59c3f42",
+  "binary_sha256": "764f592fcee5a7e9780fd774b3d93f168ddf52ba2a2f7d11d125909e43eb46a3",
+  "scope": "Independent post-window hash/receipt/source-object binding; no rebuild and no new performance samples."
+}

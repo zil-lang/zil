@@ -1,0 +1,192 @@
+{
+  "schema": "zil-llvm23-round2-independent-rust/1",
+  "reviewer": "/root/benchmark_audit",
+  "scope": "Four Rust/ZIL plans: 700 scored builds, 400 scored native runs; 70 build preflights and 80 startup/warmups audited but unscored",
+  "data_root": "/tmp/zil-llvm23-round2",
+  "formal_directory": "/tmp/zil-llvm23-round2/measurements-confirmation",
+  "source_commit": "6e8e63a5ceae861447d0447c325bed78b59c3f42",
+  "crates_tree": "d865b46fa776ab311734eebaa9c19eb0aa3b7b9d",
+  "binary_sha256": "764f592fcee5a7e9780fd774b3d93f168ddf52ba2a2f7d11d125909e43eb46a3",
+  "script_sha256": "0410a7c0fa10b2f1416467e81a14629a90176297a14862f20e01bc8bb683399e",
+  "arithmetic": "Decimal precision 40, JSON decimal literals preserved; two observations averaged per arm/case/request/block, then median of five block means; weight absolute costs before B/A",
+  "bootstrap": "Whole paired block indices resampled jointly across cases/requests/arms. Seeded 2000 replicates reproduce the frozen runner convention; exhaustive 3125 ordered draws provide an additional descriptive check. Nearest-rank 2.5% and 97.5%, zero-based indices 49/1949 and 78/3046. Not product confidence.",
+  "case_weights": {
+    "tree4x2": "0.05",
+    "tree32x8": "0.15",
+    "tree256x8": "0.30",
+    "tree1024x8": "0.30",
+    "retained": "0.20"
+  },
+  "incremental_request_weights": {
+    "cold_process": "0.10",
+    "unchanged": "0.35",
+    "private_edit": "0.40",
+    "public_edit": "0.15"
+  },
+  "without_largest_weights": {
+    "tree4x2": "0.07142857142857142857142857142857142857143",
+    "tree32x8": "0.2142857142857142857142857142857142857143",
+    "tree256x8": "0.4285714285714285714285714285714285714286",
+    "retained": "0.2857142857142857142857142857142857142857"
+  },
+  "evidence": {
+    "/tmp/zil-llvm23-round2/measurements-confirmation/quiet-window.json": "8938e2032e03a71361cac291b3e712e9a65fb177da498443adea56355a556bee",
+    "/tmp/zil-llvm23-round2/measurements-confirmation/quiet-window-complete.json": "fb2d0494e1344cb186c67be2a9e796b318a5e0dc3e794e7b2e919934e39fc49d",
+    "/tmp/zil-llvm23-round2/measurements-confirmation/commands.json": "b8fc61a9b83e8038ce2e4eb7f0635f6e6e19763ab966722646251b5c843763f7",
+    "/tmp/zil-round2-build/start.json": "07ac92e2720439331ffc5d2b9bd51a80a8c501725e91c4468fb0cf7a6e16eae8",
+    "/tmp/zil-round2-build/release.log": "12206edf995fd30208de9bbb64d47eb24f869bd8244391ae3ddf20ae29084fae",
+    "/tmp/zil-round2-build/receipt.json": "5048f6ed8a0a8db63b17af62cec06d7ec8c7159d99367237ca4761f23d9a2210",
+    "/tmp/zil-llvm23-round2/rust-o0-cold-plan/plan.json": "337cb96e22619d65724b8fc810b3ec75f04307327add1b1f3526c90917706b6e",
+    "/tmp/zil-llvm23-round2/rust-o0-cold-preflight/result.json": "b2e3c89e2157f0f7bd3ec291a611d0f6b87b6dd09a46fdcf050365e3c99734ef",
+    "/tmp/zil-llvm23-round2/rust-o0-cold-preflight/records.jsonl": "561e429e88786997aeaaeb33fef642596336741323c1ddeee58e80ae081e5424",
+    "/tmp/zil-llvm23-round2/rust-o0-cold-preflight/artifacts.json": "94bdfac0049d2f89bed657b22675cc895b7327943bddb03a894c4f7db165242a",
+    "/tmp/zil-llvm23-round2/measurements-confirmation/rust-o0-cold-build/records.jsonl": "e2f93df035123ca1ba54ff1364cdb9addd7eb0f3442c7005093657f68cdc9200",
+    "/tmp/zil-llvm23-round2/measurements-confirmation/rust-o0-cold-build/complete.json": "601f125cdf504d91bf1601e3b34ddc7206ed957b5ca1fa5f7ce32394a9054208",
+    "/tmp/zil-llvm23-round2/measurements-confirmation/rust-o0-cold-build-summary.json": "19ab08426664fcde086640c46e010ef4f0649577c7e90f4d93e3e0fe09c1ebde",
+    "/tmp/zil-llvm23-round2/measurements-confirmation/rust-o0-cold-runtime/records.jsonl": "6f2364adb21dbaaa658d7cf19aa8727683544d7378576688f65a06dd45558602",
+    "/tmp/zil-llvm23-round2/measurements-confirmation/rust-o0-cold-runtime/complete.json": "d4b58f190df1036be18c53a029331bb1e9f62966eec65153061a2a3971027841",
+    "/tmp/zil-llvm23-round2/measurements-confirmation/rust-o0-cold-runtime-summary.json": "7855253c7844c6915ce742225451817d3ab4121f889056826cbbef274b29323b"
+  },
+  "limitations": [
+    "Shared physical host; no OS page-cache flush or physical-host exclusivity claim.",
+    "Eighty percent synthetic workload weight; retained is separately disclosed.",
+    "Cold builds retain raw logs, output checks and executable/LLVM digests; per-sequence work products are deliberately deleted by the frozen runner and cannot be rehashed now. Retained preflight executables used for all runtime rows are rehashed.",
+    "Compiler binary is tied to source by the recorded pre-build source/tree, build log and frozen binary digest, not by an independent reproducible rebuild.",
+    "Direct e8-to-current runtime quality comparisons and main bridge belong to other independent reviews.",
+    "Audit author previously implemented rust_bench.py/CP12 adapter; this independent arithmetic script imports no author code. Exact runner implementation already had non-author review f0c9e42cb87ce3257f2fc8ae7ef9175f871ff84c."
+  ],
+  "excluded_interrupted_window": {
+    "directory": "/tmp/zil-llvm23-round2/measurements",
+    "rows": 57,
+    "verdict": "IncompleteOrFailed_NoScore",
+    "summary_sha256": "429f7fc9e0c8f75622a233920f96e8f9356d8a6ed3815522f4d95ccc7e9cb33e",
+    "records_sha256": "b2e240c5817a79de5705224f8b64495b9c7d56b8f80558f974c07cbfaf8f2baf",
+    "failure_receipt_sha256": "6e7affad42393496ee8fa7f410f1938bfd327168502138ff07e53b33d76ed0a4"
+  },
+  "audit_checks": {
+    "actual_clang_lld_link": 56,
+    "actual_closed_mode": 57,
+    "actual_codegen_configuration": 57,
+    "actual_object_pipeline": 381,
+    "all_window_commands_completed": 1,
+    "build_log_names": 116,
+    "build_record_count": 3,
+    "build_record_order_and_binding": 116,
+    "built_executable_receipt": 116,
+    "cold_object_miss": 1,
+    "command_receipt_binds_window": 2,
+    "complete_base_executable_set": 1,
+    "complete_fixture_manifest": 2,
+    "complete_short_oracle_set": 115,
+    "completion_kind_and_preflight": 2,
+    "completion_receipt": 3,
+    "current_helper_matches_frozen": 30,
+    "exact_build_argv_and_snapshot": 116,
+    "file_stable_during_audit": 223,
+    "file_stable_during_hash": 17471,
+    "formal_build_not_warmup": 1,
+    "fresh_verify_exactly_once": 57,
+    "frontend_reuse_events": 224,
+    "frozen_candidate": 2,
+    "frozen_case_weights": 2,
+    "frozen_file_inventory": 174,
+    "frozen_fixture_hash": 16136,
+    "frozen_git_helper": 30,
+    "frozen_request_weights": 2,
+    "full_build_link_command": 56,
+    "global_quiet_window_complete": 1,
+    "input_hash_unchanged": 487,
+    "interrupted_window_preserved_noscore": 1,
+    "interrupted_window_records_binding": 1,
+    "linker_alias_selection": 2,
+    "llvm_sidecar_digest_present": 57,
+    "log_relative_path": 1206,
+    "native_empty_stderr": 487,
+    "native_executable_unchanged": 487,
+    "native_matches_frozen_oracle": 487,
+    "native_output_length": 487,
+    "no_cold_compiler_cache": 55,
+    "object_cache_accounting": 1,
+    "object_cache_mode_and_health": 56,
+    "object_report_coverage": 57,
+    "oracle_identity": 487,
+    "original_summary_agreement": 82,
+    "original_summary_receipt_binding": 2,
+    "phase_timings_disabled": 57,
+    "plan_schema": 2,
+    "preflight_artifact_receipt": 1,
+    "preregistered_configuration": 28,
+    "published_artifact_paths": 57,
+    "query_and_source_cache_disabled": 55,
+    "query_expected_miss_hit_and_usage": 1,
+    "raw_complete_build_success": 57,
+    "raw_log_hash": 1206,
+    "record_matches_raw_report": 57,
+    "release_build_success_log": 1,
+    "release_source_build_receipt": 1,
+    "runtime_artifact_from_base_preflight": 10,
+    "runtime_record_count": 1,
+    "runtime_record_order_and_binding": 100,
+    "seeded_abba_baab_order": 2,
+    "source_bytes_snapshot_unchanged": 116,
+    "source_candidate_cache_state": 1,
+    "source_commit_crates_tree": 2,
+    "successful_process": 603,
+    "valid_times": 603,
+    "verify_event_independent": 56
+  },
+  "errors": [
+    {
+      "check": "actual_codegen_configuration",
+      "detail": "rust-o0-cold-preflight:9"
+    },
+    {
+      "check": "actual_codegen_configuration",
+      "detail": "rust-o0-cold-build:17"
+    },
+    {
+      "check": "actual_codegen_configuration",
+      "detail": "rust-o0-cold-build:18"
+    },
+    {
+      "check": "actual_codegen_configuration",
+      "detail": "rust-o0-cold-build:20"
+    },
+    {
+      "check": "actual_codegen_configuration",
+      "detail": "rust-o0-cold-build:23"
+    },
+    {
+      "check": "actual_codegen_configuration",
+      "detail": "rust-o0-cold-build:45"
+    },
+    {
+      "check": "actual_codegen_configuration",
+      "detail": "rust-o0-cold-build:46"
+    },
+    {
+      "check": "actual_codegen_configuration",
+      "detail": "rust-o0-cold-build:60"
+    },
+    {
+      "check": "actual_codegen_configuration",
+      "detail": "rust-o0-cold-build:63"
+    },
+    {
+      "check": "actual_codegen_configuration",
+      "detail": "rust-o0-cold-build:85"
+    },
+    {
+      "check": "actual_codegen_configuration",
+      "detail": "rust-o0-cold-build:86"
+    },
+    {
+      "check": "audit_exception",
+      "detail": "KeyError('pipeline')"
+    }
+  ],
+  "status": "Fail_NoScore",
+  "files_hashed": 17471,
+  "file_bytes_hashed": 1221908197,
+  "verified_files_manifest_sha256": "d3b85e199016ed92d3038b2b01a22f306bb8ad6d25a34ecbba6d9bc0397c5b26"
+}
