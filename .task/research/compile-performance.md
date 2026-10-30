@@ -338,6 +338,18 @@ Doing
         "crates/zil-ct/tests/borrowed_source_cp19.rs",
         "crates/zil-driver/tests/ct_reuse_cp19.rs"
       ]
+    },
+    "CP20": {
+      "status": "Doing",
+      "author": "/root",
+      "reviewer": "/root/industry_audit",
+      "baseline": "c8bacf734",
+      "purpose": "Require bridge summaries and preflight to bind complete receipts, exact frozen commands/sources, raw CLI/native log hashes and oracle bytes. Preserve all timing/weights.",
+      "write_set": [
+        "tools/research/compile-performance/bench.py",
+        "tools/research/compile-performance/test_bench.py"
+      ],
+      "plan": "docs/research/compile-performance/COMPILE5-PLAN.md"
     }
   },
   "mainline_acceptance": "Hold: this research is not merged into main; full workspace tests and product gates NotRun. CP14 small-program runtime quality recovered in this three-block window; overall compile superiority to Rust not reached.",
