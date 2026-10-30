@@ -383,6 +383,42 @@ Doing
       "result": "docs/research/compile-performance/COMPILE5-RESULT.md",
       "acceptance_scope": "Research correctness/targeted execution passed; performance adoption Hold; no mainline/product gate acceptance.",
       "combined_validation": "CI 41086451087: 231 targeted Rust tests, 64 Python controls, 600 compile and 240 runtime rows independently verified."
+    },
+    "CP21": {
+      "status": "Doing",
+      "author": "/root/toolchain_recovery",
+      "reviewer": "/root/incremental_review",
+      "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+      "purpose": "Skip impossible invalidation scans for absent query producers without a reverse-index structure",
+      "plan": "docs/research/compile-performance/COMPILE6-PLAN.md",
+      "write_set": [
+        "crates/zil-db/src/lib.rs",
+        "crates/zil-db/src/tests.rs",
+        "crates/zil-db/examples/compile_performance.rs",
+        "evidence/research/compile-performance/CP21"
+      ]
+    },
+    "CP22": {
+      "status": "Doing",
+      "author": "/root/zit_analysis",
+      "reviewer": "/root/incremental_review",
+      "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+      "purpose": "Per-module trusted-local parse reuse with exact budget receipts and current import discovery; fresh Verify remains",
+      "plan": "docs/research/compile-performance/COMPILE6-PLAN.md",
+      "write_set": [
+        "crates/zil-syntax/src/lib.rs",
+        "crates/zil-syntax/src/parser/mod.rs",
+        "crates/zil-syntax/src/attributes/mod.rs",
+        "crates/zil-syntax/src/cache.rs",
+        "crates/zil-driver/src/lib.rs",
+        "crates/zil-driver/src/session.rs",
+        "crates/zil-driver/src/project.rs",
+        "crates/zil-driver/src/parse_cache.rs",
+        "crates/zil-driver/tests/parse_cache_cp22.rs",
+        "crates/zil-syntax/tests/parse_cache_cp22.rs",
+        "docs/research/compile-performance/CP22-PARSE-CACHE.md",
+        "evidence/research/compile-performance/CP22"
+      ]
     }
   },
   "mainline_acceptance": "Hold: main not changed by this research round; targeted correctness passed, composite-type performance risk signals unresolved; full workspace/product gates NotRun.",
@@ -402,7 +438,9 @@ Doing
     "scope": "Separate local host, same A/B CPUs [0,1], fixed 3 cases and36 rows;6 unscored preflight; no pooled score.",
     "evidence": "evidence/research/compile-performance/COMPILE5/auxiliary",
     "source_scope": "No production compiler change after951471d5."
-  }
+  },
+  "compile6_baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+  "compile6_status": "Doing: CP21 and CP22 independently dispatched; no new measured performance claim"
 }
 ```
 
