@@ -283,6 +283,23 @@ impl<'a> Renamer<'a> {
             s::ArrowBody::Block(block) => self.block(block, depth),
         }
     }
+    fn record_type(&mut self, ty: &mut s::Expr, depth: usize) -> CompileResult<()> {
+        self.budget.node(ty.span, depth)?;
+        match &mut ty.kind {
+            s::ExprKind::Name(_) => {}
+            s::ExprKind::Member { object, .. } | s::ExprKind::Group(object) => {
+                self.record_type(object, depth + 1)?;
+            }
+            s::ExprKind::TypeApply { callee, arguments } => {
+                self.record_type(callee, depth + 1)?;
+                for argument in arguments {
+                    self.argument(argument, depth + 1)?;
+                }
+            }
+            _ => self.expression(ty, depth + 1)?,
+        }
+        Ok(())
+    }
     fn expression(&mut self, expression: &mut s::Expr, depth: usize) -> CompileResult<()> {
         let span = expression.span;
         self.budget.node(span, depth)?;
@@ -330,8 +347,11 @@ impl<'a> Renamer<'a> {
                 }
             }
             s::ExprKind::Record { ty, base, fields } => {
-                for value in [ty, base].into_iter().flatten() {
-                    self.expression(value, depth + 1)?;
+                if let Some(ty) = ty {
+                    self.record_type(ty, depth + 1)?;
+                }
+                if let Some(base) = base {
+                    self.expression(base, depth + 1)?;
                 }
                 for field in fields {
                     self.budget.node(field.span, depth + 1)?;
