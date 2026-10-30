@@ -1,0 +1,67 @@
+{
+  "archive": "integration-workflow-logs.tar.xz",
+  "bytes": 42588,
+  "sha256": "81e77b0290417cb00d472502d9bdf284fbe6a87f60982fd5b5bc8c235ecc6f62",
+  "files": [
+    {
+      "name": "baseline-handoff-check.stdout.log",
+      "bytes": 484145,
+      "sha256": "094522dfaaa41000ced129baed6d1913e1f2eeb7b7f20b6cd2d37d5b712ab873"
+    },
+    {
+      "name": "baseline-handoff-check.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "baseline-check-plan-self-test.stdout.log",
+      "bytes": 877,
+      "sha256": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916"
+    },
+    {
+      "name": "baseline-check-plan-self-test.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "handoff-check.stdout.log",
+      "bytes": 484359,
+      "sha256": "e77fdb3f066290c7a5433795fae89f4e5a1fd3fe6dcdfba12b1c1f6b0cd56b48"
+    },
+    {
+      "name": "handoff-check.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-plan-self-test.stdout.log",
+      "bytes": 895,
+      "sha256": "05427c25f554b443fdb1630ec1dc3e5d42d563397bd1eb6207bfb2c4a903268b"
+    },
+    {
+      "name": "check-plan-self-test.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "migrated-check-plan-self-test.stdout.log",
+      "bytes": 877,
+      "sha256": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916"
+    },
+    {
+      "name": "migrated-check-plan-self-test.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "migrated-handoff-generate.stdout.log",
+      "bytes": 487236,
+      "sha256": "c1a0152d117c7c503d96378665ddb2422f115ae4dc1c8c4be9055f4bdc62a834"
+    },
+    {
+      "name": "migrated-handoff-generate.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

@@ -7,8 +7,8 @@
     "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
     "spec/diagnostics.json": "0258adda6f803a4fffd4d24f6cd1b05fb313dbdad2b4b99d4cb26f74c0fad991",
     "spec/interfaces.json": "8c94511ba11344dea57e14ad00caf7164f875f7e93a70057e06a6879d74a6b6b",
-    "policy/dependencies.json": "78c220a298944d391be2e487460de25387510607f81d06e882a81220e22bfc1a",
+    "policy/dependencies.json": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7",
     "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
   },
-  "normative_hash": "4d5480fd3f7de30f6a846489e624ce01bb64d7e835c7e01930bd3410a2206db1"
+  "normative_hash": "8b4b3d219999c8f2904b276e051745bf65f9761e421630bdb4bbe0ec2781e02d"
 }

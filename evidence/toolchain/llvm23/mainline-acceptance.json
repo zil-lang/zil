@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "record_type": "mainline_toolchain_integration",
+  "authority": "User explicitly requested acceptance check, direct merge to main if ready, and deletion of the one-time upgrade branch on 2026-10-30.",
+  "verdict": "Pass",
+  "accepted_scope": "LLVM 23.1.4 compatibility migration and existing Linux gates",
+  "repository": "zil-lang/zil",
+  "pull_request": 7,
+  "issue": 6,
+  "implementation_commit": "48fa354559be0bc7f6330b388a367e30c7184312",
+  "accepted_head": "c1fcc745e859c19cef83256e8977dde895749a5e",
+  "integration_commit": "918de0208229010e54183690d61a0453216b7b2a",
+  "integration_tree": "a8ae7b6a4eabe95f627e7017505fe807654d0380",
+  "integrated_at_utc": "2026-10-30T02:23:40Z",
+  "integrated_at_shanghai": "2026-10-30 10:23:40 +08:00",
+  "merge_method": "merge",
+  "ordered_parents": [
+    "ad509b5003d9d2a303428f9d01732292988084d8",
+    "c1fcc745e859c19cef83256e8977dde895749a5e"
+  ],
+  "source_identity": "The final PR head, successful CI merge checkout, and actual mainline merge have identical tree a8ae7b6a4eabe95f627e7017505fe807654d0380.",
+  "exact_head_ci": {
+    "run_id": 40927910495,
+    "url": "https://github.com/zil-lang/zil/actions/runs/40927910495",
+    "head_sha": "c1fcc745e859c19cef83256e8977dde895749a5e",
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at_utc": "2026-10-29T18:22:43Z",
+    "job_id": 123638261289,
+    "all_steps_success": true
+  },
+  "independent_implementation_acceptance": {
+    "reviewer": "/root/llvm_migration_audit",
+    "verdict": "Pass",
+    "record": "acceptance-addendum.json"
+  },
+  "independent_current_merge_check": {
+    "reviewer": "/root/merge_acceptance_check",
+    "verdict": "Pass",
+    "record": "independent-merge-check.json"
+  },
+  "normative_input_migration": "normative-input-migration.json",
+  "integration_workflow_validation": "integration-workflow-validation.json",
+  "historical_workflow_baseline": "workflow-checks.json",
+  "main_version_readback": "23.1.4",
+  "issue_readback": {
+    "state": "closed",
+    "state_reason": "completed"
+  },
+  "branch_cleanup_at_recording": {
+    "branch": "chore/llvm-23-upgrade",
+    "head": "c1fcc745e859c19cef83256e8977dde895749a5e",
+    "status": "Pending GitHub web authentication; connector has no delete-branch operation. Do not interpret merge success as deletion."
+  },
+  "preserved_research_branch": {
+    "name": "research/compile-performance",
+    "head": "fb87916d5e7f64a460408f75893928511c0fa35b"
+  },
+  "limitations": {
+    "performance": "NotMeasured",
+    "windows_native": "NotRun",
+    "whole_product": "NotRun",
+    "full_language": "NotSatisfied; unchanged",
+    "global_handoff": "Existing historical gaps are compared with pre-upgrade main and remain explicitly Fail; this record does not declare global handoff Pass."
+  },
+  "validation_reuse": "The integration bookkeeping commit changes only current task/input registration, generated metadata, and receipts. Compiler, toolchain/CI code, normative input bytes and fixtures remain identical to the accepted merge."
+}

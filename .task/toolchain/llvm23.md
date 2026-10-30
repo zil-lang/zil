@@ -1,10 +1,10 @@
-Doing
+Done
 # chore(toolchain): upgrade LLVM to 23.1.4
 
 ```json
 {
   "id": "toolchain-llvm23",
-  "status": "Doing",
+  "status": "Done",
   "authority": "User-authorized one-time repository-wide toolchain maintenance",
   "branch": "chore/llvm-23-upgrade",
   "baseline": "ad509b5003d9d2a303428f9d01732292988084d8",
@@ -30,14 +30,44 @@ Doing
   "plan": "docs/toolchain/llvm23/PLAN.md",
   "implementation_commit": "48fa354559be0bc7f6330b388a367e30c7184312",
   "review": "Pass: independent static review, 58 actual limited native tests, and complete acceptance-evidence addendum",
-  "mainline_acceptance": "Pending PR #7 review and merge; main remains ad509b5003d9d2a303428f9d01732292988084d8",
+  "mainline_acceptance": "Accepted and merged via PR #7 after exact-head CI and independent review passed",
   "performance": "NotMeasured; compatibility migration is not a speedup claim",
-  "ci": "Pass: run40921888880; merge checkout6e673330a68333240d4e09f0ba02f78dd277bc4e has identical tree",
+  "ci": "Pass: exact-head run40927910495, completed 2026-10-30 02:22:43 Asia/Shanghai; source tree identical to integration commit",
   "result": "docs/toolchain/llvm23/RESULT.md",
   "evidence": "evidence/toolchain/llvm23",
   "issue": "https://github.com/zil-lang/zil/issues/6",
   "pr": "https://github.com/zil-lang/zil/pull/7",
-  "review_receipt": "evidence/toolchain/llvm23/acceptance-addendum.json"
+  "review_receipt": "evidence/toolchain/llvm23/acceptance-addendum.json",
+  "integration_commit": "918de0208229010e54183690d61a0453216b7b2a",
+  "accepted_head": "c1fcc745e859c19cef83256e8977dde895749a5e",
+  "acceptance_record": "evidence/toolchain/llvm23/mainline-acceptance.json",
+  "normative_migration": "evidence/toolchain/llvm23/normative-input-migration.json",
+  "integration_write_set": [
+    ".task/B0.md",
+    ".task/T01.md",
+    ".task/T02.md",
+    ".task/T03.md",
+    ".task/T04.md",
+    ".task/T05.md",
+    ".task/T06.md",
+    ".task/T07.md",
+    ".task/T08.md",
+    ".task/T09.md",
+    ".task/W1.md",
+    ".task/W2.md",
+    ".task/W3.md",
+    ".task/W4.md",
+    ".task/impl/181.md",
+    ".task/impl/208.md",
+    ".task/impl/209.md",
+    ".task/impl/210.md",
+    ".task/impl/211.md",
+    ".task/impl/212.md",
+    "data/normative-inputs.json",
+    "data/task-index.json",
+    "data/handoff.json",
+    "evidence/toolchain/llvm23"
+  ]
 }
 ```
 
@@ -49,3 +79,6 @@ Doing
 2026-10-30：升级实现已完成，完整CI默认2743/0/0、参考2711/0/0及其余既有门通过；
 真实跨版本缓存与错配控制通过。两次本地参考中断、零选择误调用及首次夹具缺失均保留。
 工单保持Doing直到主线集成；不把分支完成写成main已经升级，也不回填历史LLVM17证据。
+
+
+2026-10-30 10:23:40（Asia/Shanghai）：用户明确授权验收后直接合并并删除升级分支。最终候选完整CI40927910495成功，非作者重新核对原始日志和精确tree。PR #7已以merge commit 918de020合入main，Issue #6自动关闭，本次升级工单由集成方置Done。合入后的当前规范登记迁移单独留证；历史交接缺口不宣称通过。分支删除作为收尾操作单独核实。

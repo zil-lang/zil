@@ -1,0 +1,478 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/merge_acceptance_check",
+  "implementation_author": "/root",
+  "verdict": "Pass",
+  "accepted_scope": "Integration bookkeeping and current normative-input migration only; pre-existing whole-repository handoff failure remains explicit",
+  "integration_commit": "918de0208229010e54183690d61a0453216b7b2a",
+  "source_tree_at_merge": "a8ae7b6a4eabe95f627e7017505fe807654d0380",
+  "current_review_target": "Local integration working changes bound by per-file SHA256 below; root to commit after review",
+  "changed_current_tasks": [
+    {
+      "path": ".task/B0.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "d48cf8f207b8b534dac519dad99519912c20268a5dc6db25b9752fcac75fa2ea",
+      "new_sha256": "89cbcc129acc091fe905cbbdae41462deacc762597a212186ffc65c28eec7287",
+      "status": "Doing"
+    },
+    {
+      "path": ".task/T01.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "727d0c63b3efe10f5c51abd8cbb78136177251b2fd8c782255a0b5a622fd6b9f",
+      "new_sha256": "c60c3feddc6f47f9c9bcece75d076d187c510790f0fb3036b0c6d906df02ad39",
+      "status": "Planned"
+    },
+    {
+      "path": ".task/T02.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "5983cbc91a2dbd21b5935b833e12f76d3fb63c6e620bba45ff9321a4f0fca0e2",
+      "new_sha256": "0dd3c55d5d0ad65d6ad296465a2787d427c8f0881a039f511079dbed1b753800",
+      "status": "Planned"
+    },
+    {
+      "path": ".task/T03.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "4837707ddc4cc51f05be744160d0c94bf4e6ffe335226126fcd9da215b9359ba",
+      "new_sha256": "91df78a75a6431136ae13b68d8c7072fd8ce5550c04ff792b26f95e4a29f13bf",
+      "status": "Planned"
+    },
+    {
+      "path": ".task/T04.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "8325160e36ed176042711320de0f82e68173ca51517a6909f52d919db63cc9b1",
+      "new_sha256": "9e66977c8b92ea5406a5c4b0d33faa022f082c515fff34cf1048c58a4c3c3b4b",
+      "status": "Planned"
+    },
+    {
+      "path": ".task/T05.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "67ce96b3e064d8f76f4705921e39d80a93046df1cbb91e4fea44f79be35d3d8f",
+      "new_sha256": "3ed4e764c4c149bdae1c0dbae0eab05078d0b4b9ec78540e6ab7f4513bee1ec0",
+      "status": "Planned"
+    },
+    {
+      "path": ".task/T06.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "839b54e8add78ad7e9c119bb6ca30dea5a9c043d6ae6e8be0b84d49a5c109d54",
+      "new_sha256": "c9953e9bf813d1d26b116e80983a436f34986e99229df82e4c67998a2356bd61",
+      "status": "Planned"
+    },
+    {
+      "path": ".task/T07.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "2002f5183af0d4b9c9ab4cbc7071e98b6a6111cf6887b3ece1761571db686758",
+      "new_sha256": "3b9956a9b76ceacef6131c2cc9fc3f7c872071e71503ab211d7beb9d4ea0bb0a",
+      "status": "Planned"
+    },
+    {
+      "path": ".task/T08.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "95934aafe11791c4d98decb097fb1426e07ac805e7301284be49c63f8e1ba372",
+      "new_sha256": "f1839dc816529351390aa5ce397449042fdc5e6583910d2e4dd2346e27c952c6",
+      "status": "Planned"
+    },
+    {
+      "path": ".task/T09.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "a655524a8b8ecf40a7ce8934c2a966ddc77701a914ef4bb06037e8d70717207c",
+      "new_sha256": "1c5ad3d99cfdb046ef708a75f3bd49506731377831f824a840a466113df59da0",
+      "status": "Planned"
+    },
+    {
+      "path": ".task/W1.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "db88f1bda85e41cb510cc5f6f1938bb27cbf96bc2d543e61357f109be75734b1",
+      "new_sha256": "5cd7673d71617c57470b1c6118a920afd645cb41e25759f7738f24725f2a1082",
+      "status": "Planned"
+    },
+    {
+      "path": ".task/W2.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "1354b893299f066fb39d9488859b2ac209e31edaff7a29d1ae052750859b04eb",
+      "new_sha256": "1db15e4cc3bc43efbca9c825284bfe71be8603ab43d185f0e2ecedac1200918d",
+      "status": "Planned"
+    },
+    {
+      "path": ".task/W3.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "0a63f2a3f82af8daaf764586ac825830607c96b5673011aa3b7f524cd935de8c",
+      "new_sha256": "569aac40d714acf1183baf6d65a110a91100cce4701a0dd23d68f515c82fd0cf",
+      "status": "Planned"
+    },
+    {
+      "path": ".task/W4.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "de980a31d67067ff1a6af7638a0cc18a30b324ee81e464d2c3d957e64efcd415",
+      "new_sha256": "4072604699ebca26288ad8ad9d7ac558e41368db8715be31b3fb048868ef0481",
+      "status": "Planned"
+    },
+    {
+      "path": ".task/impl/181.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "6c0b4d0ed6853db6c086f3699b19eac9c140ac0d44c4d928591875ba940396d1",
+      "new_sha256": "28e03d90d6cfd5428716bfb5837c291954a716d47722565f57f646f0e1418df1",
+      "status": "施工"
+    },
+    {
+      "path": ".task/impl/208.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "208a5918e264acb66cb7bffcdc7349cc0d9c5ddf6b257c399f2ac57adfc10294",
+      "new_sha256": "21e51058ef756897f37c55f23cdf875bdeac8237d3edd1bbaf7abd0523eacd61",
+      "status": "施工"
+    },
+    {
+      "path": ".task/impl/209.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "da457387b51d22230382be829afcca14fca884deaf1775538997f9931087533e",
+      "new_sha256": "00d8893498c1f82dd02da8d532127242acc352d65f8e9205e202bb8f8772fa8d",
+      "status": "施工"
+    },
+    {
+      "path": ".task/impl/210.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "ffe654bdd33f7ac62c2ff92546591ce44816e454634cc6796cb0b87c91ff3b0c",
+      "new_sha256": "4759491cc786710a0ccf388812ebf5b4d8dcc38413caf85eb3957c80a310b068",
+      "status": "施工"
+    },
+    {
+      "path": ".task/impl/211.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "9b5a58e359e9b75ca37c359957f826a37feb231a84e5f06d72504313f69a9e47",
+      "new_sha256": "f52b2806ddc855c5ffebbfa64277bb829641a75c7a72095c81017e6f66c35a16",
+      "status": "施工"
+    },
+    {
+      "path": ".task/impl/212.md",
+      "changed_json_fields": [
+        "normative_hash"
+      ],
+      "old_sha256": "312c1773ed7ab45c6e10cd46575bed5a339b80d839f689f4c759680b411e01c8",
+      "new_sha256": "3891ccf79a9a5c36b85cfb2d3b9f9a9bdd739c00b3c19a8e30b4c95bae8392b7",
+      "status": "施工"
+    }
+  ],
+  "all_other_tracked_slice_files_byte_unchanged": 188,
+  "production_source_unchanged": true,
+  "production_scope": "All tracked changes are task metadata, generated indexes, handoff snapshot, or evidence/toolchain/llvm23; compiler, toolchain scripts, CI, spec, fixtures, lockfiles and language inputs match merge918de020",
+  "registry": {
+    "all_current_file_hashes_verified": true,
+    "normative_hash": "8b4b3d219999c8f2904b276e051745bf65f9761e421630bdb4bbe0ec2781e02d",
+    "changed_registered_file_hashes": [
+      "policy/dependencies.json"
+    ]
+  },
+  "task_index_exactly_matches_authoritative_task_json": true,
+  "check_plan": {
+    "command": "python3 tools/check-plan.py --self-test",
+    "exit_code": 0,
+    "ok": true,
+    "self_tests": [
+      {
+        "name": "dependency cycle",
+        "rejected": true
+      },
+      {
+        "name": "missing artifact owner",
+        "rejected": true
+      },
+      {
+        "name": "parallel write conflict",
+        "rejected": true
+      },
+      {
+        "name": "Ready without baseline",
+        "rejected": true
+      },
+      {
+        "name": "zero execution minimum",
+        "rejected": true
+      },
+      {
+        "name": "unmapped protocol case",
+        "rejected": true
+      },
+      {
+        "name": "Done without actual results",
+        "rejected": true
+      }
+    ]
+  },
+  "handoff": {
+    "command": "node tools/handoff.mjs",
+    "exit_code": 1,
+    "status": "Fail",
+    "errors": 1138,
+    "baseline_errors": 1138,
+    "ordered_error_list_identical_to_preupgrade_baseline": true,
+    "new_errors": [],
+    "warnings": [
+      {
+        "id": "B0",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "T01",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "T02",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "T03",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "T04",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "T05",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "T06",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "T07",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "T08",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "T09",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "W1",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "W2",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "W3",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "W4",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "181",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "208",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "209",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "210",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "211",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      },
+      {
+        "id": "212",
+        "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+      }
+    ],
+    "snapshot_generated": "data/handoff.json",
+    "snapshot_note": "Generated before integration metadata commit; current task records truthfully have committed=false warnings. Re-run --check after publication for live committed state."
+  },
+  "new_compiler_or_full_tests": 0,
+  "remote_writes": 0,
+  "new_blocking_findings": [],
+  "files": [
+    {
+      "path": ".task/B0.md",
+      "bytes": 8668,
+      "sha256": "89cbcc129acc091fe905cbbdae41462deacc762597a212186ffc65c28eec7287"
+    },
+    {
+      "path": ".task/T01.md",
+      "bytes": 5536,
+      "sha256": "c60c3feddc6f47f9c9bcece75d076d187c510790f0fb3036b0c6d906df02ad39"
+    },
+    {
+      "path": ".task/T02.md",
+      "bytes": 6071,
+      "sha256": "0dd3c55d5d0ad65d6ad296465a2787d427c8f0881a039f511079dbed1b753800"
+    },
+    {
+      "path": ".task/T03.md",
+      "bytes": 5079,
+      "sha256": "91df78a75a6431136ae13b68d8c7072fd8ce5550c04ff792b26f95e4a29f13bf"
+    },
+    {
+      "path": ".task/T04.md",
+      "bytes": 5546,
+      "sha256": "9e66977c8b92ea5406a5c4b0d33faa022f082c515fff34cf1048c58a4c3c3b4b"
+    },
+    {
+      "path": ".task/T05.md",
+      "bytes": 5214,
+      "sha256": "3ed4e764c4c149bdae1c0dbae0eab05078d0b4b9ec78540e6ab7f4513bee1ec0"
+    },
+    {
+      "path": ".task/T06.md",
+      "bytes": 5320,
+      "sha256": "c9953e9bf813d1d26b116e80983a436f34986e99229df82e4c67998a2356bd61"
+    },
+    {
+      "path": ".task/T07.md",
+      "bytes": 5131,
+      "sha256": "3b9956a9b76ceacef6131c2cc9fc3f7c872071e71503ab211d7beb9d4ea0bb0a"
+    },
+    {
+      "path": ".task/T08.md",
+      "bytes": 6305,
+      "sha256": "f1839dc816529351390aa5ce397449042fdc5e6583910d2e4dd2346e27c952c6"
+    },
+    {
+      "path": ".task/T09.md",
+      "bytes": 5376,
+      "sha256": "1c5ad3d99cfdb046ef708a75f3bd49506731377831f824a840a466113df59da0"
+    },
+    {
+      "path": ".task/W1.md",
+      "bytes": 5121,
+      "sha256": "5cd7673d71617c57470b1c6118a920afd645cb41e25759f7738f24725f2a1082"
+    },
+    {
+      "path": ".task/W2.md",
+      "bytes": 5219,
+      "sha256": "1db15e4cc3bc43efbca9c825284bfe71be8603ab43d185f0e2ecedac1200918d"
+    },
+    {
+      "path": ".task/W3.md",
+      "bytes": 4823,
+      "sha256": "569aac40d714acf1183baf6d65a110a91100cce4701a0dd23d68f515c82fd0cf"
+    },
+    {
+      "path": ".task/W4.md",
+      "bytes": 4906,
+      "sha256": "4072604699ebca26288ad8ad9d7ac558e41368db8715be31b3fb048868ef0481"
+    },
+    {
+      "path": ".task/impl/181.md",
+      "bytes": 9456,
+      "sha256": "28e03d90d6cfd5428716bfb5837c291954a716d47722565f57f646f0e1418df1"
+    },
+    {
+      "path": ".task/impl/208.md",
+      "bytes": 1691,
+      "sha256": "21e51058ef756897f37c55f23cdf875bdeac8237d3edd1bbaf7abd0523eacd61"
+    },
+    {
+      "path": ".task/impl/209.md",
+      "bytes": 2160,
+      "sha256": "00d8893498c1f82dd02da8d532127242acc352d65f8e9205e202bb8f8772fa8d"
+    },
+    {
+      "path": ".task/impl/210.md",
+      "bytes": 2650,
+      "sha256": "4759491cc786710a0ccf388812ebf5b4d8dcc38413caf85eb3957c80a310b068"
+    },
+    {
+      "path": ".task/impl/211.md",
+      "bytes": 2845,
+      "sha256": "f52b2806ddc855c5ffebbfa64277bb829641a75c7a72095c81017e6f66c35a16"
+    },
+    {
+      "path": ".task/impl/212.md",
+      "bytes": 3639,
+      "sha256": "3891ccf79a9a5c36b85cfb2d3b9f9a9bdd739c00b3c19a8e30b4c95bae8392b7"
+    },
+    {
+      "path": ".task/toolchain/llvm23.md",
+      "bytes": 3994,
+      "sha256": "8cbb2b7c0154b84baf58fedfa5d24e69954dab6693c3c106e3d55ff58af16e18"
+    },
+    {
+      "path": "data/handoff.json",
+      "bytes": 487124,
+      "sha256": "f8f9e5a491a2d75bc3a6ec9fdc3792fa3acfc5508755246c25854f30b83e657f"
+    },
+    {
+      "path": "data/normative-inputs.json",
+      "bytes": 876,
+      "sha256": "a16a4a52c0c9205ea7452c7679a6b9b0893a0b7899a34152336f7708c0737027"
+    },
+    {
+      "path": "data/task-index.json",
+      "bytes": 33935,
+      "sha256": "8f5adcae58fc3d7ac87a018d1469c45b0e93acb57e917433fefc31d1b907c91e"
+    }
+  ],
+  "logs": [
+    {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-integration-recovery/migrated-check-plan-self-test.stdout.log",
+      "bytes": 877,
+      "sha256": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916"
+    },
+    {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-integration-recovery/migrated-check-plan-self-test.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-integration-recovery/migrated-handoff-generate.stdout.log",
+      "bytes": 487236,
+      "sha256": "c1a0152d117c7c503d96378665ddb2422f115ae4dc1c8c4be9055f4bdc62a834"
+    },
+    {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-integration-recovery/migrated-handoff-generate.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}
