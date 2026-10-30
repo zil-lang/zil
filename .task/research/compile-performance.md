@@ -234,6 +234,45 @@ Doing
       ],
       "result": "docs/research/compile-performance/LLVM23-RESULT.md",
       "runtime_review": "256b0f40d1f119b39f3fb2fbe9962af579ddaafe"
+    },
+    "CP14": {
+      "status": "Doing",
+      "author": "/root/o2_strategy",
+      "baseline": "f95e751d6782310d8d48c7b3eba3037e176e3eb3",
+      "purpose": "Keep small closed O2 executables in one codegen unit using a frozen 2048 machine-instruction threshold; preserve default modes and reject invalid unit counts.",
+      "plan": "docs/research/compile-performance/COMPILE4-PLAN.md",
+      "write_set": [
+        "crates/zil-backend-llvm/src/build.rs",
+        "crates/zil-backend-llvm/src/machine_cgu.rs",
+        "crates/zil-backend-llvm/tests/closed_executable_cp13.rs",
+        "crates/zil-backend-llvm/tests/closed_executable_cp14.rs"
+      ]
+    },
+    "CP15": {
+      "status": "Doing",
+      "author": "/root",
+      "baseline": "f95e751d6782310d8d48c7b3eba3037e176e3eb3",
+      "purpose": "Avoid deep copying unchanged closure-inference output while executing all original validation and logical budget charges.",
+      "plan": "docs/research/compile-performance/COMPILE4-PLAN.md",
+      "write_set": [
+        "crates/zil-types/src/inference.rs",
+        "crates/zil-types/src/lib.rs",
+        "crates/zil-types/src/program.rs",
+        "crates/zil-driver/src/project.rs",
+        "crates/zil-types/tests/borrowed_inference_cp15.rs"
+      ]
+    },
+    "CP16": {
+      "status": "Doing",
+      "author": "/root/benchmark_review",
+      "baseline": "f95e751d6782310d8d48c7b3eba3037e176e3eb3",
+      "purpose": "Freeze explicit optional Rust LTO controls alongside the unchanged native primary comparison.",
+      "plan": "docs/research/compile-performance/COMPILE4-PLAN.md",
+      "write_set": [
+        "tools/research/compile-performance/rust_bench.py",
+        "tools/research/compile-performance/test_rust_bench.py",
+        "docs/research/compile-performance/CP16-BENCHMARK-CONTROLS.md"
+      ]
     }
   },
   "mainline_acceptance": "Hold: main unchanged and product gates NotRun. Combined O0 gains confirmed in this research window; CP13 closed 8/4 adoption is NoGo for per-case runtime regression.",
@@ -245,3 +284,6 @@ Doing
 ```
 
 协调记录只在本研究分支维护；2026-10-30 用户明确授权继续研究开发与 GitHub 操作。既有历史实验与负结果保持。
+
+
+2026-10-30 zil编译4：承接 f95e751d6，CP14/15/16 并行派工。新主线 f064b953 将先合入研究线再冻结最终候选与测试；main 本身不受本轮未验收改动影响。
