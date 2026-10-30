@@ -84,5 +84,96 @@
   "new_compiler_executions": 0,
   "remote_writes": 0,
   "reviewed_files_modified": false,
-  "blocking_findings": []
+  "blocking_findings": [],
+  "followup_link_check": {
+    "status": "Pass",
+    "reviewer": "/root/recover218",
+    "checked_at_utc": "2026-10-30T03:39:57.802514+00:00",
+    "scope": "Link correction only; not language implementation acceptance and no new compiler/native/CI execution. Current document remains pending root D3 publication at this check.",
+    "prior_document_sha256": "d8a2ba5ff58d99410dce13ad01bdf4ea67ecb70598ad36695dbc1eedb9a3fb08",
+    "prior_document_bytes": 6072,
+    "corrected_document_sha256": "30fa58d91dc23956c3a3c07b70461cb11449a050749b2fb7af198ed411befef8",
+    "corrected_document_bytes": 6086,
+    "prior_review_file_sha256": "1ec13e7ac3f39c09a5adadc8267b09eb2c9152c1dd634b3cc40493a0713f5866",
+    "only_document_change": "Replace missing relative217/GITHUB-PUBLICATION.json link with the exact successful branch-retirement Actions run; all other document bytes unchanged.",
+    "removed_target": "../evidence/integration/217/GITHUB-PUBLICATION.json",
+    "removed_target_exists": false,
+    "replacement_run": {
+      "repository": "zil-lang/zil",
+      "id": 40879393901,
+      "name": "Retire exact archived 213 branches without changing main",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "9b26925d4125e5497bd4df083d05b043ec6186e5",
+      "head_branch": "task/213",
+      "html_url": "https://github.com/zil-lang/zil/actions/runs/40879393901",
+      "created_at_utc": "2026-10-29T13:09:39Z",
+      "updated_at_utc": "2026-10-29T13:09:54Z",
+      "identity_observed_via": "GitHub connector GET /repos/zil-lang/zil/actions/runs/40879393901"
+    },
+    "local_relative_link_occurrences": 9,
+    "unique_local_targets": 8,
+    "local_links": [
+      {
+        "target": "LANGUAGE-217.md",
+        "resolved_relative_to_repo": "docs/LANGUAGE-217.md",
+        "exists": true,
+        "kind": "file"
+      },
+      {
+        "target": "ZUI-LANGUAGE-READINESS-217.md",
+        "resolved_relative_to_repo": "docs/ZUI-LANGUAGE-READINESS-217.md",
+        "exists": true,
+        "kind": "file"
+      },
+      {
+        "target": "../tools/sync/SYNC-ZIL-v6.ps1",
+        "resolved_relative_to_repo": "tools/sync/SYNC-ZIL-v6.ps1",
+        "exists": true,
+        "kind": "file"
+      },
+      {
+        "target": "../tools/sync/SYNC-ZIL-v6-README.txt",
+        "resolved_relative_to_repo": "tools/sync/SYNC-ZIL-v6-README.txt",
+        "exists": true,
+        "kind": "file"
+      },
+      {
+        "target": "../tools/sync/test-results.json",
+        "resolved_relative_to_repo": "tools/sync/test-results.json",
+        "exists": true,
+        "kind": "file"
+      },
+      {
+        "target": "../evidence/status/2026-10-30/",
+        "resolved_relative_to_repo": "evidence/status/2026-10-30",
+        "exists": true,
+        "kind": "directory"
+      },
+      {
+        "target": "../evidence/status/2026-10-30/RECOVERY-RESULT.json",
+        "resolved_relative_to_repo": "evidence/status/2026-10-30/RECOVERY-RESULT.json",
+        "exists": true,
+        "kind": "file"
+      },
+      {
+        "target": "../.agent/git-branches.md",
+        "resolved_relative_to_repo": ".agent/git-branches.md",
+        "exists": true,
+        "kind": "file"
+      },
+      {
+        "target": "ZUI-LANGUAGE-READINESS-217.md",
+        "resolved_relative_to_repo": "docs/ZUI-LANGUAGE-READINESS-217.md",
+        "exists": true,
+        "kind": "file"
+      }
+    ],
+    "all_previous_review_fields_preserved": true,
+    "original_review_scope_and_identities_relabelled": false,
+    "new_language_test_executions": 0,
+    "remote_mutations": 0,
+    "reviewed_source_file_modified_by_this_reviewer": false
+  }
 }
