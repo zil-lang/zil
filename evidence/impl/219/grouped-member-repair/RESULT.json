@@ -1,0 +1,106 @@
+{
+  "status": "AuthorValidatedRepair",
+  "review": "Independent root review owns the formal decision; separate non-author four-probe replay is not counted here",
+  "source_commit": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+  "tree": "6b7897eea6cb144a7eeae632758cd24d530bfd53",
+  "compiler_build_receipt": "compiler-build.json",
+  "cli_sha256": "b87bf8b0c7128a5048c68d39d82af2ebf772b689d064f7d067562244644948d7",
+  "tested_tree_spec_hash": "14109fb881d03f4e3633d8d5f851287df9c5a4ed35f642ff6942c9fd7a9190f2",
+  "tested_tree_normative_hash": "40895de024c0718ab4fd1d7c73c8cc1dd19e3b7eadb0706c033351ef3b95617c",
+  "current_authority_migration": {
+    "main_commit": "25506bd6",
+    "spec_hash": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+    "normative_hash": "e4bd2d0f939a205b01618c0d5ce53a8725549be093db2658272633021131e44d",
+    "note": "Root registered the phase diagnostic and clarified the separate 218 Copy function-pointer boundary; section 16.3 selection behavior is unchanged. Integration consumes the current main registry."
+  },
+  "scope": "Same closed ConfigReady scalar #if profile; normalize static Member object Group with prepaid traversal; no schema, default budget, selected list semantics or machine oracle change",
+  "repair": {
+    "discovery_commit": "4b4ac10315a84429a5ad8f2b3a46810b2598f272",
+    "discovery_author": "/root/language_review_plan",
+    "observed": [
+      "grouped alias choose executes helper leaf but dependencies=[]",
+      "generated helper reported E-UNKNOWN-NAME rather than phase dependency"
+    ],
+    "change": "charge and unwrap Member.object grouping before the unchanged runtime/local/import/public classification",
+    "regression_shapes": [
+      "cfg.choose(7)",
+      "(cfg).choose(7)",
+      "(((cfg))).choose(7)",
+      "((cfg).choose)(7)"
+    ],
+    "regression_contracts": [
+      "choose and leaf dependency module/declaration/source identities match plain control",
+      "generated leaf E-CT-PHASE-DEPENDENCY at actual module1 dependency source span",
+      "runtime cfg shadow E-CT-FORBIDDEN at actual module0 cfg span"
+    ],
+    "additional_quality_fix": "Move selection_cost before test module; existing ct122 raw declaration test exercises exact node/work prepayment without lint suppression"
+  },
+  "limited_tests": {
+    "passed": 54,
+    "failed": 0,
+    "ignored": 0,
+    "groups": {
+      "impl068_vertical": 6,
+      "impl122_ct_declarations": 6,
+      "impl219_budget": 3,
+      "impl219_ct_boundary": 3,
+      "impl219_selection": 6,
+      "projects": 27,
+      "impl094_ct_preflight_filtered_ct122": 1,
+      "impl219_preflight": 2
+    },
+    "formal_full_workspace": "NotRunByAuthor"
+  },
+  "clippy": {
+    "status": "Pass",
+    "receipt": "clippy-fresh.json",
+    "scope": "zil-driver and zil-expand all-targets; llvm-api; -D warnings; fresh target directory",
+    "earlier_cached_attempt": "clippy-all-targets.json / .stderr preserved: exit0 replayed old diagnostics; not used as a quality pass"
+  },
+  "native": {
+    "status": "Pass",
+    "configurations": [
+      "compact",
+      "wide"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "modules_per_build": 3,
+    "llvm_api_builds": 4,
+    "executions": 100,
+    "ordinary_executions": 24,
+    "instrumented_executions": 76,
+    "actual_allocation_failures": 28,
+    "all_final_live_zero": true,
+    "max_requested_payload_bytes": 10,
+    "oracle": "exact unmodified tools/language/219/consumer.py source-derived oracle; original source hashes unchanged",
+    "counting": "this is a new exact-commit replay; do not add prior 4b/356 executions to this count"
+  },
+  "budget": {
+    "core_steps": 127,
+    "full_steps": 205,
+    "full_nodes": 645,
+    "input_sha256": "c1af488970433c2ac012fd6fde094099cd90c9e23486c516f775ebb3ab0a677c",
+    "same_as_4b4ac10": true
+  },
+  "archive": {
+    "path": "raw-evidence.tar.gz",
+    "bytes": 1714382,
+    "sha256": "8af54ecd2d30f4ef8a601bc2e47d57690d6894f4ba4685cf90da0a60b08d07bb",
+    "manifest": "RAW-FILES.json",
+    "contents": "New exact-deb commands/source/phase/native/allocator evidence; author pre-fix reproduction and candidate receipts; unchanged independent original discovery. No compiler executable or toolchain copy."
+  },
+  "prior_evidence": {
+    "path": "../final/RESULT.json",
+    "sha256": "843974f5da9d85b38c72d70922eefb7619c6715b91f0d158601fb96915f0777b",
+    "source_commit": "4b4ac10315a84429a5ad8f2b3a46810b2598f272",
+    "unchanged_archive_sha256": "db67dbd4a5f69dcc8e7fc97cd2b8b9471caa474ac0294c567ef583dafa61e089",
+    "interpretation": "Prior52 tests/native100 stay bound to4b; original independent defect remains retained, not overwritten"
+  },
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "zui_framework": "NotDeveloped"
+}
