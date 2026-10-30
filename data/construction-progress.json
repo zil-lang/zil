@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-30T13:25:00.673676+00:00",
-  "status": "MilestoneAccepted",
+  "observed_at_utc": "2026-10-30T13:33:29.186838+00:00",
+  "status": "MilestoneComplete",
   "accepted_main_at_start": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
   "milestone": "218–221 accepted and merged into main; completed task branches removed",
   "tasks": [
@@ -68,9 +68,9 @@
     "source": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
     "run_id": 41061704505,
     "url": "https://github.com/zil-lang/zil/actions/runs/41061704505",
-    "observed_status": "in_progress",
-    "conclusion": null,
-    "observed_at_utc": "2026-10-30T13:25:00.673676+00:00"
+    "observed_status": "completed",
+    "conclusion": "success",
+    "receipt": "evidence/integration/221/ci41061704505/RESULT.json"
   },
   "new_language_acceptance": true,
   "readiness_recheck": {
@@ -110,7 +110,7 @@
     "same_tree": true
   },
   "accepted_main_commit": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
-  "closeout_status": "Repairing handoff metadata; historical errors remain separately recorded",
+  "closeout_status": "Complete; historical handoff remains Fail/1138, with zero errors introduced by this stage",
   "branch_cleanup": {
     "completed_tasks": [
       "task/218",
@@ -123,5 +123,14 @@
       "research/compile-performance"
     ],
     "receipt": "evidence/integration/221/closeout/BRANCHES.json"
+  },
+  "active_development_agents": 0,
+  "handoff": {
+    "status": "Fail",
+    "historical_errors": 1138,
+    "new_errors": 0,
+    "task_218_to_221_errors": 0,
+    "warnings": 0,
+    "receipt": "evidence/integration/221/closeout/RESULT.json"
   }
 }
