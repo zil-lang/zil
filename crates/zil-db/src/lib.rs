@@ -148,6 +148,20 @@ impl Database {
     /// Looking only at direct fingerprints could expose a transitively stale
     /// snapshot after one of its inputs was replaced.
     pub fn read(&self, key: &QueryKey) -> Result<Option<Arc<QuerySnapshot>>, Diagnostic> {
+        if self.active.contains(key) {
+            return Err(query_error(
+                "E-QUERY-CYCLE",
+                "cannot observe an active query dependency",
+            ));
+        }
+        let Some(root) = self.snapshots.get(key) else {
+            return Ok(None);
+        };
+        // Missing and leaf queries have no dependency closure to traverse.
+        // Active queries must still reject before either of these fast paths.
+        if root.dependencies.is_empty() {
+            return Ok(Some(root.clone()));
+        }
         let mut pending = vec![(key.clone(), false)];
         let mut visiting = BTreeSet::new();
         let mut complete = BTreeSet::new();
@@ -185,7 +199,7 @@ impl Database {
                 pending.push((dependency.key.clone(), false));
             }
         }
-        Ok(self.snapshots.get(key).cloned())
+        Ok(Some(root.clone()))
     }
 
     /// Publish only a completed query. Failed publication aborts the active

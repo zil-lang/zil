@@ -1,0 +1,43 @@
+{
+  "experiment": "CP23 missing/leaf query read fast paths",
+  "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+  "author": "/root/toolchain_recovery",
+  "status": "Targeted author validation passed; complete compiler performance adoption not determined",
+  "independence": "This branch does not contain CP21; its invalidation algorithm remains the baseline full scan.",
+  "proof": {
+    "priority": "The root active-query check occurs before either missing or leaf return, preserving E-QUERY-CYCLE even for an absent root.",
+    "missing": "The original DFS encounters the root first and returns None when no root snapshot exists; no dependency can be traversed.",
+    "leaf": "An inactive root with an empty dependency list has no transitive inputs, so the original DFS returns that same stored Arc.",
+    "nonleaf": "The original DFS loop, all dependency fingerprint checks, missing-input returns, active-ancestor errors and cycle detection are unchanged.",
+    "root_reuse": "Database::read borrows self immutably; the stored root Arc cannot change during traversal, so cloning the retained root reference equals the previous final map lookup."
+  },
+  "tests": {
+    "command": "CARGO_TARGET_DIR=/workspace/scratch/4ab361722127/target-cp23 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test -p zil-db --offline --locked --lib",
+    "passed": 12,
+    "failed": 0,
+    "ignored": 0,
+    "existing_oracle_combinations": 9600,
+    "added_behavior": "Active missing and active leaf roots reject; an unrelated inactive leaf remains readable; abort restores the same snapshot identity.",
+    "stdout": "   Compiling zil-base v0.1.0 (/workspace/scratch/4ab361722127/zil-cp23/crates/zil-base)\n   Compiling zil-db v0.1.0 (/workspace/scratch/4ab361722127/zil-cp23/crates/zil-db)\n    Finished `test` profile [unoptimized] target(s) in 0.56s\n     Running unittests src/lib.rs (/workspace/scratch/4ab361722127/target-cp23/debug/deps/zil_db-43877e21f1283294)\n\nrunning 12 tests\ntest tests::absent_invalidation_preserves_active_queries_revision_and_published_identity ... ok\ntest cache::tests::oversized_reads_and_writes_are_bounded ... ok\ntest tests::active_missing_and_leaf_reads_reject_before_returning_cached_results ... ok\ntest tests::cancellation_is_shared_and_deadlines_do_not_require_background_threads ... ok\ntest tests::failed_new_publications_cannot_create_forward_edges_or_replace_old_snapshots ... ok\ntest tests::dependency_cycles_and_active_ancestors_cannot_be_observed_or_published ... ok\ntest cache::tests::incomplete_temp_files_are_not_committed_candidates ... ok\ntest tests::all_fingerprint_kinds_control_the_actual_transitive_invalidation_set ... ok\ntest tests::stale_input_and_cancelled_publication_abort_the_active_record ... ok\ntest cache::tests::cancellation_after_real_temporary_write_cannot_publish_or_leave_partial_file ... ok\ntest cache::tests::each_corruption_class_is_untrusted_and_can_be_rebuilt ... ok\ntest tests::absent_producers_match_legacy_scanning_on_reachable_dags_and_after_eviction ... ok\n\ntest result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.80s\n\n"
+  },
+  "microbenchmark": {
+    "path": "microbench.json",
+    "samples": 96,
+    "method": "Same example compiled against baseline and candidate, ABBA three blocks, 16/128 sizes, missing/leaf/chain/diamond, single allowed CPU",
+    "boundary": "Graph/key construction and graph destruction excluded; repeated read, checksum and returned-Arc destruction included.",
+    "classification": "Exploratory mechanism measurement; no formal exclusive window; no end-to-end or Rust speed claim.",
+    "limitations": [
+      "Nonleaf controls show mixed directions, including regressions, and are retained.",
+      "Leaf/missing improvements do not establish a complete compilation speedup.",
+      "The larger diamond has 385 nodes, not 128 nodes."
+    ]
+  },
+  "safety_scope": "No cached verifier capability, mutation, public schema, accepted source language, budget or failure category change.",
+  "four_goals": {
+    "safety": "Targeted database behavior only; no whole-language proof.",
+    "runtime_memory": "Target-generated program unchanged by this source edit; comparative runtime/RSS not measured.",
+    "syntax_maintenance": "No language syntax or API change; comparative maintenance cost not measured.",
+    "compile": "Missing/leaf query microbench improvement measured; complete compilation and Rust comparison remain for integration."
+  },
+  "toolchain_receipt": "/workspace/scratch/4ab361722127/.toolchain/TOOLCHAIN-RECOVERY.json"
+}
