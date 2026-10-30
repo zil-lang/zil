@@ -1,0 +1,216 @@
+{
+  "status": "Pass",
+  "source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "cli_sha256": "ad5154ba0dffacd6e96f33f55d2427719598afc5e9aad1f95bac0335bc6239e7",
+  "cli_profile": "dev; reused independent review build, no duplicate build",
+  "production_files_sha256": "1292de3f9866fef517d20bc166f2b5a9d49f4d2e6736a6da35078e6a7945e55b",
+  "provider_build_receipt_sha256": "f33914321225e3b58d9a7b3248e6be568ac63ab88403bf66931afabeff670953",
+  "final_tree_clean": true,
+  "production_inputs_unchanged_after_replay": true,
+  "original_probe_oracle_sha256": "1f25af9895df1f0bf0f5ae8000b8e262f3462634c41e40300561ece97017868b",
+  "original_probe_sources_and_oracle_unchanged": true,
+  "prior_2212505_result_unchanged_sha256": "18db7c181200892745d58a7f7314409012daba40ef69e4fd7e84bfe4919712a3",
+  "counts": {
+    "Success": 13,
+    "Unsupported": 14,
+    "SafeReject": 2
+  },
+  "known_promotion_expectation_matches": true,
+  "promotions": [
+    {
+      "name": "ct-item-if",
+      "old": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "current": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "source_sha256": "f16c9205744b609bdea1ea3e24ce8bbe854bb74a1a583757951f6b0ed6e44f93"
+    },
+    {
+      "name": "ct-statement-if",
+      "old": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "current": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "source_sha256": "fed41828771802bdb61326a4abe762fd3f4e6f577d1eff54478dae9018661944"
+    }
+  ],
+  "remaining_unsupported": [
+    {
+      "name": "bytebuffer-slice-capture",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "callback-return-generic",
+      "phase": "expand",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "closure-owned-error-result",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "closure-package-param",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "optional-parameter",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "generic-lifetime",
+      "phase": "expand",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "product-store-element",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "product-owning-store",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "nested-store-element",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "owning-enum-option",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "associated-type",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED",
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "product-error-union",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "dyn-valid-parameter",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED",
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "syntax-valid-alias",
+      "phase": "expand",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    }
+  ],
+  "malformed_excluded": [
+    {
+      "name": "dyn-parameter",
+      "phase": "parse",
+      "source_sha256": "33b6eb967a57c8fcc7bf5054d87ec0b83aeeb26645e5322967338542a9c7e28c",
+      "capability_evidence": false
+    },
+    {
+      "name": "syntax-extension",
+      "phase": "parse",
+      "source_sha256": "ec178d9d59e8acc5aa1fa4e36911cc9783420ae308542708ee77d8277f514cbd",
+      "capability_evidence": false
+    }
+  ],
+  "combined_control": {
+    "source_sha256": "d8d716317d83258a47edd1bab8f06ea426ec4410686dd2374df4ef7ed98b7383",
+    "original_oracle_sha256": "9a62f12cf114e1b59442f128e3cefc7e5dac69f57c1d2051c035bdbbfa7ebe53",
+    "original_oracle_commit": "2212505a667508dc9c7565cbab674c8e59700457",
+    "source_and_oracle_bytes_unchanged": true,
+    "check": {
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "exit": 0,
+      "codes": []
+    },
+    "native": [
+      {
+        "opt": "O0",
+        "build_status": "Success",
+        "verification_runs": 1,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "executable_sha256": "0e5c2a3ccc0a5dfce76d6799330b61b8850a263cc115cf6137e85cce0c2a427a"
+      },
+      {
+        "opt": "O2",
+        "build_status": "Success",
+        "verification_runs": 1,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "executable_sha256": "f31a3c941886c806c0b03dbd539cc6eef0425ccdaca656515f4f6007fe22e050"
+      }
+    ]
+  },
+  "actual_replay_command": [
+    "python",
+    "/workspace/scratch/3cf12ce32e36/recovery/readiness-final-69931f83/replay.py"
+  ],
+  "result_sha256": "907f96f3f676ab6bd5c5fb7cf390155d1e1783b6c53be56670c49f7794131a9f",
+  "scope": "Current observation on final fixed integration candidate; 29 checks, separate existing 218+219 control at O0/O2. Full workspace gates, independent safety review and full-ZUI conclusions remain separate."
+}

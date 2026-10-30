@@ -1,0 +1,9 @@
+{
+  "source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "classification": "InfrastructureAbort",
+  "observed_free_bytes": 0,
+  "test_cache_bytes_approx": 6500000000,
+  "cause": "Root runner omitted CI test/dev strip=symbols; compiler caches exhausted the sandbox volume. Root attempted to stop its cargo process and removed its reproducible debug cache. Original run then reported missing test executable, so this is an externally interrupted run, not a language regression or full Pass.",
+  "source_and_evidence_preserved": true,
+  "retry": "same clean source, fresh targets, exact CI strip configuration, release each test cache only after subprocess.run returns"
+}

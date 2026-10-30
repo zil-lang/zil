@@ -1,0 +1,14 @@
+{
+  "candidate": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+  "compared_with": "efb25a3477d22f68d696bb1420fad6faa6e21aec",
+  "changed_paths": [
+    "crates/zil-driver/src/ct_program.rs",
+    "crates/zil-driver/src/ct_selection/context.rs",
+    "crates/zil-driver/tests/impl219_selection.rs"
+  ],
+  "selection_cost_text_identical_after_relocation": true,
+  "selection_cost_text_sha256": "3f2f06e8656692f55dcab6e61c06081cf4ed781c4ff16bb141f485eed6321c55",
+  "resolve_change": "Member.object Group chain is unwrapped, charging budget.node before every advance; lexical runtime/local checks, import lookup, visibility and availability handling remain on the same path.",
+  "depth_review": "The unwrap loop supplies increasing depth to budget.node. Existing complete syntax preflight already bounds enclosing AST depth before Context construction.",
+  "not_claimed": "No additional independent N/N-1 or hot-cache execution; author regressions are not counted as independent probes."
+}

@@ -1,0 +1,77 @@
+{
+  "status": "Fail",
+  "source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "source_tree": "cc9f3580cb2dcce2b51f037a37acb87b1d8365b2",
+  "worktree_before": "",
+  "started_at_utc": "2026-10-30T12:39:14.282296+00:00",
+  "source_manifest_sha256": "83cfc1d76a017b99169d278dfc032d5b06bb6560c6337e1034cb70a7fbf9762f",
+  "fresh_targets": [
+    "/workspace/scratch/3cf12ce32e36/targets/acceptance-69931f83-ci",
+    "/workspace/scratch/3cf12ce32e36/targets/acceptance-69931f83-ci-reference"
+  ],
+  "profile": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_INCREMENTAL": "0"
+  },
+  "scope": "existing complete workspace/reference/lint/native acceptance gates, not full language or Rust product goals",
+  "steps": [
+    {
+      "name": "format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/workspace/scratch/3cf12ce32e36/zil-220",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/scratch/3cf12ce32e36/targets/acceptance-69931f83-ci",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/3cf12ce32e36/recovery/acceptance-69931f83-ci/native-reports"
+      },
+      "started_at_unix": 1793363954.3518891,
+      "free_bytes_before": 4895080448,
+      "exit_code": 0,
+      "finished_at_unix": 1793363956.7237318,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "free_bytes_after": 4895080448,
+      "status": "Pass"
+    },
+    {
+      "name": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--offline"
+      ],
+      "cwd": "/workspace/scratch/3cf12ce32e36/zil-220",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/scratch/3cf12ce32e36/targets/acceptance-69931f83-ci",
+        "ZIL_TEST_REPORT_DIR": "/workspace/scratch/3cf12ce32e36/recovery/acceptance-69931f83-ci/native-reports"
+      },
+      "started_at_unix": 1793363956.7265446,
+      "free_bytes_before": 4895080448,
+      "exit_code": 101,
+      "finished_at_unix": 1793364177.9405599,
+      "log_sha256": "3373ddc72b81f76081ab6d4e1458e88a3b3b9b227e64c481f2c6d6d5fd12f1d3",
+      "free_bytes_after": 0,
+      "rust_test_totals": {
+        "passed": 1403,
+        "failed": 17,
+        "ignored": 0,
+        "groups": 139
+      },
+      "status": "Fail"
+    }
+  ],
+  "source_commit_after": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "worktree_after": "",
+  "source_bytes_unchanged": true,
+  "finished_at_utc": "2026-10-30T12:43:13.507546+00:00"
+}

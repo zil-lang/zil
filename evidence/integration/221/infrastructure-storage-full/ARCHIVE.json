@@ -1,0 +1,35 @@
+{
+  "source_directory": "/workspace/scratch/3cf12ce32e36/recovery/acceptance-69931f83-ci",
+  "file_count": 5,
+  "uncompressed_bytes": 13367320,
+  "archive_sha256": "0271bfe0751dd3511716af0971f83faec7ee309dc3d8be65218fce5bb22875bc",
+  "archive_bytes": 2336785,
+  "all_archived_bytes_reverified": true,
+  "files": [
+    {
+      "path": "RESULT.json",
+      "size": 2678,
+      "sha256": "f4d8a703fe2e1039d5cca2bded20d3647caa0fc1706deeba98b38ac691a04eea"
+    },
+    {
+      "path": "SOURCE-INPUTS.json",
+      "size": 13202117,
+      "sha256": "83cfc1d76a017b99169d278dfc032d5b06bb6560c6337e1034cb70a7fbf9762f"
+    },
+    {
+      "path": "format.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "toolchain.log",
+      "size": 574,
+      "sha256": "19ad56402dbf0643bd2f90943e3d0cbb386ef5eead53310511fba09723017c94"
+    },
+    {
+      "path": "workspace.log",
+      "size": 161951,
+      "sha256": "3373ddc72b81f76081ab6d4e1458e88a3b3b9b227e64c481f2c6d6d5fd12f1d3"
+    }
+  ]
+}

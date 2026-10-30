@@ -1,0 +1,230 @@
+[
+  {
+    "label": "grouped-alias-trace",
+    "candidate": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/targets/219/debug/zil",
+      "check",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-trace/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel-repair-deb5824/grouped-alias-trace/phases",
+      "--json"
+    ],
+    "start": 1793363356.4838042,
+    "end": 1793363356.5513718,
+    "exit_code": 0,
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "selection": {
+      "profile": "ConfigReady-scalar219",
+      "steps": 24,
+      "nodes": 357,
+      "selections": [
+        {
+          "module": 0,
+          "condition": {
+            "file": 0,
+            "start": 15,
+            "end": 30
+          },
+          "selected_then": true,
+          "steps": 24,
+          "nodes": 42,
+          "dependencies": [
+            {
+              "module": 1,
+              "function": "choose",
+              "declaration": {
+                "file": 1,
+                "start": 34,
+                "end": 76
+              },
+              "source": "17af824e1d4e38d01968226a4b3f146f8dcd71cd7ac449907a330eebcc6b81fb"
+            },
+            {
+              "module": 1,
+              "function": "leaf",
+              "declaration": {
+                "file": 1,
+                "start": 0,
+                "end": 33
+              },
+              "source": "17af824e1d4e38d01968226a4b3f146f8dcd71cd7ac449907a330eebcc6b81fb"
+            }
+          ]
+        }
+      ]
+    },
+    "checks": {
+      "status": true,
+      "one_selection": true,
+      "dependency_names": true,
+      "precise_dependency_identity": true,
+      "chosen_then": true,
+      "ct_steps_24": true,
+      "cli_unchanged": true,
+      "source_unchanged": true
+    },
+    "oracle_match": true,
+    "stdout_sha256": "325b25eb6848cee58ef83f852822de635c8ff5ac67e3f0080308e9df80af67d1",
+    "cli_sha256_after": "b87bf8b0c7128a5048c68d39d82af2ebf772b689d064f7d067562244644948d7"
+  },
+  {
+    "label": "grouped-alias-generated",
+    "candidate": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/targets/219/debug/zil",
+      "check",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-generated/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel-repair-deb5824/grouped-alias-generated/phases",
+      "--json"
+    ],
+    "start": 1793363356.5866878,
+    "end": 1793363356.6369839,
+    "exit_code": 1,
+    "status": "SafeReject",
+    "phase": "ct",
+    "diagnostics": [
+      {
+        "phase": "ct",
+        "category": "SafeReject",
+        "code": "E-CT-PHASE-DEPENDENCY",
+        "message": "#if condition depends on a declaration emitted by source generation; ConfigReady is closed",
+        "span": {
+          "file": 1,
+          "start": 83,
+          "end": 87
+        },
+        "notes": []
+      }
+    ],
+    "selection": null,
+    "checks": {
+      "safe_reject": true,
+      "ct_phase": true,
+      "frozen_diagnostic_code": true,
+      "precise_diagnostic_span": true,
+      "cli_unchanged": true,
+      "source_unchanged": true
+    },
+    "oracle_match": true,
+    "stdout_sha256": "0569ca254ea1b66f725425cd5c1057118ccf9472511f1f795a0c379ea08945a9",
+    "cli_sha256_after": "b87bf8b0c7128a5048c68d39d82af2ebf772b689d064f7d067562244644948d7"
+  },
+  {
+    "label": "grouped-alias-runtime-shadow",
+    "candidate": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/targets/219/debug/zil",
+      "check",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-runtime-shadow/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel-repair-deb5824/grouped-alias-runtime-shadow/phases",
+      "--json"
+    ],
+    "start": 1793363356.666086,
+    "end": 1793363356.710729,
+    "exit_code": 1,
+    "status": "SafeReject",
+    "phase": "ct",
+    "diagnostics": [
+      {
+        "phase": "ct",
+        "category": "SafeReject",
+        "code": "E-CT-FORBIDDEN",
+        "message": "#if condition cannot read a receiving runtime parameter or local",
+        "span": {
+          "file": 0,
+          "start": 51,
+          "end": 54
+        },
+        "notes": []
+      }
+    ],
+    "selection": null,
+    "checks": {
+      "safe_reject": true,
+      "ct_phase": true,
+      "frozen_diagnostic_code": true,
+      "precise_diagnostic_span": true,
+      "cli_unchanged": true,
+      "source_unchanged": true
+    },
+    "oracle_match": true,
+    "stdout_sha256": "a51b30d003dffa9d8c51be032b3f15025f6187b4290465229fefbc49dbc345bc",
+    "cli_sha256_after": "b87bf8b0c7128a5048c68d39d82af2ebf772b689d064f7d067562244644948d7"
+  },
+  {
+    "label": "ungrouped-alias-trace",
+    "candidate": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/targets/219/debug/zil",
+      "check",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/ungrouped-alias-trace/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel-repair-deb5824/ungrouped-alias-trace/phases",
+      "--json"
+    ],
+    "start": 1793363356.7431107,
+    "end": 1793363356.798421,
+    "exit_code": 0,
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "selection": {
+      "profile": "ConfigReady-scalar219",
+      "steps": 24,
+      "nodes": 351,
+      "selections": [
+        {
+          "module": 0,
+          "condition": {
+            "file": 0,
+            "start": 15,
+            "end": 28
+          },
+          "selected_then": true,
+          "steps": 24,
+          "nodes": 42,
+          "dependencies": [
+            {
+              "module": 1,
+              "function": "choose",
+              "declaration": {
+                "file": 1,
+                "start": 34,
+                "end": 76
+              },
+              "source": "17af824e1d4e38d01968226a4b3f146f8dcd71cd7ac449907a330eebcc6b81fb"
+            },
+            {
+              "module": 1,
+              "function": "leaf",
+              "declaration": {
+                "file": 1,
+                "start": 0,
+                "end": 33
+              },
+              "source": "17af824e1d4e38d01968226a4b3f146f8dcd71cd7ac449907a330eebcc6b81fb"
+            }
+          ]
+        }
+      ]
+    },
+    "checks": {
+      "status": true,
+      "one_selection": true,
+      "dependency_names": true,
+      "precise_dependency_identity": true,
+      "chosen_then": true,
+      "ct_steps_24": true,
+      "cli_unchanged": true,
+      "source_unchanged": true
+    },
+    "oracle_match": true,
+    "stdout_sha256": "c4bc505142cef250b0cac9c1c0d713ba55753c10dcc327e7336d2ab95b407b2e",
+    "cli_sha256_after": "b87bf8b0c7128a5048c68d39d82af2ebf772b689d064f7d067562244644948d7"
+  }
+]

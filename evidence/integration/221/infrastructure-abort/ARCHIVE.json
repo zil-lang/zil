@@ -1,0 +1,40 @@
+{
+  "source_directory": "/workspace/scratch/3cf12ce32e36/recovery/acceptance-69931f83",
+  "file_count": 6,
+  "uncompressed_bytes": 13264720,
+  "archive_sha256": "82f9ccbc709bbcbc1e9b50c9a8b270946e58bddf9f238e3dbf4e81060aa15ad7",
+  "archive_bytes": 2315448,
+  "all_archived_bytes_reverified": true,
+  "files": [
+    {
+      "path": "INFRASTRUCTURE-INTERRUPTION.json",
+      "size": 679,
+      "sha256": "7a0b88d6b75cc138e7320b5e23ed3c440cf7fdb5635b8dc09c1e9e477b4d9f03"
+    },
+    {
+      "path": "RESULT.json",
+      "size": 2429,
+      "sha256": "485c2d61e5901cdea599d270c505a52856e5edddea47bc75863a7c3e923ea368"
+    },
+    {
+      "path": "SOURCE-INPUTS.json",
+      "size": 13202117,
+      "sha256": "83cfc1d76a017b99169d278dfc032d5b06bb6560c6337e1034cb70a7fbf9762f"
+    },
+    {
+      "path": "format.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "toolchain.log",
+      "size": 574,
+      "sha256": "19ad56402dbf0643bd2f90943e3d0cbb386ef5eead53310511fba09723017c94"
+    },
+    {
+      "path": "workspace.log",
+      "size": 58921,
+      "sha256": "d8cd1fabbef1ebe04f9dbc2abc9eabc21c815b14084dd87a4cbe0c55dd22347b"
+    }
+  ]
+}

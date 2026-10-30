@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "reviewer": "/root/language_parallel",
+  "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "covered_tasks": [
+    "218",
+    "220",
+    "221"
+  ],
+  "reviews": {
+    "218": {
+      "path": "REVIEW-218.json",
+      "sha256": "2a38792027cbae78b45882f5b84a82f569045ec13dbce0e8bb0e3845933f82a0",
+      "verdict": "Pass"
+    },
+    "220": {
+      "path": "REVIEW-220.json",
+      "sha256": "4ca0cd79c42642dadab03dcd083581bd2d7032b0f00b5f0a8dc2d9b3fda16fb2",
+      "verdict": "Pass"
+    },
+    "221": {
+      "path": "REVIEW-221.json",
+      "sha256": "379c6c18386dad83409c3796a539d8066268a897590b53f58f513b044cc4f202",
+      "verdict": "Pass"
+    }
+  },
+  "summary": {
+    "path": "SUMMARY.md",
+    "sha256": "eabcf1d226998fe16eedf22ef286dfe0410160d8edc69039cb5b3e9ea1d3ff77"
+  },
+  "archive": {
+    "path": "raw-evidence.tar.gz",
+    "bytes": 2115854,
+    "sha256": "627b2a47fe2f88ead1cb9ccf1f1238cca207e57574e21ec2ac42d27693f2b26c",
+    "file_count": 1069,
+    "manifest_sha256": "5868471ba0ecfd38e26b8ba858b2ff1d3c2fe2a082cd6b51a255dd371b0c3a94"
+  },
+  "counting": "new12source/10native/9kernel plus separately identified existing-oracle replay; no original author or provisional execution counts imported",
+  "root_formal_workspace": "separate CI result required; reviewer does not certify an unexecuted full workspace",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "native_windows": "NotRun"
+}

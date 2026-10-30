@@ -1,0 +1,108 @@
+[
+  {
+    "label": "grouped-alias-trace",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/targets/219/debug/zil",
+      "check",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-trace/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-trace/phases",
+      "--json"
+    ],
+    "start": 1793338736.1748652,
+    "end": 1793338736.1941953,
+    "exit_code": 0,
+    "status": "Success",
+    "phase": "verify",
+    "diagnostics": [],
+    "selection": {
+      "profile": "ConfigReady-scalar219",
+      "steps": 24,
+      "nodes": 328,
+      "selections": [
+        {
+          "module": 0,
+          "condition": {
+            "file": 0,
+            "start": 15,
+            "end": 30
+          },
+          "selected_then": true,
+          "steps": 24,
+          "nodes": 42,
+          "dependencies": []
+        }
+      ]
+    },
+    "stdout_sha256": "d6082ab0b7acfb8df6ee811120e590288e9d4d1c637275f003cb22e7309d78f8",
+    "cli_sha256_after": "697a1c445d9429e62b55714dc61130d19a9eb83259db42565d7f111aec57b0c8"
+  },
+  {
+    "label": "grouped-alias-generated",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/targets/219/debug/zil",
+      "check",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-generated/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-generated/phases",
+      "--json"
+    ],
+    "start": 1793338736.2444701,
+    "end": 1793338736.2574265,
+    "exit_code": 1,
+    "status": "SafeReject",
+    "phase": "ct",
+    "diagnostics": [
+      {
+        "phase": "ct",
+        "category": "SafeReject",
+        "code": "E-UNKNOWN-NAME",
+        "message": "unknown function leaf",
+        "span": {
+          "file": 1,
+          "start": 83,
+          "end": 87
+        },
+        "notes": [
+          "while compiling a pure #(...) query"
+        ]
+      }
+    ],
+    "selection": null,
+    "stdout_sha256": "9f0418889317e3903c18b3e227a1ed2d508507d66f65f031f270e17183052a41",
+    "cli_sha256_after": "697a1c445d9429e62b55714dc61130d19a9eb83259db42565d7f111aec57b0c8"
+  },
+  {
+    "label": "grouped-alias-runtime-shadow",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/targets/219/debug/zil",
+      "check",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-runtime-shadow/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-runtime-shadow/phases",
+      "--json"
+    ],
+    "start": 1793338736.3054485,
+    "end": 1793338736.3184826,
+    "exit_code": 1,
+    "status": "SafeReject",
+    "phase": "ct",
+    "diagnostics": [
+      {
+        "phase": "ct",
+        "category": "SafeReject",
+        "code": "E-CT-FORBIDDEN",
+        "message": "#if condition cannot read a receiving runtime parameter or local",
+        "span": {
+          "file": 0,
+          "start": 51,
+          "end": 54
+        },
+        "notes": []
+      }
+    ],
+    "selection": null,
+    "stdout_sha256": "f59ce4c72d989ed4e50e622873586249c5b4f4dc60f3b1a59fa1603575d43e1f",
+    "cli_sha256_after": "697a1c445d9429e62b55714dc61130d19a9eb83259db42565d7f111aec57b0c8"
+  }
+]

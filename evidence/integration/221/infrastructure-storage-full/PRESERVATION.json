@@ -1,0 +1,40 @@
+{
+  "status": "InfrastructureFailure",
+  "source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "full_workspace_pass": false,
+  "original_receipts_and_logs_complete": true,
+  "temporary_native_binaries_uploaded_to_git": false,
+  "files": [
+    {
+      "name": "RESULT.json",
+      "size": 2678,
+      "sha256": "f4d8a703fe2e1039d5cca2bded20d3647caa0fc1706deeba98b38ac691a04eea"
+    },
+    {
+      "name": "SOURCE-INPUTS.json",
+      "size": 13202117,
+      "sha256": "83cfc1d76a017b99169d278dfc032d5b06bb6560c6337e1034cb70a7fbf9762f"
+    },
+    {
+      "name": "format.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "toolchain.log",
+      "size": 574,
+      "sha256": "19ad56402dbf0643bd2f90943e3d0cbb386ef5eead53310511fba09723017c94"
+    },
+    {
+      "name": "workspace.log",
+      "size": 161951,
+      "sha256": "3373ddc72b81f76081ab6d4e1458e88a3b3b9b227e64c481f2c6d6d5fd12f1d3"
+    }
+  ],
+  "failure": "17 impl194 tests failed with StorageFull/E-ARTIFACT-IO after the sandbox volume reached zero free bytes; this is not a language correctness result.",
+  "temporary_outputs": "Successful intermediate artifacts from incomplete runs released after recording hashes; never used as acceptance evidence",
+  "file_manifest": "temporary-native-manifest.json.gz",
+  "original_failure_logs": "workspace.log",
+  "failed_target_artifacts": "failed-target-native.tar.gz",
+  "source_manifest": "raw.tar.gz:SOURCE-INPUTS.json"
+}

@@ -1,0 +1,31 @@
+{
+  "status": "Pass",
+  "source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "tree": "cc9f3580cb2dcce2b51f037a37acb87b1d8365b2",
+  "git_status": "",
+  "command": [
+    "cargo",
+    "build",
+    "-p",
+    "zil-cli",
+    "--offline",
+    "-j",
+    "1"
+  ],
+  "target_dir": "/workspace/scratch/3cf12ce32e36/targets/review-factory69931",
+  "production_input_count": 200,
+  "production_input_manifest_sha256": "47dd377454034878d186a215d0bb0ae11795d1067b56f32a4e445173bcc622cf",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "llvm": "23.1.4",
+  "start": 1793363778.893814,
+  "build_jobs": 1,
+  "exit_code": 0,
+  "end": 1793363804.553129,
+  "head_after": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "git_status_after": "",
+  "production_inputs_unchanged": true,
+  "cli": "/workspace/scratch/3cf12ce32e36/targets/review-factory69931/debug/zil",
+  "build_stderr_sha256": "4cc18d2f8f7ac48740d10e402781e459402af8c66220e56f8c9f41580e35aa48",
+  "cli_sha256": "ad5154ba0dffacd6e96f33f55d2427719598afc5e9aad1f95bac0335bc6239e7",
+  "cli_bytes": 31953488
+}

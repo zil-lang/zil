@@ -1,0 +1,281 @@
+{
+  "reviewer": "/root/language_review_plan",
+  "review_role": "independent second view of task 219; not its author",
+  "primary_reviewer": "/root",
+  "candidate": "4b4ac10315a84429a5ad8f2b3a46810b2598f272",
+  "recommendation": "ReturnToAuthor",
+  "formal_verdict_owner": "/root",
+  "compiler": {
+    "path": "/workspace/scratch/3cf12ce32e36/targets/219/debug/zil",
+    "sha256": "697a1c445d9429e62b55714dc61130d19a9eb83259db42565d7f111aec57b0c8",
+    "receipt": "/workspace/scratch/3cf12ce32e36/recovery/219-validation-4b4ac10/compiler-build.json",
+    "receipt_sha256": "2b7de07f0f54ae0a27096cc01105590f1abce3547832f44a93b6446d024720e8",
+    "source_commit": "4b4ac10315a84429a5ad8f2b3a46810b2598f272",
+    "receipt_status": "Pass",
+    "per_probe_hash_checked_before_and_after": true,
+    "binary_copied": false
+  },
+  "author_tree_observed_after_probes": {
+    "commit": "efb25a3477d22f68d696bb1420fad6faa6e21aec",
+    "production_paths_changed_since_compiler_commit": [],
+    "note": "Documentation/evidence-only head advance does not relabel the frozen compiler run."
+  },
+  "authority": {
+    "task": ".task/impl/219.md",
+    "change": "changes/219-ct-selection.md",
+    "phase_dependency_requirement": "changes/219-ct-selection.md:11,56",
+    "exact_dependency_identity_requirement": "changes/219-ct-selection.md:60",
+    "immutable_snapshot_and_shared_budget": "changes/219-ct-selection.md:58,74"
+  },
+  "findings": [
+    {
+      "id": "219-grouped-import-resolution",
+      "status": "Reproduced",
+      "classification": "Frozen phase-diagnostic and dependency-provenance contract violation",
+      "location": "crates/zil-driver/src/ct_selection/context.rs:327-375 (Member.object guard at 347-349)",
+      "root_cause": "Dependencies::resolve unwraps Group around a whole expression, but requires a bare Name inside Member.object. Expand removes this Group at crates/zil-expand/src/lib.rs:924, so actual CT execution and the pre-execution dependency walk disagree.",
+      "manifestations": [
+        {
+          "probe": "grouped-alias-trace",
+          "source": "#if((cfg).choose(7)) with ordinary cfg.choose -> leaf",
+          "expected": "Success with precise choose and leaf declaration identities in selection.dependencies",
+          "actual": "Success, selected_then=true, steps=24, dependencies=[]"
+        },
+        {
+          "probe": "grouped-alias-generated",
+          "source": "Same condition, but cfg.leaf is emitted by #if(true)",
+          "expected": "SafeReject E-CT-PHASE-DEPENDENCY",
+          "actual": "SafeReject E-UNKNOWN-NAME at cfg leaf call span file=1,start=83,end=87"
+        }
+      ],
+      "nearest_controls": [
+        "ungrouped-alias-trace succeeds and records module 1 choose plus leaf, both source fingerprints matching cfg.zil; steps=24",
+        "grouped-alias-runtime-shadow rejects a selected/spliced runtime local cfg as E-CT-FORBIDDEN"
+      ],
+      "impact_limit": "No demonstrated unsafe CT execution, runtime-value admission, mutable-snapshot admission, or stale cache hit. The generated dependency still rejects. A missing trace alone does not establish cache poisoning because project fingerprint includes every ordinary imported module source.",
+      "repair_expectation": "Normalize semantically transparent Group nodes at the module-alias boundary with bounded charging, while preserving lexical runtime/local shadow, actual import identity, public visibility, and unavailable-declaration classification. Replay original probe bytes; do not relabel the old observations."
+    }
+  ],
+  "readonly_assessment": [
+    {
+      "area": "Selector execution safety",
+      "assessment": "choose sends the real query through the existing CT compiler/evaluator, requires a Bool result, and uses the frozen context. Existing CT source path independently verifies before VM execution. The observed gap is in pre-execution source dependency resolution.",
+      "code": [
+        "crates/zil-driver/src/ct_selection.rs:178-264",
+        "crates/zil-ct/src/source.rs:1404,1453"
+      ]
+    },
+    {
+      "area": "Immutable snapshot",
+      "assessment": "select freezes Context once before materializing output. Context only copies declarations classified Ready and retains original bodies; every Materializer borrows that same Context. Generated items remain indexed for diagnostics but do not enter the query CoreProgram. No new mutation path found in this read-only review.",
+      "code": [
+        "crates/zil-driver/src/ct_selection.rs:130-150",
+        "crates/zil-driver/src/ct_selection/context.rs:40-109,201-266"
+      ]
+    },
+    {
+      "area": "Lexical shadow",
+      "assessment": "The selected statement list is spliced without a new runtime scope; runtime bindings are carried to later conditions. The independent grouped-alias runtime-shadow probe passes. Helper-body visits use their own parameter/local scopes rather than inheriting receiving runtime locals.",
+      "code": [
+        "crates/zil-driver/src/ct_selection/materialize.rs:126-188",
+        "crates/zil-driver/src/ct_selection/context.rs:155-176,279-377"
+      ]
+    },
+    {
+      "area": "Cumulative budgets and cache",
+      "assessment": "Receipt stores logical CT steps/nodes and checked-subtracts them before later CT; project CT deducts per-module usage. Source, rules, all limits, build inputs, and relevant target are bound into raw query keys; project identity includes all imported source fingerprints. This was a code inspection only, with no fresh independent N/N-1 or same-process hot-cache run in this limited CLI task.",
+      "code": [
+        "crates/zil-driver/src/ct_selection.rs:35-87",
+        "crates/zil-driver/src/session.rs:256-327,557-601",
+        "crates/zil-driver/src/project.rs:295-341,628-659"
+      ]
+    }
+  ],
+  "execution_scope": {
+    "independent_compiler_probes": 4,
+    "oracle_matches": 2,
+    "oracle_mismatches": 2,
+    "successful_compiles": 2,
+    "safe_rejections": 2,
+    "native_runs": 0,
+    "full_suite_runs": 0,
+    "production_changes": 0,
+    "author_52_test_and_100_native_totals_reused_as_independent": false,
+    "same_process_cache_or_exact_budget_probe": false,
+    "infra_attempt": "One initial invocation lacked LD_LIBRARY_PATH and failed in the loader before compiler entry; preserved under infrastructure-first, excluded from 4 compiler probes."
+  },
+  "observations": [
+    {
+      "label": "grouped-alias-trace",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/219/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-trace/main.zil",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-trace/phases",
+        "--json"
+      ],
+      "start": 1793338736.1748652,
+      "end": 1793338736.1941953,
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "selection": {
+        "profile": "ConfigReady-scalar219",
+        "steps": 24,
+        "nodes": 328,
+        "selections": [
+          {
+            "module": 0,
+            "condition": {
+              "file": 0,
+              "start": 15,
+              "end": 30
+            },
+            "selected_then": true,
+            "steps": 24,
+            "nodes": 42,
+            "dependencies": []
+          }
+        ]
+      },
+      "stdout_sha256": "d6082ab0b7acfb8df6ee811120e590288e9d4d1c637275f003cb22e7309d78f8",
+      "cli_sha256_after": "697a1c445d9429e62b55714dc61130d19a9eb83259db42565d7f111aec57b0c8"
+    },
+    {
+      "label": "grouped-alias-generated",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/219/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-generated/main.zil",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-generated/phases",
+        "--json"
+      ],
+      "start": 1793338736.2444701,
+      "end": 1793338736.2574265,
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-UNKNOWN-NAME",
+          "message": "unknown function leaf",
+          "span": {
+            "file": 1,
+            "start": 83,
+            "end": 87
+          },
+          "notes": [
+            "while compiling a pure #(...) query"
+          ]
+        }
+      ],
+      "selection": null,
+      "stdout_sha256": "9f0418889317e3903c18b3e227a1ed2d508507d66f65f031f270e17183052a41",
+      "cli_sha256_after": "697a1c445d9429e62b55714dc61130d19a9eb83259db42565d7f111aec57b0c8"
+    },
+    {
+      "label": "grouped-alias-runtime-shadow",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/219/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-runtime-shadow/main.zil",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/grouped-alias-runtime-shadow/phases",
+        "--json"
+      ],
+      "start": 1793338736.3054485,
+      "end": 1793338736.3184826,
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-FORBIDDEN",
+          "message": "#if condition cannot read a receiving runtime parameter or local",
+          "span": {
+            "file": 0,
+            "start": 51,
+            "end": 54
+          },
+          "notes": []
+        }
+      ],
+      "selection": null,
+      "stdout_sha256": "f59ce4c72d989ed4e50e622873586249c5b4f4dc60f3b1a59fa1603575d43e1f",
+      "cli_sha256_after": "697a1c445d9429e62b55714dc61130d19a9eb83259db42565d7f111aec57b0c8"
+    },
+    {
+      "label": "ungrouped-alias-trace",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/219/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/ungrouped-alias-trace/main.zil",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/review219-kernel/ungrouped-alias-trace/phases",
+        "--json"
+      ],
+      "start": 1793338907.1409402,
+      "end": 1793338907.1696186,
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "selection": {
+        "profile": "ConfigReady-scalar219",
+        "steps": 24,
+        "nodes": 351,
+        "selections": [
+          {
+            "module": 0,
+            "condition": {
+              "file": 0,
+              "start": 15,
+              "end": 28
+            },
+            "selected_then": true,
+            "steps": 24,
+            "nodes": 42,
+            "dependencies": [
+              {
+                "module": 1,
+                "function": "choose",
+                "declaration": {
+                  "file": 1,
+                  "start": 34,
+                  "end": 76
+                },
+                "source": "17af824e1d4e38d01968226a4b3f146f8dcd71cd7ac449907a330eebcc6b81fb"
+              },
+              {
+                "module": 1,
+                "function": "leaf",
+                "declaration": {
+                  "file": 1,
+                  "start": 0,
+                  "end": 33
+                },
+                "source": "17af824e1d4e38d01968226a4b3f146f8dcd71cd7ac449907a330eebcc6b81fb"
+              }
+            ]
+          }
+        ]
+      },
+      "stdout_sha256": "03ad073e72134e5419df335e32581ef6241d7c14223a6faaeff4913c54326e63",
+      "cli_sha256_after": "697a1c445d9429e62b55714dc61130d19a9eb83259db42565d7f111aec57b0c8"
+    }
+  ],
+  "original_evidence": [
+    "FROZEN.json",
+    "FROZEN-CONTROL.json",
+    "OBSERVATIONS.json",
+    "ungrouped-alias-trace/observation.json",
+    "infrastructure-first/RESULT.json"
+  ]
+}

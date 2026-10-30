@@ -1,0 +1,74 @@
+{
+  "source_commit": "4d331dd6b321685ea575a132c05dfb03aa7758fc",
+  "tree": "4de02b00e5687df7e3a21f7b760bdca8083e40de",
+  "tree_clean_before_and_after": true,
+  "production_matches_checkpoint_F": true,
+  "original_review_input_bytes_unchanged": true,
+  "environment": {
+    "target_dir": "/workspace/scratch/3cf12ce32e36/targets/218",
+    "build_jobs": 1,
+    "offline": true
+  },
+  "runs": [
+    {
+      "label": "expand",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-expand",
+        "--test",
+        "impl218_factory",
+        "--offline",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.038,
+      "log": "/workspace/scratch/3cf12ce32e36/recovery/continue218/published-4d331dd/expand.log",
+      "log_sha256": "b1681fcc125226b41a788c8399da56d289cb6d1d211d981d7ace4f3f24ee72e3",
+      "test_results": [
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "label": "types-budget",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl218_factory_types",
+        "--test",
+        "impl218_factory_budget",
+        "--offline",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.164,
+      "log": "/workspace/scratch/3cf12ce32e36/recovery/continue218/published-4d331dd/types-budget.log",
+      "log_sha256": "465b46bd2619856ae8c4591396e919595b1c993e0be4f184cd2644ce686fc8b6",
+      "test_results": [
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+        "test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "label": "diff-check",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.06,
+      "log": "/workspace/scratch/3cf12ce32e36/recovery/continue218/published-4d331dd/diff-check.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "test_results": []
+    }
+  ],
+  "status": "Pass",
+  "scope": "Exact published author front-end replay only; independent combined source/raw/Wire/native review remains separate"
+}

@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/language_parallel",
+  "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "tested_source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "verdict": "Pass",
+  "source_identity": {
+    "tree": "cc9f3580cb2dcce2b51f037a37acb87b1d8365b2",
+    "clean_at_build_and_all_review_endpoints": true,
+    "cli_sha256": "ad5154ba0dffacd6e96f33f55d2427719598afc5e9aad1f95bac0335bc6239e7",
+    "cli_build_receipt_sha256": "f33914321225e3b58d9a7b3248e6be568ac63ab88403bf66931afabeff670953",
+    "production_input_count": 200,
+    "production_input_manifest_sha256": "47dd377454034878d186a215d0bb0ae11795d1067b56f32a4e445173bcc622cf",
+    "spec_hash": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+    "normative_hash": "e4bd2d0f939a205b01618c0d5ce53a8725549be093db2658272633021131e44d",
+    "normative_source": "current main task cards and source _zil_design.md §9.4.1",
+    "production_input_scope": "200 Cargo/toolchain/crate source files in the original pre/post manifest; tools/llvm/version.txt additionally audited in BUILD-INPUT-SUPPLEMENT.json; complete checkout HEAD and clean state bind the full tree.",
+    "llvm_version_input": {
+      "source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "path": "tools/llvm/version.txt",
+      "sha256": "78f2ccd8940c1e6bc812b09fdb7d917a66342d0b4991219e5dd7afc73bc46b36",
+      "git_blob": "025c331c937dc32aa79f5551fecc5e3d9e20163b",
+      "same_blob_as_original_2212505": true,
+      "value": "23.1.4",
+      "check": "This tracked build input is outside the 200-file Cargo/crates glob. Its version matches the actual native reports; hash was separately checked after review against the clean final Git tree. No pre-build separate file hash is claimed; full HEAD and clean status were checked before/after build."
+    }
+  },
+  "independence": {
+    "reviewer_authored_218_220_221_production": false,
+    "reviewer_authored_219_only": true,
+    "production_modified_by_reviewer": false,
+    "second_view": "/root/language_parallel/factory_boundary_review",
+    "second_view_authored_factory_production": false,
+    "review_source_tree_read_only": true
+  },
+  "joint_feature": "Single direct self-contained F owned by an ordinary factory and returned as one fresh grounded opaque environment; three components jointly reviewed at the same source commit.",
+  "review_executions": {
+    "new_source_checks": 12,
+    "new_native_runs": {
+      "parent_new_consumers": 8,
+      "original_finding_positive_replay": 2,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "implicit_backend_fallback": false
+    },
+    "new_actual_value_kernel_calls": {
+      "Analyze": 3,
+      "raw_Verify": 3,
+      "Wire_Verify": 3
+    },
+    "existing_oracle_replays": {
+      "front_budget_rust_tests": 3,
+      "fixed_front_budget_sources": 6,
+      "legacy_kernel_budget_sources": 3,
+      "existing221_rust_test_groups": 10,
+      "existing221_native_runs": 42,
+      "existing221_native_ordinary": 20,
+      "existing221_native_instrumented": 22,
+      "existing221_actual_allocation_failures": 6,
+      "all_final_live_zero": true
+    },
+    "counting": "All listed executions ran under this non-author review on699. Existing-oracle replay is identified separately from newly authored probes. Original author42, author219100 and provisional2212505 results are not included or added."
+  },
+  "closed_finding": {
+    "id": "factory-conditional-owned-transfer",
+    "original_commit": "2212505a667508dc9c7565cbab674c8e59700457",
+    "original": "Valid F:FnOnce moves through If result to a local inside a returned closure; Types misclassified captured consumption and rejected exact opaque kind. No unsafe acceptance was demonstrated.",
+    "original_records": [
+      "raw/second-view/FROZEN.json",
+      "raw/second-view/provisional-2212505/RESULT.json",
+      "raw/second-view/REVIEW.json"
+    ],
+    "repair_delivery": "4d331dd6b321685ea575a132c05dfb03aa7758fc",
+    "repair": "After original If arm inference and unification, prepay scope/name lookup and mark only actual owned declared-F capture transfers. Borrowed and unrelated old paths retain their classification.",
+    "final_result": "Original five source bytes/oracles all match on699; repaired positive runs O0/O2. Double invocation remains Expand rejection.",
+    "source_oracle_changed": false,
+    "final_record": "raw/second-view/final-69931/SECOND-VIEW.json",
+    "affected_component": "218 Types source closure inference"
+  },
+  "budget_controls": {
+    "front": {
+      "state": {
+        "case": "state",
+        "expand_work": 829,
+        "types_work": 1441,
+        "types_locals": 8,
+        "types_functions": 4,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      "opaque": {
+        "case": "opaque",
+        "expand_work": 3,
+        "types_work": 462,
+        "types_locals": 7,
+        "types_functions": 3,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      "helper": {
+        "case": "helper",
+        "expand_work": 586,
+        "types_work": 421,
+        "types_locals": 6,
+        "types_functions": 4,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      "conditional": {
+        "case": "conditional",
+        "expand_work": 818,
+        "types_work": 978,
+        "types_locals": 14,
+        "types_functions": 5,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      "forwarding": {
+        "case": "forwarding",
+        "expand_work": 1438,
+        "types_work": 1556,
+        "types_locals": 18,
+        "types_functions": 7,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      "owning": {
+        "case": "owning",
+        "expand_work": 724,
+        "types_work": 770,
+        "types_locals": 12,
+        "types_functions": 5,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      }
+    },
+    "legacy_kernel": [
+      {
+        "source": "helper",
+        "analyze": 1464,
+        "verify": 1908,
+        "verify_wire": 1908,
+        "typed_fingerprint": "2cd328ab833e6a9ec660e5b9f0de7d02daa47eb8a01eb68a9d369c23910fe7db",
+        "verified_fingerprint": "2cd328ab833e6a9ec660e5b9f0de7d02daa47eb8a01eb68a9d369c23910fe7db"
+      },
+      {
+        "source": "state",
+        "analyze": 4701,
+        "verify": 7043,
+        "verify_wire": 7043,
+        "typed_fingerprint": "d9c6a0845b39aaaebfa2c59b431828ecf743011bbd1e6b3e6f8cd14287c9a50e",
+        "verified_fingerprint": "d9c6a0845b39aaaebfa2c59b431828ecf743011bbd1e6b3e6f8cd14287c9a50e"
+      },
+      {
+        "source": "opaque",
+        "analyze": 3960,
+        "verify": 5479,
+        "verify_wire": 5479,
+        "typed_fingerprint": "3072e47cd099b6c4ed1d8d37dda33ecd3fd32eb695c4b4a8c858e549b683943e",
+        "verified_fingerprint": "3072e47cd099b6c4ed1d8d37dda33ecd3fd32eb695c4b4a8c858e549b683943e"
+      }
+    ],
+    "new_source_derived_Verify": {
+      "raw": 16559,
+      "wire": 16559,
+      "N_minus_1": "ResourceLimit",
+      "fresh_N": "same fingerprint"
+    },
+    "checks": "N / N-1 / fresh N executed; three old source hashes, Core/Typed bytes and frontend thresholds match archived63b records; Analyze/raw/Wire thresholds and fingerprints equal frozen old baseline. Current review did not rebuild the historical compiler. Default limits and product gates unchanged."
+  },
+  "evidence": {
+    "archive": "raw-evidence.tar.gz",
+    "manifest": "RAW-FILES.json",
+    "records": [
+      {
+        "path_in_archive": "raw/final-69931-build/BUILD.json",
+        "sha256": "f33914321225e3b58d9a7b3248e6be568ac63ab88403bf66931afabeff670953"
+      },
+      {
+        "path_in_archive": "raw/final-69931-build/BUILD-INPUTS.json",
+        "sha256": "47dd377454034878d186a215d0bb0ae11795d1067b56f32a4e445173bcc622cf"
+      },
+      {
+        "path_in_archive": "raw/final-69931-native/RESULT.json",
+        "sha256": "dae7f9559d72b6a1f5e69fe324b3e9e0e68e483f83cd1498eb9efbbed429b782"
+      },
+      {
+        "path_in_archive": "raw/second-view/final-69931/SECOND-VIEW.json",
+        "sha256": "f5fe28064f8900d79ad6fc2272f59422accae78c50c1dbaa0b433f4a70166954"
+      },
+      {
+        "path_in_archive": "raw/second-view/final-69931/cli/RESULT.json",
+        "sha256": "251019ae4927d6c3ef92af4218adc3878ef8715ec82b2b59c78cfe208c63efe6"
+      },
+      {
+        "path_in_archive": "raw/second-view/final-69931/raw/RUN.json",
+        "sha256": "4e61aed507db4168666944eae9d291a6a6c5b4a47a850f68c59da9d8faaef9ef"
+      },
+      {
+        "path_in_archive": "raw/final-69931-front-budgets/COMPARISON.json",
+        "sha256": "20a0c227e7ac99454cbbe36bf77b4c4864de3a80f6da2bbee7f971ea259e0ccc"
+      },
+      {
+        "path_in_archive": "raw/final-69931-legacy-budgets/RESULT.json",
+        "sha256": "baef4cd82849cb3ead50086e2c85e2794efc749cac6a03a6c178211c48c3bd59"
+      },
+      {
+        "path_in_archive": "raw/final-69931-legacy-budgets/boundaries.json",
+        "sha256": "b992015da860f334f64d284a7c70424ecebabefa368dea10a52ff943a4781b30"
+      },
+      {
+        "path_in_archive": "raw/final-69931-existing221-replay/RESULT.json",
+        "sha256": "bb290be73827d4859bb853289d556e5fe11cee26521a01b1450573286b28e99a"
+      },
+      {
+        "path_in_archive": "raw/final-69931-existing221-replay/REPLAY-SUMMARY.json",
+        "sha256": "0ba2feda7ee061703fe3a211116499bae4b4db8d3de59c56560c212f09ce38d3"
+      },
+      {
+        "path_in_archive": "raw/kernel-budget-replay.json",
+        "sha256": "fea2bfbcf4e74b5ea1cba673e5a06686dae95b61e275fb4f6ddfa97bb4c3ada3"
+      },
+      {
+        "path_in_archive": "raw/front-budget-replay.json",
+        "sha256": "c67094cd8045c4cbc454956f2239bc87cbf7d297880f768bf81019fef08f5ee3"
+      },
+      {
+        "path_in_archive": "raw/existing221-oracle-replay.json",
+        "sha256": "0bde257582cea44e8b9771060e9a8e893dbafbe33db3195583695c2f9bc62279"
+      },
+      {
+        "path_in_archive": "raw/final-69931-build/BUILD-INPUT-SUPPLEMENT.json",
+        "sha256": "7d4f931eb8a850e5aca5165be08972a9379635adc9363777a3443d8dc1a04cdf"
+      }
+    ],
+    "archive_metadata": {
+      "path": "raw-evidence.tar.gz",
+      "bytes": 2115854,
+      "sha256": "627b2a47fe2f88ead1cb9ccf1f1238cca207e57574e21ec2ac42d27693f2b26c",
+      "file_count": 1069,
+      "manifest_sha256": "5868471ba0ecfd38e26b8ba858b2ff1d3c2fe2a082cd6b51a255dd371b0c3a94"
+    }
+  },
+  "limitations": {
+    "formal_full_workspace": "Run separately by root; not part of reviewer execution",
+    "full_language": "NotSatisfied",
+    "product_gates": "NotRun",
+    "native_windows": "NotRun",
+    "performance_or_Rust_superiority": "NotMeasured",
+    "zui_framework": "NotDeveloped",
+    "scope_exclusions": [
+      "direct F passthrough",
+      "multiple F or hidden State inputs",
+      "dynamic erasure",
+      "borrowed F retention",
+      "general lending roots",
+      "unwind/cancel or concurrent ownership"
+    ]
+  },
+  "fixture_and_infrastructure_notes": [
+    "Original parent lazy-or-call fixture used unsafe as an expression; its Parse failure and source remain. A separately frozen ordinary read wrapper keeps the same stdout/exit oracle.",
+    "Root reported disk pressure during its full suite. Review waited before starting new work, then completed with strip=symbols on private Cargo replay targets. No reviewer execution returned ENOSPC. Completed private caches were later removed; all source/receipts/native artifacts and distributed CLI remain."
+  ],
+  "completed_at_utc": "2026-10-30T12:45:48.150080+00:00",
+  "task": "221",
+  "implementation_author": "/root/language_review_plan",
+  "scope": "Independent Verify raw/Wire boundary and executable representation/cleanup for the finite ordinary owning factory; exact return contract, real value responsibility, inline environments, consuming/error exits, parameter preparation and every actual allocation failure in the fixed Store/prepare consumers.",
+  "review_findings": [
+    "Read retained envelope and body checks, helpers independent classification, closure layout/self-containment checks and subsequent resource/borrow verification; production dependencies remain only zil-base/zil-ir, with no Types or Analyze proving call.",
+    "Independent actual-value duplicate rejects raw and Wire as E-VERIFY-RESOURCE using actual candidate fingerprints; distinct-value swap passes after ordinary candidate reconstruction.",
+    "New source consumers execute eight O0/O2 runs and the original repaired condition case two additional runs, with exact stdout/exit and no backend fallback.",
+    "Fresh non-author replay of committed221 oracles executes10 test groups/42 native runs including6 real allocation failures, all final live0. This repeats the design oracle on final699 and does not import author results.",
+    "Legacy raw/Wire budgets1908/7043/5479 and verified identities remain fixed; new source-derived raw/Wire N16559 retains N-1 ResourceLimit and fresh identical fingerprint."
+  ]
+}

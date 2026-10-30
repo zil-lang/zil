@@ -1,0 +1,118 @@
+{
+  "source_commit": "dfaecfb0fd92f093f74857136af6baca9d17144b",
+  "tree_clean_before": true,
+  "tree_clean_after": true,
+  "production_matches_checkpoint_E": true,
+  "environment": {
+    "cargo_target_dir": "/workspace/scratch/3cf12ce32e36/targets/218",
+    "env_script": "/workspace/scratch/3cf12ce32e36/recovery/zil-env.sh",
+    "build_jobs": 1,
+    "offline": true
+  },
+  "runs": [
+    {
+      "label": "expand",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-expand",
+        "--test",
+        "impl218_factory",
+        "--offline",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.016,
+      "log": "/workspace/scratch/3cf12ce32e36/recovery/continue218/published-dfaecfb/expand.log",
+      "log_sha256": "58efe4bd60f7e549f564d13863fe025d0587830bb66e4eee350328e5a46df4fc",
+      "test_results": [
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "label": "types-budget",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl218_factory_types",
+        "--test",
+        "impl218_factory_budget",
+        "--offline",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.172,
+      "log": "/workspace/scratch/3cf12ce32e36/recovery/continue218/published-dfaecfb/types-budget.log",
+      "log_sha256": "291e0195f1d59b4a38e4de5ba5c51b3c65ce67d19eb700d3576c71065f3fa5e1",
+      "test_results": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+        "test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s"
+      ]
+    },
+    {
+      "label": "legacy-copy",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl194_copy_callable",
+        "uninstantiated_templates_do_not_gain_numeric_member_or_forged_capabilities",
+        "--offline",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.023,
+      "log": "/workspace/scratch/3cf12ce32e36/recovery/continue218/published-dfaecfb/legacy-copy.log",
+      "log_sha256": "5d6537f7347df9b3a74808e5e8801d37bf6075edb6a5ea2137d123c3ba047498",
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 18 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "label": "legacy-state",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_state_source",
+        "uncalled_definitions_and_closed_owning_shapes_do_not_gain_permissions",
+        "--offline",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.033,
+      "log": "/workspace/scratch/3cf12ce32e36/recovery/continue218/published-dfaecfb/legacy-state.log",
+      "log_sha256": "0d140a129e061805a096d6673b089195004b51c7a819fef7653153e1f6f3515a",
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.02s"
+      ]
+    },
+    {
+      "label": "diff-check",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.052,
+      "log": "/workspace/scratch/3cf12ce32e36/recovery/continue218/published-dfaecfb/diff-check.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "test_results": []
+    }
+  ],
+  "status": "Pass",
+  "acceptance": "Limited front-end author replay only; no full-workspace, independent-review or native-cleanup claim"
+}
