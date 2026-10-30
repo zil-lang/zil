@@ -159,7 +159,7 @@ fn global_functions(executable: &Path) -> BTreeSet<String> {
 }
 
 #[test]
-fn closed_executable_keeps_results_exports_and_parallel_units() {
+fn closed_executable_keeps_results_exports_and_reports_effective_units() {
     let directory = Directory::new();
     let (verified, lir) = fixture(false);
     let public_ir = emit_with_options(
@@ -195,30 +195,37 @@ fn closed_executable_keeps_results_exports_and_parallel_units() {
                 );
                 assert_eq!(
                     artifact.codegen.actual_units,
-                    if units == 1 { 1 } else { 3 }
+                    if units == 1 || closed { 1 } else { 3 }
+                );
+                assert_eq!(artifact.codegen.requested_units, units);
+                assert_eq!(
+                    artifact.codegen.jobs,
+                    if units == 1 || closed { 1 } else { 2 }
+                );
+                assert_eq!(
+                    artifact.codegen.fallback.as_deref(),
+                    if closed && units > 1 {
+                        Some("small optimized closed executable")
+                    } else {
+                        None
+                    }
                 );
                 assert_eq!(artifact.codegen.closed_executable, closed);
                 assert_eq!(
                     artifact.codegen.internalized_functions,
-                    if closed {
-                        if units == 1 { 3 } else { 2 }
-                    } else {
-                        0
-                    }
+                    if closed { 3 } else { 0 }
                 );
                 let expected = if !closed {
                     vec!["zil.fn.0", "zil.fn.1", "zil.fn.2"]
-                } else if units == 1 {
-                    vec![]
                 } else {
-                    vec!["zil.fn.1"]
+                    vec![]
                 };
                 assert_eq!(
                     global_functions(&artifact.executable),
                     expected.into_iter().map(str::to_owned).collect()
                 );
                 assert_eq!(fs::read_to_string(&artifact.llvm_ir).unwrap(), public_ir);
-                if backend == NativeBackend::Clang && units == 1 && closed {
+                if backend == NativeBackend::Clang && closed {
                     assert!(
                         artifact.commands[0]
                             .iter()
@@ -249,10 +256,8 @@ fn closed_executable_keeps_results_exports_and_parallel_units() {
             assert!(run.status.success());
             assert_eq!(run.stdout, b"99\n");
             assert!(run.stderr.is_empty());
-            assert_eq!(
-                artifact.codegen.actual_units,
-                if units == 1 { 1 } else { 3 }
-            );
+            assert_eq!(artifact.codegen.actual_units, 1);
+            assert_eq!(artifact.codegen.requested_units, units);
         }
     }
     // Entry wrappers in the public emitter are also used by external harnesses.
@@ -267,6 +272,30 @@ fn closed_executable_keeps_results_exports_and_parallel_units() {
             assert!(ir.contains(&format!("define i32 @zil.fn.{id}(")));
             assert!(!ir.contains(&format!("define internal i32 @zil.fn.{id}(")));
         }
+    }
+}
+
+#[test]
+fn cp14_small_closed_o2_cannot_bypass_invalid_codegen_options() {
+    let directory = Directory::new();
+    let (verified, lir) = fixture(false);
+    let executable = directory.0.join("previous-program");
+    fs::write(&executable, b"previous executable").unwrap();
+    for (units, jobs) in [(0, 2), (65, 2), (8, 0), (8, 65)] {
+        let mut options = options(&executable);
+        options.closed_executable = true;
+        options.codegen.units = units;
+        options.codegen.jobs = jobs;
+        let diagnostics = build(&verified, &lir, &options).unwrap_err();
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E-CODEGEN-OPTIONS");
+        assert_eq!(fs::read(&executable).unwrap(), b"previous executable");
+        // Keep the existing rejection order when two configurations are wrong.
+        options.emit.entry = EntryPoint::None;
+        let diagnostics = build(&verified, &lir, &options).unwrap_err();
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E-LINK-ENTRY");
+        assert_eq!(fs::read(&executable).unwrap(), b"previous executable");
     }
 }
 
