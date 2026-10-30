@@ -1,0 +1,170 @@
+{
+  "scope": "Synthetic validation controls only; no real compiler or native program run and no performance result",
+  "implementation_commit": "8bb908a8c7187d0206d75fb44a6d4aaed2abdd32",
+  "results": [
+    {
+      "control": "valid synthetic combined-mode full sequence",
+      "result": "Pass",
+      "rows": 48
+    },
+    {
+      "control": "wrong-query-state-cold_process",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "wrong-query-state-unchanged",
+      "request": "unchanged",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "wrong-query-state-private_edit",
+      "request": "private_edit",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "wrong-query-state-public_edit",
+      "request": "public_edit",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "missing-store",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "query-not-requested",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "query-bypass",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "query-write-failure",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "query-identity-failure",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "invalid-key",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "negative-usage",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "boolean-usage",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "float-usage",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "missing-query-report",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "missing-query-usage",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "unchanged-unexpected-store",
+      "request": "unchanged",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "closed-mode-ignored",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "closed-mode-absent",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "closed-count-absent",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "closed-count-boolean",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "closed-count-negative",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "no-current-verify",
+      "request": "unchanged",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "double-current-verify",
+      "request": "unchanged",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "string-current-verify",
+      "request": "unchanged",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "timings-enabled",
+      "request": "cold_process",
+      "result": "Pass: invalid report receives no score"
+    },
+    {
+      "control": "malformed-plan-mode",
+      "query_cache": 1,
+      "closed_executable": false,
+      "result": "Pass: rejected"
+    },
+    {
+      "control": "malformed-plan-mode",
+      "query_cache": false,
+      "closed_executable": 1,
+      "result": "Pass: rejected"
+    },
+    {
+      "control": "malformed-plan-mode",
+      "query_cache": "true",
+      "closed_executable": false,
+      "result": "Pass: rejected"
+    },
+    {
+      "control": "malformed-plan-mode",
+      "query_cache": false,
+      "closed_executable": "false",
+      "result": "Pass: rejected"
+    },
+    {
+      "control": "malformed-plan-mode",
+      "query_cache": null,
+      "closed_executable": false,
+      "result": "Pass: rejected"
+    },
+    {
+      "control": "query-cache-in-cold-mode",
+      "result": "Pass: rejected"
+    }
+  ]
+}

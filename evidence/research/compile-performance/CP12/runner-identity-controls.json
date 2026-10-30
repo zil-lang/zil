@@ -1,0 +1,38 @@
+{
+  "scope": "Private copies of frozen plan; original plan/binaries/logs unchanged; no compiler/native runs",
+  "implementation_commit": "8bb908a8c7187d0206d75fb44a6d4aaed2abdd32",
+  "results": [
+    {
+      "change": "query_cache",
+      "value": false,
+      "rejected": true,
+      "message": "Matching complete successful raw preflight required"
+    },
+    {
+      "change": "closed_executable",
+      "value": true,
+      "rejected": true,
+      "message": "Matching complete successful raw preflight required"
+    },
+    {
+      "change": "schema",
+      "rejected": true,
+      "message": "Frozen runner/schema changed"
+    },
+    {
+      "change": "runner",
+      "rejected": true,
+      "message": "Frozen runner/schema changed"
+    },
+    {
+      "change": "helper",
+      "rejected": true,
+      "message": "Frozen helper changed: tools/research/compile-performance/bench.py"
+    },
+    {
+      "change": "binary",
+      "rejected": true,
+      "message": "Frozen toolchain changed: /workspace/scratch/ac5966c4c370/binaries/cp12-397bf24fe"
+    }
+  ]
+}
