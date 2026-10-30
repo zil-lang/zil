@@ -2,6 +2,8 @@
 //! presumed numeric, Copy, or equipped with members because one instance is.
 use super::*;
 use loop_control::BlockFlow;
+#[path = "generic_factory.rs"]
+mod factory;
 
 pub(super) struct ParametricTables<'a, 'l> {
     pub nominals: &'a BTreeMap<String, &'l Item>,
@@ -59,6 +61,9 @@ pub(super) fn validate_parametric<'l>(
         package_slots: BTreeMap::new(),
         loops: Vec::new(),
         aliases: state_aliases::Tracker::default(),
+        factory_scopes: Vec::new(),
+        factory_values: BTreeMap::new(),
+        factory_return_identity: None,
         nominals,
         enums,
         signatures,
@@ -72,6 +77,9 @@ pub(super) fn validate_parametric<'l>(
             .unwrap_or_else(|| unit(function.span)),
         budget,
     };
+    if check.callable.as_ref().is_some_and(|bounds| bounds.owned_factory) {
+        check.factory_header(function)?;
+    }
     if let Some(profile) = check.callable.as_ref().and_then(|b| b.state_replacement) {
         check.state_replacement_header(function, profile)?;
     }
@@ -141,7 +149,10 @@ pub(super) fn validate_parametric<'l>(
                 parameter.span,
                 "generic give parameter requires a direct Store carrier or a concrete resource in a callable helper",
             ));
-        } else if parameter.give && check.two_input_state_constructor() {
+        } else if parameter.give
+            && (check.two_input_state_constructor()
+                || check.callable.as_ref().is_some_and(|bounds| bounds.owned_factory))
+        {
             state
                 .locals
                 .get_mut(&parameter.name)
@@ -387,6 +398,9 @@ struct Check<'s, 'b, 'l> {
     package_slots: BTreeMap<(usize, String), usize>,
     loops: Vec<loop_control::LoopFrame>,
     aliases: state_aliases::Tracker,
+    factory_scopes: Vec<factory::Scope>,
+    factory_values: BTreeMap<usize, Span>,
+    factory_return_identity: Option<Span>,
     nominals: &'s BTreeMap<String, &'l Item>,
     enums: &'s BTreeMap<String, &'l EnumDecl>,
     signatures: &'s BTreeMap<String, Cow<'l, Function>>,
@@ -734,6 +748,11 @@ impl Check<'_, '_, '_> {
         let fresh = owns && self.fresh_store_expression(expression, state)?;
         let expected = self.result.clone();
         let actual = self.expr(expression, state, Some(&expected), false)?;
+        if self.factory_scopes.is_empty()
+            && self.callable.as_ref().is_some_and(|bounds| bounds.owned_factory)
+        {
+            self.factory_result_identity(expression, state)?;
+        }
         if let Some((error_type, _)) = stores::success(&expected)
             && type_key(&actual, self.budget)? == type_key(error_type, self.budget)?
         {
@@ -1572,6 +1591,10 @@ impl Check<'_, '_, '_> {
                 let id = ty.id;
                 self.budget.ty(&ty.ty)?;
                 let ty = ty.ty.clone();
+                if !self.factory_scopes.is_empty() {
+                    let consumes = !borrowing && !self.known_copy(&ty)?;
+                    self.factory_use(id, false, consumes, e.span)?;
+                }
                 if state.moved.contains(&id) {
                     return Err(error(
                         e.span,
@@ -1827,6 +1850,7 @@ impl Check<'_, '_, '_> {
                         ..
                     }
                 );
+                self.factory_place(operand, state, mutable)?;
                 let (inner, writable) = self.place(operand, state)?;
                 if let Some(slot) = self.existing_field_slot(operand, state)?
                     && state.moved.contains(&slot)
@@ -2136,7 +2160,7 @@ impl Check<'_, '_, '_> {
                             "generic callable parameter requires a Fn bound",
                         ));
                     };
-                    let owned_state = bounds.owned_state;
+                    let owned_state = bounds.owned_state || bounds.owned_factory;
                     let bound = bounds.bindings().find(|bound| {
                         callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
                     });
@@ -2176,6 +2200,12 @@ impl Check<'_, '_, '_> {
                             "generic callable used after its environment was consumed",
                         ));
                     }
+                    self.factory_use(
+                        local.id,
+                        kind == zil_ir::CallableKind::FnMut,
+                        kind == zil_ir::CallableKind::FnOnce,
+                        callee.span,
+                    )?;
                     self.alias_use_local(state, local.id, callee.span)?;
                     match kind {
                         zil_ir::CallableKind::Fn => {}
@@ -2583,6 +2613,11 @@ impl Check<'_, '_, '_> {
                 }
                 Ok(ty)
             }
+            ExprKind::Closure { move_capture, params, return_type, body }
+                if self.callable.as_ref().is_some_and(|bounds| bounds.owned_factory) =>
+            {
+                self.factory_closure(*move_capture, params, return_type.as_ref(), body, expected, state, e.span)
+            }
             _ => Err(unsupported(
                 e.span,
                 "this generic expression requires additional symbolic checking",
@@ -2776,6 +2811,7 @@ impl Check<'_, '_, '_> {
                         same(&actual, ty, statement.span, self.budget)?;
                     }
                     self.bind_local(state, n.clone(), ty.clone().unwrap_or(actual))?;
+                    self.factory_bind_value(state.locals[n].id, value, state)?;
                     self.alias_bind(state, state.locals[n].id, statement.span)?;
                     let local = state.locals.get_mut(n).expect("just bound");
                     local.mutable = *mutable;
@@ -2808,6 +2844,7 @@ impl Check<'_, '_, '_> {
                     }
                 }
                 StmtKind::Assign { target, op, value } => {
+                    self.factory_place(target, state, true)?;
                     let (ty, writable) = self.assignment_place(target, state)?;
                     if stores::success(&ty).is_some() {
                         return Err(unsupported(
@@ -2912,6 +2949,12 @@ impl Check<'_, '_, '_> {
                     }
                 }
                 StmtKind::Return(value) => {
+                    if !self.factory_scopes.is_empty() {
+                        self.factory_body_return(value.as_ref(), state, statement.span)?;
+                        flow.fallthrough = false;
+                        flow.returns = true;
+                        continue;
+                    }
                     let expected = self.result.clone();
                     let actual = match value {
                         Some(e) => self.return_expression(e, state)?,
