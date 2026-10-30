@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "experiment": "CP12/CP13 Rust runner schema/2 extension",
+  "implementation_commit": "8bb908a8c7187d0206d75fb44a6d4aaed2abdd32",
+  "implementation_parent": "ac17cdfc067d55a33e7beff34970e1ef3dba92dd",
+  "implementation_author": "/root/benchmark_audit",
+  "reviewer": "/root/llvm_strategy",
+  "verdict": "Pass",
+  "reviewed_source_sha256": {
+    "tools/research/compile-performance/rust_bench.py": "751b3c273b99a62cce8aa33819066c34b1c148a3d293c27277e72235d889c832",
+    "tools/research/compile-performance/test_rust_bench.py": "6a16038a6d30ca6f3350d32ffbac50f6408de997877a3a13af7a9adc3fdb1fc9"
+  },
+  "scope": "Exact runner/source review, synthetic failure/scoring controls, and independent revalidation of the already-built small real preflight; no real compilation or scored timing in this review",
+  "static_findings": [
+    "Schema/2 freezes explicit boolean query_cache and closed_executable in the plan and summary. Load rejects older schema/runner identity. Query-cache cannot be combined with the compiler-cache-cold profile.",
+    "Only ZIL command construction receives the new flags. Rust native CGU options and existing target/overflow/panic/bitcode flags retain their previous behavior. Cache roots are within each fresh sequence work directory.",
+    "Actual compiler JSON is read at build and reread from hashed raw stdout during summary validation; row pass=true or an edited copied report alone cannot override requested mode checks.",
+    "Requested query mode requires cold/private/public miss plus successful store, unchanged hit without store, no fallback/write-failure reason, a valid key and nonnegative integer CT work records. Disabled-mode compatibility permits old reports without the new fields.",
+    "Closed mode requires the actual reported boolean and an explicit nonnegative integer changed-definition count; ignored/absent mode, absent count and malformed count are rejected. Zero changed definitions is valid for a conservative cross-unit graph.",
+    "Existing Verify-count and timings checks, source snapshots, full oracle checks, plan/record/log/executable hashes and completion coverage remain in the scoring path. Complete successful preflight remains mandatory for build and runtime scoring.",
+    "Tool invocation aliases, resolved paths/symlink targets, candidate linker resolution and extra dependency identities retain the previous frozen-identity logic; this extension does not weaken it."
+  ],
+  "validation": {
+    "author_controls_independently_rerun": {
+      "passed": 21,
+      "failed": 0,
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/research/compile-performance",
+        "-p",
+        "test_rust_bench.py",
+        "-v"
+      ],
+      "log": "runner-author-controls-independent.log"
+    },
+    "independent_controls": {
+      "passed": 32,
+      "script": "runner-independent-controls.py",
+      "result": "runner-independent-results.json",
+      "valid_synthetic_combined_mode_rows": 48,
+      "invalid_report_no_score_controls": 25,
+      "malformed_or_disallowed_plan_mode_controls": 6,
+      "method": "Both actual compiler and native execution are mocked. For invalid reports the outer raw-log, records and completion hashes are deliberately kept consistent, forcing the score refusal to inspect report semantics. Every refusal omits wall/cpu/bootstrap score fields."
+    },
+    "independent_identity_controls": {
+      "passed": 6,
+      "result": "runner-identity-controls.json",
+      "includes": [
+        "flip query-cache mode against prior raw preflight",
+        "flip closed-executable mode against prior raw preflight",
+        "old schema",
+        "runner hash drift",
+        "helper hash drift",
+        "compiler hash drift"
+      ],
+      "method": "Only private copies of the frozen plan are changed; original source/binary/log artifacts remain unchanged."
+    },
+    "real_preflight": {
+      "author_evidence_commit": "bf09038f69c5ff4460372707de94923b9262c03c",
+      "declared_source_commit": "397bf24fef0d7f58aaefb444c17c733652b5e12f",
+      "plan_sha256": "0d329d3528eafa86980e2c8024c00d6dc153249a63547114379af9bac554caa9",
+      "compiler_sha256": "babd2b9fd8809ed8cca393f88fbd9f7fe7737699081d74235dcc58fb873dee58",
+      "scope": "tree4x2 only, O0 incremental, query_cache=true, closed_executable=false, requested8CGU/2jobs",
+      "load_with_full_environment_check_passed": true,
+      "checked_preflight_raw_revalidation_passed": true,
+      "rows": 8,
+      "rust_requests": 4,
+      "zil_requests": 4,
+      "short_oracle_checks": 24,
+      "startup_checks": 2,
+      "warmup_checks": 2,
+      "zil_verify_counts": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "query_states": [
+        "miss",
+        "hit",
+        "miss",
+        "miss"
+      ],
+      "same_key_and_usage_for_unchanged": true,
+      "new_keys_for_private_public": true,
+      "detail": "runner-real-smoke-review.json",
+      "original_plan": "/tmp/cp12-runner-8bb908a8-plan/plan.json",
+      "original_preflight": "/tmp/cp12-runner-8bb908a8-preflight/result.json"
+    }
+  },
+  "blocking_findings": [],
+  "reviewer_harness_attempts": [
+    {
+      "exit": 1,
+      "phase": "initial synthetic fixture setup only",
+      "reason": "common.save uses exclusive creation; the review fixture already created its plan file. Corrected only the independent review script to replace its own synthetic plan/receipt.",
+      "evidence": "runner-independent-initial-attempt.json"
+    },
+    {
+      "exit": 0,
+      "phase": "final independent controls",
+      "passed": 32
+    }
+  ],
+  "limitations": [
+    "Real smoke covers one small corpus and query mode; closed=true report/gate combinations are synthetic here. The backend and driver/CLI require their separate source/native reviews and final combined real preflight.",
+    "No claim that the small preflight establishes speed, runtime quality, five-corpus completion or a product gate.",
+    "Binary bytes and declared source commit are frozen and checked; this review does not independently rebuild the binary to prove the source-to-binary declaration.",
+    "The source unchanged assertion covers the exact reviewed runner and control file, even though the author worktree subsequently integrated unrelated backend/CLI commits."
+  ],
+  "formal_performance_measurement": false
+}
