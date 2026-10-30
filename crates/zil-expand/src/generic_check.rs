@@ -45,7 +45,11 @@ pub(super) fn validate_parametric<'l>(
         super::super::foreign::callback_type_tree(&p.ty, &variables, budget, 0)?;
     }
     if let Some(t) = &function.return_type {
-        if owned_factory { budget.ty(t)?; } else { type_key(t, budget)?; }
+        if owned_factory {
+            budget.ty(t)?;
+        } else {
+            type_key(t, budget)?;
+        }
         super::super::foreign::callback_type_tree(t, &variables, budget, 0)?;
     }
     if callable.is_some() {
@@ -78,7 +82,11 @@ pub(super) fn validate_parametric<'l>(
             .unwrap_or_else(|| unit(function.span)),
         budget,
     };
-    if check.callable.as_ref().is_some_and(|bounds| bounds.owned_factory) {
+    if check
+        .callable
+        .as_ref()
+        .is_some_and(|bounds| bounds.owned_factory)
+    {
         check.factory_header(function)?;
     }
     if let Some(profile) = check.callable.as_ref().and_then(|b| b.state_replacement) {
@@ -152,7 +160,10 @@ pub(super) fn validate_parametric<'l>(
             ));
         } else if parameter.give
             && (check.two_input_state_constructor()
-                || check.callable.as_ref().is_some_and(|bounds| bounds.owned_factory))
+                || check
+                    .callable
+                    .as_ref()
+                    .is_some_and(|bounds| bounds.owned_factory))
         {
             state
                 .locals
@@ -191,7 +202,9 @@ pub(super) fn validate_parametric<'l>(
             let actual = check.return_expression(value, &mut state)?;
             if owned_factory {
                 check.factory_same_result(&actual, &result, value.span)?;
-            } else if check.callable.is_some() || matches!(group(&result).kind, TypeKind::Error { .. }) {
+            } else if check.callable.is_some()
+                || matches!(group(&result).kind, TypeKind::Error { .. })
+            {
                 same_return(&actual, &result, value.span, check.budget)?;
             } else {
                 same(&actual, &result, value.span, check.budget)?;
@@ -752,7 +765,10 @@ impl Check<'_, '_, '_> {
         let expected = self.result.clone();
         let actual = self.expr(expression, state, Some(&expected), false)?;
         if self.factory_scopes.is_empty()
-            && self.callable.as_ref().is_some_and(|bounds| bounds.owned_factory)
+            && self
+                .callable
+                .as_ref()
+                .is_some_and(|bounds| bounds.owned_factory)
         {
             self.factory_result_identity(expression, state)?;
         }
@@ -2352,6 +2368,9 @@ impl Check<'_, '_, '_> {
                     }
                 }
                 if let (Some(result), Some(expected)) = (&function.return_type, expected)
+                    && !self.callable.as_ref().is_some_and(|bounds| {
+                        bounds.owned_factory && callable::opaque_signature(result).is_some()
+                    })
                     && let Some(expected) = stores::call_context(result, expected)
                 {
                     unify(
@@ -2616,10 +2635,25 @@ impl Check<'_, '_, '_> {
                 }
                 Ok(ty)
             }
-            ExprKind::Closure { move_capture, params, return_type, body }
-                if self.callable.as_ref().is_some_and(|bounds| bounds.owned_factory) =>
+            ExprKind::Closure {
+                move_capture,
+                params,
+                return_type,
+                body,
+            } if self
+                .callable
+                .as_ref()
+                .is_some_and(|bounds| bounds.owned_factory) =>
             {
-                self.factory_closure(*move_capture, params, return_type.as_ref(), body, expected, state, e.span)
+                self.factory_closure(
+                    *move_capture,
+                    params,
+                    return_type.as_ref(),
+                    body,
+                    expected,
+                    state,
+                    e.span,
+                )
             }
             _ => Err(unsupported(
                 e.span,
@@ -2963,7 +2997,11 @@ impl Check<'_, '_, '_> {
                         Some(e) => self.return_expression(e, state)?,
                         None => unit(statement.span),
                     };
-                    if self.callable.as_ref().is_some_and(|bounds| bounds.owned_factory) {
+                    if self
+                        .callable
+                        .as_ref()
+                        .is_some_and(|bounds| bounds.owned_factory)
+                    {
                         self.factory_same_result(&actual, &expected, statement.span)?;
                     } else if self.callable.is_some()
                         || matches!(group(&expected).kind, TypeKind::Error { .. })
