@@ -1,0 +1,18 @@
+{
+  "reviewer": "/root/product_store",
+  "implementation_author": "/root/ct_for",
+  "verdict": "Pass",
+  "implementation_commit": "a9aa46a8c32fbd52463c3de3b848984321a20c99",
+  "reviewed_code_commit": "566bda6a12ab9dbe9be5adbf5b870a411189dc37",
+  "actual_test_source_commit": "4ddd6a6354619366ac47c42311e925ee646c7898",
+  "review_delivery_commit": "c6a040271171848871cc2fb3c56b01536e4f1953",
+  "evidence": "evidence/reviews/222/RESULT.json",
+  "production_and_test_bytes_equal": true,
+  "all_changed_paths": [
+    "docs/LANGUAGE-222.md",
+    "evidence/impl/222/author-repair/RESULT.json",
+    "evidence/impl/222/author-repair/raw-evidence.tar.gz"
+  ],
+  "reexecution": "NotRun; evidence/documentation-only author child commit. Original source executions retain their actual commits.",
+  "scope": "222 non-author review only; original a54/7265 Fail receipts retained."
+}
