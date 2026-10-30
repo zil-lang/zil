@@ -1,41 +1,41 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-30T05:16:13.640521+00:00",
+  "observed_at_utc": "2026-10-30T05:29:52.208753+00:00",
   "status": "Implementing",
   "accepted_main_at_start": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
-  "milestone": "All four source branches checkpointed; independent synthetic controls pass; source integration and native validation ongoing",
+  "milestone": "Factory source/native and source-selection native milestones passed; remaining boundary cases and independent review ongoing",
   "tasks": [
     {
       "id": "218",
       "state": "施工",
       "owner": "/root/language218",
       "branch": "task/218",
-      "latest_source_checkpoint": "b602d32e224832db6771f6232aed347853308918",
-      "observed_work": "Expand 4组通过；Types源码正在修复旧opaque分派接点"
+      "latest_source_checkpoint": "14d90ce014600b26db4820b7262cacfa5cc7a8d4",
+      "observed_work": "Types 8/8、Expand 4/4；默认拥有捕获与定义期Store转交补漏中"
     },
     {
       "id": "219",
       "state": "施工",
       "owner": "/root/language_parallel",
       "branch": "task/219",
-      "latest_source_checkpoint": "17331b1e8cbe8bdb5b674218cda8f123d8932dfe",
-      "observed_work": "#if已到真实源码独立Verify；接收块shadow及产物登记回归中"
+      "latest_source_checkpoint": "35637591455eeaeffcb5ab9753fddb9cb33cfa51",
+      "observed_work": "#if真实CLI两配置O0/O2：100次执行、28个实际分配失败注入通过；回归与独审继续"
     },
     {
       "id": "220",
       "state": "施工",
       "owner": "/root",
       "branch": "task/220",
-      "latest_source_checkpoint": "8ae43ecb21f4d91b7a7ba1916529b89b71fbf42b",
-      "observed_work": "Analyze raw/Wire 11组通过；前端与两个独立检查已组合，源码贯通未验收"
+      "latest_source_checkpoint": "eed58269f4cdeb25c9e71052a104d270aea6dcc4",
+      "observed_work": "源派生Analyze 5组通过；四组件回归558/0/0；三种旧源预算与IR完全一致"
     },
     {
       "id": "221",
       "state": "施工",
       "owner": "/root/language_review_plan",
       "branch": "task/221",
-      "latest_source_checkpoint": "5e43de6d0d20adca600df6576820209a28ff2ff7",
-      "observed_work": "Verify raw/Wire 18组通过；修复Store伴随隐藏callback漏拒；3种旧源精确预算基线已实测"
+      "latest_source_checkpoint": "0fc198ecfd9271094e08b19d89a1531eb4e27e5d",
+      "observed_work": "9组源/机器检查通过，36次执行含6个实际分配失败；同步地址与错误结果边界补验中"
     }
   ],
   "proof": [
