@@ -1,0 +1,32 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/4ab361722127/zil-cp22/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.40s
+     Running tests/parse_cache_cp22.rs (/workspace/scratch/4ab361722127/target-cp22/debug/deps/parse_cache_cp22-1c4e5c23cc7fbd89)
+
+running 6 tests
+test session_parse_keys_do_not_depend_on_preceding_module_consumption ... ok
+test failed_cancelled_or_invalid_artifact_requests_do_not_create_cache_directories ... ok
+test separate_sessions_reuse_unchanged_modules_after_early_token_count_edit ... ok
+test module_reordering_missing_files_and_ambiguous_paths_use_current_discovery ... ok
+test damaged_entries_fall_back_and_repair_without_skipping_verify ... ok
+test quota_depth_and_source_byte_failures_match_uncached_first_diagnostics ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/query_cache_cp12.rs (/workspace/scratch/4ab361722127/target-cp22/debug/deps/query_cache_cp12-3929aabdec51c2a1)
+
+running 12 tests
+test link_failure_and_cancellation_never_publish_a_checkpoint ... ok
+test ambiguity_missing_source_parse_error_and_artifact_alias_precede_lookup ... ok
+test codec_transport_quota_cannot_reduce_language_acceptance ... ok
+test nonprivate_or_symlink_cache_directory_bypasses_without_changing_build ... ok
+test existing_memory_ct_snapshot_without_usage_receipt_is_not_persisted ... ok
+test checksum_valid_raw_candidate_still_needs_current_verify_without_retry ... ok
+test original_source_candidate_cache_keeps_its_separate_status ... ok
+test source_selection_bypasses_checkpoint_and_replays_current_ct_budget ... ok
+test ct_exact_limit_and_n_minus_one_match_uncached_requests ... ok
+test stop_after_emit_dir_and_memory_entry_visibly_bypass ... ok
+test cold_unchanged_and_both_edits_use_current_source_and_fresh_verify ... ok
+test truncated_and_corrupt_entries_rebuild_before_single_verify ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+

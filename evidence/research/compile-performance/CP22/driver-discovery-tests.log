@@ -1,0 +1,12 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/4ab361722127/zil-cp22/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 2.26s
+     Running unittests src/lib.rs (/workspace/scratch/4ab361722127/target-cp22/debug/deps/zil_driver-d95e4edc746046f0)
+
+running 4 tests
+test project::discovery158_tests::discovery_cancellation_and_active_query_guards_still_apply ... ok
+test project::discovery158_tests::discovery_reuses_exact_published_syntax_arcs_but_reads_edited_bytes ... ok
+test project::discovery158_tests::cached_syntax_cannot_hide_lower_quotas_syntax_errors_or_ambiguous_entries ... ok
+test project::discovery158_tests::capacity_clear_keeps_immutable_lent_syntax_but_not_query_authority ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.01s
+

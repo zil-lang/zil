@@ -1,0 +1,113 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/4ab361722127/zil-cp22/crates/zil-base)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/4ab361722127/zil-cp22/crates/zil-syntax)
+    Finished `test` profile [unoptimized] target(s) in 2.40s
+     Running unittests src/lib.rs (/workspace/scratch/4ab361722127/target-cp22/debug/deps/zil_syntax-f4950cd48172b638)
+
+running 17 tests
+test lexer::tests::lossless_utf8_nested_comments_crlf ... ok
+test lexer::tests::tuple_indices_do_not_become_float_literals ... ok
+test lexer::tests::byte_suffix_preserves_radix_and_separator_validation ... ok
+test lexer::tests::malformed_tokens_preserve_their_spans ... ok
+test lexer::tests::xid_is_not_alphabetic_approximation ... ok
+test parser::tests::nested_type_closers_do_not_change_shift_tokens ... ok
+test parser::tests::frozen_parse_rejections_are_specific ... ok
+test parser::tests::nesting_limits_are_resource_limits ... ok
+test parser::tests::control_heads_slices_and_type_arrows_have_one_parse ... ok
+test parser::tests::closures_pipelines_and_compile_time_forms ... ok
+test parser::tests::finite_contract_dsl_accepts_give_and_paths ... ok
+test parser::tests::malformed_source_recovers_to_later_item ... ok
+test parser::tests::newlines_are_logical_and_do_not_back_join ... ok
+test parser::tests::real_function_body_and_pratt_precedence ... ok
+test parser::tests::receivers_records_and_function_types ... ok
+test parser::tests::syntax_islands_preserve_trivia_inside_each_delimiter ... ok
+test parser::tests::chains_are_bounded_before_recursive_ast_drop ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/attributes.rs (/workspace/scratch/4ab361722127/target-cp22/debug/deps/attributes-b06848d062808e19)
+
+running 11 tests
+test plan_t01_005_attributes_cannot_float_or_attach_to_statements_or_values ... ok
+test plan_t01_005_derive_rejects_repeated_written_trait_paths ... ok
+test plan_t01_005_attribute_value_types_are_not_claimed_by_the_parser ... ok
+test plan_t01_005_registry_matches_frozen_normative_input ... ok
+test plan_t01_005_registered_argument_structure_is_enforced ... ok
+test plan_t01_005_cfg_removal_precedes_other_attribute_resolution ... ok
+test plan_t01_005_unknown_and_preregistered_custom_attributes_are_distinct ... ok
+test plan_t01_005_unmaterialized_compile_time_items_defer_attribute_resolution ... ok
+test plan_t01_005_unresolved_configuration_defers_until_snapshot_is_supplied ... ok
+test plan_t01_005_repeat_rules_and_inline_conflicts_are_separate ... ok
+test plan_t01_005_all_builtin_attachment_targets_are_checked ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/closure_syntax.rs (/workspace/scratch/4ab361722127/target-cp22/debug/deps/closure_syntax-6cc17f305d936d00)
+
+running 4 tests
+test plan_t01_003_function_pointer_arrow_takes_complete_return_type ... ok
+test plan_t01_003_move_arrow_and_block_closures_have_distinct_shapes ... ok
+test plan_t01_003_impl_trait_is_only_a_function_return_production ... ok
+test explicit_match_return_paths_do_not_gain_a_dead_unit_return ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/formatting.rs (/workspace/scratch/4ab361722127/target-cp22/debug/deps/formatting-986af2c8807a12f5)
+
+running 4 tests
+test plan_t01_001_lossless_tokens_and_delimiter_recovery_keep_real_spans ... ok
+test plan_t01_001_logical_newlines_and_syntax_island_bytes_are_preserved ... ok
+test short_closure_annotations_and_tail_discard_survive_trivia_formatting ... ok
+test plan_t01_001_formatter_changes_trivia_preserving_bindings_and_ast_shape ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/imports.rs (/workspace/scratch/4ab361722127/target-cp22/debug/deps/imports-70132981d5b8f548)
+
+running 4 tests
+test dotted_imports_and_syntax_imports_preserve_logical_segments ... ok
+test import_continuation_requires_a_trailing_dot ... ok
+test zil_is_an_ordinary_logical_segment ... ok
+test old_and_mixed_separators_have_a_specific_migration_error ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/parse_cache_cp22.rs (/workspace/scratch/4ab361722127/target-cp22/debug/deps/parse_cache_cp22-00e1858f9a665bae)
+
+running 4 tests
+test deep_valid_syntax_bypasses_memo_without_changing_parse_acceptance ... ok
+test malformed_or_incomplete_bytes_never_construct_a_successful_tree ... ok
+test source_roundtrips_preserve_syntax_positions_attributes_and_tokens ... ok
+test receipts_cover_parser_and_attribute_budgets_and_preserve_low_budget_errors ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/surface_13.rs (/workspace/scratch/4ab361722127/target-cp22/debug/deps/surface_13-e9dbe987140ce15d)
+
+running 11 tests
+test callable_bound_source_parameters_become_internal_args_tuple ... ok
+test closure_tail_normalization_remains_under_the_parser_work_budget ... ok
+test authored_and_migrated_conformance_sources_match_the_surface_contract ... FAILED
+test dot_record_is_explicit_record_without_inventing_an_anonymous_type ... ok
+test closure_tail_uses_tokens_not_comment_or_string_punctuation ... ok
+test legacy_callable_tuple_spelling_has_a_specific_migration_error ... ok
+test explicit_reference_and_option_parentheses_remain_distinct_while_shorthand_is_pending ... ok
+test short_parameters_move_and_optional_return_annotation_preserve_syntax ... ok
+test only_final_if_paths_gain_returns_and_missing_else_has_unit_continuation ... ok
+test short_closures_do_not_consume_group_tuple_or_pipeline_boundaries ... ok
+test loops_defer_and_named_function_blocks_do_not_gain_tail_returns ... ok
+
+failures:
+
+---- authored_and_migrated_conformance_sources_match_the_surface_contract stdout ----
+
+thread 'authored_and_migrated_conformance_sources_match_the_surface_contract' (229) panicked at crates/zil-syntax/tests/surface_13.rs:386:63:
+called `Result::unwrap()` on an `Err` value: Os { code: 2, kind: NotFound, message: "No such file or directory" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    authored_and_migrated_conformance_sources_match_the_surface_contract
+
+test result: FAILED. 10 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p zil-syntax --test surface_13`

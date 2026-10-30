@@ -1,0 +1,18 @@
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+     Running tests/surface_13.rs (/workspace/scratch/4ab361722127/target-cp22/debug/deps/surface_13-e9dbe987140ce15d)
+
+running 11 tests
+test closure_tail_uses_tokens_not_comment_or_string_punctuation ... ok
+test closure_tail_normalization_remains_under_the_parser_work_budget ... ok
+test callable_bound_source_parameters_become_internal_args_tuple ... ok
+test explicit_reference_and_option_parentheses_remain_distinct_while_shorthand_is_pending ... ok
+test legacy_callable_tuple_spelling_has_a_specific_migration_error ... ok
+test dot_record_is_explicit_record_without_inventing_an_anonymous_type ... ok
+test loops_defer_and_named_function_blocks_do_not_gain_tail_returns ... ok
+test short_closures_do_not_consume_group_tuple_or_pipeline_boundaries ... ok
+test short_parameters_move_and_optional_return_annotation_preserve_syntax ... ok
+test only_final_if_paths_gain_returns_and_missing_else_has_unit_continuation ... ok
+test authored_and_migrated_conformance_sources_match_the_surface_contract ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

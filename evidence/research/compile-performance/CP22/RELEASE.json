@@ -1,0 +1,32 @@
+{
+  "source_commit": "096f1173a3a6f09bbf802d3daaded9e85495f773",
+  "crates_tree": "dd700c62ee21c8d2c955cc8106749dc0b84fd21e",
+  "build_command": [
+    "cargo",
+    "build",
+    "--offline",
+    "--locked",
+    "--release",
+    "-p",
+    "zil-cli"
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/4ab361722127/build-cp22",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_INCREMENTAL": "0",
+    "toolchain_env": "/workspace/scratch/4ab361722127/.toolchain/env.sh"
+  },
+  "binary": "/workspace/scratch/4ab361722127/build-cp22/release/zil",
+  "binary_sha256": "ed43e19812f64c6cf7e2dba2809dfaa2cbb4737ac6416dd1a8242a497b8d2d3e",
+  "binary_stat": {
+    "size": 7612208,
+    "device": 27,
+    "inode": 884592,
+    "mtime_ns": 1793383691485144839,
+    "ctime_ns": 1793383691497144791
+  },
+  "rustc_verbose_version": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "cli_version": "zil 0.1.0 (ZIL-LANG-1.4; Rust 2024; compiler draft; default backend: llvm-api)\n",
+  "log_sha256": "6db5c097f76f954d48da0c9ee39424e2650e5dd6343cd71c9b5baa2e9df29a5e",
+  "cli_manifest_sha256": "c44ca94933587d13479e1b6f4a5fd67896a12645642b012ba038214c13795554"
+}

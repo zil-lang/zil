@@ -1,0 +1,35 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/4ab361722127/zil-cp22/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.41s
+     Running tests/projects.rs (/workspace/scratch/4ab361722127/target-cp22/debug/deps/projects-e3cee9428122777f)
+
+running 27 tests
+test m007_every_dependency_is_protected_from_output_overwrite ... ok
+test m006_missing_cycles_and_invalid_paths_have_honest_categories ... ok
+test m005_memory_entry_has_no_implicit_filesystem_imports ... ok
+test m008_source_and_frontend_function_and_block_quotas_are_cumulative ... ok
+test m010_dependency_diagnostics_preserve_file_identity ... ok
+test m013_raw_program_calls_use_explicit_ids_and_validate_export_references ... ok
+test m004_signature_and_implementation_hashes_track_different_inputs ... ok
+test m009_second_module_receives_only_remaining_ct_steps_before_execution ... ok
+test m016_ct_header_index_charges_graph_and_signature_work ... ok
+test m002_visibility_alias_and_call_contract_rejections ... ok
+test m018_file_parse_stop_does_not_resolve_escaping_symlinks ... ok
+test m019_file_core_stop_resolves_graph_without_executing_ct ... ok
+test m017_file_parse_stop_only_checks_entry_syntax ... ok
+test m021_two_entries_are_rejected_including_preseeded_root_identity ... ok
+test m022_directory_without_entry_is_not_a_glob_or_merged_namespace ... ok
+test m011_symlink_escape_rejected_and_internal_aliases_share_one_identity ... ok
+test m014_imported_main_cannot_supply_a_missing_root_entry ... ok
+test m020_directory_entry_is_a_single_module_with_explicit_dependencies ... ok
+test m026_directory_imports_keep_parse_stops_and_cumulative_source_budgets ... ok
+test m001_real_native_modules_keep_same_names_and_only_root_main ... ok
+test m024_directory_aliases_share_identity_and_cannot_escape_the_root ... ok
+test m012_graph_mapping_edits_invalidate_even_with_identical_source_bytes ... ok
+test m023_zil_suffix_is_a_logical_segment_and_never_stripped ... ok
+test m015_cross_module_ct_preserves_context_visibility_and_verified_calls ... ok
+test m003_dependency_edit_changes_runtime_without_changing_public_signature ... ok
+test m027_numberlab_compiles_real_algorithms_through_file_and_directory_modules ... ok
+test m025_directory_edits_and_layout_changes_match_cold_compilation ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+

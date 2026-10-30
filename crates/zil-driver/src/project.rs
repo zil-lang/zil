@@ -108,6 +108,12 @@ impl CompilationSession {
         let start = Instant::now();
         let trace = TimingTrace::new(options.timings);
         let mut request = trace.scope("compile_path", "request");
+        let mut parse_report = ParseCacheReport::default();
+        let mut parse_cache = request
+            .trace()
+            .value("parse_cache_prepare", || {
+                super::parse_cache::Prepared::new(options, &mut parse_report)
+            });
         // Discovery may borrow immutable syntax from the previous request.
         // The existing compile_project_request capacity guard still clears
         // cache ownership before publishing this request; the lent Arcs do
@@ -136,10 +142,18 @@ impl CompilationSession {
                             Vec::new()
                         })
                 } else {
-                    load_sources(&mut project, path, options, self, trace)
+                    load_sources_cached(
+                        &mut project,
+                        path,
+                        options,
+                        self,
+                        trace,
+                        parse_cache.as_mut(),
+                        &mut parse_report,
+                    )
                 }
             });
-        let mut report = match loaded {
+        let mut report = match &loaded {
             Ok(_) if options.stop_after == Stage::Parse => self.compile_source_traced(
                 &project.modules[0],
                 options,
@@ -150,7 +164,7 @@ impl CompilationSession {
                 &project,
                 options,
                 &mut |_| {},
-                Some(&parsed),
+                Some(parsed),
                 request.trace(),
             ),
             Err(errors) => {
@@ -164,10 +178,25 @@ impl CompilationSession {
                     .iter()
                     .map(|m| (m.file_id, m.path.clone()))
                     .collect();
-                report.fail(errors);
+                report.fail(errors.clone());
                 report
             }
         };
+        if report.status == ResultCategory::Success
+            && let (Some(cache), Ok(parsed)) = (parse_cache.as_mut(), &loaded)
+        {
+            request.trace().value("parse_cache_store", || {
+                cache.store(
+                    &project,
+                    parsed,
+                    options,
+                    &report.artifacts,
+                    &mut parse_report,
+                );
+            });
+        }
+        report.cache_hit |= parse_report.hits != 0;
+        report.parse_cache = parse_report;
         report.seconds = start.elapsed().as_secs_f64();
         request.finish(report.status.as_str());
         report.timings = trace.report();
@@ -227,7 +256,7 @@ impl CompilationSession {
             // conservative project quota, including trivia and EOF tokens.
             parse_options.limits.max_tokens = remaining.max_tokens.min(remaining.max_nodes);
             let (raw, snapshot) = self.query(
-                query_key(source, &parse_options, Phase::Parse, false),
+                self.parse_key(source, &parse_options),
                 &[],
                 options,
                 report,
@@ -848,12 +877,14 @@ fn resolve_file_module(root: &Path, logical: &[String], span: Span) -> CompileRe
     Ok(canonical)
 }
 
-fn load_sources(
+fn load_sources_cached(
     project: &mut ProjectSources,
     path: &Path,
     options: &CompileOptions,
     session: &CompilationSession,
     trace: &TimingTrace,
+    mut parse_cache: Option<&mut super::parse_cache::Prepared>,
+    parse_report: &mut ParseCacheReport,
 ) -> CompileResult<Vec<Arc<ParseResult>>> {
     options
         .cancellation
@@ -903,7 +934,7 @@ fn load_sources(
         let mut query_options = options.clone();
         query_options.limits.max_tokens = parse_limits.max_tokens;
         query_options.limits.max_nodes = remaining.max_nodes;
-        let key = query_key(&project.modules[index], &query_options, Phase::Parse, false);
+        let key = session.parse_key(&project.modules[index], &query_options);
         let cached = if trace
             .measure("discovery_query", "stage", |_| {
                 session.database.read(&key).map_err(|e| vec![e])
@@ -917,7 +948,22 @@ fn load_sources(
         } else {
             None
         };
-        let parsed = cached.unwrap_or_else(|| {
+        let parsed = if let Some(parsed) = cached {
+            parse_report.session_hits += 1;
+            parsed
+        } else if let Some(parsed) = parse_cache.as_mut().and_then(|cache| {
+            trace.value("parse_cache_load", || {
+                cache.load(
+                    &project.modules[index],
+                    options,
+                    &parse_limits,
+                    parse_report,
+                )
+            })
+        }) {
+            parsed
+        } else {
+            parse_report.parsed += 1;
             let mut timing = trace.scope("parse", "stage");
             let parsed = Arc::new(zil_syntax::parse_with_limits(
                 &project.modules[index],
@@ -929,7 +975,7 @@ fn load_sources(
                 "error"
             });
             parsed
-        });
+        };
         if !parsed.diagnostics.is_empty() {
             return Err(parsed.diagnostics.clone());
         }
@@ -998,6 +1044,25 @@ fn load_sources(
         index += 1;
     }
     Ok(syntax)
+}
+
+#[cfg(test)]
+fn load_sources(
+    project: &mut ProjectSources,
+    path: &Path,
+    options: &CompileOptions,
+    session: &CompilationSession,
+    trace: &TimingTrace,
+) -> CompileResult<Vec<Arc<ParseResult>>> {
+    load_sources_cached(
+        project,
+        path,
+        options,
+        session,
+        trace,
+        None,
+        &mut ParseCacheReport::default(),
+    )
 }
 
 #[cfg(test)]

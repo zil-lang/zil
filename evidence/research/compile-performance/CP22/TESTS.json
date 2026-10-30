@@ -1,0 +1,33 @@
+{
+  "code_commit": "be7b191e536a0b8fae009713c64f8d05ff3503d9",
+  "crates_tree": "dd700c62ee21c8d2c955cc8106749dc0b84fd21e",
+  "tests": {
+    "syntax_distinct": 55,
+    "driver_cp22": 6,
+    "driver_cp12": 12,
+    "driver_projects": 27,
+    "driver_discovery": 4,
+    "driver_identity": 2,
+    "total_distinct": 106
+  },
+  "build_environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/4ab361722127/target-cp22",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0"
+  },
+  "limitations": [
+    "Full workspace and product gates not run.",
+    "Syntax suite first failed for missing baseline conformance fixtures; exact baseline blobs restored and surface_13 rerun passed.",
+    "Earlier full-debug attempt exhausted disk; raw failure retained.",
+    "Separate sessions are API controls; cross-process native CLI and performance remain pending."
+  ],
+  "logs": {
+    "syntax-tests-resumed.log": "50f7f7db322c2a040d1e40ffde9b87d89699f33dae6478e199aab4b03bfe1091",
+    "syntax-surface-resumed.log": "93051e27cd4f347e8dac57fc7b029cf4de0009671dfc65ff5c5e190da1f49eaf",
+    "driver-cache-tests.log": "42e04462e049d54657542b7177a74dc2315fdabb8d536c4e56da85c9e661ba01",
+    "driver-project-tests.log": "8c1af9bef3a799341289afa7f869074d4f2e4ba7cea4baea2566a1ae73d77eb9",
+    "driver-discovery-tests.log": "16b9ff5dee7f83877d3e239ed5b00013c203a57d266370fcc4580f9b13bfe624",
+    "driver-identity-tests.log": "651d4221ed1e22b3df9aa48b720450dbed7195a61aa688ca23f8396b60a464a0"
+  }
+}
