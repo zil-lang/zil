@@ -1,0 +1,22 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-stdin-review/crates/zil-base)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-stdin-review/crates/zil-llvm-api)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-stdin-review/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-stdin-review/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-stdin-review/crates/zil-verify)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-stdin-review/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-stdin-review/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-stdin-review/crates/zil-backend-llvm)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-stdin-review/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-stdin-review/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-stdin-review/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-stdin-review/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-stdin-review/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 15.37s
+     Running tests/review223_machine.rs (/workspace/scratch/d286b3aeeb6b/targets/review223-stdin/debug/deps/review223_machine-bb2e79b030b78418)
+
+running 2 tests
+test failed_push_keeps_the_complete_product_through_two_return_edges ... ok
+test mixed_layout_and_every_allocator_exit_preserve_exact_leaf_debts ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.80s
+

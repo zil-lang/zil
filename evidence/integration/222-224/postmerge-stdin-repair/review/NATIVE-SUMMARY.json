@@ -1,0 +1,1043 @@
+{
+  "status": "Pass",
+  "kind": "IndependentExistingOracleReplay",
+  "test_result": {
+    "passed": 2,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_out": 0
+  },
+  "compilations": [
+    {
+      "path": "native/review223-entry-error-O0/compile.json",
+      "sha256": "f5c20bc1f79cf63f644f2c9c2ee4be477a305f7a53572857184df7efdda813b2",
+      "source_sha256": "d5b5a131da2d9293cbbf511b4d34ea2a5eb4c906728857afa41585afff303920",
+      "optimization": "O0",
+      "backend": "llvm-api",
+      "fallback": null,
+      "actual_units": 1,
+      "program_sha256": "fff4b398e47ba9e78d3b22cdd49be72fb7014faa3ed0e13f5050a4ab06f74053"
+    },
+    {
+      "path": "native/review223-entry-error-O2/compile.json",
+      "sha256": "9fae997ed6b9afa711389b1639c6e4b72373a2ceda045b1bd5e2eb8ce9708894",
+      "source_sha256": "d5b5a131da2d9293cbbf511b4d34ea2a5eb4c906728857afa41585afff303920",
+      "optimization": "O2",
+      "backend": "llvm-api",
+      "fallback": null,
+      "actual_units": 1,
+      "program_sha256": "b7466aa88006093c02020d2f0af8158d1f293234a53e9a394d6464306d7fd95a"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/compile.json",
+      "sha256": "082090ac82c682515a24658fbb1d010d85d57d098af17839a070460e47303bbd",
+      "source_sha256": "f058c51314ff5d2b14250d3081712eb5a4c697667dced191bf5b7c072b9aa80f",
+      "optimization": "O0",
+      "backend": "llvm-api",
+      "fallback": null,
+      "actual_units": 1,
+      "program_sha256": "b987c5e9a3c0ba6d2bd3b95bc54d9517e10c09d98861c0e7cc219129d39d41a1"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/compile.json",
+      "sha256": "2ebe6c6d0896b4f48cea74f0531aa2c3379f0cf8fe14882248dd6c18edb05e58",
+      "source_sha256": "f058c51314ff5d2b14250d3081712eb5a4c697667dced191bf5b7c072b9aa80f",
+      "optimization": "O2",
+      "backend": "llvm-api",
+      "fallback": null,
+      "actual_units": 1,
+      "program_sha256": "09da1bb54fbcb99406cf107e11324019886c54208107c337ab4bf6e89e7709bc"
+    }
+  ],
+  "native_executions": 60,
+  "no_input_executions": 2,
+  "explicit_byte_executions": 58,
+  "allocator_observations": 50,
+  "real_allocation_failures": 34,
+  "all_observed_live_zero": true,
+  "observations": [
+    {
+      "path": "native/review223-entry-error-O0/run.json",
+      "input": null,
+      "exit": 1,
+      "fail_at": null,
+      "stdout_sha256": "e9c0f8b575cbfcb42ab3b78ecc87efa3b011d9a5d10b09fa4e96f240bf6a82f5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "native/review223-entry-error-O2/run.json",
+      "input": null,
+      "exit": 1,
+      "fail_at": null,
+      "stdout_sha256": "e9c0f8b575cbfcb42ab3b78ecc87efa3b011d9a5d10b09fa4e96f240bf6a82f5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-49-failure-0.json",
+      "input": 49,
+      "exit": 0,
+      "fail_at": 0,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "284a1031f9aaae229a9a8f4f2450d15b8e0e8f9a36dfbc87ea6c9e777e340eee"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-49-failure-1.json",
+      "input": 49,
+      "exit": 1,
+      "fail_at": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-49-failure-2.json",
+      "input": 49,
+      "exit": 1,
+      "fail_at": 2,
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "stderr_sha256": "52437903b2f50ac34435b777b4c61e3cac8dd458ec2dd3e83f13c05d099b11fc"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-49-failure-3.json",
+      "input": 49,
+      "exit": 1,
+      "fail_at": 3,
+      "stdout_sha256": "296d71a7f66e75b751c597094536329dcf2cf484f83e475d91f7aea1ff4c9738",
+      "stderr_sha256": "e6b36ece76acde72a5c109d3961b54353879bc8b0aaeb5335fdedb4862d7f642"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-49-failure-4.json",
+      "input": 49,
+      "exit": 0,
+      "fail_at": 4,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "284a1031f9aaae229a9a8f4f2450d15b8e0e8f9a36dfbc87ea6c9e777e340eee"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-49-ordinary.json",
+      "input": 49,
+      "exit": 0,
+      "fail_at": null,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-0.json",
+      "input": 50,
+      "exit": 0,
+      "fail_at": 0,
+      "stdout_sha256": "0e15c61210592642244e4e54c4c1bddfbb6b208ab6c383247d280d545af1c414",
+      "stderr_sha256": "0374bb4c7fd2b9f816eb09f249e525d01309c483899bd4fe7a520be8948e07a3"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-1.json",
+      "input": 50,
+      "exit": 1,
+      "fail_at": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-2.json",
+      "input": 50,
+      "exit": 1,
+      "fail_at": 2,
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "stderr_sha256": "d9a8b6863baca471739626ee047d2fc329bc7a6096887b2a7e1c6147a9953446"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-3.json",
+      "input": 50,
+      "exit": 1,
+      "fail_at": 3,
+      "stdout_sha256": "296d71a7f66e75b751c597094536329dcf2cf484f83e475d91f7aea1ff4c9738",
+      "stderr_sha256": "c7d94322f7373e94c2cdbcbd9a44fd7e92e2751f1f0ded983216dcb7682de713"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-4.json",
+      "input": 50,
+      "exit": 1,
+      "fail_at": 4,
+      "stdout_sha256": "9e7513e0adc03a9e84cd5497d7ce06c13eb29f4601df830e40bdd07beceec5e3",
+      "stderr_sha256": "6f0649d8828b4ff202ead1a86c64da34e142f4795c6e1675c1411b7a1507501b"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-5.json",
+      "input": 50,
+      "exit": 1,
+      "fail_at": 5,
+      "stdout_sha256": "58ccbcfb353abf2e02f26979a540bf8ec3edc18b82fb1669b79b9e7742bf36c8",
+      "stderr_sha256": "374fac6c69b23d32aef230365e9fa7d441f622aa26d455e9208fd910534c9ab7"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-6.json",
+      "input": 50,
+      "exit": 0,
+      "fail_at": 6,
+      "stdout_sha256": "0e15c61210592642244e4e54c4c1bddfbb6b208ab6c383247d280d545af1c414",
+      "stderr_sha256": "0374bb4c7fd2b9f816eb09f249e525d01309c483899bd4fe7a520be8948e07a3"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-ordinary.json",
+      "input": 50,
+      "exit": 0,
+      "fail_at": null,
+      "stdout_sha256": "0e15c61210592642244e4e54c4c1bddfbb6b208ab6c383247d280d545af1c414",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-0.json",
+      "input": 51,
+      "exit": 0,
+      "fail_at": 0,
+      "stdout_sha256": "0e15c61210592642244e4e54c4c1bddfbb6b208ab6c383247d280d545af1c414",
+      "stderr_sha256": "0f868659cccf1a75c4b32888aba412c430908e35d8aefa924e6be6eaa045657b"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-1.json",
+      "input": 51,
+      "exit": 1,
+      "fail_at": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-2.json",
+      "input": 51,
+      "exit": 1,
+      "fail_at": 2,
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "stderr_sha256": "52437903b2f50ac34435b777b4c61e3cac8dd458ec2dd3e83f13c05d099b11fc"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-3.json",
+      "input": 51,
+      "exit": 1,
+      "fail_at": 3,
+      "stdout_sha256": "296d71a7f66e75b751c597094536329dcf2cf484f83e475d91f7aea1ff4c9738",
+      "stderr_sha256": "e6b36ece76acde72a5c109d3961b54353879bc8b0aaeb5335fdedb4862d7f642"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-4.json",
+      "input": 51,
+      "exit": 1,
+      "fail_at": 4,
+      "stdout_sha256": "9e7513e0adc03a9e84cd5497d7ce06c13eb29f4601df830e40bdd07beceec5e3",
+      "stderr_sha256": "4f077d68ce860a2b54bfee1f2d5eda0f15cd4ea5e5f3450ec2732e4f1feff775"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-5.json",
+      "input": 51,
+      "exit": 1,
+      "fail_at": 5,
+      "stdout_sha256": "58ccbcfb353abf2e02f26979a540bf8ec3edc18b82fb1669b79b9e7742bf36c8",
+      "stderr_sha256": "0960f7f361844650cf58169ef70d388d2587470ff5d0af614e1077599c50fc14"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-6.json",
+      "input": 51,
+      "exit": 0,
+      "fail_at": 6,
+      "stdout_sha256": "0e15c61210592642244e4e54c4c1bddfbb6b208ab6c383247d280d545af1c414",
+      "stderr_sha256": "0f868659cccf1a75c4b32888aba412c430908e35d8aefa924e6be6eaa045657b"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-ordinary.json",
+      "input": 51,
+      "exit": 0,
+      "fail_at": null,
+      "stdout_sha256": "0e15c61210592642244e4e54c4c1bddfbb6b208ab6c383247d280d545af1c414",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-52-failure-0.json",
+      "input": 52,
+      "exit": 0,
+      "fail_at": 0,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "6f91f54da8959dea01def5eed3b4dfadd2894420f579a4caf04e758008145dc9"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-52-failure-1.json",
+      "input": 52,
+      "exit": 1,
+      "fail_at": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-52-failure-2.json",
+      "input": 52,
+      "exit": 1,
+      "fail_at": 2,
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "stderr_sha256": "52437903b2f50ac34435b777b4c61e3cac8dd458ec2dd3e83f13c05d099b11fc"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-52-failure-3.json",
+      "input": 52,
+      "exit": 1,
+      "fail_at": 3,
+      "stdout_sha256": "296d71a7f66e75b751c597094536329dcf2cf484f83e475d91f7aea1ff4c9738",
+      "stderr_sha256": "e6b36ece76acde72a5c109d3961b54353879bc8b0aaeb5335fdedb4862d7f642"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-52-failure-4.json",
+      "input": 52,
+      "exit": 1,
+      "fail_at": 4,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "4f077d68ce860a2b54bfee1f2d5eda0f15cd4ea5e5f3450ec2732e4f1feff775"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-52-failure-5.json",
+      "input": 52,
+      "exit": 0,
+      "fail_at": 5,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "6f91f54da8959dea01def5eed3b4dfadd2894420f579a4caf04e758008145dc9"
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-52-ordinary.json",
+      "input": 52,
+      "exit": 0,
+      "fail_at": null,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-49-failure-0.json",
+      "input": 49,
+      "exit": 0,
+      "fail_at": 0,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "284a1031f9aaae229a9a8f4f2450d15b8e0e8f9a36dfbc87ea6c9e777e340eee"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-49-failure-1.json",
+      "input": 49,
+      "exit": 1,
+      "fail_at": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-49-failure-2.json",
+      "input": 49,
+      "exit": 1,
+      "fail_at": 2,
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "stderr_sha256": "52437903b2f50ac34435b777b4c61e3cac8dd458ec2dd3e83f13c05d099b11fc"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-49-failure-3.json",
+      "input": 49,
+      "exit": 1,
+      "fail_at": 3,
+      "stdout_sha256": "296d71a7f66e75b751c597094536329dcf2cf484f83e475d91f7aea1ff4c9738",
+      "stderr_sha256": "e6b36ece76acde72a5c109d3961b54353879bc8b0aaeb5335fdedb4862d7f642"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-49-failure-4.json",
+      "input": 49,
+      "exit": 0,
+      "fail_at": 4,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "284a1031f9aaae229a9a8f4f2450d15b8e0e8f9a36dfbc87ea6c9e777e340eee"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-49-ordinary.json",
+      "input": 49,
+      "exit": 0,
+      "fail_at": null,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-0.json",
+      "input": 50,
+      "exit": 0,
+      "fail_at": 0,
+      "stdout_sha256": "0e15c61210592642244e4e54c4c1bddfbb6b208ab6c383247d280d545af1c414",
+      "stderr_sha256": "0374bb4c7fd2b9f816eb09f249e525d01309c483899bd4fe7a520be8948e07a3"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-1.json",
+      "input": 50,
+      "exit": 1,
+      "fail_at": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-2.json",
+      "input": 50,
+      "exit": 1,
+      "fail_at": 2,
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "stderr_sha256": "d9a8b6863baca471739626ee047d2fc329bc7a6096887b2a7e1c6147a9953446"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-3.json",
+      "input": 50,
+      "exit": 1,
+      "fail_at": 3,
+      "stdout_sha256": "296d71a7f66e75b751c597094536329dcf2cf484f83e475d91f7aea1ff4c9738",
+      "stderr_sha256": "c7d94322f7373e94c2cdbcbd9a44fd7e92e2751f1f0ded983216dcb7682de713"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-4.json",
+      "input": 50,
+      "exit": 1,
+      "fail_at": 4,
+      "stdout_sha256": "9e7513e0adc03a9e84cd5497d7ce06c13eb29f4601df830e40bdd07beceec5e3",
+      "stderr_sha256": "6f0649d8828b4ff202ead1a86c64da34e142f4795c6e1675c1411b7a1507501b"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-5.json",
+      "input": 50,
+      "exit": 1,
+      "fail_at": 5,
+      "stdout_sha256": "58ccbcfb353abf2e02f26979a540bf8ec3edc18b82fb1669b79b9e7742bf36c8",
+      "stderr_sha256": "374fac6c69b23d32aef230365e9fa7d441f622aa26d455e9208fd910534c9ab7"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-6.json",
+      "input": 50,
+      "exit": 0,
+      "fail_at": 6,
+      "stdout_sha256": "0e15c61210592642244e4e54c4c1bddfbb6b208ab6c383247d280d545af1c414",
+      "stderr_sha256": "0374bb4c7fd2b9f816eb09f249e525d01309c483899bd4fe7a520be8948e07a3"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-ordinary.json",
+      "input": 50,
+      "exit": 0,
+      "fail_at": null,
+      "stdout_sha256": "0e15c61210592642244e4e54c4c1bddfbb6b208ab6c383247d280d545af1c414",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-0.json",
+      "input": 51,
+      "exit": 0,
+      "fail_at": 0,
+      "stdout_sha256": "0e15c61210592642244e4e54c4c1bddfbb6b208ab6c383247d280d545af1c414",
+      "stderr_sha256": "0f868659cccf1a75c4b32888aba412c430908e35d8aefa924e6be6eaa045657b"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-1.json",
+      "input": 51,
+      "exit": 1,
+      "fail_at": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-2.json",
+      "input": 51,
+      "exit": 1,
+      "fail_at": 2,
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "stderr_sha256": "52437903b2f50ac34435b777b4c61e3cac8dd458ec2dd3e83f13c05d099b11fc"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-3.json",
+      "input": 51,
+      "exit": 1,
+      "fail_at": 3,
+      "stdout_sha256": "296d71a7f66e75b751c597094536329dcf2cf484f83e475d91f7aea1ff4c9738",
+      "stderr_sha256": "e6b36ece76acde72a5c109d3961b54353879bc8b0aaeb5335fdedb4862d7f642"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-4.json",
+      "input": 51,
+      "exit": 1,
+      "fail_at": 4,
+      "stdout_sha256": "9e7513e0adc03a9e84cd5497d7ce06c13eb29f4601df830e40bdd07beceec5e3",
+      "stderr_sha256": "4f077d68ce860a2b54bfee1f2d5eda0f15cd4ea5e5f3450ec2732e4f1feff775"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-5.json",
+      "input": 51,
+      "exit": 1,
+      "fail_at": 5,
+      "stdout_sha256": "58ccbcfb353abf2e02f26979a540bf8ec3edc18b82fb1669b79b9e7742bf36c8",
+      "stderr_sha256": "0960f7f361844650cf58169ef70d388d2587470ff5d0af614e1077599c50fc14"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-6.json",
+      "input": 51,
+      "exit": 0,
+      "fail_at": 6,
+      "stdout_sha256": "0e15c61210592642244e4e54c4c1bddfbb6b208ab6c383247d280d545af1c414",
+      "stderr_sha256": "0f868659cccf1a75c4b32888aba412c430908e35d8aefa924e6be6eaa045657b"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-ordinary.json",
+      "input": 51,
+      "exit": 0,
+      "fail_at": null,
+      "stdout_sha256": "0e15c61210592642244e4e54c4c1bddfbb6b208ab6c383247d280d545af1c414",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-52-failure-0.json",
+      "input": 52,
+      "exit": 0,
+      "fail_at": 0,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "6f91f54da8959dea01def5eed3b4dfadd2894420f579a4caf04e758008145dc9"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-52-failure-1.json",
+      "input": 52,
+      "exit": 1,
+      "fail_at": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-52-failure-2.json",
+      "input": 52,
+      "exit": 1,
+      "fail_at": 2,
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "stderr_sha256": "52437903b2f50ac34435b777b4c61e3cac8dd458ec2dd3e83f13c05d099b11fc"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-52-failure-3.json",
+      "input": 52,
+      "exit": 1,
+      "fail_at": 3,
+      "stdout_sha256": "296d71a7f66e75b751c597094536329dcf2cf484f83e475d91f7aea1ff4c9738",
+      "stderr_sha256": "e6b36ece76acde72a5c109d3961b54353879bc8b0aaeb5335fdedb4862d7f642"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-52-failure-4.json",
+      "input": 52,
+      "exit": 1,
+      "fail_at": 4,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "4f077d68ce860a2b54bfee1f2d5eda0f15cd4ea5e5f3450ec2732e4f1feff775"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-52-failure-5.json",
+      "input": 52,
+      "exit": 0,
+      "fail_at": 5,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "6f91f54da8959dea01def5eed3b4dfadd2894420f579a4caf04e758008145dc9"
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-52-ordinary.json",
+      "input": 52,
+      "exit": 0,
+      "fail_at": null,
+      "stdout_sha256": "bdd302f8c9b9adf57776e4e21369a91833d6bc5a252c91d46f2d5f513622e2ce",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "allocator": [
+    {
+      "path": "native/review223-heterogeneous-O0/mode-49-failure-0.stderr",
+      "alloc_calls": 3,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 146
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-49-failure-1.stderr",
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-49-failure-2.stderr",
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 128
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-49-failure-3.stderr",
+      "alloc_calls": 3,
+      "allocated": 2,
+      "frees": 2,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 2,
+      "peak_bytes": 135
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-49-failure-4.stderr",
+      "alloc_calls": 3,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 146
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-0.stderr",
+      "alloc_calls": 5,
+      "allocated": 5,
+      "frees": 5,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 5,
+      "peak_bytes": 312
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-1.stderr",
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-2.stderr",
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 256
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-3.stderr",
+      "alloc_calls": 3,
+      "allocated": 2,
+      "frees": 2,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 2,
+      "peak_bytes": 263
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-4.stderr",
+      "alloc_calls": 4,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 274
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-5.stderr",
+      "alloc_calls": 5,
+      "allocated": 4,
+      "frees": 4,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 4,
+      "peak_bytes": 291
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-50-failure-6.stderr",
+      "alloc_calls": 5,
+      "allocated": 5,
+      "frees": 5,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 5,
+      "peak_bytes": 312
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-0.stderr",
+      "alloc_calls": 5,
+      "allocated": 5,
+      "frees": 5,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 5,
+      "peak_bytes": 184
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-1.stderr",
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-2.stderr",
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 128
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-3.stderr",
+      "alloc_calls": 3,
+      "allocated": 2,
+      "frees": 2,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 2,
+      "peak_bytes": 135
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-4.stderr",
+      "alloc_calls": 4,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 146
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-5.stderr",
+      "alloc_calls": 5,
+      "allocated": 4,
+      "frees": 4,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 4,
+      "peak_bytes": 163
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-51-failure-6.stderr",
+      "alloc_calls": 5,
+      "allocated": 5,
+      "frees": 5,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 5,
+      "peak_bytes": 184
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-52-failure-0.stderr",
+      "alloc_calls": 4,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 274
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-52-failure-1.stderr",
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-52-failure-2.stderr",
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 128
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-52-failure-3.stderr",
+      "alloc_calls": 3,
+      "allocated": 2,
+      "frees": 2,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 2,
+      "peak_bytes": 135
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-52-failure-4.stderr",
+      "alloc_calls": 4,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 146
+    },
+    {
+      "path": "native/review223-heterogeneous-O0/mode-52-failure-5.stderr",
+      "alloc_calls": 4,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 274
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-49-failure-0.stderr",
+      "alloc_calls": 3,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 146
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-49-failure-1.stderr",
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-49-failure-2.stderr",
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 128
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-49-failure-3.stderr",
+      "alloc_calls": 3,
+      "allocated": 2,
+      "frees": 2,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 2,
+      "peak_bytes": 135
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-49-failure-4.stderr",
+      "alloc_calls": 3,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 146
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-0.stderr",
+      "alloc_calls": 5,
+      "allocated": 5,
+      "frees": 5,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 5,
+      "peak_bytes": 312
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-1.stderr",
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-2.stderr",
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 256
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-3.stderr",
+      "alloc_calls": 3,
+      "allocated": 2,
+      "frees": 2,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 2,
+      "peak_bytes": 263
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-4.stderr",
+      "alloc_calls": 4,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 274
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-5.stderr",
+      "alloc_calls": 5,
+      "allocated": 4,
+      "frees": 4,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 4,
+      "peak_bytes": 291
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-50-failure-6.stderr",
+      "alloc_calls": 5,
+      "allocated": 5,
+      "frees": 5,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 5,
+      "peak_bytes": 312
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-0.stderr",
+      "alloc_calls": 5,
+      "allocated": 5,
+      "frees": 5,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 5,
+      "peak_bytes": 184
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-1.stderr",
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-2.stderr",
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 128
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-3.stderr",
+      "alloc_calls": 3,
+      "allocated": 2,
+      "frees": 2,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 2,
+      "peak_bytes": 135
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-4.stderr",
+      "alloc_calls": 4,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 146
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-5.stderr",
+      "alloc_calls": 5,
+      "allocated": 4,
+      "frees": 4,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 4,
+      "peak_bytes": 163
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-51-failure-6.stderr",
+      "alloc_calls": 5,
+      "allocated": 5,
+      "frees": 5,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 5,
+      "peak_bytes": 184
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-52-failure-0.stderr",
+      "alloc_calls": 4,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 274
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-52-failure-1.stderr",
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-52-failure-2.stderr",
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 128
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-52-failure-3.stderr",
+      "alloc_calls": 3,
+      "allocated": 2,
+      "frees": 2,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 2,
+      "peak_bytes": 135
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-52-failure-4.stderr",
+      "alloc_calls": 4,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 146
+    },
+    {
+      "path": "native/review223-heterogeneous-O2/mode-52-failure-5.stderr",
+      "alloc_calls": 4,
+      "allocated": 3,
+      "frees": 3,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 3,
+      "peak_bytes": 274
+    }
+  ],
+  "extra_language_cases": 0
+}

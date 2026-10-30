@@ -1,0 +1,28 @@
+{
+  "reviewer": "/root/ct_for",
+  "implementation_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+  "delivery_commit": "bcce4ca58cbd7edb1692c9140a0babb314491ddc",
+  "worktree": "/workspace/scratch/d286b3aeeb6b/zil-stdin-review",
+  "target": "/workspace/scratch/d286b3aeeb6b/targets/review223-stdin",
+  "target_preexisted": false,
+  "test_binary": {
+    "path": "/workspace/scratch/d286b3aeeb6b/targets/review223-stdin/debug/deps/review223_machine-bb2e79b030b78418",
+    "bytes": 31780136,
+    "sha256": "c7a833bd4709de9f26c38106f55e26e1e140a681117ed86de4ca1210df19e594"
+  },
+  "versions": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+    "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin"
+  },
+  "cli_invocations": 0,
+  "compiler_path": "compile_source API / LLVM API builder",
+  "changed_code_files": [
+    "crates/zil-driver/tests/review223_machine.rs"
+  ],
+  "evidence_only_delivery_files": [
+    "evidence/integration/222-224/postmerge-stdin-repair/author/MANIFEST.json",
+    "evidence/integration/222-224/postmerge-stdin-repair/author/RESULT.json",
+    "evidence/integration/222-224/postmerge-stdin-repair/author/SUMMARY.md",
+    "evidence/integration/222-224/postmerge-stdin-repair/author/raw-evidence.tar.gz"
+  ]
+}

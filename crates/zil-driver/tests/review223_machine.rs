@@ -74,27 +74,34 @@ fn compile(
 }
 fn execute(
     executable: &std::path::Path,
-    input: u8,
+    input: Option<u8>,
     fail: Option<usize>,
     dir: &std::path::Path,
     label: &str,
 ) -> std::process::Output {
     let mut cmd = Command::new(executable);
-    cmd.stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    cmd.stdin(if input.is_some() {
+        Stdio::piped()
+    } else {
+        Stdio::null()
+    })
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
     if let Some(fail) = fail {
         cmd.env("ZIL_TEST_FAIL_AT", fail.to_string());
     }
     let mut child = cmd.spawn().unwrap();
-    child.stdin.take().unwrap().write_all(&[input]).unwrap();
+    if let Some(input) = input {
+        child.stdin.take().unwrap().write_all(&[input]).unwrap();
+    }
     let output = child.wait_with_output().unwrap();
     fs::write(dir.join(format!("{label}.stdout")), &output.stdout).unwrap();
     fs::write(dir.join(format!("{label}.stderr")), &output.stderr).unwrap();
     fs::write(
         dir.join(format!("{label}.json")),
         format!(
-            "{{\"input\":{input},\"exit\":{},\"fail_at\":{}}}\n",
+            "{{\"input\":{},\"exit\":{},\"fail_at\":{}}}\n",
+            input.map_or("null".into(), |byte| byte.to_string()),
             output.status.code().unwrap(),
             fail.map_or("null".into(), |n| n.to_string())
         ),
@@ -108,7 +115,7 @@ fn failed_push_keeps_the_complete_product_through_two_return_edges() {
     let source = include_str!("review223_fixtures/entry_error.zil");
     for optimization in [Optimization::O0, Optimization::O2] {
         let (dir, program) = compile("entry-error", source, optimization, false);
-        let result = execute(&program, b'0', None, &dir, "run");
+        let result = execute(&program, None, None, &dir, "run");
         assert_eq!(result.status.code(), Some(1));
         assert_eq!(result.stdout, b"ABCDEF");
         assert!(result.stderr.is_empty());
@@ -155,7 +162,13 @@ fn mixed_layout_and_every_allocator_exit_preserve_exact_leaf_debts() {
             ),
             (b'4', "AZBC", vec![(128, 0), (7, 0), (11, 0), (256, 128)]),
         ] {
-            let result = execute(&program, mode, None, &dir, &format!("mode-{mode}-ordinary"));
+            let result = execute(
+                &program,
+                Some(mode),
+                None,
+                &dir,
+                &format!("mode-{mode}-ordinary"),
+            );
             assert_eq!(result.status.code(), Some(0));
             assert_eq!(result.stdout, normal.as_bytes());
             assert!(result.stderr.is_empty());
@@ -192,7 +205,7 @@ fn mixed_layout_and_every_allocator_exit_preserve_exact_leaf_debts() {
                 };
                 let result = execute(
                     &probe,
-                    mode,
+                    Some(mode),
                     Some(fail),
                     &dir,
                     &format!("mode-{mode}-failure-{fail}"),

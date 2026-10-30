@@ -1,0 +1,4 @@
+
+thread 'main' (23) panicked at /workspace/scratch/d286b3aeeb6b/zil-stdin-review/evidence/integration/222-224/postmerge-stdin-repair/review/closed_pipe_replay.rs:36:14:
+strict stdin write before output collection: Os { code: 32, kind: BrokenPipe, message: "Broken pipe" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
