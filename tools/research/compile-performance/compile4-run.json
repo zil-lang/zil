@@ -1,9 +1,9 @@
 {
   "schema": "zil-compile4-ci/1",
-  "run_id": "compile4-round1",
-  "base_revision": "64072793a0f41994f216a6207bf49ee1e2d224f8",
+  "run_id": "compile5-round1",
+  "base_revision": "a715f828261ff4b6ef9c8125623064360745aae4",
   "candidate_revision": "HEAD",
-  "candidate_crates_tree": "0221fa705e8dc926c54f6b85f2dc9ef3af98559a",
+  "candidate_crates_tree": "b583bc62e4aa39b206afb27f76f2f8262120fe9d",
   "llvm_version": "23.1.4",
   "rust_version": "1.99.1",
   "blocks": 3,
@@ -12,8 +12,15 @@
     {
       "package": "zil-types",
       "targets": [
-        "project_lookup_cp10"
+        "project_lookup_cp10",
+        "shape_resolution_cp18"
       ],
+      "lib": true,
+      "features": []
+    },
+    {
+      "package": "zil-ct",
+      "targets": [],
       "lib": true,
       "features": []
     },
@@ -35,7 +42,13 @@
         "closures_frontend",
         "projects",
         "impl219_budget",
-        "impl219_selection"
+        "impl219_selection",
+        "ct_reuse_cp19",
+        "aggregates",
+        "receiver_regression",
+        "impl105_ct_enum",
+        "impl094_ct_preflight",
+        "impl088_ct_preflight"
       ],
       "lib": false,
       "features": [

@@ -24,8 +24,9 @@ HERE = Path(__file__).resolve().parent
 SCHEMA = "zil-compile4-ci/1"
 CASES = {"tree4x2": .05, "tree32x8": .15, "tree256x8": .30, "tree1024x8": .30, "retained": .20}
 REQUESTS = {"cold_process": .10, "unchanged": .35, "private_edit": .40, "public_edit": .15}
-REQUIRED_TESTS = {"zil-types": {"project_lookup_cp10"}, "zil-backend-llvm": {"closed_executable_cp13"},
-                  "zil-driver": {"borrowed_inference_cp15", "query_cache_cp12"}}
+REQUIRED_TESTS = {"zil-types": {"project_lookup_cp10", "shape_resolution_cp18"},
+                  "zil-ct": set(), "zil-backend-llvm": {"closed_executable_cp13"},
+                  "zil-driver": {"borrowed_inference_cp15", "query_cache_cp12", "ct_reuse_cp19"}}
 
 
 def sha(path):
@@ -98,7 +99,8 @@ def manifest(path):
             or type(value.get("seed")) is not int):
         raise ValueError("CP17 requires LLVM 23.1.4, Rust 1.99.1 and three paired blocks")
     selected = {name: set() for name in REQUIRED_TESTS}
-    types_lib = False
+    required_libs = {"zil-types", "zil-ct"}
+    selected_libs = set()
     tests = value.get("tests")
     if not isinstance(tests, list) or not tests:
         raise ValueError("Explicit targeted test groups are required")
@@ -109,7 +111,7 @@ def manifest(path):
         targets, features = group.get("targets"), group.get("features")
         if (package not in selected or type(group.get("lib")) is not bool or not isinstance(targets, list)
                 or not isinstance(features, list) or any(feature != "llvm-api" for feature in features)
-                or (package != "zil-types" and "llvm-api" not in features)):
+                or (package in ("zil-backend-llvm", "zil-driver") and "llvm-api" not in features)):
             raise ValueError("Invalid targeted test group or missing LLVM API feature")
         if not targets and not group["lib"]:
             raise ValueError("An empty test selection cannot validate this candidate")
@@ -119,9 +121,10 @@ def manifest(path):
             if not (ROOT / "crates" / package / "tests" / (target + ".rs")).is_file():
                 raise ValueError("Missing targeted test: " + package + "/" + target)
         selected[package].update(targets)
-        types_lib |= package == "zil-types" and group["lib"]
-    if not types_lib or any(not required <= selected[package] for package, required in REQUIRED_TESTS.items()):
-        raise ValueError("The manifest omits required CP14/15 or cache controls")
+        if group["lib"]:
+            selected_libs.add(package)
+    if not required_libs <= selected_libs or any(not required <= selected[package] for package, required in REQUIRED_TESTS.items()):
+        raise ValueError("The manifest omits required types/CT libraries or CP14/15/18/19/cache controls")
     return value, {"manifest": str(relative), "manifest_sha256": sha(path), "base_revision": base,
                    "candidate_revision": candidate, "candidate_crates_tree": value["candidate_crates_tree"],
                    "base_crates_tree": git("rev-parse", base + ":crates"), "runner_sha256": sha(__file__)}

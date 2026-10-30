@@ -310,7 +310,7 @@ Doing
       "run": "https://github.com/zil-lang/zil/actions/runs/41068328117"
     },
     "CP18": {
-      "status": "Doing",
+      "status": "Review",
       "author": "/root/shape_opt",
       "baseline": "17d31322fdc12bb22ea17c7e1d3a64d7c378ce10",
       "purpose": "Preserve checks, diagnostic order and logical charges while sharing sparse project declaration views and borrowing unchanged shape resolution. Separate implementation commits and measurements.",
@@ -322,10 +322,15 @@ Doing
         "crates/zil-types/src/inference.rs",
         "crates/zil-types/src/lib.rs",
         "crates/zil-types/tests/shape_resolution_cp18.rs"
-      ]
+      ],
+      "candidate": "8cd1a412e5ab260843469a3d9b25125a9bed5140",
+      "validation": "78 passed default-feature affected targets",
+      "performance": "NotMeasured",
+      "independent_source_review": "Pass by /root/industry_audit; CP18 Cow additionally checked by /root/ct_opt",
+      "evidence": "evidence/research/compile-performance/COMPILE5/local/MANIFEST.json"
     },
     "CP19": {
-      "status": "Doing",
+      "status": "Review",
       "author": "/root/ct_opt",
       "baseline": "17d31322fdc12bb22ea17c7e1d3a64d7c378ce10",
       "purpose": "Investigate CT allocation/index reuse; do not skip walker checks or resolve/check stages. Implementation only after demonstrated concrete redundant work.",
@@ -337,10 +342,15 @@ Doing
         "crates/zil-driver/src/project.rs",
         "crates/zil-ct/tests/borrowed_source_cp19.rs",
         "crates/zil-driver/tests/ct_reuse_cp19.rs"
-      ]
+      ],
+      "candidate": "ce2d87e7ef93594e7461760fc184efc7f181d5f2",
+      "validation": "26 CT lib plus 4 driver passed",
+      "performance": "NotMeasured",
+      "independent_source_review": "Pass by /root/industry_audit; CP18 Cow additionally checked by /root/ct_opt",
+      "evidence": "evidence/research/compile-performance/COMPILE5/local/MANIFEST.json"
     },
     "CP20": {
-      "status": "Doing",
+      "status": "Review",
       "author": "/root",
       "reviewer": "/root/industry_audit",
       "baseline": "c8bacf734",
@@ -352,7 +362,12 @@ Doing
         "tools/research/compile-performance/compile4_ci.py",
         "tools/research/compile-performance/test_runtime_bench.py"
       ],
-      "plan": "docs/research/compile-performance/COMPILE5-PLAN.md"
+      "plan": "docs/research/compile-performance/COMPILE5-PLAN.md",
+      "candidate": "71d2c20c554ddfa36a0741be4aa1ed290de9ea5c",
+      "validation": "64 Python controls passed",
+      "performance": "NotMeasured",
+      "independent_source_review": "Pass by /root/industry_audit; CP18 Cow additionally checked by /root/ct_opt",
+      "evidence": "evidence/research/compile-performance/COMPILE5/local/MANIFEST.json"
     }
   },
   "mainline_acceptance": "Hold: this research is not merged into main; full workspace tests and product gates NotRun. CP14 small-program runtime quality recovered in this three-block window; overall compile superiority to Rust not reached.",
