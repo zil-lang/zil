@@ -1,0 +1,25 @@
+{
+  "reviewer": "/root/shape_opt",
+  "independently_fetched": true,
+  "fetched_at_utc": "2026-10-30T16:35:35.717Z",
+  "calls": [
+    {
+      "tool": "github_fetch",
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/runs/41086451087",
+      "output": "COMPILE5-GITHUB-RUN-INDEPENDENT.json"
+    },
+    {
+      "tool": "github_fetch_workflow_run_artifacts",
+      "repo_full_name": "zil-lang/zil",
+      "run_id": 41086451087,
+      "output": "COMPILE5-GITHUB-ARTIFACT-INDEPENDENT.json"
+    },
+    {
+      "tool": "github_fetch_workflow_run_jobs",
+      "repo_full_name": "zil-lang/zil",
+      "run_id": 41086451087,
+      "output": "COMPILE5-GITHUB-JOBS-INDEPENDENT.json"
+    }
+  ],
+  "notes": "Saved parsed API response objects with formatting; this is not a claim to preserve HTTP response byte formatting."
+}

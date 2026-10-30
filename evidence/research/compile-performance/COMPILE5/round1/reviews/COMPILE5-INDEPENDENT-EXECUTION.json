@@ -1,0 +1,1443 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/shape_opt",
+  "status": "Pass_TargetedExecutionAndArtifactIntegrity",
+  "scope": "Independent retained-artifact execution/integrity audit; no Cargo, native execution or performance arithmetic.",
+  "expected_run": 41086451087,
+  "candidate": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
+  "local_freeze": "187eae4f6bb085f0d0d42765f047b7f60add6bed",
+  "baseline": "a715f828261ff4b6ef9c8125623064360745aae4",
+  "phase_failures": [],
+  "product_gates": "NotRunByThisReview",
+  "performance_adoption": "NotEvaluatedByThisReview",
+  "limitations": [
+    "Post-run evidence review; does not rerun compilers/tests or establish full-workspace/product-gate success.",
+    "Command interval ends are derived from recorded started_unix plus monotonic seconds; per-sample absolute timestamps were not recorded.",
+    "Serial measurement also relies on the frozen synchronous runner control flow; no claim of physical-host exclusivity or absence of unrelated processes.",
+    "External LLVM/Rust tool binaries and the original LLVM download are not retained here; their identities are cross-checked between CI receipts/plans, not independently rehashed as installed binaries.",
+    "Source defaults plus exact argv establish feature selection; this is not a new Cargo feature-resolution execution."
+  ],
+  "source_identity": {
+    "status": "Pass",
+    "candidate_revision": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
+    "candidate_crates_tree": "b583bc62e4aa39b206afb27f76f2f8262120fe9d",
+    "base_revision": "a715f828261ff4b6ef9c8125623064360745aae4",
+    "base_crates_tree": "0221fa705e8dc926c54f6b85f2dc9ef3af98559a",
+    "candidate_tree": "6ab7522524122c6d21738329ab7dd885c6bbc75c",
+    "local_freeze_tree_equal": true,
+    "manifest_bytes_equal": true,
+    "manifest_sha256": "215649fdd0b0b03aa724d44e614bfdb31cba53e928403bd35f4f38b1274c9ce5",
+    "runner_sha256": "2fa541431f79f1d5ab3d67d151f8c6bc8ad08163df7c413c71a2241565f68a0c",
+    "workflow_sha256": "8fb8c7bf3d061c8fe6fab13dcdade021c2e5e6a36eab36c12b4eedd6c9470a65",
+    "setup_commit_and_validation_equal": true,
+    "full_git_ls_tree_matches": true,
+    "source_listing_sha256": "52ad3efc767f0e8d4f0509e3d856cc1a030aaf4383a69de392f13669076be463"
+  },
+  "inventory": {
+    "status": "Pass",
+    "listed_files": 40360,
+    "verified_files": 40360,
+    "logical_bytes_hashed": 330305540,
+    "distinct_inodes": 2402,
+    "observed_file_modes": {
+      "0o755": 42,
+      "0o644": 40318
+    },
+    "inventory_sha256": "162f6a39b23c0d7e17515276dda66ced25dcab35ca9ede49bb4ac81403d5985e",
+    "missing": [],
+    "unlisted_except_inventory_itself": [],
+    "method": "Each path independently opened and streamed; no inode/hash cache and no evidence writes."
+  },
+  "tar_members": {
+    "status": "Pass",
+    "path": "/dev/shm/zil-compile5-41086451087/compile4-evidence.tar.gz",
+    "archive_sha256": "5ad5bffeddf7e8402b770e0009e842456ce61b1806d229c172617ca50b206010",
+    "archive_bytes": 68150903,
+    "regular_files": 40361,
+    "directories": 292,
+    "logical_bytes_hashed": 337324805,
+    "posix_file_modes": {
+      "0o644": 40319,
+      "0o755": 42
+    },
+    "missing": [],
+    "other_members": [],
+    "method": "Streamed original tar without extraction; all original regular members, including files.json, compared by size/SHA256/POSIX mode."
+  },
+  "compiler_builds": {
+    "status": "Pass",
+    "builds": {
+      "baseline": {
+        "source_commit": "a715f828261ff4b6ef9c8125623064360745aae4",
+        "path": "/home/runner/work/_temp/compile4-evidence/binaries/zil-baseline",
+        "sha256": "3da310e2179a30bff2c6d520215b5e109ac346edb7baea13892ee026fe873dec",
+        "bytes": 7317512,
+        "posix_mode": "0o755",
+        "argv": [
+          "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+          "build",
+          "--release",
+          "--locked",
+          "-p",
+          "zil-cli"
+        ],
+        "cwd": "/home/runner/work/_temp/compile4-work/baseline-source",
+        "extra_environment": {
+          "CARGO_TARGET_DIR": "/home/runner/work/_temp/compile4-work/target-baseline"
+        },
+        "features_from_frozen_source": {
+          "zil-cli": {
+            "default": [
+              "llvm-api"
+            ],
+            "llvm-api": [
+              "zil-driver/llvm-api"
+            ],
+            "timings": [
+              "zil-driver/timings"
+            ]
+          },
+          "zil-driver": {
+            "default": [],
+            "llvm-api": [
+              "zil-backend-llvm/llvm-api"
+            ],
+            "timings": [
+              "zil-backend-llvm/timings"
+            ]
+          },
+          "zil-backend-llvm": {
+            "default": [],
+            "llvm-api": [
+              "zil-llvm-api/native"
+            ],
+            "timings": [
+              "zil-llvm-api/timings"
+            ]
+          }
+        },
+        "receipt": "logs/011-baseline-build.json",
+        "stdout": "logs/011-baseline-build.stdout",
+        "stderr": "logs/011-baseline-build.stderr"
+      },
+      "candidate": {
+        "source_commit": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
+        "path": "/home/runner/work/_temp/compile4-evidence/binaries/zil-candidate",
+        "sha256": "56009a9cd67d268f41953b5e065984f050af015af6edc49a2c2188d24d2cfd17",
+        "bytes": 7422280,
+        "posix_mode": "0o755",
+        "argv": [
+          "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+          "build",
+          "--release",
+          "--locked",
+          "-p",
+          "zil-cli"
+        ],
+        "cwd": "/home/runner/work/zil/zil",
+        "extra_environment": {
+          "CARGO_TARGET_DIR": "/home/runner/work/_temp/compile4-work/target-candidate"
+        },
+        "features_from_frozen_source": {
+          "zil-cli": {
+            "default": [
+              "llvm-api"
+            ],
+            "llvm-api": [
+              "zil-driver/llvm-api"
+            ],
+            "timings": [
+              "zil-driver/timings"
+            ]
+          },
+          "zil-driver": {
+            "default": [],
+            "llvm-api": [
+              "zil-backend-llvm/llvm-api"
+            ],
+            "timings": [
+              "zil-backend-llvm/timings"
+            ]
+          },
+          "zil-backend-llvm": {
+            "default": [],
+            "llvm-api": [
+              "zil-llvm-api/native"
+            ],
+            "timings": [
+              "zil-llvm-api/timings"
+            ]
+          }
+        },
+        "receipt": "logs/017-candidate-build.json",
+        "stdout": "logs/017-candidate-build.stdout",
+        "stderr": "logs/017-candidate-build.stderr"
+      }
+    },
+    "actual_binary_bytes_hash_and_modes_verified": true
+  },
+  "commands": {
+    "status": "Pass",
+    "count": 43,
+    "all_exit_zero": true,
+    "all_timeout_false": true,
+    "all_stdout_stderr_hashes_match": true,
+    "formatting_argv": [
+      "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "candidate_check_argv": [
+      "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "check",
+      "--locked",
+      "--workspace"
+    ]
+  },
+  "cargo_targeted_tests": {
+    "status": "Pass",
+    "harness_count": 18,
+    "passed": 231,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 0,
+    "harnesses": [
+      {
+        "target": "unittests src/lib.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/zil_types-313b446e6369bf18",
+        "running": 18,
+        "passed": 18,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 18,
+        "test_names": [
+          "helpers::plan::result_shape_tests::binding_a_whole_union_preserves_both_sides_and_try_selects_only_success",
+          "names::tests::leading_dot_does_not_fallback_to_other_names",
+          "names::tests::local_self_cannot_shadow_receiver",
+          "resource_effects::worklist_tests::disabled_dependency_collection_is_zero_sized",
+          "resource_effects::worklist_tests::empty_worklist_and_seedless_cycles_have_no_effects",
+          "resource_effects::worklist_tests::direct_byte_primitives_foreign_and_unknown_calls_remain_seeds",
+          "resource_effects::worklist_tests::every_current_core_variant_preserves_origin_support_and_transfer",
+          "resource_effects::worklist_tests::every_two_node_transfer_and_summary_assignment_matches_local_relation",
+          "resource_effects::worklist_tests::exhaustive_three_node_graphs_and_seeds_match_sweeps",
+          "resource_effects::worklist_tests::larger_mixed_graphs_and_function_order_permutations_match",
+          "resource_effects::worklist_tests::shadowed_calls_remain_conservative_and_imports_register_real_ids",
+          "resource_effects::worklist_tests::small_dispatch_preserves_every_old_budget_boundary",
+          "resource_effects::worklist_tests::worklist_every_failure_prefix_and_recovery",
+          "tests::minimum_signed_integer_supported",
+          "tests::scalar_arithmetic_builds_cfg",
+          "tests::unknown_name_rejected",
+          "tests::wrong_return_type_rejected",
+          "resource_effects::worklist_tests::forward_and_reverse_chain_growth_is_measured_without_time_claims"
+        ],
+        "package": "zil-types",
+        "features": [],
+        "receipt": "logs/013-candidate-tests-0.json",
+        "stdout": "logs/013-candidate-tests-0.stdout",
+        "stderr": "logs/013-candidate-tests-0.stderr"
+      },
+      {
+        "target": "tests/project_lookup_cp10.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/project_lookup_cp10-d1d00ab6124e10ca",
+        "running": 6,
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 6,
+        "test_names": [
+          "a_previous_request_cannot_supply_missing_callable_declarations",
+          "aggregate_and_enum_index_charges_remain_per_module",
+          "declaration_errors_keep_precedence_over_later_invalid_shapes",
+          "standalone_inference_keeps_its_local_state_declarations",
+          "project_collects_callable_and_state_names_from_all_modules",
+          "symbolic_store_and_state_have_exact_fresh_analysis_budgets"
+        ],
+        "package": "zil-types",
+        "features": [],
+        "receipt": "logs/013-candidate-tests-0.json",
+        "stdout": "logs/013-candidate-tests-0.stdout",
+        "stderr": "logs/013-candidate-tests-0.stderr"
+      },
+      {
+        "target": "tests/shape_resolution_cp18.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/shape_resolution_cp18-881fcc471e271947",
+        "running": 6,
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 6,
+        "test_names": [
+          "checked_unchanged_shapes_borrow_the_original_program",
+          "changed_shapes_preserve_borrowed_prefix_suffix_and_ownership_modes",
+          "local_enums_with_the_same_name_remain_module_scoped",
+          "modules_without_shapes_still_validate_schema_imports_and_module_limits",
+          "sparse_enum_conflicts_follow_input_order_and_do_not_leak_between_requests",
+          "empty_modules_preserve_the_frozen_per_declaration_budget"
+        ],
+        "package": "zil-types",
+        "features": [],
+        "receipt": "logs/013-candidate-tests-0.json",
+        "stdout": "logs/013-candidate-tests-0.stdout",
+        "stderr": "logs/013-candidate-tests-0.stderr"
+      },
+      {
+        "target": "unittests src/lib.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/zil_ct-45a77ab8c41e653d",
+        "running": 26,
+        "passed": 26,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 26,
+        "test_names": [
+          "materialize::tests::ct202_fresh_ids_include_the_static_callee_inside_type_application",
+          "materialize::tests::identity_header_overflow_precedes_body_budget_and_empty_input_is_free",
+          "materialize::tests::impl090_slice_identity_cursor_visits_object_and_both_bounds",
+          "materialize::tests::impl105_enum_reification_charges_fresh_constructor_nodes_text_and_depth",
+          "materialize::tests::lazy_identity_cursor_preserves_exact_node_depth_and_diagnostic_order",
+          "source::reuse_cp19::compound_replay_preserves_all_node_work_edges_and_current_error_span",
+          "source::reuse_cp19::deeper_call_site_and_parameter_limits_cannot_reuse_a_shallower_success",
+          "source::reuse_cp19::equal_types_have_separate_borrowed_identities_and_leaves_have_no_entries",
+          "source::tests::arithmetic_error_does_not_publish_core",
+          "source::tests::callable_return_metadata_is_preserved_and_bounded_before_clone",
+          "source::tests::bytes083_standalone_scalar_hints_are_symmetric_and_cumulatively_bounded",
+          "source::tests::ct202_runtime_application_preserves_metadata_and_scalar_argument_context",
+          "source::tests::ct202_template_metadata_and_type_arguments_are_bounded_before_copy",
+          "source::tests::ct202_type_application_is_forbidden_in_direct_scalar_query",
+          "source::tests::ct203_runtime_bare_ordinary_scalar_hint_indexed",
+          "source::tests::ct203_runtime_bare_ordinary_scalar_hint_plain",
+          "source::tests::ct203_runtime_bare_state_scalar_hint_indexed",
+          "source::tests::ct203_runtime_bare_state_scalar_hint_plain",
+          "source::tests::minimum_target_integer_is_preserved",
+          "source::tests::source_ct_budget_is_shared_by_all_expressions",
+          "source::tests::source_ct_does_not_eagerly_execute_short_circuit_rhs",
+          "source::tests::source_ct_returns_ordinary_core_with_source_identity",
+          "source::tests::source_ct_verifier_rejects_mixed_types",
+          "tests::checked_division_reports_error",
+          "tests::executes_verified_arithmetic",
+          "tests::overflow_and_wrapping_differ"
+        ],
+        "package": "zil-ct",
+        "features": [],
+        "receipt": "logs/014-candidate-tests-1.json",
+        "stdout": "logs/014-candidate-tests-1.stdout",
+        "stderr": "logs/014-candidate-tests-1.stderr"
+      },
+      {
+        "target": "unittests src/lib.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/zil_backend_llvm-e1dc68f76fb1f47a",
+        "running": 45,
+        "passed": 45,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 45,
+        "test_names": [
+          "cgu::tests::duplicate_definitions_are_not_erased_to_make_invalid_ir_link",
+          "cgu::tests::foreign_declarations_and_header_are_retained_without_body_rewriting",
+          "cgu::tests::global_initializer_and_function_value_uses_keep_exact_declarations",
+          "cgu::tests::mutual_recursion_keeps_cross_unit_prototypes_and_no_self_declaration",
+          "cgu::tests::original_function_and_global_bodies_are_not_rewritten",
+          "cgu::tests::shared_private_storage_and_internal_function_addresses_are_never_cloned",
+          "cgu::tests::sparse_declarations_follow_direct_uses_not_transitive_callees",
+          "cgu::tests::symbol_scan_ignores_strings_and_comments_and_fails_closed",
+          "cgu::tests::unknown_top_level_and_incomplete_definitions_fall_back",
+          "cgu::tests::union_find_is_transitive_and_deterministic",
+          "cgu::tests::unsupported_alias_linkage_and_block_addresses_keep_original_module",
+          "machine_cgu::tests::closed_policy_keeps_cross_unit_function_addresses_and_global_initializers",
+          "machine_cgu::tests::closed_policy_preserves_local_address_use_and_duplicate_rejection",
+          "machine_cgu::tests::closed_policy_uses_exact_nonforeign_identity_and_keeps_other_items",
+          "machine_cgu::tests::cp14_disabled_and_single_unit_paths_are_unchanged",
+          "machine_cgu::tests::cp14_large_closed_program_preserves_cross_unit_reference",
+          "machine_cgu::tests::external_uses_import_only_immediate_declarations",
+          "machine_cgu::tests::local_component_falls_back_without_copying_and_duplicates_remain_invalid",
+          "machine_cgu::tests::local_identity_and_global_initializers_are_colocated_once",
+          "machine_cgu::tests::cp14_small_closed_o2_obeys_total_instruction_boundary",
+          "object_cache::tests::entry_roundtrip_corruption_key_and_length_are_checked",
+          "object_cache::tests::installed_tool_identity_fallback_detects_changed_content",
+          "object_cache::tests::key_binds_all_machine_changes_but_not_authorization_comment",
+          "object_cache::tests::pending_objects_are_not_stored_until_success_commit",
+          "object_cache::tests::symlink_and_group_writable_cache_roots_are_rejected",
+          "object_cache::tests::unwritable_cache_cannot_revoke_success",
+          "object_cache::tests::concurrent_writers_only_publish_complete_entries",
+          "tests::changing_any_lir_closure_claim_is_rejected_before_tools_or_output",
+          "tests::bytes083_native_unsigned_result_and_untrusted_byte_layout_are_independent",
+          "tests::empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi",
+          "tests::error_projection_tag_mismatch_traps_including_unit_payload",
+          "tests::error_union_nested_in_enum_preserves_wide_and_unit_payload_layout",
+          "tests::integer_arithmetic_comparisons_and_explicit_wrapping_execute",
+          "tests::loop_and_branch_execute_mutable_local_dataflow",
+          "tests::missing_tool_and_invalid_entry_fail_without_a_native_artifact",
+          "tests::native_entry_never_enters_an_environment_function_even_when_empty",
+          "tests::native_harness_observes_full_signed_results_at_both_optimization_levels",
+          "tests::nonzero_cfg_entry_is_selected_by_the_native_prologue",
+          "tests::ordinary_main_uses_real_process_exit_status_and_unit_returns_zero",
+          "tests::recursion_and_direct_calls_use_identity_symbols_not_source_names",
+          "tests::runtime_closure_environments_are_independent_copies_and_repeatable",
+          "tests::synchronous_error_main_maps_both_tags_and_erased_success_at_o0_o2",
+          "tests::tampered_lir_is_rejected_before_invoking_tools_or_creating_outputs",
+          "tests::unit_parameters_loads_stores_calls_and_returns_are_erased_after_verification",
+          "tests::checked_integer_failures_trap_in_native_code_before_printing"
+        ],
+        "package": "zil-backend-llvm",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/015-candidate-tests-2.json",
+        "stdout": "logs/015-candidate-tests-2.stdout",
+        "stderr": "logs/015-candidate-tests-2.stderr"
+      },
+      {
+        "target": "tests/closed_executable_cp13.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/closed_executable_cp13-e8168fe0191e9827",
+        "running": 6,
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 6,
+        "test_names": [
+          "closed_link_failure_keeps_previous_artifacts",
+          "closed_mode_preserves_entry_binding_and_unsupported_target_rejection",
+          "closed_o0_build_keeps_runtime_behavior_with_one_or_many_units",
+          "cp14_small_closed_o2_cannot_bypass_invalid_codegen_options",
+          "object_cache_separates_actual_linkage_and_reuses_each_policy",
+          "closed_executable_keeps_results_exports_and_reports_effective_units"
+        ],
+        "package": "zil-backend-llvm",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/015-candidate-tests-2.json",
+        "stdout": "logs/015-candidate-tests-2.stdout",
+        "stderr": "logs/015-candidate-tests-2.stderr"
+      },
+      {
+        "target": "tests/aggregates.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/aggregates-fa765efdb498f4fa",
+        "running": 10,
+        "passed": 10,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 10,
+        "test_names": [
+          "empty_unit_bool_tuples_and_nested_arrays",
+          "arrays_nested_fields_loop_and_copy_return",
+          "instance_method_value_is_not_silently_bound",
+          "raw_aggregate_shapes_obey_work_and_depth_limits_before_identity_checks",
+          "malformed_record_fields_and_nominal_mismatch",
+          "record_defaults_context_and_inferred_updates",
+          "records_nested_update_parameter_and_return",
+          "static_and_value_receiver_methods",
+          "wire_roundtrip_and_independent_field_forgery_rejection",
+          "signed_and_upper_bounds_reads_and_writes_trap"
+        ],
+        "package": "zil-driver",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/016-candidate-tests-3.json",
+        "stdout": "logs/016-candidate-tests-3.stdout",
+        "stderr": "logs/016-candidate-tests-3.stderr"
+      },
+      {
+        "target": "tests/borrowed_inference_cp15.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/borrowed_inference_cp15-e444ba9d5bb85203",
+        "running": 4,
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 4,
+        "test_names": [
+          "borrowing_does_not_skip_metadata_or_zero_work_failures",
+          "normalized_project_keeps_changes_in_a_module_without_closures",
+          "unchanged_scalar_project_borrows_the_exact_original_storage",
+          "rewritten_function_preserves_both_unchanged_neighbors_and_source"
+        ],
+        "package": "zil-driver",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/016-candidate-tests-3.json",
+        "stdout": "logs/016-candidate-tests-3.stdout",
+        "stderr": "logs/016-candidate-tests-3.stderr"
+      },
+      {
+        "target": "tests/closures_frontend.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/closures_frontend-83a3c96a9b25f264",
+        "running": 22,
+        "passed": 22,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 22,
+        "test_names": [
+          "c014_02_known_i64_capture_constrains_unannotated_parameter_and_literals",
+          "c014_03_parameter_and_inner_binding_shadow_outer_capture_candidates",
+          "c014_01_first_call_resolves_identity_and_repeated_calls_keep_one_environment",
+          "c014_04_capture_identity_and_source_order_survive_later_shadowing",
+          "c014_05_local_copy_assignment_and_pending_capture_are_concrete_values",
+          "c014_07_body_call_signature_and_boolean_constraints_infer_without_call_defaults",
+          "c014_08_synthetic_functions_share_graph_budgets",
+          "c014_06_rejects_ambiguous_conflicting_and_mutating_closures",
+          "c014_09_closure_body_resolves_imports_without_exporting_environment_functions",
+          "c014_10_ct_parameter_shadowing_does_not_use_outer_i64_hint",
+          "c014_11_captureless_unit_closure_and_scalar_control_flow_are_supported",
+          "c014_12_callee_is_evaluated_once_before_arguments",
+          "c014_14_known_later_argument_constrains_earlier_unsuffixed_literal",
+          "c014_13_real_native_pending_capture_copy_and_i64_inference",
+          "c014_15_whole_function_constraints_are_preserved_and_call_order_independent",
+          "c014_17_explicit_types_still_conflict_and_return_annotations_constrain",
+          "c014_16_ct_uses_solved_context_before_verified_evaluation",
+          "c014_19_ct_unit_equality_remains_available_without_runtime_admission",
+          "c014_20_raw_type_and_metadata_budgets_precede_recursive_cloning",
+          "c014_21_budget_preflight_visits_tail_after_first_closure_and_charges_names",
+          "c014_22_synthetic_function_budget_is_global_and_checked_before_ct",
+          "c014_18_lexical_capture_identity_does_not_follow_later_bindings"
+        ],
+        "package": "zil-driver",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/016-candidate-tests-3.json",
+        "stdout": "logs/016-candidate-tests-3.stdout",
+        "stderr": "logs/016-candidate-tests-3.stderr"
+      },
+      {
+        "target": "tests/ct_reuse_cp19.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/ct_reuse_cp19-5447e0752556df36",
+        "running": 4,
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 4,
+        "test_names": [
+          "compound_parameter_hints_preserve_narrow_ct_overflow_rejection",
+          "real_source_repeated_tuple_shapes_keep_complete_core_and_exact_node_boundary",
+          "repeated_cross_module_compound_hints_keep_ct_context_and_current_verify",
+          "borrowed_hints_do_not_grant_visibility_or_hide_argument_errors"
+        ],
+        "package": "zil-driver",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/016-candidate-tests-3.json",
+        "stdout": "logs/016-candidate-tests-3.stdout",
+        "stderr": "logs/016-candidate-tests-3.stderr"
+      },
+      {
+        "target": "tests/impl088_ct_preflight.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/impl088_ct_preflight-61a80f950f9e12d4",
+        "running": 12,
+        "passed": 12,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 12,
+        "test_names": [
+          "aggregate_and_enum_tables_do_not_bypass_public_preflight",
+          "foreign_metadata_and_untyped_closure_parameters_cannot_hide_unbounded_tables",
+          "hint_lookahead_does_not_clone_unvisited_ascription_trees",
+          "later_headers_are_preflighted_before_an_earlier_ct_query",
+          "local_annotations_records_and_closures_bound_callback_trees_before_clone",
+          "metadata_work_is_cumulative_and_exact_boundary_is_not_off_by_one",
+          "public_headers_are_bounded_before_any_type_clone",
+          "raw_recursive_callback_depth_and_text_copy_work_are_bounded",
+          "real_source_header_limits_do_not_depend_on_declaration_order",
+          "source_node_and_depth_limits_accept_exact_boundaries_and_accumulate",
+          "unusable_context_callback_headers_are_still_structurally_bounded",
+          "real_source_ct_helpers_keep_static_foreign_values_forbidden_in_both_orders"
+        ],
+        "package": "zil-driver",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/016-candidate-tests-3.json",
+        "stdout": "logs/016-candidate-tests-3.stdout",
+        "stderr": "logs/016-candidate-tests-3.stderr"
+      },
+      {
+        "target": "tests/impl094_ct_preflight.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/impl094_ct_preflight-67c2ab2d27ee40cb",
+        "running": 8,
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 8,
+        "test_names": [
+          "adapter::tests::ct202_collector_bounds_unused_template_names_before_whole_program_copy",
+          "adapter::tests::ct122_original_teardown_is_bounded_before_query_copy",
+          "adapter::tests::ct_reachable_pattern_trees_are_bounded_before_clone",
+          "adapter::tests::ct202_collector_rejects_bare_template_and_indirect_wrapper_before_execution",
+          "all_raw_byte_primitives_are_closed_at_the_ct_query_boundary",
+          "byte_payload_headers_are_traversed_and_materialized_with_exact_ct_cost",
+          "raw_core_cannot_rebind_reserved_storage_symbols",
+          "unusable_byte_type_trees_are_bounded_before_cloning_or_query_execution"
+        ],
+        "package": "zil-driver",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/016-candidate-tests-3.json",
+        "stdout": "logs/016-candidate-tests-3.stdout",
+        "stderr": "logs/016-candidate-tests-3.stderr"
+      },
+      {
+        "target": "tests/impl105_ct_enum.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/impl105_ct_enum-55b6ed0880efd5a2",
+        "running": 12,
+        "passed": 12,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 12,
+        "test_names": [
+          "deep_and_wide_enum_metadata_is_bounded_on_raw_and_wire_entry",
+          "multi_module_plan_uses_real_dynamic_inputs_at_o0_and_o2",
+          "direct_and_helper_queries_reify_unit_and_payload_variants",
+          "nested_record_array_and_enum_values_keep_active_tags",
+          "raw_and_wire_reconstruct_tags_payloads_initialization_and_capabilities",
+          "reified_nominal_owner_is_checked_again_by_ordinary_types",
+          "repeated_enum_queries_share_the_actual_execution_budget",
+          "nominal_reification_is_hygienic_in_runtime_scopes_and_closures",
+          "source_capability_and_payload_controls_remain_rejections",
+          "vm_counts_full_enum_shapes_and_exact_steps_cells_and_call_depth",
+          "well_formed_wrong_active_projection_traps_before_reading_payload",
+          "same_spelling_in_distinct_modules_preserves_nominal_identity"
+        ],
+        "package": "zil-driver",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/016-candidate-tests-3.json",
+        "stdout": "logs/016-candidate-tests-3.stdout",
+        "stderr": "logs/016-candidate-tests-3.stderr"
+      },
+      {
+        "target": "tests/impl219_budget.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/impl219_budget-0f0f2365ccda142a",
+        "running": 3,
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 3,
+        "test_names": [
+          "selection_and_later_constants_share_steps_nodes_and_fresh_request_recovery",
+          "project_source_dependency_edits_reselect_with_fresh_independent_verification",
+          "target_and_limits_invalidate_selection_but_original_no_selection_paths_keep_their_identity"
+        ],
+        "package": "zil-driver",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/016-candidate-tests-3.json",
+        "stdout": "logs/016-candidate-tests-3.stdout",
+        "stderr": "logs/016-candidate-tests-3.stderr"
+      },
+      {
+        "target": "tests/impl219_selection.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/impl219_selection-56f4708603f257c1",
+        "running": 6,
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 6,
+        "test_names": [
+          "config_snapshot_is_closed_and_runtime_shadowing_is_not_a_global_fallback",
+          "actual_scalar_function_dependencies_loops_recursion_and_short_circuit_execute",
+          "ordinary_cross_module_visibility_and_generated_exports_are_preserved",
+          "grouped_import_objects_keep_the_same_closed_dependencies_and_lexical_shadowing",
+          "original_probes_and_selected_lists_reach_the_independent_gate",
+          "the_frozen_native_consumer_checks_both_source_configurations"
+        ],
+        "package": "zil-driver",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/016-candidate-tests-3.json",
+        "stdout": "logs/016-candidate-tests-3.stdout",
+        "stderr": "logs/016-candidate-tests-3.stderr"
+      },
+      {
+        "target": "tests/projects.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/projects-4555172c0fa05164",
+        "running": 27,
+        "passed": 27,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 27,
+        "test_names": [
+          "m002_visibility_alias_and_call_contract_rejections",
+          "m001_real_native_modules_keep_same_names_and_only_root_main",
+          "m004_signature_and_implementation_hashes_track_different_inputs",
+          "m005_memory_entry_has_no_implicit_filesystem_imports",
+          "m006_missing_cycles_and_invalid_paths_have_honest_categories",
+          "m007_every_dependency_is_protected_from_output_overwrite",
+          "m008_source_and_frontend_function_and_block_quotas_are_cumulative",
+          "m009_second_module_receives_only_remaining_ct_steps_before_execution",
+          "m010_dependency_diagnostics_preserve_file_identity",
+          "m003_dependency_edit_changes_runtime_without_changing_public_signature",
+          "m011_symlink_escape_rejected_and_internal_aliases_share_one_identity",
+          "m013_raw_program_calls_use_explicit_ids_and_validate_export_references",
+          "m012_graph_mapping_edits_invalidate_even_with_identical_source_bytes",
+          "m014_imported_main_cannot_supply_a_missing_root_entry",
+          "m016_ct_header_index_charges_graph_and_signature_work",
+          "m017_file_parse_stop_only_checks_entry_syntax",
+          "m018_file_parse_stop_does_not_resolve_escaping_symlinks",
+          "m019_file_core_stop_resolves_graph_without_executing_ct",
+          "m020_directory_entry_is_a_single_module_with_explicit_dependencies",
+          "m021_two_entries_are_rejected_including_preseeded_root_identity",
+          "m015_cross_module_ct_preserves_context_visibility_and_verified_calls",
+          "m022_directory_without_entry_is_not_a_glob_or_merged_namespace",
+          "m024_directory_aliases_share_identity_and_cannot_escape_the_root",
+          "m023_zil_suffix_is_a_logical_segment_and_never_stripped",
+          "m026_directory_imports_keep_parse_stops_and_cumulative_source_budgets",
+          "m027_numberlab_compiles_real_algorithms_through_file_and_directory_modules",
+          "m025_directory_edits_and_layout_changes_match_cold_compilation"
+        ],
+        "package": "zil-driver",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/016-candidate-tests-3.json",
+        "stdout": "logs/016-candidate-tests-3.stdout",
+        "stderr": "logs/016-candidate-tests-3.stderr"
+      },
+      {
+        "target": "tests/query_cache_cp12.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/query_cache_cp12-38702f4288cde4bd",
+        "running": 12,
+        "passed": 12,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 12,
+        "test_names": [
+          "ambiguity_missing_source_parse_error_and_artifact_alias_precede_lookup",
+          "checksum_valid_raw_candidate_still_needs_current_verify_without_retry",
+          "codec_transport_quota_cannot_reduce_language_acceptance",
+          "cold_unchanged_and_both_edits_use_current_source_and_fresh_verify",
+          "ct_exact_limit_and_n_minus_one_match_uncached_requests",
+          "link_failure_and_cancellation_never_publish_a_checkpoint",
+          "existing_memory_ct_snapshot_without_usage_receipt_is_not_persisted",
+          "nonprivate_or_symlink_cache_directory_bypasses_without_changing_build",
+          "original_source_candidate_cache_keeps_its_separate_status",
+          "source_selection_bypasses_checkpoint_and_replays_current_ct_budget",
+          "stop_after_emit_dir_and_memory_entry_visibly_bypass",
+          "truncated_and_corrupt_entries_rebuild_before_single_verify"
+        ],
+        "package": "zil-driver",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/016-candidate-tests-3.json",
+        "stdout": "logs/016-candidate-tests-3.stdout",
+        "stderr": "logs/016-candidate-tests-3.stderr"
+      },
+      {
+        "target": "tests/receiver_regression.rs",
+        "executable": "/home/runner/work/_temp/compile4-work/target-candidate/release/deps/receiver_regression-4338c9e3b661fbf8",
+        "running": 4,
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 4,
+        "test_names": [
+          "r005_01_four_frozen_receiver_cases_match_source_and_file_entries",
+          "r005_02_non_root_modules_keep_lexical_errors_and_original_spans",
+          "r005_04_program_metadata_budgets_still_precede_lexical_walk",
+          "r005_03_programs_shared_receivers_and_finite_local_trait_impls_work"
+        ],
+        "package": "zil-driver",
+        "features": [
+          "llvm-api"
+        ],
+        "receipt": "logs/016-candidate-tests-3.json",
+        "stdout": "logs/016-candidate-tests-3.stdout",
+        "stderr": "logs/016-candidate-tests-3.stderr"
+      }
+    ],
+    "required_regressions": {
+      "cp18": {
+        "source": "crates/zil-types/tests/shape_resolution_cp18.rs",
+        "sha256": "6e1fe2ee1404a502ae9a9f95a88cb39940dcb5b7c1abc0a665a2da11903c1fb2",
+        "tests": [
+          "checked_unchanged_shapes_borrow_the_original_program",
+          "changed_shapes_preserve_borrowed_prefix_suffix_and_ownership_modes",
+          "empty_modules_preserve_the_frozen_per_declaration_budget",
+          "local_enums_with_the_same_name_remain_module_scoped",
+          "sparse_enum_conflicts_follow_input_order_and_do_not_leak_between_requests",
+          "modules_without_shapes_still_validate_schema_imports_and_module_limits"
+        ]
+      },
+      "cp15": {
+        "source": "crates/zil-driver/tests/borrowed_inference_cp15.rs",
+        "sha256": "a9dd7bbbaed6e0535e685caeb119fe4bb205e34e806b979dd2502d3c1f6fd24b",
+        "tests": [
+          "unchanged_scalar_project_borrows_the_exact_original_storage",
+          "rewritten_function_preserves_both_unchanged_neighbors_and_source",
+          "normalized_project_keeps_changes_in_a_module_without_closures",
+          "borrowing_does_not_skip_metadata_or_zero_work_failures"
+        ]
+      },
+      "cp19_source": {
+        "source": "crates/zil-driver/tests/ct_reuse_cp19.rs",
+        "sha256": "8dbdcdeff7606ec731ff21352cbbbc207b71421c782eec972f0875e746205656",
+        "tests": [
+          "repeated_cross_module_compound_hints_keep_ct_context_and_current_verify",
+          "borrowed_hints_do_not_grant_visibility_or_hide_argument_errors",
+          "compound_parameter_hints_preserve_narrow_ct_overflow_rejection",
+          "real_source_repeated_tuple_shapes_keep_complete_core_and_exact_node_boundary"
+        ]
+      },
+      "cp19_type_replay": {
+        "source": "crates/zil-ct/src/source/reuse_cp19.rs",
+        "sha256": "30b2a15c9479dec958dc02759e29a93cf5f629b2fda604ab7494328d30b5cfe7",
+        "tests": [
+          "compound_replay_preserves_all_node_work_edges_and_current_error_span",
+          "deeper_call_site_and_parameter_limits_cannot_reuse_a_shallower_success",
+          "equal_types_have_separate_borrowed_identities_and_leaves_have_no_entries"
+        ]
+      },
+      "cp14_boundaries_and_fallbacks": {
+        "source": "crates/zil-backend-llvm/src/machine_cgu.rs",
+        "sha256": "aaa5c1027873cc4dfe6ea0e8fbbe7e48a577b11174cf17ce96b29837169483c3",
+        "tests": [
+          "cp14_small_closed_o2_obeys_total_instruction_boundary",
+          "cp14_disabled_and_single_unit_paths_are_unchanged",
+          "cp14_large_closed_program_preserves_cross_unit_reference"
+        ]
+      },
+      "cp14_invalid_options": {
+        "source": "crates/zil-backend-llvm/tests/closed_executable_cp13.rs",
+        "sha256": "280bb3131995deb7b0b3f7b2c77b22ef55aab77e140a56397a3f8abab8a4b657",
+        "tests": [
+          "cp14_small_closed_o2_cannot_bypass_invalid_codegen_options"
+        ]
+      },
+      "cp19_materialization": {
+        "source": "crates/zil-ct/src/materialize.rs",
+        "sha256": "52781fcff16b26f59627e94a0c874a69574ab9c4eb5052539fcc1d22a1358139",
+        "tests": [
+          "lazy_identity_cursor_preserves_exact_node_depth_and_diagnostic_order"
+        ]
+      },
+      "checkpoint_budget": {
+        "source": "crates/zil-driver/tests/query_cache_cp12.rs",
+        "sha256": "5eb756712ee748dbef9b011e1a65e7e3386ea6d989eefab4c2c6966e0cffd4cc",
+        "tests": [
+          "source_selection_bypasses_checkpoint_and_replays_current_ct_budget",
+          "ct_exact_limit_and_n_minus_one_match_uncached_requests"
+        ]
+      },
+      "selection_budget": {
+        "source": "crates/zil-driver/tests/impl219_budget.rs",
+        "sha256": "500d7584a746e217e0dc71c901c09e54d23e2c5371a8b445148b7a7620d4f7cb",
+        "tests": [
+          "selection_and_later_constants_share_steps_nodes_and_fresh_request_recovery",
+          "project_source_dependency_edits_reselect_with_fresh_independent_verification",
+          "target_and_limits_invalidate_selection_but_original_no_selection_paths_keep_their_identity"
+        ]
+      }
+    },
+    "method": "Exact argv and source binding; stderr Running targets matched to stdout running/result blocks and every individual test outcome."
+  },
+  "python_controls": {
+    "status": "Pass",
+    "suites": [
+      {
+        "runner": "test_bench.py",
+        "passed": 19,
+        "skipped": 0,
+        "status": "OK",
+        "declared_test_methods": [
+          "test_check_requires_current_verifier",
+          "test_timeout_and_raw_output_are_retained",
+          "test_source_change_during_request_is_not_scored",
+          "test_exception_is_a_failure_row_and_disposable_work_is_removed",
+          "test_weighted_absolute_costs_precede_ratio",
+          "test_complete_balanced_sample_has_expected_ratio",
+          "test_missing_row_preserves_failure_summary_without_score",
+          "test_nonfinite_time_preserves_failure_summary_without_score",
+          "test_missing_completion_receipt_refuses_score",
+          "test_completion_receipt_must_bind_rows_plan_and_preflight",
+          "test_current_verifier_is_checked_again_even_with_resealed_log",
+          "test_cli_log_or_report_excerpt_drift_refuses_score",
+          "test_equal_before_after_source_must_match_frozen_snapshot",
+          "test_command_snapshot_and_index_are_bound",
+          "test_preflight_raw_log_is_rechecked",
+          "test_failed_preflight_blocks_measure_before_creating_output",
+          "test_native_output_checks_and_frozen_oracle_are_rechecked",
+          "test_missing_native_check_or_changed_input_refuses_score",
+          "test_changed_elf_and_false_cache_contract_are_rejected"
+        ],
+        "source_sha256": "74cbdb35cc2678c507047600734c5893d31bbdd8e92032a6c155aa53604900b9",
+        "receipt": "logs/007-test_bench.json",
+        "stdout": "logs/007-test_bench.stdout",
+        "stderr": "logs/007-test_bench.stderr"
+      },
+      {
+        "runner": "test_rust_bench.py",
+        "passed": 26,
+        "skipped": 0,
+        "status": "OK",
+        "declared_test_methods": [
+          "test_explicit_zil_linker_content_drift_rejected",
+          "test_linker_symlink_retarget_rejected_with_old_target_unchanged",
+          "test_invocation_aliases_preserved_and_compiler_retarget_rejected",
+          "test_new_higher_priority_path_linker_rejected",
+          "test_native_rust_cgu_and_cold_profile_do_not_add_caches",
+          "test_abba_baab_order_has_balanced_pairs",
+          "test_rust_lto_off_changes_only_the_explicit_rust_flag",
+          "test_cli_preserves_native_default_and_accepts_explicit_lto_off",
+          "test_load_requires_a_valid_explicit_frozen_lto_mode",
+          "test_v2_plan_requires_its_original_runner_instead_of_assuming_native",
+          "test_missing_verifier_or_enabled_timings_rejected",
+          "test_requested_incremental_cache_cannot_silently_fall_back",
+          "test_query_checkpoint_requires_incremental_and_explicit_boolean_modes",
+          "test_query_checkpoint_requires_cold_and_edit_misses_and_unchanged_hit",
+          "test_query_checkpoint_never_scores_fallback_missing_usage_or_write_skip",
+          "test_closed_executable_needs_actual_reported_mode_and_count",
+          "test_compiler_failure_retains_rows_and_logs",
+          "test_source_mutation_during_build_is_rejected",
+          "test_complete_build_uses_only_measured_rows",
+          "test_runtime_excludes_compilation_and_warmup",
+          "test_missing_lto_flag_in_frozen_off_rows_is_rejected",
+          "test_missing_rows_suppress_score",
+          "test_changed_compiler_log_suppresses_score",
+          "test_runtime_oracle_drift_suppresses_score",
+          "test_preflight_artifact_mutation_is_rejected",
+          "test_nonfinite_times_and_zero_wall_rejected"
+        ],
+        "source_sha256": "a34c5345d13e4a5537b69a495b95ca14ca26797f42adc7dc85e152554c820dd7",
+        "receipt": "logs/008-test_rust_bench.json",
+        "stdout": "logs/008-test_rust_bench.stdout",
+        "stderr": "logs/008-test_rust_bench.stderr"
+      },
+      {
+        "runner": "test_runtime_bench.py",
+        "passed": 19,
+        "skipped": 0,
+        "status": "OK",
+        "declared_test_methods": [
+          "test_distinct_frozen_build_configuration_and_actual_mode",
+          "test_requested_closed_mode_cannot_be_missing_or_ignored",
+          "test_legacy_plan_keeps_o0_one_unit_and_no_closed_flag",
+          "test_build_receipt_resolves_relative_plan_path",
+          "test_oracle_checks_stdout_and_empty_stderr",
+          "test_timeout_and_spawn_failure_remain_failure_rows",
+          "test_changed_input_is_rejected_before_execution",
+          "test_executable_change_during_execution_is_rejected",
+          "test_timer_captures_file_io_and_wait4_usage",
+          "test_timer_kills_process_group_and_keeps_partial_logs",
+          "test_weighted_absolute_costs_precede_ratio",
+          "test_pair_means_precede_median_and_outlier_is_retained",
+          "test_build_and_startup_costs_do_not_enter_runtime_score",
+          "test_source_drift_during_build_prevents_native_execution",
+          "test_modified_native_preflight_log_is_rejected",
+          "test_missing_row_and_changed_raw_log_suppress_scores",
+          "test_nonfinite_or_rewritten_time_suppresses_scores",
+          "test_prepare_freezes_base_sources_and_all_runtime_inputs",
+          "test_prepare_accepts_hardened_bridge_corpus_schema"
+        ],
+        "source_sha256": "2294e6b349b694a0d959f37f7b49aaf5bf275b2cec9e4f5c050aee4fbad111c9",
+        "receipt": "logs/009-test_runtime_bench.json",
+        "stdout": "logs/009-test_runtime_bench.stdout",
+        "stderr": "logs/009-test_runtime_bench.stderr"
+      }
+    ],
+    "passed": 64,
+    "skipped": 0,
+    "individual_names_in_log": false,
+    "method": "unittest full totals and zero skip/failure matched to frozen AST method counts; no claim that dots name individual cases."
+  },
+  "toolchain": {
+    "status": "Pass",
+    "checked_identities": {
+      "llvm": {
+        "path": "/home/runner/work/_temp/compile4-llvm-23.1.4/lib/libLLVM.so.23.1",
+        "sha256": "82441dae7d94aac9e1964b06ee6d4bb0f28c0fcf3aaa31df91c886806a112567",
+        "version": "23.1.4"
+      },
+      "clang": {
+        "path": "/home/runner/work/_temp/compile4-llvm-23.1.4/bin/clang-23",
+        "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+        "version": "23.1.4",
+        "banner": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+      },
+      "lld_link": {
+        "path": "/home/runner/work/_temp/compile4-llvm-23.1.4/bin/lld",
+        "sha256": "0f8d53acaf6ff4990506a26739c12fb90315fdcc0430ec4c305ca75115774d4b",
+        "version": "23.1.4",
+        "banner": "LLD 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+      },
+      "rustc": {
+        "path": "/home/runner/.cargo/bin/rustup",
+        "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4",
+        "version": "1.99.1",
+        "banner": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+      },
+      "cargo": {
+        "path": "/home/runner/.cargo/bin/rustup",
+        "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4",
+        "version": "1.99.1",
+        "banner": "cargo 1.99.1 (5f94df478 2026-08-27)"
+      }
+    },
+    "rustc_version_output": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+    "resolved_rustc_path": "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+    "installation_commands": 12,
+    "all_installation_log_hashes_match": true,
+    "install_receipt_sha256": "40b741020151cf304955cddba616d5d312d1b4a2fddf6f743b8ef48d0a8aa4e9",
+    "recorded_original_download": {
+      "bytes": 1190060068,
+      "sha256": "efdd1dbd089b99bfcfcde7b8eb1236163f2e88df5a981cca4f783ec9cb5e0378"
+    },
+    "installer_matches_source": true,
+    "scope": "Receipt/log/plan identity consistency; installed external tool bytes were not retained for independent rehash.",
+    "cross_plan_rustc_identity": {
+      "path": "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+      "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+      "bytes": 648536,
+      "independently_rehashed_installed_binary": false
+    }
+  },
+  "frozen_plan_identity": {
+    "o0-bridge": {
+      "path": "windows/o0-bridge/plan/plan.json",
+      "sha256": "4250fbd9adfdf91cdddce45733d704eec3d6d3f1f26eed9f7945fcea8e759ae6",
+      "runner_and_helpers_match": true,
+      "source_and_binary_match": true,
+      "toolchain_receipts_match": true,
+      "created_after_gates": true
+    },
+    "rust-o0-cold": {
+      "path": "windows/rust-o0-cold/plan/plan.json",
+      "sha256": "864621cb5b8c9b5e2f294670ed8943ce32be84a004e3b2c1a06a8261397aa4e2",
+      "runner_and_helpers_match": true,
+      "source_and_binary_match": true,
+      "toolchain_receipts_match": true,
+      "created_after_gates": true
+    },
+    "rust-o0-incremental": {
+      "path": "windows/rust-o0-incremental/plan/plan.json",
+      "sha256": "fc77ac4f2e7049728382653bf8a5d57c30fb0e6d4f67962e17130acdae85ad28",
+      "runner_and_helpers_match": true,
+      "source_and_binary_match": true,
+      "toolchain_receipts_match": true,
+      "created_after_gates": true
+    },
+    "rust-o2-closed": {
+      "path": "windows/rust-o2-closed/plan/plan.json",
+      "sha256": "bc64c446eefd7d1bed56924b21157dd53e137e0c04fbd6b3260db6bf98fe5314",
+      "runner_and_helpers_match": true,
+      "source_and_binary_match": true,
+      "toolchain_receipts_match": true,
+      "created_after_gates": true
+    },
+    "o2-direct-quality": {
+      "path": "windows/o2-direct-quality/plan/plan.json",
+      "sha256": "1e88770ee7937b150031bd03a7d6766416b90b59b9088095d03143b26efd693b",
+      "runner_and_helpers_match": true,
+      "source_and_binary_match": true,
+      "toolchain_receipts_match": true,
+      "created_after_gates": true
+    }
+  },
+  "execution_order": {
+    "status": "Pass",
+    "ordered_without_overlap": true,
+    "minimum_adjacent_command_gap_seconds": 0.000701904296875,
+    "last_build_or_test_end_unix": 1793377270.9737313,
+    "first_plan_prepare_start_unix": 1793377271.5097523,
+    "all_measurements_after_builds_tests": true,
+    "all_measurement_commands_serial": true,
+    "windows": [
+      {
+        "name": "o0-bridge-source-object-no-query",
+        "kind": "build",
+        "rows": 240,
+        "command": "bridge-measure",
+        "started_unix": 1793377299.2949595,
+        "derived_end_unix": 1793377434.7969892,
+        "records": "windows/o0-bridge/build/records.jsonl",
+        "records_sha256": "65485a437dc7d495eda21fb142567e0c88b2c1a8ca29a96ee475f1f57bd5b074",
+        "complete": "windows/o0-bridge/build/complete.json",
+        "summary_sha256": "7b37786b1f83ff974d386bfacf2563d3a3789d97e88776c69d0d5ff5b4dbc105"
+      },
+      {
+        "name": "rust-o0-cold-build",
+        "kind": "build",
+        "rows": 60,
+        "command": "rust-o0-cold-measure",
+        "started_unix": 1793377453.9835386,
+        "derived_end_unix": 1793377496.2896547,
+        "records": "windows/rust-o0-cold/build/records.jsonl",
+        "records_sha256": "12a81fb40a10b32539864733e74cd83330d6e05461fbe8e87dc2b4b1cf54bd02",
+        "complete": "windows/rust-o0-cold/build/complete.json",
+        "summary_sha256": "1b8fdaceadbab06cb04559e77488e9e6501c1f8f43f6acace5edb62ec48a5216"
+      },
+      {
+        "name": "rust-o0-cold-runtime",
+        "kind": "runtime",
+        "rows": 60,
+        "command": "rust-o0-cold-measure-runtime",
+        "started_unix": 1793377498.8626113,
+        "derived_end_unix": 1793377507.9959738,
+        "records": "windows/rust-o0-cold/runtime/records.jsonl",
+        "records_sha256": "5cfe00860db9d9e84e4457c8b0b9b4697f8cab68e55a2fd88d92fda1cd925e48",
+        "complete": "windows/rust-o0-cold/runtime/complete.json",
+        "summary_sha256": "a71e9fb1271e3f80f320af79059901f52a7c8e51ecbf396e84dfd647152ff0e1"
+      },
+      {
+        "name": "rust-o0-incremental-build",
+        "kind": "build",
+        "rows": 240,
+        "command": "rust-o0-incremental-measure",
+        "started_unix": 1793377539.5352683,
+        "derived_end_unix": 1793377670.8977132,
+        "records": "windows/rust-o0-incremental/build/records.jsonl",
+        "records_sha256": "a41dd83d45c816501809849f1de6ec5534ca15a672a0cdf34120f8316e16dbde",
+        "complete": "windows/rust-o0-incremental/build/complete.json",
+        "summary_sha256": "3304a489651e2875769771847db2568ee7386f9f8ea29dde7a28d02f5dbfe188"
+      },
+      {
+        "name": "rust-o0-incremental-runtime",
+        "kind": "runtime",
+        "rows": 60,
+        "command": "rust-o0-incremental-measure-runtime",
+        "started_unix": 1793377675.676282,
+        "derived_end_unix": 1793377685.0623274,
+        "records": "windows/rust-o0-incremental/runtime/records.jsonl",
+        "records_sha256": "a97541baaea9252bf470a4419b71cca81e0206a3b640ffd53c57b8df124442af",
+        "complete": "windows/rust-o0-incremental/runtime/complete.json",
+        "summary_sha256": "7e73ab9bdef7b5768cea0e4d6f2c1cf3ba31acbf3289597f9d2ff31499d4198f"
+      },
+      {
+        "name": "rust-o2-closed-build",
+        "kind": "build",
+        "rows": 60,
+        "command": "rust-o2-closed-measure",
+        "started_unix": 1793377708.2634153,
+        "derived_end_unix": 1793377791.1002147,
+        "records": "windows/rust-o2-closed/build/records.jsonl",
+        "records_sha256": "fc93a5853a0a74cf5ca98be19f3146873274276f5eaef4917771ecdea47ad0d7",
+        "complete": "windows/rust-o2-closed/build/complete.json",
+        "summary_sha256": "51915678341cece8417f43992a78ce649e5c9cd6f77a9581446e5e0f5d3fe1e5"
+      },
+      {
+        "name": "rust-o2-closed-runtime",
+        "kind": "runtime",
+        "rows": 60,
+        "command": "rust-o2-closed-measure-runtime",
+        "started_unix": 1793377793.6236439,
+        "derived_end_unix": 1793377799.801276,
+        "records": "windows/rust-o2-closed/runtime/records.jsonl",
+        "records_sha256": "95e23f4ac3bd753f4ff2531ef89a8cdeced0c41c1834dd26b5318ac0fa5704e6",
+        "complete": "windows/rust-o2-closed/runtime/complete.json",
+        "summary_sha256": "be697982d3b6b474cea0a27413fde5c68332788f80b1ba7c632ac1a13ccf9f40"
+      },
+      {
+        "name": "baseline-closed-o2-1x1-vs-candidate-closed-o2-8x4",
+        "kind": "runtime",
+        "rows": 60,
+        "command": "quality-measure",
+        "started_unix": 1793377824.581001,
+        "derived_end_unix": 1793377827.6526792,
+        "records": "windows/o2-direct-quality/runtime/records.jsonl",
+        "records_sha256": "3b37ab3125aa056919ff2925c736e46231527f21393d608df756767b42fe7622",
+        "complete": "windows/o2-direct-quality/runtime/complete.json",
+        "summary_sha256": "32f936affd8d9145fd78daa2868d6d3aced1bc2ed1d6086cf6211c2946398ee1"
+      }
+    ],
+    "clock_scope": "Recorded top-level command intervals only; sample rows lack absolute start/end timestamps.",
+    "physical_host_exclusivity": "NotEstablished"
+  },
+  "github_and_original_zip": {
+    "status": "Pass",
+    "run": {
+      "id": 41086451087,
+      "name": "Compile performance research",
+      "node_id": "WFR_kwLOVXdqJM8AAAAJkPF9jw",
+      "head_branch": "research/compile-performance",
+      "head_sha": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
+      "path": ".github/workflows/compile-performance.yml",
+      "display_title": "research: freeze compile5 source and audited same-host measurement ma…",
+      "run_number": 2,
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "workflow_id": 401855117,
+      "check_suite_id": 111376448517,
+      "check_suite_node_id": "CS_kwDOVXdqJM8AAAAZ7o28BQ",
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/runs/41086451087",
+      "html_url": "https://github.com/zil-lang/zil/actions/runs/41086451087",
+      "pull_requests": [],
+      "created_at": "2026-10-30T16:03:55Z",
+      "updated_at": "2026-10-30T16:30:58Z",
+      "actor": {
+        "login": "cicin411",
+        "id": 19829978,
+        "node_id": "MDQ6VXNlcjE5ODI5OTc4",
+        "avatar_url": "https://avatars.githubusercontent.com/u/19829978?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/cicin411",
+        "html_url": "https://github.com/cicin411",
+        "followers_url": "https://api.github.com/users/cicin411/followers",
+        "following_url": "https://api.github.com/users/cicin411/following{/other_user}",
+        "gists_url": "https://api.github.com/users/cicin411/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/cicin411/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/cicin411/subscriptions",
+        "organizations_url": "https://api.github.com/users/cicin411/orgs",
+        "repos_url": "https://api.github.com/users/cicin411/repos",
+        "events_url": "https://api.github.com/users/cicin411/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/cicin411/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "run_attempt": 1,
+      "referenced_workflows": [],
+      "run_started_at": "2026-10-30T16:03:55Z",
+      "triggering_actor": {
+        "login": "cicin411",
+        "id": 19829978,
+        "node_id": "MDQ6VXNlcjE5ODI5OTc4",
+        "avatar_url": "https://avatars.githubusercontent.com/u/19829978?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/cicin411",
+        "html_url": "https://github.com/cicin411",
+        "followers_url": "https://api.github.com/users/cicin411/followers",
+        "following_url": "https://api.github.com/users/cicin411/following{/other_user}",
+        "gists_url": "https://api.github.com/users/cicin411/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/cicin411/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/cicin411/subscriptions",
+        "organizations_url": "https://api.github.com/users/cicin411/orgs",
+        "repos_url": "https://api.github.com/users/cicin411/repos",
+        "events_url": "https://api.github.com/users/cicin411/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/cicin411/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "jobs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/41086451087/jobs",
+      "logs_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/41086451087/logs",
+      "check_suite_url": "https://api.github.com/repos/zil-lang/zil/check-suites/111376448517",
+      "artifacts_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/41086451087/artifacts",
+      "cancel_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/41086451087/cancel",
+      "rerun_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/41086451087/rerun",
+      "previous_attempt_url": null,
+      "workflow_url": "https://api.github.com/repos/zil-lang/zil/actions/workflows/401855117",
+      "head_commit": {
+        "id": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
+        "tree_id": "6ab7522524122c6d21738329ab7dd885c6bbc75c",
+        "message": "research: freeze compile5 source and audited same-host measurement matrix\n\nSource tree verified against local commit 187eae4f6bb085f0d0d42765f047b7f60add6bed; Git API supplies commit metadata.",
+        "timestamp": "2026-10-30T16:03:44Z",
+        "author": {
+          "name": "cicin",
+          "email": "dsscicin@163.com"
+        },
+        "committer": {
+          "name": "cicin",
+          "email": "dsscicin@163.com"
+        }
+      },
+      "repository": {
+        "id": 1433889316,
+        "node_id": "R_kgDOVXdqJA",
+        "name": "zil",
+        "full_name": "zil-lang/zil",
+        "private": true,
+        "owner": {
+          "login": "zil-lang",
+          "id": 348111517,
+          "node_id": "O_kgDOFL_CnQ",
+          "avatar_url": "https://avatars.githubusercontent.com/u/348111517?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/zil-lang",
+          "html_url": "https://github.com/zil-lang",
+          "followers_url": "https://api.github.com/users/zil-lang/followers",
+          "following_url": "https://api.github.com/users/zil-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/zil-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/zil-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/zil-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/zil-lang/orgs",
+          "repos_url": "https://api.github.com/users/zil-lang/repos",
+          "events_url": "https://api.github.com/users/zil-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/zil-lang/received_events",
+          "type": "Organization",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "html_url": "https://github.com/zil-lang/zil",
+        "description": "zil language",
+        "fork": false,
+        "url": "https://api.github.com/repos/zil-lang/zil",
+        "forks_url": "https://api.github.com/repos/zil-lang/zil/forks",
+        "keys_url": "https://api.github.com/repos/zil-lang/zil/keys{/key_id}",
+        "collaborators_url": "https://api.github.com/repos/zil-lang/zil/collaborators{/collaborator}",
+        "teams_url": "https://api.github.com/repos/zil-lang/zil/teams",
+        "hooks_url": "https://api.github.com/repos/zil-lang/zil/hooks",
+        "issue_events_url": "https://api.github.com/repos/zil-lang/zil/issues/events{/number}",
+        "events_url": "https://api.github.com/repos/zil-lang/zil/events",
+        "assignees_url": "https://api.github.com/repos/zil-lang/zil/assignees{/user}",
+        "branches_url": "https://api.github.com/repos/zil-lang/zil/branches{/branch}",
+        "tags_url": "https://api.github.com/repos/zil-lang/zil/tags",
+        "blobs_url": "https://api.github.com/repos/zil-lang/zil/git/blobs{/sha}",
+        "git_tags_url": "https://api.github.com/repos/zil-lang/zil/git/tags{/sha}",
+        "git_refs_url": "https://api.github.com/repos/zil-lang/zil/git/refs{/sha}",
+        "trees_url": "https://api.github.com/repos/zil-lang/zil/git/trees{/sha}",
+        "statuses_url": "https://api.github.com/repos/zil-lang/zil/statuses/{sha}",
+        "languages_url": "https://api.github.com/repos/zil-lang/zil/languages",
+        "stargazers_url": "https://api.github.com/repos/zil-lang/zil/stargazers",
+        "contributors_url": "https://api.github.com/repos/zil-lang/zil/contributors",
+        "subscribers_url": "https://api.github.com/repos/zil-lang/zil/subscribers",
+        "subscription_url": "https://api.github.com/repos/zil-lang/zil/subscription",
+        "commits_url": "https://api.github.com/repos/zil-lang/zil/commits{/sha}",
+        "git_commits_url": "https://api.github.com/repos/zil-lang/zil/git/commits{/sha}",
+        "comments_url": "https://api.github.com/repos/zil-lang/zil/comments{/number}",
+        "issue_comment_url": "https://api.github.com/repos/zil-lang/zil/issues/comments{/number}",
+        "contents_url": "https://api.github.com/repos/zil-lang/zil/contents/{+path}",
+        "compare_url": "https://api.github.com/repos/zil-lang/zil/compare/{base}...{head}",
+        "merges_url": "https://api.github.com/repos/zil-lang/zil/merges",
+        "archive_url": "https://api.github.com/repos/zil-lang/zil/{archive_format}{/ref}",
+        "downloads_url": "https://api.github.com/repos/zil-lang/zil/downloads",
+        "issues_url": "https://api.github.com/repos/zil-lang/zil/issues{/number}",
+        "pulls_url": "https://api.github.com/repos/zil-lang/zil/pulls{/number}",
+        "milestones_url": "https://api.github.com/repos/zil-lang/zil/milestones{/number}",
+        "notifications_url": "https://api.github.com/repos/zil-lang/zil/notifications{?since,all,participating}",
+        "labels_url": "https://api.github.com/repos/zil-lang/zil/labels{/name}",
+        "releases_url": "https://api.github.com/repos/zil-lang/zil/releases{/id}",
+        "deployments_url": "https://api.github.com/repos/zil-lang/zil/deployments"
+      },
+      "head_repository": {
+        "id": 1433889316,
+        "node_id": "R_kgDOVXdqJA",
+        "name": "zil",
+        "full_name": "zil-lang/zil",
+        "private": true,
+        "owner": {
+          "login": "zil-lang",
+          "id": 348111517,
+          "node_id": "O_kgDOFL_CnQ",
+          "avatar_url": "https://avatars.githubusercontent.com/u/348111517?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/zil-lang",
+          "html_url": "https://github.com/zil-lang",
+          "followers_url": "https://api.github.com/users/zil-lang/followers",
+          "following_url": "https://api.github.com/users/zil-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/zil-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/zil-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/zil-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/zil-lang/orgs",
+          "repos_url": "https://api.github.com/users/zil-lang/repos",
+          "events_url": "https://api.github.com/users/zil-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/zil-lang/received_events",
+          "type": "Organization",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "html_url": "https://github.com/zil-lang/zil",
+        "description": "zil language",
+        "fork": false,
+        "url": "https://api.github.com/repos/zil-lang/zil",
+        "forks_url": "https://api.github.com/repos/zil-lang/zil/forks",
+        "keys_url": "https://api.github.com/repos/zil-lang/zil/keys{/key_id}",
+        "collaborators_url": "https://api.github.com/repos/zil-lang/zil/collaborators{/collaborator}",
+        "teams_url": "https://api.github.com/repos/zil-lang/zil/teams",
+        "hooks_url": "https://api.github.com/repos/zil-lang/zil/hooks",
+        "issue_events_url": "https://api.github.com/repos/zil-lang/zil/issues/events{/number}",
+        "events_url": "https://api.github.com/repos/zil-lang/zil/events",
+        "assignees_url": "https://api.github.com/repos/zil-lang/zil/assignees{/user}",
+        "branches_url": "https://api.github.com/repos/zil-lang/zil/branches{/branch}",
+        "tags_url": "https://api.github.com/repos/zil-lang/zil/tags",
+        "blobs_url": "https://api.github.com/repos/zil-lang/zil/git/blobs{/sha}",
+        "git_tags_url": "https://api.github.com/repos/zil-lang/zil/git/tags{/sha}",
+        "git_refs_url": "https://api.github.com/repos/zil-lang/zil/git/refs{/sha}",
+        "trees_url": "https://api.github.com/repos/zil-lang/zil/git/trees{/sha}",
+        "statuses_url": "https://api.github.com/repos/zil-lang/zil/statuses/{sha}",
+        "languages_url": "https://api.github.com/repos/zil-lang/zil/languages",
+        "stargazers_url": "https://api.github.com/repos/zil-lang/zil/stargazers",
+        "contributors_url": "https://api.github.com/repos/zil-lang/zil/contributors",
+        "subscribers_url": "https://api.github.com/repos/zil-lang/zil/subscribers",
+        "subscription_url": "https://api.github.com/repos/zil-lang/zil/subscription",
+        "commits_url": "https://api.github.com/repos/zil-lang/zil/commits{/sha}",
+        "git_commits_url": "https://api.github.com/repos/zil-lang/zil/git/commits{/sha}",
+        "comments_url": "https://api.github.com/repos/zil-lang/zil/comments{/number}",
+        "issue_comment_url": "https://api.github.com/repos/zil-lang/zil/issues/comments{/number}",
+        "contents_url": "https://api.github.com/repos/zil-lang/zil/contents/{+path}",
+        "compare_url": "https://api.github.com/repos/zil-lang/zil/compare/{base}...{head}",
+        "merges_url": "https://api.github.com/repos/zil-lang/zil/merges",
+        "archive_url": "https://api.github.com/repos/zil-lang/zil/{archive_format}{/ref}",
+        "downloads_url": "https://api.github.com/repos/zil-lang/zil/downloads",
+        "issues_url": "https://api.github.com/repos/zil-lang/zil/issues{/number}",
+        "pulls_url": "https://api.github.com/repos/zil-lang/zil/pulls{/number}",
+        "milestones_url": "https://api.github.com/repos/zil-lang/zil/milestones{/number}",
+        "notifications_url": "https://api.github.com/repos/zil-lang/zil/notifications{?since,all,participating}",
+        "labels_url": "https://api.github.com/repos/zil-lang/zil/labels{/name}",
+        "releases_url": "https://api.github.com/repos/zil-lang/zil/releases{/id}",
+        "deployments_url": "https://api.github.com/repos/zil-lang/zil/deployments"
+      }
+    },
+    "artifact": {
+      "id": 12993022904,
+      "name": "zil-compile4-41086451087-1",
+      "size_in_bytes": 68939397,
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/12993022904",
+      "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/12993022904/zip",
+      "expired": false,
+      "created_at": "2026-10-30T16:30:44Z",
+      "expires_at": "2026-11-29T16:30:42Z",
+      "updated_at": "2026-10-30T16:30:44Z",
+      "digest": "sha256:18f2acc10acc9c9e508a92fb06beb63f5f9d331fe34a945342860c56ab894fcc",
+      "workflow_run": {
+        "id": 41086451087,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "research/compile-performance",
+        "head_sha": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9"
+      }
+    },
+    "metadata_source": "Supplied raw GitHub API snapshots; reviewer must retain independent fetch provenance.",
+    "run_metadata_sha256": "9f3c066c4285dc3cab03e60de41a136bc57c9a4a10b597334f449e07d7b0aeee",
+    "artifact_metadata_sha256": "fb1d862a58e846a9ef7d527b80b4ea7e19c5c4ad94ee6a2e9f7d035f31df0444",
+    "original_zip_sha256": "18f2acc10acc9c9e508a92fb06beb63f5f9d331fe34a945342860c56ab894fcc",
+    "original_zip_bytes": 68939397,
+    "all_zip_member_bytes_verified": true,
+    "zip_member_count": 35
+  },
+  "reviewed_at_utc": "2026-10-30T16:36:19.917072+00:00",
+  "review_script_sha256": "ce7a1e2ebcf5db5c471506052373dd352b3f0af95b17879929040484eee8908b"
+}

@@ -1,0 +1,9 @@
+source_identity: Pass
+inventory: Pass
+archive_modes: Pass
+commands_and_builds: Pass
+tests: Pass
+toolchain: Pass
+plans_and_order: Pass
+github_and_zip: Pass
+{"status": "Pass_TargetedExecutionAndArtifactIntegrity", "review": "/workspace/scratch/fec853c597a1/recovery/reviews/COMPILE5-INDEPENDENT-EXECUTION.json", "failed_phases": 0}

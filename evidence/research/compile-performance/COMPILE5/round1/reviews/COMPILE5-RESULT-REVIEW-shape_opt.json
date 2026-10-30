@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/shape_opt",
+  "status": "Pass_ReportConsistency_HoldMaintained",
+  "scope": "Read-only consistency review of the result report and current task fields against existing independent main-CI reviews, publication map, archive receipt, and auxiliary result/preflight receipts. No new benchmark/statistical estimator run.",
+  "reviewer_role": "Non-author of the result/task text; CP18 source author. This report review does not replace the non-author CP18 source reviews.",
+  "reviewed_files_sha256": {
+    "docs/research/compile-performance/COMPILE5-RESULT.md": "c3b399a131f004889c0399f8f3c49ba34f61876ff5eb10d3a16abccbac29d8d9",
+    ".task/research/compile-performance.md": "cfae906e61bb78cecf9cf1ec0754b4fb6844be0dc5c15a767489bfde45af05e1"
+  },
+  "measured_candidate": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
+  "baseline": "a715f828261ff4b6ef9c8125623064360745aae4",
+  "resolved_findings": [
+    {
+      "id": "R1",
+      "issue": "The unequal prepartition LLVM text hashes were placed in the direct O2 paragraph, where all five case hashes actually match.",
+      "resolution": "The corrected text explicitly assigns unequal recorded LLVM hashes to O0 bridge and states that direct O2 has equal prepartition hashes for all five cases.",
+      "evidence": "COMPILE5-RUNTIME-QUALITY.json: same_configuration_o0_bridge_products and windows.o2-direct-quality.by_case"
+    },
+    {
+      "id": "R2",
+      "issue": "The two fallback cases were described ambiguously as small tree cases.",
+      "resolution": "The corrected text explicitly names B arm tree4x2 and retained as actual 1/1 fallback; A originally requested 1/1.",
+      "evidence": "COMPILE5-RUNTIME-QUALITY.json: windows.o2-direct-quality.by_case products A/B codegen"
+    }
+  ],
+  "checks": {
+    "formatted_numeric_tokens_compared_to_existing_receipts": 51,
+    "numeric_mismatches": [],
+    "main_identity_and_test_execution_counts_match_independent_reviews": true,
+    "cp18_cp19_cp20_local_to_published_commit_fields_match_publication_map": true,
+    "fixed_main_matrix_and_separate_auxiliary_scope_preserved": true,
+    "auxiliary_receipts": {
+      "preflight_rows": 6,
+      "formal_rows": 36,
+      "status": "Complete_AuxiliaryOnly",
+      "independent_arithmetic": "Delegated to industry_audit; not claimed complete by this review"
+    },
+    "mainline_adoption": "Hold",
+    "full_workspace_and_product_gates": "NotRun; scope not overstated",
+    "raw_xz_and_ARCHIVE_links_exist": true,
+    "review_directory_link": "Pending archival copy as explicitly disclosed by coordinator; not a factual failure"
+  },
+  "remaining_report_blockers": [],
+  "limitations": [
+    "Compared compressed-archive identities to ARCHIVE.json and prior source/archive audits; did not rehash or decompress the full main evidence again.",
+    "Did not modify the reviewed documents, source code or original evidence.",
+    "Did not execute Cargo, compilers, native programs or measurement loads.",
+    "No performance adoption approval; mainline Hold remains."
+  ],
+  "reviewed_at_utc": "2026-10-30T16:50:53.760526+00:00"
+}

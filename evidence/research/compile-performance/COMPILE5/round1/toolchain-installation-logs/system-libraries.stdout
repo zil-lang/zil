@@ -1,0 +1,1 @@
+-lrt -ldl -lm -lz /usr/lib/x86_64-linux-gnu/libzstd.a -lxml2

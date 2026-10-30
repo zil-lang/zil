@@ -1,0 +1,13 @@
+{
+  "format": "xz-compressed original tar byte stream",
+  "sha256": "1d4237cf1aef89eea841aec8e08bf509e2f3fd251c4557c8f9298054cb340dc0",
+  "bytes": 10040516,
+  "tar_sha256": "01c8c2875a4e935f883f00f9a301fc9895d1e7f636ea52c34547c45fc558fece",
+  "tar_bytes": 364677120,
+  "original_gzip_sha256": "5ad5bffeddf7e8402b770e0009e842456ce61b1806d229c172617ca50b206010",
+  "original_gzip_bytes": 68150903,
+  "artifact_id": 12993022904,
+  "run_id": 41086451087,
+  "zip_sha256": "18f2acc10acc9c9e508a92fb06beb63f5f9d331fe34a945342860c56ab894fcc",
+  "restoration": "Decompress this XZ to recover the original tar bytes. Archive includes every original raw evidence member, including files.json. Setup and tool installation receipts are retained alongside it."
+}

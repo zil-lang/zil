@@ -1,0 +1,4 @@
+{
+  "status": "IndependentAuxiliaryAuditFailed_NoScore",
+  "error": "ValueError('Per-case ELF/LLVM outputs changed across arms/samples')"
+}

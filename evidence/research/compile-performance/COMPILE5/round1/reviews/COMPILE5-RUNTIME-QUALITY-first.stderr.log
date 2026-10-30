@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/fec853c597a1/recovery/reviews/audit_compile5_runtime.py", line 603, in <module>
+    main()
+  File "/workspace/scratch/fec853c597a1/recovery/reviews/audit_compile5_runtime.py", line 588, in main
+    audit = Audit(args)
+            ^^^^^^^^^^^
+  File "/workspace/scratch/fec853c597a1/recovery/reviews/audit_compile5_runtime.py", line 120, in __init__
+    self.root = args.evidence.resolve(strict=True)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py", line 1240, in resolve
+    s = self._flavour.realpath(self, strict=strict)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen posixpath>", line 424, in realpath
+  File "<frozen posixpath>", line 468, in _joinrealpath
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/shm/zil-compile5-41086451087'

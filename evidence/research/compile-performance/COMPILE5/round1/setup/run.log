@@ -1,0 +1,86 @@
+toolchain-check start
+toolchain-check Pass 1.119 seconds
+rustc-path start
+rustc-path Pass 0.008 seconds
+cargo-path start
+cargo-path Pass 0.008 seconds
+rustc-version start
+rustc-version Pass 0.008 seconds
+source-tree start
+source-tree Pass 0.114 seconds
+formatting start
+formatting Pass 2.52 seconds
+test_bench start
+test_bench Pass 1.267 seconds
+test_rust_bench start
+test_rust_bench Pass 0.615 seconds
+test_runtime_bench start
+test_runtime_bench Pass 0.567 seconds
+baseline-worktree start
+baseline-worktree Pass 6.954 seconds
+baseline-build start
+baseline-build Pass 88.94 seconds
+candidate-check start
+candidate-check Pass 6.092 seconds
+candidate-tests-0 start
+candidate-tests-0 Pass 78.409 seconds
+candidate-tests-1 start
+candidate-tests-1 Pass 22.481 seconds
+candidate-tests-2 start
+candidate-tests-2 Pass 56.883 seconds
+candidate-tests-3 start
+candidate-tests-3 Pass 591.189 seconds
+candidate-build start
+candidate-build Pass 96.638 seconds
+bridge-prepare start
+bridge-prepare Pass 2.837 seconds
+bridge-preflight start
+bridge-preflight Pass 24.941 seconds
+bridge-measure start
+bridge-measure Pass 135.502 seconds
+bridge-summarize start
+bridge-summarize Pass 4.424 seconds
+rust-o0-cold-prepare start
+rust-o0-cold-prepare Pass 3.538 seconds
+rust-o0-cold-preflight start
+rust-o0-cold-preflight Pass 10.953 seconds
+rust-o0-cold-measure start
+rust-o0-cold-measure Pass 42.306 seconds
+rust-o0-cold-build-summarize start
+rust-o0-cold-build-summarize Pass 2.569 seconds
+rust-o0-cold-measure-runtime start
+rust-o0-cold-measure-runtime Pass 9.133 seconds
+rust-o0-cold-runtime-summarize start
+rust-o0-cold-runtime-summarize Pass 2.47 seconds
+rust-o0-incremental-prepare start
+rust-o0-incremental-prepare Pass 3.486 seconds
+rust-o0-incremental-preflight start
+rust-o0-incremental-preflight Pass 25.575 seconds
+rust-o0-incremental-measure start
+rust-o0-incremental-measure Pass 131.362 seconds
+rust-o0-incremental-build-summarize start
+rust-o0-incremental-build-summarize Pass 4.775 seconds
+rust-o0-incremental-measure-runtime start
+rust-o0-incremental-measure-runtime Pass 9.386 seconds
+rust-o0-incremental-runtime-summarize start
+rust-o0-incremental-runtime-summarize Pass 2.52 seconds
+rust-o2-closed-prepare start
+rust-o2-closed-prepare Pass 3.486 seconds
+rust-o2-closed-preflight start
+rust-o2-closed-preflight Pass 17.187 seconds
+rust-o2-closed-measure start
+rust-o2-closed-measure Pass 82.837 seconds
+rust-o2-closed-build-summarize start
+rust-o2-closed-build-summarize Pass 2.52 seconds
+rust-o2-closed-measure-runtime start
+rust-o2-closed-measure-runtime Pass 6.178 seconds
+rust-o2-closed-runtime-summarize start
+rust-o2-closed-runtime-summarize Pass 2.47 seconds
+quality-prepare start
+quality-prepare Pass 1.734 seconds
+quality-build start
+quality-build Pass 20.569 seconds
+quality-measure start
+quality-measure Pass 3.072 seconds
+quality-summarize start
+quality-summarize Pass 2.02 seconds

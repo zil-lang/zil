@@ -1,0 +1,396 @@
+{
+  "status": "IndependentAuxiliaryEvidenceAndArithmeticPass_RiskSignalOnly",
+  "base_revision": "a715f828261ff4b6ef9c8125623064360745aae4",
+  "candidate_revision": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
+  "plan_sha256": "5aff2f5253cc5e4ef1a36f7eed7e600c83f083942d759448ac402468ec4f6e36",
+  "meta_sha256": "ac5bd4802a9ecf20218c7012359a612346338a65cb5669c1ea1ecad8b3ada5eb",
+  "result_sha256": "abf6f70e4b7a6550e9fb6199c4d9c3e54d730e8303e9c9d4a85ae6d86fecbf41",
+  "runner_sha256": "bd317478a54fee5ee99de2a21a6b5bdfb15a2df85b8a31492f4c6968234bf835",
+  "preflight_rows": 6,
+  "measurement_rows": 36,
+  "native_oracles_verified": 42,
+  "retained_elf_verified": 42,
+  "retained_llvm_verified": 42,
+  "checks": 1655,
+  "numeric_comparisons": 123,
+  "maximum_absolute_numeric_difference": 0.0,
+  "host": {
+    "platform": "Linux-6.18.55-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+    "allowed_cpus": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "cpu_max": "800000 100000",
+    "memory_max": "8589934592",
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+    "hostname": "e928005f4fea"
+  },
+  "selected_cpus": [
+    0,
+    1
+  ],
+  "tools": [
+    {
+      "path": "/workspace/scratch/fec853c597a1/recovery/probes/binaries/zil-baseline",
+      "sha256": "3da310e2179a30bff2c6d520215b5e109ac346edb7baea13892ee026fe873dec",
+      "size": 7317512,
+      "current_metadata_matches": true
+    },
+    {
+      "path": "/workspace/scratch/fec853c597a1/recovery/probes/binaries/zil-candidate",
+      "sha256": "56009a9cd67d268f41953b5e065984f050af015af6edc49a2c2188d24d2cfd17",
+      "size": 7422280,
+      "current_metadata_matches": true
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang-23",
+      "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+      "size": 282507120,
+      "current_metadata_matches": true
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/lib/libLLVM.so.23.1",
+      "sha256": "4af7bc67bebd262ac4944cbd5a7996bdae1479cf61ee625ab1d98f44d1ceea75",
+      "size": 72146032,
+      "current_metadata_matches": true
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/lld",
+      "sha256": "0f8d53acaf6ff4990506a26739c12fb90315fdcc0430ec4c305ca75115774d4b",
+      "size": 213124752,
+      "current_metadata_matches": true
+    }
+  ],
+  "source_oracles": {
+    "unchanged-wide": {
+      "raw_type_nodes": 53,
+      "resolved_type_nodes": 53,
+      "leaves": 32,
+      "max_tuple_arity": 4,
+      "selected_value_sum": 192,
+      "expected_stdout_bytes": [
+        192
+      ]
+    },
+    "multiple-rewrites": {
+      "raw_type_nodes": 53,
+      "resolved_type_nodes": 55,
+      "leaves": 32,
+      "max_tuple_arity": 4,
+      "selected_value_sum": 192,
+      "expected_stdout_bytes": [
+        192
+      ]
+    },
+    "repeated-hints": {
+      "raw_type_nodes": 53,
+      "resolved_type_nodes": 53,
+      "leaves": 32,
+      "max_tuple_arity": 4,
+      "selected_value_sum": 384,
+      "expected_stdout_bytes": [
+        133
+      ]
+    }
+  },
+  "by_case": {
+    "unchanged-wide": {
+      "wall_seconds": {
+        "A": 0.161795446,
+        "B": 0.1764497525,
+        "B_over_A": 1.0905730467840238,
+        "block_means": {
+          "A": [
+            0.22513736950000002,
+            0.161101871,
+            0.161795446
+          ],
+          "B": [
+            0.2931975575,
+            0.1468086305,
+            0.1764497525
+          ]
+        },
+        "block_B_over_A": [
+          1.3023051577405942,
+          0.9112782464208625,
+          1.0905730467840238
+        ],
+        "block_directions": [
+          "B_higher",
+          "B_lower",
+          "B_higher"
+        ]
+      },
+      "cpu_seconds": {
+        "A": 0.15958599999999998,
+        "B": 0.17247399999999996,
+        "B_over_A": 1.0807589638188813,
+        "block_means": {
+          "A": [
+            0.214723,
+            0.159254,
+            0.15958599999999998
+          ],
+          "B": [
+            0.2770285,
+            0.14467999999999998,
+            0.17247399999999996
+          ]
+        },
+        "block_B_over_A": [
+          1.2901668661484798,
+          0.908485815112964,
+          1.0807589638188813
+        ],
+        "block_directions": [
+          "B_higher",
+          "B_lower",
+          "B_higher"
+        ]
+      },
+      "max_process_rss_kib": {
+        "A": 71010.0,
+        "B": 71462.0,
+        "B_over_A": 1.0063653006618787,
+        "block_means": {
+          "A": [
+            71766.0,
+            70766.0,
+            71010.0
+          ],
+          "B": [
+            71278.0,
+            71840.0,
+            71462.0
+          ]
+        },
+        "block_B_over_A": [
+          0.9932001226207396,
+          1.015176779809513,
+          1.0063653006618787
+        ],
+        "block_directions": [
+          "B_lower",
+          "B_higher",
+          "B_higher"
+        ]
+      },
+      "retained_elf_sha256": "43e138955f2270d2f13ef3d32ca649e72ce14c3bd98cdf40c327a31f9c9f8bde",
+      "retained_elf_bytes": 92656,
+      "raw_llvm_distinct_sha256_count": 14,
+      "llvm_body_without_verification_comment_sha256": "3811095b59e49cb88dd02d99549d45552a4758f158328a72b8b9a2f058b5a4c6",
+      "actual_units_and_jobs": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "multiple-rewrites": {
+      "wall_seconds": {
+        "A": 0.19187772549999998,
+        "B": 0.1705384625,
+        "B_over_A": 0.8887871797292073,
+        "block_means": {
+          "A": [
+            0.23779135899999998,
+            0.191640113,
+            0.19187772549999998
+          ],
+          "B": [
+            0.2557753655,
+            0.1705384625,
+            0.15505547549999998
+          ]
+        },
+        "block_B_over_A": [
+          1.0756293524526266,
+          0.889889177324791,
+          0.8080952340661345
+        ],
+        "block_directions": [
+          "B_higher",
+          "B_lower",
+          "B_lower"
+        ]
+      },
+      "cpu_seconds": {
+        "A": 0.18558,
+        "B": 0.16513299999999997,
+        "B_over_A": 0.8898211014117899,
+        "block_means": {
+          "A": [
+            0.237018,
+            0.18435549999999998,
+            0.18558
+          ],
+          "B": [
+            0.244969,
+            0.16513299999999997,
+            0.1526495
+          ]
+        },
+        "block_B_over_A": [
+          1.0335459754111502,
+          0.895731345145656,
+          0.822553615691346
+        ],
+        "block_directions": [
+          "B_higher",
+          "B_lower",
+          "B_lower"
+        ]
+      },
+      "max_process_rss_kib": {
+        "A": 73566.0,
+        "B": 73648.0,
+        "B_over_A": 1.0011146453524726,
+        "block_means": {
+          "A": [
+            73454.0,
+            73782.0,
+            73566.0
+          ],
+          "B": [
+            73950.0,
+            73374.0,
+            73648.0
+          ]
+        },
+        "block_B_over_A": [
+          1.00675252539004,
+          0.99447019598276,
+          1.0011146453524726
+        ],
+        "block_directions": [
+          "B_higher",
+          "B_lower",
+          "B_higher"
+        ]
+      },
+      "retained_elf_sha256": "2b10d7cf32bd40e22c37a48a8184bf7701710335e63e2248422aaa3cae7d08e5",
+      "retained_elf_bytes": 92656,
+      "raw_llvm_distinct_sha256_count": 14,
+      "llvm_body_without_verification_comment_sha256": "c25c6904dcd0a680503b83b33904dfd87eec54e66331a9d2142bc0ff25a5a0b2",
+      "actual_units_and_jobs": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "repeated-hints": {
+      "wall_seconds": {
+        "A": 0.10173223749999999,
+        "B": 0.112007529,
+        "B_over_A": 1.1010032979958788,
+        "block_means": {
+          "A": [
+            0.1184954765,
+            0.10173223749999999,
+            0.0918583835
+          ],
+          "B": [
+            0.1135209055,
+            0.1073373315,
+            0.112007529
+          ]
+        },
+        "block_B_over_A": [
+          0.9580188953457646,
+          1.0550965371227583,
+          1.2193500988399169
+        ],
+        "block_directions": [
+          "B_lower",
+          "B_higher",
+          "B_higher"
+        ]
+      },
+      "cpu_seconds": {
+        "A": 0.099742,
+        "B": 0.10641199999999998,
+        "B_over_A": 1.066872531130316,
+        "block_means": {
+          "A": [
+            0.118585,
+            0.099742,
+            0.0890505
+          ],
+          "B": [
+            0.1110205,
+            0.10641199999999998,
+            0.10546749999999999
+          ]
+        },
+        "block_B_over_A": [
+          0.9362103132773959,
+          1.066872531130316,
+          1.18435606762455
+        ],
+        "block_directions": [
+          "B_lower",
+          "B_higher",
+          "B_higher"
+        ]
+      },
+      "max_process_rss_kib": {
+        "A": 50012.0,
+        "B": 50096.0,
+        "B_over_A": 1.0016795968967447,
+        "block_means": {
+          "A": [
+            50012.0,
+            49732.0,
+            50094.0
+          ],
+          "B": [
+            49894.0,
+            50096.0,
+            50540.0
+          ]
+        },
+        "block_B_over_A": [
+          0.9976405662640966,
+          1.0073192310785812,
+          1.0089032618676887
+        ],
+        "block_directions": [
+          "B_lower",
+          "B_higher",
+          "B_higher"
+        ]
+      },
+      "retained_elf_sha256": "fde13ad5b03e6ed92e31502a37e8f2339f8368c2145dcdcc7dfe9b3ffe9b62a0",
+      "retained_elf_bytes": 104296,
+      "raw_llvm_distinct_sha256_count": 14,
+      "llvm_body_without_verification_comment_sha256": "f1e361f70a90c82edcba745d537f1fa253707c058464467da8f11824960ae151",
+      "actual_units_and_jobs": [
+        [
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  "estimator": "Within each case, mean two observations per arm/block, median the three arm means, then B/A; no case weights or pooled score",
+  "limitations": [
+    "Only three independent blocks; each case has mixed wall-time directions",
+    "Raw .ll hashes differ only at the exact verified-fingerprint provenance comment; each retained raw file was hashed against its own record, then all remaining bytes were compared",
+    "No measured memo-hit count or isolated CP18/CP19 ablation; repeated-hints does not establish memo speedup",
+    "Local EPYC 9V74 auxiliary host differs from CI EPYC 7763; never combine absolute times or scores",
+    "max_process_rss_kib is wait4 maximum individual-process RSS, not simultaneous whole-process-tree peak",
+    "Main CI improvement cannot discharge the compound-type coverage risk; no retry/round selection was performed by this reviewer"
+  ],
+  "reviewer_script_sha256": "f0c3d952cd26263e18ffe6b23fef3849485806a82614db7ff2341b2dc7d87b99"
+}

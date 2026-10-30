@@ -1,0 +1,70 @@
+{
+  "status": "Prepared_AwaitingArtifact_NoCompile5ExecutionVerdict",
+  "reviewer": "/root/shape_opt",
+  "run_id": 41086451087,
+  "candidate": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
+  "files": {
+    "COMPILE5-INDEPENDENT-EXECUTION.py": "ce7a1e2ebcf5db5c471506052373dd352b3f0af95b17879929040484eee8908b",
+    "COMPILE5-INDEPENDENT-EXECUTION-CHECKLIST.md": "67cba18183590d6669b60db2feedc7546ec2cd6975aa6522bcf9f701febf4ca7"
+  },
+  "preparation_checks": {
+    "syntax": "ast.parse passed",
+    "help": "passed",
+    "historical_parser_control": {
+      "rust_harnesses": 10,
+      "rust_passed": 149,
+      "python_suites": 3,
+      "python_passed_by_suite": [
+        8,
+        26,
+        18
+      ],
+      "all_failed_ignored_measured_filtered_zero": true
+    },
+    "altered_in_memory_historical_logs_rejected": [
+      "filtered count changed",
+      "individual ok line removed",
+      "ok changed to ignored"
+    ],
+    "historical_rust_logs": [
+      {
+        "path": "/workspace/scratch/87d454884917/recovery/compile4-run1/compile4-evidence/logs/013-candidate-tests-0.stdout",
+        "sha256": "ea3f319cc9c2b4f1fb302d17c70d1a19bf875b65d296de0c771c7e9827e5a83c"
+      },
+      {
+        "path": "/workspace/scratch/87d454884917/recovery/compile4-run1/compile4-evidence/logs/013-candidate-tests-0.stderr",
+        "sha256": "10e1ec9aa18455987bb9773b40fd69d596ce681e4a9df821645b5b5f60864d3b"
+      },
+      {
+        "path": "/workspace/scratch/87d454884917/recovery/compile4-run1/compile4-evidence/logs/014-candidate-tests-1.stdout",
+        "sha256": "70282ef6f66f1c65f351fef78b0fd7fe86372f84b0e9467b18da1794dbd94294"
+      },
+      {
+        "path": "/workspace/scratch/87d454884917/recovery/compile4-run1/compile4-evidence/logs/014-candidate-tests-1.stderr",
+        "sha256": "4bc4b3652d3b19c2e194f7685222639e9866f29083ed4bd13e5ca954b76c7ccf"
+      },
+      {
+        "path": "/workspace/scratch/87d454884917/recovery/compile4-run1/compile4-evidence/logs/015-candidate-tests-2.stdout",
+        "sha256": "4adb564db12502cee85b917b565e939522d16663a5619ec47531577110a31f02"
+      },
+      {
+        "path": "/workspace/scratch/87d454884917/recovery/compile4-run1/compile4-evidence/logs/015-candidate-tests-2.stderr",
+        "sha256": "17bfb03a91dbb79c57a2b21d6723646c5a8daf86848838cf0a4ab4cd9d3455d1"
+      }
+    ]
+  },
+  "current_frozen_selection": {
+    "expected_cargo_harnesses": 18,
+    "python_source_method_counts": [
+      19,
+      26,
+      19
+    ],
+    "actual_compile5_counts": "NotObserved"
+  },
+  "artifact_review": "NotStarted_ArtifactPending",
+  "cargo_or_runner_executed": false,
+  "performance_statistics_computed": false,
+  "source_modified": false,
+  "prepared_at_utc": "2026-10-30T16:18:53.636700+00:00"
+}

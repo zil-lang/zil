@@ -1,0 +1,9 @@
+{
+  "artifact_id": 12993022904,
+  "zip_sha256": "18f2acc10acc9c9e508a92fb06beb63f5f9d331fe34a945342860c56ab894fcc",
+  "tar_sha256": "5ad5bffeddf7e8402b770e0009e842456ce61b1806d229c172617ca50b206010",
+  "files": 40361,
+  "unique_bytes": 235669460,
+  "total_regular_bytes": 337324805,
+  "extraction": "Regular files only; identical SHA256 plus POSIX mode hardlinked to reduce scratch storage. Bytes and modes preserved; original paths/ctime are mapped, not recreated."
+}

@@ -1,0 +1,431 @@
+{
+  "schema": "zil-compile5-fixed-auxiliary-probe/1",
+  "frozen_at_utc": "2026-10-30T16:09:13Z",
+  "design_sha256": "59bc3c8185f930a43b146503ea23b7309a5fa7e27e5d960e71a505941e5f27bb",
+  "generator_sha256": "91fa98de71ca09845008780850b3c6c50cc3c720e6625e6c2dc59600f9c31268",
+  "baseline_commit": "a715f828261ff4b6ef9c8125623064360745aae4",
+  "candidate_local_freeze_commit": "187eae4f6bb085f0d0d42765f047b7f60add6bed",
+  "cases": [
+    {
+      "id": "unchanged-wide",
+      "modules": 2,
+      "function_declarations_including_extern": 67,
+      "source": "unchanged-wide/main.zil",
+      "stdin": "unchanged-wide/stdin.bin",
+      "expected_stdout": "unchanged-wide/stdout.bin",
+      "expected_stderr": "unchanged-wide/stderr.bin",
+      "expected_exit": 0,
+      "raw_type_nodes": 53,
+      "resolved_type_nodes": 53,
+      "scalar_leaf_count_before_rewrites": 32,
+      "max_tuple_arity": 4,
+      "generated_return_functions": 64,
+      "same_depth_consume_calls": 0,
+      "nominal_leaf_rewrites_per_function": 0,
+      "ct_vm_queries": 0,
+      "preflight": "NotRun",
+      "performance": "NotRun"
+    },
+    {
+      "id": "multiple-rewrites",
+      "modules": 2,
+      "function_declarations_including_extern": 67,
+      "source": "multiple-rewrites/main.zil",
+      "stdin": "multiple-rewrites/stdin.bin",
+      "expected_stdout": "multiple-rewrites/stdout.bin",
+      "expected_stderr": "multiple-rewrites/stderr.bin",
+      "expected_exit": 0,
+      "raw_type_nodes": 53,
+      "resolved_type_nodes": 55,
+      "scalar_leaf_count_before_rewrites": 32,
+      "max_tuple_arity": 4,
+      "generated_return_functions": 64,
+      "same_depth_consume_calls": 0,
+      "nominal_leaf_rewrites_per_function": 2,
+      "ct_vm_queries": 0,
+      "preflight": "NotRun",
+      "performance": "NotRun"
+    },
+    {
+      "id": "repeated-hints",
+      "modules": 2,
+      "function_declarations_including_extern": 4,
+      "source": "repeated-hints/main.zil",
+      "stdin": "repeated-hints/stdin.bin",
+      "expected_stdout": "repeated-hints/stdout.bin",
+      "expected_stderr": "repeated-hints/stderr.bin",
+      "expected_exit": 0,
+      "raw_type_nodes": 53,
+      "resolved_type_nodes": 53,
+      "scalar_leaf_count_before_rewrites": 32,
+      "max_tuple_arity": 4,
+      "generated_return_functions": 0,
+      "same_depth_consume_calls": 128,
+      "nominal_leaf_rewrites_per_function": 0,
+      "ct_vm_queries": 0,
+      "preflight": "NotRun",
+      "performance": "NotRun"
+    }
+  ],
+  "files": {
+    "unchanged-wide/main.zil": {
+      "bytes": 148,
+      "sha256": "6a3b68157ebbffd25ab129def76614f275e2ec208e6f7f3021a17920ae2f9c58"
+    },
+    "unchanged-wide/work.zil": {
+      "bytes": 33345,
+      "sha256": "8c8f04184f538d2aa1443c747c20099a63043b09c97cc0222ae05e7a1bd7a6f6"
+    },
+    "unchanged-wide/stdin.bin": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "unchanged-wide/stdout.bin": {
+      "bytes": 1,
+      "sha256": "e4ff5e7d7a7f08e9800a3e25cb774533cb20040df30b6ba10f956f9acd0eb3f7"
+    },
+    "unchanged-wide/stderr.bin": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "multiple-rewrites/main.zil": {
+      "bytes": 148,
+      "sha256": "6a3b68157ebbffd25ab129def76614f275e2ec208e6f7f3021a17920ae2f9c58"
+    },
+    "multiple-rewrites/work.zil": {
+      "bytes": 36473,
+      "sha256": "f6305739e16db8f344cb54e3bba844785e39294839da40e3ce4920c3b6c02e10"
+    },
+    "multiple-rewrites/stdin.bin": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "multiple-rewrites/stdout.bin": {
+      "bytes": 1,
+      "sha256": "e4ff5e7d7a7f08e9800a3e25cb774533cb20040df30b6ba10f956f9acd0eb3f7"
+    },
+    "multiple-rewrites/stderr.bin": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "repeated-hints/main.zil": {
+      "bytes": 148,
+      "sha256": "6a3b68157ebbffd25ab129def76614f275e2ec208e6f7f3021a17920ae2f9c58"
+    },
+    "repeated-hints/work.zil": {
+      "bytes": 3933,
+      "sha256": "7342fcddcf3e2a95ce1f4195e17d034ac9753f5645235d0985c729089132c4cd"
+    },
+    "repeated-hints/stdin.bin": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "repeated-hints/stdout.bin": {
+      "bytes": 1,
+      "sha256": "c00e7f889cfc9216ec818bf2e1682fc6af0d89939c91776669478caf27c9727c"
+    },
+    "repeated-hints/stderr.bin": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "blocks": 3,
+  "order": [
+    {
+      "block": 0,
+      "case": "unchanged-wide",
+      "position": 0,
+      "arm": "A"
+    },
+    {
+      "block": 0,
+      "case": "unchanged-wide",
+      "position": 1,
+      "arm": "B"
+    },
+    {
+      "block": 0,
+      "case": "unchanged-wide",
+      "position": 2,
+      "arm": "B"
+    },
+    {
+      "block": 0,
+      "case": "unchanged-wide",
+      "position": 3,
+      "arm": "A"
+    },
+    {
+      "block": 0,
+      "case": "multiple-rewrites",
+      "position": 0,
+      "arm": "A"
+    },
+    {
+      "block": 0,
+      "case": "multiple-rewrites",
+      "position": 1,
+      "arm": "B"
+    },
+    {
+      "block": 0,
+      "case": "multiple-rewrites",
+      "position": 2,
+      "arm": "B"
+    },
+    {
+      "block": 0,
+      "case": "multiple-rewrites",
+      "position": 3,
+      "arm": "A"
+    },
+    {
+      "block": 0,
+      "case": "repeated-hints",
+      "position": 0,
+      "arm": "A"
+    },
+    {
+      "block": 0,
+      "case": "repeated-hints",
+      "position": 1,
+      "arm": "B"
+    },
+    {
+      "block": 0,
+      "case": "repeated-hints",
+      "position": 2,
+      "arm": "B"
+    },
+    {
+      "block": 0,
+      "case": "repeated-hints",
+      "position": 3,
+      "arm": "A"
+    },
+    {
+      "block": 1,
+      "case": "multiple-rewrites",
+      "position": 0,
+      "arm": "B"
+    },
+    {
+      "block": 1,
+      "case": "multiple-rewrites",
+      "position": 1,
+      "arm": "A"
+    },
+    {
+      "block": 1,
+      "case": "multiple-rewrites",
+      "position": 2,
+      "arm": "A"
+    },
+    {
+      "block": 1,
+      "case": "multiple-rewrites",
+      "position": 3,
+      "arm": "B"
+    },
+    {
+      "block": 1,
+      "case": "repeated-hints",
+      "position": 0,
+      "arm": "B"
+    },
+    {
+      "block": 1,
+      "case": "repeated-hints",
+      "position": 1,
+      "arm": "A"
+    },
+    {
+      "block": 1,
+      "case": "repeated-hints",
+      "position": 2,
+      "arm": "A"
+    },
+    {
+      "block": 1,
+      "case": "repeated-hints",
+      "position": 3,
+      "arm": "B"
+    },
+    {
+      "block": 1,
+      "case": "unchanged-wide",
+      "position": 0,
+      "arm": "B"
+    },
+    {
+      "block": 1,
+      "case": "unchanged-wide",
+      "position": 1,
+      "arm": "A"
+    },
+    {
+      "block": 1,
+      "case": "unchanged-wide",
+      "position": 2,
+      "arm": "A"
+    },
+    {
+      "block": 1,
+      "case": "unchanged-wide",
+      "position": 3,
+      "arm": "B"
+    },
+    {
+      "block": 2,
+      "case": "repeated-hints",
+      "position": 0,
+      "arm": "A"
+    },
+    {
+      "block": 2,
+      "case": "repeated-hints",
+      "position": 1,
+      "arm": "B"
+    },
+    {
+      "block": 2,
+      "case": "repeated-hints",
+      "position": 2,
+      "arm": "B"
+    },
+    {
+      "block": 2,
+      "case": "repeated-hints",
+      "position": 3,
+      "arm": "A"
+    },
+    {
+      "block": 2,
+      "case": "unchanged-wide",
+      "position": 0,
+      "arm": "A"
+    },
+    {
+      "block": 2,
+      "case": "unchanged-wide",
+      "position": 1,
+      "arm": "B"
+    },
+    {
+      "block": 2,
+      "case": "unchanged-wide",
+      "position": 2,
+      "arm": "B"
+    },
+    {
+      "block": 2,
+      "case": "unchanged-wide",
+      "position": 3,
+      "arm": "A"
+    },
+    {
+      "block": 2,
+      "case": "multiple-rewrites",
+      "position": 0,
+      "arm": "A"
+    },
+    {
+      "block": 2,
+      "case": "multiple-rewrites",
+      "position": 1,
+      "arm": "B"
+    },
+    {
+      "block": 2,
+      "case": "multiple-rewrites",
+      "position": 2,
+      "arm": "B"
+    },
+    {
+      "block": 2,
+      "case": "multiple-rewrites",
+      "position": 3,
+      "arm": "A"
+    }
+  ],
+  "formal_compile_rows": 36,
+  "common_config": {
+    "phase": "build",
+    "profile": "O0",
+    "units": 8,
+    "jobs": 4,
+    "backend": "llvm-api",
+    "request": "cold_process",
+    "fresh_source_cache": true,
+    "fresh_object_cache": true,
+    "query_cache": false,
+    "timings": false,
+    "limits": "unchanged defaults",
+    "host_affinity": {
+      "scope": "separate local auxiliary window; never pool with main CI matrix",
+      "same_host_and_cpu_set_for_both_arms": true,
+      "fixed_cpu_set": [
+        0,
+        1
+      ],
+      "exact_cpu_count": 2,
+      "if_cpu_set_unavailable": "stop; no automatic replacement",
+      "planning_observation": {
+        "allowed_cpus": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "cpu_max": "800000 100000",
+        "memory_max": "8589934592"
+      },
+      "environment_receipt": "RequiredBeforePreflight",
+      "required_host_fields": [
+        "hostname",
+        "OS/kernel",
+        "CPU model",
+        "allowed affinity",
+        "selected affinity",
+        "cpu.max",
+        "memory.max",
+        "relevant environment variables"
+      ],
+      "required_tool_identities": [
+        "baseline compiler",
+        "candidate compiler",
+        "Clang",
+        "actual LLVM shared library",
+        "actual linker"
+      ],
+      "required_identity_fields": [
+        "path",
+        "version",
+        "bytes",
+        "sha256"
+      ],
+      "identity_recheck": "before and after each measured request; host/quota/affinity/tool drift stops scoring"
+    }
+  },
+  "preflight_compilations": 6,
+  "preflight": "NotRun",
+  "performance": "NotRun",
+  "oracle": "Three selected values are each exactly one; sum 64*3 or 128*3, emit one byte modulo 251.",
+  "scope": "Auxiliary mechanism cases only; no weighted combined score, no ZIL/Rust score, no change to the main matrix. Generation does not establish source admission or performance.",
+  "environment_revision": {
+    "version": 2,
+    "revised_at_utc": "2026-10-30T16:20:59Z",
+    "reason": "The temporary main CI host is unavailable for later auxiliary measurements; not selected based on performance results.",
+    "main_summaries_read_before_revision": false,
+    "parent_meta_sha256": "66331aef4671e047a6168ae4e83ef5d1cbb445f7015785a2a2109cb671265ffa",
+    "revision_note": "../v2-environment-revision.md",
+    "revision_note_sha256": "7c4d5d2c80ceeecccd70310bf8a8073dfc5795f229487d20f79af3b5bd257053",
+    "source_generator_unchanged": true,
+    "source_oracle_and_order_unchanged": true
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "format": "tar.xz of the complete local auxiliary run-v2 directory",
+  "sha256": "0434ec312abea5bd6fae1b35b445393a22b454775cdf9a4cc411f6a37b087b16",
+  "bytes": 112716,
+  "retention": "All 6 preflight and36 measured CLI/native logs, ELF and LLVM IR products, frozen plan/sources/oracles and raw rows. Compiler binary bytes are in round1/raw-evidence.tar.xz and are bound by compiler-builds.json. No pooled score with the CI windows."
+}

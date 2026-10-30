@@ -1,0 +1,132 @@
+{
+  "schema": "zil-rust-compile-performance/3",
+  "plan_sha256": "864621cb5b8c9b5e2f294670ed8943ce32be84a004e3b2c1a06a8261397aa4e2",
+  "preflight_sha256": "89b64faa5e15d21e9e85fb8047b8a303276705fdc70d6974a282db103c2b30eb",
+  "records_sha256": "5cfe00860db9d9e84e4457c8b0b9b4697f8cab68e55a2fd88d92fda1cd925e48",
+  "kind": "runtime",
+  "arm_A": "Rust",
+  "arm_B": "ZIL",
+  "source_identity": {
+    "B": {
+      "commit": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
+      "crates_tree": "b583bc62e4aa39b206afb27f76f2f8262120fe9d"
+    }
+  },
+  "versions": {
+    "rustc": {
+      "argv": [
+        "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+        "-Vv"
+      ],
+      "exit": 0,
+      "stdout": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "stderr": ""
+    },
+    "zil": {
+      "argv": [
+        "/home/runner/work/_temp/compile4-evidence/binaries/zil-candidate",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "zil 0.1.0 (ZIL-LANG-1.4; Rust 2024; compiler draft; default backend: llvm-api)\n",
+      "stderr": ""
+    },
+    "clang": {
+      "argv": [
+        "/home/runner/work/_temp/compile4-llvm-23.1.4/bin/clang",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /home/runner/work/_temp/compile4-llvm-23.1.4/bin\n",
+      "stderr": ""
+    }
+  },
+  "profile": "O0",
+  "cache_mode": "cold",
+  "rust_profile": "native",
+  "units": 8,
+  "jobs": 4,
+  "rust_lto": "native",
+  "rust_lto_scope": "native omits -C lto and retains the toolchain policy; off explicitly disables Rust LTO for a separate mechanism diagnostic, never a replacement for native results; compare runtime quality for each mode",
+  "query_cache": false,
+  "closed_executable": false,
+  "selected_original_weight": 1.0,
+  "rows": 60,
+  "failures": [],
+  "coverage_complete": true,
+  "completion_receipt_matches": true,
+  "scope": "Separate complete native processes including startup and file I/O on one CPU; base binaries from preflight only; compilation/correctness/warmup are not runtime samples",
+  "comparison_limits": "80% synthetic called trees at default weights; retained uses Rust Vec and ZIL ByteBuffer; precompiled Rust std vs host libc; checked valid inputs do not establish identical panic/allocation-failure behavior or whole-language equivalence",
+  "product_gates": "NotRun",
+  "independent_review": "NotRun",
+  "wall": {
+    "A": 0.13250028407499997,
+    "B": 0.07563301202499999,
+    "B_over_A": 0.5708139612907468,
+    "by_case": {
+      "tree4x2": {
+        "A": 0.058748102499999996,
+        "B": 0.079058495,
+        "B_over_A": 1.3457199745302415
+      },
+      "tree32x8": {
+        "A": 0.047305389,
+        "B": 0.0609371135,
+        "B_over_A": 1.2881643040711492
+      },
+      "tree256x8": {
+        "A": 0.190540442,
+        "B": 0.0629776175,
+        "B_over_A": 0.33052100036589604
+      },
+      "tree1024x8": {
+        "A": 0.21046784600000001,
+        "B": 0.139351026,
+        "B_over_A": 0.6621012598760572
+      },
+      "retained": {
+        "A": 0.010822921,
+        "B": 0.009204636,
+        "B_over_A": 0.8504761330143684
+      }
+    }
+  },
+  "cpu": {
+    "A": 0.13156602499999998,
+    "B": 0.07480594999999998,
+    "B_over_A": 0.5685810603459366,
+    "by_case": {
+      "tree4x2": {
+        "A": 0.05756549999999999,
+        "B": 0.0782775,
+        "B_over_A": 1.3597988378455848
+      },
+      "tree32x8": {
+        "A": 0.046537999999999996,
+        "B": 0.060148499999999994,
+        "B_over_A": 1.292459925222399
+      },
+      "tree256x8": {
+        "A": 0.1893875,
+        "B": 0.0620975,
+        "B_over_A": 0.3278859481222362
+      },
+      "tree1024x8": {
+        "A": 0.20955,
+        "B": 0.13840449999999999,
+        "B_over_A": 0.6604843712717728
+      },
+      "retained": {
+        "A": 0.010128999999999999,
+        "B": 0.008596,
+        "B_over_A": 0.848652384243262
+      }
+    }
+  },
+  "exploratory_paired_block_bootstrap95": [
+    0.5708139612907468,
+    0.5743158846406903
+  ],
+  "interval_scope": "Shared host, finite paired blocks; descriptive interval, not product confidence or whole-language claim",
+  "verdict": "ExploratoryComplete_NotAProductGate"
+}
