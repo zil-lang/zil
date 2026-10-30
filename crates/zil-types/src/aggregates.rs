@@ -1,5 +1,6 @@
 //! Resolution and construction of finite Copy records and tuples.
 use super::*;
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 use zil_base::ModuleId;
 
@@ -139,7 +140,10 @@ impl<'a> Visibility<'a> {
 pub(super) fn resolve(core: CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
     let mut remaining = limits.max_analysis_steps;
     let callable_names = collect_callable_names([&core]);
-    resolve_indexed(core, &[], &callable_names, limits, &mut remaining)
+    match resolve_indexed(&core, &[], &callable_names, limits, &mut remaining)? {
+        Cow::Borrowed(_) => Ok(core),
+        Cow::Owned(resolved) => Ok(resolved),
+    }
 }
 
 fn collect_callable_names<'a>(
@@ -176,41 +180,61 @@ pub(super) fn resolve_program(
     program: &CoreProgram,
     limits: &Limits,
 ) -> CompileResult<CoreProgram> {
+    resolve_program_borrowed(program, limits).map(Cow::into_owned)
+}
+
+pub(super) fn resolve_program_borrowed<'a>(
+    program: &'a CoreProgram,
+    limits: &Limits,
+) -> CompileResult<Cow<'a, CoreProgram>> {
     let mut remaining = limits.max_analysis_steps;
-    let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
-    // Each core below is cloned from this same immutable project. The old
+    // Empty modules contribute no declarations or logical charges to the
+    // per-module index. Keep only declaration-bearing modules, in original
+    // order; this avoids rescanning every empty table for every source module.
+    let modules = program
+        .modules
+        .iter()
+        .map(|m| &m.core)
+        .filter(|core| !core.aggregates.is_empty() || !core.enums.is_empty())
+        .collect::<Vec<_>>();
+    // Each core below belongs to this same immutable project. The old
     // local-plus-project union therefore has identical membership and size
     // for every module; only that uncharged lookup construction is shared.
-    let callable_names = collect_callable_names(modules.iter().copied());
-    let mut normalized = Vec::new();
-    for module in &program.modules {
+    let callable_names = collect_callable_names(program.modules.iter().map(|m| &m.core));
+    let normalized = map_cow(&program.modules, |module| -> CompileResult<_> {
         let core = resolve_indexed(
-            module.core.clone(),
+            &module.core,
             &modules,
             &callable_names,
             limits,
             &mut remaining,
         )?;
-        normalized.push(ProgramModule {
-            core,
-            imports: module.imports.clone(),
-            exports: module.exports.clone(),
-        });
-    }
-    Ok(CoreProgram {
-        root: program.root,
-        source_fingerprint: program.source_fingerprint,
-        modules: normalized,
+        Ok(match core {
+            Cow::Borrowed(_) => Cow::Borrowed(module),
+            Cow::Owned(core) => Cow::Owned(ProgramModule {
+                core,
+                imports: module.imports.clone(),
+                exports: module.exports.clone(),
+            }),
+        })
+    })?;
+    Ok(match normalized {
+        Cow::Borrowed(_) => Cow::Borrowed(program),
+        Cow::Owned(modules) => Cow::Owned(CoreProgram {
+            root: program.root,
+            source_fingerprint: program.source_fingerprint,
+            modules,
+        }),
     })
 }
 
-fn resolve_indexed(
-    mut core: CoreModule,
+fn resolve_indexed<'a>(
+    core: &'a CoreModule,
     project: &[&CoreModule],
     callable_names: &BTreeSet<String>,
     limits: &Limits,
     remaining: &mut usize,
-) -> CompileResult<CoreModule> {
+) -> CompileResult<Cow<'a, CoreModule>> {
     let mut declarations = BTreeMap::new();
     for d in &core.aggregates {
         if d.kind != AggregateKind::Package && d.fields.iter().any(|f| f.manages) {
@@ -358,107 +382,130 @@ fn resolve_indexed(
             .ty(&Type::Named(d.name.clone()), 0, d.span)
             .map_err(|e| vec![e])?;
     }
-    let mut resolved_enums = core.enums.clone();
-    for declaration in &mut resolved_enums {
-        let Type::Enum { variants, .. } = resolver
-            .ty(&Type::Named(declaration.name.clone()), 0, declaration.span)
-            .map_err(|e| vec![e])?
+    let resolved_enums = map_cow(&core.enums, |declaration| {
+        let Type::Enum { variants, .. } =
+            resolver.ty(&Type::Named(declaration.name.clone()), 0, declaration.span)?
         else {
             unreachable!()
         };
-        declaration.variants = variants;
-    }
-    // Resolve using the original declaration headers while moving function bodies.
-    // State selectors need the unmodified headers, but cloning every body is unnecessary.
-    let original_headers: Vec<_> = core
-        .functions
-        .iter()
-        .map(|f| (f.callable_parameters.clone(), f.state_parameters.clone()))
-        .collect();
-    let mut functions = std::mem::take(&mut core.functions);
-    for (f, (callable_parameters, state_parameters)) in functions.iter_mut().zip(&original_headers)
-    {
-        resolver.active_callable_parameters = callable_parameters;
-        resolver.active_state_parameters = state_parameters;
-        store_templates::validate_header(f).map_err(|e| vec![e])?;
-        if let Some(parameter) = f.type_parameters.first() {
-            resolver.remaining = resolver
-                .remaining
-                .checked_sub(parameter.name.len().saturating_add(1))
-                .ok_or_else(|| {
-                    vec![Diagnostic::limit(
-                        Phase::Types,
-                        "ordinary binder resolution budget exceeded",
-                        Some(f.span),
-                    )]
-                })?;
-            resolver.ordinary_parameter = Some(parameter.name.clone());
-        }
-        for state in &mut f.state_parameters {
-            for bound in &mut state.bindings {
-                bound.result = resolver.ty(&bound.result, 0, f.span).map_err(|e| vec![e])?;
-                for ty in &mut bound.parameters {
-                    *ty = resolver.ty(ty, 0, f.span).map_err(|e| vec![e])?;
+        Ok(if variants == declaration.variants {
+            Cow::Borrowed(declaration)
+        } else {
+            Cow::Owned(CoreEnum {
+                id: declaration.id,
+                name: declaration.name.clone(),
+                variants,
+                span: declaration.span,
+            })
+        })
+    })
+    .map_err(|e| vec![e])?;
+    // The original headers remain borrowed while their resolved forms are built.
+    // Bodies which do not change are checked and charged without being copied.
+    let functions = map_cow(&core.functions, |f| resolver.function(f)).map_err(|e| vec![e])?;
+    *remaining = resolver.remaining;
+    let aggregates = map_cow(&core.aggregates, |aggregate| {
+        let fields = map_cow(&aggregate.fields, |field| {
+            let ty = resolver.field_type(field, 0)?;
+            Ok(if ty == field.ty {
+                Cow::Borrowed(field)
+            } else {
+                Cow::Owned(CoreField {
+                    name: field.name.clone(),
+                    ty,
+                    public: field.public,
+                    manages: field.manages,
+                    span: field.span,
+                })
+            })
+        })?;
+        Ok(match fields {
+            Cow::Borrowed(_) => Cow::Borrowed(aggregate),
+            Cow::Owned(fields) => Cow::Owned(CoreAggregate {
+                id: aggregate.id,
+                name: aggregate.name.clone(),
+                kind: aggregate.kind,
+                teardown: aggregate.teardown.clone(),
+                fields,
+                span: aggregate.span,
+            }),
+        })
+    })
+    .map_err(|e| vec![e])?;
+    *remaining = resolver.remaining;
+    Ok(
+        if matches!(aggregates, Cow::Borrowed(_))
+            && matches!(functions, Cow::Borrowed(_))
+            && matches!(resolved_enums, Cow::Borrowed(_))
+        {
+            Cow::Borrowed(core)
+        } else {
+            Cow::Owned(CoreModule {
+                schema_version: core.schema_version,
+                module_id: core.module_id,
+                source_fingerprint: core.source_fingerprint,
+                functions: functions.into_owned(),
+                aggregates: aggregates.into_owned(),
+                enums: resolved_enums.into_owned(),
+                unsupported: core.unsupported.clone(),
+            })
+        },
+    )
+}
+
+// Preserve a borrowed collection until its first changed element. An unchanged
+// subtree is copied at most once when its parent actually needs an owned result.
+fn map_cow<'a, T: Clone, E>(
+    items: &'a [T],
+    mut map: impl FnMut(&'a T) -> Result<Cow<'a, T>, E>,
+) -> Result<Cow<'a, [T]>, E> {
+    let mut owned: Option<Vec<T>> = None;
+    for (index, item) in items.iter().enumerate() {
+        match map(item)? {
+            Cow::Borrowed(item) => {
+                if let Some(owned) = &mut owned {
+                    owned.push(item.clone());
                 }
             }
-        }
-        for bound in &mut f.callable_parameters {
-            bound.result = resolver.ty(&bound.result, 0, f.span).map_err(|e| vec![e])?;
-            for ty in &mut bound.parameters {
-                *ty = resolver.ty(ty, 0, f.span).map_err(|e| vec![e])?;
+            Cow::Owned(item) => {
+                owned
+                    .get_or_insert_with(|| items[..index].to_vec())
+                    .push(item);
             }
         }
-        if let Some(bound) = &mut f.callable_return {
-            bound.result = resolver.ty(&bound.result, 0, f.span).map_err(|e| vec![e])?;
-            for ty in &mut bound.parameters {
-                *ty = resolver.ty(ty, 0, f.span).map_err(|e| vec![e])?;
-            }
-        }
-        let raw_result = if matches!(f.result_mode, PassingMode::Create | PassingMode::Give) {
-            owned_mode_type(&f.return_type)
+    }
+    Ok(owned.map_or(Cow::Borrowed(items), Cow::Owned))
+}
+
+fn map_optional<'a, T: Clone, E>(
+    item: &'a Option<T>,
+    map: impl FnOnce(&'a T) -> Result<Cow<'a, T>, E>,
+) -> Result<Cow<'a, Option<T>>, E> {
+    Ok(match item {
+        Some(value) => match map(value)? {
+            Cow::Owned(value) => Cow::Owned(Some(value)),
+            Cow::Borrowed(_) => Cow::Borrowed(item),
+        },
+        None => Cow::Borrowed(item),
+    })
+}
+
+fn retain_equal<T: Clone + PartialEq>(original: &T, value: T) -> Cow<'_, T> {
+    if original == &value {
+        Cow::Borrowed(original)
+    } else {
+        Cow::Owned(value)
+    }
+}
+
+macro_rules! changed {
+    ($value:expr; $($part:expr),+ $(,)?) => {
+        if $(matches!($part, Cow::Borrowed(_)))&&+ {
+            None
         } else {
-            f.return_type.clone()
-        };
-        f.return_type = resolver.ty(&raw_result, 0, f.span).map_err(|e| vec![e])?;
-        for p in &mut f.parameters {
-            let raw = if p.mode == PassingMode::Give {
-                owned_mode_type(&p.ty)
-            } else {
-                p.ty.clone()
-            };
-            p.ty = resolver.ty(&raw, 0, p.span).map_err(|e| vec![e])?;
-            if matches!(p.ty, Type::Desc(_)) {
-                p.mode = PassingMode::Describe;
-            }
+            Some($value)
         }
-        if let Some(r) = &mut f.receiver {
-            let raw = if r.mode == PassingMode::Give {
-                Type::Managed(Box::new(r.ty.clone()))
-            } else {
-                r.ty.clone()
-            };
-            r.ty = resolver.ty(&raw, 0, f.span).map_err(|e| vec![e])?;
-            if matches!(r.ty, Type::Desc(_)) {
-                r.mode = PassingMode::Describe;
-            }
-        }
-        resolver.block(&mut f.body, 0).map_err(|e| vec![e])?;
-        resolver.ordinary_parameter = None;
-        resolver.active_callable_parameters = &[];
-        resolver.active_state_parameters = &[];
-    }
-    *remaining = resolver.remaining;
-    let mut aggregates = core.aggregates.clone();
-    for aggregate in &mut aggregates {
-        for field in &mut aggregate.fields {
-            field.ty = resolver.field_type(field, 0).map_err(|e| vec![e])?;
-        }
-    }
-    *remaining = resolver.remaining;
-    core.aggregates = aggregates;
-    core.functions = functions;
-    core.enums = resolved_enums;
-    Ok(core)
+    };
 }
 
 /// A source ownership mode selects the direct success resource of a fallible
@@ -486,7 +533,147 @@ struct Resolver<'a> {
     remaining: usize,
     depth_limit: usize,
 }
-impl Resolver<'_> {
+impl<'a> Resolver<'a> {
+    fn function<'b: 'a>(&mut self, f: &'b CoreFunction) -> R<Cow<'b, CoreFunction>> {
+        self.active_callable_parameters = &f.callable_parameters;
+        self.active_state_parameters = &f.state_parameters;
+        store_templates::validate_header(f)?;
+        if let Some(parameter) = f.type_parameters.first() {
+            self.remaining = self
+                .remaining
+                .checked_sub(parameter.name.len().saturating_add(1))
+                .ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "ordinary binder resolution budget exceeded",
+                        Some(f.span),
+                    )
+                })?;
+            self.ordinary_parameter = Some(parameter.name.clone());
+        }
+        let state_parameters = map_cow(&f.state_parameters, |state| {
+            let bindings = map_cow(&state.bindings, |bound| {
+                let result = self.type_cow(&bound.result, 0, f.span)?;
+                let parameters = map_cow(&bound.parameters, |ty| self.type_cow(ty, 0, f.span))?;
+                Ok(changed!(CoreStateBinding {
+                    generic_index: bound.generic_index,
+                    generic_name: bound.generic_name.clone(),
+                    kind: bound.kind,
+                    parameters: parameters.into_owned(),
+                    result: result.into_owned(),
+                    fields: bound.fields.clone(),
+                }; result, parameters)
+                .map_or(Cow::Borrowed(bound), Cow::Owned))
+            })?;
+            Ok(match bindings {
+                Cow::Borrowed(_) => Cow::Borrowed(state),
+                Cow::Owned(bindings) => Cow::Owned(CoreStateParameter {
+                    index: state.index,
+                    bindings,
+                }),
+            })
+        })?;
+        let callable_parameters = map_cow(&f.callable_parameters, |bound| {
+            let result = self.type_cow(&bound.result, 0, f.span)?;
+            let parameters = map_cow(&bound.parameters, |ty| self.type_cow(ty, 0, f.span))?;
+            Ok(changed!(CoreCallableParameter {
+                index: bound.index,
+                generic_index: bound.generic_index,
+                generic_name: bound.generic_name.clone(),
+                kind: bound.kind,
+                parameters: parameters.into_owned(),
+                result: result.into_owned(),
+            }; result, parameters)
+            .map_or(Cow::Borrowed(bound), Cow::Owned))
+        })?;
+        let callable_return = map_optional(&f.callable_return, |bound| {
+            let result = self.type_cow(&bound.result, 0, f.span)?;
+            let parameters = map_cow(&bound.parameters, |ty| self.type_cow(ty, 0, f.span))?;
+            Ok(changed!(CoreCallableReturn {
+                kind: bound.kind,
+                parameters: parameters.into_owned(),
+                result: result.into_owned(),
+            }; result, parameters)
+            .map_or(Cow::Borrowed(bound), Cow::Owned))
+        })?;
+        let raw_result = if matches!(f.result_mode, PassingMode::Create | PassingMode::Give) {
+            owned_mode_type(&f.return_type)
+        } else {
+            f.return_type.clone()
+        };
+        let return_type = retain_equal(&f.return_type, self.ty(&raw_result, 0, f.span)?);
+        let parameters = map_cow(&f.parameters, |p| {
+            let raw = if p.mode == PassingMode::Give {
+                owned_mode_type(&p.ty)
+            } else {
+                p.ty.clone()
+            };
+            let ty = self.ty(&raw, 0, p.span)?;
+            let mode = if matches!(ty, Type::Desc(_)) {
+                PassingMode::Describe
+            } else {
+                p.mode
+            };
+            Ok(if ty == p.ty && mode == p.mode {
+                Cow::Borrowed(p)
+            } else {
+                Cow::Owned(CoreParameter {
+                    name: p.name.clone(),
+                    ty,
+                    mode,
+                    span: p.span,
+                })
+            })
+        })?;
+        let receiver = map_optional(&f.receiver, |r| {
+            let raw = if r.mode == PassingMode::Give {
+                Type::Managed(Box::new(r.ty.clone()))
+            } else {
+                r.ty.clone()
+            };
+            let ty = self.ty(&raw, 0, f.span)?;
+            let mode = if matches!(ty, Type::Desc(_)) {
+                PassingMode::Describe
+            } else {
+                r.mode
+            };
+            Ok(if ty == r.ty && mode == r.mode {
+                Cow::Borrowed(r)
+            } else {
+                Cow::Owned(ReceiverShape {
+                    ty,
+                    mode,
+                    implicit: r.implicit,
+                })
+            })
+        })?;
+        let body = self.block(&f.body, 0)?;
+        self.ordinary_parameter = None;
+        self.active_callable_parameters = &[];
+        self.active_state_parameters = &[];
+        Ok(changed!(CoreFunction {
+            type_parameters: f.type_parameters.clone(),
+            state_parameters: state_parameters.into_owned(),
+            callable_return: callable_return.into_owned(),
+            id: f.id,
+            name: f.name.clone(),
+            callable_parameters: callable_parameters.into_owned(),
+            foreign: f.foreign.clone(),
+            parameters: parameters.into_owned(),
+            return_type: return_type.into_owned(),
+            result_mode: f.result_mode,
+            body: body.into_owned(),
+            receiver: receiver.into_owned(),
+            span: f.span,
+        }; state_parameters, callable_parameters, callable_return, return_type, parameters, receiver, body)
+            .map_or(Cow::Borrowed(f), Cow::Owned))
+    }
+
+    fn type_cow<'b>(&mut self, ty: &'b Type, depth: usize, span: Span) -> R<Cow<'b, Type>> {
+        self.ty(ty, depth, span)
+            .map(|resolved| retain_equal(ty, resolved))
+    }
+
     fn callback_error_payload(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
         let Type::Package { fields, .. } = ty else {
             return Ok(false);
@@ -914,202 +1101,314 @@ impl Resolver<'_> {
             _ => ty.clone(),
         })
     }
-    fn block(&mut self, b: &mut CoreBlock, depth: usize) -> R<()> {
+    fn block<'b>(&mut self, b: &'b CoreBlock, depth: usize) -> R<Cow<'b, CoreBlock>> {
         self.charge(depth, b.span)?;
-        for s in &mut b.statements {
-            match &mut s.kind {
-                CoreStatementKind::Binding {
-                    ty, initializer, ..
-                } => {
-                    if let Some(t) = ty {
-                        *t = self.ty(t, depth + 1, s.span)?;
-                    }
-                    if let Some(e) = initializer {
-                        self.expr(e, depth + 1)?;
-                    }
-                }
-                CoreStatementKind::Assign { target, value } => {
-                    self.expr(target, depth + 1)?;
-                    self.expr(value, depth + 1)?;
-                }
-                CoreStatementKind::Expression(e) | CoreStatementKind::Return(Some(e)) => {
-                    self.expr(e, depth + 1)?
-                }
-                CoreStatementKind::If {
-                    condition,
-                    then_body,
-                    else_body,
-                } => {
-                    self.expr(condition, depth + 1)?;
-                    self.block(then_body, depth + 1)?;
-                    if let Some(b) = else_body {
-                        self.block(b, depth + 1)?;
-                    }
-                }
-                CoreStatementKind::While { condition, body } => {
-                    self.expr(condition, depth + 1)?;
-                    self.block(body, depth + 1)?;
-                }
-                CoreStatementKind::IfLet {
-                    pattern,
-                    value,
-                    then_body,
-                    else_body,
-                } => {
-                    self.expr(value, depth + 1)?;
-                    self.pattern(pattern, depth + 1)?;
-                    self.block(then_body, depth + 1)?;
-                    if let Some(body) = else_body {
-                        self.block(body, depth + 1)?;
-                    }
-                }
-                CoreStatementKind::WhileLet {
-                    pattern,
-                    value,
-                    body,
-                } => {
-                    self.expr(value, depth + 1)?;
-                    self.pattern(pattern, depth + 1)?;
-                    self.block(body, depth + 1)?;
-                }
-                CoreStatementKind::ForRange {
-                    start, end, body, ..
-                } => {
-                    self.expr(start, depth + 1)?;
-                    self.expr(end, depth + 1)?;
-                    self.block(body, depth + 1)?;
-                }
-                CoreStatementKind::Match { value, arms } => {
-                    self.expr(value, depth + 1)?;
-                    for arm in arms {
-                        self.pattern(&mut arm.pattern, depth + 1)?;
-                        self.block(&mut arm.body, depth + 1)?;
-                    }
-                }
-                CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => {
-                    self.block(b, depth + 1)?
-                }
-                _ => {}
-            }
-        }
-        Ok(())
+        let statements = map_cow(&b.statements, |s| self.statement(s, depth))?;
+        Ok(match statements {
+            Cow::Borrowed(_) => Cow::Borrowed(b),
+            Cow::Owned(statements) => Cow::Owned(CoreBlock {
+                statements,
+                span: b.span,
+            }),
+        })
     }
-    fn pattern(&mut self, p: &mut CorePattern, depth: usize) -> R<()> {
+
+    fn statement<'b>(&mut self, s: &'b CoreStatement, depth: usize) -> R<Cow<'b, CoreStatement>> {
+        let kind = match &s.kind {
+            CoreStatementKind::Binding {
+                name,
+                mutable,
+                ty,
+                initializer,
+            } => {
+                let ty = map_optional(ty, |t| self.type_cow(t, depth + 1, s.span))?;
+                let initializer = map_optional(initializer, |e| self.expr(e, depth + 1))?;
+                changed!(CoreStatementKind::Binding {
+                    name: name.clone(), mutable: *mutable,
+                    ty: ty.into_owned(), initializer: initializer.into_owned(),
+                }; ty, initializer)
+            }
+            CoreStatementKind::Assign { target, value } => {
+                let target = self.expr(target, depth + 1)?;
+                let value = self.expr(value, depth + 1)?;
+                changed!(CoreStatementKind::Assign { target: target.into_owned(), value: value.into_owned() }; target, value)
+            }
+            CoreStatementKind::Expression(e) => match self.expr(e, depth + 1)? {
+                Cow::Borrowed(_) => None,
+                Cow::Owned(e) => Some(CoreStatementKind::Expression(e)),
+            },
+            CoreStatementKind::Return(Some(e)) => match self.expr(e, depth + 1)? {
+                Cow::Borrowed(_) => None,
+                Cow::Owned(e) => Some(CoreStatementKind::Return(Some(e))),
+            },
+            CoreStatementKind::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                let condition = self.expr(condition, depth + 1)?;
+                let then_body = self.block(then_body, depth + 1)?;
+                let else_body = map_optional(else_body, |b| self.block(b, depth + 1))?;
+                changed!(CoreStatementKind::If {
+                    condition: condition.into_owned(), then_body: then_body.into_owned(), else_body: else_body.into_owned(),
+                }; condition, then_body, else_body)
+            }
+            CoreStatementKind::While { condition, body } => {
+                let condition = self.expr(condition, depth + 1)?;
+                let body = self.block(body, depth + 1)?;
+                changed!(CoreStatementKind::While { condition: condition.into_owned(), body: body.into_owned() }; condition, body)
+            }
+            CoreStatementKind::IfLet {
+                pattern,
+                value,
+                then_body,
+                else_body,
+            } => {
+                let value = self.expr(value, depth + 1)?;
+                let pattern = self.pattern(pattern, depth + 1)?;
+                let then_body = self.block(then_body, depth + 1)?;
+                let else_body = map_optional(else_body, |b| self.block(b, depth + 1))?;
+                changed!(CoreStatementKind::IfLet {
+                    pattern: pattern.into_owned(), value: value.into_owned(),
+                    then_body: then_body.into_owned(), else_body: else_body.into_owned(),
+                }; value, pattern, then_body, else_body)
+            }
+            CoreStatementKind::WhileLet {
+                pattern,
+                value,
+                body,
+            } => {
+                let value = self.expr(value, depth + 1)?;
+                let pattern = self.pattern(pattern, depth + 1)?;
+                let body = self.block(body, depth + 1)?;
+                changed!(CoreStatementKind::WhileLet {
+                    pattern: pattern.into_owned(), value: value.into_owned(), body: body.into_owned(),
+                }; value, pattern, body)
+            }
+            CoreStatementKind::ForRange {
+                name,
+                start,
+                end,
+                body,
+            } => {
+                let start = self.expr(start, depth + 1)?;
+                let end = self.expr(end, depth + 1)?;
+                let body = self.block(body, depth + 1)?;
+                changed!(CoreStatementKind::ForRange {
+                    name: name.clone(), start: start.into_owned(), end: end.into_owned(), body: body.into_owned(),
+                }; start, end, body)
+            }
+            CoreStatementKind::Match { value, arms } => {
+                let value = self.expr(value, depth + 1)?;
+                let arms = map_cow(arms, |arm| {
+                    let pattern = self.pattern(&arm.pattern, depth + 1)?;
+                    let body = self.block(&arm.body, depth + 1)?;
+                    Ok(changed!(CoreMatchArm { pattern: pattern.into_owned(), body: body.into_owned(), span: arm.span }; pattern, body)
+                        .map_or(Cow::Borrowed(arm), Cow::Owned))
+                })?;
+                changed!(CoreStatementKind::Match { value: value.into_owned(), arms: arms.into_owned() }; value, arms)
+            }
+            CoreStatementKind::Block(b) => match self.block(b, depth + 1)? {
+                Cow::Borrowed(_) => None,
+                Cow::Owned(b) => Some(CoreStatementKind::Block(b)),
+            },
+            CoreStatementKind::Unsafe(b) => match self.block(b, depth + 1)? {
+                Cow::Borrowed(_) => None,
+                Cow::Owned(b) => Some(CoreStatementKind::Unsafe(b)),
+            },
+            _ => None,
+        };
+        Ok(kind.map_or_else(
+            || Cow::Borrowed(s),
+            |kind| {
+                Cow::Owned(CoreStatement {
+                    id: s.id,
+                    kind,
+                    span: s.span,
+                })
+            },
+        ))
+    }
+
+    fn pattern<'b>(&mut self, p: &'b CorePattern, depth: usize) -> R<Cow<'b, CorePattern>> {
         self.charge(depth, p.span)?;
-        match &mut p.kind {
-            CorePatternKind::Variant { ty, fields, .. } => {
-                *ty = self.ty(ty, depth + 1, p.span)?;
-                for field in fields {
-                    self.pattern(field, depth + 1)?;
-                }
+        let kind = match &p.kind {
+            CorePatternKind::Variant {
+                ty,
+                variant,
+                fields,
+            } => {
+                let ty = self.type_cow(ty, depth + 1, p.span)?;
+                let fields = map_cow(fields, |field| self.pattern(field, depth + 1))?;
+                changed!(CorePatternKind::Variant { ty: ty.into_owned(), variant: variant.clone(), fields: fields.into_owned() }; ty, fields)
             }
             CorePatternKind::Tuple(fields) => {
-                for field in fields {
-                    self.pattern(field, depth + 1)?;
+                match map_cow(fields, |field| self.pattern(field, depth + 1))? {
+                    Cow::Borrowed(_) => None,
+                    Cow::Owned(fields) => Some(CorePatternKind::Tuple(fields)),
                 }
             }
-            _ => {}
-        }
-        Ok(())
+            _ => None,
+        };
+        Ok(kind.map_or_else(
+            || Cow::Borrowed(p),
+            |kind| Cow::Owned(CorePattern { kind, span: p.span }),
+        ))
     }
-    fn expr(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+
+    fn named_expressions<'b>(
+        &mut self,
+        values: &'b [(String, CoreExpr)],
+        depth: usize,
+    ) -> R<Cow<'b, [(String, CoreExpr)]>> {
+        map_cow(values, |item| match self.expr(&item.1, depth)? {
+            Cow::Borrowed(_) => Ok(Cow::Borrowed(item)),
+            Cow::Owned(value) => Ok(Cow::Owned((item.0.clone(), value))),
+        })
+    }
+
+    fn expr<'b>(&mut self, e: &'b CoreExpr, depth: usize) -> R<Cow<'b, CoreExpr>> {
         self.charge(depth, e.span)?;
-        match &mut e.kind {
+        let kind = match &e.kind {
             CoreExprKind::Ascribed { ty, value }
             | CoreExprKind::IntegerConvert { target: ty, value } => {
-                *ty = self.ty(ty, depth + 1, e.span)?;
-                self.expr(value, depth + 1)?;
+                let ty = self.type_cow(ty, depth + 1, e.span)?;
+                let value = self.expr(value, depth + 1)?;
+                changed!(match &e.kind {
+                    CoreExprKind::Ascribed { .. } => CoreExprKind::Ascribed { ty: ty.into_owned(), value: Box::new(value.into_owned()) },
+                    _ => CoreExprKind::IntegerConvert { target: ty.into_owned(), value: Box::new(value.into_owned()) },
+                }; ty, value)
             }
             CoreExprKind::Record { ty, fields } => {
-                *ty = match self.ty(ty, depth + 1, e.span)? {
+                let resolved = match self.ty(ty, depth + 1, e.span)? {
                     Type::Desc(payload) => Type::Managed(payload),
                     other => other,
                 };
-                for (_, v) in fields {
-                    self.expr(v, depth + 1)?;
-                }
+                let ty = retain_equal(ty, resolved);
+                let fields = self.named_expressions(fields, depth + 1)?;
+                changed!(CoreExprKind::Record { ty: ty.into_owned(), fields: fields.into_owned() }; ty, fields)
             }
             CoreExprKind::RecordUpdate { ty, base, fields } => {
-                if let Some(t) = ty {
-                    *t = self.ty(t, depth + 1, e.span)?;
-                }
-                self.expr(base, depth + 1)?;
-                for (_, v) in fields {
-                    self.expr(v, depth + 1)?;
-                }
+                let ty = map_optional(ty, |t| self.type_cow(t, depth + 1, e.span))?;
+                let base = self.expr(base, depth + 1)?;
+                let fields = self.named_expressions(fields, depth + 1)?;
+                changed!(CoreExprKind::RecordUpdate { ty: ty.into_owned(), base: Box::new(base.into_owned()), fields: fields.into_owned() }; ty, base, fields)
             }
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::CompileTime(operand)
-            | CoreExprKind::Try(operand) => self.expr(operand, depth + 1)?,
-            CoreExprKind::Binary { left, right, .. } => {
-                self.expr(left, depth + 1)?;
-                self.expr(right, depth + 1)?;
+            | CoreExprKind::Try(operand) => match self.expr(operand, depth + 1)? {
+                Cow::Borrowed(_) => None,
+                Cow::Owned(operand) => Some(match &e.kind {
+                    CoreExprKind::Unary { op, .. } => CoreExprKind::Unary {
+                        op: *op,
+                        operand: Box::new(operand),
+                    },
+                    CoreExprKind::CompileTime(_) => CoreExprKind::CompileTime(Box::new(operand)),
+                    _ => CoreExprKind::Try(Box::new(operand)),
+                }),
+            },
+            CoreExprKind::Binary { op, left, right } => {
+                let left = self.expr(left, depth + 1)?;
+                let right = self.expr(right, depth + 1)?;
+                changed!(CoreExprKind::Binary { op: *op, left: Box::new(left.into_owned()), right: Box::new(right.into_owned()) }; left, right)
             }
             CoreExprKind::TypeApply {
                 callee,
                 type_arguments,
             } => {
-                for argument in type_arguments {
-                    *argument = self.ty(argument, depth + 1, e.span)?;
-                }
-                self.expr(callee, depth + 1)?;
+                let type_arguments =
+                    map_cow(type_arguments, |t| self.type_cow(t, depth + 1, e.span))?;
+                let callee = self.expr(callee, depth + 1)?;
+                changed!(CoreExprKind::TypeApply { callee: Box::new(callee.into_owned()), type_arguments: type_arguments.into_owned() }; type_arguments, callee)
             }
             CoreExprKind::Call { callee, arguments } => {
-                self.expr(callee, depth + 1)?;
-                for e in arguments {
-                    self.expr(e, depth + 1)?;
-                }
+                let callee = self.expr(callee, depth + 1)?;
+                let arguments = map_cow(arguments, |e| self.expr(e, depth + 1))?;
+                changed!(CoreExprKind::Call { callee: Box::new(callee.into_owned()), arguments: arguments.into_owned() }; callee, arguments)
             }
             CoreExprKind::Index { object, index } => {
-                self.expr(object, depth + 1)?;
-                self.expr(index, depth + 1)?;
+                let object = self.expr(object, depth + 1)?;
+                let index = self.expr(index, depth + 1)?;
+                changed!(CoreExprKind::Index { object: Box::new(object.into_owned()), index: Box::new(index.into_owned()) }; object, index)
             }
             CoreExprKind::Slice { object, start, end } => {
-                self.expr(object, depth + 1)?;
-                for endpoint in [start, end].into_iter().flatten() {
-                    self.expr(endpoint, depth + 1)?;
-                }
+                let object = self.expr(object, depth + 1)?;
+                let start = map_optional(start, |boxed| match self.expr(boxed, depth + 1)? {
+                    Cow::Borrowed(_) => Ok(Cow::Borrowed(boxed)),
+                    Cow::Owned(e) => Ok(Cow::Owned(Box::new(e))),
+                })?;
+                let end = map_optional(end, |boxed| match self.expr(boxed, depth + 1)? {
+                    Cow::Borrowed(_) => Ok(Cow::Borrowed(boxed)),
+                    Cow::Owned(e) => Ok(Cow::Owned(Box::new(e))),
+                })?;
+                changed!(CoreExprKind::Slice { object: Box::new(object.into_owned()), start: start.into_owned(), end: end.into_owned() }; object, start, end)
             }
             CoreExprKind::Tuple(values) | CoreExprKind::Array(values) => {
-                for e in values {
-                    self.expr(e, depth + 1)?;
+                match map_cow(values, |e| self.expr(e, depth + 1))? {
+                    Cow::Borrowed(_) => None,
+                    Cow::Owned(values) => Some(match &e.kind {
+                        CoreExprKind::Tuple(_) => CoreExprKind::Tuple(values),
+                        _ => CoreExprKind::Array(values),
+                    }),
                 }
             }
-            CoreExprKind::Member { object, .. } => self.expr(object, depth + 1)?,
+            CoreExprKind::Member { object, member } => match self.expr(object, depth + 1)? {
+                Cow::Borrowed(_) => None,
+                Cow::Owned(object) => Some(CoreExprKind::Member {
+                    object: Box::new(object),
+                    member: member.clone(),
+                }),
+            },
             CoreExprKind::Sequence { bindings, value } => {
-                for (_, e) in bindings {
-                    self.expr(e, depth + 1)?;
-                }
-                self.expr(value, depth + 1)?;
+                let bindings = self.named_expressions(bindings, depth + 1)?;
+                let value = self.expr(value, depth + 1)?;
+                changed!(CoreExprKind::Sequence { bindings: bindings.into_owned(), value: Box::new(value.into_owned()) }; bindings, value)
             }
             CoreExprKind::Closure {
+                move_capture,
                 parameters,
                 return_type,
                 body,
-                ..
             } => {
-                for p in parameters {
-                    if let Some(t) = &mut p.ty {
-                        *t = self.ty(t, depth + 1, p.span)?;
-                    }
-                }
-                if let Some(t) = return_type {
-                    *t = self.ty(t, depth + 1, e.span)?;
-                }
-                self.block(body, depth + 1)?;
+                let parameters = map_cow(parameters, |p| {
+                    let ty = map_optional(&p.ty, |t| self.type_cow(t, depth + 1, p.span))?;
+                    Ok(match ty {
+                        Cow::Borrowed(_) => Cow::Borrowed(p),
+                        Cow::Owned(ty) => Cow::Owned(CoreClosureParameter {
+                            name: p.name.clone(),
+                            ty,
+                            mode: p.mode,
+                            span: p.span,
+                        }),
+                    })
+                })?;
+                let return_type =
+                    map_optional(return_type, |t| self.type_cow(t, depth + 1, e.span))?;
+                let body = self.block(body, depth + 1)?;
+                changed!(CoreExprKind::Closure { move_capture: *move_capture, parameters: parameters.into_owned(), return_type: return_type.into_owned(), body: body.into_owned() }; parameters, return_type, body)
             }
             CoreExprKind::If {
                 condition,
                 then_value,
                 else_value,
             } => {
-                self.expr(condition, depth + 1)?;
-                self.expr(then_value, depth + 1)?;
-                self.expr(else_value, depth + 1)?;
+                let condition = self.expr(condition, depth + 1)?;
+                let then_value = self.expr(then_value, depth + 1)?;
+                let else_value = self.expr(else_value, depth + 1)?;
+                changed!(CoreExprKind::If { condition: Box::new(condition.into_owned()), then_value: Box::new(then_value.into_owned()), else_value: Box::new(else_value.into_owned()) }; condition, then_value, else_value)
             }
-            _ => {}
-        }
-        Ok(())
+            _ => None,
+        };
+        Ok(kind.map_or_else(
+            || Cow::Borrowed(e),
+            |kind| {
+                Cow::Owned(CoreExpr {
+                    id: e.id,
+                    kind,
+                    span: e.span,
+                })
+            },
+        ))
     }
 }
 

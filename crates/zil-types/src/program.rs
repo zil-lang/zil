@@ -1,4 +1,5 @@
 use super::*;
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 use zil_base::{Fingerprint, ModuleId};
 
@@ -13,10 +14,27 @@ pub fn resolve_program_shapes(
     program: &CoreProgram,
     limits: &Limits,
 ) -> CompileResult<CoreProgram> {
+    resolve_program_shapes_borrowed(program, limits).map(Cow::into_owned)
+}
+
+/// Resolve and check every shape, preserving the original allocation when the
+/// complete result is unchanged. Borrowing confers no verification authority.
+pub fn resolve_program_shapes_borrowed<'a>(
+    program: &'a CoreProgram,
+    limits: &Limits,
+) -> CompileResult<Cow<'a, CoreProgram>> {
     // Raw callers receive the same bounded preflight as the source driver;
     // no recursive Type clone in signatures may precede it.
-    let inferred = infer_program_closures_borrowed(program, limits)?;
-    aggregates::resolve_program(&inferred, limits)
+    match infer_program_closures_borrowed(program, limits)? {
+        Cow::Borrowed(inferred) => aggregates::resolve_program_borrowed(inferred, limits),
+        Cow::Owned(inferred) => {
+            let resolved = aggregates::resolve_program_borrowed(&inferred, limits)?;
+            Ok(Cow::Owned(match resolved {
+                Cow::Borrowed(_) => inferred,
+                Cow::Owned(resolved) => resolved,
+            }))
+        }
+    }
 }
 
 pub fn check_program(
@@ -24,8 +42,9 @@ pub fn check_program(
     target: &TargetProfile,
     limits: &Limits,
 ) -> CompileResult<TypedProgram> {
-    let inferred = resolve_program_shapes(program, limits)?;
+    let inferred = resolve_program_shapes_borrowed(program, limits)?;
     let program = &inferred;
+    let project_enums = enums::ProjectDefinitions::new(program);
     let reject = |code: &str, text: &str| vec![Diagnostic::error(Phase::Types, code, None, text)];
     let limit = || {
         vec![Diagnostic::limit(
@@ -155,7 +174,7 @@ pub fn check_program(
                     .iter()
                     .map(|i| (i.alias.clone(), i.module))
                     .collect(),
-                enums: enums::project_definitions(program, core, &mut enum_budget, limits)?,
+                enums: project_enums.resolve(core, &mut enum_budget, limits)?,
             });
             helpers::install(core, context, &mut closure_state, limits).map_err(|e| vec![e])?;
         }
@@ -192,7 +211,7 @@ pub fn check_program(
     for id in factory_order {
         let (module, f) = factory_sources[&id];
         let core = &module.core;
-        let enum_types = enums::project_definitions(program, core, &mut enum_work, limits)?;
+        let enum_types = project_enums.resolve(core, &mut enum_work, limits)?;
         let table = &signatures_by_module[&core.module_id];
         let imports = imports_for(module, &signatures_by_module)?;
         let pending_start = closure_state.pending.len();
@@ -235,7 +254,7 @@ pub fn check_program(
         let core = &module.core;
         let table = &signatures_by_module[&core.module_id];
         resources.extend(resources::definitions(core, table).map_err(|e| vec![e])?);
-        let enum_types = enums::project_definitions(program, core, &mut enum_work, limits)?;
+        let enum_types = project_enums.resolve(core, &mut enum_work, limits)?;
         let imports = imports_for(module, &signatures_by_module)?;
         let mut exports = Vec::new();
         for f in core.functions.iter().filter(|f| {

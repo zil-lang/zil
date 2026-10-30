@@ -43,83 +43,106 @@ pub(super) fn definitions(core: &CoreModule) -> BTreeMap<String, Type> {
         .collect()
 }
 
-pub(super) fn project_definitions(
-    program: &CoreProgram,
-    current: &CoreModule,
-    remaining: &mut usize,
-    limits: &Limits,
-) -> CompileResult<BTreeMap<String, Type>> {
-    let mut result = BTreeMap::new();
-    for module in &program.modules {
-        for e in &module.core.enums {
-            if module.core.module_id != current.module_id && !aggregates::project_symbol(&e.name) {
-                continue;
-            }
-            let limit = || {
-                vec![Diagnostic::limit(
-                    Phase::Types,
-                    "project enum shape budget exceeded",
-                    Some(e.span),
-                )]
-            };
-            *remaining = remaining
-                .checked_sub(e.name.len().saturating_add(e.variants.len()))
-                .ok_or_else(limit)?;
-            let mut pending = e
-                .variants
+/// Request-local declaration view. Empty enum tables have no semantic work or
+/// budget charge; removing those scans does not remove module validation.
+pub(super) struct ProjectDefinitions<'a> {
+    modules: Vec<&'a CoreModule>,
+}
+
+impl<'a> ProjectDefinitions<'a> {
+    pub(super) fn new(program: &'a CoreProgram) -> Self {
+        Self {
+            modules: program
+                .modules
                 .iter()
-                .flat_map(|(_, fields)| fields)
-                .map(|ty| (ty, 0))
-                .collect::<Vec<_>>();
-            while let Some((ty, depth)) = pending.pop() {
-                if depth > limits.max_call_depth {
-                    return Err(limit());
-                }
-                *remaining = remaining.checked_sub(1).ok_or_else(limit)?;
-                match ty {
-                    Type::Record { name, fields } => {
-                        *remaining = remaining
-                            .checked_sub(name.len().saturating_add(fields.len()))
-                            .ok_or_else(limit)?;
-                        pending.extend(fields.iter().map(|(_, t)| (t, depth + 1)));
-                    }
-                    Type::Enum { name, variants } => {
-                        *remaining = remaining
-                            .checked_sub(name.len().saturating_add(variants.len()))
-                            .ok_or_else(limit)?;
-                        pending.extend(
-                            variants
-                                .iter()
-                                .flat_map(|(_, fields)| fields)
-                                .map(|t| (t, depth + 1)),
-                        );
-                    }
-                    Type::Tuple(fields) => pending.extend(fields.iter().map(|t| (t, depth + 1))),
-                    Type::Array { element, .. }
-                    | Type::Slice { element }
-                    | Type::Address { inner: element, .. } => pending.push((element, depth + 1)),
-                    _ => {}
-                }
-            }
-            if result
-                .insert(
-                    e.name.clone(),
-                    Type::Enum {
-                        name: format!("@module{}:{}", module.core.module_id.0, e.name),
-                        variants: e.variants.clone(),
-                    },
-                )
-                .is_some()
-            {
-                return Err(vec![error(
-                    "E-NAME-DUPLICATE",
-                    e.span,
-                    "duplicate enum identity in project",
-                )]);
-            }
+                .map(|module| &module.core)
+                .filter(|core| !core.enums.is_empty())
+                .collect(),
         }
     }
-    Ok(result)
+
+    pub(super) fn resolve(
+        &self,
+        current: &CoreModule,
+        remaining: &mut usize,
+        limits: &Limits,
+    ) -> CompileResult<BTreeMap<String, Type>> {
+        let mut result = BTreeMap::new();
+        for module in &self.modules {
+            for e in &module.enums {
+                if module.module_id != current.module_id && !aggregates::project_symbol(&e.name) {
+                    continue;
+                }
+                let limit = || {
+                    vec![Diagnostic::limit(
+                        Phase::Types,
+                        "project enum shape budget exceeded",
+                        Some(e.span),
+                    )]
+                };
+                *remaining = remaining
+                    .checked_sub(e.name.len().saturating_add(e.variants.len()))
+                    .ok_or_else(limit)?;
+                let mut pending = e
+                    .variants
+                    .iter()
+                    .flat_map(|(_, fields)| fields)
+                    .map(|ty| (ty, 0))
+                    .collect::<Vec<_>>();
+                while let Some((ty, depth)) = pending.pop() {
+                    if depth > limits.max_call_depth {
+                        return Err(limit());
+                    }
+                    *remaining = remaining.checked_sub(1).ok_or_else(limit)?;
+                    match ty {
+                        Type::Record { name, fields } => {
+                            *remaining = remaining
+                                .checked_sub(name.len().saturating_add(fields.len()))
+                                .ok_or_else(limit)?;
+                            pending.extend(fields.iter().map(|(_, t)| (t, depth + 1)));
+                        }
+                        Type::Enum { name, variants } => {
+                            *remaining = remaining
+                                .checked_sub(name.len().saturating_add(variants.len()))
+                                .ok_or_else(limit)?;
+                            pending.extend(
+                                variants
+                                    .iter()
+                                    .flat_map(|(_, fields)| fields)
+                                    .map(|t| (t, depth + 1)),
+                            );
+                        }
+                        Type::Tuple(fields) => {
+                            pending.extend(fields.iter().map(|t| (t, depth + 1)))
+                        }
+                        Type::Array { element, .. }
+                        | Type::Slice { element }
+                        | Type::Address { inner: element, .. } => {
+                            pending.push((element, depth + 1))
+                        }
+                        _ => {}
+                    }
+                }
+                if result
+                    .insert(
+                        e.name.clone(),
+                        Type::Enum {
+                            name: format!("@module{}:{}", module.module_id.0, e.name),
+                            variants: e.variants.clone(),
+                        },
+                    )
+                    .is_some()
+                {
+                    return Err(vec![error(
+                        "E-NAME-DUPLICATE",
+                        e.span,
+                        "duplicate enum identity in project",
+                    )]);
+                }
+            }
+        }
+        Ok(result)
+    }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Constructor {

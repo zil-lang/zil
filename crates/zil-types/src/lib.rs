@@ -31,7 +31,7 @@ mod store_templates;
 pub use inference::{
     infer_program_closures, infer_program_closures_borrowed, infer_source_closures,
 };
-pub use program::{check_program, resolve_program_shapes};
+pub use program::{check_program, resolve_program_shapes, resolve_program_shapes_borrowed};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
