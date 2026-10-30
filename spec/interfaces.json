@@ -26,6 +26,24 @@
       "input": "Fully parsed source, immutable ConfigReady ordinary scalar-function/import snapshot, target and remaining request limits.",
       "output": "Untrusted materialized source/Core plus original spans, selection trace and cumulative CT usage; ordinary semantic verification follows.",
       "cache": "Target/limits/source/dependencies bound; cache hits retain selection charge and never skip current independent Verify."
+    },
+    "source_for_222": {
+      "authority": "_zil_design.md §16.4",
+      "state": "ContractToImplement",
+      "representation": "Untrusted hygienic source generation using existing CTIR verification and VM, no Wire change.",
+      "budget": "Cumulative CT and generation cost, charged before growth including warm reuse."
+    },
+    "product_store_223": {
+      "authority": "_zil_design.md §8.2.4",
+      "state": "ContractToImplement",
+      "representation": "Existing finite Product, Store prefix and exact Store result Sum shells; recursive inline element layout and cleanup.",
+      "independence": "Types, Analyze and Verify reconstruct qualification independently; raw/Wire and unused definitions checked."
+    },
+    "shared_product_224": {
+      "authority": "_zil_design.md §8.1.2",
+      "state": "ContractToImplement",
+      "representation": "Existing shared Address and actual root/field projections; no ownership or mutable Desc manufactured.",
+      "independence": "Ordinary shared Product and Store-window admission are distinct; complete live root required."
     }
   },
   "schemas": [
