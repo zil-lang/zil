@@ -1260,6 +1260,42 @@ pub(super) fn single(
         .map(|(core, _)| core)
 }
 
+/// A borrowed bound on the real immutable selection snapshot, not a proof of
+/// CT executability. Used to prepay repeated query header/body copies.
+pub(super) fn selection_cost(
+    program: &CoreProgram,
+    limits: &Limits,
+) -> CompileResult<(usize, usize)> {
+    let mut collector = Collector {
+        program,
+        selected: BTreeSet::new(),
+        pending: VecDeque::new(),
+        nodes: 0,
+        work_left: limits.max_analysis_steps,
+        query: false,
+        limits,
+    };
+    for module in &program.modules {
+        collector.charge(0)?;
+        collector.declarations(&module.core)?;
+        for import in &module.imports {
+            collector.charge(0)?;
+            collector.text(&import.alias)?;
+        }
+        for _ in &module.exports {
+            collector.charge(0)?;
+        }
+        for function in &module.core.functions {
+            collector.header(function)?;
+            collector.block(module.core.module_id, &function.body, 0)?;
+        }
+    }
+    Ok((
+        collector.nodes,
+        limits.max_analysis_steps - collector.work_left,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1301,6 +1337,29 @@ mod tests {
                 exports: vec![],
             }],
         };
+        // Selection prepays the same unused declaration before repeated query
+        // copies. The borrowed cost must itself obey both exact boundaries.
+        let (nodes, work) = selection_cost(&program, &Limits::default()).unwrap();
+        let exact = Limits {
+            max_nodes: nodes,
+            max_analysis_steps: work,
+            ..Limits::default()
+        };
+        assert_eq!(selection_cost(&program, &exact).unwrap(), (nodes, work));
+        for limits in [
+            Limits {
+                max_nodes: nodes - 1,
+                ..exact.clone()
+            },
+            Limits {
+                max_analysis_steps: work - 1,
+                ..exact
+            },
+        ] {
+            let errors = selection_cost(&program, &limits).unwrap_err();
+            assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+            assert_eq!(errors[0].phase, Phase::Ct);
+        }
         let target = TargetProfile::default();
         let compiler = Compiler {
             program: &program,
@@ -1567,40 +1626,4 @@ mod tests {
         assert_eq!(errors[0].category, ResultCategory::Unsupported);
         assert_eq!(errors[0].phase, Phase::Ct);
     }
-}
-
-/// A borrowed bound on the real immutable selection snapshot, not a proof of
-/// CT executability. Used to prepay repeated query header/body copies.
-pub(super) fn selection_cost(
-    program: &CoreProgram,
-    limits: &Limits,
-) -> CompileResult<(usize, usize)> {
-    let mut collector = Collector {
-        program,
-        selected: BTreeSet::new(),
-        pending: VecDeque::new(),
-        nodes: 0,
-        work_left: limits.max_analysis_steps,
-        query: false,
-        limits,
-    };
-    for module in &program.modules {
-        collector.charge(0)?;
-        collector.declarations(&module.core)?;
-        for import in &module.imports {
-            collector.charge(0)?;
-            collector.text(&import.alias)?;
-        }
-        for _ in &module.exports {
-            collector.charge(0)?;
-        }
-        for function in &module.core.functions {
-            collector.header(function)?;
-            collector.block(module.core.module_id, &function.body, 0)?;
-        }
-    }
-    Ok((
-        collector.nodes,
-        limits.max_analysis_steps - collector.work_left,
-    ))
 }

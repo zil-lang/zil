@@ -353,6 +353,94 @@ fn ordinary_cross_module_visibility_and_generated_exports_are_preserved() {
 }
 
 #[test]
+fn grouped_import_objects_keep_the_same_closed_dependencies_and_lexical_shadowing() {
+    let compile = |label: &str, main: &str, config: &str| {
+        let out = directory(label);
+        fs::write(out.join("main.zil"), main).unwrap();
+        fs::write(out.join("cfg.zil"), config).unwrap();
+        let project = ProjectSources {
+            root: ModuleId(0),
+            modules: vec![
+                SourceUnit::new(FileId(0), ModuleId(0), "main.zil", main),
+                SourceUnit::new(FileId(1), ModuleId(1), "cfg.zil", config),
+            ],
+            paths: BTreeMap::from([(vec!["cfg".into()], ModuleId(1))]),
+        };
+        let report = CompilationSession::default().compile_project(
+            &project,
+            &CompileOptions {
+                emit_dir: Some(out.join("phases")),
+                ..CompileOptions::default()
+            },
+        );
+        fs::write(out.join("report.json"), report.to_json()).unwrap();
+        report
+    };
+    let config = "fn leaf(n:i32)->bool{return n==7}\npub fn choose(n:i32)->bool{return leaf(n)}\n";
+    let generated = "#if(true){pub fn leaf(n:i32)->bool{return n==7}}\npub fn choose(n:i32)->bool{return leaf(n)}\n";
+    let mut expected_dependencies = None;
+    for (label, condition) in [
+        ("plain", "cfg.choose(7)"),
+        ("grouped", "(cfg).choose(7)"),
+        ("nested", "(((cfg))).choose(7)"),
+        ("callee-grouped", "((cfg).choose)(7)"),
+    ] {
+        let main = format!(
+            "import cfg\n#if({condition}){{fn main()->i32{{return 0}}}}else{{fn main()->i32{{return 1}}}}\n"
+        );
+        let report = compile(&format!("alias-{label}"), &main, config);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let trace = fs::read_to_string(&report.artifacts["selection"]).unwrap();
+        let dependencies = trace.split("\"dependencies\":").nth(1).unwrap();
+        assert!(
+            dependencies.contains("\"module\":1,\"function\":\"choose\""),
+            "{label}: {trace}"
+        );
+        assert!(
+            dependencies.contains("\"module\":1,\"function\":\"leaf\""),
+            "{label}: {trace}"
+        );
+        if let Some(expected) = &expected_dependencies {
+            assert_eq!(dependencies, expected, "{label}");
+        } else {
+            expected_dependencies = Some(dependencies.to_string());
+        }
+        let report = compile(&format!("alias-{label}-generated"), &main, generated);
+        assert_eq!(report.phase, Phase::Ct, "{}", report.to_json());
+        let diagnostic = report
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "E-CT-PHASE-DEPENDENCY")
+            .unwrap_or_else(|| panic!("{label}: {}", report.to_json()));
+        let span = diagnostic.span.unwrap();
+        assert_eq!(span.file, FileId(1));
+        assert_eq!(span.start as usize, generated.rfind("leaf(n)").unwrap());
+        assert_eq!(&generated[span.start as usize..span.end as usize], "leaf");
+
+        let shadow = format!(
+            "import cfg\nfn main()->i32{{#if(true){{let cfg=0}}#if({condition}){{return 0}}else{{return 1}}}}\n"
+        );
+        let report = compile(&format!("alias-{label}-shadow"), &shadow, config);
+        assert_eq!(report.phase, Phase::Ct, "{}", report.to_json());
+        let diagnostic = report
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "E-CT-FORBIDDEN")
+            .unwrap_or_else(|| panic!("{label}: {}", report.to_json()));
+        let span = diagnostic.span.unwrap();
+        assert_eq!(span.file, FileId(0));
+        assert_eq!(span.start as usize, shadow.rfind("cfg").unwrap());
+        assert_eq!(&shadow[span.start as usize..span.end as usize], "cfg");
+    }
+}
+
+#[test]
 fn the_frozen_native_consumer_checks_both_source_configurations() {
     for (label, config) in [
         (
