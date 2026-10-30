@@ -81,9 +81,21 @@
     ],
     "new": [
       "owning",
-      "forwarding"
+      "forwarding",
+      "conditional"
     ],
     "oracle": "default == N == fresh N; N-1 expected-phase ResourceLimit; old exact N and Core/Typed serialization unchanged",
     "result": "evidence/impl/218/FRONTEND-BUDGETS.json"
+  },
+  "review_fix": {
+    "original_source_commit": "2212505a667508dc9c7565cbab674c8e59700457",
+    "source_directory": "tools/language/218/review-cases",
+    "originals": "tools/language/218/review-cases/ORIGINALS.json",
+    "result": "evidence/impl/218/CHECKPOINT-F.json",
+    "oracle": "original independent success/rejection oracles unchanged",
+    "extra_controls": [
+      "parenthesized conditional",
+      "nested conditional"
+    ]
   }
 }
