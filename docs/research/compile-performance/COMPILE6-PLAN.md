@@ -33,3 +33,7 @@ CP22由 `/root/zit_analysis` 实施：在现有显式 `--query-cache` 的trusted
 原旧新ZIL桥接默认只开source/object缓存，不能隔离CP22；增加显式 `--query-cache` 选项，使A/B两臂同样启用前端缓存，默认路径不变。计划冻结该布尔值、完整argv及query/parse报告，summary核对请求状态和原始日志。五语料、四请求权重、ABBA顺序及估计器原样保留；这是单独窗口，不与历史关闭query的结果合并。作者为根，独审仍由另一代理进行。
 
 CP24已由非作者绑定 `c24cc08333dfb4ee710a7443414093f82841e0eb` 独审Pass：67项原有/新增Python测试及18项独立控制（含24种命令组合）。这是runner一致性证据，不是性能结论。旧计划仍须匹配原runner哈希；真实窗口另外核对query状态与parse命中，不能用requested=true替代实际缓存生效。
+
+CP22写集补充：仅更新 `crates/zil-cli/src/main.rs` 的HELP描述，准确说明既有 `--query-cache` 同时支持逐模块syntax memo与frontend checkpoint，不更改CLI参数行为。最终release、独审与性能窗口均绑定带该说明的精确源码和二进制。
+
+Rust对照新增窗口明确固定 `--rust-profile native --rust-lto native --cache-mode incremental --query-cache`，ZIL继续8units/4jobs、两CPU亲和。rust_bench只更新cache_scope与help文字以涵盖syntax memo，命令/模式校验/权重/估计器不改。原始stdout保留并hash绑定parse_cache；额外逐case/request审核hits/misses/parsed/stored，Rust原生CGU/LTO和链接策略不改。
