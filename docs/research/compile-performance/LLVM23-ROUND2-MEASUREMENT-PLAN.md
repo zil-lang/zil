@@ -12,7 +12,9 @@
 | Rust O2 cold closed 1/1 | Rust / 本候选 | ZIL 1/1，closed 开启，query 关闭，无编译缓存 | 5 | 次要探索配置，完整披露 |
 | O2 quality 8/4 | 旧 e8 O2 1/1 / 本候选 closed O2 8/4 | 两臂均无对象缓存，独立运行窗口 | 5 | 主配置运行质量 |
 | O2 quality 1/1 | 旧 e8 O2 1/1 / 本候选 closed O2 1/1 | 两臂均无对象缓存，独立运行窗口 | 5 | 探索配置运行质量 |
-| 原 main 到本候选 | main `25506bd6` / 本候选 | 两臂均 O0 8/4，query/closed 关闭；build 阶段，四请求分别报告 | 3 | 默认路径组合改动净效果，不隔离单项贡献 |
+| 原 main 到本候选 | main `25506bd6` / 本候选 | 两臂均 O0 8/4，原始源码候选缓存开启、object/query/closed 关闭；build 阶段，四请求分别报告 | 3 | 默认路径组合改动净效果，不隔离单项贡献 |
+
+四个 Rust 对照计划各自还执行独立的 Rust/ZIL 原生运行窗口，每个 100 行，比较相应预检产物；这些不替代两个直接旧新 ZIL O2 质量窗口。矩阵共有 940 行正式完整编译时间、600 行正式原生运行时间。加上 110 次编译预检和 20 次直接质量产物构建，共 1070 次顶层编译请求。`bench.py` 固定启用 `--cache-dir` 原始源码候选缓存，因此 main 桥接窗口不能称为严格无缓存；它不启用机器对象或 CP12 前端检查点。
 
 Rust 保持原生 CGU/链接器选择，另有原计划显式的 overflow-checks=on、panic=abort、debuginfo=0、embed-bitcode=no、target-cpu=x86-64。ZIL 的 8/4 是显式研究配置，不称为 CLI 全默认。cold 指每次新进程、无编译缓存；OS 页缓存保持暖，不是冷磁盘启动。增量 unchanged 也重新运行编译器并完成链接，不是 Cargo 无工作检查。
 
