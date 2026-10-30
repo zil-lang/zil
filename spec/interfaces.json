@@ -31,7 +31,8 @@
       "authority": "_zil_design.md §16.4",
       "state": "ContractToImplement",
       "representation": "Untrusted hygienic source generation using existing CTIR verification and VM, no Wire change.",
-      "budget": "Cumulative CT and generation cost, charged before growth including warm reuse."
+      "budget": "Cumulative CT and generation cost, charged before growth including warm reuse.",
+      "declarations": "Ordinary functions only; type/trait/impl/alias generation remains unimplemented."
     },
     "product_store_223": {
       "authority": "_zil_design.md §8.2.4",
