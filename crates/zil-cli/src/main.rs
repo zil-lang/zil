@@ -17,7 +17,7 @@ const DEFAULT_BACKEND: NativeBackend = if cfg!(feature = "llvm-api") {
     NativeBackend::Clang
 };
 
-const HELP: &str = "ZIL 0.1.0 — compiler draft\n\nUsage:\n  zil check FILE [--stop-after parse|core|types|analyze|verify] [--json]\n  zil build FILE [-o OUTPUT] [--entry NAME] [--emit-dir DIR] [--json]\n  zil run FILE [--entry NAME] [--emit-dir DIR] [--json]\n  zil qc [--tool PATH] COMMAND [OPTIONS]\n  zil version\n\nOptions:\n  --timings                 Record phase wall times (requires timings build feature)\n  --cache-dir DIR           Store unverified source candidates\n  --object-cache DIR        Trusted local LLVM API object cache (opt-in)\n  --query-cache DIR         Trusted private local full-input frontend checkpoint (opt-in)\n  --backend clang|llvm-api  Object generation strategy (standard build: llvm-api)\n  --clang PATH              LLVM clang executable (default: ZIL_CLANG or clang)\n  --emit-dir DIR            Write actual phase artifacts\n  --target native|win64     Select the checked target ABI\n  --windows-lib PATH        Explicit Win64 import archive (repeatable)\n  --linker PATH             Win64 lld-link executable\n  --opt O0|O2               Native LLVM optimization level\n  --codegen-units N         Maximum native units, 1..64 (default: 1)\n  --codegen-jobs N          Concurrent native compiles, 1..64 (default: 1)\n  --compile-timeout-ms N    Cooperative deadline checked between compiler phases\n  --profile native|managed  Managed is explicitly Unsupported\n\nNative run requires an explicit main; it adds no implicit module execution or GC.\nUnsupported language features return Unsupported; they are never silently accepted.\n";
+const HELP: &str = "ZIL 0.1.0 — compiler draft\n\nUsage:\n  zil check FILE [--stop-after parse|core|types|analyze|verify] [--json]\n  zil build FILE [-o OUTPUT] [--entry NAME] [--emit-dir DIR] [--json]\n  zil run FILE [--entry NAME] [--emit-dir DIR] [--json]\n  zil qc [--tool PATH] COMMAND [OPTIONS]\n  zil version\n\nOptions:\n  --timings                 Record phase wall times (requires timings build feature)\n  --cache-dir DIR           Store unverified source candidates\n  --object-cache DIR        Trusted local LLVM API object cache (opt-in)\n  --query-cache DIR         Trusted private local full-input frontend checkpoint (opt-in)\n  --backend clang|llvm-api  Object generation strategy (standard build: llvm-api)\n  --clang PATH              LLVM clang executable (default: ZIL_CLANG or clang)\n  --emit-dir DIR            Write actual phase artifacts\n  --target native|win64     Select the checked target ABI\n  --windows-lib PATH        Explicit Win64 import archive (repeatable)\n  --linker PATH             Win64 lld-link executable\n  --opt O0|O2               Native LLVM optimization level\n  --closed-executable       Opt-in Linux build; generated ZIL symbols have no export contract\n  --codegen-units N         Maximum native units, 1..64 (default: 1)\n  --codegen-jobs N          Concurrent native compiles, 1..64 (default: 1)\n  --compile-timeout-ms N    Cooperative deadline checked between compiler phases\n  --profile native|managed  Managed is explicitly Unsupported\n\nNative run requires an explicit main; it adds no implicit module execution or GC.\nUnsupported language features return Unsupported; they are never silently accepted.\n";
 fn usage(message: &str, json: bool) -> ExitCode {
     let diagnostic = Diagnostic::error(Phase::Driver, "E-CLI-ARGUMENT", None, message);
     if json {
@@ -75,6 +75,7 @@ fn main() -> ExitCode {
     while index < args.len() {
         match args[index].as_str() {
             "--json" => {}
+            "--closed-executable" => options.closed_executable = true,
             "--timings" => {
                 if !cfg!(feature = "timings") {
                     return usage(
@@ -205,6 +206,18 @@ fn main() -> ExitCode {
     }
     if options.target.triple == "x86_64-pc-windows-msvc" && options.windows.is_none() {
         options.windows = Some(WindowsLinkOptions::default());
+    }
+    if options.closed_executable
+        && (action != "build"
+            || options.stop_after != Stage::Build
+            || !cfg!(target_os = "linux")
+            || options.target.triple != "x86_64-unknown-linux-gnu"
+            || options.windows.is_some())
+    {
+        return usage(
+            "--closed-executable requires a complete Linux x86_64 build; generated ZIL symbols are not an export contract",
+            json,
+        );
     }
     if action == "run" && options.target.triple != TargetProfile::host_llvm().triple {
         return usage(
