@@ -361,6 +361,12 @@ Analyze与Verify分别按实际SSA/Local及子树叶位置重建每个Managed叶
 
 复用schema/Wire27的实际Type::Package和既有Make/Take/Drop/StorePackageField，不用序列化前端的叶来源结论授信。各核独立检查完整未用类型、名义/字段唯一性、实际资源和责任、非法重复SSA、覆盖旧债、过期描述及错误父槽。新叶路径/子树映射、状态复制/合流、布局展开和清理路径生成在增长前预付工作/深度/数量费用；旧无child路径不建立新叶表，不提高默认限额。按原120字节源、child-only wrapper、混合来源与失败准备的原样近邻、raw/Wire、N/N−1/fresh及两平台真实机器清理验收；登记不等于实现或完整语言完成。
 
+#### 8.1.2 完整Product共享借入（224）
+
+§8.1.1完整Product可形成共享 `&Product` 普通参数、局部及同步转借，递归读取Copy字段和既有有限用户资源头的只读投影。建立整值借入前必须核全部子责任完整；真实根来源沿每次字段投影保留。活动借用阻止相交位置的取走、替换、整值移动和析构，最后使用后沿既有NLL释放。共享借入不产生可变Desc、独占权或拥有子值，ByteBuffer叶不因此获得可变资源访问。
+
+普通Product借入与Store元素窗口分别建立资格，不能互相借用分类结果授信；Analyze与Verify各自从实际位置、来源、完整性与指令重建。借入返回/长期捕获/异步及 `&mut Product` 不由本片开放。布局内联、schema/Wire27、默认预算和产品门不变；实际准入以source/raw/Wire、活跃/结束窗口反例、预算和O0/O2机器证据为准。
+
 ### 8.2 泛型 Store 元素资格
 
 `StoreElement` 是编译器保留的有限形状约束，使用既有 `T: StoreElement` bound 语法；它不是可由用户 impl 授予的普通 trait，也不是一个可构造的值类型。其含义是 T 满足当前公开的完整 Store 元素形状：有限非零大小 Package，Copy 字段或直接拥有的已支持 ByteBuffer/用户资源字段，以及确定的移动、实际布局和清理。201增加下述有限具体callback字段元素；嵌套Store、递归拥有或地址字段不由此自动获得资格。
@@ -436,6 +442,12 @@ push/pop/reserve前缀、父窗口、声明序清理、callee先于参数准备�
 所有新元数据、名字、签名/类型比较复制、selectors、来源与位置状态及实例队列必须先计费；raw Core 两个公开 Types 入口核未使用头与定义。带普通 T:Copy 但未实例化的源定义也必须在 Expand 早期参数化检查核本片完整头与正文，不能等生成 Core selectors 才检查。CT plain/context 及 driver collector 核有界传输头和正文正规化，不承担源级 move/alias 证明；新双头完整签名比较必须在双方名字/签名预费后。CT 仅保留运行时模板，不执行，wrapper 也不能隐藏执行；原默认额度、未引入此次定义别名检查的旧路径精确费用和 schema/Wire27 保持。此次实际发现的旧单 State 未用定义漏检，包括带普通 T 和不带普通 T 的有限 owning State，须沿真实借址/别名操作补齐位置与代次检查；新增实际工作可以改变这些具名输入的精确预算，必须保留原输入、原 N 和真实失败，再按同源 N/N−1/fresh N 记录新值，不能为保持旧数字而跳过检查。
 
 验收包含旧 impl200 state-and-replacement 的 138 字节原源逐字晋升、真实 Fn/FnMut/FnOnce 一/双字段 native、同类型三环境可区分 marker、反序和非相邻实参、不同 factory/phantom T、未调用 move/alias/loop-condition、raw Core 头伪造、source-derived Analyze/raw Verify/Wire 最近反例、CT 禁止、旧预算及新 N/N−1/fresh N、五模块 Linux/Wine O0/O2 与实际逐分配点失败；非法安全负例不 native。原 two-states/borrowed-inputs 不晋升。作者、非作者和 root 整仓分别保存精确身份。
+
+#### 8.2.4 完整Product元素（223）
+
+§8.1.1完整有限Product可作为非零动态Store元素，递归Package child、有限Copy伴随和直接Managed ByteBuffer/有限用户资源叶保持真实名义身份及内联布局。完整push/pop、reserve失败保持和初始化前缀规则沿§8.2；为既有Store结果协议同时支持精确的 `Product!Unit` / `Unit!Product` 活动tag责任，不推广为任意Sum组合。每个元素按每层字段声明序递归析构；push失败保留完整未插入值，pop后尾槽不再持责。
+
+共享元素窗口按实际Store来源和位置核验，影响前缀/地址的操作与活跃借用冲突，不能用索引不同或地址未变豁免。Types、Analyze、Verify各自核完整形状、来源、责任和实际布局；未使用类型/定义及raw/Wire同样受检。Product内Store、递归Store、闭包元素树、拥有数组和长期借入不由此开放。普通Product共享借入由§8.1.2独立约束；schema/Wire27及默认额度不变，费用在实际增长前计入。准入须原217探针逐字晋升、最近反例、独立审核和逐分配点机器清理证据。
 
 ### 8.3 有限错误联合的直接拥有成功载荷
 
@@ -907,6 +919,14 @@ fn repeat<T, #N: usize>(value: T) -> [T; N] where T: Copy {
 所有条件与同请求/项目后续普通 `#(...)` 共用实际 CT 步数与生成节点余额；不在每个条件处重置默认限额。AST、依赖/索引、复制、选择轨迹及输出增长均先计费。选择用量随原始展开快照缓存；命中也扣除实际逻辑费用，缓存键绑定源、封闭依赖、规则、target 与 limits。预算耗尽为 ResourceLimit，不当作 false、不回退运行期、不交付部分输出。
 
 输出仍是未核源/Core，保留条件、选中节点的实际源位置与选择轨迹，后续完整经过普通 Types、Analyze、独立 Verify 与机器生成。源码生成不产生已核权限；schema/Wire27、默认限额与产品门不因本片放宽。必须验证跨模块纯函数条件、两种配置、语句列表可见性/清理、未选中语义错误与两支语法、短路/失败、累计配额/缓存以及 O0/O2 原生及实际失败清理，才可接受有限 profile。
+
+### 16.4 有限源级 `#for`（222）
+
+声明和语句 `#for` 接受有限半开整数范围及显式纯标量数组。端点/元素复用§16.3不可变ConfigReady、已有纯标量CTIR、独立CT核验和VM；不使用宿主求值替代目标整数语义。按迭代顺序发射，零迭代不执行模板语义，模板仍必须语法正确。迭代绑定仅在体内可见，按词法作用域替换为真实已核常量；内层绑定正常遮蔽。
+
+每轮私有声明/局部取得源不可拼写、确定性的卫生身份，public导出保留名称并由普通重复规则拒绝冲突。不额外产生运行期作用域，return/defer/break/continue及清理按接收列表中实际生成语句解释。生成代码仍完整经过普通名称、Types、Analyze、独立Verify及机器生成，不产生安全权限。
+
+嵌套生成与#if和后续普通CT共用累计步数/节点余额，所有复制、替换、名字、依赖和轨迹增长前计费，缓存命中继续扣费。源位置与真实依赖保留，生成声明不反向改变当前ConfigReady。#emit、Type/Syntax、条件import、CT全局或新增CT权限不随本片开放。schema/Wire27、默认额度和产品门保持；源码正反例、卫生/影子/阶段、N/N−1/fresh/暖缓存及O0/O2失败清理必须真实通过。
 
 <a id="ZIL-ATTRIBUTE"></a>
 
