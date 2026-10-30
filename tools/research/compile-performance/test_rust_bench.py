@@ -93,6 +93,78 @@ class RustBenchmarkControls(unittest.TestCase):
             bench.summarize(args)
         return json.loads(args.out.read_text())
 
+    def freeze_tools(self, explicit=False, later_path=False):
+        """Real file inventory/load; only the synthetic rustc probe is mocked."""
+        sdk = self.root / "sdk"
+        bindir = sdk / "bin"
+        bindir.mkdir(parents=True)
+        (sdk / "lib").mkdir()
+        for name in ("rustc", "zil", "clang-real", "lld-one", "lld-two", "explicit-linker", "cc"):
+            path = bindir / name
+            path.write_bytes(b"same synthetic tool")
+            path.chmod(0o755)
+        (bindir / "clang").symlink_to("clang-real")
+        (bindir / "ld.lld").symlink_to("lld-one")
+        library = sdk / "lib/libLLVM.so"
+        library.write_bytes(b"synthetic LLVM")
+        earlier = sdk / "earlier"
+        earlier.mkdir()
+        search_path = str(earlier) + ":" + str(bindir) if later_path else str(bindir)
+        binaries = {k: bench.tool_identity(bindir / name) for k, name in (("A", "rustc"), ("B", "zil"), ("clang", "clang"))}
+        with patch.dict(bench.os.environ, {"PATH": search_path}):
+            bench.os.environ.pop("ZIL_LINUX_LINKER", None)
+            if explicit:
+                bench.os.environ["ZIL_LINUX_LINKER"] = str(bindir / "explicit-linker")
+            with patch.object(bench.common, "capture", return_value={"exit": 0, "stdout": str(sdk), "stderr": ""}):
+                extra, linkage = bench.tool_inventory(binaries["A"]["path"], binaries["clang"]["path"], [library], None)
+        self.plan.update(binaries=binaries, extra_tools=extra, linkage=linkage,
+                         runner_sha256=bench.sha(Path(bench.__file__)), helper_sha256={})
+        self.plan_path.write_text(json.dumps(self.plan))
+        bench.load(self.plan_path, check_environment=False)
+        return sdk
+
+    def test_explicit_zil_linker_content_drift_rejected(self):
+        sdk = self.freeze_tools(explicit=True)
+        linker = sdk / "bin/explicit-linker"
+        self.assertEqual(self.plan["linkage"]["linker_candidates"]["zil_explicit"], str(linker))
+        self.assertIn(str(linker), [t["path"] for t in self.plan["extra_tools"]])
+        linker.write_bytes(b"changed executable at unchanged override path")
+        with self.assertRaisesRegex(SystemExit, "Frozen toolchain changed"):
+            bench.load(self.plan_path, check_environment=False)
+
+    def test_linker_symlink_retarget_rejected_with_old_target_unchanged(self):
+        sdk = self.freeze_tools()
+        alias, old = sdk / "bin/ld.lld", sdk / "bin/lld-one"
+        before = bench.tool_identity(old)
+        alias.unlink()
+        alias.symlink_to("lld-two")  # Both targets have identical bytes.
+        self.assertEqual(bench.tool_identity(old), before)
+        with self.assertRaisesRegex(SystemExit, "Frozen toolchain changed"):
+            bench.load(self.plan_path, check_environment=False)
+
+    def test_invocation_aliases_preserved_and_compiler_retarget_rejected(self):
+        sdk = self.freeze_tools()
+        clang = self.plan["binaries"]["clang"]
+        self.assertEqual(clang["path"], str(sdk / "bin/clang"))
+        self.assertEqual(clang["resolved_path"], str(sdk / "bin/clang-real"))
+        self.assertEqual(clang["symlink_target"], "clang-real")
+        argv = bench.command(self.plan, "B", self.root / "work")
+        self.assertEqual(argv[argv.index("--clang") + 1], str(sdk / "bin/clang"))
+        lld = next(t for t in self.plan["extra_tools"] if t["path"] == str(sdk / "bin/ld.lld"))
+        self.assertEqual(lld["resolved_path"], str(sdk / "bin/lld-one"))
+        (sdk / "bin/clang").unlink()
+        (sdk / "bin/clang").symlink_to("lld-two")
+        with self.assertRaisesRegex(SystemExit, "Frozen toolchain changed"):
+            bench.load(self.plan_path, check_environment=False)
+
+    def test_new_higher_priority_path_linker_rejected(self):
+        sdk = self.freeze_tools(later_path=True)
+        earlier = sdk / "earlier/cc"
+        earlier.write_bytes(b"new selected compiler driver")
+        earlier.chmod(0o755)
+        with self.assertRaisesRegex(SystemExit, "Frozen linker selection changed"):
+            bench.load(self.plan_path, check_environment=False)
+
     def test_native_rust_cgu_and_cold_profile_do_not_add_caches(self):
         work = self.root / "work"
         rust, zil = bench.command(self.plan, "A", work), bench.command(self.plan, "B", work)

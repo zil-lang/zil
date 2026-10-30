@@ -46,33 +46,52 @@ def order_for(cases, blocks, seed):
     return result
 
 
+def tool_identity(path):
+    """Keep argv[0]/library aliases as well as the resolved file identity."""
+    path = Path(path).absolute()
+    identity = common.inventory(path)
+    return {**identity, "path": str(path), "resolved_path": identity["path"],
+            "symlink_target": os.readlink(path) if path.is_symlink() else None}
+
+
+def linker_candidates(clang, rust_linker, search_path, zil_override):
+    # Re-evaluate this search at load, including absent candidates: adding a
+    # higher-priority PATH entry or a new Clang sibling also changes selection.
+    candidates = {}
+    for name in ("cc", "gcc", "ld", "ld.lld", "as"):
+        found = shutil.which(name, path=search_path if search_path is not None else os.defpath)
+        candidates[name] = str(Path(found).absolute()) if found else None
+    sibling = Path(clang).with_name("ld.lld")
+    candidates["clang_sibling_lld"] = str(sibling.absolute()) if sibling.is_file() else None
+    candidates["rust_explicit"] = rust_linker
+    candidates["zil_explicit"] = None
+    if zil_override is not None and zil_override != "system":
+        found = shutil.which(zil_override, path=search_path if search_path is not None else os.defpath)
+        if not found:
+            raise SystemExit("ZIL_LINUX_LINKER must be 'system' or an executable path/name")
+        candidates["zil_explicit"] = str(Path(found).absolute())
+    return candidates
+
+
 def tool_inventory(rustc, clang, extra, rust_linker):
     """Freeze rust sysroot artifacts and possible native linkers, not only rustc."""
     probe = common.capture([rustc, "--print", "sysroot"])
     if probe.get("exit") != 0:
         raise SystemExit("Cannot identify the Rust sysroot: " + str(probe))
-    sysroot = Path(probe["stdout"].strip()).resolve(strict=True)
-    paths = {Path(p).resolve(strict=True) for p in extra}
+    sysroot = Path(probe["stdout"].strip()).absolute()
+    paths = {Path(p).absolute() for p in extra}
     target = sysroot / "lib/rustlib" / TARGET
     # std/alloc/core, bundled LLVM, rustc_driver and bundled linker are inputs
     # even though their compilation is not repeated inside this benchmark.
-    paths.update(p.resolve() for p in (sysroot / "lib").glob("*.so*") if p.is_file())
-    paths.update(p.resolve() for p in (target / "lib").rglob("*") if p.is_file())
-    paths.update(p.resolve() for p in (target / "bin").rglob("*") if p.is_file())
-    candidates = {}
-    for name in ("cc", "gcc", "ld", "ld.lld", "as"):
-        found = shutil.which(name)
-        if found:
-            paths.add(Path(found).resolve())
-            candidates[name] = str(Path(found).resolve())
-    sibling = Path(clang).with_name("ld.lld")
-    if sibling.is_file():
-        paths.add(sibling.resolve())
-        candidates["clang_sibling_lld"] = str(sibling.resolve())
-    if rust_linker:
-        paths.add(Path(rust_linker).resolve(strict=True))
-    return [common.inventory(p) for p in sorted(paths)], {
+    paths.update(p for p in (sysroot / "lib").glob("*.so*") if p.is_file())
+    paths.update(p for p in (target / "lib").rglob("*") if p.is_file())
+    paths.update(p for p in (target / "bin").rglob("*") if p.is_file())
+    search_path, zil_override = os.environ.get("PATH"), os.environ.get("ZIL_LINUX_LINKER")
+    candidates = linker_candidates(clang, rust_linker, search_path, zil_override)
+    paths.update(Path(p) for p in candidates.values() if p is not None)
+    return [tool_identity(p) for p in sorted(paths)], {
         "sysroot_probe": probe, "sysroot": str(sysroot), "linker_candidates": candidates,
+        "linker_search_path": search_path, "zil_linker_override": zil_override,
         "rust_linker": rust_linker or "toolchain-native default",
         "zil_linker": "clang driver; actual argv retained in every ZIL JSON report",
         "boundary": "sysroot artifacts and listed tools frozen; system libc/crt and OS loader are shared host dependencies, not rebuilt; native Rust linker selection is not inferred from executable size"}
@@ -87,9 +106,9 @@ def prepare(args):
     cpus = sorted(set(map(int, args.cpus.split(",")))) if args.cpus else allowed[:min(4, len(allowed))]
     if not cpus or not set(cpus) <= set(allowed):
         raise SystemExit("--cpus must be a nonempty subset of the allowed affinity")
-    binaries = {"A": common.inventory(args.rustc), "B": common.inventory(args.zil),
-                "clang": common.inventory(args.clang)}
-    rust_linker = str(args.rust_linker.resolve(strict=True)) if args.rust_linker else None
+    binaries = {"A": tool_identity(args.rustc), "B": tool_identity(args.zil),
+                "clang": tool_identity(args.clang)}
+    rust_linker = str(args.rust_linker.absolute()) if args.rust_linker else None
     extra, linkage = tool_inventory(binaries["A"]["path"], binaries["clang"]["path"], args.tool, rust_linker)
     versions = {"rustc": common.capture([binaries["A"]["path"], "-Vv"]),
                 "zil": common.capture([binaries["B"]["path"], "--version"]),
@@ -153,8 +172,12 @@ def load(path, check_environment=True):
     if fixtures(path.parent) != plan["fixtures_sha256"]:
         raise SystemExit("Frozen source/input/oracle changed")
     for tool in [*plan["binaries"].values(), *plan["extra_tools"]]:
-        if common.inventory(tool["path"]) != tool:
+        if tool_identity(tool["path"]) != tool:
             raise SystemExit("Frozen toolchain changed: " + tool["path"])
+    linkage = plan["linkage"]
+    if linker_candidates(plan["binaries"]["clang"]["path"], plan["rust_linker"],
+                         linkage["linker_search_path"], linkage["zil_linker_override"]) != linkage["linker_candidates"]:
+        raise SystemExit("Frozen linker selection changed")
     if check_environment:
         now = common.host()
         if (common.environment() != plan["environment"] or not set(plan["cpus"]) <= os.sched_getaffinity(0)
