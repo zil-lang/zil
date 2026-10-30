@@ -24,7 +24,7 @@ common = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(common)
 runtime = common.module("cp08_runtime", HERE / "runtime_bench.py")
 ROOT, sha, save, fresh = common.ROOT, common.sha, common.save, common.fresh
-SCHEMA = "zil-rust-compile-performance/2"
+SCHEMA = "zil-rust-compile-performance/3"
 TARGET = "x86_64-unknown-linux-gnu"
 HELPERS = ["tools/research/compile-performance/bench.py",
            "tools/research/compile-performance/runtime_bench.py", *common.DEPENDENCIES]
@@ -97,15 +97,17 @@ def tool_inventory(rustc, clang, extra, rust_linker):
         "boundary": "sysroot artifacts and listed tools frozen; system libc/crt and OS loader are shared host dependencies, not rebuilt; native Rust linker selection is not inferred from executable size"}
 
 
-def validate_modes(cache_mode, query_cache, closed_executable):
+def validate_modes(cache_mode, query_cache, closed_executable, rust_lto):
     if type(query_cache) is not bool or type(closed_executable) is not bool:
         raise SystemExit("Explicit boolean query-cache and closed-executable modes required")
     if query_cache and cache_mode != "incremental":
         raise SystemExit("--query-cache requires --cache-mode incremental; cold means no compiler caches")
+    if rust_lto not in ("native", "off"):
+        raise SystemExit("Explicit --rust-lto native or off required in the frozen plan")
 
 
 def prepare(args):
-    validate_modes(args.cache_mode, args.query_cache, args.closed_executable)
+    validate_modes(args.cache_mode, args.query_cache, args.closed_executable, args.rust_lto)
     if sys.platform != "linux" or not hasattr(os, "wait4"):
         raise SystemExit("Linux affinity and wait4 required")
     if common.git("status", "--porcelain"):
@@ -153,7 +155,7 @@ def prepare(args):
         "environment": common.environment(), "host": common.host(), "cpus": cpus, "cpu": cpus[0],
         "target": TARGET, "profile": args.profile, "cache_mode": args.cache_mode,
         "query_cache": args.query_cache, "closed_executable": args.closed_executable,
-        "rust_profile": args.rust_profile, "rust_linker": rust_linker,
+        "rust_profile": args.rust_profile, "rust_linker": rust_linker, "rust_lto": args.rust_lto,
         "units": args.units, "jobs": args.jobs, "blocks": args.blocks, "seed": args.seed,
         "request_weights": common.REQUESTS if args.cache_mode == "incremental" else {"cold_process": 1.0},
         "cases": cases, "selected_original_weight": original_weight, "order": order_for(cases, args.blocks, args.seed),
@@ -161,6 +163,7 @@ def prepare(args):
         "scope": "Full compiler process to complete executable, with current Verify/lowering/codegen/link/publication; no Cargo no-op, no persistent-session shortcut; OS pages not flushed",
         "cache_scope": "cold: no ZIL source/object/query cache or Rust incremental; incremental: fresh sequence then unchanged/private/public using isolated per-arm caches; explicit query_cache requires a new current Verify and only identical whole-input hits",
         "linkage_scope": "closed_executable explicitly permits internalizing generated ZIL-only symbols in complete Linux executables; compare runtime quality independently; Rust native CGU and existing flags unchanged",
+        "rust_lto_scope": "native omits -C lto and retains the toolchain policy; off explicitly disables Rust LTO for a separate mechanism diagnostic, never a replacement for native results; compare runtime quality for each mode",
         "runtime_scope": "Separate complete native processes including startup and file I/O on one CPU; base binaries from preflight only; compilation/correctness/warmup are not runtime samples",
         "warmup": "One complete AB preflight per case/request, plus empty-input startup and long-input warmup per base executable; no observations subtracted or scored",
         "cpu_accounting": "wait4 user+system includes reaped descendants; RSS is maximum individual process, not simultaneous process-tree peak",
@@ -174,9 +177,11 @@ def prepare(args):
 def load(path, check_environment=True):
     path = path.resolve()
     plan = json.loads(path.read_text())
-    if plan["schema"] != SCHEMA or sha(Path(__file__)) != plan["runner_sha256"]:
-        raise SystemExit("Frozen runner/schema changed")
-    validate_modes(plan["cache_mode"], plan["query_cache"], plan["closed_executable"])
+    if plan.get("schema") != SCHEMA:
+        raise SystemExit("Frozen schema changed; replay the old plan with its original runner/source, or prepare a new plan")
+    if sha(Path(__file__)) != plan["runner_sha256"]:
+        raise SystemExit("Frozen runner changed")
+    validate_modes(plan["cache_mode"], plan["query_cache"], plan["closed_executable"], plan.get("rust_lto"))
     for name, digest in plan["helper_sha256"].items():
         if sha(ROOT / name) != digest:
             raise SystemExit("Frozen helper changed: " + name)
@@ -208,6 +213,8 @@ def command(plan, arm, work):
             argv += ["-C", "incremental=" + str(work / "rust-incremental")]
         if plan["rust_profile"] == "matched":
             argv += ["-C", "codegen-units=" + str(plan["units"])]
+        if plan["rust_lto"] == "off":
+            argv += ["-C", "lto=off"]
         if plan["rust_linker"]:
             argv += ["-C", "linker=" + plan["rust_linker"]]
         return argv
@@ -478,6 +485,7 @@ def summarize(args):
               "records_sha256": sha(args.records), "kind": args.kind, "arm_A": "Rust", "arm_B": "ZIL",
               "source_identity": plan["source_identity"], "versions": plan["versions"], "profile": plan["profile"],
               "cache_mode": plan["cache_mode"], "rust_profile": plan["rust_profile"], "units": plan["units"], "jobs": plan["jobs"],
+              "rust_lto": plan["rust_lto"], "rust_lto_scope": plan["rust_lto_scope"],
               "query_cache": plan["query_cache"], "closed_executable": plan["closed_executable"],
               "selected_original_weight": plan["selected_original_weight"], "rows": len(observed), "failures": failures,
               "coverage_complete": complete, "completion_receipt_matches": receipt_ok,
@@ -512,6 +520,8 @@ def main():
     p.add_argument("--query-cache", action="store_true", help="Explicit CP12 trusted-local full-input checkpoints; incremental profile only")
     p.add_argument("--closed-executable", action="store_true", help="Explicit CP13 Linux executable linkage optimization; independently check runtime quality")
     p.add_argument("--rust-profile", choices=["native", "matched"], default="native")
+    p.add_argument("--rust-lto", choices=["native", "off"], default="native",
+                   help="Keep the native Rust LTO policy (default), or explicitly disable LTO in a separate mechanism diagnostic; runtime must be checked independently")
     p.add_argument("--rust-linker", type=Path, help="Optional explicit Rust driver; omitted means the toolchain default")
     p.add_argument("--units", type=int, choices=range(1, 65), default=1)
     p.add_argument("--jobs", type=int, choices=range(1, 65), default=1)
