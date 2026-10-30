@@ -1,0 +1,11 @@
+{
+  "status": "Pass",
+  "scope": "Independent review fixture style and raw replay integration only",
+  "original_exit_code": 101,
+  "finding": "Clippy replace_box in two independent mutation fixtures",
+  "production_changes": false,
+  "repaired_clippy_exit": 0,
+  "raw_tests_passed": 3,
+  "raw_tests_failed": 0,
+  "commands": "repaired.json"
+}

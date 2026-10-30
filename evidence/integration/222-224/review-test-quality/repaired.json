@@ -1,0 +1,43 @@
+{
+  "base_commit": "669854e4bfd10300f9f01430f3377c12ec10dc03",
+  "patch": "replace test Box contents in place; mutant Type bytes unchanged",
+  "commands": [
+    {
+      "command": [
+        "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh",
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review223_boundaries",
+        "--test",
+        "review223_machine",
+        "--test",
+        "review223_replay",
+        "--test",
+        "impl222_224_composition",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh",
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review223_boundaries",
+        "--test",
+        "review223_replay"
+      ],
+      "exit_code": 0
+    }
+  ]
+}
