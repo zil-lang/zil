@@ -1,0 +1,53 @@
+audit rust-o0-cold
+audit rust-o0-incremental-query
+Fail_NoScore checks 43013 errors 12
+[
+  {
+    "check": "actual_codegen_configuration",
+    "detail": "rust-o0-cold-preflight:9"
+  },
+  {
+    "check": "actual_codegen_configuration",
+    "detail": "rust-o0-cold-build:17"
+  },
+  {
+    "check": "actual_codegen_configuration",
+    "detail": "rust-o0-cold-build:18"
+  },
+  {
+    "check": "actual_codegen_configuration",
+    "detail": "rust-o0-cold-build:20"
+  },
+  {
+    "check": "actual_codegen_configuration",
+    "detail": "rust-o0-cold-build:23"
+  },
+  {
+    "check": "actual_codegen_configuration",
+    "detail": "rust-o0-cold-build:45"
+  },
+  {
+    "check": "actual_codegen_configuration",
+    "detail": "rust-o0-cold-build:46"
+  },
+  {
+    "check": "actual_codegen_configuration",
+    "detail": "rust-o0-cold-build:60"
+  },
+  {
+    "check": "actual_codegen_configuration",
+    "detail": "rust-o0-cold-build:63"
+  },
+  {
+    "check": "actual_codegen_configuration",
+    "detail": "rust-o0-cold-build:85"
+  },
+  {
+    "check": "actual_codegen_configuration",
+    "detail": "rust-o0-cold-build:86"
+  },
+  {
+    "check": "audit_exception",
+    "detail": "KeyError('pipeline')"
+  }
+]

@@ -1,0 +1,51 @@
+audit rust-o0-cold
+audit rust-o0-incremental-query
+audit rust-o2-cold-closed8
+audit rust-o2-cold-closed1
+Fail_NoScore checks 131614 errors 11
+[
+  {
+    "check": "source_candidate_cache_state",
+    "detail": "rust-o0-incremental-query-preflight:39"
+  },
+  {
+    "check": "source_candidate_cache_state",
+    "detail": "rust-o0-incremental-query-build:71"
+  },
+  {
+    "check": "source_candidate_cache_state",
+    "detail": "rust-o0-incremental-query-build:75"
+  },
+  {
+    "check": "source_candidate_cache_state",
+    "detail": "rust-o0-incremental-query-build:83"
+  },
+  {
+    "check": "source_candidate_cache_state",
+    "detail": "rust-o0-incremental-query-build:95"
+  },
+  {
+    "check": "source_candidate_cache_state",
+    "detail": "rust-o0-incremental-query-build:183"
+  },
+  {
+    "check": "source_candidate_cache_state",
+    "detail": "rust-o0-incremental-query-build:187"
+  },
+  {
+    "check": "source_candidate_cache_state",
+    "detail": "rust-o0-incremental-query-build:243"
+  },
+  {
+    "check": "source_candidate_cache_state",
+    "detail": "rust-o0-incremental-query-build:255"
+  },
+  {
+    "check": "source_candidate_cache_state",
+    "detail": "rust-o0-incremental-query-build:343"
+  },
+  {
+    "check": "source_candidate_cache_state",
+    "detail": "rust-o0-incremental-query-build:347"
+  }
+]
