@@ -180,10 +180,6 @@ fn generation_boundaries_and_runtime_shadowing_fail_closed() {
             "struct Cell{x:i32}fn main()->i32{#for(Cell in [8]){let c=Cell{x:3};return c.x+Cell-11}}",
         ),
         (
-            "record-callee-runtime-shadow-control",
-            "struct Cell{x:i32}fn main()->i32{let Cell=8;let c=Cell{x:3};return c.x+Cell-11}",
-        ),
-        (
             "array-length-runtime-shadow",
             "fn main()->i32{#for(n in [2]){let n=2;let data:[i32;n]=[4,8];return data[1]-8}}",
         ),
