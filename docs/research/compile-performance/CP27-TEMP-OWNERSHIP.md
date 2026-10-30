@@ -4,7 +4,7 @@
 
 CP27 修复两个既有缓存发布入口的文件所有权错误。只有本次 `create_new` 成功创建了临时文件，失败清理才有权删除该路径；发布成功后不再清理旧临时路径。生产改动仅涉及 `zil-driver/src/query_cache.rs` 与 `zil-backend-llvm/src/object_cache.rs`，基线是 CP26 的 `d8872b52f5a215c2efd33aaadba5083f471e0bc2`。
 
-作者限定验证已通过 31 项：查询缓存单元测试 8 项、对象缓存单元测试 10 项、CP27 真实 ELF 碰撞集成测试 1 项、已有 CP12 集成回归 12 项，均无失败或忽略。冻结 release 与非作者复核仍待完成。该结果不等同于整体产品门禁通过。CP27 没有性能结果，不据此宣称增量编译或整体编译提速。
+作者限定验证已通过 31 项：查询缓存单元测试 8 项、对象缓存单元测试 10 项、CP27 真实 ELF 碰撞集成测试 1 项、已有 CP12 集成回归 12 项，均无失败或忽略。release 已成功构建并冻结，非作者对同一源码和 binary 给出 scoped correctness Pass。该结果不等同于整体产品门禁通过。CP27 没有性能结果，不据此宣称增量编译或整体编译提速。
 
 ## 原始问题与归属
 
@@ -64,3 +64,26 @@ release 使用独立 `build-cp27`，保留精确提交、crates tree、完整命
 ## 作者验证收据
 
 `evidence/research/compile-performance/CP27/author-tests.json` 记录完整命令、工具版本、相关源码 SHA-256、开始/完成时间和逐项日志 SHA-256；同目录保存原始日志与可重放脚本。库筛选未执行其余单元测试：query 为 28 项 filtered、object 为 38 项 filtered，均如实保留在原日志中。本片不把 31 项定向通过称为全库或全产品验收。
+
+## 冻结候选与构建
+
+- 源码提交：`d9a71f603d73c1df4a367189cc5b41ca15bf7d70`。
+- crates tree：`efd735f8821637c1876708cd19d5b649fa70530c`。
+- release binary：`build-cp27/release/zil`，SHA-256 `b82d690e8e26c6337f02d67cf515d816ed833db6b6d69ff6f66db49a889db7d3`，7,614,536 字节。
+- 命令：`cargo build --offline --locked --release -p zil-cli`，独立 `CARGO_TARGET_DIR=build-cp27`、`CARGO_INCREMENTAL=0`、`CARGO_BUILD_JOBS=2`；没有静默替换 LLVM 后端或 flags。
+
+同目录 `release-build.json` 保存完整绝对路径、环境、工具版本与 SHA-256、binary 原 inode/mtime/ctime、构建日志摘要。基线、CP21、CP23、CP26 四个旧冻结 binary 及 Rust/Cargo/Clang/LLD/libLLVM 的 metadata 构建前后完全一致；新 CP27 binary 也在下一次独立工具调用核回了相同的 SHA-256 与 metadata。后续文档/证据提交不改上述 crates tree，也不将重新构建的文件冒充原冻结二进制。
+
+### 工作树模式异常的边界
+
+本环境把 `tools/research/212/bench.py` 从 Git 指定的 100755 执行位恢复到 100644 的现象曾跨工具调用重复发生。内容一直匹配基线 blob `048f8e0fc454aef32afbef33b14040547b780a3f`；提交前恢复执行位并核对 staged 写集，该文件没有进入 CP27 提交。没有更改 `core.filemode` 或用 skip 标志隐藏差异，也不声称工作树每时刻都完全干净。该脚本不属于本片 crates/Cargo/LLVM 构建输入，受测源码与 flags 由精确提交和单独收据绑定。
+
+## 独立复核结果
+
+`/root/incremental_review` 对精确源码、crates tree 和冻结 binary 给出本片正确性 **Pass**，完整判定与限制保存为 `CP27-review.json`，SHA-256 `e5119e546c21ebfa2a130be520126861c3a247af84b7fad233fed56b778f0824`。
+
+评审者独立复跑了同一批 31 项测试；其执行复用了 `target-cp27` 已有开发构建产物，没有宣称独立清空后重建。另对冻结 release 执行查询缓存 4 次 CLI/4 次 native、对象缓存 5 次 CLI/5 次 native，共 9 次完整请求与 9 次真实 ELF 执行。两类原始同 PID 临时路径碰撞都保留了已发布 ELF；碰撞依然报告可恢复的缓存写入失败，之后修复和热命中正常。每种场景的 ELF 与 LLVM 文本 SHA-256 均与该场景缓存关闭控制相同，9 次请求各自重新执行 Verify 一次。
+
+评审没有另行 clean rebuild release；源码与 binary 的绑定采用作者冻结构建收据、精确 crates 身份和独立重核的 binary hash。这里的 Pass 关闭了该候选的两个临时文件所有权 finding；原基线 ChangesRequested 和原始失败证据继续保留，也没有据此宣布性能采用或全产品验收。
+
+`independent-evidence-manifest.json` 列出归档原始 JSON、stdout/stderr、日志、脚本、源码与 LLVM 文本的逐文件 SHA-256；实际运行生成的 ELF 和缓存 payload 保留原路径及 hash，不向 Git 重复添加编译产物。原始文件内容未为适应归档路径而改写。

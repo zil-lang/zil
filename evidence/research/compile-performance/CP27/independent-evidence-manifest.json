@@ -1,0 +1,453 @@
+{
+  "scope": "Exact copies of independent JSON/stdout/stderr/log/scripts/source/LLVM text; original runtime binaries and cache payload hashes retained without duplicating compiled artifacts.",
+  "files": [
+    {
+      "original": "/tmp/zil-review/CP27-review.json",
+      "archive": "CP27-review.json",
+      "sha256": "e5119e546c21ebfa2a130be520126861c3a247af84b7fad233fed56b778f0824",
+      "bytes": 6603
+    },
+    {
+      "original": "/tmp/zil-review/CP27-release-build.json",
+      "archive": "CP27-release-build.json",
+      "sha256": "190f870854dc40ebb2a3a66cca8ad054ac1a7c27d856c2e6f99e83df86ad3ecf",
+      "bytes": 8860
+    },
+    {
+      "original": "/tmp/zil-review/CP27-release-build.log",
+      "archive": "CP27-release-build.log",
+      "sha256": "86574d6ad4d1714b27469a9931cc562a42213032f5318a8826872acee5d46c05",
+      "bytes": 1331
+    },
+    {
+      "original": "/tmp/zil-review/cache-temp-collision-regression.py",
+      "archive": "cache-temp-collision-regression.py",
+      "sha256": "d02dd9c8d96cb7a36a66cb590320bba2ac09fb39f083cb6a7e83c2b3fe7aa2b6",
+      "bytes": 5786
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression.log",
+      "archive": "CP27-query-collision-regression.log",
+      "sha256": "cc43df82ede7c27fba87d5da0a55ca65534aa01cea9f8858b5e4d5e13245b6f4",
+      "bytes": 585
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression.log",
+      "archive": "CP27-object-collision-regression.log",
+      "sha256": "62faf81d2aaae9bffaa7194c6102181687ab345e3989911784350a52ba7a8eee",
+      "bytes": 586
+    },
+    {
+      "original": "/tmp/zil-review/CP12-review-finding.json",
+      "archive": "CP12-review-finding.json",
+      "sha256": "7fe3a2fb6ab7b4486e85150749c116148592653f92479dc88eba77f09f60a3f0",
+      "bytes": 4098
+    },
+    {
+      "original": "/tmp/zil-review/OBJECT-review-finding.json",
+      "archive": "OBJECT-review-finding.json",
+      "sha256": "ceaf7e499f2a439e61a0c22a90b529b2a53160a6a565489bfa0992aedb46555f",
+      "bytes": 4175
+    },
+    {
+      "original": "/tmp/zil-review/TEMP-OWNERSHIP-AUDIT.json",
+      "archive": "TEMP-OWNERSHIP-AUDIT.json",
+      "sha256": "a2de94bb68928e600889db30aa8cdfff33780381a4ebc2118a75e272b808f483",
+      "bytes": 2754
+    },
+    {
+      "original": "/tmp/zil-review/CP27-independent-tests/object-unit.log",
+      "sha256": "d7d998b6760aa424e04ac9cea6b1673275ba317cf5bdca0890ae67c5d0a17d3f",
+      "bytes": 1222,
+      "archive": "CP27-independent-tests/object-unit.log"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-independent-tests/query-existing-cp12.log",
+      "sha256": "b848cbfdd52e1e6057a6d04dd10a6b8895b8b1602cf0f7ca83eea345070c3283",
+      "bytes": 1198,
+      "archive": "CP27-independent-tests/query-existing-cp12.log"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-independent-tests/query-native-collision.log",
+      "sha256": "f93f15a05201c6af1d4759352c4f0321bf5effd600800473ba0f65cd9eafe99e",
+      "bytes": 394,
+      "archive": "CP27-independent-tests/query-native-collision.log"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-independent-tests/query-unit.log",
+      "sha256": "6e38104668226f43fcd4a4aaa083f07f51a8a9eef4df6d9ad1aa6960e3174304",
+      "bytes": 1113,
+      "archive": "CP27-independent-tests/query-unit.log"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-independent-tests/result.json",
+      "sha256": "f18d993489d1ad57ed7308b258b2c6a12f535132b839afae34c351d2cb2f58ca",
+      "bytes": 3148,
+      "archive": "CP27-independent-tests/result.json"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/cache/frontend-cp12-v1/.pending-21-0",
+      "sha256": "e9155c3cafef0a919dd23ed9faca3b644868807e6fd873ef6fb6ad51d504035c",
+      "bytes": 5872,
+      "archive": null,
+      "note": "Executable/cache payload retained in original temporary evidence directory; hash recorded, not duplicated in Git."
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/cache/frontend-cp12-v1/.pending-21-0.ll",
+      "sha256": "393fb73df313d7b6d8db8b5834a6aeb88033a1abafc18adbe9211f9fd142773e",
+      "bytes": 422,
+      "archive": "CP27-query-collision-regression/cache/frontend-cp12-v1/.pending-21-0.ll"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/cache/frontend-cp12-v1/.pending-7-0",
+      "sha256": "e9155c3cafef0a919dd23ed9faca3b644868807e6fd873ef6fb6ad51d504035c",
+      "bytes": 5872,
+      "archive": null,
+      "note": "Executable/cache payload retained in original temporary evidence directory; hash recorded, not duplicated in Git."
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/cache/frontend-cp12-v1/.pending-7-0.ll",
+      "sha256": "393fb73df313d7b6d8db8b5834a6aeb88033a1abafc18adbe9211f9fd142773e",
+      "bytes": 422,
+      "archive": "CP27-query-collision-regression/cache/frontend-cp12-v1/.pending-7-0.ll"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/cache/frontend-cp12-v1/43517225dc56c38a153705710c730086fc3163d88178f3ee8dc78a2906629437.qcp",
+      "sha256": "2fc943193a45301233cf3744a10d1644b9657f76705e699d144e07193ac145b9",
+      "bytes": 707,
+      "archive": null,
+      "note": "Executable/cache payload retained in original temporary evidence directory; hash recorded, not duplicated in Git."
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/cache/parse-cp22-v1/228b5dd2494780deb20614acd7a81b6b9fee7a51aae0f4bc4404575e21bee299.psyn",
+      "sha256": "5d2c42b5921251a39ecf5584249ddd1dc49df013414d6906a9dc5bf49cf07241",
+      "bytes": 322,
+      "archive": null,
+      "note": "Executable/cache payload retained in original temporary evidence directory; hash recorded, not duplicated in Git."
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/collision-no.json",
+      "sha256": "7b489a491bbb94ae2cfc654072691cc093c1a27d2b027396398bc7e2c10a0515",
+      "bytes": 2829,
+      "archive": "CP27-query-collision-regression/collision-no.json"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/collision-no.native.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-query-collision-regression/collision-no.native.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/collision-no.native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-query-collision-regression/collision-no.native.stdout"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/collision-no.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-query-collision-regression/collision-no.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/collision-yes.json",
+      "sha256": "6454b3cdf0caf0ddf7a87da89c5f83f41ef93dad44c3eb4ffdae542887e4ad3e",
+      "bytes": 2912,
+      "archive": "CP27-query-collision-regression/collision-yes.json"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/collision-yes.native.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-query-collision-regression/collision-yes.native.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/collision-yes.native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-query-collision-regression/collision-yes.native.stdout"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/collision-yes.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-query-collision-regression/collision-yes.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/exec-same-pid.py",
+      "sha256": "3c35ab590e853e6139c051df2accff9e91b572c383852811e516302f61af5fb1",
+      "bytes": 399,
+      "archive": "CP27-query-collision-regression/exec-same-pid.py"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/main.zil",
+      "sha256": "90379b31d4708a0a0f725eef46911d2d1a98f1d7afd7a699f0dcbd779d6fdb2d",
+      "bytes": 18,
+      "archive": "CP27-query-collision-regression/main.zil"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/recovered",
+      "sha256": "e9155c3cafef0a919dd23ed9faca3b644868807e6fd873ef6fb6ad51d504035c",
+      "bytes": 5872,
+      "archive": null,
+      "note": "Executable/cache payload retained in original temporary evidence directory; hash recorded, not duplicated in Git."
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/recovered.ll",
+      "sha256": "393fb73df313d7b6d8db8b5834a6aeb88033a1abafc18adbe9211f9fd142773e",
+      "bytes": 422,
+      "archive": "CP27-query-collision-regression/recovered.ll"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/recovery.json",
+      "sha256": "4cd9d2d6f29a90f0309d822751e8024e456141e42ee827bb2d9717d230966253",
+      "bytes": 2787,
+      "archive": "CP27-query-collision-regression/recovery.json"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/recovery.native.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-query-collision-regression/recovery.native.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/recovery.native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-query-collision-regression/recovery.native.stdout"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/recovery.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-query-collision-regression/recovery.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/result.json",
+      "sha256": "c2e526ed4ef84132694fe011b89f6f56e4f69aa2a14b647722c4626405ed315a",
+      "bytes": 8549,
+      "archive": "CP27-query-collision-regression/result.json"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/warm.json",
+      "sha256": "fb1c9b0563098ee1e6d8f18d60d80b31cf5b375be7d1712dc3af1fb3ac8eb467",
+      "bytes": 2779,
+      "archive": "CP27-query-collision-regression/warm.json"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/warm.native.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-query-collision-regression/warm.native.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/warm.native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-query-collision-regression/warm.native.stdout"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-query-collision-regression/warm.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-query-collision-regression/warm.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/cache/objects-v1/2ee5a377794705802e1d259b41e1a1de1c20d501fadde3294e9e6c85dcc8c978/.pending-78-0",
+      "sha256": "e9155c3cafef0a919dd23ed9faca3b644868807e6fd873ef6fb6ad51d504035c",
+      "bytes": 5872,
+      "archive": null,
+      "note": "Executable/cache payload retained in original temporary evidence directory; hash recorded, not duplicated in Git."
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/cache/objects-v1/2ee5a377794705802e1d259b41e1a1de1c20d501fadde3294e9e6c85dcc8c978/.pending-78-0.ll",
+      "sha256": "adcfaeea40fa5f064a9f6d670ce6ae09dd978aec3271c56e5171531b8942499f",
+      "bytes": 422,
+      "archive": "CP27-object-collision-regression/cache/objects-v1/2ee5a377794705802e1d259b41e1a1de1c20d501fadde3294e9e6c85dcc8c978/.pending-78-0.ll"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/cache/objects-v1/2ee5a377794705802e1d259b41e1a1de1c20d501fadde3294e9e6c85dcc8c978/.pending-92-0",
+      "sha256": "e9155c3cafef0a919dd23ed9faca3b644868807e6fd873ef6fb6ad51d504035c",
+      "bytes": 5872,
+      "archive": null,
+      "note": "Executable/cache payload retained in original temporary evidence directory; hash recorded, not duplicated in Git."
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/cache/objects-v1/2ee5a377794705802e1d259b41e1a1de1c20d501fadde3294e9e6c85dcc8c978/.pending-92-0.ll",
+      "sha256": "adcfaeea40fa5f064a9f6d670ce6ae09dd978aec3271c56e5171531b8942499f",
+      "bytes": 422,
+      "archive": "CP27-object-collision-regression/cache/objects-v1/2ee5a377794705802e1d259b41e1a1de1c20d501fadde3294e9e6c85dcc8c978/.pending-92-0.ll"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/cache/objects-v1/2ee5a377794705802e1d259b41e1a1de1c20d501fadde3294e9e6c85dcc8c978/228f6798332df38ad29136a5bb36eccc6ede41a0d96a29ca6897b0dfa3f33a4f.zobj",
+      "sha256": "1e1aea6e20a09f0c20dfd965ebef0043a3924e9e896f467b5c8c5b522318b06e",
+      "bytes": 1024,
+      "archive": null,
+      "note": "Executable/cache payload retained in original temporary evidence directory; hash recorded, not duplicated in Git."
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/collision-no.json",
+      "sha256": "fd934fe04342b5eaa94acad3d78899de0eea499cc8f02fdb9bd8a6fe570582e3",
+      "bytes": 3075,
+      "archive": "CP27-object-collision-regression/collision-no.json"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/collision-no.native.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/collision-no.native.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/collision-no.native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/collision-no.native.stdout"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/collision-no.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/collision-no.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/collision-yes.json",
+      "sha256": "4ba49c932c1c35fd33da1f71a99b261ec92502078b335ee8af953e818190d942",
+      "bytes": 3258,
+      "archive": "CP27-object-collision-regression/collision-yes.json"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/collision-yes.native.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/collision-yes.native.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/collision-yes.native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/collision-yes.native.stdout"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/collision-yes.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/collision-yes.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/exec-same-pid.py",
+      "sha256": "3c35ab590e853e6139c051df2accff9e91b572c383852811e516302f61af5fb1",
+      "bytes": 399,
+      "archive": "CP27-object-collision-regression/exec-same-pid.py"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/main.zil",
+      "sha256": "90379b31d4708a0a0f725eef46911d2d1a98f1d7afd7a699f0dcbd779d6fdb2d",
+      "bytes": 18,
+      "archive": "CP27-object-collision-regression/main.zil"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/recovered",
+      "sha256": "e9155c3cafef0a919dd23ed9faca3b644868807e6fd873ef6fb6ad51d504035c",
+      "bytes": 5872,
+      "archive": null,
+      "note": "Executable/cache payload retained in original temporary evidence directory; hash recorded, not duplicated in Git."
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/recovered.ll",
+      "sha256": "adcfaeea40fa5f064a9f6d670ce6ae09dd978aec3271c56e5171531b8942499f",
+      "bytes": 422,
+      "archive": "CP27-object-collision-regression/recovered.ll"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/recovery.json",
+      "sha256": "fdd58e5a7bdef3ba9d6a9a84373621564e7e7da06068256ff152bc6ada0dfa6f",
+      "bytes": 2927,
+      "archive": "CP27-object-collision-regression/recovery.json"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/recovery.native.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/recovery.native.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/recovery.native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/recovery.native.stdout"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/recovery.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/recovery.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/result.json",
+      "sha256": "2a3c943961f6d53931db720d7e0342ffae513ea1bf4c911144d075d00d596b13",
+      "bytes": 10497,
+      "archive": "CP27-object-collision-regression/result.json"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/seed",
+      "sha256": "e9155c3cafef0a919dd23ed9faca3b644868807e6fd873ef6fb6ad51d504035c",
+      "bytes": 5872,
+      "archive": null,
+      "note": "Executable/cache payload retained in original temporary evidence directory; hash recorded, not duplicated in Git."
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/seed.json",
+      "sha256": "4314d3b955efe70ff50b8ee479909ffc80e0e41f38519406199f4a408e830f1c",
+      "bytes": 2914,
+      "archive": "CP27-object-collision-regression/seed.json"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/seed.ll",
+      "sha256": "adcfaeea40fa5f064a9f6d670ce6ae09dd978aec3271c56e5171531b8942499f",
+      "bytes": 422,
+      "archive": "CP27-object-collision-regression/seed.ll"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/seed.native.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/seed.native.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/seed.native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/seed.native.stdout"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/seed.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/seed.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/warm.json",
+      "sha256": "a3311518f4f9c4ee45d5089cf5055ac39ec08b2b70cf5d1f6e98f35b01c2396b",
+      "bytes": 2780,
+      "archive": "CP27-object-collision-regression/warm.json"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/warm.native.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/warm.native.stderr"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/warm.native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/warm.native.stdout"
+    },
+    {
+      "original": "/tmp/zil-review/CP27-object-collision-regression/warm.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "CP27-object-collision-regression/warm.stderr"
+    }
+  ]
+}

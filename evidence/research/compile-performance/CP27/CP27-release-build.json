@@ -1,0 +1,287 @@
+{
+  "task": "CP27",
+  "scope": "release construction only; no benchmark",
+  "source_commit": "d9a71f603d73c1df4a367189cc5b41ca15bf7d70",
+  "crates_tree": "efd735f8821637c1876708cd19d5b649fa70530c",
+  "command": [
+    "cargo",
+    "build",
+    "--offline",
+    "--locked",
+    "--release",
+    "-p",
+    "zil-cli"
+  ],
+  "cwd": "/workspace/scratch/4ab361722127/zil-cp27",
+  "environment_setup": "source /workspace/scratch/4ab361722127/.toolchain/env.sh",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/4ab361722127/build-cp27",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_BUILD_JOBS": "2",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "LD_LIBRARY_PATH": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "ZIL_CLANG": null,
+    "ZIL_LINUX_LINKER": null,
+    "RUSTFLAGS": null,
+    "RUSTDOCFLAGS": null
+  },
+  "toolchain": {
+    "rustc": {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/rust/bin/rustc",
+      "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+      "metadata": {
+        "dev": 27,
+        "ino": 1964354,
+        "nlink": 1,
+        "size": 648536,
+        "mode": 33261,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793381322675559133
+      }
+    },
+    "cargo": {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/rust/bin/cargo",
+      "sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+      "metadata": {
+        "dev": 27,
+        "ino": 1964469,
+        "nlink": 1,
+        "size": 36148320,
+        "mode": 33261,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793381322682963170
+      }
+    },
+    "clang": {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/clang-23",
+      "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+      "metadata": {
+        "dev": 27,
+        "ino": 1965167,
+        "nlink": 1,
+        "size": 282507120,
+        "mode": 33261,
+        "mtime_ns": 1793381409306848032,
+        "ctime_ns": 1793381409306848032
+      }
+    },
+    "ld.lld": {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/lld",
+      "sha256": "0f8d53acaf6ff4990506a26739c12fb90315fdcc0430ec4c305ca75115774d4b",
+      "metadata": {
+        "dev": 27,
+        "ino": 1964642,
+        "nlink": 1,
+        "size": 213124752,
+        "mode": 33261,
+        "mtime_ns": 1793381415702807449,
+        "ctime_ns": 1793381415702807449
+      }
+    },
+    "libLLVM": {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib/libLLVM-23.so",
+      "sha256": "882e5f026688e2fe19af43b372b3c670b05e1471f1fb7c12b7007c5d0fc0f1d8",
+      "metadata": {
+        "dev": 27,
+        "ino": 1965447,
+        "nlink": 1,
+        "size": 67715776,
+        "mode": 33261,
+        "mtime_ns": 1793381550858102406,
+        "ctime_ns": 1793381550862102391
+      }
+    }
+  },
+  "tool_versions": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/4ab361722127/.toolchain/llvm/bin",
+    "lld": "LLD 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5) (compatible with GNU linkers)"
+  },
+  "protected_before": {
+    "/workspace/scratch/4ab361722127/build-base/release/zil": {
+      "dev": 27,
+      "ino": 704643,
+      "nlink": 2,
+      "size": 7422280,
+      "mode": 33261,
+      "mtime_ns": 1793382131004127094,
+      "ctime_ns": 1793382131016127057
+    },
+    "/workspace/scratch/4ab361722127/build-cp21/release/zil": {
+      "dev": 27,
+      "ino": 706829,
+      "nlink": 2,
+      "size": 7422344,
+      "mode": 33261,
+      "mtime_ns": 1793382496418527242,
+      "ctime_ns": 1793382496430527181
+    },
+    "/workspace/scratch/4ab361722127/build-cp23/release/zil": {
+      "dev": 27,
+      "ino": 707969,
+      "nlink": 2,
+      "size": 7422568,
+      "mode": 33261,
+      "mtime_ns": 1793382572394170319,
+      "ctime_ns": 1793382572410170248
+    },
+    "/workspace/scratch/4ab361722127/build-cp26/release/zil": {
+      "dev": 27,
+      "ino": 912428,
+      "nlink": 2,
+      "size": 7614936,
+      "mode": 33261,
+      "mtime_ns": 1793385671372689474,
+      "ctime_ns": 1793385671396689353
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/rust/bin/rustc": {
+      "dev": 27,
+      "ino": 1964354,
+      "nlink": 1,
+      "size": 648536,
+      "mode": 33261,
+      "mtime_ns": 1791856129000000000,
+      "ctime_ns": 1793381322675559133
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/rust/bin/cargo": {
+      "dev": 27,
+      "ino": 1964469,
+      "nlink": 1,
+      "size": 36148320,
+      "mode": 33261,
+      "mtime_ns": 1791856129000000000,
+      "ctime_ns": 1793381322682963170
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/clang-23": {
+      "dev": 27,
+      "ino": 1965167,
+      "nlink": 1,
+      "size": 282507120,
+      "mode": 33261,
+      "mtime_ns": 1793381409306848032,
+      "ctime_ns": 1793381409306848032
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/lld": {
+      "dev": 27,
+      "ino": 1964642,
+      "nlink": 1,
+      "size": 213124752,
+      "mode": 33261,
+      "mtime_ns": 1793381415702807449,
+      "ctime_ns": 1793381415702807449
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/lib/libLLVM-23.so": {
+      "dev": 27,
+      "ino": 1965447,
+      "nlink": 1,
+      "size": 67715776,
+      "mode": 33261,
+      "mtime_ns": 1793381550858102406,
+      "ctime_ns": 1793381550862102391
+    }
+  },
+  "started_utc": "2026-10-30T19:02:49.751422+00:00",
+  "completed_utc": "2026-10-30T19:04:02.638008+00:00",
+  "exit_code": 0,
+  "log": "/tmp/zil-review/CP27-release-build.log",
+  "log_sha256": "86574d6ad4d1714b27469a9931cc562a42213032f5318a8826872acee5d46c05",
+  "protected_after": {
+    "/workspace/scratch/4ab361722127/build-base/release/zil": {
+      "dev": 27,
+      "ino": 704643,
+      "nlink": 2,
+      "size": 7422280,
+      "mode": 33261,
+      "mtime_ns": 1793382131004127094,
+      "ctime_ns": 1793382131016127057
+    },
+    "/workspace/scratch/4ab361722127/build-cp21/release/zil": {
+      "dev": 27,
+      "ino": 706829,
+      "nlink": 2,
+      "size": 7422344,
+      "mode": 33261,
+      "mtime_ns": 1793382496418527242,
+      "ctime_ns": 1793382496430527181
+    },
+    "/workspace/scratch/4ab361722127/build-cp23/release/zil": {
+      "dev": 27,
+      "ino": 707969,
+      "nlink": 2,
+      "size": 7422568,
+      "mode": 33261,
+      "mtime_ns": 1793382572394170319,
+      "ctime_ns": 1793382572410170248
+    },
+    "/workspace/scratch/4ab361722127/build-cp26/release/zil": {
+      "dev": 27,
+      "ino": 912428,
+      "nlink": 2,
+      "size": 7614936,
+      "mode": 33261,
+      "mtime_ns": 1793385671372689474,
+      "ctime_ns": 1793385671396689353
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/rust/bin/rustc": {
+      "dev": 27,
+      "ino": 1964354,
+      "nlink": 1,
+      "size": 648536,
+      "mode": 33261,
+      "mtime_ns": 1791856129000000000,
+      "ctime_ns": 1793381322675559133
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/rust/bin/cargo": {
+      "dev": 27,
+      "ino": 1964469,
+      "nlink": 1,
+      "size": 36148320,
+      "mode": 33261,
+      "mtime_ns": 1791856129000000000,
+      "ctime_ns": 1793381322682963170
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/clang-23": {
+      "dev": 27,
+      "ino": 1965167,
+      "nlink": 1,
+      "size": 282507120,
+      "mode": 33261,
+      "mtime_ns": 1793381409306848032,
+      "ctime_ns": 1793381409306848032
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/lld": {
+      "dev": 27,
+      "ino": 1964642,
+      "nlink": 1,
+      "size": 213124752,
+      "mode": 33261,
+      "mtime_ns": 1793381415702807449,
+      "ctime_ns": 1793381415702807449
+    },
+    "/workspace/scratch/4ab361722127/.toolchain/llvm/lib/libLLVM-23.so": {
+      "dev": 27,
+      "ino": 1965447,
+      "nlink": 1,
+      "size": 67715776,
+      "mode": 33261,
+      "mtime_ns": 1793381550858102406,
+      "ctime_ns": 1793381550862102391
+    }
+  },
+  "protected_metadata_unchanged": true,
+  "status": "Built",
+  "binary": {
+    "path": "/workspace/scratch/4ab361722127/build-cp27/release/zil",
+    "sha256": "b82d690e8e26c6337f02d67cf515d816ed833db6b6d69ff6f66db49a889db7d3",
+    "metadata": {
+      "dev": 27,
+      "ino": 1000081,
+      "nlink": 2,
+      "size": 7614536,
+      "mode": 33261,
+      "mtime_ns": 1793387042618647667,
+      "ctime_ns": 1793387042630647624
+    }
+  }
+}

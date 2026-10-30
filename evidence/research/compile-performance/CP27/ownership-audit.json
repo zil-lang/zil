@@ -5,7 +5,7 @@
   "baseline": "d8872b52f5a215c2efd33aaadba5083f471e0bc2",
   "baseline_crates_tree": "7e5def64ddddb7def8637bb96d8ab69f6f3813e6",
   "scope": "Only query_cache::Prepared::publish and object_cache::store temporary path ownership; no format, key, budget, cancellation, verification, fsync policy or performance changes",
-  "status": "AuthorTargetedPass_IndependentReviewPending",
+  "status": "ScopedCorrectnessPass",
   "original_findings": [
     {
       "path_in_main_research_tree": "evidence/research/compile-performance/COMPILE6/CP12-review-finding.json",
@@ -141,5 +141,22 @@
     "crates/zil-driver/tests/cache_publication_cp27.rs": "864bd1ddc3b2f0698f718cac3829fac189a8504cc6ac350fee57fa17589e7933",
     "crates/zil-driver/tests/query_cache_cp12.rs": "5eb756712ee748dbef9b011e1a65e7e3386ea6d989eefab4c2c6966e0cffd4cc"
   },
-  "passed_total": 31
+  "passed_total": 31,
+  "candidate_source": "d9a71f603d73c1df4a367189cc5b41ca15bf7d70",
+  "candidate_crates_tree": "efd735f8821637c1876708cd19d5b649fa70530c",
+  "release_receipt": "release-build.json",
+  "release_sha256": "b82d690e8e26c6337f02d67cf515d816ed833db6b6d69ff6f66db49a889db7d3",
+  "environment_mode_note": "tools/research/212/bench.py content matches baseline blob 048f8e0fc454aef32afbef33b14040547b780a3f; mode re-materialized from 100755 to 100644 across tool calls after restoration. Not part of candidate commit, not compiler input; no core.filemode or skip flag used to hide it.",
+  "review": "CP27-review.json",
+  "review_sha256": "e5119e546c21ebfa2a130be520126861c3a247af84b7fad233fed56b778f0824",
+  "independent_tests_passed": 31,
+  "independent_cli_requests": 9,
+  "independent_native_runs": 9,
+  "limits": [
+    "Baseline failing probes and original ChangesRequested findings remain retained; this new review closes them only for the exact corrected source and binary.",
+    "No independent clean release rebuild performed; source-to-binary binding uses frozen author build receipt, exact crates identity and rechecked binary hash.",
+    "Focused Linux controls do not constitute all-workspace or whole-language correctness proof.",
+    "No benchmark result is inferred from this correctness fix.",
+    "A transient worktree executable-mode rematerialization for tools/research/212/bench.py is outside the commit; blob unchanged, exact committed mode remains 100755, crates identity unaffected."
+  ]
 }

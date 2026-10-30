@@ -1,0 +1,57 @@
+{
+  "reviewer": "/root/incremental_review",
+  "scope": "All literal create_new(true) publication sites in crates Rust source at the audited commit; not a proof of every filesystem API or hostile concurrent-writer behavior.",
+  "commit": "d8872b52f5a215c2efd33aaadba5083f471e0bc2",
+  "search_command": "rg -n 'create_new\\(true\\)|struct Temporary|struct Temp|remove_file\\(&?temp|remove_file\\(&self\\.0' crates --glob '*.rs'",
+  "site_count": 4,
+  "entries": [
+    {
+      "path": "crates/zil-driver/src/parse_cache.rs",
+      "source_sha256": "980ac3ac90b2425cd0ee6e38bcdfbb63491588390de52eb093fc9e083259e5c5",
+      "create_new_count": 1,
+      "assessment": "Fixed by CP26",
+      "finding": "CP22-TEMP-OWNERSHIP",
+      "before": "CP22 armed guard before create_new; AlreadyExists deleted an unowned path, actually reproduced.",
+      "after": "CP26 opens with create_new before guard construction; guard disarmed after successful rename.",
+      "evidence": [
+        "CP22-review-addendum.json",
+        "CP26-collision-regression/result.json"
+      ]
+    },
+    {
+      "path": "crates/zil-driver/src/query_cache.rs",
+      "source_sha256": "b67e88141374e8c743ad44e7660441898576d863809cf4f8c74866e414fe201f",
+      "create_new_count": 1,
+      "assessment": "Confirmed unresolved at audited commit; CP27 assigned",
+      "finding": "CP12-TEMP-OWNERSHIP",
+      "ownership": "Temporary is armed before create_new succeeds.",
+      "evidence": [
+        "CP12-review-finding.json",
+        "CP12-temp-collision/result.json"
+      ]
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/object_cache.rs",
+      "source_sha256": "cfdd164b46289576cab2ebc204d8b8bc9e9e0fc95c47ebeec30a4bdaefd0ec75",
+      "create_new_count": 1,
+      "assessment": "Confirmed unresolved at audited commit; CP27 assigned",
+      "finding": "OBJECT-TEMP-OWNERSHIP",
+      "ownership": "Error cleanup surrounds create_new and removes temp on its AlreadyExists error.",
+      "evidence": [
+        "OBJECT-review-finding.json",
+        "OBJECT-temp-collision/result.json"
+      ]
+    },
+    {
+      "path": "crates/zil-db/src/cache.rs",
+      "source_sha256": "ff79c1b73e4e7f563e64b65ad3c7fe8f2a5bc51c8afa89fcca1a164a9511c7e2",
+      "create_new_count": 1,
+      "assessment": "No same create_new ownership defect found in static review",
+      "ownership": "OpenOptions.create_new.open succeeds before Temporary is constructed; early error returns without unowned-path cleanup.",
+      "evidence": [
+        "Source inspection at audited commit; no new dynamic test claimed."
+      ]
+    }
+  ],
+  "followup": "Root authorized CP27 for query_cache.rs and object_cache.rs only; parse CP26 and raw ArtifactCache are not to be generalized or refactored under that slice."
+}

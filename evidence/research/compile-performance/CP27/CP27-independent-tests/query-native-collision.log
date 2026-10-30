@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 0.00s
+     Running tests/cache_publication_cp27.rs (/workspace/scratch/4ab361722127/target-cp27/debug/deps/cache_publication_cp27-02d888a6ffded99a)
+
+running 1 test
+test checkpoint_temp_collision_keeps_real_elf_and_allows_repair_and_hit ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+

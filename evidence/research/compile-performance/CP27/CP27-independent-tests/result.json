@@ -1,0 +1,98 @@
+{
+  "reviewer": "/root/incremental_review",
+  "source_commit": "d9a71f603d73c1df4a367189cc5b41ca15bf7d70",
+  "crates_tree": "efd735f8821637c1876708cd19d5b649fa70530c",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/4ab361722127/target-cp27",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_BUILD_JOBS": "2"
+  },
+  "source_sha256": {
+    "crates/zil-driver/src/query_cache.rs": "7e99237211474081cb08d3ea8c5c750096b375a17c1959d1890d25e453fbb372",
+    "crates/zil-backend-llvm/src/object_cache.rs": "d98f22abb56bef9acd8c4e9eef4b7e949b9954776a2227becd98be687547aa29",
+    "crates/zil-driver/tests/cache_publication_cp27.rs": "864bd1ddc3b2f0698f718cac3829fac189a8504cc6ac350fee57fa17589e7933"
+  },
+  "rows": [
+    {
+      "label": "query-unit",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "query_cache::tests"
+      ],
+      "started": "2026-10-30T19:02:57.084868+00:00",
+      "completed": "2026-10-30T19:02:57.116030+00:00",
+      "exit_code": 0,
+      "passed": 8,
+      "log": "/tmp/zil-review/CP27-independent-tests/query-unit.log",
+      "log_sha256": "6e38104668226f43fcd4a4aaa083f07f51a8a9eef4df6d9ad1aa6960e3174304"
+    },
+    {
+      "label": "object-unit",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-backend-llvm",
+        "--lib",
+        "object_cache::tests"
+      ],
+      "started": "2026-10-30T19:02:57.116138+00:00",
+      "completed": "2026-10-30T19:02:57.151129+00:00",
+      "exit_code": 0,
+      "passed": 10,
+      "log": "/tmp/zil-review/CP27-independent-tests/object-unit.log",
+      "log_sha256": "d7d998b6760aa424e04ac9cea6b1673275ba317cf5bdca0890ae67c5d0a17d3f"
+    },
+    {
+      "label": "query-native-collision",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "cache_publication_cp27"
+      ],
+      "started": "2026-10-30T19:02:57.151264+00:00",
+      "completed": "2026-10-30T19:02:57.438363+00:00",
+      "exit_code": 0,
+      "passed": 1,
+      "log": "/tmp/zil-review/CP27-independent-tests/query-native-collision.log",
+      "log_sha256": "f93f15a05201c6af1d4759352c4f0321bf5effd600800473ba0f65cd9eafe99e"
+    },
+    {
+      "label": "query-existing-cp12",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "query_cache_cp12"
+      ],
+      "started": "2026-10-30T19:02:57.438501+00:00",
+      "completed": "2026-10-30T19:02:58.080758+00:00",
+      "exit_code": 0,
+      "passed": 12,
+      "log": "/tmp/zil-review/CP27-independent-tests/query-existing-cp12.log",
+      "log_sha256": "b848cbfdd52e1e6057a6d04dd10a6b8895b8b1602cf0f7ca83eea345070c3283"
+    }
+  ],
+  "scope": "Independent targeted re-execution using existing developer target; no clean release rebuild or performance claim.",
+  "verdict": "Pass",
+  "passed_total": 31
+}

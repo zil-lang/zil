@@ -1,0 +1,118 @@
+{
+  "reviewer": "/root/incremental_review",
+  "verdict": "Pass",
+  "scope": "CP27 query/object temporary-file ownership corrections on the CP26 baseline; correctness only, not a product or performance adoption verdict.",
+  "source_commit": "d9a71f603d73c1df4a367189cc5b41ca15bf7d70",
+  "base_commit": "d8872b52f5a215c2efd33aaadba5083f471e0bc2",
+  "crates_tree": "efd735f8821637c1876708cd19d5b649fa70530c",
+  "binary": {
+    "path": "/workspace/scratch/4ab361722127/build-cp27/release/zil",
+    "sha256": "b82d690e8e26c6337f02d67cf515d816ed833db6b6d69ff6f66db49a889db7d3",
+    "metadata": {
+      "dev": 27,
+      "ino": 1000081,
+      "nlink": 2,
+      "size": 7614536,
+      "mode": 33261,
+      "mtime_ns": 1793387042618647667,
+      "ctime_ns": 1793387042630647624
+    }
+  },
+  "source_sha256": {
+    "crates/zil-driver/src/query_cache.rs": "7e99237211474081cb08d3ea8c5c750096b375a17c1959d1890d25e453fbb372",
+    "crates/zil-backend-llvm/src/object_cache.rs": "d98f22abb56bef9acd8c4e9eef4b7e949b9954776a2227becd98be687547aa29",
+    "crates/zil-driver/tests/cache_publication_cp27.rs": "864bd1ddc3b2f0698f718cac3829fac189a8504cc6ac350fee57fa17589e7933",
+    "crates/zil-driver/tests/query_cache_cp12.rs": "5eb756712ee748dbef9b011e1a65e7e3386ea6d989eefab4c2c6966e0cffd4cc"
+  },
+  "production_review": {
+    "changed_files": [
+      "crates/zil-driver/src/query_cache.rs",
+      "crates/zil-backend-llvm/src/object_cache.rs"
+    ],
+    "query": "Acquire/create file before arming Temporary; keep cleanup on all later error/cancel paths; disarm only after successful rename.",
+    "object": "Acquire/create file before entering error-cleanup closure. Open failures return before remove_file; post-create error cleanup is unchanged; successful rename never enters cleanup.",
+    "preserved": [
+      "Exact cache keys, formats, checksum and length validation.",
+      "Current independent Verify and success-before-publication behavior.",
+      "Flush/close/rename ordering and existing durability contract.",
+      "Owned temporary cleanup after genuine write, flush, rename and applicable cancellation failure.",
+      "CP26 parse-cache implementation and raw ArtifactCache implementation."
+    ]
+  },
+  "closed_findings": [
+    {
+      "id": "CP12-TEMP-OWNERSHIP",
+      "original": "CP12-review-finding.json",
+      "evidence": "CP27-query-collision-regression/result.json"
+    },
+    {
+      "id": "OBJECT-TEMP-OWNERSHIP",
+      "original": "OBJECT-review-finding.json",
+      "evidence": "CP27-object-collision-regression/result.json"
+    }
+  ],
+  "independent_tests": {
+    "result": "CP27-independent-tests/result.json",
+    "passed": 31,
+    "failed": 0,
+    "targets": {
+      "query_unit": 8,
+      "object_unit": 10,
+      "new_real_elf_integration": 1,
+      "existing_cp12_integration": 12
+    },
+    "controls": [
+      "Existing temp sentinel retains bytes/inode/mtime and prior final entry.",
+      "Nonempty final directory forces rename failure while preserving its content and removing only owned temp.",
+      "Actual RLIMIT_FSIZE=0 EFBIG preserves old final entries; owned temps cleaned and ordinary retry restores complete cache.",
+      "Open reader retains old inode after atomic replacement.",
+      "Existing cancellation, codec/key/receipt, corrupt cache and object concurrent-publication controls."
+    ],
+    "execution_boundary": "Reused target-cp27 developer outputs; independent re-execution but not a clean rebuild. Nested exact-test child counted only through its parent test."
+  },
+  "independent_cli": {
+    "script": "cache-temp-collision-regression.py",
+    "requests": 9,
+    "native_runs": 9,
+    "query_requests": 4,
+    "object_requests": 5,
+    "observations": [
+      "Both original same-PID deterministic ELF/temp collisions now preserve the successfully published executable.",
+      "Query AlreadyExists and object write_failures remain advisory; no erroneous unlink.",
+      "Within each scenario all native ELF and LLVM SHA256 values match its cache-off control.",
+      "Subsequent repair and warm reuse succeed; all nine complete CLI requests freshly Verify exactly once."
+    ],
+    "raw_directories": [
+      "CP27-query-collision-regression",
+      "CP27-object-collision-regression"
+    ]
+  },
+  "author_evidence_checked": {
+    "author_test_receipt_sha256": "dc80befa753f1f7df4f9cb7c439603fb61634cbff9b5f689f970b6bf55b817f9",
+    "all_declared_source_and_test_log_hashes_match": true,
+    "release_receipt_sha256": "190f870854dc40ebb2a3a66cca8ad054ac1a7c27d856c2e6f99e83df86ad3ecf",
+    "release_log_matches": true,
+    "release_binary_hash_rechecked": true,
+    "author_declared_protected_metadata_before_equals_after": true
+  },
+  "limits": [
+    "Baseline failing probes and original ChangesRequested findings remain retained; this new review closes them only for the exact corrected source and binary.",
+    "No independent clean release rebuild performed; source-to-binary binding uses frozen author build receipt, exact crates identity and rechecked binary hash.",
+    "Focused Linux controls do not constitute all-workspace or whole-language correctness proof.",
+    "No benchmark result is inferred from this correctness fix.",
+    "A transient worktree executable-mode rematerialization for tools/research/212/bench.py is outside the commit; blob unchanged, exact committed mode remains 100755, crates identity unaffected."
+  ],
+  "evidence_sha256": {
+    "CP27-independent-tests/result.json": "f18d993489d1ad57ed7308b258b2c6a12f535132b839afae34c351d2cb2f58ca",
+    "CP27-release-build.json": "190f870854dc40ebb2a3a66cca8ad054ac1a7c27d856c2e6f99e83df86ad3ecf",
+    "CP27-release-build.log": "86574d6ad4d1714b27469a9931cc562a42213032f5318a8826872acee5d46c05",
+    "cache-temp-collision-regression.py": "d02dd9c8d96cb7a36a66cb590320bba2ac09fb39f083cb6a7e83c2b3fe7aa2b6",
+    "CP27-query-collision-regression.log": "cc43df82ede7c27fba87d5da0a55ca65534aa01cea9f8858b5e4d5e13245b6f4",
+    "CP27-query-collision-regression/result.json": "c2e526ed4ef84132694fe011b89f6f56e4f69aa2a14b647722c4626405ed315a",
+    "CP27-object-collision-regression.log": "62faf81d2aaae9bffaa7194c6102181687ab345e3989911784350a52ba7a8eee",
+    "CP27-object-collision-regression/result.json": "2a3c943961f6d53931db720d7e0342ffae513ea1bf4c911144d075d00d596b13",
+    "CP12-review-finding.json": "7fe3a2fb6ab7b4486e85150749c116148592653f92479dc88eba77f09f60a3f0",
+    "OBJECT-review-finding.json": "ceaf7e499f2a439e61a0c22a90b529b2a53160a6a565489bfa0992aedb46555f",
+    "TEMP-OWNERSHIP-AUDIT.json": "a2de94bb68928e600889db30aa8cdfff33780381a4ebc2118a75e272b808f483"
+  }
+}
