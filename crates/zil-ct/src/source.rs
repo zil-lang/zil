@@ -1173,11 +1173,13 @@ impl<'a> Walker<'a> {
                     None
                 };
                 let core = self.core;
+                // The original Core/context outlives every argument walk. Keep
+                // the original per-use shape charges without copying its types.
                 let mut hints = Vec::new();
                 if let Some(f) = self.function(callee) {
                     for p in f.parameters.iter().take(arguments.len()) {
                         self.pattern_type_shape(&p.ty, depth + 1, e.span)?;
-                        hints.push(p.ty.clone());
+                        hints.push(&p.ty);
                     }
                 } else {
                     let enum_fields = (|| {
@@ -1206,13 +1208,13 @@ impl<'a> Walker<'a> {
                     if let Some(fields) = enum_fields {
                         for ty in fields.iter().take(arguments.len()) {
                             self.pattern_type_shape(ty, depth + 1, e.span)?;
-                            hints.push(ty.clone());
+                            hints.push(ty);
                         }
                     }
                 }
                 let mut args = Vec::new();
                 for (i, a) in arguments.iter().enumerate() {
-                    args.push(self.expr(a, hints.get(i), depth + 1)?);
+                    args.push(self.expr(a, hints.get(i).copied(), depth + 1)?);
                 }
                 CoreExprKind::Call {
                     callee: Box::new(match application {
