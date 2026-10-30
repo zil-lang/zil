@@ -1,0 +1,290 @@
+{
+  "status": "Pass",
+  "scope": "Author limited repair of test stdin protocol only; not independent review or full CI",
+  "author": "/root/product_store",
+  "base_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+  "implementation_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+  "source_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+  "planned_by_main_commit": "33f52883ab92e2143d3d23e81cc69885d3344bd6",
+  "original_main_ci_failure": {
+    "run_id": 41101248493,
+    "default": {
+      "passed": 2860,
+      "failed": 1,
+      "ignored": 0
+    },
+    "failure": "review223_machine.rs:90 BrokenPipe writing an unused stdin byte to entry_error",
+    "original_failure_preservation_owner": "/root/scope_audit",
+    "not_rewritten_as_pass": true
+  },
+  "change": "Input is Option<u8>. None uses Stdio::null with no write; Some uses a pipe and strict write_all(...).unwrap(). entry_error uses None; every heterogeneous ordinary/fault run uses Some(mode). Receipts encode null or the actual byte.",
+  "production_code_changed": false,
+  "source_fixtures_changed": false,
+  "behavioral_and_allocator_oracles_changed": false,
+  "commands": {
+    "test": {
+      "author": "/root/product_store",
+      "kind": "AuthorLimitedRegression",
+      "source_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+      "base_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+      "cwd": "/workspace/scratch/d286b3aeeb6b/zil-stdin-repair",
+      "manifest_path": "/workspace/scratch/d286b3aeeb6b/zil-stdin-repair/Cargo.toml",
+      "argv": [
+        "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh",
+        "env",
+        "CARGO_TARGET_DIR=/workspace/scratch/d286b3aeeb6b/targets/223-stdin-repair",
+        "ZIL_TEST_REPORT_DIR=/workspace/scratch/d286b3aeeb6b/recovery/223-stdin-repair-author/native",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "/workspace/scratch/d286b3aeeb6b/zil-stdin-repair/Cargo.toml",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "review223_machine"
+      ],
+      "command": "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh env CARGO_TARGET_DIR=/workspace/scratch/d286b3aeeb6b/targets/223-stdin-repair ZIL_TEST_REPORT_DIR=/workspace/scratch/d286b3aeeb6b/recovery/223-stdin-repair-author/native cargo test --manifest-path /workspace/scratch/d286b3aeeb6b/zil-stdin-repair/Cargo.toml --locked --offline -p zil-driver --features llvm-api --test review223_machine",
+      "target": "/workspace/scratch/d286b3aeeb6b/targets/223-stdin-repair",
+      "target_preexisted": true,
+      "cargo_home": "/workspace/scratch/d286b3aeeb6b/cargo-home/integration",
+      "build_jobs": 2,
+      "incremental": 0,
+      "dev_and_test_debug": 0,
+      "toolchain_root": "/workspace/scratch/3cf12ce32e36/toolchains",
+      "cargo_lock_sha256": "95ce63ee445a0ac309d0df439328d1573bae7cb05b686b51746e7114ede6adf4",
+      "source_sha256": "9194141d48696992acd269d2f0846f494b589b9b434d2ed1060f978551c2f3ea",
+      "started_at_utc": "2026-10-30T18:08:13.192189+00:00",
+      "free_bytes_before": 293650432,
+      "available_bytes_before": 0,
+      "euid": 0,
+      "target_owner": "same worktree and source commit; prior zero-selection configuration only",
+      "exit_code": 0,
+      "elapsed_seconds": 4.972076703998027,
+      "finished_at_utc": "2026-10-30T18:08:18.164599+00:00",
+      "free_bytes_after": 232169472,
+      "available_bytes_after": 0
+    },
+    "format": {
+      "source_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+      "cwd": "/workspace/scratch/d286b3aeeb6b/zil-stdin-repair",
+      "argv": [
+        "/workspace/scratch/3cf12ce32e36/toolchains/rust-1.99.1/bin/rustfmt",
+        "--edition",
+        "2024",
+        "--check",
+        "crates/zil-driver/tests/review223_machine.rs"
+      ],
+      "command": "/workspace/scratch/3cf12ce32e36/toolchains/rust-1.99.1/bin/rustfmt --edition 2024 --check crates/zil-driver/tests/review223_machine.rs",
+      "started_at_utc": "2026-10-30T18:07:32.975607+00:00",
+      "exit_code": 0,
+      "elapsed_seconds": 0.02092182399792364,
+      "finished_at_utc": "2026-10-30T18:07:32.996548+00:00"
+    },
+    "clippy": {
+      "source_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+      "cwd": "/workspace/scratch/d286b3aeeb6b/zil-stdin-repair",
+      "manifest_path": "/workspace/scratch/d286b3aeeb6b/zil-stdin-repair/Cargo.toml",
+      "argv": [
+        "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh",
+        "env",
+        "CARGO_TARGET_DIR=/workspace/scratch/d286b3aeeb6b/targets/223-stdin-repair",
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "/workspace/scratch/d286b3aeeb6b/zil-stdin-repair/Cargo.toml",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "review223_machine",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "command": "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh env CARGO_TARGET_DIR=/workspace/scratch/d286b3aeeb6b/targets/223-stdin-repair cargo clippy --manifest-path /workspace/scratch/d286b3aeeb6b/zil-stdin-repair/Cargo.toml --locked --offline -p zil-driver --features llvm-api --test review223_machine -- -D warnings",
+      "target": "/workspace/scratch/d286b3aeeb6b/targets/223-stdin-repair",
+      "started_at_utc": "2026-10-30T18:08:51.555297+00:00",
+      "free_bytes_before": 231256064,
+      "exit_code": 0,
+      "elapsed_seconds": 6.766663288995915,
+      "finished_at_utc": "2026-10-30T18:08:58.322653+00:00",
+      "free_bytes_after": 225849344
+    }
+  },
+  "test_result": {
+    "passed": 2,
+    "failed": 0,
+    "ignored": 0,
+    "features": [
+      "llvm-api"
+    ]
+  },
+  "native": {
+    "scope": "Existing two tests only; author rerun of original O0/O2 matrix",
+    "compiled_sources": [
+      {
+        "path": "native/review223-entry-error-O0/compile.json",
+        "sha256": "4986f7442c9224ccc0ff40ef2de52dcba667af2f259a84fbd89e3050b4c14792",
+        "optimization": "O0",
+        "backend": "llvm-api",
+        "fallback": null,
+        "actual_units": 1
+      },
+      {
+        "path": "native/review223-entry-error-O2/compile.json",
+        "sha256": "23e14d4e88c5940778f2ad8b265c924c3c5c2c6e7d7b3f7f8334ffcccdf97e78",
+        "optimization": "O2",
+        "backend": "llvm-api",
+        "fallback": null,
+        "actual_units": 1
+      },
+      {
+        "path": "native/review223-heterogeneous-O0/compile.json",
+        "sha256": "91f90070507f42cd45dd409d126df720198cd9dea60d47dad86ce66c96b949db",
+        "optimization": "O0",
+        "backend": "llvm-api",
+        "fallback": null,
+        "actual_units": 1
+      },
+      {
+        "path": "native/review223-heterogeneous-O2/compile.json",
+        "sha256": "be60548f36f1a067a3c39e91fbc319d67873327e593ec3db20ca9fcbe6b3f4b6",
+        "optimization": "O2",
+        "backend": "llvm-api",
+        "fallback": null,
+        "actual_units": 1
+      }
+    ],
+    "native_executions": 60,
+    "no_input_executions": 2,
+    "explicit_byte_executions": 58,
+    "allocator_observations": 50,
+    "real_allocation_failures": 34,
+    "all_observed_allocations_released": true,
+    "entry_error_observations": [
+      {
+        "path": "native/review223-entry-error-O0/run.json",
+        "input": null,
+        "exit": 1,
+        "fail_at": null,
+        "stdout_utf8": "ABCDEF",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "native/review223-entry-error-O2/run.json",
+        "input": null,
+        "exit": 1,
+        "fail_at": null,
+        "stdout_utf8": "ABCDEF",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "all_original_oracles_retained": true,
+    "extra_test_cases": 0
+  },
+  "provenance": {
+    "kind": "ExactAuthorSourceAndExecutableIdentity",
+    "source_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+    "base_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+    "worktree": "/workspace/scratch/d286b3aeeb6b/zil-stdin-repair",
+    "manifest_path": "/workspace/scratch/d286b3aeeb6b/zil-stdin-repair/Cargo.toml",
+    "target": "/workspace/scratch/d286b3aeeb6b/targets/223-stdin-repair",
+    "test_binary": {
+      "path": "/workspace/scratch/d286b3aeeb6b/targets/223-stdin-repair/debug/deps/review223_machine-bb2e79b030b78418",
+      "bytes": 31780136,
+      "sha256": "1f6c89e9bdd6c03d4ed0e4e39432f6e95b418ffe6a5506f0555aee3bccaaf4f2"
+    },
+    "cli_invocations": 0,
+    "cli_sha256": null,
+    "cli_note": "Tests call compile_source with NativeBackend::LlvmApi; no CLI executable was used. Exact Rust test binary hash is recorded instead.",
+    "versions": {
+      "rustc": {
+        "argv": [
+          "/workspace/scratch/3cf12ce32e36/toolchains/rust-1.99.1/bin/rustc",
+          "--version",
+          "--verbose"
+        ],
+        "output": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+        "exit_code": 0
+      },
+      "cargo": {
+        "argv": [
+          "/workspace/scratch/3cf12ce32e36/toolchains/rust-1.99.1/bin/cargo",
+          "--version"
+        ],
+        "output": "cargo 1.99.1 (5f94df478 2026-08-27)\n",
+        "exit_code": 0
+      },
+      "clang": {
+        "argv": [
+          "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+          "--version"
+        ],
+        "output": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin\n",
+        "exit_code": 0
+      }
+    },
+    "unchanged_inputs": [
+      {
+        "path": "crates/zil-driver/tests/review223_fixtures/entry_error.zil",
+        "bytes": 907,
+        "sha256": "d5b5a131da2d9293cbbf511b4d34ea2a5eb4c906728857afa41585afff303920",
+        "git_blob": "aaa793730b8ae5fd5cd085aeedeeed6783bb2f02",
+        "unchanged_from_original_main": true
+      },
+      {
+        "path": "crates/zil-driver/tests/review223_fixtures/heterogeneous.zil",
+        "bytes": 1601,
+        "sha256": "f058c51314ff5d2b14250d3081712eb5a4c697667dced191bf5b7c072b9aa80f",
+        "git_blob": "324256569fa9c6c4f764f9080251561c6e821d78",
+        "unchanged_from_original_main": true
+      },
+      {
+        "path": "tools/language/173/allocator_probe.c",
+        "bytes": 446,
+        "sha256": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+        "git_blob": "54af1bbd829ed71ad74766e7f1348c95cecda509",
+        "unchanged_from_original_main": true
+      }
+    ],
+    "changed_files": [
+      "crates/zil-driver/tests/review223_machine.rs"
+    ],
+    "production_code_changes": []
+  },
+  "zero_selection_attempt": {
+    "receipt": "raw-evidence.tar.gz:test-command.json",
+    "log": "raw-evidence.tar.gz:test.log",
+    "status": "InvalidEvidence/ZeroSelection",
+    "exit_code": 0,
+    "selected_tests": 0,
+    "reason": "First package-only invocation omitted explicit llvm-api; crate-level cfg selected zero tests. Not counted as acceptance."
+  },
+  "archive": {
+    "archive": "raw-evidence.tar.gz",
+    "bytes": 482513,
+    "sha256": "786873ff7e7bd2dd830693317dd79c39e25aa93c4ff8d5059ae4c193f467a420"
+  },
+  "raw_file_count": 253,
+  "formal_workspace_ci": "NotRun by author; integrator required",
+  "independent_review": "Pending /root/ct_for",
+  "complete_language": "NotSatisfied",
+  "full_zui": "NotSatisfied",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "rust_goal_reflection": {
+    "safety": "Existing exit/cleanup/allocation oracles remain strict; this fixes only the test driver stdin contract.",
+    "runtime_memory": "No comparative Rust runtime or RSS measurement.",
+    "expression_maintenance": "No new language surface or maintenance-cost comparison.",
+    "compile_cost": "No compile-speed comparison or default budget changes.",
+    "breakthrough": "Closes a concrete CI harness race; no language/product breakthrough claimed."
+  },
+  "recorded_at_utc": "2026-10-30T18:10:30.252648+00:00"
+}
