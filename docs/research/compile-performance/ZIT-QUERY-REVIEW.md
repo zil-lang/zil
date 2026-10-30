@@ -82,3 +82,7 @@ node evidence/research/compile-performance/COMPILE6/mechanisms/zit-mechanisms.mj
 结果包含原始文件SHA256与Node版本；临时模块在加载后清理，输出文件禁止覆盖。
 
 本轮也逐字归档了原始 `mechanisms/zit.ts`，其SHA256与机制结果中的source_sha256一致；脚本可直接以该文件复跑。原始上传文件未修改。
+
+## 全文件补充范围
+
+[全文覆盖补遗](ZIT-FULL-COVERAGE-ADDENDUM.md)另外核对了异步代次、事务日志、owner清理、对象/数组/Map的多粒度订阅、整体reset及DOM/SSR接口；区分静态源码结论与已经执行的同步probe。尤其不能把未决计数当预算、把await后的读当自动追踪，或把旧画面保留策略当编译成功结果的发布合同。
