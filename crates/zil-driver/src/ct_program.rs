@@ -1571,17 +1571,36 @@ mod tests {
 
 /// A borrowed bound on the real immutable selection snapshot, not a proof of
 /// CT executability. Used to prepay repeated query header/body copies.
-pub(super) fn selection_cost(program: &CoreProgram, limits: &Limits) -> CompileResult<(usize, usize)> {
-    let mut collector = Collector { program, selected: BTreeSet::new(), pending: VecDeque::new(), nodes: 0, work_left: limits.max_analysis_steps, query: false, limits };
+pub(super) fn selection_cost(
+    program: &CoreProgram,
+    limits: &Limits,
+) -> CompileResult<(usize, usize)> {
+    let mut collector = Collector {
+        program,
+        selected: BTreeSet::new(),
+        pending: VecDeque::new(),
+        nodes: 0,
+        work_left: limits.max_analysis_steps,
+        query: false,
+        limits,
+    };
     for module in &program.modules {
         collector.charge(0)?;
         collector.declarations(&module.core)?;
-        for import in &module.imports { collector.charge(0)?; collector.text(&import.alias)?; }
-        for _ in &module.exports { collector.charge(0)?; }
+        for import in &module.imports {
+            collector.charge(0)?;
+            collector.text(&import.alias)?;
+        }
+        for _ in &module.exports {
+            collector.charge(0)?;
+        }
         for function in &module.core.functions {
             collector.header(function)?;
             collector.block(module.core.module_id, &function.body, 0)?;
         }
     }
-    Ok((collector.nodes, limits.max_analysis_steps - collector.work_left))
+    Ok((
+        collector.nodes,
+        limits.max_analysis_steps - collector.work_left,
+    ))
 }
