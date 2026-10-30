@@ -1,0 +1,8 @@
+1 tree4x2 A cold_process True
+2 tree4x2 A unchanged True
+3 tree4x2 A private_edit True
+4 tree4x2 A public_edit True
+5 tree4x2 B cold_process True
+6 tree4x2 B unchanged True
+7 tree4x2 B private_edit True
+8 tree4x2 B public_edit True
