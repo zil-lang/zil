@@ -117,6 +117,23 @@ pub struct ExpandedModule {
 }
 
 type ProjectDefaults = BTreeMap<(String, String), (zil_base::ModuleId, String)>;
+type AggregateDeclarations<'a> = BTreeMap<String, &'a s::Aggregate>;
+
+fn aggregate_declarations<'a>(
+    modules: impl IntoIterator<Item = &'a s::Module>,
+) -> AggregateDeclarations<'a> {
+    // This read-only lookup neither resolves traits nor evaluates defaults.
+    // Keep the first written aggregate in the original module/item order.
+    let mut declarations = BTreeMap::new();
+    for item in modules.into_iter().flat_map(|module| &module.items) {
+        if let s::ItemKind::Aggregate(aggregate) = &item.kind {
+            declarations
+                .entry(aggregate.name.clone())
+                .or_insert(aggregate);
+        }
+    }
+    declarations
+}
 
 pub fn expand(source: &SourceUnit, module: &s::Module) -> CompileResult<CoreModule> {
     Ok(expand_with_map(source, module)?.core)
@@ -257,7 +274,6 @@ pub fn expand_program_with_limits(
     limits: &Limits,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
     let specialized = modules::specialize(sources, syntax, imports, limits)?;
-    let declarations = specialized.iter().map(|(m, _)| m).collect::<Vec<_>>();
     let mut result = Vec::new();
     let mut remaining = limits.clone();
     let mut defaults = ProjectDefaults::new();
@@ -297,6 +313,7 @@ pub fn expand_program_with_limits(
             }
         }
     }
+    let declarations = aggregate_declarations(specialized.iter().map(|(module, _)| module));
     for (source, (module, imports)) in sources.iter().zip(&specialized) {
         let expanded = expand_inner_project(
             source,
@@ -354,12 +371,13 @@ fn expand_inner(
     module: &s::Module,
     imports_resolved: bool,
 ) -> CompileResult<ExpandedModule> {
+    let declarations = aggregate_declarations([module]);
     expand_inner_project(
         source,
         module,
         imports_resolved,
         std::slice::from_ref(source),
-        &[module],
+        &declarations,
         &Limits::default(),
         None,
     )
@@ -370,7 +388,7 @@ fn expand_inner_project(
     module: &s::Module,
     imports_resolved: bool,
     sources: &[SourceUnit],
-    declarations: &[&s::Module],
+    declarations: &AggregateDeclarations<'_>,
     limits: &Limits,
     project_defaults: Option<&ProjectDefaults>,
 ) -> CompileResult<ExpandedModule> {
@@ -389,7 +407,7 @@ fn expand_inner_project(
         functions: Vec::new(),
         aggregates: Vec::new(),
         enums: Vec::new(),
-        declarations: BTreeMap::new(),
+        declarations,
         default_helpers: BTreeMap::new(),
         traits: BTreeMap::new(),
         static_traits: BTreeSet::new(),
@@ -403,17 +421,6 @@ fn expand_inner_project(
         return_type: None,
         drop_implementations: BTreeMap::new(),
     };
-    // Declaration collection does not resolve traits, evaluate defaults, or
-    // grant capabilities. It supplies only already-written local syntax.
-    for item in declarations.iter().flat_map(|module| &module.items) {
-        match &item.kind {
-            s::ItemKind::Aggregate(a) => {
-                e.declarations.entry(a.name.clone()).or_insert(a);
-            }
-            s::ItemKind::Trait(_) => {}
-            _ => {}
-        }
-    }
     for item in &module.items {
         if let s::ItemKind::Trait(t) = &item.kind {
             e.traits.entry(t.name.clone()).or_insert(t);
@@ -473,7 +480,7 @@ struct Expander<'a> {
     functions: Vec<CoreFunction>,
     aggregates: Vec<CoreAggregate>,
     enums: Vec<CoreEnum>,
-    declarations: BTreeMap<String, &'a s::Aggregate>,
+    declarations: &'a AggregateDeclarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
     static_traits: BTreeSet<String>,
