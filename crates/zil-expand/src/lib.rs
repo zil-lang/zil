@@ -15,7 +15,7 @@ mod static_traits;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{
     CompileResult, Diagnostic, ExpansionRole, Limits, NodeId, Phase, SCHEMA_VERSION, SourceMap,
-    SourceMapId, SourceTarget, SourceUnit, Span,
+    SourceMapId, SourceMapValidator, SourceTarget, SourceUnit, Span,
 };
 use zil_ir::*;
 use zil_syntax::ast as s;
@@ -314,12 +314,13 @@ pub fn expand_program_with_limits(
         }
     }
     let declarations = aggregate_declarations(specialized.iter().map(|(module, _)| module));
+    let mut source_maps = SourceMapValidator::new(sources);
     for (source, (module, imports)) in sources.iter().zip(&specialized) {
         let expanded = expand_inner_project(
             source,
             module,
             true,
-            sources,
+            &mut source_maps,
             &declarations,
             &remaining,
             Some(&defaults),
@@ -372,11 +373,12 @@ fn expand_inner(
     imports_resolved: bool,
 ) -> CompileResult<ExpandedModule> {
     let declarations = aggregate_declarations([module]);
+    let mut source_maps = SourceMapValidator::new(std::slice::from_ref(source));
     expand_inner_project(
         source,
         module,
         imports_resolved,
-        std::slice::from_ref(source),
+        &mut source_maps,
         &declarations,
         &Limits::default(),
         None,
@@ -387,7 +389,7 @@ fn expand_inner_project(
     source: &SourceUnit,
     module: &s::Module,
     imports_resolved: bool,
-    sources: &[SourceUnit],
+    source_maps: &mut SourceMapValidator<'_>,
     declarations: &AggregateDeclarations<'_>,
     limits: &Limits,
     project_defaults: Option<&ProjectDefaults>,
@@ -448,7 +450,7 @@ fn expand_inner_project(
     if !e.diagnostics.is_empty() {
         return Err(e.diagnostics);
     }
-    e.source_map.validate(sources, limits)?;
+    source_maps.validate(&e.source_map, limits)?;
     let core = CoreModule {
         schema_version: SCHEMA_VERSION,
         module_id: module.id,
