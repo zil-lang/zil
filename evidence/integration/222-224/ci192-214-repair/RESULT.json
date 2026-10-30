@@ -1,0 +1,49 @@
+{
+  "status": "Pass",
+  "scope": "Three historical test expectation migrations plus evidence-preserving CI capacity repair; not a full-workspace result",
+  "base_commit": "2270a16abe3c04d50ca412ba3fe997c3ed2b9ec9",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "tested_worktree": "dirty with this exact patch and new tools/ci/native_evidence.py; no new production compiler implementation",
+  "patch_sha256": "6dae433bdfcdea9b35a9fdcb2e9b36bb6e83a0a44d93753411368644747a50a3",
+  "new_helper_sha256": "70fe57a7a79dfa46062e89ba5f97ade98c219494ea16bf4343759aae6ffcf934",
+  "tests": {
+    "impl192_copy_fields": {
+      "passed": 20,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl214_source": {
+      "passed": 20,
+      "failed": 0,
+      "ignored": 0
+    },
+    "capture_view_diagnostic": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    }
+  },
+  "fmt": "Pass",
+  "targeted_clippy": "Pass",
+  "native_archival_controls": "Pass",
+  "original_local_failure": {
+    "status": "Fail",
+    "reason": "Initial 214 assertion used Root; actual canonical nominal identity is @module0:Root",
+    "logs": "raw.tar.gz:attempt-1 plus raw/",
+    "corrected_without_source_change": true
+  },
+  "original_ci_run": 41084362447,
+  "original_ci_default": {
+    "passed": 2858,
+    "failed": 3,
+    "ignored": 0
+  },
+  "original_ci_reference": "Incomplete; no complete receipt recovered",
+  "original_ci_later_gates": "NotRun in this attempt",
+  "freeze_manifest_exception": {
+    "path": "crates/zil-verify/src/package_tests/captures.rs",
+    "reason": "cfg(test) package_tests module, one expected diagnostic needle changed; original 209-file freeze manifest is preserved and no longer claimed byte-identical in every entry"
+  },
+  "normative_and_limits": "Unchanged",
+  "created_at_utc": "2026-10-30T16:09:06.037517+00:00"
+}

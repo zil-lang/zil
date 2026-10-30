@@ -14,3 +14,5 @@ Product内Store、递归Store、Closure元素树、拥有数组、任意Sum、�
 
 CI两种workspace命令追加 `--no-fail-fast`，继续运行各test binary以完整收集失败；任何测试失败仍使cargo及相应gate非零。测试集合、限额、产品门和后续验收要求不变。
 
+第二轮 `41084362447` 的完整默认workspace为2858/3/0，保留原失败。214原 `fn main(){let items:Store<Root>=store_new()}` 的完整Product已经属于223准入范围；保持原源码及SourceUnit身份，将旧Expand/Types Unsupported断言迁移到Types成功并核真实Root Store资源定义。这份旧探针仍只证明Types，不冒称Verify或native。
+

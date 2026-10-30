@@ -876,7 +876,7 @@ fn package_view_addresses_and_immutable_rebinding_remain_closed() {
             InstructionKind::BorrowLocal { local: LocalId(0) },
         ),
     );
-    rejected(m, "non-Copy type");
+    rejected(m, "Package capture views cannot expose a local address");
     let (mut body, local) = entry(Type::I32);
     body.0.locals[0].mutable = false;
     let result = body.value(
