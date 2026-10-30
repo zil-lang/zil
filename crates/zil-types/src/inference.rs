@@ -360,6 +360,7 @@ fn infer_program_closures_update(
         None
     };
     let program = normalized.as_ref().unwrap_or(program);
+    let project_enums = enums::ProjectDefinitions::new(program);
     let mut modules = Vec::new();
     let mut enum_work = limits.max_analysis_steps;
     for (module, flags) in program.modules.iter().zip(flags) {
@@ -393,7 +394,7 @@ fn infer_program_closures_update(
         }
         let table = &tables[&module.core.module_id];
         validate_module_metadata(&module.core, &mut budget).map_err(|e| vec![e])?;
-        let enum_types = enums::project_definitions(program, &module.core, &mut enum_work, limits)?;
+        let enum_types = project_enums.resolve(&module.core, &mut enum_work, limits)?;
         let mut functions: Option<Vec<CoreFunction>> = None;
         for (index, (function, flag)) in module.core.functions.iter().zip(flags).enumerate() {
             let prepared = prepare_borrowed(
