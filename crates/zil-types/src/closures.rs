@@ -1884,6 +1884,41 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             capture.consumed = true;
         }
     }
+    fn transferred_factory_branch(&mut self, expression: &CoreExpr, term: LocalType) -> R<()> {
+        let (LocalType::Closure(_, None, Some(_)), CoreExprKind::Name(name)) =
+            (term, &expression.kind)
+        else {
+            return Ok(());
+        };
+        // Reserve the new scope walk and both lexical/capture searches before
+        // inspecting them. The old direct-alias path keeps its existing fee.
+        *self.work_left = self
+            .work_left
+            .checked_sub(self.scopes.len())
+            .ok_or_else(|| {
+                limit(
+                    "factory conditional transfer budget exceeded",
+                    expression.span,
+                )
+            })?;
+        let searches = self
+            .scopes
+            .iter()
+            .fold(self.captures.len().saturating_add(1), |work, scope| {
+                work.saturating_add(helpers::plan::tree_work(scope.len()))
+            });
+        *self.work_left = self
+            .work_left
+            .checked_sub(searches.saturating_mul(name.len().saturating_add(1)))
+            .ok_or_else(|| {
+                limit(
+                    "factory conditional transfer budget exceeded",
+                    expression.span,
+                )
+            })?;
+        self.transferred_closure(expression, term);
+        Ok(())
+    }
     fn helper_argument(
         &mut self,
         expression: &CoreExpr,
@@ -2820,6 +2855,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 let then_type = self.expr_expected(then_value, expected, depth + 1)?;
                 let else_type = self.expr_expected(else_value, expected, depth + 1)?;
                 then_type.unify(else_type, &mut self.graph, span)?;
+                // An owned declared F leaves the selected captured position
+                // before the conditional value is bound or called. Nested
+                // conditionals handle their own arms during the visit above.
+                self.transferred_factory_branch(then_value, then_type)?;
+                self.transferred_factory_branch(else_value, else_type)?;
                 Ok(then_type)
             }
             CoreExprKind::Sequence { bindings, value } => {

@@ -343,3 +343,43 @@ fn managed_capture_fields_distinguish_consumption_and_refill() {
         ));
     }
 }
+
+#[test]
+fn declared_once_survives_conditional_transfer_inside_the_returned_environment() {
+    // Independent review's original source bytes and nearest controls. Keeping
+    // the published oracle unchanged is separate from this Types-only replay.
+    let original = include_str!("../../../tools/language/218/review-cases/conditional-inside.zil");
+    for text in [
+        original.to_owned(),
+        include_str!("../../../tools/language/218/review-cases/direct-alias-inside.zil").to_owned(),
+        include_str!("../../../tools/language/218/review-cases/conditional-outside.zil").to_owned(),
+        include_str!("../../../tools/language/218/review-cases/direct-branch-calls.zil").to_owned(),
+        original.replace("if flag{f}else{f}", "(if flag{f}else{f})"),
+        original.replace("if flag{f}else{f}", "if flag{if flag{f}else{f}}else{f}"),
+    ] {
+        let module = success(&text);
+        let factory = module
+            .functions
+            .iter()
+            .find(|function| function.name.contains(":helper"))
+            .unwrap();
+        let result = factory.callable_return_contract.as_ref().unwrap().closure;
+        assert_eq!(
+            module.closures[result.0 as usize].kind,
+            CallableKind::FnOnce
+        );
+    }
+    let errors = typed(include_str!(
+        "../../../tools/language/218/review-cases/conditional-inside-twice.zil"
+    ))
+    .expect_err("a conditionally transferred F:FnOnce still cannot be called twice");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.phase == zil_base::Phase::Expand
+                && error
+                    .message
+                    .contains("used after its environment was consumed")),
+        "{errors:#?}"
+    );
+}
