@@ -1,0 +1,35 @@
+{
+  "author": "/root/benchmark_audit",
+  "backend_core": "6d3f01580c1ae921a1b26b410a8288acc8dff4ba",
+  "local_cherry_pick_dependency": "4b5a8430d8bad89b200bcb72045d817a5d9289ea",
+  "source_cache_core": "397bf24fef0d7f58aaefb444c17c733652b5e12f",
+  "scope": "Default-off CompileOptions/CLI/session adaptation and explicit post-Verify checkpoint-key exclusion. No formal performance samples.",
+  "tests": [
+    {
+      "command": "cargo test --offline -p zil-cli --test closed_executable_cp13 --test query_cache_cp12 -j2 -- --test-threads=2",
+      "exit": 0,
+      "passed": 6,
+      "log": "cli-native-01.log"
+    },
+    {
+      "command": "cargo test --offline -p zil-driver --lib query_cache::tests -j2 -- --test-threads=2",
+      "exit": 0,
+      "passed": 5,
+      "log": "key-unit-01.log"
+    }
+  ],
+  "environment": {
+    "setup": "source /workspace/scratch/ac5966c4c370/toolchains/env.sh",
+    "CARGO_BUILD_JOBS": 2,
+    "CARGO_PROFILE_DEV_DEBUG": 0,
+    "CARGO_PROFILE_TEST_DEBUG": 0,
+    "CARGO_INCREMENTAL": 0,
+    "CARGO_TARGET_DIR": "/workspace/scratch/ac5966c4c370/zil-cp12/target"
+  },
+  "pass": true,
+  "covered": "Actual default/closed bool and internalization count on both LLVM API/Clang, native oracle exit42, check/run/Win64 rejection, query checkpoint reuse across mode change with machine object miss then hit and each fresh Verify=1.",
+  "log_sha256": {
+    "key-unit-01.log": "9567cd9c9521eeaa00f956d8bb0b2cc1afac357ab771886f42461fc1781abd74",
+    "cli-native-01.log": "7dc595386b4b59df047480850b87b750a01cd6856f2894e08de36bda0c30c1c6"
+  }
+}

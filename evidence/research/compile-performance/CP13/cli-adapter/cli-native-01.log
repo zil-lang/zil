@@ -1,0 +1,22 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-driver)
+   Compiling zil-cli v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-cli)
+    Finished `test` profile [unoptimized] target(s) in 3.05s
+     Running tests/closed_executable_cp13.rs (target/debug/deps/closed_executable_cp13-caa3618bab0b6b40)
+
+running 3 tests
+test check_run_and_win64_reject_the_explicit_build_only_flag ... ok
+test post_verify_mode_toggle_reuses_raw_checkpoint_but_invalidates_machine_objects ... ok
+test default_false_and_explicit_flag_report_actual_linkage_for_both_backends ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+
+     Running tests/query_cache_cp12.rs (target/debug/deps/query_cache_cp12-3a32b58831a1d07a)
+
+running 3 tests
+test llvm_api_objects_and_frontend_checkpoint_have_separate_hits_and_one_verify ... ok
+test help_default_disabled_missing_value_and_interposition_are_explicit ... ok
+test separate_cli_processes_hit_but_reinstalled_producer_misses ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+

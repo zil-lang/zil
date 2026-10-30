@@ -1,0 +1,14 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 3.08s
+     Running unittests src/lib.rs (target/debug/deps/zil_driver-d95e4edc746046f0)
+
+running 5 tests
+test query_cache::tests::cancelled_atomic_publication_keeps_old_entry_and_removes_temporary ... ok
+test query_cache::tests::ct_receipt_replays_cumulative_steps_nodes_functions_and_module_order ... ok
+test query_cache::tests::all_eleven_limits_change_the_actual_checkpoint_key ... ok
+test query_cache::tests::key_binds_producer_source_identity_rules_target_imports_and_build_options ... ok
+test query_cache::tests::private_metadata_roundtrip_has_no_verified_relations_and_rejects_each_kind ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 0.00s
+
