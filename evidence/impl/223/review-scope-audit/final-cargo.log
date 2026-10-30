@@ -1,0 +1,32 @@
+    Finished `test` profile [unoptimized] target(s) in 0.03s
+     Running tests/impl223_budget.rs (/workspace/scratch/d286b3aeeb6b/targets/review223/debug/deps/impl223_budget-4f2819fff8691a8e)
+
+running 1 test
+Product Store logical minimum: Types=731, Analyze=11820, Verify=17398
+test new_product_store_has_n_n_minus_one_and_fresh_n_controls ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/review223_boundaries.rs (/workspace/scratch/d286b3aeeb6b/targets/review223/debug/deps/review223_boundaries-6016a600e9f4a336)
+
+running 2 tests
+test unused_mutable_nested_product_parameter_cannot_gain_a_write_capability ... ok
+test exact_unit_protocols_cannot_admit_other_or_nested_owning_sums ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/review223_machine.rs (/workspace/scratch/d286b3aeeb6b/targets/review223/debug/deps/review223_machine-e03950fc43258755)
+
+running 2 tests
+test failed_push_keeps_the_complete_product_through_two_return_edges ... ok
+test mixed_layout_and_every_allocator_exit_preserve_exact_leaf_debts ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+
+     Running tests/review223_replay.rs (/workspace/scratch/d286b3aeeb6b/targets/review223/debug/deps/review223_replay-14305402168366bd)
+
+running 1 test
+test frozen_mutable_product_raw_and_wire_must_be_rejected ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

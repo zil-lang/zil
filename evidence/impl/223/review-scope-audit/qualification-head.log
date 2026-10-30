@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+     Running tests/impl223_product_store.rs (/workspace/scratch/d286b3aeeb6b/targets/review223/debug/deps/impl223_product_store-d48ec78a41075cdb)
+
+running 1 test
+test unused_user_resource_head_cannot_hide_the_new_product_store ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.01s
+

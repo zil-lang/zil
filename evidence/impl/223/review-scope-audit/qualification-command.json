@@ -1,0 +1,44 @@
+{
+  "implementation_commit": "ab964e484ca96889ccb80c5b76385e706588cea1",
+  "review_checkout_commit": "9c8fbb50ab88984bec76ef054104b58e98e75166",
+  "git_status_before": "",
+  "commands": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl223_product_store",
+        "raw_and_wire_",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl223_product_store",
+        "unused_user_resource_head_cannot_hide_the_new_product_store",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "target": "/workspace/scratch/d286b3aeeb6b/targets/review223",
+  "scope": "Independent re-execution of four existing producer fixtures, separate from the five new reviewer tests and budget check."
+}
