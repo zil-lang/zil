@@ -1,0 +1,1 @@
+struct Cell{x:i32}fn main()->i32{#for(n in [3]){let Cell=8;let c=Cell{x:n};return c.x+Cell-11}}

@@ -52,6 +52,18 @@ fn reject(label: &str, text: &str) -> CompileReport {
 
 const CASES: &[(&str, &str)] = &[
     (
+        "namespace-plain-api-control",
+        include_str!("../../../examples/mainline/ct_for222/review_repair/namespace-plain.zil"),
+    ),
+    (
+        "namespace-generated-review",
+        include_str!("../../../examples/mainline/ct_for222/review_repair/namespace-generated.zil"),
+    ),
+    (
+        "namespace-iterator-name",
+        "struct Cell{x:i32}fn main()->i32{#for(Cell in [8]){let c=Cell{x:3};return c.x+Cell-11}}",
+    ),
+    (
         "array-length-closure-parameter-review",
         include_str!(
             "../../../examples/mainline/ct_for222/review_repair/array-closure-parameter.zil"
@@ -167,6 +179,10 @@ const CASES: &[(&str, &str)] = &[
 fn ordered_ranges_arrays_nested_selection_and_hygiene_reach_verify() {
     for (label, text) in CASES {
         let report = pass(label, text);
+        if label == &"namespace-plain-api-control" {
+            assert!(!report.artifacts.contains_key("selection"));
+            continue;
+        }
         let trace = fs::read_to_string(&report.artifacts["selection"]).unwrap();
         assert!(trace.contains("\"generations\""), "{label}: {trace}");
     }
@@ -175,10 +191,6 @@ fn ordered_ranges_arrays_nested_selection_and_hygiene_reach_verify() {
 #[test]
 fn generation_boundaries_and_runtime_shadowing_fail_closed() {
     for (label, text) in [
-        (
-            "record-callee-iterator-shadow",
-            "struct Cell{x:i32}fn main()->i32{#for(Cell in [8]){let c=Cell{x:3};return c.x+Cell-11}}",
-        ),
         (
             "array-length-runtime-shadow",
             "fn main()->i32{#for(n in [2]){let n=2;let data:[i32;n]=[4,8];return data[1]-8}}",
