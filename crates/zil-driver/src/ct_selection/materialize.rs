@@ -7,6 +7,9 @@ pub(super) struct Materializer<'a, 'b> {
     pub target: &'a TargetProfile,
     pub trace: &'a mut Vec<Trace>,
     pub locals: Vec<Vec<String>>,
+    pub iterations: Vec<generation::Binding>,
+    pub for_trace: &'a mut Vec<generation::ForTrace>,
+    pub next_generation: u64,
 }
 impl Materializer<'_, '_> {
     pub fn items(
@@ -31,6 +34,9 @@ impl Materializer<'_, '_> {
                             Some(item.span),
                         )]);
                     }
+                    if !self.iterations.is_empty() {
+                        self.expression(condition, depth + 1)?;
+                    }
                     let chosen = self.choose(condition)?;
                     let selected = if chosen { then_items } else { else_items };
                     self.items(selected, depth + 1, true)?;
@@ -39,10 +45,27 @@ impl Materializer<'_, '_> {
                         output.push(item);
                     }
                 }
+                s::ItemKind::Meta(s::MetaItem::For {
+                    binding,
+                    iterable,
+                    items,
+                }) => {
+                    if !item.attributes.is_empty() || item.public {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Expand,
+                            "attributes or public modifier on a generation directive",
+                            Some(item.span),
+                        )]);
+                    }
+                    let generated = self.for_items(binding, iterable, items, depth + 1)?;
+                    self.budget
+                        .spend(generated.len(), generated.len(), item.span)?;
+                    output.extend(generated);
+                }
                 s::ItemKind::Meta(_) => {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Expand,
-                        "#for/#emit source generation is not implemented",
+                        "#emit source generation is not implemented",
                         Some(item.span),
                     )]);
                 }
@@ -126,6 +149,13 @@ impl Materializer<'_, '_> {
     fn function(&mut self, f: &mut s::Function, depth: usize) -> CompileResult<()> {
         self.budget.node(f.span, depth)?;
         self.locals.push(Vec::new());
+        if !self.iterations.is_empty() {
+            for parameter in &f.generics {
+                if matches!(parameter.kind, s::GenericParamKind::Const(_)) {
+                    self.bind_name(&parameter.name, parameter.span)?;
+                }
+            }
+        }
         for p in &f.params {
             self.bind_name(&p.name, p.span)?;
         }
@@ -144,7 +174,11 @@ impl Materializer<'_, '_> {
         self.locals.pop();
         result
     }
-    fn statements(&mut self, statements: &mut Vec<s::Stmt>, depth: usize) -> CompileResult<()> {
+    pub(super) fn statements(
+        &mut self,
+        statements: &mut Vec<s::Stmt>,
+        depth: usize,
+    ) -> CompileResult<()> {
         let mut output = Vec::new();
         for mut statement in std::mem::take(statements) {
             self.budget.node(statement.span, depth + 1)?;
@@ -154,6 +188,9 @@ impl Materializer<'_, '_> {
                     then_body,
                     else_body,
                 }) => {
+                    if !self.iterations.is_empty() {
+                        self.expression(condition, depth + 1)?;
+                    }
                     let chosen = self.choose(condition)?;
                     let selected = if chosen {
                         Some(then_body)
@@ -171,10 +208,20 @@ impl Materializer<'_, '_> {
                         }
                     }
                 }
+                s::StmtKind::Meta(s::MetaStatement::For {
+                    binding,
+                    iterable,
+                    body,
+                }) => {
+                    let generated = self.for_statements(binding, iterable, body, depth + 1)?;
+                    self.budget
+                        .spend(generated.len(), generated.len(), statement.span)?;
+                    output.extend(generated);
+                }
                 s::StmtKind::Meta(_) => {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Expand,
-                        "#for/#emit source generation is not implemented",
+                        "#emit source generation is not implemented",
                         Some(statement.span),
                     )]);
                 }
@@ -292,8 +339,11 @@ impl Materializer<'_, '_> {
             s::ArrowBody::Block(b) => self.block(b, depth),
         }
     }
-    fn expression(&mut self, e: &mut s::Expr, depth: usize) -> CompileResult<()> {
+    pub(super) fn expression(&mut self, e: &mut s::Expr, depth: usize) -> CompileResult<()> {
         self.budget.node(e.span, depth)?;
+        if !self.iterations.is_empty() {
+            self.substitute(e)?;
+        }
         match &mut e.kind {
             s::ExprKind::Group(e)
             | s::ExprKind::Try(e)
@@ -344,6 +394,13 @@ impl Materializer<'_, '_> {
                 }
                 for f in fields {
                     self.budget.node(f.span, depth + 1)?;
+                    if f.value.is_none() && !self.iterations.is_empty() {
+                        self.budget.spend(1, f.name.len(), f.span)?;
+                        f.value = Some(s::Expr {
+                            span: f.span,
+                            kind: s::ExprKind::Name(f.name.clone()),
+                        });
+                    }
                     if let Some(e) = &mut f.value {
                         self.expression(e, depth + 2)?;
                     }

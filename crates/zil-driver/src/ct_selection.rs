@@ -2,6 +2,8 @@
 //! only produces syntax; every selected program follows the ordinary pipeline.
 mod budget;
 mod context;
+mod generation;
+mod hygiene;
 mod materialize;
 
 use budget::Budget;
@@ -35,12 +37,14 @@ pub(super) struct Trace {
 pub(super) struct Receipt {
     pub usage: zil_ct::SourceEvaluationUsage,
     pub trace: Vec<Trace>,
+    generations: Vec<generation::ForTrace>,
 }
 impl Default for Receipt {
     fn default() -> Self {
         Self {
             usage: zil_ct::SourceEvaluationUsage { steps: 0, nodes: 0 },
             trace: Vec::new(),
+            generations: Vec::new(),
         }
     }
 }
@@ -57,9 +61,21 @@ impl Receipt {
             let dependencies = t.dependencies.iter().map(|d| format!("{{\"module\":{},\"function\":{},\"declaration\":{},\"source\":{}}}", d.module.0, json_string(&d.function), span(d.declaration), json_string(&d.source.to_hex()))).collect::<Vec<_>>().join(",");
             format!("{{\"module\":{},\"condition\":{},\"selected_then\":{},\"steps\":{},\"nodes\":{},\"dependencies\":[{}]}}", t.module.0, span(t.condition), t.selected_then, t.steps, t.nodes, dependencies)
         }).collect::<Vec<_>>().join(",");
-        format!(
+        let ordinary = format!(
             "{{\"profile\":\"ConfigReady-scalar219\",\"steps\":{},\"nodes\":{},\"selections\":[{}]}}",
             self.usage.steps, self.usage.nodes, selections
+        );
+        if self.generations.is_empty() {
+            return ordinary;
+        }
+        let generations = self.generations.iter().map(|t| {
+            let dependencies = t.dependencies.iter().map(|d| format!("{{\"module\":{},\"function\":{},\"declaration\":{},\"source\":{}}}", d.module.0, json_string(&d.function), span(d.declaration), json_string(&d.source.to_hex()))).collect::<Vec<_>>().join(",");
+            format!("{{\"module\":{},\"iterable\":{},\"binding\":{},\"iterations\":{},\"steps\":{},\"nodes\":{},\"dependencies\":[{}]}}", t.module.0, span(t.iterable), json_string(&t.binding), t.iterations, t.steps, t.nodes, dependencies)
+        }).collect::<Vec<_>>().join(",");
+        format!(
+            "{},\"generations\":[{}]}}",
+            &ordinary[..ordinary.len() - 1],
+            generations
         )
     }
     pub fn remaining(&self, limits: &Limits) -> CompileResult<Limits> {
@@ -102,7 +118,10 @@ pub(super) fn needed(source: &SourceUnit, parsed: &ParseResult) -> bool {
         if token.is_trivia() {
             continue;
         }
-        if hash && token.kind == TokenKind::Identifier && token.text(&source.text) == "if" {
+        if hash
+            && token.kind == TokenKind::Identifier
+            && matches!(token.text(&source.text), "if" | "for")
+        {
             return true;
         }
         hash = token.kind == TokenKind::Symbol(Symbol::Hash);
@@ -138,6 +157,7 @@ pub(super) fn select(
     let context = Context::freeze(sources, modules, imports, root, fingerprint, &mut budget)?;
     let mut output: Vec<_> = modules.iter().map(|module| (*module).clone()).collect();
     let mut trace = Vec::new();
+    let mut generations = Vec::new();
     for module in &mut output {
         let mut materializer = materialize::Materializer {
             module: module.id,
@@ -146,6 +166,9 @@ pub(super) fn select(
             target,
             trace: &mut trace,
             locals: Vec::new(),
+            iterations: Vec::new(),
+            for_trace: &mut generations,
+            next_generation: 0,
         };
         materializer.items(&mut module.items, 0, false)?;
     }
@@ -154,6 +177,7 @@ pub(super) fn select(
         receipt: Receipt {
             usage: budget.usage(),
             trace,
+            generations,
         },
     })
 }

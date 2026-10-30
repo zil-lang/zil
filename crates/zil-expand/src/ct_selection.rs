@@ -672,6 +672,14 @@ pub fn expression_cost(expression: &s::Expr, limits: &Limits) -> CompileResult<S
     c.expression(expression, 0)?;
     Ok(c.cost)
 }
+pub fn block_cost(block: &s::Block, limits: &Limits) -> CompileResult<SyntaxCost> {
+    let mut counter = Counter {
+        limits,
+        cost: SyntaxCost::default(),
+    };
+    counter.block(block, 0)?;
+    Ok(counter.cost)
+}
 pub fn module_cost(module: &s::Module, limits: &Limits) -> CompileResult<SyntaxCost> {
     let mut c = Counter {
         limits,
@@ -698,5 +706,22 @@ pub fn expression(
         Ok(result)
     } else {
         Err(e.diagnostics)
+    }
+}
+
+/// Untrusted expression plus the next unused raw identity, so generation query
+/// wrappers leave a real bounded identity range for aggregate CT reification.
+pub fn expression_with_next_id(
+    module: zil_base::ModuleId,
+    expression: &s::Expr,
+    limits: &Limits,
+) -> CompileResult<(CoreExpr, NodeId)> {
+    expression_cost(expression, limits)?;
+    let mut expander = Expander::new(module, true, limits, None);
+    let result = expander.expr(expression);
+    if expander.diagnostics.is_empty() {
+        Ok((result, NodeId(expander.next)))
+    } else {
+        Err(expander.diagnostics)
     }
 }
