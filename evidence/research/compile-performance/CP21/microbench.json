@@ -1,0 +1,1310 @@
+{
+  "scope": "Exploratory query-metadata microbenchmark only; not full compiler, not Rust comparison, not a formal exclusive measurement window.",
+  "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+  "baseline_lib_sha256": "2a07435a5d585581219bea2cc8aa70d9dbd62fe9cb3e0555f2a2913563e768e4",
+  "candidate_sources_sha256": {
+    "crates/zil-db/src/lib.rs": "da575b90458f70be23611679007e156fdbd6b92815df6f36ebac1c9cf71d4726",
+    "crates/zil-db/examples/compile_performance.rs": "cf671401d84681248a6645b0c2d41eecf11a9decfbf458b35f1c38d2a4cbb3fa"
+  },
+  "binaries_sha256": {
+    "baseline": "1cd74b7df66e09df7c63058bda7551db1e0a2d2265b0dbafcd05345c8b94da46",
+    "candidate": "6b15325b62773d58fc131797902505bb59395eb5f93113703d32e6ab81710fe9"
+  },
+  "cpu": 0,
+  "available_cpus": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "order": "ABBA, three blocks, each scenario/size independently",
+  "repetitions": "8 for publication/changed, 500 for absent and unchanged",
+  "total_samples": 120,
+  "elapsed_seconds": 2.6227189030032605,
+  "summary": [
+    {
+      "n": 128,
+      "scenario": "new-independent",
+      "baseline_median_ns": 405109.0,
+      "candidate_median_ns": 178313.5,
+      "candidate_over_baseline": 0.44016178361872976
+    },
+    {
+      "n": 128,
+      "scenario": "new-fanout",
+      "baseline_median_ns": 636003.0,
+      "candidate_median_ns": 301048.5,
+      "candidate_over_baseline": 0.4733444653562955
+    },
+    {
+      "n": 128,
+      "scenario": "absent-invalidate",
+      "baseline_median_ns": 269249.0,
+      "candidate_median_ns": 11106.5,
+      "candidate_over_baseline": 0.0412499210767728
+    },
+    {
+      "n": 128,
+      "scenario": "existing-unchanged",
+      "baseline_median_ns": 568548.0,
+      "candidate_median_ns": 594987.0,
+      "candidate_over_baseline": 1.0465026699592646
+    },
+    {
+      "n": 128,
+      "scenario": "existing-changed",
+      "baseline_median_ns": 198489.0,
+      "candidate_median_ns": 188189.5,
+      "candidate_over_baseline": 0.9481104746358741
+    },
+    {
+      "n": 2048,
+      "scenario": "new-independent",
+      "baseline_median_ns": 64795137.5,
+      "candidate_median_ns": 4625017.0,
+      "candidate_over_baseline": 0.07137907532027384
+    },
+    {
+      "n": 2048,
+      "scenario": "new-fanout",
+      "baseline_median_ns": 104371032.0,
+      "candidate_median_ns": 8009521.5,
+      "candidate_over_baseline": 0.07674084797781822
+    },
+    {
+      "n": 2048,
+      "scenario": "absent-invalidate",
+      "baseline_median_ns": 5004543.5,
+      "candidate_median_ns": 17291.0,
+      "candidate_over_baseline": 0.0034550603866266723
+    },
+    {
+      "n": 2048,
+      "scenario": "existing-unchanged",
+      "baseline_median_ns": 10943287.5,
+      "candidate_median_ns": 12751137.5,
+      "candidate_over_baseline": 1.1652017275430258
+    },
+    {
+      "n": 2048,
+      "scenario": "existing-changed",
+      "baseline_median_ns": 7809368.0,
+      "candidate_median_ns": 6411940.0,
+      "candidate_over_baseline": 0.8210574786589645
+    }
+  ],
+  "rows": [
+    {
+      "scenario": "new-independent",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 420622,
+      "checksum": 1024,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 0
+    },
+    {
+      "scenario": "new-independent",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 190441,
+      "checksum": 1024,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 1
+    },
+    {
+      "scenario": "new-independent",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 163223,
+      "checksum": 1024,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 2
+    },
+    {
+      "scenario": "new-independent",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 1270514,
+      "checksum": 1024,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 3
+    },
+    {
+      "scenario": "new-independent",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 367076,
+      "checksum": 1024,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 0
+    },
+    {
+      "scenario": "new-independent",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 166186,
+      "checksum": 1024,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 1
+    },
+    {
+      "scenario": "new-independent",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 159786,
+      "checksum": 1024,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 2
+    },
+    {
+      "scenario": "new-independent",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 389596,
+      "checksum": 1024,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 3
+    },
+    {
+      "scenario": "new-independent",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 363598,
+      "checksum": 1024,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 0
+    },
+    {
+      "scenario": "new-independent",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 230161,
+      "checksum": 1024,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 1
+    },
+    {
+      "scenario": "new-independent",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 233405,
+      "checksum": 1024,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 2
+    },
+    {
+      "scenario": "new-independent",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 517746,
+      "checksum": 1024,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 3
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 593941,
+      "checksum": 1024,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 0
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 399964,
+      "checksum": 1024,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 1
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 305862,
+      "checksum": 1024,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 2
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 687880,
+      "checksum": 1024,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 3
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 551557,
+      "checksum": 1024,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 0
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 303283,
+      "checksum": 1024,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 1
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 298814,
+      "checksum": 1024,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 2
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 548332,
+      "checksum": 1024,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 3
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 696271,
+      "checksum": 1024,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 0
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 296639,
+      "checksum": 1024,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 1
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 297301,
+      "checksum": 1024,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 2
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 678065,
+      "checksum": 1024,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 3
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 254478,
+      "checksum": 64000,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 0
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 11286,
+      "checksum": 64000,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 1
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 11206,
+      "checksum": 64000,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 2
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 324851,
+      "checksum": 64000,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 3
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 285714,
+      "checksum": 64000,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 0
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 11007,
+      "checksum": 64000,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 1
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 10967,
+      "checksum": 64000,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 2
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 258824,
+      "checksum": 64000,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 3
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 256290,
+      "checksum": 64000,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 0
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 10936,
+      "checksum": 64000,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 1
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 11587,
+      "checksum": 64000,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 2
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 279674,
+      "checksum": 64000,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 3
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 853325,
+      "checksum": 64000,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 0
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 574902,
+      "checksum": 64000,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 1
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 692477,
+      "checksum": 64000,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 2
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 542755,
+      "checksum": 64000,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 3
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 545388,
+      "checksum": 64000,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 0
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 609634,
+      "checksum": 64000,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 1
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 580340,
+      "checksum": 64000,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 2
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 624045,
+      "checksum": 64000,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 3
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 578568,
+      "checksum": 64000,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 0
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 570957,
+      "checksum": 64000,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 1
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 627520,
+      "checksum": 64000,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 2
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 128,
+      "repetitions": 500,
+      "elapsed_ns": 558528,
+      "checksum": 64000,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 3
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 212246,
+      "checksum": 8,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 0
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 188410,
+      "checksum": 8,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 1
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 186155,
+      "checksum": 8,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 2
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 190842,
+      "checksum": 8,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 3
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 441497,
+      "checksum": 8,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 0
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 187701,
+      "checksum": 8,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 1
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 218785,
+      "checksum": 8,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 2
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 183583,
+      "checksum": 8,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 3
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 206136,
+      "checksum": 8,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 0
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 189020,
+      "checksum": 8,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 1
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 187969,
+      "checksum": 8,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 2
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 128,
+      "repetitions": 8,
+      "elapsed_ns": 186156,
+      "checksum": 8,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 3
+    },
+    {
+      "scenario": "new-independent",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 64981769,
+      "checksum": 16384,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 0
+    },
+    {
+      "scenario": "new-independent",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 4858283,
+      "checksum": 16384,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 1
+    },
+    {
+      "scenario": "new-independent",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 4425710,
+      "checksum": 16384,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 2
+    },
+    {
+      "scenario": "new-independent",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 73566736,
+      "checksum": 16384,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 3
+    },
+    {
+      "scenario": "new-independent",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 65562191,
+      "checksum": 16384,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 0
+    },
+    {
+      "scenario": "new-independent",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 4506541,
+      "checksum": 16384,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 1
+    },
+    {
+      "scenario": "new-independent",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 4860083,
+      "checksum": 16384,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 2
+    },
+    {
+      "scenario": "new-independent",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 63656966,
+      "checksum": 16384,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 3
+    },
+    {
+      "scenario": "new-independent",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 61913500,
+      "checksum": 16384,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 0
+    },
+    {
+      "scenario": "new-independent",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 4743493,
+      "checksum": 16384,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 1
+    },
+    {
+      "scenario": "new-independent",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 4133306,
+      "checksum": 16384,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 2
+    },
+    {
+      "scenario": "new-independent",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 64608506,
+      "checksum": 16384,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 3
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 94852650,
+      "checksum": 16384,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 0
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 7933780,
+      "checksum": 16384,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 1
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 8141488,
+      "checksum": 16384,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 2
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 113914216,
+      "checksum": 16384,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 3
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 111155182,
+      "checksum": 16384,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 0
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 8085263,
+      "checksum": 16384,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 1
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 11759807,
+      "checksum": 16384,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 2
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 109623599,
+      "checksum": 16384,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 3
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 99118465,
+      "checksum": 16384,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 0
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 7774305,
+      "checksum": 16384,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 1
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 7449824,
+      "checksum": 16384,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 2
+    },
+    {
+      "scenario": "new-fanout",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 87625226,
+      "checksum": 16384,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 3
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 9418762,
+      "checksum": 1024000,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 0
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 14541,
+      "checksum": 1024000,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 1
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 16815,
+      "checksum": 1024000,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 2
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 4923699,
+      "checksum": 1024000,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 3
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 4716552,
+      "checksum": 1024000,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 0
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 17296,
+      "checksum": 1024000,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 1
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 17286,
+      "checksum": 1024000,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 2
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 4718655,
+      "checksum": 1024000,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 3
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 5085388,
+      "checksum": 1024000,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 0
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 26379,
+      "checksum": 1024000,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 1
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 26959,
+      "checksum": 1024000,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 2
+    },
+    {
+      "scenario": "absent-invalidate",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 8316869,
+      "checksum": 1024000,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 3
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 16825041,
+      "checksum": 1024000,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 0
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 16844130,
+      "checksum": 1024000,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 1
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 16887685,
+      "checksum": 1024000,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 2
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 11051443,
+      "checksum": 1024000,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 3
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 10615106,
+      "checksum": 1024000,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 0
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 11528741,
+      "checksum": 1024000,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 1
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 13435447,
+      "checksum": 1024000,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 2
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 10724329,
+      "checksum": 1024000,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 3
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 10932397,
+      "checksum": 1024000,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 0
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 10890875,
+      "checksum": 1024000,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 1
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 12066828,
+      "checksum": 1024000,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 2
+    },
+    {
+      "scenario": "existing-unchanged",
+      "n": 2048,
+      "repetitions": 500,
+      "elapsed_ns": 10954178,
+      "checksum": 1024000,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 3
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 7182628,
+      "checksum": 8,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 0
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 6852678,
+      "checksum": 8,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 1
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 6887271,
+      "checksum": 8,
+      "variant": "candidate",
+      "block": 0,
+      "ordinal": 2
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 8962738,
+      "checksum": 8,
+      "variant": "baseline",
+      "block": 0,
+      "ordinal": 3
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 7449474,
+      "checksum": 8,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 0
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 5101142,
+      "checksum": 8,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 1
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 4905933,
+      "checksum": 8,
+      "variant": "candidate",
+      "block": 1,
+      "ordinal": 2
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 8169262,
+      "checksum": 8,
+      "variant": "baseline",
+      "block": 1,
+      "ordinal": 3
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 8251664,
+      "checksum": 8,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 0
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 5971202,
+      "checksum": 8,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 1
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 7829367,
+      "checksum": 8,
+      "variant": "candidate",
+      "block": 2,
+      "ordinal": 2
+    },
+    {
+      "scenario": "existing-changed",
+      "n": 2048,
+      "repetitions": 8,
+      "elapsed_ns": 6246662,
+      "checksum": 8,
+      "variant": "baseline",
+      "block": 2,
+      "ordinal": 3
+    }
+  ],
+  "timing_boundaries": {
+    "new-independent": "populate timed; destruction excluded",
+    "new-fanout": "populate timed; destruction excluded",
+    "absent-invalidate": "repeated invalidate loop timed; populate excluded",
+    "existing-unchanged": "repeated same-key/same-fingerprint publish loop timed; populate excluded",
+    "existing-changed": "single changing publish timed per populated DB; populate/destruction excluded"
+  }
+}

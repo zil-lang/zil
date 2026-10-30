@@ -1,0 +1,52 @@
+{
+  "experiment": "CP21 absent-producer shortcut",
+  "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+  "author": "/root/toolchain_recovery",
+  "status": "Targeted author validation passed; performance adoption not determined",
+  "history": {
+    "previous_experiment": "084",
+    "previous_candidate": "7c59f7c0bdec2a372094fca0a1ee3b2a32abaf92",
+    "previous_verdict": "Production NoGo; baseline restored",
+    "source": ".task/impl/084.md at 485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+    "interpretation": "Remeasurement of an old candidate on the current compiler, not a novel graph technique"
+  },
+  "proof": {
+    "invariant": "Every stored Dependency.key refers to a stored QuerySnapshot",
+    "initial": "Empty database satisfies closure",
+    "publish": "Validates every dependency through read before inserting any snapshot",
+    "invalidate": "Removes the full reverse closure, so deletion leaves no dangling edge",
+    "clear": "Removes all snapshots",
+    "failure": "Failed publication inserts no snapshot; abort only changes active set",
+    "consequence": "An absent key cannot be the producer of any surviving dependency; legacy invalidation returns the empty set",
+    "existing_keys": "Original kind-selective full scan is unchanged"
+  },
+  "tests": {
+    "command": "CARGO_TARGET_DIR=/workspace/scratch/4ab361722127/target-cp21 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test -p zil-db --offline --locked --lib",
+    "baseline_passed": 11,
+    "candidate_passed": 11,
+    "failed": 0,
+    "ignored": 0,
+    "existing_oracle_combinations": 9600,
+    "stdout": "   Compiling zil-db v0.1.0 (/workspace/scratch/4ab361722127/zil-cp21/crates/zil-db)\n    Finished `test` profile [unoptimized] target(s) in 0.39s\n     Running unittests src/lib.rs (/workspace/scratch/4ab361722127/target-cp21/debug/deps/zil_db-43877e21f1283294)\n\nrunning 11 tests\ntest tests::cancellation_is_shared_and_deadlines_do_not_require_background_threads ... ok\ntest tests::absent_invalidation_preserves_active_queries_revision_and_published_identity ... ok\ntest tests::dependency_cycles_and_active_ancestors_cannot_be_observed_or_published ... ok\ntest tests::failed_new_publications_cannot_create_forward_edges_or_replace_old_snapshots ... ok\ntest tests::stale_input_and_cancelled_publication_abort_the_active_record ... ok\ntest cache::tests::oversized_reads_and_writes_are_bounded ... ok\ntest cache::tests::incomplete_temp_files_are_not_committed_candidates ... ok\ntest cache::tests::cancellation_after_real_temporary_write_cannot_publish_or_leave_partial_file ... ok\ntest tests::all_fingerprint_kinds_control_the_actual_transitive_invalidation_set ... ok\ntest cache::tests::each_corruption_class_is_untrusted_and_can_be_rebuilt ... ok\ntest tests::absent_producers_match_legacy_scanning_on_reachable_dags_and_after_eviction ... ok\n\ntest result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.09s\n\n"
+  },
+  "microbenchmark": {
+    "path": "microbench.json",
+    "samples": 120,
+    "method": "Same example compiled before and after guard; ABBA three blocks at each of two sizes and five scenarios; single allowed CPU",
+    "classification": "Exploratory mechanism measurement, not end-to-end compiler speed or Rust comparison",
+    "limitations": [
+      "No formal exclusive measurement window",
+      "Small existing-key controls are noisy and include regression signals; do not suppress them",
+      "New population excludes destruction; replacement excludes fixture population",
+      "Historical NoGo remains; integration must measure full CLI"
+    ]
+  },
+  "safety_scope": "No language acceptance, ABI, budget, failure category or Verify capability change",
+  "four_goals": {
+    "safety": "Existing DB correctness invariants only; not whole-language proof",
+    "runtime_memory": "No target program generation changes; performance not measured",
+    "syntax_maintenance": "No language syntax changes; no comparative maintenance conclusion",
+    "compile": "Query metadata microbench only; complete CLI and Rust comparison not run"
+  },
+  "toolchain_receipt": "/workspace/scratch/4ab361722127/.toolchain/TOOLCHAIN-RECOVERY.json"
+}
