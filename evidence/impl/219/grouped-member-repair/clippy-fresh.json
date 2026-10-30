@@ -1,0 +1,28 @@
+{
+  "source_commit": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+  "git_status": "",
+  "command": [
+    "cargo",
+    "clippy",
+    "-p",
+    "zil-driver",
+    "-p",
+    "zil-expand",
+    "--all-targets",
+    "--features",
+    "zil-driver/llvm-api",
+    "-j",
+    "1",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "start": 1793363297.4075499,
+  "status": "Pass",
+  "target_dir": "/workspace/scratch/3cf12ce32e36/targets/219-clippy-deb5824",
+  "reason": "new empty target avoids replaying stale diagnostic cache",
+  "exit_code": 0,
+  "end": 1793363331.5346398,
+  "head_after": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+  "git_status_after": ""
+}

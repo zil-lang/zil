@@ -1,0 +1,22 @@
+{
+  "source_commit": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+  "git_status": "",
+  "command": [
+    "cargo",
+    "build",
+    "-p",
+    "zil-cli",
+    "-j",
+    "1"
+  ],
+  "start": 1793363210.8385859,
+  "status": "Pass",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "llvm": "23.1.4",
+  "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)",
+  "exit_code": 0,
+  "end": 1793363212.3689804,
+  "head_after": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+  "git_status_after": "",
+  "cli_sha256": "b87bf8b0c7128a5048c68d39d82af2ebf772b689d064f7d067562244644948d7"
+}
