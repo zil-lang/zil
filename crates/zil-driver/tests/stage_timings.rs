@@ -1,3 +1,4 @@
+#![cfg(feature = "timings")]
 //! Opt-in observation must preserve source semantics, cache authority and failure publication.
 use std::{
     fs,

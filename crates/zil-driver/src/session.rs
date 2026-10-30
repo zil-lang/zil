@@ -224,6 +224,7 @@ impl CompilationSession {
         report: &mut CompileReport,
         observer: &mut dyn FnMut(&QueryEvent),
     ) -> CompileResult<()> {
+        check_timing_support(options)?;
         options
             .cancellation
             .check(Phase::Driver)
