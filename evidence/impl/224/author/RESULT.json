@@ -1,0 +1,735 @@
+{
+  "task": "224",
+  "evidence_role": "implementation_author_limited_tests",
+  "implementation_author": "/root/scope_audit",
+  "tested_revision": "1cb2bf36049ffa1b30102586be7a63d07f385233",
+  "source_worktree_status": "",
+  "result": "Pass",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "impl224_shared_product",
+    "--",
+    "--nocapture"
+  ],
+  "return_code": 0,
+  "tests": {
+    "passed": 10,
+    "failed": 0,
+    "ignored": 0
+  },
+  "toolchains": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin"
+  },
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/d286b3aeeb6b/targets/224",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "ZIL_CLANG": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang"
+  },
+  "raw_wire": [
+    {
+      "case": "shared224-borrow-incomplete-190-48",
+      "wire_sha256": "411964af97a6f5d2874e3c8e305ab513cf8b1b9fcddeec3f5987f7dd0523168a",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-RESOURCE"
+        ],
+        "messages": [
+          "shared Product borrow requires every owned child live on every path"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-RESOURCE"
+        ],
+        "messages": [
+          "shared Product borrow requires every owned child live on every path"
+        ]
+      }
+    },
+    {
+      "case": "shared224-borrow-incomplete-control-190-44",
+      "wire_sha256": "987374bbbb0dc2c814f6b6f75103b26adb968d021ac589e97602ebe30afdff76",
+      "raw": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      },
+      "wire": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      }
+    },
+    {
+      "case": "shared224-child-drop-live-190-39",
+      "wire_sha256": "fb0b48aeab0b7e3b0b914dcf8e45a696f305f0b8834375a919c6e8d9fa1de757",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-BORROW-CONFLICT"
+        ],
+        "messages": [
+          "write or storage change overlaps a shared address still required by a later use"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-BORROW-CONFLICT"
+        ],
+        "messages": [
+          "write or storage change overlaps a shared address still required by a later use"
+        ]
+      }
+    },
+    {
+      "case": "shared224-child-drop-live-control-190-35",
+      "wire_sha256": "58ff501a17d0b7d2f8087578bcede7007080d877c5941dcf40a21ec95dfa79f8",
+      "raw": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      },
+      "wire": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      }
+    },
+    {
+      "case": "shared224-child-take-live-190-21",
+      "wire_sha256": "0de79cf628ffd0d236b9be96c551c3d3a50c72f37b522761e5a5a519d5ba1d45",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-BORROW-CONFLICT"
+        ],
+        "messages": [
+          "write or storage change overlaps a shared address still required by a later use"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-BORROW-CONFLICT"
+        ],
+        "messages": [
+          "write or storage change overlaps a shared address still required by a later use"
+        ]
+      }
+    },
+    {
+      "case": "shared224-child-take-live-control-190-18",
+      "wire_sha256": "987374bbbb0dc2c814f6b6f75103b26adb968d021ac589e97602ebe30afdff76",
+      "raw": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      },
+      "wire": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      }
+    },
+    {
+      "case": "shared224-expired-storage-190-55",
+      "wire_sha256": "0a2f027beb4e68a9340721baed3b07fc45487871eba9f44f0b3cd37e13beb4ac",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-CLEANUP"
+        ],
+        "messages": [
+          "local operation occurs outside its active storage scope"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-CLEANUP"
+        ],
+        "messages": [
+          "local operation occurs outside its active storage scope"
+        ]
+      }
+    },
+    {
+      "case": "shared224-expired-storage-control-190-53",
+      "wire_sha256": "58ff501a17d0b7d2f8087578bcede7007080d877c5941dcf40a21ec95dfa79f8",
+      "raw": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      },
+      "wire": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      }
+    },
+    {
+      "case": "shared224-forged-parent-190-19",
+      "wire_sha256": "11b17bd7f30b39686b6946bd663845c798817d9dad6c2f931edda96e172614fe",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-HOLD"
+        ],
+        "messages": [
+          "Hold candidate differs from independently reconstructed provenance"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-HOLD"
+        ],
+        "messages": [
+          "Hold candidate differs from independently reconstructed provenance"
+        ]
+      }
+    },
+    {
+      "case": "shared224-missing-hold-190-17",
+      "wire_sha256": "23b67e7e221e4790cd9e49e353c2f5ceba32858b3cd747196c9cf9578a0110cd",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-HOLD"
+        ],
+        "messages": [
+          "Hold candidate differs from independently reconstructed provenance"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-HOLD"
+        ],
+        "messages": [
+          "Hold candidate differs from independently reconstructed provenance"
+        ]
+      }
+    },
+    {
+      "case": "shared224-mutable-190-9",
+      "wire_sha256": "157c1f0a4d125ad808fda523583b91bd8d9fbd98eeac542cc4ecad8a76b68a36",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "ordinary Product addresses are shared synchronous inputs"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "ordinary Product addresses are shared synchronous inputs"
+        ]
+      }
+    },
+    {
+      "case": "shared224-owning-read-190-12",
+      "wire_sha256": "29a998ce1167db88de00e8064b82684d2712b66f7f1c0a121ee34a57c982493f",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-ADDRESS"
+        ],
+        "messages": [
+          "ReadAddress requires a shared address to a finite Copy value"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-ADDRESS"
+        ],
+        "messages": [
+          "ReadAddress requires a shared address to a finite Copy value"
+        ]
+      }
+    },
+    {
+      "case": "shared224-raw-positive-190-6",
+      "wire_sha256": "977d97781348bd3ddff756cf858c142646c3991cb238a3d7b278ce1067c08e37",
+      "raw": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      },
+      "wire": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      }
+    },
+    {
+      "case": "shared224-whole-drop-live-190-30",
+      "wire_sha256": "73360b53b08d012d2cfdd2be5b2661bd5b7a855badd0ba8d990cc603bfcb395a",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-BORROW-CONFLICT"
+        ],
+        "messages": [
+          "write or storage change overlaps a shared address still required by a later use"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-BORROW-CONFLICT"
+        ],
+        "messages": [
+          "write or storage change overlaps a shared address still required by a later use"
+        ]
+      }
+    },
+    {
+      "case": "shared224-whole-drop-live-control-190-27",
+      "wire_sha256": "58ff501a17d0b7d2f8087578bcede7007080d877c5941dcf40a21ec95dfa79f8",
+      "raw": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      },
+      "wire": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      }
+    },
+    {
+      "case": "shared224-whole-move-live-190-10",
+      "wire_sha256": "dc6d834638d027bff77e1216f9d6885774a299fe704c569c2c54df7a8065c29f",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-BORROW-CONFLICT"
+        ],
+        "messages": [
+          "write or storage change overlaps a shared address still required by a later use"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-BORROW-CONFLICT"
+        ],
+        "messages": [
+          "write or storage change overlaps a shared address still required by a later use"
+        ]
+      }
+    },
+    {
+      "case": "shared224-whole-move-live-control-190-7",
+      "wire_sha256": "ae8e5e8dab83ba30a6f2851a6a494f63856acc50033f52acad0dbc87f579f8cc",
+      "raw": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      },
+      "wire": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      }
+    },
+    {
+      "case": "shared224-wrong-field-190-11",
+      "wire_sha256": "481b16186824ce553e01681086991b9ea87cbd1b7393c4824d4e0a5b6cb9c048",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-ADDRESS"
+        ],
+        "messages": [
+          "field projection index outside its record or tuple"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-ADDRESS"
+        ],
+        "messages": [
+          "field projection index outside its record or tuple"
+        ]
+      }
+    },
+    {
+      "case": "shared224-zero-storage-raw-190-50",
+      "wire_sha256": "2a0fc11782724fe2a234c8254a0d537db75fcd006b1d165b2b06227f734171a1",
+      "raw": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      },
+      "wire": {
+        "result": "Accept",
+        "codes": [],
+        "messages": []
+      }
+    }
+  ],
+  "native_compiles": [
+    {
+      "case": "shared224-allocation-O0-190-1",
+      "status": "Success",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 4184,
+            "input_kind": "builder",
+            "preflight_ns": 1123005,
+            "builder_ns": 656985,
+            "parse_ns": 0,
+            "optimize_ns": 180808,
+            "emit_ns": 6087466,
+            "total_ns": 8710467
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "commands": [
+        [
+          "/workspace/scratch/d286b3aeeb6b/recovery/224-author-final/raw/shared224-allocation-O0-190-1/capture-clang.sh",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O0",
+          "/workspace/scratch/d286b3aeeb6b/recovery/224-author-final/raw/shared224-allocation-O0-190-1/.zil-driver-190-51/.zil-build-190-0/unit-0.o",
+          "-o",
+          "/workspace/scratch/d286b3aeeb6b/recovery/224-author-final/raw/shared224-allocation-O0-190-1/.zil-driver-190-51/.zil-build-190-0/program"
+        ]
+      ]
+    },
+    {
+      "case": "shared224-allocation-O2-190-57",
+      "status": "Success",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1344,
+            "input_kind": "builder",
+            "preflight_ns": 695240,
+            "builder_ns": 544697,
+            "parse_ns": 0,
+            "optimize_ns": 3521982,
+            "emit_ns": 3416606,
+            "total_ns": 8467816
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "commands": [
+        [
+          "/workspace/scratch/d286b3aeeb6b/recovery/224-author-final/raw/shared224-allocation-O2-190-57/capture-clang.sh",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O2",
+          "/workspace/scratch/d286b3aeeb6b/recovery/224-author-final/raw/shared224-allocation-O2-190-57/.zil-driver-190-201/.zil-build-190-3/unit-0.o",
+          "-o",
+          "/workspace/scratch/d286b3aeeb6b/recovery/224-author-final/raw/shared224-allocation-O2-190-57/.zil-driver-190-201/.zil-build-190-3/program"
+        ]
+      ]
+    },
+    {
+      "case": "shared224-native-O0-190-4",
+      "status": "Success",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2648,
+            "input_kind": "builder",
+            "preflight_ns": 721450,
+            "builder_ns": 501133,
+            "parse_ns": 0,
+            "optimize_ns": 53950,
+            "emit_ns": 2790678,
+            "total_ns": 4315439
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "commands": [
+        [
+          "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O0",
+          "/workspace/scratch/d286b3aeeb6b/recovery/224-author-final/raw/shared224-native-O0-190-4/.zil-driver-190-56/.zil-build-190-1/unit-0.o",
+          "-o",
+          "/workspace/scratch/d286b3aeeb6b/recovery/224-author-final/raw/shared224-native-O0-190-4/.zil-driver-190-56/.zil-build-190-1/program"
+        ]
+      ]
+    },
+    {
+      "case": "shared224-native-O2-190-40",
+      "status": "Success",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 976,
+            "input_kind": "builder",
+            "preflight_ns": 552118,
+            "builder_ns": 336700,
+            "parse_ns": 0,
+            "optimize_ns": 3324710,
+            "emit_ns": 2461951,
+            "total_ns": 6947031
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "commands": [
+        [
+          "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O2",
+          "/workspace/scratch/d286b3aeeb6b/recovery/224-author-final/raw/shared224-native-O2-190-40/.zil-driver-190-166/.zil-build-190-2/unit-0.o",
+          "-o",
+          "/workspace/scratch/d286b3aeeb6b/recovery/224-author-final/raw/shared224-native-O2-190-40/.zil-driver-190-166/.zil-build-190-2/program"
+        ]
+      ]
+    }
+  ],
+  "allocator_runs": [
+    {
+      "fail_at": 0,
+      "exit_code": 0,
+      "case": "shared224-allocation-O0-190-1",
+      "allocator": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 48
+      },
+      "stdout": "XA"
+    },
+    {
+      "fail_at": 1,
+      "exit_code": 10,
+      "case": "shared224-allocation-O0-190-1",
+      "allocator": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stdout": "F"
+    },
+    {
+      "fail_at": 2,
+      "exit_code": 11,
+      "case": "shared224-allocation-O0-190-1",
+      "allocator": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16
+      },
+      "stdout": "GA"
+    },
+    {
+      "fail_at": 0,
+      "exit_code": 0,
+      "case": "shared224-allocation-O2-190-57",
+      "allocator": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 48
+      },
+      "stdout": "XA"
+    },
+    {
+      "fail_at": 1,
+      "exit_code": 10,
+      "case": "shared224-allocation-O2-190-57",
+      "allocator": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stdout": "F"
+    },
+    {
+      "fail_at": 2,
+      "exit_code": 11,
+      "case": "shared224-allocation-O2-190-57",
+      "allocator": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16
+      },
+      "stdout": "GA"
+    }
+  ],
+  "phase_boundaries": [
+    {
+      "types": 507,
+      "analyze": 11276,
+      "verify": 23195,
+      "n": "Success",
+      "n_minus_one": "ResourceLimit",
+      "fresh_n": "Success"
+    }
+  ],
+  "raw_archive": {
+    "file": "raw.tar.gz",
+    "sha256": "33cc0cf155a1c686a283e5636f105c3b922fe3f93f631941254da6b92d973ea1",
+    "bytes": 1015363
+  },
+  "limits": [
+    "Author tests are not independent review or whole-workspace acceptance.",
+    "Host Linux only; Windows and asynchronous execution are not tested.",
+    "No comparative Rust performance or product-gate conclusion."
+  ]
+}
