@@ -24,3 +24,6 @@ zil-backend-llvm.workspace = true
 [features]
 default = []
 llvm-api = ["zil-backend-llvm/llvm-api"]
+
+# Opt-in phase diagnostics; default builds erase the collector.
+timings = ["zil-backend-llvm/timings"]
