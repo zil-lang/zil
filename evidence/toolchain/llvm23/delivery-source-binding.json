@@ -1,0 +1,27 @@
+{
+  "source_commit": "48fa354559be0bc7f6330b388a367e30c7184312",
+  "source_tree": "0a5ce57b74581e55b34be381ca7f7b54f1ed921a",
+  "source_objects_unchanged_by_delivery": {
+    "crates": "00f82b6884c647269c76de05340cc4f82b98b0ea",
+    "tools": "be49ecf77e1ad328ddc80873f0bb03832338f617",
+    ".github": "91ff509061a3263bb6b777c67a811e53f2c14f3d",
+    "policy": "4ec216e68e0cb7d671c1080f68a8dad702177ee2",
+    "validation": "a29184c470b02779a6e5f700d7d5b6d6631c8a64",
+    "spec": "016186a1182a530865f801b040bf53a573e64dad",
+    "benches": "0383159bc7ee4e497eb948f09bf3e61031d31373",
+    "tests": "6ff4b02d607098ec0f46c9db5f50b9ddbde3c2d2",
+    "examples": "a14854319a592c47e797c109308d2374b52a4ff1",
+    "Cargo.toml": "d0e906f4852161e0d6e487124a633f5e0c094e8d",
+    "Cargo.lock": "9107f4a982d037b5736d62c8906f58b40805f431",
+    "rust-toolchain.toml": "58eef2ccd48f957feeada49b17ad1e3fd667bf8c",
+    "_zil_goal.md": "764add90f3a458f9f2317f7b195a9e73816682bd",
+    "_zil_design.md": "ab0ed6b5cf80934da64276aa9a33df3bb491504a"
+  },
+  "delivery_allowed_changes": [
+    ".task/toolchain/llvm23.md",
+    "docs/toolchain/llvm23/RESULT.md",
+    "evidence/toolchain/llvm23/"
+  ],
+  "claim": "The delivery commit only archives reports and evidence. CI run40921888880 remains bound to the implementation tree; it is not relabeled as a new CI execution.",
+  "verification": "Final staged diff and the remote created tree are checked against this allowlist before moving the branch."
+}

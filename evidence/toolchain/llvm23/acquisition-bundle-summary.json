@@ -1,0 +1,15 @@
+{
+  "bundle_path": "/workspace/scratch/037bacfed72a/llvm23-audit/acquisition-bundle.tar.xz",
+  "bytes": 1856036,
+  "sha256": "e693f451f909224a637b6abe05d6e2e4331f217a74b44c966b03f03a797439be",
+  "manifest_path": "/workspace/scratch/037bacfed72a/llvm23-audit/acquisition-bundle/MANIFEST.json",
+  "manifest_sha256": "e60194e21b05da6acae9e3cb97c1cb0a4e3fb03fb137b884ed20c50f8c58ac5a",
+  "file_count_including_manifest": 92,
+  "uncompressed_bytes_excluding_manifest": 19381882,
+  "all_archived_file_hashes_verified": true,
+  "missing_requested_small_files": [],
+  "source_candidate": "48fa354559be0bc7f6330b388a367e30c7184312",
+  "baseline_cli_sha256": "aeb711106c185d4eb5570a4a22c9ba64502e96e566fb40f73a8c96091d31ff66",
+  "retained_v3_dso_sha256": "4af7bc67bebd262ac4944cbd5a7996bdae1479cf61ee625ab1d98f44d1ceea75",
+  "recorded_removed_staging_currently_present": 9
+}

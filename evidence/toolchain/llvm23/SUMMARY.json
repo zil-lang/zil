@@ -1,0 +1,185 @@
+{
+  "status": "ImplementationAndExistingLinuxGatesComplete",
+  "recorded_date": "2026-10-30 Asia/Shanghai",
+  "branch": "chore/llvm-23-upgrade",
+  "baseline": "ad509b5003d9d2a303428f9d01732292988084d8",
+  "implementation_commit": "48fa354559be0bc7f6330b388a367e30c7184312",
+  "implementation_tree": "0a5ce57b74581e55b34be381ca7f7b54f1ed921a",
+  "crates_tree": "00f82b6884c647269c76de05340cc4f82b98b0ea",
+  "llvm_clang_lld": "23.1.4",
+  "rust_cargo": "1.99.1",
+  "ci": {
+    "run_id": 40921888880,
+    "job_id": 123617831611,
+    "url": "https://github.com/zil-lang/zil/actions/runs/40921888880",
+    "status": "Pass",
+    "pr_head": "48fa354559be0bc7f6330b388a367e30c7184312",
+    "actual_checkout": "6e673330a68333240d4e09f0ba02f78dd277bc4e",
+    "source_tree_equal_to_candidate": true,
+    "candidate_tree": "0a5ce57b74581e55b34be381ca7f7b54f1ed921a",
+    "source_tree_listing_sha256": "81ae4190dca3938687168406c5a0b67bcf54c81094c63da50a066a179e77655e",
+    "counts": {
+      "workspace": {
+        "passed": 2743,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0,
+        "summaries": 285,
+        "log_sha256": "1d1be695987d61a4cfe32ae1ce22c83597e91eb0b72366d87d18f48d1d599e72"
+      },
+      "reference": {
+        "passed": 2711,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0,
+        "summaries": 285,
+        "log_sha256": "6f15562af679d34c7c58540c35819ca8fb860d7eafe1e4a4aafdbb3df0489549"
+      },
+      "text-reference": {
+        "passed": 36,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0,
+        "summaries": 8,
+        "log_sha256": "c7da80e6f1fa8f64791bda65837f26318dc6421904756dc32e91aeb72a5c9837"
+      }
+    },
+    "complete_six_gates": "Pass",
+    "extra_text_reference": "Pass",
+    "synthetic_migration_runner": "9 Pass",
+    "performance": "NotMeasured",
+    "windows_native": "NotRun"
+  },
+  "migration_controls": {
+    "status": "Pass",
+    "builds": 10,
+    "native_runs": 10,
+    "commands": 33,
+    "controls": [
+      {
+        "name": "cache-O0",
+        "status": "Pass"
+      },
+      {
+        "name": "cache-O2",
+        "status": "Pass"
+      },
+      {
+        "name": "wrong-llvm-version",
+        "status": "Pass",
+        "kind": "version-function interposition"
+      },
+      {
+        "name": "wrong-clang-version",
+        "status": "Pass",
+        "kind": "actual Clang17 with LLVM23"
+      }
+    ],
+    "cells": [
+      {
+        "name": "O0-baseline-cold",
+        "units": 3,
+        "hits": 0,
+        "misses": 3,
+        "stored": 3
+      },
+      {
+        "name": "O0-baseline-warm",
+        "units": 3,
+        "hits": 3,
+        "misses": 0,
+        "stored": 0
+      },
+      {
+        "name": "O0-candidate-cold",
+        "units": 3,
+        "hits": 0,
+        "misses": 3,
+        "stored": 3
+      },
+      {
+        "name": "O0-baseline-warm-after-candidate",
+        "units": 3,
+        "hits": 3,
+        "misses": 0,
+        "stored": 0
+      },
+      {
+        "name": "O0-candidate-warm",
+        "units": 3,
+        "hits": 3,
+        "misses": 0,
+        "stored": 0
+      },
+      {
+        "name": "O2-baseline-cold",
+        "units": 1,
+        "hits": 0,
+        "misses": 1,
+        "stored": 1
+      },
+      {
+        "name": "O2-baseline-warm",
+        "units": 1,
+        "hits": 1,
+        "misses": 0,
+        "stored": 0
+      },
+      {
+        "name": "O2-candidate-cold",
+        "units": 1,
+        "hits": 0,
+        "misses": 1,
+        "stored": 1
+      },
+      {
+        "name": "O2-baseline-warm-after-candidate",
+        "units": 1,
+        "hits": 1,
+        "misses": 0,
+        "stored": 0
+      },
+      {
+        "name": "O2-candidate-warm",
+        "units": 1,
+        "hits": 1,
+        "misses": 0,
+        "stored": 0
+      }
+    ]
+  },
+  "consumer208": {
+    "status": "Pass",
+    "builds": 16,
+    "native_runs": 128,
+    "injected_failures": 56,
+    "object_receipts": 40,
+    "version": "23.1.4",
+    "builder_only": true,
+    "current_verify_every_build": true
+  },
+  "independent_static_and_limited_tests": "Pass;58 actual tests, not added to overlapping workspace counts",
+  "mainline_acceptance": "Pending review and merge of PR #7",
+  "main_unchanged": "ad509b5003d9d2a303428f9d01732292988084d8",
+  "performance": "NotMeasured",
+  "windows_native": "NotRun",
+  "product_gate": "NotRun; existing thresholds and language state unchanged",
+  "large_native_archives": "LocalOnly; extra Library upload rejected by automatic approval review, no workaround",
+  "local_reference_attempts": [
+    "InfrastructureFail: ENOSPC; Cargo exit unknown",
+    "InfrastructureInterrupted: session lost; termination cause and exit unknown"
+  ],
+  "complete_reference_basis": "CI2711/0/0 on exact equal source tree",
+  "report": "docs/toolchain/llvm23/RESULT.md",
+  "issue": "https://github.com/zil-lang/zil/issues/6",
+  "pr": "https://github.com/zil-lang/zil/pull/7",
+  "independent_acceptance_evidence_review": {
+    "verdict": "Pass",
+    "receipt": "acceptance-addendum.json",
+    "sha256": "b24c41bdec0d91944ca6819d8255a3ebab3bda490cf937c809ea9e7c2e8fa3be",
+    "scope": "Independent acceptance-evidence review for the LLVM 23.1.4 maintenance migration and existing Linux gates, combined with the prior exact-source static review and 58 independent limited native tests."
+  }
+}

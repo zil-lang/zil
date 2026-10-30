@@ -1,0 +1,45 @@
+{
+  "run_id": 40921888880,
+  "job_id": 123617831611,
+  "url": "https://github.com/zil-lang/zil/actions/runs/40921888880",
+  "status": "Pass",
+  "pr_head": "48fa354559be0bc7f6330b388a367e30c7184312",
+  "actual_checkout": "6e673330a68333240d4e09f0ba02f78dd277bc4e",
+  "source_tree_equal_to_candidate": true,
+  "candidate_tree": "0a5ce57b74581e55b34be381ca7f7b54f1ed921a",
+  "source_tree_listing_sha256": "81ae4190dca3938687168406c5a0b67bcf54c81094c63da50a066a179e77655e",
+  "counts": {
+    "workspace": {
+      "passed": 2743,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0,
+      "summaries": 285,
+      "log_sha256": "1d1be695987d61a4cfe32ae1ce22c83597e91eb0b72366d87d18f48d1d599e72"
+    },
+    "reference": {
+      "passed": 2711,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0,
+      "summaries": 285,
+      "log_sha256": "6f15562af679d34c7c58540c35819ca8fb860d7eafe1e4a4aafdbb3df0489549"
+    },
+    "text-reference": {
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0,
+      "summaries": 8,
+      "log_sha256": "c7da80e6f1fa8f64791bda65837f26318dc6421904756dc32e91aeb72a5c9837"
+    }
+  },
+  "complete_six_gates": "Pass",
+  "extra_text_reference": "Pass",
+  "synthetic_migration_runner": "9 Pass",
+  "performance": "NotMeasured",
+  "windows_native": "NotRun"
+}
