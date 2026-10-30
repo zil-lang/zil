@@ -2,7 +2,7 @@
 //! only successful immutable syntax is reused. No verifier permit is stored.
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::{self, Write};
+use std::io::{self, BufWriter, Write};
 use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
@@ -270,7 +270,6 @@ impl Prepared {
                     std::process::id(),
                     NEXT.fetch_add(1, Ordering::Relaxed)
                 ));
-                let cleanup = Temporary(temp.clone());
                 let mut open = fs::OpenOptions::new();
                 open.write(true).create_new(true);
                 #[cfg(unix)]
@@ -278,18 +277,25 @@ impl Prepared {
                     use std::os::unix::fs::OpenOptionsExt;
                     open.mode(0o600);
                 }
-                let mut file = open.open(&temp)?;
+                let file = open.open(&temp)?;
+                // The cleanup guard owns only a file this request created.
+                // A create_new collision must leave the existing path intact.
+                let mut cleanup = Temporary(Some(temp.clone()));
+                let mut file = BufWriter::new(file);
                 file.write_all(MAGIC)?;
                 file.write_all(&key.0)?;
                 file.write_all(&Fingerprint::of(&payload).0)?;
                 file.write_all(&(payload.len() as u64).to_le_bytes())?;
                 file.write_all(&payload)?;
-                file.sync_all()?;
+                // This memo can be rebuilt after a crash. Flush all buffered
+                // bytes before close/rename; no power-loss durability is promised.
+                file.flush()?;
                 drop(file);
                 if options.cancellation.is_cancelled() {
                     return Err(invalid("parse cache publication cancelled"));
                 }
-                fs::rename(&cleanup.0, &path)?;
+                fs::rename(&temp, &path)?;
+                cleanup.0 = None;
                 Ok(())
             })();
             match result {
@@ -299,9 +305,11 @@ impl Prepared {
         }
     }
 }
-struct Temporary(PathBuf);
+struct Temporary(Option<PathBuf>);
 impl Drop for Temporary {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
+        if let Some(path) = &self.0 {
+            let _ = fs::remove_file(path);
+        }
     }
 }

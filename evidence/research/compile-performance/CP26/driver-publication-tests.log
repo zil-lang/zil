@@ -1,0 +1,56 @@
+$ source /workspace/scratch/4ab361722127/.toolchain/env.sh
+CARGO_TARGET_DIR=/workspace/scratch/4ab361722127/target-cp26 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=2 cargo test --offline --locked -p zil-driver --test parse_publication_cp26 --test parse_cache_cp22 --test query_cache_cp12 -j 2
+   Compiling zil-base v0.1.0 (/workspace/scratch/4ab361722127/zil-cp26/crates/zil-base)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/4ab361722127/zil-cp26/crates/zil-llvm-api)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/4ab361722127/zil-cp26/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/4ab361722127/zil-cp26/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/4ab361722127/zil-cp26/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/4ab361722127/zil-cp26/crates/zil-types)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/4ab361722127/zil-cp26/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/4ab361722127/zil-cp26/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/4ab361722127/zil-cp26/crates/zil-ct)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/4ab361722127/zil-cp26/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/4ab361722127/zil-cp26/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/4ab361722127/zil-cp26/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/4ab361722127/zil-cp26/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 14.54s
+     Running tests/parse_cache_cp22.rs (/workspace/scratch/4ab361722127/target-cp26/debug/deps/parse_cache_cp22-1c4e5c23cc7fbd89)
+
+running 6 tests
+test failed_cancelled_or_invalid_artifact_requests_do_not_create_cache_directories ... ok
+test session_parse_keys_do_not_depend_on_preceding_module_consumption ... ok
+test damaged_entries_fall_back_and_repair_without_skipping_verify ... ok
+test module_reordering_missing_files_and_ambiguous_paths_use_current_discovery ... ok
+test separate_sessions_reuse_unchanged_modules_after_early_token_count_edit ... ok
+test quota_depth_and_source_byte_failures_match_uncached_first_diagnostics ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/parse_publication_cp26.rs (/workspace/scratch/4ab361722127/target-cp26/debug/deps/parse_publication_cp26-16018e175bfc7df4)
+
+running 4 tests
+test create_new_collision_preserves_unowned_files_and_existing_cache ... ok
+test write_or_flush_failure_is_advisory_and_retry_restores_cache ... ok
+test rename_failure_preserves_destination_and_cleans_only_owned_temporary ... ok
+test large_payload_roundtrip_and_repair_are_complete_atomic_publications ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/query_cache_cp12.rs (/workspace/scratch/4ab361722127/target-cp26/debug/deps/query_cache_cp12-3929aabdec51c2a1)
+
+running 12 tests
+test link_failure_and_cancellation_never_publish_a_checkpoint ... ok
+test ambiguity_missing_source_parse_error_and_artifact_alias_precede_lookup ... ok
+test nonprivate_or_symlink_cache_directory_bypasses_without_changing_build ... ok
+test codec_transport_quota_cannot_reduce_language_acceptance ... ok
+test existing_memory_ct_snapshot_without_usage_receipt_is_not_persisted ... ok
+test checksum_valid_raw_candidate_still_needs_current_verify_without_retry ... ok
+test original_source_candidate_cache_keeps_its_separate_status ... ok
+test source_selection_bypasses_checkpoint_and_replays_current_ct_budget ... ok
+test ct_exact_limit_and_n_minus_one_match_uncached_requests ... ok
+test cold_unchanged_and_both_edits_use_current_source_and_fresh_verify ... ok
+test stop_after_emit_dir_and_memory_entry_visibly_bypass ... ok
+test truncated_and_corrupt_entries_rebuild_before_single_verify ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+

@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "scope": "Live handoff record integrity; not language correctness, review quality or full task acceptance.",
+  "status": "Fail",
+  "snapshot_only": true,
+  "authority": {
+    "method": "explicit-main-worktree",
+    "task_root": ".task",
+    "current_is_main": false,
+    "main_tree_now": "/workspace/scratch/4ab361722127/zil"
+  },
+  "current_head": "7ca57fb61aa6fe4f7cac963a531a6cf2851792e4",
+  "main_head": "5da80031d1525799867a5e81270c0dcf89ba4e01",
+  "spec_hash": "58e6c031b059a1efbdbe49a7f0c2eecd61fed0518be1e9d04a0af2f75b07a9cf",
+  "normative_hash": null,
+  "worktrees": [
+    {
+      "branch": "refs/heads/research/compile-performance",
+      "head": "5da80031d1525799867a5e81270c0dcf89ba4e01",
+      "is_main": true
+    },
+    {
+      "branch": "refs/heads/research/cp21-new-query",
+      "head": "f31fa58c4b0cf3f5fdd264e938dc2cb6646202bd",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/research/cp22-parse-cache",
+      "head": "7ca57fb61aa6fe4f7cac963a531a6cf2851792e4",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/research/cp23-query-read",
+      "head": "4496b1ab6c62ff1131dfbe4e09b33467f346099c",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/research/cp26-parse-publication",
+      "head": "7ca57fb61aa6fe4f7cac963a531a6cf2851792e4",
+      "is_main": false
+    }
+  ],
+  "measured": null,
+  "tasks": [],
+  "slices": [],
+  "next": [],
+  "commands": {
+    "cold_start": "node tools/handoff.mjs --check",
+    "restore": "git clone --branch main HISTORY_BUNDLE_PATH zil-checkout",
+    "restore_hint": "Replace HISTORY_BUNDLE_PATH with the actual companion path named by PACKAGE.json companions.history.file",
+    "plan": "python3 tools/check-plan.py --self-test",
+    "draft": "python3 tools/validate-draft.py"
+  },
+  "warnings": [],
+  "errors": [
+    {
+      "id": "authority",
+      "reason": "Explicit authority must be the main branch checkout."
+    },
+    {
+      "id": "data/normative-inputs.json",
+      "reason": "Cannot read JSON: ENOENT: no such file or directory, open '/workspace/scratch/4ab361722127/zil/data/normative-inputs.json'"
+    },
+    {
+      "id": "normative",
+      "reason": "Normative input registry has no file hashes."
+    },
+    {
+      "id": "tasks",
+      "reason": "No formal task records were found."
+    }
+  ],
+  "output": null
+}

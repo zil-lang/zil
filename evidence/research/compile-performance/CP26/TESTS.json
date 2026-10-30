@@ -1,0 +1,54 @@
+{
+  "base_commit": "7ca57fb61aa6fe4f7cac963a531a6cf2851792e4",
+  "crates_tree": "7e5def64ddddb7def8637bb96d8ab69f6f3813e6",
+  "source_files": {
+    "crates/zil-driver/src/parse_cache.rs": "980ac3ac90b2425cd0ee6e38bcdfbb63491588390de52eb093fc9e083259e5c5",
+    "crates/zil-driver/tests/parse_publication_cp26.rs": "625eac1ca6ea859e23267e10691550db2cb55fe16b8b03f7e3014d0c82629598"
+  },
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "parse_publication_cp26",
+    "--test",
+    "parse_cache_cp22",
+    "--test",
+    "query_cache_cp12",
+    "-j",
+    "2"
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/4ab361722127/target-cp26",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_BUILD_JOBS": "2",
+    "toolchain_env": "/workspace/scratch/4ab361722127/.toolchain/env.sh"
+  },
+  "result": {
+    "exit_code": 0,
+    "passed": 22,
+    "failed": 0,
+    "ignored": 0,
+    "targets": {
+      "parse_publication_cp26": 4,
+      "parse_cache_cp22": 6,
+      "query_cache_cp12": 12
+    },
+    "nested_children_counted_once": true
+  },
+  "logs": {
+    "handoff.log": "fa94fe6bf821ae1447e020576034cc8d5cc6233906bc2531ae2e181ce341ad21",
+    "driver-publication-tests.log": "434404250e09e634b70e6dcff5b465239761f89a3cc1ce4b466256157364506e"
+  },
+  "handoff": {
+    "exit_code": 1,
+    "status": "Fail",
+    "reason": "Restored research-only checkout lacks main authority checkout and normative registry; explicit root delegation remains authoritative."
+  },
+  "performance": "NotRun; no performance conclusion from these controls"
+}
