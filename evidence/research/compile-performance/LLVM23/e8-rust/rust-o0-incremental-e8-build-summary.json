@@ -1,0 +1,172 @@
+{
+  "schema": "zil-rust-compile-performance/1",
+  "plan_sha256": "77a5fc00a52da34d6a20f2e7b030f2e2a5402258bc67040d4ec819c75858e5e1",
+  "preflight_sha256": "510da3fbcf87334306e9b57932944f49bcaddb18c51174db5ad9b3526f64e717",
+  "records_sha256": "861e02b7a4f903f1a2f99f1aedc3e5457968480b552e82784b4a7fb4dd6c1291",
+  "kind": "build",
+  "arm_A": "Rust",
+  "arm_B": "ZIL",
+  "source_identity": {
+    "B": {
+      "commit": "e8e274c1b28509547a4854d46708ae1601e756e4",
+      "crates_tree": "398e091f55a5d42f5562331e1ac5b09622f9f014"
+    }
+  },
+  "versions": {
+    "rustc": {
+      "argv": [
+        "/workspace/scratch/ac5966c4c370/toolchains/rust-1.99.1/bin/rustc",
+        "-Vv"
+      ],
+      "exit": 0,
+      "stdout": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "stderr": ""
+    },
+    "zil": {
+      "argv": [
+        "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "zil 0.1.0 (ZIL-LANG-1.4; Rust 2024; compiler draft; default backend: llvm-api)\n",
+      "stderr": ""
+    },
+    "clang": {
+      "argv": [
+        "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin\n",
+      "stderr": ""
+    }
+  },
+  "profile": "O0",
+  "cache_mode": "incremental",
+  "rust_profile": "native",
+  "units": 8,
+  "jobs": 4,
+  "selected_original_weight": 1.0,
+  "rows": 240,
+  "failures": [],
+  "coverage_complete": true,
+  "completion_receipt_matches": true,
+  "scope": "Full compiler process to complete executable, with current Verify/lowering/codegen/link/publication; no Cargo no-op, no persistent-session shortcut; OS pages not flushed",
+  "comparison_limits": "80% synthetic called trees at default weights; retained uses Rust Vec and ZIL ByteBuffer; precompiled Rust std vs host libc; checked valid inputs do not establish identical panic/allocation-failure behavior or whole-language equivalence",
+  "product_gates": "NotRun",
+  "independent_review": "NotRun",
+  "wall": {
+    "A": 0.41882852905874995,
+    "B": 0.5888647356675,
+    "B_over_A": 1.4059804784332126,
+    "by_case": {
+      "tree4x2": {
+        "A": 0.05917397025,
+        "B": 0.0346532444,
+        "B_over_A": 0.5856163487694996
+      },
+      "tree32x8": {
+        "A": 0.086310485475,
+        "B": 0.0665979721,
+        "B_over_A": 0.7716092863281394
+      },
+      "tree256x8": {
+        "A": 0.30051339415,
+        "B": 0.381022304175,
+        "B_over_A": 1.2679045646292035
+      },
+      "tree1024x8": {
+        "A": 0.9969149984500001,
+        "B": 1.5193677026,
+        "B_over_A": 1.5240694592440756
+      },
+      "retained": {
+        "A": 0.06847369972499999,
+        "B": 0.035126878,
+        "B_over_A": 0.5129981020607106
+      }
+    },
+    "by_request": {
+      "cold_process": {
+        "A": 0.9711108596249999,
+        "B": 0.9182332415250001,
+        "B_over_A": 0.945549349411643
+      },
+      "unchanged": {
+        "A": 0.341067073575,
+        "B": 0.520194035225,
+        "B_over_A": 1.5251957035090644
+      },
+      "private_edit": {
+        "A": 0.36843824639999995,
+        "B": 0.5750225433499999,
+        "B_over_A": 1.5607026386878384
+      },
+      "public_edit": {
+        "A": 0.3664577919,
+        "B": 0.5664298789750001,
+        "B_over_A": 1.5456892758049718
+      }
+    }
+  },
+  "cpu": {
+    "A": 0.43956202375,
+    "B": 0.6514312037500001,
+    "B_over_A": 1.4820006473546046,
+    "by_case": {
+      "tree4x2": {
+        "A": 0.06243182499999999,
+        "B": 0.034587049999999994,
+        "B_over_A": 0.5539971000367201
+      },
+      "tree32x8": {
+        "A": 0.09146485,
+        "B": 0.066805225,
+        "B_over_A": 0.7303923310430182
+      },
+      "tree256x8": {
+        "A": 0.312814825,
+        "B": 0.4126871,
+        "B_over_A": 1.3192696349989166
+      },
+      "tree1024x8": {
+        "A": 1.0479537749999999,
+        "B": 1.6963045749999996,
+        "B_over_A": 1.61868263225637
+      },
+      "retained": {
+        "A": 0.07245062499999999,
+        "B": 0.034917825,
+        "B_over_A": 0.4819533992977977
+      }
+    },
+    "by_request": {
+      "cold_process": {
+        "A": 1.071417675,
+        "B": 0.94746425,
+        "B_over_A": 0.8843089600887908
+      },
+      "unchanged": {
+        "A": 0.3516180999999999,
+        "B": 0.5728558499999999,
+        "B_over_A": 1.6291989803710336
+      },
+      "private_edit": {
+        "A": 0.3818845999999999,
+        "B": 0.6377164999999999,
+        "B_over_A": 1.6699193944977098
+      },
+      "public_edit": {
+        "A": 0.377333875,
+        "B": 0.673990875,
+        "B_over_A": 1.7861923343087074
+      }
+    }
+  },
+  "exploratory_paired_block_bootstrap95": [
+    1.327228954121778,
+    1.4679763574921445
+  ],
+  "interval_scope": "Shared host, finite paired blocks; descriptive interval, not product confidence or whole-language claim",
+  "verdict": "ExploratoryComplete_NotAProductGate"
+}

@@ -1,0 +1,158 @@
+{
+  "source": "e8e274c1b28509547a4854d46708ae1601e756e4",
+  "absolute_to_archive_prefix": {
+    "/tmp/zil-llvm23-measurements-e8": "measurements",
+    "/workspace/scratch/ac5966c4c370/runs/rust-o0-cold-e8-plan": "plans/rust-o0-cold-e8",
+    "/workspace/scratch/ac5966c4c370/runs/rust-o0-cold-e8-preflight": "preflights/rust-o0-cold-e8",
+    "/workspace/scratch/ac5966c4c370/runs/rust-o0-incremental-e8-plan": "plans/rust-o0-incremental-e8",
+    "/workspace/scratch/ac5966c4c370/runs/rust-o0-incremental-e8-preflight": "preflights/rust-o0-incremental-e8",
+    "/workspace/scratch/ac5966c4c370/runs/rust-o2-cold-e8-plan": "plans/rust-o2-cold-e8",
+    "/workspace/scratch/ac5966c4c370/runs/rust-o2-cold-e8-preflight": "preflights/rust-o2-cold-e8"
+  },
+  "archive": "raw-records-plans-preflights.tar.xz",
+  "archive_sha256": "e0910d06a510f51530fdf6cbcdbee707902667f8a16df26b5dde0acd4f5b6b4d",
+  "archive_bytes": 16129628,
+  "physical_exclusivity": false,
+  "product_gates": "NotRun",
+  "independent_result_review": "Pending",
+  "facts": {
+    "rust-o0-cold-e8/build": {
+      "rows": 60,
+      "wall_A_seconds": 0.6358930001499999,
+      "wall_B_seconds": 0.60926208225,
+      "B_over_A": 0.9581204418137674,
+      "bootstrap95": [
+        0.8668290310908465,
+        1.092250232722009
+      ],
+      "without_largest_tree_sensitivity": {
+        "A": 0.22409614621428572,
+        "B": 0.1828738553571429,
+        "B_over_A": 0.8160508712286147
+      },
+      "retained": {
+        "A": 0.069191106,
+        "B": 0.037649926,
+        "B_over_A": 0.5441440118040605
+      },
+      "coverage_complete": true,
+      "failures": [],
+      "completion_receipt_matches": true
+    },
+    "rust-o0-cold-e8/runtime": {
+      "rows": 60,
+      "wall_A_seconds": 0.0913753913,
+      "wall_B_seconds": 0.061806578375,
+      "B_over_A": 0.6764028858938522,
+      "bootstrap95": [
+        0.674488618677333,
+        0.6913581700511453
+      ],
+      "without_largest_tree_sensitivity": {
+        "A": 0.04588115471428572,
+        "B": 0.04430253167857143,
+        "B_over_A": 0.9655932147840479
+      },
+      "retained": {
+        "A": 0.00842789,
+        "B": 0.0071306,
+        "B_over_A": 0.8460717925839089
+      },
+      "coverage_complete": true,
+      "failures": [],
+      "completion_receipt_matches": true
+    },
+    "rust-o0-incremental-e8/build": {
+      "rows": 240,
+      "wall_A_seconds": 0.41882852905874995,
+      "wall_B_seconds": 0.5888647356675,
+      "B_over_A": 1.4059804784332126,
+      "bootstrap95": [
+        1.327228954121778,
+        1.4679763574921445
+      ],
+      "without_largest_tree_sensitivity": {
+        "A": 0.17107718503392857,
+        "B": 0.19007774983928571,
+        "B_over_A": 1.11106428248506
+      },
+      "retained": {
+        "A": 0.06847369972499999,
+        "B": 0.035126878,
+        "B_over_A": 0.5129981020607106
+      },
+      "coverage_complete": true,
+      "failures": [],
+      "completion_receipt_matches": true
+    },
+    "rust-o0-incremental-e8/runtime": {
+      "rows": 60,
+      "wall_A_seconds": 0.10369045105,
+      "wall_B_seconds": 0.06669618932499999,
+      "B_over_A": 0.6432240254489663,
+      "bootstrap95": [
+        0.6294283020292428,
+        0.6772814618291326
+      ],
+      "without_largest_tree_sensitivity": {
+        "A": 0.05411390092857143,
+        "B": 0.047247033464285715,
+        "B_over_A": 0.8731034476085959
+      },
+      "retained": {
+        "A": 0.0098280095,
+        "B": 0.007900921,
+        "B_over_A": 0.8039187385807879
+      },
+      "coverage_complete": true,
+      "failures": [],
+      "completion_receipt_matches": true
+    },
+    "rust-o2-cold-e8/build": {
+      "rows": 60,
+      "wall_A_seconds": 1.135968030925,
+      "wall_B_seconds": 4.821914022274999,
+      "B_over_A": 4.244762080450974,
+      "bootstrap95": [
+        4.146801565689565,
+        4.589301061064993
+      ],
+      "without_largest_tree_sensitivity": {
+        "A": 0.37458079867857147,
+        "B": 1.3970269683928571,
+        "B_over_A": 3.7295744291251
+      },
+      "retained": {
+        "A": 0.0923044425,
+        "B": 0.0542366655,
+        "B_over_A": 0.5875845628990176
+      },
+      "coverage_complete": true,
+      "failures": [],
+      "completion_receipt_matches": true
+    },
+    "rust-o2-cold-e8/runtime": {
+      "rows": 60,
+      "wall_A_seconds": 0.037196536775000004,
+      "wall_B_seconds": 0.036320959225000005,
+      "B_over_A": 0.9764607776445339,
+      "bootstrap95": [
+        0.9115930898672822,
+        1.0120236611498405
+      ],
+      "without_largest_tree_sensitivity": {
+        "A": 0.03376027625,
+        "B": 0.03201453067857143,
+        "B_over_A": 0.9482899500436235
+      },
+      "retained": {
+        "A": 0.004784770000000001,
+        "B": 0.004081733000000001,
+        "B_over_A": 0.8530677545629153
+      },
+      "coverage_complete": true,
+      "failures": [],
+      "completion_receipt_matches": true
+    }
+  }
+}

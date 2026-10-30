@@ -149,7 +149,7 @@ Doing
     "CP11": {
       "status": "Doing",
       "author": "/root/toolchain_setup + /root",
-      "baseline": "40ce76276",
+      "baseline": "40ce762767f22d661fb94f1d8fca4dab68fef279",
       "purpose": "Preserve all validation and logical costs while sharing SourceMap index and moving owned AST/machine arguments",
       "plan": "docs/research/compile-performance/CP11-13-PLAN.md",
       "write_set": [
@@ -167,7 +167,7 @@ Doing
     "CP12": {
       "status": "Doing",
       "author": "/root/benchmark_audit",
-      "baseline": "40ce76276",
+      "baseline": "40ce762767f22d661fb94f1d8fca4dab68fef279",
       "purpose": "Explicit trusted local frontend checkpoint; complete unchanged input only, fresh independent Verify and budget accounting",
       "plan": "docs/research/compile-performance/CP11-13-PLAN.md",
       "write_set": [
@@ -178,19 +178,27 @@ Doing
         "crates/zil-ir/src/program.rs",
         "crates/zil-ir/src/wire.rs",
         "evidence/research/compile-performance/CP12",
-        "docs/research/compile-performance/CP12-QUERY-CACHE.md"
+        "docs/research/compile-performance/CP12-QUERY-CACHE.md",
+        "crates/zil-backend-llvm/src/lib.rs",
+        "crates/zil-backend-llvm/src/object_cache.rs"
       ],
       "performance": "Pending fresh results"
     },
     "CP13": {
       "status": "Doing",
       "author": "/root/llvm_strategy",
-      "baseline": "40ce76276",
+      "baseline": "40ce762767f22d661fb94f1d8fca4dab68fef279",
       "purpose": "Investigate O2 multi-CGU configuration and optimization scope with runtime quality controls",
       "plan": "docs/research/compile-performance/CP11-13-PLAN.md",
       "write_set": [
         "evidence/research/compile-performance/CP13",
-        "docs/research/compile-performance/CP13-O2.md"
+        "docs/research/compile-performance/CP13-O2.md",
+        "crates/zil-backend-llvm/src/build.rs",
+        "crates/zil-backend-llvm/src/machine_cgu.rs",
+        "crates/zil-backend-llvm/tests",
+        "crates/zil-driver/src/lib.rs",
+        "crates/zil-driver/src/session.rs",
+        "crates/zil-cli/src/main.rs"
       ],
       "performance": "Pending fresh results"
     }
