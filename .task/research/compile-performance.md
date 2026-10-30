@@ -147,7 +147,7 @@ Doing
       "performance": "Pending fresh quiet-window results"
     },
     "CP11": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/toolchain_setup + /root",
       "baseline": "40ce762767f22d661fb94f1d8fca4dab68fef279",
       "purpose": "Preserve all validation and logical costs while sharing SourceMap index and moving owned AST/machine arguments",
@@ -162,10 +162,21 @@ Doing
         "crates/zil-backend-llvm/src/emit/resource_closures.rs",
         "evidence/research/compile-performance/CP11"
       ],
-      "performance": "Pending fresh results"
+      "performance": "Pending frozen LLVM23 round-two complete build and runtime windows",
+      "measurement_plan": "docs/research/compile-performance/LLVM23-ROUND2-MEASUREMENT-PLAN.md",
+      "candidates": [
+        "0093420b178a75717c406c6fa54c0c9d0b99d243",
+        "53f3c0ac64306a3730448123d13dbd9c88e7d7e1",
+        "4b2beb13b146d29683b9088b56346d4f15e97409"
+      ],
+      "reviews": [
+        "fb75e827413e32c55a539ade314ad93cc8a766ca",
+        "c73248e4d9711f26e3dea8891ca7253e27ca3851",
+        "be3d2dbe6fc90e8ea8661442a767b45babbf035c"
+      ]
     },
     "CP12": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/benchmark_audit",
       "baseline": "40ce762767f22d661fb94f1d8fca4dab68fef279",
       "purpose": "Explicit trusted local frontend checkpoint; complete unchanged input only, fresh independent Verify and budget accounting",
@@ -182,10 +193,13 @@ Doing
         "crates/zil-backend-llvm/src/lib.rs",
         "crates/zil-backend-llvm/src/object_cache.rs"
       ],
-      "performance": "Pending fresh results"
+      "performance": "Pending frozen LLVM23 round-two complete build and runtime windows",
+      "measurement_plan": "docs/research/compile-performance/LLVM23-ROUND2-MEASUREMENT-PLAN.md",
+      "candidate": "397bf24fef0d7f58aaefb444c17c733652b5e12f",
+      "review": "8d8bf861df1b33883002398907ed82d05379a711"
     },
     "CP13": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/llvm_strategy",
       "baseline": "40ce762767f22d661fb94f1d8fca4dab68fef279",
       "purpose": "Investigate O2 multi-CGU configuration and optimization scope with runtime quality controls",
@@ -200,7 +214,16 @@ Doing
         "crates/zil-driver/src/session.rs",
         "crates/zil-cli/src/main.rs"
       ],
-      "performance": "Pending fresh results"
+      "performance": "Pending frozen LLVM23 round-two complete build and runtime windows",
+      "measurement_plan": "docs/research/compile-performance/LLVM23-ROUND2-MEASUREMENT-PLAN.md",
+      "candidates": [
+        "6d3f01580c1ae921a1b26b410a8288acc8dff4ba",
+        "ec089eab8088d1e616515fb573b66576323765e9"
+      ],
+      "reviews": [
+        "ac10f2c54",
+        "4d181f2add1694862db6860e8156f052c86a169a"
+      ]
     }
   },
   "mainline_acceptance": "Hold: CP02 disabled-path compile cost requires further validation",
