@@ -31,3 +31,5 @@ CP22由 `/root/zit_analysis` 实施：在现有显式 `--query-cache` 的trusted
 ## CP24 对称增量桥接
 
 原旧新ZIL桥接默认只开source/object缓存，不能隔离CP22；增加显式 `--query-cache` 选项，使A/B两臂同样启用前端缓存，默认路径不变。计划冻结该布尔值、完整argv及query/parse报告，summary核对请求状态和原始日志。五语料、四请求权重、ABBA顺序及估计器原样保留；这是单独窗口，不与历史关闭query的结果合并。作者为根，独审仍由另一代理进行。
+
+CP24已由非作者绑定 `c24cc08333dfb4ee710a7443414093f82841e0eb` 独审Pass：67项原有/新增Python测试及18项独立控制（含24种命令组合）。这是runner一致性证据，不是性能结论。旧计划仍须匹配原runner哈希；真实窗口另外核对query状态与parse命中，不能用requested=true替代实际缓存生效。

@@ -1,12 +1,21 @@
 import fs from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // Execute the uploaded reactive kernel verbatim after TypeScript erasure.
 // Imported DOM/helper modules were not supplied. Only synchronous numeric
 // reactive paths are exercised; the helpers used there are supplied below.
-const input = '/workspace/scratch/4ab361722127/upload/zit.ts';
-const original = await fs.readFile(input, 'utf8');
+const [inputArg, outputArg, ...extra] = process.argv.slice(2);
+if (!inputArg || !outputArg || extra.length) {
+ throw new Error('Usage: node zit-mechanisms.mjs <original-zit.ts> <new-result.json>');
+}
+const input = path.resolve(inputArg), output = path.resolve(outputArg);
+const sourceBytes = await fs.readFile(input);
+const original = sourceBytes.toString('utf8');
 const prelude = `
 const _=undefined, doc={}, Obj=Object, G=globalThis, ONCE={once:true};
 const lisn=()=>{}, oHas=(o,k)=>Object.prototype.hasOwnProperty.call(o,k), oKeys=Object.keys;
@@ -19,9 +28,15 @@ const oDefs=Object.defineProperties, okr=x=>Promise.resolve(x), oAsg=Object.assi
 const $ops=undefined, setMutReplay=()=>{}, $zss=undefined, $cls=new Set();
 `;
 const withoutImports = original.split('\n').filter(line=>!line.startsWith('import ')).join('\n');
-const file='/tmp/zil-review/zit-mechanisms-kernel.mjs';
-await fs.writeFile(file, stripTypeScriptTypes(prelude+withoutImports,{mode:'transform'}));
-const z=await import(file);
+const temporary = await fs.mkdtemp(path.join(tmpdir(), 'zil-zit-mechanisms-'));
+let z;
+try {
+ const file = path.join(temporary, 'kernel.mjs');
+ await fs.writeFile(file, stripTypeScriptTypes(prelude+withoutImports,{mode:'transform'}));
+ z = await import(pathToFileURL(file).href);
+} finally {
+ await fs.rm(temporary, {recursive:true, force:true});
+}
 const errors=[]; z.$hk.err=(e)=>errors.push(e.message);
 const rows=[];
 
@@ -81,5 +96,5 @@ const rows=[];
  for(let i=0;i<1100;i++){flag.$=!flag.$;z.flush();assert.equal(sink.$,3);}
  rows.push({case:'acyclic_dynamic_edge_direction_changes',changes:1100,finalHeight:[a.h,b.h,sink.h],cycleWarnings:errors.length-startErrors,eachCurrentGraphAcyclic:true});
 }
-await fs.writeFile('/tmp/zil-review/zit-mechanisms-result.json',JSON.stringify({input,scope:'Synchronous numeric paths from uploaded zit.ts with utility stubs; no DOM/asynchronous/performance claim',rows,errors},null,2));
+await fs.writeFile(output,JSON.stringify({input,source_sha256:createHash('sha256').update(sourceBytes).digest('hex'),node:process.version,scope:'Synchronous numeric paths from uploaded zit.ts with utility stubs; no DOM/asynchronous/performance claim',rows,errors},null,2)+'\n',{flag:'wx'});
 console.log(JSON.stringify(rows,null,2));

@@ -1,5 +1,7 @@
 {
   "input": "/workspace/scratch/4ab361722127/upload/zit.ts",
+  "source_sha256": "719a914356a24ac1edbeb1ffe6637d22311c9299e6be9ddbcdf3f7fdddf1474f",
+  "node": "v24.22.1",
   "scope": "Synchronous numeric paths from uploaded zit.ts with utility stubs; no DOM/asynchronous/performance claim",
   "rows": [
     {

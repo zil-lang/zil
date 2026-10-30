@@ -1,0 +1,59 @@
+{
+  "scope": "Release compiler preparation only. No compiler benchmark was run.",
+  "variants": [
+    {
+      "variant": "CP21",
+      "source_commit": "f31fa58c4b0cf3f5fdd264e938dc2cb6646202bd",
+      "crates_tree": "1bf6911d39cc9bde40f6b7f43fbebb3d1ecaf3a0",
+      "worktree": "/workspace/scratch/4ab361722127/zil-cp21",
+      "target_directory": "/workspace/scratch/4ab361722127/build-cp21",
+      "command": "source /workspace/scratch/4ab361722127/.toolchain/env.sh\nexport CARGO_TARGET_DIR=/workspace/scratch/4ab361722127/build-cp21\nexport CARGO_INCREMENTAL=0\nexport CARGO_BUILD_JOBS=2\nexec cargo build --offline --locked --release -p zil-cli",
+      "argv": [
+        "bash",
+        "-c",
+        "source /workspace/scratch/4ab361722127/.toolchain/env.sh\nexport CARGO_TARGET_DIR=/workspace/scratch/4ab361722127/build-cp21\nexport CARGO_INCREMENTAL=0\nexport CARGO_BUILD_JOBS=2\nexec cargo build --offline --locked --release -p zil-cli"
+      ],
+      "started_at_utc": "2026-10-30T17:47:01.644512+00:00",
+      "log_path": "/tmp/zil-review/build-cp21.log",
+      "status": "success",
+      "other_inherited_build_overrides": {},
+      "exit_code": 0,
+      "finished_at_utc": "2026-10-30T17:48:16.436427+00:00",
+      "log_sha256": "79fe6d6059e4a769b21a032f40c584eef2fb2ca1eb6f8fcee960f0b06ae77580",
+      "source_commit_after": "f31fa58c4b0cf3f5fdd264e938dc2cb6646202bd",
+      "crates_tree_after": "1bf6911d39cc9bde40f6b7f43fbebb3d1ecaf3a0",
+      "worktree_status_after": "",
+      "binary_path": "/workspace/scratch/4ab361722127/build-cp21/release/zil",
+      "binary_sha256": "bd821394c63ae31467a48d37e754a41cdb3618a483874a32df07e50a5d3bfc17",
+      "binary_bytes": 7422344
+    },
+    {
+      "variant": "CP23",
+      "source_commit": "4496b1ab6c62ff1131dfbe4e09b33467f346099c",
+      "crates_tree": "96d1fd21ba1e1ccbd1b9418d7a62c555875445d6",
+      "worktree": "/workspace/scratch/4ab361722127/zil-cp23",
+      "target_directory": "/workspace/scratch/4ab361722127/build-cp23",
+      "command": "source /workspace/scratch/4ab361722127/.toolchain/env.sh\nexport CARGO_TARGET_DIR=/workspace/scratch/4ab361722127/build-cp23\nexport CARGO_INCREMENTAL=0\nexport CARGO_BUILD_JOBS=2\nexec cargo build --offline --locked --release -p zil-cli",
+      "argv": [
+        "bash",
+        "-c",
+        "source /workspace/scratch/4ab361722127/.toolchain/env.sh\nexport CARGO_TARGET_DIR=/workspace/scratch/4ab361722127/build-cp23\nexport CARGO_INCREMENTAL=0\nexport CARGO_BUILD_JOBS=2\nexec cargo build --offline --locked --release -p zil-cli"
+      ],
+      "started_at_utc": "2026-10-30T17:48:16.537778+00:00",
+      "log_path": "/tmp/zil-review/build-cp23.log",
+      "status": "success",
+      "other_inherited_build_overrides": {},
+      "exit_code": 0,
+      "finished_at_utc": "2026-10-30T17:49:32.419741+00:00",
+      "log_sha256": "eac1adef81e829c7a7b051393732fc84e7e91be43e9dd026c875dd1353853837",
+      "source_commit_after": "4496b1ab6c62ff1131dfbe4e09b33467f346099c",
+      "crates_tree_after": "96d1fd21ba1e1ccbd1b9418d7a62c555875445d6",
+      "worktree_status_after": "",
+      "binary_path": "/workspace/scratch/4ab361722127/build-cp23/release/zil",
+      "binary_sha256": "627ebcf0757b5ba17e8ff37eca3f0c1653246c74cb313fad5f1011a39822564c",
+      "binary_bytes": 7422568
+    }
+  ],
+  "toolchain_recovery_receipt": "/workspace/scratch/4ab361722127/.toolchain/TOOLCHAIN-RECOVERY.json",
+  "llvm_shared_sha256": "882e5f026688e2fe19af43b372b3c670b05e1471f1fb7c12b7007c5d0fc0f1d8"
+}

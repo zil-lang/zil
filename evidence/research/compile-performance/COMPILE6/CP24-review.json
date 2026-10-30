@@ -1,0 +1,41 @@
+{
+  "reviewer": "/root/incremental_review",
+  "candidate": "c24cc08333dfb4ee710a7443414093f82841e0eb",
+  "parent": "8bc38b24a75e56cfb9ca07d454aa22bf60190f2b",
+  "verdict": "Pass",
+  "scope": "CP24 runner correctness and synthetic validation only; not a compiler acceptance or performance verdict",
+  "reviewed_sha256": {
+    "tools/research/compile-performance/bench.py": "10a7cd80819589dfceacdc2a885e71e84c723b8c8cdf66c48682934e96308ace",
+    "tools/research/compile-performance/test_bench.py": "a54555af7df5069b386fda8f22662ad73dfd0ef4b30881e5a0c574fc86ac8dc6"
+  },
+  "independent_test": {
+    "command": "python3 -m unittest discover -s tools/research/compile-performance -p 'test_*.py' -v",
+    "exit": 0,
+    "passed": 67,
+    "failed": 0,
+    "seconds": 2.116,
+    "log": "CP24-test.log"
+  },
+  "additional_controls": {
+    "script": "cp24-probe.py",
+    "result": "CP24-probe-result.json",
+    "controls": 18,
+    "command_combinations": 24,
+    "all_passed": true
+  },
+  "findings": [
+    "Default and legacy missing query_cache field produce byte-for-byte parent argv across both arms, check/build phases, and object-cache settings.",
+    "Explicit query_cache=true adds the same option and per-sequence cache subdirectory in both arms; execute creates a distinct fresh work directory per sequence and retains it across exactly four requests.",
+    "prepare freezes the option without modifying request/case weights, ABBA ordering, estimators or schema identifier.",
+    "validate_rows binds query/parse excerpts to raw JSON and raw log hashes whenever query_cache is enabled; explicit query requested=true is required even after rehashing a changed raw report and updating its excerpt.",
+    "Independent controls reject query excerpt changes, parse excerpt changes, raw report edits, missing/wrong-type query report, integer requested=1, removed argv flag and changed cache path.",
+    "The same validation is reused by checked_preflight and summarize; failures suppress scores in the independently rerun suite.",
+    "Legacy schema/2 rows missing the new report excerpts validate under the false/missing flag. A historical plan must still use its original runner hash; changing to this runner does not bypass that existing freeze contract."
+  ],
+  "nonblocking_limits": [
+    "A matching requested=true report with state=bypass is intentionally accepted, and parse_cache may be absent to support older baseline binaries. A successful runner result alone does not establish actual CP22 cache engagement or hits; inspect raw report states and hit/miss counts in the real CLI window.",
+    "These 18 additional controls use synthetic reports and the author test fixture; they do not execute a compiler or establish timing results.",
+    "The raw-log/excerpt hash binding detects disagreement and retained-evidence mutation, not malicious wholesale re-creation of a plan, records, logs and receipts."
+  ],
+  "blocking_findings": []
+}

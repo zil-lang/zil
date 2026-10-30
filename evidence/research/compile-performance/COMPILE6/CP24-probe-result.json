@@ -1,0 +1,135 @@
+{
+  "commit": "c24cc08333dfb4ee710a7443414093f82841e0eb",
+  "scope": "Synthetic runner controls; not compiler execution or performance evidence",
+  "bench_sha256": "10a7cd80819589dfceacdc2a885e71e84c723b8c8cdf66c48682934e96308ace",
+  "controls": [
+    {
+      "control": "command_parent_parity_and_symmetric_opt_in",
+      "combinations": 24,
+      "pass": true
+    },
+    {
+      "control": "legacy_missing_fields",
+      "rows": 48,
+      "failures": [],
+      "pass": true
+    },
+    {
+      "control": "baseline_query_requested_without_parse_report",
+      "rows": 48,
+      "failures": [],
+      "pass": true
+    },
+    {
+      "control": "query_excerpt_tamper",
+      "rows": 48,
+      "failures": [
+        0
+      ],
+      "pass": true
+    },
+    {
+      "control": "parse_excerpt_tamper",
+      "rows": 48,
+      "failures": [
+        0
+      ],
+      "pass": true
+    },
+    {
+      "control": "raw_query_unsealed",
+      "rows": 48,
+      "failures": [
+        0
+      ],
+      "pass": true
+    },
+    {
+      "control": "raw_query_resealed_without_excerpt",
+      "rows": 48,
+      "failures": [
+        0
+      ],
+      "pass": true
+    },
+    {
+      "control": "requested_false_resealed_and_excerpt_matched",
+      "rows": 48,
+      "failures": [
+        0
+      ],
+      "pass": true
+    },
+    {
+      "control": "requested_integer_one_is_not_true",
+      "rows": 48,
+      "failures": [
+        0
+      ],
+      "pass": true
+    },
+    {
+      "control": "query_report_missing_resealed",
+      "rows": 48,
+      "failures": [
+        0
+      ],
+      "pass": true
+    },
+    {
+      "control": "query_report_wrong_type_resealed",
+      "rows": 48,
+      "failures": [
+        0
+      ],
+      "pass": true
+    },
+    {
+      "control": "parse_report_matched",
+      "rows": 48,
+      "failures": [],
+      "pass": true
+    },
+    {
+      "control": "parse_raw_resealed_without_excerpt",
+      "rows": 48,
+      "failures": [
+        0
+      ],
+      "pass": true
+    },
+    {
+      "control": "parse_raw_unsealed_even_with_excerpt",
+      "rows": 48,
+      "failures": [
+        0
+      ],
+      "pass": true
+    },
+    {
+      "control": "query_flag_missing",
+      "rows": 48,
+      "failures": [
+        0
+      ],
+      "pass": true
+    },
+    {
+      "control": "query_path_changed",
+      "rows": 48,
+      "failures": [
+        0
+      ],
+      "pass": true
+    },
+    {
+      "control": "schema2_optional_field_with_matching_runner_hash_loads",
+      "pass": true
+    },
+    {
+      "control": "historical_runner_hash_remains_enforced",
+      "pass": true
+    }
+  ],
+  "pass": true
+}

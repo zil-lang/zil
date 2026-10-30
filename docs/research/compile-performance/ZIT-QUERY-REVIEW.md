@@ -72,3 +72,11 @@ ZIT 的新参考价值主要位于跨请求：保留计算节点、边和结果�
 | 在两种分别无环的方向间切换1100次 | 值始终正确；最终高度1101/1102/1103，产生103次 `zit_dep_cycle` 告警 |
 
 这些是机制证据，不应折算成 ZIL 的提速百分比。
+
+复跑命令（需要支持 `stripTypeScriptTypes` 的 Node；原始上传文件由调用者提供，不把私有依赖替身当作完整zit环境）：
+
+```sh
+node evidence/research/compile-performance/COMPILE6/mechanisms/zit-mechanisms.mjs /path/to/zit.ts /path/to/new-result.json
+```
+
+结果包含原始文件SHA256与Node版本；临时模块在加载后清理，输出文件禁止覆盖。
