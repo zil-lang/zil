@@ -1,0 +1,13 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp13/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized] target(s) in 0.30s
+     Running tests/closed_executable_cp13.rs (target-cp13/debug/deps/closed_executable_cp13-680c4a89e2c5ea23)
+
+running 5 tests
+test closed_executable_keeps_results_exports_and_parallel_units ... ok
+test closed_link_failure_keeps_previous_artifacts ... ok
+test closed_mode_preserves_entry_binding_and_unsupported_target_rejection ... ok
+test closed_o0_build_keeps_runtime_behavior_with_one_or_many_units ... ok
+test object_cache_separates_actual_linkage_and_reuses_each_policy ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+

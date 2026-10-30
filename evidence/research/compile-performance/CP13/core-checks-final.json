@@ -1,0 +1,72 @@
+[
+  {
+    "name": "core-native-tests-final",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-backend-llvm",
+      "--features",
+      "llvm-api",
+      "--test",
+      "closed_executable_cp13",
+      "-j2",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "core-default-tests",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-backend-llvm",
+      "--no-default-features",
+      "--test",
+      "closed_executable_cp13",
+      "-j2",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "core-clippy-final",
+    "argv": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-backend-llvm",
+      "--features",
+      "llvm-api",
+      "--all-targets",
+      "-j2",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "core-fmt-final",
+    "argv": [
+      "cargo",
+      "fmt",
+      "-p",
+      "zil-backend-llvm",
+      "--",
+      "--check"
+    ],
+    "exit": 0
+  }
+]

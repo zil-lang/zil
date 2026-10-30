@@ -4,7 +4,7 @@ use crate::EntryPoint;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{FileId, Fingerprint};
 use zil_ir::LirModule;
-use zil_llvm_api::model::{Item, Module};
+use zil_llvm_api::model::{Item, Linkage, Module};
 
 pub(crate) struct Plan {
     pub units: Vec<Module>,
@@ -182,6 +182,73 @@ pub(crate) fn partition(module: Module, lir: &LirModule, entry: EntryPoint, coun
     }
 }
 
+/// Called only by the explicit closed Linux executable build path, after the
+/// ordinary partition. Changing linkage before partition would merge local
+/// call-graph edges and discard available codegen parallelism.
+pub(crate) fn internalize_closed_executable(units: &mut [Module], lir: &LirModule) -> usize {
+    let candidates = lir
+        .functions
+        .iter()
+        .filter(|function| function.foreign.is_none())
+        .map(|function| format!("zil.fn.{}", function.id.0))
+        .collect::<BTreeSet<_>>();
+    let mut owners = BTreeMap::new();
+    for (unit, module) in units.iter().enumerate() {
+        for item in &module.items {
+            if let Item::Function(function) = item
+                && function.blocks.is_some()
+                && candidates.contains(&function.name)
+                && owners.insert(function.name.as_str(), unit).is_some()
+            {
+                // Leave malformed duplicate definitions unchanged for the
+                // existing mandatory machine preflight to reject.
+                return 0;
+            }
+        }
+    }
+    let mut cross_unit = BTreeSet::new();
+    if units.len() > 1 {
+        for (unit, module) in units.iter().enumerate() {
+            for item in &module.items {
+                let references = match item {
+                    Item::Function(function) => function.references(),
+                    Item::Global(global) => {
+                        let mut references = BTreeSet::new();
+                        if let Some(value) = &global.initializer {
+                            value.symbols(&mut references);
+                        }
+                        references
+                    }
+                    Item::NamedType(..) => continue,
+                };
+                for reference in references {
+                    if owners
+                        .get(reference.as_str())
+                        .is_some_and(|&owner| owner != unit)
+                    {
+                        cross_unit.insert(reference);
+                    }
+                }
+            }
+        }
+    }
+    let mut changed = 0;
+    for module in units {
+        for item in &mut module.items {
+            if let Item::Function(function) = item
+                && function.blocks.is_some()
+                && function.linkage == Linkage::External
+                && candidates.contains(&function.name)
+                && !cross_unit.contains(&function.name)
+            {
+                function.linkage = Linkage::Internal;
+                changed += 1;
+            }
+        }
+    }
+    changed
+}
+
 struct Sets(Vec<usize>);
 impl Sets {
     fn root(&mut self, mut i: usize) -> usize {
@@ -350,6 +417,159 @@ mod tests {
                 .fallback
                 .unwrap()
                 .contains("duplicate")
+        );
+        assert!(zil_llvm_api::validate_module(&bad).is_err());
+    }
+
+    // Raw machine/LIR identity controls, not source-language acceptance tests.
+    fn candidate_lir(ids: &[u32]) -> LirModule {
+        let mut module = lir();
+        module.functions = ids
+            .iter()
+            .map(|&id| zil_ir::TypedFunction {
+                callable_return_contract: None,
+                callable_contract: None,
+                result_mode: zil_ir::PassingMode::Infer,
+                foreign: None,
+                id: zil_ir::FunctionId(id),
+                name: format!("source_name_{id}"),
+                environment: None,
+                parameters: vec![],
+                return_type: zil_ir::Type::I32,
+                locals: vec![],
+                values: vec![],
+                blocks: vec![],
+                entry: zil_ir::BlockId(0),
+                span: zil_base::Span::default(),
+            })
+            .collect();
+        module
+    }
+
+    fn function_linkage(module: &Module, name: &str) -> Linkage {
+        module
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == name => Some(function.linkage),
+                _ => None,
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn closed_policy_uses_exact_nonforeign_identity_and_keeps_other_items() {
+        let mut lir = candidate_lir(&[0, 1]);
+        lir.functions[1].foreign = Some(zil_ir::ForeignDeclaration {
+            abi: "C".into(),
+            symbol: "foreign".into(),
+            noescape_parameters: vec![],
+            static_callbacks: false,
+        });
+        let original = m(vec![
+            f("zil.fn.0", Ty::Int(32), Val::Int(7)),
+            f("zil.fn.1", Ty::Int(32), Val::Int(8)),
+            f("zil.fn.999", Ty::Int(32), Val::Int(9)),
+            f("main", Ty::Int(32), Val::Int(0)),
+            f("runtime.helper", Ty::Int(32), Val::Int(0)),
+            Item::Function(Function {
+                name: "foreign".into(),
+                linkage: Linkage::External,
+                signature: Signature::new(Ty::Int(32), vec![]),
+                attrs: vec![],
+                blocks: None,
+            }),
+        ]);
+        let mut units = vec![original.clone()];
+        assert_eq!(internalize_closed_executable(&mut units, &lir), 1);
+        assert_eq!(function_linkage(&units[0], "zil.fn.0"), Linkage::Internal);
+        assert_eq!(units[0].items[1..], original.items[1..]);
+        zil_llvm_api::validate_module(&units[0]).unwrap();
+        assert_eq!(internalize_closed_executable(&mut units, &lir), 0);
+    }
+
+    #[test]
+    fn closed_policy_keeps_cross_unit_function_addresses_and_global_initializers() {
+        let one = f("zil.fn.1", Ty::Int(32), Val::Int(7));
+        let three = f("zil.fn.3", Ty::Int(32), Val::Int(9));
+        let declare = |item: &Item| match item {
+            Item::Function(function) => Item::Function(function.declaration()),
+            _ => unreachable!(),
+        };
+        let table = Item::Global(Global {
+            name: "callback_table".into(),
+            linkage: Linkage::External,
+            ty: Ty::array(1, Ty::Ptr),
+            initializer: Some(Val::Array(vec![Arg::new(
+                Ty::Ptr,
+                Val::Global("zil.fn.3".into()),
+            )])),
+            constant: true,
+            unnamed_addr: false,
+            alignment: 8,
+        });
+        let mut units = vec![
+            m(vec![
+                declare(&one),
+                declare(&three),
+                f("zil.fn.0", Ty::Ptr, Val::Global("zil.fn.1".into())),
+                f("zil.fn.2", Ty::Int(32), Val::Int(11)),
+                table.clone(),
+            ]),
+            m(vec![one, three]),
+        ];
+        assert_eq!(
+            internalize_closed_executable(&mut units, &candidate_lir(&[0, 1, 2, 3])),
+            2
+        );
+        assert_eq!(units.len(), 2);
+        for name in ["zil.fn.0", "zil.fn.2"] {
+            assert_eq!(function_linkage(&units[0], name), Linkage::Internal);
+        }
+        for name in ["zil.fn.1", "zil.fn.3"] {
+            assert_eq!(function_linkage(&units[1], name), Linkage::External);
+            assert_eq!(function_linkage(&units[0], name), Linkage::External);
+        }
+        assert_eq!(units[0].items[4], table);
+        for module in &units {
+            zil_llvm_api::validate_module(module).unwrap();
+        }
+    }
+
+    #[test]
+    fn closed_policy_preserves_local_address_use_and_duplicate_rejection() {
+        let table = Item::Global(Global {
+            name: "callback".into(),
+            linkage: Linkage::External,
+            ty: Ty::Ptr,
+            initializer: Some(Val::Global("zil.fn.0".into())),
+            constant: true,
+            unnamed_addr: false,
+            alignment: 8,
+        });
+        let mut units = vec![m(vec![
+            f("zil.fn.0", Ty::Int(32), Val::Int(7)),
+            table.clone(),
+        ])];
+        assert_eq!(
+            internalize_closed_executable(&mut units, &candidate_lir(&[0])),
+            1
+        );
+        assert_eq!(units[0].items[1], table);
+        zil_llvm_api::validate_module(&units[0]).unwrap();
+        let bad = m(vec![
+            f("zil.fn.0", Ty::Int(32), Val::Int(1)),
+            f("zil.fn.0", Ty::Int(32), Val::Int(2)),
+        ]);
+        let mut units = vec![bad.clone()];
+        assert_eq!(
+            internalize_closed_executable(&mut units, &candidate_lir(&[0])),
+            0
+        );
+        assert_eq!(units[0], bad);
+        assert_eq!(
+            zil_llvm_api::validate_module(&units[0]),
+            zil_llvm_api::validate_module(&bad)
         );
         assert!(zil_llvm_api::validate_module(&bad).is_err());
     }
