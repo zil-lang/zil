@@ -406,15 +406,8 @@ impl Materializer<'_, '_> {
                 }
             }
             s::ExprKind::Record { ty, base, fields } => {
-                if let Some(ty) = ty {
-                    if self.iterations.is_empty() {
-                        self.expression(ty, depth + 1)?;
-                    } else {
-                        self.generation_record_type(ty, depth + 1)?;
-                    }
-                }
-                if let Some(base) = base {
-                    self.expression(base, depth + 1)?;
+                for e in [ty, base].into_iter().flatten() {
+                    self.expression(e, depth + 1)?;
                 }
                 for f in fields {
                     self.budget.node(f.span, depth + 1)?;
