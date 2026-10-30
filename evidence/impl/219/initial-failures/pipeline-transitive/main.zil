@@ -1,0 +1,1 @@
+#if(true){fn generated(n:i32)->bool=>n>0}fn inner(n:i32)->bool=>generated(n);fn outer(n:i32)->bool=>n |> inner;fn main()->i32{#if(outer(1)){return 0}else{return 1}}

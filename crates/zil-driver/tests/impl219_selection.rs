@@ -68,6 +68,10 @@ fn original_probes_and_selected_lists_reach_the_independent_gate() {
             "#if(false){fn value()->Missing=>bad}else{fn value()->i32=>9}fn main()->i32{return value()-9}",
         ),
         (
+            "unselected-attribute",
+            "#if(true){fn main()->i32=>0}else{#[unknown] fn unused()->Missing=>absent}",
+        ),
+        (
             "nested-inactive",
             "fn main()->i32{#if(false){#if(missing()){return absent}}else{#if(2*3==6){let value=3}return value-3}}",
         ),
@@ -121,6 +125,13 @@ fn actual_scalar_function_dependencies_loops_recursion_and_short_circuit_execute
         "large-i64-context",
         "fn large()->i64=>9000000000;fn main()->i32{#if(large()>1){return 0}else{return missing}} ",
     );
+    let pipeline = pass(
+        "pipeline-dependencies",
+        "fn inc(n:i32)->i32=>n+1;fn good(n:i32)->bool=>(n |> inc)>1;fn main()->i32{#if(1 |> good){return 0}else{return missing}}",
+    );
+    let trace = fs::read_to_string(&pipeline.artifacts["selection"]).unwrap();
+    assert!(trace.contains("\"function\":\"good\""));
+    assert!(trace.contains("\"function\":\"inc\""));
     let non_bool = reject("not-bool", "fn main()->i32{#if(1){return 0}else{return 1}}");
     assert_eq!(non_bool.phase, Phase::Ct);
     let arithmetic = reject(
@@ -152,6 +163,10 @@ fn config_snapshot_is_closed_and_runtime_shadowing_is_not_a_global_fallback() {
         (
             "unmaterialized-body",
             "fn enabled()->bool{#if(true){return true}else{return false}}fn main()->i32{#if(enabled()){return 0}else{return 1}}",
+        ),
+        (
+            "pipeline-generated-dependency",
+            "#if(true){fn generated(n:i32)->bool=>n>0}fn inner(n:i32)->bool=>generated(n);fn outer(n:i32)->bool=>n |> inner;fn main()->i32{#if(outer(1)){return 0}else{return 1}}",
         ),
         (
             "helper-unready",
@@ -232,6 +247,16 @@ fn config_snapshot_is_closed_and_runtime_shadowing_is_not_a_global_fallback() {
             .diagnostics
             .iter()
             .all(|d| d.code != "E-CT-PHASE-DEPENDENCY")
+    );
+    let attribute = reject(
+        "selected-attribute",
+        "#if(false){fn main()->i32=>0}else{#[unknown] fn main()->i32=>0}",
+    );
+    assert!(
+        attribute
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("unexecuted declaration attribute"))
     );
     let import = reject(
         "conditional-import",

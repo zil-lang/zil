@@ -1,0 +1,12 @@
+{
+  "expected_status": "SafeReject",
+  "expected_code": "E-CT-PHASE-DEPENDENCY",
+  "source_commit": "35637591455eeaeffcb5ab9753fddb9cb33cfa51",
+  "command": [
+    "/workspace/scratch/3cf12ce32e36/targets/219/debug/zil",
+    "check",
+    "/workspace/scratch/3cf12ce32e36/recovery/219-validation-3563759/remaining-probes/pipeline-transitive/main.zil",
+    "--json"
+  ],
+  "exit": 1
+}
