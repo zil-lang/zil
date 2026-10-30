@@ -65,6 +65,14 @@ zil build project/main.zil -o out/program --backend llvm-api --query-cache /priv
 
 第一次 check 的 TimingTrace 接口返回类型错误保留在 `check-01.log`；修复后 `check-02.log` 成功。第一次原项目回归在稀疏 worktree 缺 `examples/numberlab` 的 include 文件，保留 `driver-targeted-02.log`；补齐同基线示例后重跑，未修改示例内容。
 
+### 最大语料的精确 release 功能确认
+
+主体提交 `397bf24fef0d7f58aaefb444c17c733652b5e12f` 在隔离 `/tmp/zil-cp12-release-target` 以 `cargo build --offline --release -p zil-cli -j2` 构建，release debug=0、incremental=0、默认 LLVM API、timings 关闭。冻结二进制 SHA-256 为 `babd2b9fd8809ed8cca393f88fbd9f7fe7737699081d74235dcc58fb873dee58`。
+
+复用原 e8 计划的 tree1024x8 base（1027 个模块、9222 个函数），8 CGU / 2 jobs、O0，连续执行两个新的完整编译进程，同时显式请求 query/object cache。全部 11 个 Limits 保持编译器默认：第一次 query `miss` 且 `stored=true`、对象 0/8 命中；第二次 query `hit`、对象 8/8 命中；两次 `verification_runs=1`。每次对原 0、7、256 字节 oracle 及 1024 字节长输入执行实际产物，8 次全通过。
+
+真实检查点 6,507,046 字节，其中 payload 6,506,966 字节，处于默认 16 MiB 边界内；长度、payload SHA-256 与头核对一致。CT receipt 为 steps=0、nodes=198765、functions=9222；非零 CT steps 的预算边界由前述源码控制另测。完整 JSON、oracle 输出、源文件 hash、release 构建和二进制身份在 `evidence/research/compile-performance/CP12/tree1024x8-smoke/`。此时其它构建可能并行，记录为不评分功能 smoke，不产生性能提升结论。
+
 ## Rust 四目标与剩余义务
 
 | 目标 | 本轮判断 |
