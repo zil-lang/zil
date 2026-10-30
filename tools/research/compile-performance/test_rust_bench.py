@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -31,7 +32,8 @@ class RustBenchmarkControls(unittest.TestCase):
                      "inputs": [{"path": "inputs/x.bin", "expected": {s: "expected/x.bin" for s in ("base", "private", "public")}}]}
         self.plan = {"schema": bench.SCHEMA, "source_identity": {}, "versions": {}, "profile": "O0", "cache_mode": "cold",
                      "query_cache": False, "closed_executable": False,
-                     "rust_profile": "native", "rust_linker": None, "units": 1, "jobs": 1, "target": bench.TARGET,
+                     "rust_profile": "native", "rust_linker": None, "rust_lto": "native", "rust_lto_scope": "synthetic LTO scope",
+                     "units": 1, "jobs": 1, "target": bench.TARGET,
                      "cpus": [0], "cpu": 0, "timeout_seconds": 1, "runtime_timeout_seconds": 1,
                      "binaries": {k: {"path": "synthetic-" + k} for k in ("A", "B", "clang")},
                      "request_weights": {"cold_process": 1.}, "cases": [self.case], "selected_original_weight": 1.,
@@ -181,6 +183,44 @@ class RustBenchmarkControls(unittest.TestCase):
     def test_abba_baab_order_has_balanced_pairs(self):
         self.assertEqual([r["arm"] for r in self.plan["order"]], list("ABBABAABABBA"))
 
+    def test_rust_lto_off_changes_only_the_explicit_rust_flag(self):
+        self.plan.update(profile="O2", cache_mode="incremental", rust_profile="matched", units=8)
+        work = self.root / "work"
+        native_rust, native_zil = bench.command(self.plan, "A", work), bench.command(self.plan, "B", work)
+        self.assertFalse(any(arg.startswith("lto=") for arg in native_rust))
+        self.plan["rust_lto"] = "off"
+        self.assertEqual(bench.command(self.plan, "A", work), native_rust + ["-C", "lto=off"])
+        self.assertEqual(bench.command(self.plan, "B", work), native_zil)
+
+    def test_cli_preserves_native_default_and_accepts_explicit_lto_off(self):
+        argv = ["rust_bench.py", "prepare", "--out", "unused", "--zil", "zil", "--rustc", "rustc",
+                "--clang", "clang", "--zil-source", "source", "--tool", "llvm"]
+        for flags, expected in (([], "native"), (["--rust-lto", "off"], "off")):
+            with self.subTest(expected=expected), patch.object(sys, "argv", argv + flags), \
+                 patch.object(bench, "prepare") as prepare:
+                bench.main()
+                self.assertEqual(prepare.call_args.args[0].rust_lto, expected)
+
+    def test_load_requires_a_valid_explicit_frozen_lto_mode(self):
+        self.freeze_tools()
+        for value in (None, "thin", "fat", "", False, 0, []):
+            with self.subTest(value=value):
+                changed = {**self.plan, "rust_lto": value}
+                self.plan_path.write_text(json.dumps(changed))
+                with self.assertRaisesRegex(SystemExit, "--rust-lto native or off required"):
+                    bench.load(self.plan_path, check_environment=False)
+        changed.pop("rust_lto")
+        self.plan_path.write_text(json.dumps(changed))
+        with self.assertRaisesRegex(SystemExit, "--rust-lto native or off required"):
+            bench.load(self.plan_path, check_environment=False)
+
+    def test_v2_plan_requires_its_original_runner_instead_of_assuming_native(self):
+        old = {**self.plan, "schema": "zil-rust-compile-performance/2"}
+        old.pop("rust_lto")
+        self.plan_path.write_text(json.dumps(old))
+        with self.assertRaisesRegex(SystemExit, "original runner/source"):
+            bench.load(self.plan_path, check_environment=False)
+
     def test_missing_verifier_or_enabled_timings_rejected(self):
         for value in (0, 2):
             self.assertFalse(bench.report_ok(self.plan, "cold_process", {"status": "Success", "verification_runs": value}))
@@ -199,12 +239,12 @@ class RustBenchmarkControls(unittest.TestCase):
 
     def test_query_checkpoint_requires_incremental_and_explicit_boolean_modes(self):
         with self.assertRaisesRegex(SystemExit, "requires --cache-mode incremental"):
-            bench.validate_modes("cold", True, False)
+            bench.validate_modes("cold", True, False, "native")
         for value in (None, 0, "false"):
             with self.assertRaisesRegex(SystemExit, "boolean"):
-                bench.validate_modes("incremental", value, False)
-        bench.validate_modes("cold", False, True)
-        bench.validate_modes("incremental", True, False)
+                bench.validate_modes("incremental", value, False, "native")
+        bench.validate_modes("cold", False, True, "native")
+        bench.validate_modes("incremental", True, False, "off")
         self.plan.update(cache_mode="incremental", query_cache=True, closed_executable=True)
         rust = bench.command(self.plan, "A", self.root / "work")
         zil = bench.command(self.plan, "B", self.root / "work")
@@ -292,14 +332,32 @@ class RustBenchmarkControls(unittest.TestCase):
         self.assertEqual(result["cpu"]["B_over_A"], .5)
         self.assertEqual(result["exploratory_paired_block_bootstrap95"], [.5, .5])
         self.assertEqual(result["product_gates"], "NotRun")
+        self.assertEqual(result["rust_lto"], "native")
+        self.assertEqual(result["rust_lto_scope"], self.plan["rust_lto_scope"])
 
     def test_runtime_excludes_compilation_and_warmup(self):
+        self.plan["rust_lto"] = "off"
+        self.plan_path.write_text(json.dumps(self.plan))
         pre, out = self.measure("runtime")
         result = self.summarize(pre, out, "runtime")
         self.assertEqual(result["wall"]["A"], 1.)
         self.assertEqual(result["wall"]["B"], 1.)
         self.assertEqual(result["rows"], 12)
+        self.assertEqual(result["rust_lto"], "off")
         self.assertTrue(all(r["sample_kind"] == "runtime" for r in bench.rows(out / "records.jsonl")))
+
+    def test_missing_lto_flag_in_frozen_off_rows_is_rejected(self):
+        self.plan["rust_lto"] = "off"
+        self.plan_path.write_text(json.dumps(self.plan))
+        _, out = self.measure()
+        observed = bench.rows(out / "records.jsonl")
+        argv = observed[0]["argv"]
+        offset = argv.index("lto=off")
+        del argv[offset - 1:offset + 1]
+        complete, failures = bench.validate_build_rows(self.plan, self.root, out / "records.jsonl", observed,
+                                                       self.plan["order"], "build")
+        self.assertTrue(complete)
+        self.assertEqual(failures, [0])
 
     def test_missing_rows_suppress_score(self):
         pre, out = self.measure()
