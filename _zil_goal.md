@@ -146,12 +146,18 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 
 按当前LLVM23主线重新冻结218单F公共拥有工厂，218前端、220独立Analyze、221独立Verify并行；219独立推进已封闭纯标量函数条件的源级#if。旧218不可恢复，不复用旧成绩。输入及实际工具链/基线构建见evidence/planning/218-221/FREEZE.json，实时可核进度入口docs/CONSTRUCTION-PROGRESS.md。有限候选须交叉独审与组合全量后合入；完整1.4、全部ZUI、B0/181与四目标保持原状态。
 
-218–221在冻结组合69931f83完成单F公共拥有工厂、独立Analyze/Verify与源级纯标量#if，两个独审缺口经原字节闭合。GitHub run41057841800的实际合并tree与该组合相同，默认2817/0/0、参考2785/0/0、Clippy、text-reference36、迁移9及208真实机器门通过；作者、独审新增、既有oracle重放和两次本地容量失败分别记账。详见docs/LANGUAGE-218-221.md。当前29旧探针13成功/14Unsupported/2原无效，不把本片当作全部ZUI或完整1.4完成；B0/181与Rust四目标保持原门。
+218–221在冻结组合69931f83完成单F公共拥有工厂、独立Analyze/Verify与源级纯标量#if，两个独审缺口经原字节闭合。GitHub run41057841800的实际合并tree与该组合相同，默认2817/0/0、参考2785/0/0、Clippy、text-reference36、迁移9及208真实机器门通过；作者、独审新增、既有oracle重放和两次本地容量失败分别记账。详见docs/LANGUAGE-218-221.md。当轮29旧探针13成功/14Unsupported/2原无效，不把本片当作全部ZUI或完整1.4完成；B0/181与Rust四目标保持原门。
 
 ## 2026-10-30 施工8接续
 
 以GitHub main a8e8831a为实际基线，222源级有限#for、223完整Product Store元素、224完整Product共享借入并行。公共接点由集成者协调、独立核验及机器清理闭合后验收；编译性能支线仍独立。历史handoff Fail原样保存，不以新编号掩盖旧状态；完整语言、B0及产品门保持。
 
-## 2026-10-30：222–224组合验收中
+## 2026-10-30：222–224组合验收中（历史进度）
 
 有限源级#for、完整Product Store及普通共享Product分别完成实现并经交叉独审返修；root补入实际三者组合与旧边界迁移，本地11组132/0/0通过。正式全仓由GitHub统一执行，当前不能据此写整批已合入。精确作者、独审、原失败和整仓身份见docs/LANGUAGE-222-224.md及evidence/integration/222-224/。完整Type/Syntax生成、深层拥有容器、长期外部生命周期和挂起并发继续保留；B0/181、完整1.4、全部ZUI、Rust产品门不随有限片升级。
+
+## 2026-10-31（北京时间）：222–224正式验收与合入
+
+共同实现 4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41 保留作者与非作者审查身份；正式候选 f4c742fd8bb9567120902812c9a7117928784e5c 的 PR run41088376020 通过；原PR9合并39e52ef7的main run41101248493保留Fail。stdin测试驱动修复经非作者复核后进入新的主线合并 ccae8c60c96a2c174b137b2fab084e9e8a97a02f，其 main run41106864272 全部必需门通过。默认 2861/0/0、参考 2826/0/0；机器故障控制、Clippy、text-reference与迁移门均按实际原收据核回。原Fail/Incomplete和Superseded分别保留，不叠加本地132/19或作者/独审重放。
+
+施工7原29份check输入现15成功/12Unsupported/2原语法无效，0native、旧成功零回退。本轮有限#for、完整Product Store及同步共享Product已能组合；defer普通lowering、&Product闭包捕获、拥有捕获Store<Product>、完整Type/Syntax和更深拥有/长期外部生命周期继续保留。B0/181、完整1.4、全部ZUI、原生Windows及Rust产品四目标未因此完成；编译性能研究分支独立。详见 docs/LANGUAGE-222-224.md 与 evidence/integration/222-224/closeout/ACCEPTANCE.json。
