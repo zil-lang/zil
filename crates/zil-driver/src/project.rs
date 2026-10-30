@@ -118,6 +118,7 @@ impl CompilationSession {
         let loaded = request
             .trace()
             .measure("source_discovery", "stage", |trace| {
+                check_timing_support(options)?;
                 if options.stop_after == Stage::Parse {
                     trace
                         .measure("source_read", "stage", |_| read_source(path, options))
@@ -168,6 +169,7 @@ impl CompilationSession {
         observer: &mut dyn FnMut(&QueryEvent),
         loaded_syntax: Option<&[Arc<ParseResult>]>,
     ) -> CompileResult<()> {
+        check_timing_support(options)?;
         options
             .cancellation
             .check(Phase::Driver)

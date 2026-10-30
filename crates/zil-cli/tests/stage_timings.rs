@@ -1,3 +1,4 @@
+#![cfg(feature = "timings")]
 use std::{
     fs,
     path::PathBuf,

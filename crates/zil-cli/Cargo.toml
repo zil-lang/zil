@@ -19,3 +19,6 @@ path = "src/main.rs"
 [features]
 default = ["llvm-api"]
 llvm-api = ["zil-driver/llvm-api"]
+
+# Opt-in phase diagnostics; default builds erase the collector.
+timings = ["zil-driver/timings"]
