@@ -22,7 +22,7 @@ use zil_syntax::ParseResult;
 #[derive(Clone, Debug)]
 pub(super) enum RawSnapshot {
     Parse(Arc<ParseResult>),
-    Expanded(Arc<zil_expand::ExpandedModule>),
+    Expanded(Arc<ExpandedSource>),
     Core(Arc<CoreModule>),
     Typed(Arc<TypedModule>),
     Candidate(Arc<CandidatePlan>),
@@ -61,6 +61,12 @@ impl RawSnapshot {
         }
         Fingerprint::of(&bytes)
     }
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct ExpandedSource {
+    module: zil_expand::ExpandedModule,
+    selection: super::ct_selection::Receipt,
 }
 
 pub struct CompilationSession {
@@ -247,19 +253,41 @@ impl CompilationSession {
             return Ok(());
         }
 
+        let selection_needed = super::ct_selection::needed(source, &parsed);
         let (core, core_snapshot) = self.query(
-            key(Phase::Expand, false),
+            key(Phase::Expand, selection_needed),
             std::slice::from_ref(&parse_snapshot),
             options,
             report,
             observer,
             || {
-                let expanded =
-                    zil_expand::expand_with_map_limits(source, &parsed.module, &options.limits)?;
+                let selected = if selection_needed {
+                    Some(super::ct_selection::select(
+                        std::slice::from_ref(source),
+                        &[&parsed.module],
+                        &[Vec::new()],
+                        source.module_id,
+                        source.fingerprint(),
+                        &options.target,
+                        &options.limits,
+                    )?)
+                } else {
+                    None
+                };
+                let syntax = selected
+                    .as_ref()
+                    .map_or(&parsed.module, |selected| &selected.modules[0]);
+                let expanded = zil_expand::expand_with_map_limits(source, syntax, &options.limits)?;
                 expanded
                     .source_map
                     .validate(std::slice::from_ref(source), &options.limits)?;
-                Ok(RawSnapshot::Expanded(Arc::new(expanded)))
+                Ok(RawSnapshot::Expanded(Arc::new(ExpandedSource {
+                    module: expanded,
+                    selection: selected
+                        .map_or_else(super::ct_selection::Receipt::default, |selected| {
+                            selected.receipt
+                        }),
+                })))
             },
         )?;
         let RawSnapshot::Expanded(expanded) = core else {
@@ -268,12 +296,17 @@ impl CompilationSession {
                 "Core query returned another snapshot kind",
             ));
         };
-        let core = &expanded.core;
+        let core = &expanded.module.core;
         report.phase = Phase::Expand;
         artifacts.dump_lazy(report, options, "core", |_| format!("{core:#?}"))?;
         artifacts.dump_lazy(report, options, "source-map", |_| {
-            format!("{:#?}", expanded.source_map)
+            format!("{:#?}", expanded.module.source_map)
         })?;
+        if selection_needed {
+            artifacts.dump_lazy(report, options, "selection", |_| {
+                expanded.selection.to_json()
+            })?;
+        }
         if options.stop_after == Stage::Core {
             return Ok(());
         }
@@ -290,7 +323,8 @@ impl CompilationSession {
             observer,
             || {
                 let inferred = zil_types::infer_source_closures(core, &options.limits)?;
-                super::ct_program::single(&inferred, &options.target, &options.limits)
+                let remaining = expanded.selection.remaining(&options.limits)?;
+                super::ct_program::single(&inferred, &options.target, &remaining)
                     .map(|core| RawSnapshot::Core(Arc::new(core)))
             },
         )?;
