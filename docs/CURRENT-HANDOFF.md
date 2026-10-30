@@ -23,6 +23,12 @@ PR9 最初合入 `39e52ef784d41f5744b909a9e6702ab16c1b1227` 后，[main run 4110
 
 后续继续完整 Type/Syntax / `#emit` / 类型声明生成、更深拥有容器组合、一般 trait/lending、长期外部回调的关闭/注销/重入，以及挂起、取消和并发。B0仍为 Doing，181仍为施工；完整1.4与完整ZUI保持 NotSatisfied，Rust产品门与原生Windows保持 NotRun。四目标合取及可重复产品净突破未建立，不降低 `validation/product-gates.json`。
 
+## 本轮实际交接检查
+
+在已提交的收尾版本 `1b895ecb866e8c957cc020fe69bddf21979712f7` 上实际运行 `node tools/handoff.mjs`：全局 **Fail / 1356项记录完整性错误 / 0 warnings**。与修复后R的同环境基线逐项比较，错误多重集完全相同，新增0、减少0；222–224均为“已合入”且各零错误。原全局Fail继续保留，不能与施工7另一快照的1138项相减归因，也不代表本轮编译器测试失败。原输出、退出码和比较见 [handoff-final/RESULT.json](../evidence/integration/222-224/closeout/handoff-final/RESULT.json)。
+
+`data/handoff.json`是上述已提交版本的可移植快照；它记录实际检查时的提交，不冒充包含该快照文件的新提交自身。冷启动仍使用实时 `--check`，以当前真实主树为准。最后的资料提交另有GitHub主线CI，正式语言验收身份继续固定为上表的R。
+
 ## 历史与接续约束
 
 原run `41082643919` 的 Fail、`41084362447` 的默认3失败及reference Incomplete保留；91609072临时运行与e3e231b / run `41088078934`保留Superseded。原作者/独审失败、缓存污染的 Infrastructure/InvalidEvidence、限定返修与最终通过分列，详见本批总报告。

@@ -1,0 +1,60 @@
+{
+  "status": "Fail",
+  "scope": "Actual live handoff record integrity at committed metadata; not a compiler correctness verdict or a full-language acceptance",
+  "recorded_at_utc": "2026-10-30T19:07:05.080161+00:00",
+  "source_commit": "1b895ecb866e8c957cc020fe69bddf21979712f7",
+  "accepted_compiler_source_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+  "command_exit_code": 1,
+  "errors": 1356,
+  "warnings": 0,
+  "error_multiset_sha256": "e2a3e9d3db053aab9cee9680153140e53996274220c9367dc12bbde2aaf714b7",
+  "baseline_source_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+  "baseline_errors": 1356,
+  "baseline_error_multiset_sha256": "e2a3e9d3db053aab9cee9680153140e53996274220c9367dc12bbde2aaf714b7",
+  "comparison_status": "Pass",
+  "added_errors": [],
+  "removed_errors": [],
+  "new_slices": {
+    "222": {
+      "status": "已合入",
+      "errors": []
+    },
+    "223": {
+      "status": "已合入",
+      "errors": []
+    },
+    "224": {
+      "status": "已合入",
+      "errors": []
+    }
+  },
+  "portable_snapshot": "data/handoff.json",
+  "portable_snapshot_sha256": "5804af11176d26d73dcb1aa167f1c352ed347f598305c145242dbb79d6d4e462",
+  "baseline_receipt": "evidence/integration/222-224/closeout/handoff-baseline/RESULT.json",
+  "note": "The original global Fail remains visible. An unchanged error multiset proves no newly introduced record errors relative to this exact R baseline, not equivalence to any earlier construction snapshot. Raw outputs preserve their original runtime paths; the committed snapshot is portable.",
+  "archive": "raw-check.tar.gz",
+  "archive_bytes": 53907,
+  "archive_sha256": "c0b17b3c6afa31d8d062579452a682d8204d31ddb112a474d970f7de688e0f14",
+  "files": [
+    {
+      "path": "exit.json",
+      "bytes": 329,
+      "sha256": "bfff9ce2bec9e34c634aab4df76d2e23115cfe5606da1d6e3fd7c71ba4dff0eb"
+    },
+    {
+      "path": "stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "stdout.json",
+      "bytes": 511300,
+      "sha256": "e862debc695cfc8a7e6c63a38368c41e5cf6a7043f7abb26ac4b57a686f588b6"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 1559,
+      "sha256": "d9a887a8982032298240280e0e6ca4344d2369d59a7d0db7a8ee834d944caa11"
+    }
+  ]
+}

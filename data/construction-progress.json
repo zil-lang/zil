@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-30T18:59:48.290660+00:00",
+  "observed_at_utc": "2026-10-30T19:07:42.066645+00:00",
   "status": "Integrated",
   "conversation": "zil施工8",
   "accepted_main_at_start": "a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
@@ -152,5 +152,21 @@
   },
   "original_pr_merge_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
   "verification_snapshot_note": "The original PR and the final post-repair main have separate exact source identities; the first main failure remains Fail. Later documentation-only descendants can have newer workflow runs; read the live GitHub ref for current status.",
-  "closeout_receipt": "evidence/integration/222-224/closeout/ACCEPTANCE.json"
+  "closeout_receipt": "evidence/integration/222-224/closeout/ACCEPTANCE.json",
+  "handoff_snapshot": {
+    "status": "Fail",
+    "source_commit": "1b895ecb866e8c957cc020fe69bddf21979712f7",
+    "errors": 1356,
+    "warnings": 0,
+    "baseline_source_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+    "comparison_status": "Pass",
+    "error_multiset_unchanged": true,
+    "new_slice_errors": {
+      "222": 0,
+      "223": 0,
+      "224": 0
+    },
+    "receipt": "evidence/integration/222-224/closeout/handoff-final/RESULT.json",
+    "note": "Record integrity only; original global Fail is preserved and the snapshot identifies the actual inspected committed parent."
+  }
 }

@@ -1,0 +1,177 @@
+{
+  "schema": "zil.construction8.d2-metadata-review.v1",
+  "verdict": "Pass",
+  "reviewer": "/root/product_store",
+  "metadata_author": "/root",
+  "recorded_at_utc": "2026-10-30T19:09:14.795873+00:00",
+  "scope": "Read-only review of five pending D2 metadata/evidence files and the already executed final handoff archive; no command rerun, compiler test or final metadata CI acceptance",
+  "source_commit": "1b895ecb866e8c957cc020fe69bddf21979712f7",
+  "source_tree": "3df36ea992c0fcb9ffe28d3d72a9c189b5697b1b",
+  "accepted_compiler_source_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+  "pending_files": [
+    {
+      "path": "data/construction-progress.json",
+      "change": "modified",
+      "bytes": 6503,
+      "sha256": "049b9900e51453da886a80c2dd5745fccbd14d7b3df5584ec8286e0ce870f44f",
+      "git_blob_sha": "803a89e7cd2fc5f0da09d6f9c89229a30e2756f1",
+      "mode": "0644"
+    },
+    {
+      "path": "data/handoff.json",
+      "change": "modified",
+      "bytes": 511207,
+      "sha256": "5804af11176d26d73dcb1aa167f1c352ed347f598305c145242dbb79d6d4e462",
+      "git_blob_sha": "25a6a652794b3586a2bad83d1707921e444242b6",
+      "mode": "0644"
+    },
+    {
+      "path": "docs/CURRENT-HANDOFF.md",
+      "change": "modified",
+      "bytes": 5913,
+      "sha256": "c85d2a92196e2257aa1a3a22f27cbf39df6c0a8092667fb7c875b8074a7fdd44",
+      "git_blob_sha": "3b496a4503f39a72cda8682fedae60fe4190af7d",
+      "mode": "0644"
+    },
+    {
+      "path": "evidence/integration/222-224/closeout/handoff-final/RESULT.json",
+      "change": "added",
+      "bytes": 2303,
+      "sha256": "32d641ffbae2ef4a93ef42e7de99b7440d3a5006343ec023b2dddcea4c4bf4a4",
+      "git_blob_sha": "965e2a60d759ccd0479b4ea094f7d0f179623985",
+      "mode": "0644"
+    },
+    {
+      "path": "evidence/integration/222-224/closeout/handoff-final/raw-check.tar.gz",
+      "change": "added",
+      "bytes": 53907,
+      "sha256": "c0b17b3c6afa31d8d062579452a682d8204d31ddb112a474d970f7de688e0f14",
+      "git_blob_sha": "66547d75e5f8a89ab8c2258bac1b4909be4217a6",
+      "mode": "0644"
+    }
+  ],
+  "modified_files": 3,
+  "added_files": 2,
+  "tracked_patch_bytes": 134501,
+  "tracked_patch_sha256": "9fe0068a4cc842a47c316287e8359c00d4a5d4f4e89d3eb6301bdf051725129b",
+  "raw_archive": {
+    "path": "evidence/integration/222-224/closeout/handoff-final/raw-check.tar.gz",
+    "bytes": 53907,
+    "sha256": "c0b17b3c6afa31d8d062579452a682d8204d31ddb112a474d970f7de688e0f14",
+    "members": [
+      {
+        "path": "exit.json",
+        "bytes": 329,
+        "sha256": "bfff9ce2bec9e34c634aab4df76d2e23115cfe5606da1d6e3fd7c71ba4dff0eb"
+      },
+      {
+        "path": "stderr.txt",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "stdout.json",
+        "bytes": 511300,
+        "sha256": "e862debc695cfc8a7e6c63a38368c41e5cf6a7043f7abb26ac4b57a686f588b6"
+      },
+      {
+        "path": "summary.json",
+        "bytes": 1559,
+        "sha256": "d9a887a8982032298240280e0e6ca4344d2369d59a7d0db7a8ee834d944caa11"
+      }
+    ],
+    "all_members_match_declared_size_and_sha256": true,
+    "archived_summary_equals_RESULT_before_transport_metadata": true
+  },
+  "actual_execution_receipt": {
+    "argv": [
+      "node",
+      "tools/handoff.mjs"
+    ],
+    "cwd": "/workspace/scratch/d286b3aeeb6b/zil",
+    "head": "1b895ecb866e8c957cc020fe69bddf21979712f7",
+    "started_at_utc": "2026-10-30T19:06:58.563809+00:00",
+    "finished_at_utc": "2026-10-30T19:07:05.080161+00:00",
+    "elapsed_seconds": 6.516327896002622,
+    "exit_code": 1
+  },
+  "handoff_result": {
+    "status": "Fail",
+    "errors": 1356,
+    "warnings": 0,
+    "command_exit_code": 1,
+    "source_commit": "1b895ecb866e8c957cc020fe69bddf21979712f7",
+    "scope": "Record integrity, not compiler correctness or full-language acceptance"
+  },
+  "baseline_comparison": {
+    "baseline_source_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+    "baseline_archive_sha256": "2c3d5bef7e72c01bf38763d0ae3583c559829e2249e9358adeee017022e050f1",
+    "baseline_errors": 1356,
+    "baseline_error_multiset_sha256": "e2a3e9d3db053aab9cee9680153140e53996274220c9367dc12bbde2aaf714b7",
+    "final_error_multiset_sha256": "e2a3e9d3db053aab9cee9680153140e53996274220c9367dc12bbde2aaf714b7",
+    "added_errors": 0,
+    "removed_errors": 0,
+    "comparison_status": "Pass",
+    "comparison_recomputed_from_both_original_archived_stdout_objects": true,
+    "canonical_encoding": "Counter of JSON errors encoded with ensure_ascii=False, sort_keys=True, compact separators; sorted (error-string,count) pairs then compact UTF-8 JSON hashed with SHA256.",
+    "not_compared_to_historical_1138": true
+  },
+  "portable_snapshot": {
+    "path": "data/handoff.json",
+    "bytes": 511207,
+    "sha256": "5804af11176d26d73dcb1aa167f1c352ed347f598305c145242dbb79d6d4e462",
+    "current_head": "1b895ecb866e8c957cc020fe69bddf21979712f7",
+    "main_head": "1b895ecb866e8c957cc020fe69bddf21979712f7",
+    "snapshot_only": true,
+    "current_is_main": true,
+    "exact_projection_of_actual_stdout": true,
+    "projection_removed_fields": [
+      "output",
+      "authority.main_tree_now"
+    ],
+    "runtime_field_present": false,
+    "identity_limit": "The snapshot names inspected committed D1, not its not-yet-created D2 container commit."
+  },
+  "new_slices": {
+    "222": {
+      "status": "已合入",
+      "errors": 0
+    },
+    "223": {
+      "status": "已合入",
+      "errors": 0
+    },
+    "224": {
+      "status": "已合入",
+      "errors": 0
+    }
+  },
+  "metadata_checks": {
+    "progress_only_changed_keys": [
+      "observed_at_utc",
+      "handoff_snapshot"
+    ],
+    "progress_observation_time_after_actual_command": true,
+    "progress_claims_match_raw_result": true,
+    "current_handoff_added_only_actual_observation_and_portable_identity_explanation": true,
+    "global_Fail_preserved": true,
+    "no_global_error_zeroing": true,
+    "original_1138_identity_not_reinterpreted": true,
+    "D1_acceptance_and_PR_R_M_identities_unchanged": true,
+    "production_normative_fixtures_tests_workflow_unchanged": true,
+    "B0_181_full_language_ZUI_product_native_windows_states_unchanged": true,
+    "original_slice_reviews_not_reissued": true
+  },
+  "findings": [],
+  "blocking_findings": [],
+  "actions": {
+    "formal_repository_writes": 0,
+    "handoff_invocations": 0,
+    "cargo_invocations": 0,
+    "additional_tests": 0,
+    "github_writes": 0,
+    "page_writes": 0,
+    "only_written_file": "recovery/D2-METADATA-REVIEW.json"
+  },
+  "publication_limit": "D2 is still pending at review time. This Pass accepts the listed metadata/evidence bytes, not an unobserved D2 commit or its future main CI. Root retains responsibility for exact publication, final complete CI and later cleanup."
+}
