@@ -67,17 +67,19 @@ fn empty_modules_preserve_the_frozen_per_declaration_budget() {
         modules.extend((0..16).map(|n| module(100 + i * 16 + n)));
     }
     let input = program(modules);
-    // CP10 froze 1568/1567 for these eight declaration-bearing modules.
-    // Inserting empty tables has never added logical resolution charges.
+    // CP10 froze 1568/1567 for the eight declaration-bearing modules alone.
+    // Each additional current module still indexes all 16 remote declarations:
+    // 8 * ((13 + 1) + (12 + 1)) = 216, hence 1568 + 128 * 216 = 29216.
+    // Only scans of empty *project* declaration tables disappear.
     let limits = Limits {
-        max_analysis_steps: 1568,
+        max_analysis_steps: 29216,
         ..Limits::default()
     };
     let accepted = zil_types::resolve_program_shapes(&input, &limits).unwrap();
     let errors = zil_types::resolve_program_shapes(
         &input,
         &Limits {
-            max_analysis_steps: 1567,
+            max_analysis_steps: 29215,
             ..limits.clone()
         },
     )
@@ -85,8 +87,8 @@ fn empty_modules_preserve_the_frozen_per_declaration_budget() {
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].phase, Phase::Types);
     assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
-    assert_eq!(errors[0].message, "aggregate resolution budget exceeded");
-    assert_eq!(errors[0].span, Some(span(7, 1)));
+    assert_eq!(errors[0].message, "project type index budget exceeded");
+    assert_eq!(errors[0].span, Some(span(7, 2)));
     assert_eq!(
         zil_types::resolve_program_shapes(&input, &limits).unwrap(),
         accepted
