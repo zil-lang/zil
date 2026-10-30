@@ -177,11 +177,19 @@ pub(super) fn resolve_program(
     limits: &Limits,
 ) -> CompileResult<CoreProgram> {
     let mut remaining = limits.max_analysis_steps;
-    let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+    // Empty modules contribute no declarations or logical charges to the
+    // per-module index. Keep only declaration-bearing modules, in original
+    // order; this avoids rescanning every empty table for every source module.
+    let modules = program
+        .modules
+        .iter()
+        .map(|m| &m.core)
+        .filter(|core| !core.aggregates.is_empty() || !core.enums.is_empty())
+        .collect::<Vec<_>>();
     // Each core below is cloned from this same immutable project. The old
     // local-plus-project union therefore has identical membership and size
     // for every module; only that uncharged lookup construction is shared.
-    let callable_names = collect_callable_names(modules.iter().copied());
+    let callable_names = collect_callable_names(program.modules.iter().map(|m| &m.core));
     let mut normalized = Vec::new();
     for module in &program.modules {
         let core = resolve_indexed(
