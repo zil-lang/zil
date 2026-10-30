@@ -1,0 +1,25 @@
+{
+  "status": "FrozenForAcceptance",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "tree": "6ec628b56387fb5437179986dfeef0e90d553c68",
+  "scope": "Joint implementation input identity; not passing test evidence",
+  "production_manifest_sha256": "598404ece7b40b25b630167ea2fe4d3bb73cd8da9c5e91f272780c30e9bde810",
+  "production_files": 209,
+  "normative": {
+    "schema_version": 1,
+    "algorithm": "sha256 of sorted path + NUL + sha256 + LF entries",
+    "files": {
+      "_zil_design.md": "a9fbba01612959917c8ede69a5eeee7854d6ce8e0ff5f5a02d0ab362c6d9eebb",
+      "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "spec/diagnostics.json": "76d7b0eda1addd47ad03d81fa083d2d016c2ec7eeb46297ee868ae3d59131cb8",
+      "spec/interfaces.json": "138d32b57c1d7e0a154335f9321dabd2c47fd78511e322d097f1fcbd7647efcb",
+      "policy/dependencies.json": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    },
+    "normative_hash": "1e9be8621c14b53ceaa4668ddb910ca80217907e916043e7fba322844d41c246"
+  },
+  "product_gates_unchanged": true,
+  "full_workspace": "PendingGitHub",
+  "production_manifest_scope": "All tracked crate files except tests directories, plus root Cargo/toolchain/.cargo inputs; full CI checkout identity is verified separately."
+}

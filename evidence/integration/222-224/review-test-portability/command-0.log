@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-integration/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.81s
+     Running tests/review222_independent.rs (/workspace/scratch/d286b3aeeb6b/targets/integration/debug/deps/review222_independent-972e630d786c460d)
+
+running 2 tests
+test nominal_constructor_uses_the_same_namespace_after_single_generation ... ok
+test nested_generations_conditions_and_later_query_share_fresh_and_warm_limits ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
