@@ -1,0 +1,131 @@
+{
+  "task": "CP06",
+  "reviewer": "/root/toolchain_setup",
+  "implementation_author": "/root/llvm_strategy",
+  "implementation_commit": "d4c152ed15a7c0b05dd209cb8008e374cf2ec6c8",
+  "reviewed_commits": [
+    "bff04689ec987da9dbaeede7acd6ae1f012bd3f8",
+    "d4c152ed15a7c0b05dd209cb8008e374cf2ec6c8"
+  ],
+  "verdict": "Pass",
+  "scope": "Independent code/FFI review, finite baseline-vs-candidate preflight differential, real LLVM machine/link tests. Not full-language, whole-workspace, performance or product acceptance.",
+  "timestamp": "2026-10-30T07:07:35.743106+00:00",
+  "source_hashes": {
+    "crates/zil-llvm-api/src/native.rs": "0ac1cda97b0ada838df5ccf2e6cc86346488d2d417d6e0c593354ff36e902001",
+    "crates/zil-llvm-api/src/native/builder.rs": "3be25cce38bfab2d65f20163af13fb8ad065b2b86e687acbf6a07f7c11a0201e",
+    "crates/zil-llvm-api/src/preflight.rs": "c904167c51b5fd659ced4098c42e52d5fd4d9feb49738c3818b0f7cde71698c4",
+    "crates/zil-llvm-api/src/model.rs": "96aa60a9eb041aa059031ddc5eebb1aa5ffe199369b88a982fbf3f7152d1aa72",
+    "crates/zil-llvm-api/tests/local_names_cp06.rs": "6dc045ab5c6a9e0b8eefd7fa0542f37ceb4a981ec7e186cf9ecd4f37e1b5ff75",
+    "crates/zil-llvm-api/tests/schedule_cp06.rs": "41a9bbbea8c75d93a97e040ed7573e7b20e88bfe363972de35004cb9943152dd"
+  },
+  "subreviews": [
+    {
+      "id": "CP06a",
+      "implementation_commit": "bff04689ec987da9dbaeede7acd6ae1f012bd3f8",
+      "verdict": "Pass",
+      "findings": [
+        "Official LLVM23.1.4 Core.h declares LLVMContextSetDiscardValueNames(LLVMContextRef, LLVMBool); Types.h defines LLVMBool as int, matching Rust c_int.",
+        "Value.cpp::setNameImpl exempts GlobalValue from discard. Existing builder global/function/type creation names remain intact; only local SSA/parameter/basic-block labels are omitted.",
+        "Configuration is applied after complete structured preflight and before module/Builder creation in a per-request, non-null, owned context. Text-reference path keeps its previous configuration.",
+        "Model name validation, name-to-handle maps and readable machine sidecar are unchanged. Object alpha-renaming and real exported symbol/external call tests pass."
+      ]
+    },
+    {
+      "id": "CP06b",
+      "implementation_commit": "d4c152ed15a7c0b05dd209cb8008e374cf2ec6c8",
+      "verdict": "Pass",
+      "findings": [
+        "Fast return is after every type/name/CFG/phi/predecessor/dominance check.",
+        "For each non-phi use, any non-phi definition in a later textual block disables the shortcut. Same-block forward references still reject, earlier blocks/parameters are already available, and all phi handles are precreated.",
+        "Returning the enumerated non-phi positions preserves each block's instruction/effect order. Cross-block construction order has no runtime side effect.",
+        "Original Kahn dependency edges, deduplication and cycle diagnostic remain as fallback for forward references, including unreachable non-phi cycles.",
+        "Independent differential and schedule-validity audit found no mismatch in 1493 cases; finite coverage is not a general formal proof."
+      ]
+    }
+  ],
+  "upstream_sources": [
+    "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/include/llvm-c/Core.h",
+    "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/include/llvm-c/Types.h",
+    "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/lib/IR/Value.cpp"
+  ],
+  "independent_probe": {
+    "compile_argv": [
+      "rustc",
+      "--edition=2024",
+      "/tmp/cp06-review-toolchain-setup/probe.rs",
+      "-o",
+      "/tmp/cp06-review-toolchain-setup/probe"
+    ],
+    "run_argv": [
+      "/tmp/cp06-review-toolchain-setup/probe"
+    ],
+    "exit_code": 0,
+    "result": {
+      "cases": 1493,
+      "accepted": 385,
+      "rejected": 1108,
+      "acceptance_and_diagnostic_mismatches": 0,
+      "invalid_candidate_schedules": 0,
+      "model_mutations": 0
+    },
+    "source": "#![allow(dead_code)]\nmod model;\nmod baseline;\nmod candidate;\nuse model::*;\nuse std::collections::BTreeSet;\n\nfn inst(name: &str, op: Op) -> Inst {\n    Inst::new((!name.is_empty()).then(|| name.into()), op)\n}\nfn arg(value: Val) -> Arg { Arg::new(Ty::Int(32), value) }\nfn local(name: &str) -> Val { Val::Local(name.into()) }\nfn block(name: &str, instructions: Vec<Inst>) -> Block { Block { name: name.into(), instructions } }\nfn module(blocks: Vec<Block>, params: Vec<Param>) -> Module {\n    Module { triple: \"x86_64-unknown-linux-gnu\".into(), fingerprint: \"independent-CP06-review\".into(), items: vec![Item::Function(Function { name: \"reviewed\".into(), linkage: Linkage::External, signature: Signature::new(Ty::Int(32),params), attrs: vec![], blocks:Some(blocks) })] }\n}\nfn chain() -> Module {\n    let mut blocks=vec![block(\"entry\",vec![inst(\"seed\",Op::Freeze(arg(local(\"input\")))),inst(\"\",Op::Branch(\"b1\".into()))])];\n    for i in 1..=4 {\n        let dep=if i==1 {\"seed\".to_owned()} else {format!(\"v{}\",i-1)};\n        let term=if i==4 {Op::Return(Some(arg(local(\"v4\"))))} else {Op::Branch(format!(\"b{}\",i+1))};\n        blocks.push(block(&format!(\"b{i}\"),vec![inst(&format!(\"v{i}\"),Op::Freeze(arg(local(&dep)))),inst(\"\",term)]));\n    }\n    module(blocks,vec![Param::new(Ty::Int(32),\"input\")])\n}\nfn diamond() -> Module {\n    module(vec![\n      block(\"entry\",vec![inst(\"\",Op::CondBranch{condition:local(\"choose\"),yes:\"a\".into(),no:\"b\".into()})]),\n      block(\"a\",vec![inst(\"left\",Op::Freeze(arg(Val::Int(41)))),inst(\"\",Op::Branch(\"join\".into()))]),\n      block(\"b\",vec![inst(\"right\",Op::Freeze(arg(Val::Int(43)))),inst(\"\",Op::Branch(\"join\".into()))]),\n      block(\"join\",vec![inst(\"merged\",Op::Phi{ty:Ty::Int(32),incoming:vec![(local(\"left\"),\"a\".into()),(local(\"right\"),\"b\".into())]}),inst(\"\",Op::Branch(\"after\".into()))]),\n      block(\"after\",vec![inst(\"\",Op::Return(Some(arg(local(\"merged\")))))]),\n    ],vec![Param::new(Ty::Int(1),\"choose\")])\n}\nfn blocks(m:&mut Module)->&mut Vec<Block> { let Item::Function(f)=&mut m.items[0] else{panic!()};f.blocks.as_mut().unwrap() }\nfn perms(values:&mut [usize],offset:usize, out:&mut Vec<Vec<usize>>) {\n    if offset==values.len(){out.push(values.to_vec());return}\n    for i in offset..values.len(){values.swap(i,offset);perms(values,offset+1,out);values.swap(i,offset)}\n}\nfn audit(m:&Module, count:&mut [usize;3]) {\n    let before=m.to_text();let old=baseline::validate(m);let new=candidate::validate(m);count[0]+=1;\n    assert_eq!(old.is_ok(),new.is_ok(),\"acceptance mismatch: {before}\");\n    match (old,new) {\n      (Err(a),Err(b))=>{count[2]+=1;assert_eq!(a,b,\"diagnostic mismatch\");},\n      (Ok(_),Ok(schedule))=>{\n        count[1]+=1;\n        for item in &m.items { let Item::Function(f)=item else {continue};let Some(body)=&f.blocks else {continue};\n          let positions=&schedule.functions[&f.name];let expected=body.iter().enumerate().flat_map(|(b,block)|block.instructions.iter().enumerate().filter_map(move |(i,v)|(!matches!(v.op,Op::Phi{..})).then_some((b,i)))).collect::<BTreeSet<_>>();\n          assert_eq!(positions.iter().copied().collect::<BTreeSet<_>>(),expected);assert_eq!(positions.len(),expected.len());\n          let mut available=f.signature.params.iter().map(|p|p.name.as_ref().unwrap().clone()).collect::<BTreeSet<_>>();\n          for b in body {for i in &b.instructions{if matches!(i.op,Op::Phi{..}){available.insert(i.result.as_ref().unwrap().clone());}}}\n          let mut last=vec![None;body.len()];\n          for &(b,i) in positions {\n            if let Some(old)=last[b]{assert!(old<i,\"block effect order changed\");}last[b]=Some(i);\n            let instruction=&body[b].instructions[i];\n            for value in instruction.op.values(){let mut uses=vec![];value.local_uses(&mut uses);for name in uses{assert!(available.contains(name),\"handle not available: {name}\");}}\n            if let Some(name)=&instruction.result{available.insert(name.clone());}\n          }\n        }\n      },_=>unreachable!()\n    }\n    assert_eq!(m.to_text(),before,\"model changed during preflight\");\n}\nfn main(){\n    let mut count=[0;3];let mut orders=vec![];perms(&mut [1,2,3,4],0,&mut orders);\n    for mut original in [chain(),diamond()] {\n      let source=blocks(&mut original).clone();\n      for order in &orders {\n        let mut m=original.clone();*blocks(&mut m)=std::iter::once(source[0].clone()).chain(order.iter().map(|&i|source[i].clone())).collect();audit(&m,&mut count);\n        for b in 1..5 {\n          for dependency in [\"seed\",\"v1\",\"v2\",\"v3\",\"v4\",\"input\",\"absent\",\"merged\",\"left\",\"right\"] {\n            let mut changed=m.clone();\n            if let Op::Freeze(arg)=&mut blocks(&mut changed)[b].instructions[0].op {arg.value=local(dependency);audit(&changed,&mut count);}\n          }\n        }\n      }\n    }\n    let mut dead=module(vec![block(\"entry\",vec![inst(\"\",Op::Return(Some(arg(Val::Int(0)))))]),block(\"dead.a\",vec![inst(\"a\",Op::Freeze(arg(local(\"b\")))),inst(\"\",Op::Return(Some(arg(local(\"a\")))))]),block(\"dead.b\",vec![inst(\"b\",Op::Freeze(arg(local(\"a\")))),inst(\"\",Op::Return(Some(arg(local(\"b\")))))]),],vec![]);\n    audit(&dead,&mut count);blocks(&mut dead).swap(1,2);audit(&dead,&mut count);blocks(&mut dead)[1].instructions[0].op=Op::Freeze(arg(Val::Int(0)));audit(&dead,&mut count);\n    let mut bad_phi=diamond();if let Op::Phi{incoming,..}=&mut blocks(&mut bad_phi)[3].instructions[0].op{incoming.pop();}audit(&bad_phi,&mut count);\n    let mut collision=chain();let Item::Function(f)=&mut collision.items[0] else{panic!()};f.signature.params[0].name=Some(\"entry\".into());audit(&collision,&mut count);\n    println!(\"{{\\\"cases\\\":{},\\\"accepted\\\":{},\\\"rejected\\\":{},\\\"acceptance_and_diagnostic_mismatches\\\":0,\\\"invalid_candidate_schedules\\\":0,\\\"model_mutations\\\":0}}\",count[0],count[1],count[2]);\n}\n",
+    "input_sources": {
+      "baseline_preflight": "bff04689ec987da9dbaeede7acd6ae1f012bd3f8:crates/zil-llvm-api/src/preflight.rs",
+      "candidate_preflight": "d4c152ed15a7c0b05dd209cb8008e374cf2ec6c8:crates/zil-llvm-api/src/preflight.rs",
+      "shared_model": "d4c152ed15a7c0b05dd209cb8008e374cf2ec6c8:crates/zil-llvm-api/src/model.rs"
+    },
+    "hashes": {
+      "model.rs": "96aa60a9eb041aa059031ddc5eebb1aa5ffe199369b88a982fbf3f7152d1aa72",
+      "probe.rs": "6aa27d3843784a138c47d6695813f594c884356fb56da5a8ee4d8072013b2f5f",
+      "baseline.rs": "f2c32d389b913710dd87ad7a7d0926de27b31428596ff786b85717d1533d22b5",
+      "candidate.rs": "c904167c51b5fd659ced4098c42e52d5fd4d9feb49738c3818b0f7cde71698c4"
+    }
+  },
+  "native_regression": {
+    "argv": [
+      "cargo",
+      "test",
+      "-p",
+      "zil-llvm-api",
+      "--features",
+      "text-reference",
+      "--test",
+      "local_names_cp06",
+      "--test",
+      "schedule_cp06",
+      "--test",
+      "machine210",
+      "--test",
+      "builder210",
+      "--test",
+      "native",
+      "--test",
+      "native211",
+      "--test",
+      "allocation211",
+      "--target-dir",
+      "/workspace/scratch/ac5966c4c370/target-cp07",
+      "-j2",
+      "--",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "passed": 43,
+    "summaries": [
+      "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+      "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+      "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+      "test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+      "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+      "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s",
+      "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s"
+    ],
+    "log_sha256": "919e33be2b4b88a847128654ed9ef420fdd8556d6bc1e52359fa9727749d5c09",
+    "log": "   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp06/crates/zil-llvm-api)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.45s\n     Running tests/allocation211.rs (/workspace/scratch/ac5966c4c370/target-cp07/debug/deps/allocation211-14c1a2bbba279e61)\n\nrunning 4 tests\ntest fragments_do_not_hide_missing_or_nested_function_boundaries ... ok\ntest operand_iterator_keeps_order_multiplicity_and_nested_values ... ok\ntest bounded_fragments_match_one_event_stream_and_manual_items ... ok\ntest dense_schedule_deduplicates_operand_and_sequence_edges_without_missing_errors ... ok\n\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n     Running tests/builder210.rs (/workspace/scratch/ac5966c4c370/target-cp07/debug/deps/builder210-989e6c98fe40f9f0)\n\nrunning 9 tests\ntest direct_backend_rejects_disabled_text_adapter ... ok\ntest target_mismatch_is_explicit ... ok\ntest invalid_module_never_reaches_assert_prone_builder ... ok\ntest cancellation_at_each_native_boundary ... ok\ntest rendered_and_direct_modes_have_same_behavior ... ok\ntest direct_target_not_host_and_optimization_modes ... ok\ntest separate_contexts_have_deterministic_objects ... ok\ntest direct_aggregates_global_function_table_and_indirect_call_execute ... ok\ntest direct_loop_forward_block_phi_executes_o0_o2 ... ok\n\ntest result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s\n\n     Running tests/local_names_cp06.rs (/workspace/scratch/ac5966c4c370/target-cp07/debug/deps/local_names_cp06-4a02a14996d3ce5c)\n\nrunning 3 tests\ntest discarded_native_names_do_not_weaken_model_name_validation ... ok\ntest local_renaming_keeps_objects_and_diagnostic_model_independent ... ok\ntest global_exports_and_external_calls_link_with_the_c_abi ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s\n\n     Running tests/machine210.rs (/workspace/scratch/ac5966c4c370/target-cp07/debug/deps/machine210-3215dff75f42f6c2)\n\nrunning 12 tests\ntest direct_call_signature_and_narrow_abi_checked ... ok\ntest bad_global_initializers_rejected ... ok\ntest non_dominating_branch_value_rejected ... ok\ntest duplicate_predecessor_phi_requires_same_values ... ok\ntest missing_definition_and_forward_local_use_rejected ... ok\ntest malformed_cfg_and_duplicate_names_rejected ... ok\ntest phi_type_mismatch_rejected ... ok\ntest structure_assembly_cannot_silently_drop_events ... ok\ntest phi_wrong_predecessor_rejected ... ok\ntest type_indices_alignment_and_constants_checked_before_ffi ... ok\ntest void_and_duplicate_global_and_recursive_type_rejected ... ok\ntest valid_phi_and_forward_block_order ... ok\n\ntest result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n     Running tests/native.rs (/workspace/scratch/ac5966c4c370/target-cp07/debug/deps/native-894b7f1fd7b4b1f6)\n\nrunning 9 tests\ntest parse_error_returns_no_object ... ok\ntest contradictory_layout_cannot_be_overwritten ... ok\ntest target_mismatch_rejected_before_optimization ... ok\ntest verifier_error_is_not_print_and_continue ... ok\ntest unimplemented_target_does_not_fall_back_to_host ... ok\ntest cancellation_at_each_boundary_never_returns_an_object ... ok\ntest win64_object_uses_target_not_host_layout ... ok\ntest real_elf_object_in_both_modes ... ok\ntest independent_contexts_parallel_objects_are_deterministic ... ok\n\ntest result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n\n     Running tests/native211.rs (/workspace/scratch/ac5966c4c370/target-cp07/debug/deps/native211-981eee76b9f43e5f)\n\nrunning 2 tests\ntest reused_direct_call_type_keeps_narrow_attributes_and_function_local_scopes ... ok\ntest cached_variadic_function_type_preserves_fixed_and_extra_arguments ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s\n\n     Running tests/schedule_cp06.rs (/workspace/scratch/ac5966c4c370/target-cp07/debug/deps/schedule_cp06-02db1fef3849d72b)\n\nrunning 4 tests\ntest unreachable_non_phi_cycles_still_reach_the_rejecting_fallback ... ok\ntest natural_order_does_not_skip_phi_or_dominance_checks ... ok\ntest textual_block_permutations_and_phi_backedges_are_all_valid ... ok\ntest natural_and_fallback_schedules_preserve_side_effects_and_loop_results ... ok\n\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s\n\n"
+  },
+  "limitations": [
+    "Tests are reviewer re-executions of candidate machine tests plus an independent finite preflight probe; do not add overlapping author/reviewer counts.",
+    "No new ZIL-source acceptance, native Windows execution or compile/runtime performance claim.",
+    "Some LLVM-native diagnostic names become numeric by design; the readable model sidecar remains named."
+  ]
+}
