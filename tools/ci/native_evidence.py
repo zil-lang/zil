@@ -25,16 +25,16 @@ def inventory(root, phase):
     for path in sorted(evidence.rglob("*")):
         if path.is_symlink():
             raise SystemExit("Native evidence must not contain symlinks")
-        if path.is_dir():
-            continue
-        if not path.is_file():
-            raise SystemExit("Native evidence must contain only regular files")
         relative = path.relative_to(evidence).as_posix()
         folded = relative.casefold()
         if folded in folded_paths:
             raise SystemExit("Native artifact paths must not collide when case-folded: "
                              + folded_paths[folded] + " and " + relative)
         folded_paths[folded] = relative
+        if path.is_dir():
+            continue
+        if not path.is_file():
+            raise SystemExit("Native evidence must contain only regular files")
         digest = hashlib.sha256()
         size = 0
         with path.open("rb") as stream:
