@@ -258,6 +258,18 @@ pub fn compile_source(source: &SourceUnit, options: &CompileOptions) -> CompileR
 pub fn compile_path(path: &Path, options: &CompileOptions) -> CompileReport {
     CompilationSession::default().compile_path(path, options)
 }
+// Keep a requested diagnostic capability explicit even for library callers.
+fn check_timing_support(options: &CompileOptions) -> CompileResult<()> {
+    if options.timings && !cfg!(feature = "timings") {
+        Err(vec![Diagnostic::unsupported(
+            Phase::Driver,
+            "stage timings require building zil-driver with --features timings",
+            None,
+        )])
+    } else {
+        Ok(())
+    }
+}
 fn read_source(path: &Path, options: &CompileOptions) -> CompileResult<SourceUnit> {
     options
         .cancellation
