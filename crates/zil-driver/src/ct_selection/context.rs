@@ -344,6 +344,16 @@ impl Dependencies<'_, '_, '_> {
                 object,
                 member: s::MemberName::Name(name),
             } => {
+                // Expansion erases grouping before resolving a static module
+                // member. Follow that same callee here, charging each unwrap
+                // before advancing and retaining ordinary lexical checks.
+                let mut object = object.as_ref();
+                let mut depth = 0;
+                while let s::ExprKind::Group(inner) = &object.kind {
+                    self.budget.node(object.span, depth)?;
+                    object = inner;
+                    depth += 1;
+                }
                 let s::ExprKind::Name(alias) = &object.kind else {
                     return Ok(None);
                 };
