@@ -8,14 +8,14 @@
 | --- | --- | --- |
 | 222：源级 `#for` | 声明级普通函数与语句级展开；同型 Unit/bool/u8/u16/i32/i64 显式数组和同整数类型半开区间；经独立 CT 核验与 VM 求值，逐轮卫生标识、原配置快照、依赖和累计预算；普通类型中数组长度等既有标量槽可使用迭代值 | 不支持一般 Type/Syntax 生成、`#emit` 或 struct/enum/trait/impl/type alias 声明生成；生成结果继续经过普通语义和安全核 |
 | 223：完整 Product Store | 有限完整嵌套 Product 可作为动态 Store 元素，真实内联布局、push/pop/reserve、失败载荷返还与递归声明序清理；普通 `T:StoreElement` helper 传递完整元素身份 | Product 内 Store、递归 Store、树内 callback、拥有数组、任意 owning Sum、Product 独占元素窗口仍未开放；只支持精确 `Product!Unit` / `Unit!Product` 协议壳 |
-| 224：共享 `&Product` | 普通参数、局部地址、直接 `&root.child`、同步转借及嵌套 Copy/资源头读取；真实根来源、完整责任、活跃 loan 和 NLL；零存储普通头不继承 Store 的非零元素限制 | 活跃共享借入期间禁止相交 move/take/drop/replace；不开放可变 Product、借入逃逸或长期捕获，也不从共享地址制造可变 Desc |
+| 224：共享 `&Product` | 普通参数、局部地址、直接 `&root.child`、同步转借及嵌套 Copy/有限 Copy 用户资源头读取；真实根来源、完整责任、活跃 loan 和 NLL；零存储普通头不继承 Store 的非零元素限制 | 活跃共享借入期间禁止相交 move/take/drop/replace；不开放可变 Product、借入逃逸或长期捕获，也不从共享地址制造可变 Desc |
 
 没有新增隐式 Box、RC、锁或全局表。Verify 继续从原始指令独立重建资格、来源和责任，不调用 Types/Analyze 的求证函数。schema/Wire 及默认限额、`validation/product-gates.json` 未改。
 
 ## 独立审查实际发现并修复的问题
 
 1. **222 的类型内部标量槽遗漏替换。** 原实现替换普通表达式，却遗漏参数、返回、局部、闭包参数和泛型类型实参中的数组长度。修复统一遍历这些既有 TypeRef 槽；原失败输入保存在 `examples/mainline/ct_for222/review_repair/`。审查还发现同名局部值会使展开后的 record 构造器丢失原类型绑定；普通单源 API 的手写对照成功，CLI 工程入口的既有差异另行记录。该近邻由独立原字节控制继续复验，不用入口差异掩盖卫生缺陷。
-2. **223 扩大了普通可变地址资格。** 非作者把合法未用 `&mut Leaf` 输入一致改为嵌套 Product，保持真实字段索引、SSA、Hold 和指纹，原 raw/Wire 被错误接受。返修分离普通地址资格与 Store/精确 Unit 协议资格，223 自身即能拒绝该越界，不依赖 224 的守卫补救。
+2. **223 扩大了普通可变地址资格。** 非作者把合法未用 `&mut Leaf` 输入一致改为嵌套 Product，保持真实字段索引、SSA 与 Hold，并对变异后模块重算指纹，原 raw/Wire 被错误接受。返修分离普通地址资格与 Store/精确 Unit 协议资格，223 自身即能拒绝该越界，不依赖 224 的守卫补救。
 3. **224 的直接子包地址没有机器实现。** 原字节 `&root.child` 通过 Verify 后被 LLVM 后端旧资格拒绝。返修仅为已核的不可变字段地址发射真实父布局上的 GEP，不复制拥有值、不增加权限；同一原输入及直接资源字段近邻已分别执行 O0/O2。
 
 原失败、跨工作树旧缓存污染和修后重放各自保留身份。旧缓存污染记作 InvalidEvidence，不计代码失败或通过；作者、独审和集成的重叠执行不累加成新覆盖量。
@@ -26,12 +26,12 @@
 
 新组合程序使用 `#for` 生成 Product，放入 Store，经共享子视图和普通函数读取；最后一次使用结束后可扩容、弹出，O0/O2 均按预期输出 `BA`。直接子包共享读取后移动完整值输出 `A`。保持视图活跃时的 reserve/push/pop/consume 四条近邻均由 Verify 以 `E-BORROW-CONFLICT` 拒绝。
 
-旧 171/175/206 的原源码与 fixture/MANIFEST 保留，仅迁移被新合同改变的预期：合法共享读取和完整 Product Store 晋升成功；原非法 canonical Store 仍被 SafeReject；活跃共享借入期间替换由前端 Unsupported 前进为 Verify 借用冲突拒绝。没有删除旧用例来获得通过。
+旧 171/175/206 的原源码与 fixture/MANIFEST 保留，仅迁移被新合同改变的预期：合法共享读取和完整 Product Store 原资格源码晋升到 Verify 成功；原非法 canonical Store 仍被 SafeReject；活跃共享借入期间替换由前端 Unsupported 前进为 Verify 借用冲突拒绝。没有删除旧用例来获得通过。
 
 | 证据层 | 定位 |
 | --- | --- |
 | 222 作者与范围 | [LANGUAGE-222.md](LANGUAGE-222.md)，`evidence/impl/222/` |
-| 223 作者、原独审失败与返修 | [LANGUAGE-223.md](LANGUAGE-223.md)，`evidence/impl/223/author/`、`address-admission-repair/` |
+| 223 作者、原独审失败与返修 | [LANGUAGE-223.md](LANGUAGE-223.md)，`evidence/impl/223/author/`、`address-admission-repair/`、`review-scope-audit/` |
 | 224 作者、机器遗漏与返修 | [LANGUAGE-224.md](LANGUAGE-224.md)，`evidence/impl/224/author/`、`author-repair1/`、`author-history/` |
 | 当前组合与正式验收 | `evidence/integration/222-224/`，主树 `.task/impl/222.md`–`224.md` |
 

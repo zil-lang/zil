@@ -117,14 +117,14 @@ fn exact_unit_protocols_cannot_admit_other_or_nested_owning_sums() {
                     0 => **result = Type::I32,
                     1 => **result = error.as_ref().clone(),
                     2 => {
-                        *error = Box::new(Type::ErrorUnion {
+                        **error = Type::ErrorUnion {
                             error: error.clone(),
                             result: Box::new(Type::Unit),
-                        })
+                        }
                     }
                     3 => {
                         *result = error.clone();
-                        *error = Box::new(Type::Bool);
+                        **error = Type::Bool;
                     }
                     _ => unreachable!(),
                 }
