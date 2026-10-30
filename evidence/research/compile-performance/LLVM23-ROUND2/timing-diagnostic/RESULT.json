@@ -1,0 +1,559 @@
+{
+  "schema": "zil.compile-performance.diagnostic.v1",
+  "purpose": "Non-scoring stage attribution after all formal windows finished; profiling enabled, shared host and other audit work active. Not a speed benchmark.",
+  "source": "6e8e63a5ceae861447d0447c325bed78b59c3f42",
+  "binary": {
+    "path": "/workspace/scratch/ac5966c4c370/binaries/combined-6e8e63a5-timings",
+    "sha256": "ec9ac7282663d5751bdf777d13933f63484b8a66593a41ad2747da8d8a8f36bf"
+  },
+  "features": [
+    "llvm-api",
+    "timings"
+  ],
+  "case": "tree1024x8",
+  "frozen_plan_sha256": "bda35f8ef4e4212d61d8b8f5bae226318f272bcc67aed0d6439f57b75a4ccdf5",
+  "completed_utc": "2026-10-30T08:52:36.416152+00:00",
+  "rows": [
+    {
+      "request": "cold_process",
+      "snapshot": "base",
+      "argv": [
+        "/workspace/scratch/ac5966c4c370/binaries/combined-6e8e63a5-timings",
+        "build",
+        "/tmp/zil-round2-diagnostic/work/src/main.zil",
+        "-o",
+        "/tmp/zil-round2-diagnostic/work/program",
+        "--json",
+        "--timings",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+        "--opt",
+        "O0",
+        "--codegen-units",
+        "8",
+        "--codegen-jobs",
+        "4",
+        "--cache-dir",
+        "/tmp/zil-round2-diagnostic/work/source-candidates",
+        "--object-cache",
+        "/tmp/zil-round2-diagnostic/work/objects",
+        "--query-cache",
+        "/tmp/zil-round2-diagnostic/work/queries"
+      ],
+      "status": "Success",
+      "verification_runs": 1,
+      "query_cache": {
+        "requested": true,
+        "state": "miss",
+        "key": "f0a81cbd0b421e32590b98b99e0a95480d8de85aa296058078326e882faf99db",
+        "reason": null,
+        "stored": true,
+        "write_reason": null,
+        "ct_steps": 0,
+        "ct_nodes": 198765,
+        "ct_functions": 9222
+      },
+      "object_cache": {
+        "requested": true,
+        "enabled": true,
+        "hits": 0,
+        "misses": 8,
+        "corrupt": 0,
+        "stored": 8,
+        "write_failures": 0,
+        "key_ns": 163481224,
+        "lookup_ns": 322498,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "checks": [
+        {
+          "input": "corpus/tree1024x8/io/input-0.bin",
+          "expected": "corpus/tree1024x8/io/expected-base-0.bin",
+          "bytes": 0,
+          "pass": true,
+          "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "input": "corpus/tree1024x8/io/input-7.bin",
+          "expected": "corpus/tree1024x8/io/expected-base-7.bin",
+          "bytes": 7,
+          "pass": true,
+          "output_sha256": "8f37507b555cf7d3f9fa8c1872718732e9122d79a4147a9cd903171984b9ccd2"
+        },
+        {
+          "input": "corpus/tree1024x8/io/input-256.bin",
+          "expected": "corpus/tree1024x8/io/expected-base-256.bin",
+          "bytes": 256,
+          "pass": true,
+          "output_sha256": "66633b42eca4e6cb0b71d8b6e4a5ab55fc6e8be8d634ee7396f69fa32f5cdaf3"
+        }
+      ],
+      "compiler_request_seconds": 2.044458964,
+      "top_level_spans": [
+        {
+          "id": 1,
+          "parent": 0,
+          "name": "source_discovery",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 9113,
+          "wall_ns": 124227323,
+          "outcome": "ok"
+        },
+        {
+          "id": 3083,
+          "parent": 0,
+          "name": "compile_project",
+          "kind": "request",
+          "unit_index": null,
+          "start_ns": 124236967,
+          "wall_ns": 1919808373,
+          "outcome": "Success"
+        }
+      ],
+      "selected_backend_spans": [
+        {
+          "id": 7210,
+          "parent": 7209,
+          "name": "machine_lower",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 1386197215,
+          "wall_ns": 122465606,
+          "outcome": "ok"
+        },
+        {
+          "id": 7211,
+          "parent": 7209,
+          "name": "llvm_text_render",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 1508663963,
+          "wall_ns": 63321555,
+          "outcome": "ok"
+        },
+        {
+          "id": 7212,
+          "parent": 7209,
+          "name": "cgu_partition",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 1571987591,
+          "wall_ns": 25511884,
+          "outcome": "ok"
+        }
+      ],
+      "raw_report": "0-cold_process.json",
+      "raw_report_sha256": "55360c33481450870e5b46ac936d16cc008650dcc4d290eb540df4fbfbfea4d3"
+    },
+    {
+      "request": "unchanged",
+      "snapshot": "base",
+      "argv": [
+        "/workspace/scratch/ac5966c4c370/binaries/combined-6e8e63a5-timings",
+        "build",
+        "/tmp/zil-round2-diagnostic/work/src/main.zil",
+        "-o",
+        "/tmp/zil-round2-diagnostic/work/program",
+        "--json",
+        "--timings",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+        "--opt",
+        "O0",
+        "--codegen-units",
+        "8",
+        "--codegen-jobs",
+        "4",
+        "--cache-dir",
+        "/tmp/zil-round2-diagnostic/work/source-candidates",
+        "--object-cache",
+        "/tmp/zil-round2-diagnostic/work/objects",
+        "--query-cache",
+        "/tmp/zil-round2-diagnostic/work/queries"
+      ],
+      "status": "Success",
+      "verification_runs": 1,
+      "query_cache": {
+        "requested": true,
+        "state": "hit",
+        "key": "f0a81cbd0b421e32590b98b99e0a95480d8de85aa296058078326e882faf99db",
+        "reason": null,
+        "stored": false,
+        "write_reason": null,
+        "ct_steps": 0,
+        "ct_nodes": 198765,
+        "ct_functions": 9222
+      },
+      "object_cache": {
+        "requested": true,
+        "enabled": true,
+        "hits": 8,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 117410367,
+        "lookup_ns": 8297546,
+        "current_preflight_ns": 92155604,
+        "disabled_reason": null
+      },
+      "checks": [
+        {
+          "input": "corpus/tree1024x8/io/input-0.bin",
+          "expected": "corpus/tree1024x8/io/expected-base-0.bin",
+          "bytes": 0,
+          "pass": true,
+          "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "input": "corpus/tree1024x8/io/input-7.bin",
+          "expected": "corpus/tree1024x8/io/expected-base-7.bin",
+          "bytes": 7,
+          "pass": true,
+          "output_sha256": "8f37507b555cf7d3f9fa8c1872718732e9122d79a4147a9cd903171984b9ccd2"
+        },
+        {
+          "input": "corpus/tree1024x8/io/input-256.bin",
+          "expected": "corpus/tree1024x8/io/expected-base-256.bin",
+          "bytes": 256,
+          "pass": true,
+          "output_sha256": "66633b42eca4e6cb0b71d8b6e4a5ab55fc6e8be8d634ee7396f69fa32f5cdaf3"
+        }
+      ],
+      "compiler_request_seconds": 0.619836759,
+      "top_level_spans": [
+        {
+          "id": 1,
+          "parent": 0,
+          "name": "source_discovery",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 5759,
+          "wall_ns": 96738492,
+          "outcome": "ok"
+        },
+        {
+          "id": 3083,
+          "parent": 0,
+          "name": "compile_project",
+          "kind": "request",
+          "unit_index": null,
+          "start_ns": 96744732,
+          "wall_ns": 520917432,
+          "outcome": "Success"
+        }
+      ],
+      "selected_backend_spans": [
+        {
+          "id": 7198,
+          "parent": 7197,
+          "name": "machine_lower",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 277403242,
+          "wall_ns": 97884342,
+          "outcome": "ok"
+        },
+        {
+          "id": 7199,
+          "parent": 7197,
+          "name": "llvm_text_render",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 375288826,
+          "wall_ns": 66095329,
+          "outcome": "ok"
+        },
+        {
+          "id": 7200,
+          "parent": 7197,
+          "name": "cgu_partition",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 441385447,
+          "wall_ns": 26912992,
+          "outcome": "ok"
+        }
+      ],
+      "raw_report": "1-unchanged.json",
+      "raw_report_sha256": "b9117333ca28e67a9c3f3cc1b7b016d05472487ce41d7dbdb4e4a24cdfc142c0"
+    },
+    {
+      "request": "private_edit",
+      "snapshot": "private",
+      "argv": [
+        "/workspace/scratch/ac5966c4c370/binaries/combined-6e8e63a5-timings",
+        "build",
+        "/tmp/zil-round2-diagnostic/work/src/main.zil",
+        "-o",
+        "/tmp/zil-round2-diagnostic/work/program",
+        "--json",
+        "--timings",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+        "--opt",
+        "O0",
+        "--codegen-units",
+        "8",
+        "--codegen-jobs",
+        "4",
+        "--cache-dir",
+        "/tmp/zil-round2-diagnostic/work/source-candidates",
+        "--object-cache",
+        "/tmp/zil-round2-diagnostic/work/objects",
+        "--query-cache",
+        "/tmp/zil-round2-diagnostic/work/queries"
+      ],
+      "status": "Success",
+      "verification_runs": 1,
+      "query_cache": {
+        "requested": true,
+        "state": "miss",
+        "key": "83dfc7e96d1659414a7766a68a00638c805fe1f070526d2c94deab4c3c9b8509",
+        "reason": null,
+        "stored": true,
+        "write_reason": null,
+        "ct_steps": 0,
+        "ct_nodes": 198765,
+        "ct_functions": 9222
+      },
+      "object_cache": {
+        "requested": true,
+        "enabled": true,
+        "hits": 7,
+        "misses": 1,
+        "corrupt": 0,
+        "stored": 1,
+        "write_failures": 0,
+        "key_ns": 132596148,
+        "lookup_ns": 7908349,
+        "current_preflight_ns": 86443829,
+        "disabled_reason": null
+      },
+      "checks": [
+        {
+          "input": "corpus/tree1024x8/io/input-0.bin",
+          "expected": "corpus/tree1024x8/io/expected-private-0.bin",
+          "bytes": 0,
+          "pass": true,
+          "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "input": "corpus/tree1024x8/io/input-7.bin",
+          "expected": "corpus/tree1024x8/io/expected-private-7.bin",
+          "bytes": 7,
+          "pass": true,
+          "output_sha256": "16c84b6249c7bdadfc3b7afbc7bd1502cbabe050c003be6aafe476c51b01c8dc"
+        },
+        {
+          "input": "corpus/tree1024x8/io/input-256.bin",
+          "expected": "corpus/tree1024x8/io/expected-private-256.bin",
+          "bytes": 256,
+          "pass": true,
+          "output_sha256": "177a93efe42ee22ffcf3193be71c57a79bd0557514712d76f2dbb21f86a67d53"
+        }
+      ],
+      "compiler_request_seconds": 1.07192418,
+      "top_level_spans": [
+        {
+          "id": 1,
+          "parent": 0,
+          "name": "source_discovery",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 9304,
+          "wall_ns": 85417283,
+          "outcome": "ok"
+        },
+        {
+          "id": 3083,
+          "parent": 0,
+          "name": "compile_project",
+          "kind": "request",
+          "unit_index": null,
+          "start_ns": 85427178,
+          "wall_ns": 986423334,
+          "outcome": "Success"
+        }
+      ],
+      "selected_backend_spans": [
+        {
+          "id": 7210,
+          "parent": 7209,
+          "name": "machine_lower",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 628519155,
+          "wall_ns": 99226842,
+          "outcome": "ok"
+        },
+        {
+          "id": 7211,
+          "parent": 7209,
+          "name": "llvm_text_render",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 727746958,
+          "wall_ns": 60044151,
+          "outcome": "ok"
+        },
+        {
+          "id": 7212,
+          "parent": 7209,
+          "name": "cgu_partition",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 787792381,
+          "wall_ns": 27727570,
+          "outcome": "ok"
+        }
+      ],
+      "raw_report": "2-private_edit.json",
+      "raw_report_sha256": "621fc1e452a718557d8c8f11b773dc17021b0d195e58eb2603390f9948abd516"
+    },
+    {
+      "request": "public_edit",
+      "snapshot": "public",
+      "argv": [
+        "/workspace/scratch/ac5966c4c370/binaries/combined-6e8e63a5-timings",
+        "build",
+        "/tmp/zil-round2-diagnostic/work/src/main.zil",
+        "-o",
+        "/tmp/zil-round2-diagnostic/work/program",
+        "--json",
+        "--timings",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+        "--opt",
+        "O0",
+        "--codegen-units",
+        "8",
+        "--codegen-jobs",
+        "4",
+        "--cache-dir",
+        "/tmp/zil-round2-diagnostic/work/source-candidates",
+        "--object-cache",
+        "/tmp/zil-round2-diagnostic/work/objects",
+        "--query-cache",
+        "/tmp/zil-round2-diagnostic/work/queries"
+      ],
+      "status": "Success",
+      "verification_runs": 1,
+      "query_cache": {
+        "requested": true,
+        "state": "miss",
+        "key": "66760b8836232af9a2ed17dd06de27d085287ebb3620771e43b0fda56bdcfe4a",
+        "reason": null,
+        "stored": true,
+        "write_reason": null,
+        "ct_steps": 0,
+        "ct_nodes": 198771,
+        "ct_functions": 9222
+      },
+      "object_cache": {
+        "requested": true,
+        "enabled": true,
+        "hits": 6,
+        "misses": 2,
+        "corrupt": 0,
+        "stored": 2,
+        "write_failures": 0,
+        "key_ns": 172417800,
+        "lookup_ns": 7066501,
+        "current_preflight_ns": 76947714,
+        "disabled_reason": null
+      },
+      "checks": [
+        {
+          "input": "corpus/tree1024x8/io/input-0.bin",
+          "expected": "corpus/tree1024x8/io/expected-public-0.bin",
+          "bytes": 0,
+          "pass": true,
+          "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "input": "corpus/tree1024x8/io/input-7.bin",
+          "expected": "corpus/tree1024x8/io/expected-public-7.bin",
+          "bytes": 7,
+          "pass": true,
+          "output_sha256": "73cfd026a1fedb073b112e1837034427260121c7d4c66115eeb79794fa072c0e"
+        },
+        {
+          "input": "corpus/tree1024x8/io/input-256.bin",
+          "expected": "corpus/tree1024x8/io/expected-public-256.bin",
+          "bytes": 256,
+          "pass": true,
+          "output_sha256": "300e4c9b06560e06c6ddd36f248fbe4b7ae3d904d93b85358134a3ebda9081e9"
+        }
+      ],
+      "compiler_request_seconds": 1.158440948,
+      "top_level_spans": [
+        {
+          "id": 1,
+          "parent": 0,
+          "name": "source_discovery",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 6199,
+          "wall_ns": 89971477,
+          "outcome": "ok"
+        },
+        {
+          "id": 3083,
+          "parent": 0,
+          "name": "compile_project",
+          "kind": "request",
+          "unit_index": null,
+          "start_ns": 89978087,
+          "wall_ns": 1068343284,
+          "outcome": "Success"
+        }
+      ],
+      "selected_backend_spans": [
+        {
+          "id": 7210,
+          "parent": 7209,
+          "name": "machine_lower",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 664880568,
+          "wall_ns": 104973725,
+          "outcome": "ok"
+        },
+        {
+          "id": 7211,
+          "parent": 7209,
+          "name": "llvm_text_render",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 769855655,
+          "wall_ns": 70015492,
+          "outcome": "ok"
+        },
+        {
+          "id": 7212,
+          "parent": 7209,
+          "name": "cgu_partition",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 839872640,
+          "wall_ns": 28249163,
+          "outcome": "ok"
+        }
+      ],
+      "raw_report": "3-public_edit.json",
+      "raw_report_sha256": "36e362c8faa13b25c78e1de7af4f6fac6307002de704a5e474ab505db172868b"
+    }
+  ],
+  "accounting": "Parent spans include children and parallel unit spans overlap. Sum of key_ns or per-unit work is not critical-path wall time."
+}

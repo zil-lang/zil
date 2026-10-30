@@ -1,0 +1,4 @@
+cold_process 2.044458964 [('source_discovery', 124.23), ('compile_project', 1919.81)]
+unchanged 0.619836759 [('source_discovery', 96.74), ('compile_project', 520.92)]
+private_edit 1.07192418 [('source_discovery', 85.42), ('compile_project', 986.42)]
+public_edit 1.158440948 [('source_discovery', 89.97), ('compile_project', 1068.34)]

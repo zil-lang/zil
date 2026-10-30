@@ -1,0 +1,14 @@
+{
+  "archive": "raw-records-plans-preflights.tar.xz",
+  "bytes": 9296704,
+  "sha256": "8a37eb7a01f83e4abb47535ace6ababa034e4f40ddb56a86451a28b2ea5feb0b",
+  "file_count": 53853,
+  "raw_file_bytes": 497781312,
+  "includes": "All frozen plans/source/input/oracles, preflight executables, raw build/runtime logs and receipts, failed 57-row ENOSPC window with NoScore, complete restarted confirmation, orchestration scripts and commands. No samples dropped.",
+  "absolute_to_archive_prefix": {
+    "/tmp/zil-llvm23-round2": "round2",
+    "/tmp/zil-round2-build": "orchestration"
+  },
+  "manifest": "MANIFEST.json",
+  "formal_complete_receipt_sha256": "fb2d0494e1344cb186c67be2a9e796b318a5e0dc3e794e7b2e919934e39fc49d"
+}

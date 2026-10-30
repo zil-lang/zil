@@ -1,0 +1,629 @@
+{
+  "note": "Sum repeated siblings only. Parents include children; never add across levels. Diagnostic only; profiling active and other audit work allowed.",
+  "requests": [
+    {
+      "request": "cold_process",
+      "request_ms": 2044.458964,
+      "spans": [
+        {
+          "parent": "compile_path",
+          "name": "source_discovery",
+          "count": 1,
+          "sum_wall_ms": 124.227323
+        },
+        {
+          "parent": "compile_path",
+          "name": "compile_project",
+          "count": 1,
+          "sum_wall_ms": 1919.808373
+        },
+        {
+          "parent": "compile_project",
+          "name": "source_cache",
+          "count": 1027,
+          "sum_wall_ms": 723.099214
+        },
+        {
+          "parent": "compile_project",
+          "name": "parse",
+          "count": 1027,
+          "sum_wall_ms": 10.695708
+        },
+        {
+          "parent": "compile_project",
+          "name": "resolve_imports",
+          "count": 1,
+          "sum_wall_ms": 1.158729
+        },
+        {
+          "parent": "compile_project",
+          "name": "query_cache_lookup",
+          "count": 1,
+          "sum_wall_ms": 0.00693
+        },
+        {
+          "parent": "compile_project",
+          "name": "expand",
+          "count": 1,
+          "sum_wall_ms": 115.037981
+        },
+        {
+          "parent": "compile_project",
+          "name": "ct",
+          "count": 1,
+          "sum_wall_ms": 75.884467
+        },
+        {
+          "parent": "compile_project",
+          "name": "types",
+          "count": 1,
+          "sum_wall_ms": 130.092195
+        },
+        {
+          "parent": "compile_project",
+          "name": "analyze",
+          "count": 1,
+          "sum_wall_ms": 70.644061
+        },
+        {
+          "parent": "compile_project",
+          "name": "verify",
+          "count": 1,
+          "sum_wall_ms": 87.773156
+        },
+        {
+          "parent": "compile_project",
+          "name": "contract_publish",
+          "count": 1,
+          "sum_wall_ms": 1.152309
+        },
+        {
+          "parent": "compile_project",
+          "name": "lower",
+          "count": 1,
+          "sum_wall_ms": 12.059474
+        },
+        {
+          "parent": "compile_project",
+          "name": "backend",
+          "count": 1,
+          "sum_wall_ms": 586.207812
+        },
+        {
+          "parent": "backend",
+          "name": "machine_lower",
+          "count": 1,
+          "sum_wall_ms": 122.465606
+        },
+        {
+          "parent": "backend",
+          "name": "llvm_text_render",
+          "count": 1,
+          "sum_wall_ms": 63.321555
+        },
+        {
+          "parent": "backend",
+          "name": "cgu_partition",
+          "count": 1,
+          "sum_wall_ms": 25.511884
+        },
+        {
+          "parent": "backend",
+          "name": "cache_setup",
+          "count": 1,
+          "sum_wall_ms": 0.513671
+        },
+        {
+          "parent": "backend",
+          "name": "staging_prepare",
+          "count": 1,
+          "sum_wall_ms": 1.406215
+        },
+        {
+          "parent": "backend",
+          "name": "codegen_units",
+          "count": 1,
+          "sum_wall_ms": 340.450255
+        },
+        {
+          "parent": "backend",
+          "name": "link",
+          "count": 1,
+          "sum_wall_ms": 31.60512
+        },
+        {
+          "parent": "backend",
+          "name": "backend_publication",
+          "count": 1,
+          "sum_wall_ms": 0.039779
+        },
+        {
+          "parent": "compile_project",
+          "name": "llvm_sidecar_read",
+          "count": 1,
+          "sum_wall_ms": 1.477301
+        },
+        {
+          "parent": "compile_project",
+          "name": "publication_validation",
+          "count": 1,
+          "sum_wall_ms": 4.749714
+        },
+        {
+          "parent": "compile_project",
+          "name": "publication",
+          "count": 1,
+          "sum_wall_ms": 0.068241
+        },
+        {
+          "parent": "compile_project",
+          "name": "cache_store",
+          "count": 1,
+          "sum_wall_ms": 8.57724
+        }
+      ]
+    },
+    {
+      "request": "unchanged",
+      "request_ms": 619.836759,
+      "spans": [
+        {
+          "parent": "compile_path",
+          "name": "source_discovery",
+          "count": 1,
+          "sum_wall_ms": 96.738492
+        },
+        {
+          "parent": "compile_path",
+          "name": "compile_project",
+          "count": 1,
+          "sum_wall_ms": 520.917432
+        },
+        {
+          "parent": "compile_project",
+          "name": "source_cache",
+          "count": 1027,
+          "sum_wall_ms": 16.444423
+        },
+        {
+          "parent": "compile_project",
+          "name": "parse",
+          "count": 1027,
+          "sum_wall_ms": 7.16372
+        },
+        {
+          "parent": "compile_project",
+          "name": "resolve_imports",
+          "count": 1,
+          "sum_wall_ms": 1.100402
+        },
+        {
+          "parent": "compile_project",
+          "name": "query_cache_lookup",
+          "count": 1,
+          "sum_wall_ms": 53.81647
+        },
+        {
+          "parent": "compile_project",
+          "name": "verify",
+          "count": 1,
+          "sum_wall_ms": 68.393827
+        },
+        {
+          "parent": "compile_project",
+          "name": "contract_publish",
+          "count": 1,
+          "sum_wall_ms": 0.627691
+        },
+        {
+          "parent": "compile_project",
+          "name": "lower",
+          "count": 1,
+          "sum_wall_ms": 9.806814
+        },
+        {
+          "parent": "compile_project",
+          "name": "backend",
+          "count": 1,
+          "sum_wall_ms": 325.895241
+        },
+        {
+          "parent": "backend",
+          "name": "machine_lower",
+          "count": 1,
+          "sum_wall_ms": 97.884342
+        },
+        {
+          "parent": "backend",
+          "name": "llvm_text_render",
+          "count": 1,
+          "sum_wall_ms": 66.095329
+        },
+        {
+          "parent": "backend",
+          "name": "cgu_partition",
+          "count": 1,
+          "sum_wall_ms": 26.912992
+        },
+        {
+          "parent": "backend",
+          "name": "cache_setup",
+          "count": 1,
+          "sum_wall_ms": 0.388085
+        },
+        {
+          "parent": "backend",
+          "name": "staging_prepare",
+          "count": 1,
+          "sum_wall_ms": 1.29447
+        },
+        {
+          "parent": "backend",
+          "name": "codegen_units",
+          "count": 1,
+          "sum_wall_ms": 108.67256
+        },
+        {
+          "parent": "backend",
+          "name": "link",
+          "count": 1,
+          "sum_wall_ms": 24.068143
+        },
+        {
+          "parent": "backend",
+          "name": "backend_publication",
+          "count": 1,
+          "sum_wall_ms": 0.06044
+        },
+        {
+          "parent": "compile_project",
+          "name": "llvm_sidecar_read",
+          "count": 1,
+          "sum_wall_ms": 1.479103
+        },
+        {
+          "parent": "compile_project",
+          "name": "publication_validation",
+          "count": 1,
+          "sum_wall_ms": 4.218375
+        },
+        {
+          "parent": "compile_project",
+          "name": "publication",
+          "count": 1,
+          "sum_wall_ms": 0.068692
+        },
+        {
+          "parent": "compile_project",
+          "name": "cache_store",
+          "count": 1,
+          "sum_wall_ms": 0.001182
+        }
+      ]
+    },
+    {
+      "request": "private_edit",
+      "request_ms": 1071.92418,
+      "spans": [
+        {
+          "parent": "compile_path",
+          "name": "source_discovery",
+          "count": 1,
+          "sum_wall_ms": 85.417283
+        },
+        {
+          "parent": "compile_path",
+          "name": "compile_project",
+          "count": 1,
+          "sum_wall_ms": 986.423334
+        },
+        {
+          "parent": "compile_project",
+          "name": "source_cache",
+          "count": 1027,
+          "sum_wall_ms": 15.499246
+        },
+        {
+          "parent": "compile_project",
+          "name": "parse",
+          "count": 1027,
+          "sum_wall_ms": 4.392399
+        },
+        {
+          "parent": "compile_project",
+          "name": "resolve_imports",
+          "count": 1,
+          "sum_wall_ms": 0.911031
+        },
+        {
+          "parent": "compile_project",
+          "name": "query_cache_lookup",
+          "count": 1,
+          "sum_wall_ms": 0.010766
+        },
+        {
+          "parent": "compile_project",
+          "name": "expand",
+          "count": 1,
+          "sum_wall_ms": 129.005265
+        },
+        {
+          "parent": "compile_project",
+          "name": "ct",
+          "count": 1,
+          "sum_wall_ms": 88.261676
+        },
+        {
+          "parent": "compile_project",
+          "name": "types",
+          "count": 1,
+          "sum_wall_ms": 138.749555
+        },
+        {
+          "parent": "compile_project",
+          "name": "analyze",
+          "count": 1,
+          "sum_wall_ms": 63.344179
+        },
+        {
+          "parent": "compile_project",
+          "name": "verify",
+          "count": 1,
+          "sum_wall_ms": 67.335588
+        },
+        {
+          "parent": "compile_project",
+          "name": "contract_publish",
+          "count": 1,
+          "sum_wall_ms": 0.933084
+        },
+        {
+          "parent": "compile_project",
+          "name": "lower",
+          "count": 1,
+          "sum_wall_ms": 10.866374
+        },
+        {
+          "parent": "compile_project",
+          "name": "backend",
+          "count": 1,
+          "sum_wall_ms": 387.221897
+        },
+        {
+          "parent": "backend",
+          "name": "machine_lower",
+          "count": 1,
+          "sum_wall_ms": 99.226842
+        },
+        {
+          "parent": "backend",
+          "name": "llvm_text_render",
+          "count": 1,
+          "sum_wall_ms": 60.044151
+        },
+        {
+          "parent": "backend",
+          "name": "cgu_partition",
+          "count": 1,
+          "sum_wall_ms": 27.72757
+        },
+        {
+          "parent": "backend",
+          "name": "cache_setup",
+          "count": 1,
+          "sum_wall_ms": 0.40442
+        },
+        {
+          "parent": "backend",
+          "name": "staging_prepare",
+          "count": 1,
+          "sum_wall_ms": 1.304665
+        },
+        {
+          "parent": "backend",
+          "name": "codegen_units",
+          "count": 1,
+          "sum_wall_ms": 174.029604
+        },
+        {
+          "parent": "backend",
+          "name": "link",
+          "count": 1,
+          "sum_wall_ms": 23.988269
+        },
+        {
+          "parent": "backend",
+          "name": "backend_publication",
+          "count": 1,
+          "sum_wall_ms": 0.045647
+        },
+        {
+          "parent": "compile_project",
+          "name": "llvm_sidecar_read",
+          "count": 1,
+          "sum_wall_ms": 1.264785
+        },
+        {
+          "parent": "compile_project",
+          "name": "publication_validation",
+          "count": 1,
+          "sum_wall_ms": 4.241711
+        },
+        {
+          "parent": "compile_project",
+          "name": "publication",
+          "count": 1,
+          "sum_wall_ms": 0.062683
+        },
+        {
+          "parent": "compile_project",
+          "name": "cache_store",
+          "count": 1,
+          "sum_wall_ms": 1.046442
+        }
+      ]
+    },
+    {
+      "request": "public_edit",
+      "request_ms": 1158.440948,
+      "spans": [
+        {
+          "parent": "compile_path",
+          "name": "source_discovery",
+          "count": 1,
+          "sum_wall_ms": 89.971477
+        },
+        {
+          "parent": "compile_path",
+          "name": "compile_project",
+          "count": 1,
+          "sum_wall_ms": 1068.343284
+        },
+        {
+          "parent": "compile_project",
+          "name": "source_cache",
+          "count": 1027,
+          "sum_wall_ms": 18.105349
+        },
+        {
+          "parent": "compile_project",
+          "name": "parse",
+          "count": 1027,
+          "sum_wall_ms": 4.54615
+        },
+        {
+          "parent": "compile_project",
+          "name": "resolve_imports",
+          "count": 1,
+          "sum_wall_ms": 1.370162
+        },
+        {
+          "parent": "compile_project",
+          "name": "query_cache_lookup",
+          "count": 1,
+          "sum_wall_ms": 0.014903
+        },
+        {
+          "parent": "compile_project",
+          "name": "expand",
+          "count": 1,
+          "sum_wall_ms": 143.428159
+        },
+        {
+          "parent": "compile_project",
+          "name": "ct",
+          "count": 1,
+          "sum_wall_ms": 88.257465
+        },
+        {
+          "parent": "compile_project",
+          "name": "types",
+          "count": 1,
+          "sum_wall_ms": 141.35563
+        },
+        {
+          "parent": "compile_project",
+          "name": "analyze",
+          "count": 1,
+          "sum_wall_ms": 69.87239
+        },
+        {
+          "parent": "compile_project",
+          "name": "verify",
+          "count": 1,
+          "sum_wall_ms": 69.222797
+        },
+        {
+          "parent": "compile_project",
+          "name": "contract_publish",
+          "count": 1,
+          "sum_wall_ms": 0.891202
+        },
+        {
+          "parent": "compile_project",
+          "name": "lower",
+          "count": 1,
+          "sum_wall_ms": 11.035326
+        },
+        {
+          "parent": "compile_project",
+          "name": "backend",
+          "count": 1,
+          "sum_wall_ms": 435.60001
+        },
+        {
+          "parent": "backend",
+          "name": "machine_lower",
+          "count": 1,
+          "sum_wall_ms": 104.973725
+        },
+        {
+          "parent": "backend",
+          "name": "llvm_text_render",
+          "count": 1,
+          "sum_wall_ms": 70.015492
+        },
+        {
+          "parent": "backend",
+          "name": "cgu_partition",
+          "count": 1,
+          "sum_wall_ms": 28.249163
+        },
+        {
+          "parent": "backend",
+          "name": "cache_setup",
+          "count": 1,
+          "sum_wall_ms": 0.380725
+        },
+        {
+          "parent": "backend",
+          "name": "staging_prepare",
+          "count": 1,
+          "sum_wall_ms": 1.403622
+        },
+        {
+          "parent": "backend",
+          "name": "codegen_units",
+          "count": 1,
+          "sum_wall_ms": 206.388787
+        },
+        {
+          "parent": "backend",
+          "name": "link",
+          "count": 1,
+          "sum_wall_ms": 23.212479
+        },
+        {
+          "parent": "backend",
+          "name": "backend_publication",
+          "count": 1,
+          "sum_wall_ms": 0.065147
+        },
+        {
+          "parent": "compile_project",
+          "name": "llvm_sidecar_read",
+          "count": 1,
+          "sum_wall_ms": 1.453105
+        },
+        {
+          "parent": "compile_project",
+          "name": "publication_validation",
+          "count": 1,
+          "sum_wall_ms": 4.311725
+        },
+        {
+          "parent": "compile_project",
+          "name": "publication",
+          "count": 1,
+          "sum_wall_ms": 0.069603
+        },
+        {
+          "parent": "compile_project",
+          "name": "cache_store",
+          "count": 1,
+          "sum_wall_ms": 2.517644
+        }
+      ]
+    }
+  ]
+}

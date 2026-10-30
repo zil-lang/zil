@@ -1,0 +1,43 @@
+{
+  "schema": "zil.compile-performance.release-binding.v1",
+  "source": "6e8e63a5ceae861447d0447c325bed78b59c3f42",
+  "crates_tree": "d865b46fa776ab311734eebaa9c19eb0aa3b7b9d",
+  "started": "2026-10-30T08:20:33.708617+00:00",
+  "command": [
+    "cargo",
+    "build",
+    "--release",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-cli",
+    "-j",
+    "2"
+  ],
+  "target": "/tmp/zil-round2-release-target",
+  "binary": {
+    "path": "/workspace/scratch/ac5966c4c370/binaries/combined-6e8e63a5",
+    "bytes": 7101824,
+    "sha256": "764f592fcee5a7e9780fd774b3d93f168ddf52ba2a2f7d11d125909e43eb46a3"
+  },
+  "features": "zil-cli defaults: llvm-api; no timings",
+  "environment": {
+    "CARGO_TARGET_DIR": "/tmp/zil-round2-release-target",
+    "CARGO_INCREMENTAL": "0",
+    "toolchain_env_script": "/workspace/scratch/ac5966c4c370/toolchains/env.sh"
+  },
+  "source_inputs": {
+    "Cargo.toml": "d0e906f4852161e0d6e487124a633f5e0c094e8d",
+    "Cargo.lock": "9107f4a982d037b5736d62c8906f58b40805f431",
+    "rust-toolchain.toml": "58eef2ccd48f957feeada49b17ad1e3fd667bf8c",
+    "tools/toolchain-profile.json": "ab40e85d51ce93378ac0c7b4b1d975b8905d3d85"
+  },
+  "start_receipt_sha256": "07ac92e2720439331ffc5d2b9bd51a80a8c501725e91c4468fb0cf7a6e16eae8",
+  "release_log_sha256": "12206edf995fd30208de9bbb64d47eb24f869bd8244391ae3ddf20ae29084fae",
+  "copy_command": [
+    "cp",
+    "/tmp/zil-round2-release-target/release/zil",
+    "/workspace/scratch/ac5966c4c370/binaries/combined-6e8e63a5"
+  ],
+  "frozen_before_all_round2_plans": true
+}

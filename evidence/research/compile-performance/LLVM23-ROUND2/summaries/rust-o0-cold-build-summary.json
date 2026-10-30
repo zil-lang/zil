@@ -1,0 +1,144 @@
+{
+  "schema": "zil-rust-compile-performance/2",
+  "plan_sha256": "337cb96e22619d65724b8fc810b3ec75f04307327add1b1f3526c90917706b6e",
+  "preflight_sha256": "b2e3c89e2157f0f7bd3ec291a611d0f6b87b6dd09a46fdcf050365e3c99734ef",
+  "records_sha256": "e2f93df035123ca1ba54ff1364cdb9addd7eb0f3442c7005093657f68cdc9200",
+  "kind": "build",
+  "arm_A": "Rust",
+  "arm_B": "ZIL",
+  "source_identity": {
+    "B": {
+      "commit": "6e8e63a5ceae861447d0447c325bed78b59c3f42",
+      "crates_tree": "d865b46fa776ab311734eebaa9c19eb0aa3b7b9d"
+    }
+  },
+  "versions": {
+    "rustc": {
+      "argv": [
+        "/workspace/scratch/ac5966c4c370/toolchains/rust-1.99.1/bin/rustc",
+        "-Vv"
+      ],
+      "exit": 0,
+      "stdout": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "stderr": ""
+    },
+    "zil": {
+      "argv": [
+        "/workspace/scratch/ac5966c4c370/binaries/combined-6e8e63a5",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "zil 0.1.0 (ZIL-LANG-1.4; Rust 2024; compiler draft; default backend: llvm-api)\n",
+      "stderr": ""
+    },
+    "clang": {
+      "argv": [
+        "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin\n",
+      "stderr": ""
+    }
+  },
+  "profile": "O0",
+  "cache_mode": "cold",
+  "rust_profile": "native",
+  "units": 8,
+  "jobs": 4,
+  "query_cache": false,
+  "closed_executable": false,
+  "selected_original_weight": 1.0,
+  "rows": 100,
+  "failures": [],
+  "coverage_complete": true,
+  "completion_receipt_matches": true,
+  "scope": "Full compiler process to complete executable, with current Verify/lowering/codegen/link/publication; no Cargo no-op, no persistent-session shortcut; OS pages not flushed",
+  "comparison_limits": "80% synthetic called trees at default weights; retained uses Rust Vec and ZIL ByteBuffer; precompiled Rust std vs host libc; checked valid inputs do not establish identical panic/allocation-failure behavior or whole-language equivalence",
+  "product_gates": "NotRun",
+  "independent_review": "NotRun",
+  "wall": {
+    "A": 0.706857452175,
+    "B": 0.544769153925,
+    "B_over_A": 0.7706916751726188,
+    "by_case": {
+      "tree4x2": {
+        "A": 0.064408908,
+        "B": 0.038403266,
+        "B_over_A": 0.5962415323048171
+      },
+      "tree32x8": {
+        "A": 0.1091905945,
+        "B": 0.0676081645,
+        "B_over_A": 0.6191757157252221
+      },
+      "tree256x8": {
+        "A": 0.4545521065,
+        "B": 0.3013282615,
+        "B_over_A": 0.6629124740399812
+      },
+      "tree1024x8": {
+        "A": 1.7861316285,
+        "B": 1.4471448040000001,
+        "B_over_A": 0.8102117340676162
+      },
+      "retained": {
+        "A": 0.07526648550000001,
+        "B": 0.0408292315,
+        "B_over_A": 0.5424623088054243
+      }
+    },
+    "by_request": {
+      "cold_process": {
+        "A": 0.706857452175,
+        "B": 0.544769153925,
+        "B_over_A": 0.7706916751726188
+      }
+    }
+  },
+  "cpu": {
+    "A": 0.90247015,
+    "B": 0.7295897249999999,
+    "B_over_A": 0.8084364064562134,
+    "by_case": {
+      "tree4x2": {
+        "A": 0.06868849999999999,
+        "B": 0.044413999999999995,
+        "B_over_A": 0.6466002314797965
+      },
+      "tree32x8": {
+        "A": 0.1263265,
+        "B": 0.0805625,
+        "B_over_A": 0.6377323839416116
+      },
+      "tree256x8": {
+        "A": 0.5524895,
+        "B": 0.41170799999999996,
+        "B_over_A": 0.7451870126038594
+      },
+      "tree1024x8": {
+        "A": 2.3296590000000004,
+        "B": 1.9440315,
+        "B_over_A": 0.8344704096178881
+      },
+      "retained": {
+        "A": 0.077211,
+        "B": 0.042814,
+        "B_over_A": 0.554506482236987
+      }
+    },
+    "by_request": {
+      "cold_process": {
+        "A": 0.90247015,
+        "B": 0.7295897249999999,
+        "B_over_A": 0.8084364064562134
+      }
+    }
+  },
+  "exploratory_paired_block_bootstrap95": [
+    0.7423992970805423,
+    0.9214764916401004
+  ],
+  "interval_scope": "Shared host, finite paired blocks; descriptive interval, not product confidence or whole-language claim",
+  "verdict": "ExploratoryComplete_NotAProductGate"
+}

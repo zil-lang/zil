@@ -82,7 +82,8 @@ Doing
       "purpose": "Compile-time removal of disabled timing collection",
       "plan": "docs/research/compile-performance/CP05-08-PLAN.md",
       "candidate": "124158826aab043882f4ee29e45ff379465874e8",
-      "performance": "Pending fresh quiet-window results"
+      "performance": "Combined fixed 6e candidate: O0 cold ZIL/Rust 0.770692; main bridge wall 0.867481, CPU 0.857453. Individual contributions not isolated.",
+      "result": "docs/research/compile-performance/LLVM23-RESULT.md"
     },
     "CP06": {
       "status": "ReviewPass",
@@ -98,7 +99,8 @@ Doing
       "purpose": "LLVM local-name elimination and validated instruction-order fast path, separate commits",
       "plan": "docs/research/compile-performance/CP05-08-PLAN.md",
       "candidate": "d4c152ed15a7c0b05dd209cb8008e374cf2ec6c8",
-      "performance": "Pending fresh quiet-window results"
+      "performance": "Combined fixed 6e candidate: O0 cold ZIL/Rust 0.770692; main bridge wall 0.867481, CPU 0.857453. Individual contributions not isolated.",
+      "result": "docs/research/compile-performance/LLVM23-RESULT.md"
     },
     "CP07": {
       "status": "ReviewPass",
@@ -112,7 +114,8 @@ Doing
       "purpose": "Explicit paired LLVM LLD link selection, preserve failures and publication",
       "plan": "docs/research/compile-performance/CP05-08-PLAN.md",
       "candidate": "6339ed8b5f2b8250982a3511371e91ad9ba71bc2",
-      "performance": "Pending fresh quiet-window results"
+      "performance": "Combined fixed 6e candidate: O0 cold ZIL/Rust 0.770692; main bridge wall 0.867481, CPU 0.857453. Individual contributions not isolated.",
+      "result": "docs/research/compile-performance/LLVM23-RESULT.md"
     },
     "CP08": {
       "status": "ReviewPass",
@@ -126,7 +129,9 @@ Doing
       "purpose": "Real LLVM23 ZIL/Rust complete-build and runtime comparison",
       "plan": "docs/research/compile-performance/CP05-08-PLAN.md",
       "candidate": "de4b3a65673d246b8e88789b1c4ad0675662334c",
-      "performance": "Pending fresh quiet-window results"
+      "performance": "Measurement tool: final 940 build +600 runtime rows independently audited; tool itself is not a speedup.",
+      "runner_v2": "8bb908a8c7187d0206d75fb44a6d4aaed2abdd32",
+      "runner_v2_review": "f0c9e42cb87ce3257f2fc8ae7ef9175f871ff84c"
     },
     "CP10": {
       "status": "ReviewPass",
@@ -144,7 +149,8 @@ Doing
       "plan": "docs/research/compile-performance/CP10-PLAN.md",
       "candidate": "c317862f4f9b821645238b30ef03b4508a122038",
       "review": "cb6d016b0fb784f4f1a322f0326595abb2f1f2d6",
-      "performance": "Pending fresh quiet-window results"
+      "performance": "Combined fixed 6e candidate: O0 cold ZIL/Rust 0.770692; main bridge wall 0.867481, CPU 0.857453. Individual contributions not isolated.",
+      "result": "docs/research/compile-performance/LLVM23-RESULT.md"
     },
     "CP11": {
       "status": "ReviewPass",
@@ -162,7 +168,7 @@ Doing
         "crates/zil-backend-llvm/src/emit/resource_closures.rs",
         "evidence/research/compile-performance/CP11"
       ],
-      "performance": "Pending frozen LLVM23 round-two complete build and runtime windows",
+      "performance": "Combined fixed 6e candidate: O0 cold ZIL/Rust 0.770692; main bridge wall 0.867481, CPU 0.857453. Individual contributions not isolated.",
       "measurement_plan": "docs/research/compile-performance/LLVM23-ROUND2-MEASUREMENT-PLAN.md",
       "candidates": [
         "0093420b178a75717c406c6fa54c0c9d0b99d243",
@@ -173,7 +179,8 @@ Doing
         "fb75e827413e32c55a539ade314ad93cc8a766ca",
         "c73248e4d9711f26e3dea8891ca7253e27ca3851",
         "be3d2dbe6fc90e8ea8661442a767b45babbf035c"
-      ]
+      ],
+      "result": "docs/research/compile-performance/LLVM23-RESULT.md"
     },
     "CP12": {
       "status": "ReviewPass",
@@ -193,13 +200,14 @@ Doing
         "crates/zil-backend-llvm/src/lib.rs",
         "crates/zil-backend-llvm/src/object_cache.rs"
       ],
-      "performance": "Pending frozen LLVM23 round-two complete build and runtime windows",
+      "performance": "Correctness ReviewPass. Combined unchanged/Rust 0.926736; full incremental mix 1.162195, target not reached; default None.",
       "measurement_plan": "docs/research/compile-performance/LLVM23-ROUND2-MEASUREMENT-PLAN.md",
       "candidate": "397bf24fef0d7f58aaefb444c17c733652b5e12f",
-      "review": "8d8bf861df1b33883002398907ed82d05379a711"
+      "review": "8d8bf861df1b33883002398907ed82d05379a711",
+      "result": "docs/research/compile-performance/LLVM23-RESULT.md"
     },
     "CP13": {
-      "status": "ReviewPass",
+      "status": "NoGo",
       "author": "/root/llvm_strategy",
       "baseline": "40ce762767f22d661fb94f1d8fca4dab68fef279",
       "purpose": "Investigate O2 multi-CGU configuration and optimization scope with runtime quality controls",
@@ -214,20 +222,25 @@ Doing
         "crates/zil-driver/src/session.rs",
         "crates/zil-cli/src/main.rs"
       ],
-      "performance": "Pending frozen LLVM23 round-two complete build and runtime windows",
+      "performance": "Pre-registered closed 8/4 compile ratio 0.941638 with interval crossing 1; tree4 runtime wall 1.272744 and CPU 1.282923, all five blocks regress. No adoption; default-off research code retained. Single-CGU compile 3.132322.",
       "measurement_plan": "docs/research/compile-performance/LLVM23-ROUND2-MEASUREMENT-PLAN.md",
       "candidates": [
         "6d3f01580c1ae921a1b26b410a8288acc8dff4ba",
         "ec089eab8088d1e616515fb573b66576323765e9"
       ],
       "reviews": [
-        "ac10f2c54",
+        "ac10f2c5417b15a98c95f546f711dbf9a5d5a601",
         "4d181f2add1694862db6860e8156f052c86a169a"
-      ]
+      ],
+      "result": "docs/research/compile-performance/LLVM23-RESULT.md",
+      "runtime_review": "256b0f40d1f119b39f3fb2fbe9962af579ddaafe"
     }
   },
-  "mainline_acceptance": "Hold: CP02 disabled-path compile cost requires further validation",
-  "next_priority": "CP11 repeated work, CP12 explicit frontend checkpoint, CP13 O2 scalability; preserve complete e8 Rust results"
+  "mainline_acceptance": "Hold: main unchanged and product gates NotRun. Combined O0 gains confirmed in this research window; CP13 closed 8/4 adoption is NoGo for per-case runtime regression.",
+  "next_priority": "Fine-grained frontend invalidation for edited incremental requests; O2 compile improvements that also pass per-case native runtime quality. Preserve all complete and failed historical windows.",
+  "latest_result": "docs/research/compile-performance/LLVM23-RESULT.md",
+  "measured_source": "6e8e63a5ceae861447d0447c325bed78b59c3f42",
+  "scope": "O0 wins in the frozen five-case comparison; edited incremental and quality-preserving O2 superiority remain open. main unchanged, product gates NotRun."
 }
 ```
 

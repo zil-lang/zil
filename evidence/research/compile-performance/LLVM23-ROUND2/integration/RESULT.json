@@ -1,0 +1,16 @@
+{
+  "source": "6e8e63a5ceae861447d0447c325bed78b59c3f42",
+  "crates_tree": "d865b46fa776ab311734eebaa9c19eb0aa3b7b9d",
+  "independent_review_commit": "ac2bfe979f70ee6c96808102607fb27fa35df44c",
+  "workspace_unified_feature_unique_tests": 2805,
+  "unique_tests_with_api_off_control": 2806,
+  "default_split_passed": 2784,
+  "driver_llvm_api_passed": 2007,
+  "actual_passed_executions_including_repeats": 4791,
+  "cargo_invocations": 439,
+  "failed": 0,
+  "ignored": 0,
+  "filtered": 0,
+  "archive_sha256": "0a4011463db868b913813d92016a831a5c5287f01a7b983d3eb51daf9646a3d9",
+  "feature_correction": "Initial split driver groups did not inherit llvm-api from zil-cli. Original logs retained; appended all 216 integration targets, lib/doc/examples with --features llvm-api, without re-running non-driver group."
+}

@@ -1,0 +1,128 @@
+{
+  "schema": "zil.compile-performance.final-round2.v1",
+  "source": "6e8e63a5ceae861447d0447c325bed78b59c3f42",
+  "crates_tree": "d865b46fa776ab311734eebaa9c19eb0aa3b7b9d",
+  "compiler_sha256": "764f592fcee5a7e9780fd774b3d93f168ddf52ba2a2f7d11d125909e43eb46a3",
+  "toolchain": {
+    "zil_llvm_clang_lld": "23.1.4",
+    "rustc": "1.99.1",
+    "rust_internal_llvm": "23.1.1"
+  },
+  "formal_build_rows": 940,
+  "formal_runtime_rows": 600,
+  "unscored_preflight_builds": 110,
+  "unscored_quality_builds": 20,
+  "native_program_executions_including_oracles_and_warmup": 4080,
+  "failed_window": {
+    "rows": 57,
+    "verdict": "IncompleteOrFailed_NoScore",
+    "cause": "ENOSPC",
+    "included_in_scores": false,
+    "retained_in_archive": true
+  },
+  "correctness": {
+    "workspace_feature_equivalent_unique_tests": 2805,
+    "unique_tests_with_api_off": 2806,
+    "actual_test_executions": 4791,
+    "cargo_invocations": 439,
+    "failures": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "independent_review_commit": "ac2bfe979f70ee6c96808102607fb27fa35df44c"
+  },
+  "performance_decisions": {
+    "O0_cold_8_4": "Observed win in this fixed five-case comparison: wall 0.7706916751726188, descriptive interval [0.7423992970805423,0.9214764916401004].",
+    "O0_incremental_query_8_4": "Target not reached: 1.1621945028136913. Unchanged 0.9267360047063707; private 1.4880317801965472 and public 1.4070250028555813 remain slower.",
+    "O2_closed_8_4": "NoGo for adoption: compile interval crosses 1; tree4 direct ZIL quality wall 1.2727444233160714, CPU 1.2829228894493723; all five blocks regress.",
+    "O2_closed_1_1": "Secondary exploratory configuration not promoted: build 3.132322157385781; runtime median-of-cell estimates do not imply all-block improvement."
+  },
+  "main_bridge": {
+    "wall_ratio": 0.8674810057220074,
+    "cpu_ratio": 0.8574534728501461,
+    "source_candidate_cache": true,
+    "query_cache": false,
+    "object_cache": false,
+    "closed_executable": false,
+    "individual_contributions_isolated": false
+  },
+  "independent_reviews": {
+    "rust": "9a0852389933d2ee4f14f43a590b2f86faa7a32e",
+    "main": "3ac2c8a0f833fe2b88d08e3c9b57c005ef7f44b3",
+    "direct_quality": "256b0f40d1f119b39f3fb2fbe9962af579ddaafe"
+  },
+  "retained_O0_executable_identity": "All five directly reread e8 and 6e ELF files are byte-identical; does not claim every program unchanged.",
+  "summaries": {
+    "main-o0-build-summary": {
+      "file": "summaries/main-o0-build-summary.json",
+      "sha256": "02a252fd5ae377f9949d4a97ce2ce36f85c2780699b4dab660d3adac9e57daa2",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    "quality-o2-closed1-runtime-summary": {
+      "file": "summaries/quality-o2-closed1-runtime-summary.json",
+      "sha256": "22199e6be7334ecc72b5d831b6d6ba2877ba7a6413937dddabbb43f061cb7580",
+      "verdict": "ExploratoryRuntimeQuality_NotAProductGate"
+    },
+    "quality-o2-closed8-runtime-summary": {
+      "file": "summaries/quality-o2-closed8-runtime-summary.json",
+      "sha256": "be32fb50d95c31b74f559a6fa11a1a44d175f81c4e32855c5a08da4877a7a959",
+      "verdict": "ExploratoryRuntimeQuality_NotAProductGate"
+    },
+    "rust-o0-cold-build-summary": {
+      "file": "summaries/rust-o0-cold-build-summary.json",
+      "sha256": "19ab08426664fcde086640c46e010ef4f0649577c7e90f4d93e3e0fe09c1ebde",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    "rust-o0-cold-runtime-summary": {
+      "file": "summaries/rust-o0-cold-runtime-summary.json",
+      "sha256": "7855253c7844c6915ce742225451817d3ab4121f889056826cbbef274b29323b",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    "rust-o0-incremental-query-build-summary": {
+      "file": "summaries/rust-o0-incremental-query-build-summary.json",
+      "sha256": "086aee0c1fac3cb1e0595bf0d6cdb84ef3c97ea86d6a35d18ed26b8e4a5a75b4",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    "rust-o0-incremental-query-runtime-summary": {
+      "file": "summaries/rust-o0-incremental-query-runtime-summary.json",
+      "sha256": "0192f9ed7f8b775bb852def2529a5d97c9106e805e3994805a4b61adba75dc8d",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    "rust-o2-cold-closed1-build-summary": {
+      "file": "summaries/rust-o2-cold-closed1-build-summary.json",
+      "sha256": "7540949843f56c871ba3223a086888c320a9217c756e1e9ab4281495bdb50b50",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    "rust-o2-cold-closed1-runtime-summary": {
+      "file": "summaries/rust-o2-cold-closed1-runtime-summary.json",
+      "sha256": "0861dee1353c567c6fbf9538fc1e17ff4b8f266df8a8a184a598d0efe652dfca",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    "rust-o2-cold-closed8-build-summary": {
+      "file": "summaries/rust-o2-cold-closed8-build-summary.json",
+      "sha256": "738fa9aa5ffa3f4499c9515fd371bdcbde5bac5f8832c39ba0a9acd9406109b1",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    "rust-o2-cold-closed8-runtime-summary": {
+      "file": "summaries/rust-o2-cold-closed8-runtime-summary.json",
+      "sha256": "e8074367489919d7fcdbda4a76de089f1b21075b8c791ba8441bbf1dad8ccb99",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    }
+  },
+  "archive": {
+    "archive": "raw-records-plans-preflights.tar.xz",
+    "bytes": 9296704,
+    "sha256": "8a37eb7a01f83e4abb47535ace6ababa034e4f40ddb56a86451a28b2ea5feb0b",
+    "file_count": 53853,
+    "raw_file_bytes": 497781312,
+    "includes": "All frozen plans/source/input/oracles, preflight executables, raw build/runtime logs and receipts, failed 57-row ENOSPC window with NoScore, complete restarted confirmation, orchestration scripts and commands. No samples dropped.",
+    "absolute_to_archive_prefix": {
+      "/tmp/zil-llvm23-round2": "round2",
+      "/tmp/zil-round2-build": "orchestration"
+    },
+    "manifest": "MANIFEST.json",
+    "formal_complete_receipt_sha256": "fb2d0494e1344cb186c67be2a9e796b318a5e0dc3e794e7b2e919934e39fc49d"
+  },
+  "product_gates": "NotRun",
+  "main_changed": false,
+  "long_term_research_status": "Doing"
+}

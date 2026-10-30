@@ -1,0 +1,130 @@
+{
+  "schema": "zil-rust-compile-performance/2",
+  "plan_sha256": "337cb96e22619d65724b8fc810b3ec75f04307327add1b1f3526c90917706b6e",
+  "preflight_sha256": "b2e3c89e2157f0f7bd3ec291a611d0f6b87b6dd09a46fdcf050365e3c99734ef",
+  "records_sha256": "6f2364adb21dbaaa658d7cf19aa8727683544d7378576688f65a06dd45558602",
+  "kind": "runtime",
+  "arm_A": "Rust",
+  "arm_B": "ZIL",
+  "source_identity": {
+    "B": {
+      "commit": "6e8e63a5ceae861447d0447c325bed78b59c3f42",
+      "crates_tree": "d865b46fa776ab311734eebaa9c19eb0aa3b7b9d"
+    }
+  },
+  "versions": {
+    "rustc": {
+      "argv": [
+        "/workspace/scratch/ac5966c4c370/toolchains/rust-1.99.1/bin/rustc",
+        "-Vv"
+      ],
+      "exit": 0,
+      "stdout": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "stderr": ""
+    },
+    "zil": {
+      "argv": [
+        "/workspace/scratch/ac5966c4c370/binaries/combined-6e8e63a5",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "zil 0.1.0 (ZIL-LANG-1.4; Rust 2024; compiler draft; default backend: llvm-api)\n",
+      "stderr": ""
+    },
+    "clang": {
+      "argv": [
+        "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin/clang",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin\n",
+      "stderr": ""
+    }
+  },
+  "profile": "O0",
+  "cache_mode": "cold",
+  "rust_profile": "native",
+  "units": 8,
+  "jobs": 4,
+  "query_cache": false,
+  "closed_executable": false,
+  "selected_original_weight": 1.0,
+  "rows": 100,
+  "failures": [],
+  "coverage_complete": true,
+  "completion_receipt_matches": true,
+  "scope": "Separate complete native processes including startup and file I/O on one CPU; base binaries from preflight only; compilation/correctness/warmup are not runtime samples",
+  "comparison_limits": "80% synthetic called trees at default weights; retained uses Rust Vec and ZIL ByteBuffer; precompiled Rust std vs host libc; checked valid inputs do not establish identical panic/allocation-failure behavior or whole-language equivalence",
+  "product_gates": "NotRun",
+  "independent_review": "NotRun",
+  "wall": {
+    "A": 0.097029845075,
+    "B": 0.06859659825,
+    "B_over_A": 0.7069639057650531,
+    "by_case": {
+      "tree4x2": {
+        "A": 0.057020203,
+        "B": 0.07631414650000001,
+        "B_over_A": 1.3383703053459843
+      },
+      "tree32x8": {
+        "A": 0.0446717645,
+        "B": 0.0601910465,
+        "B_over_A": 1.347406962176298
+      },
+      "tree256x8": {
+        "A": 0.0807902975,
+        "B": 0.068095268,
+        "B_over_A": 0.8428644293579932
+      },
+      "tree1024x8": {
+        "A": 0.204103289,
+        "B": 0.1124872125,
+        "B_over_A": 0.5511288576050335
+      },
+      "retained": {
+        "A": 0.010049971500000001,
+        "B": 0.007887449,
+        "B_over_A": 0.7848230216374245
+      }
+    }
+  },
+  "cpu": {
+    "A": 0.09608814999999998,
+    "B": 0.06772345,
+    "B_over_A": 0.7048054312628562,
+    "by_case": {
+      "tree4x2": {
+        "A": 0.0562885,
+        "B": 0.075401,
+        "B_over_A": 1.339545377830285
+      },
+      "tree32x8": {
+        "A": 0.0435985,
+        "B": 0.059441,
+        "B_over_A": 1.3633725930937992
+      },
+      "tree256x8": {
+        "A": 0.07977749999999999,
+        "B": 0.0670155,
+        "B_over_A": 0.8400300836702079
+      },
+      "tree1024x8": {
+        "A": 0.20318799999999998,
+        "B": 0.111515,
+        "B_over_A": 0.548826702364313
+      },
+      "retained": {
+        "A": 0.0092215,
+        "B": 0.0073904999999999995,
+        "B_over_A": 0.8014422816244645
+      }
+    }
+  },
+  "exploratory_paired_block_bootstrap95": [
+    0.6626361482703393,
+    0.7312345937804008
+  ],
+  "interval_scope": "Shared host, finite paired blocks; descriptive interval, not product confidence or whole-language claim",
+  "verdict": "ExploratoryComplete_NotAProductGate"
+}

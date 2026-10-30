@@ -1,0 +1,7 @@
+{
+  "pass": true,
+  "files": 53853,
+  "bytes": 497781312,
+  "archive_sha256": "8a37eb7a01f83e4abb47535ace6ababa034e4f40ddb56a86451a28b2ea5feb0b",
+  "method": "Read every archived regular file and compare size and SHA256 against the pre-archive manifest. No extraction to filesystem required."
+}
