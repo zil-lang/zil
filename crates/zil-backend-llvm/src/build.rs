@@ -1,3 +1,4 @@
+use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -267,6 +268,17 @@ fn build_traced(
             "Win64 requires explicit WindowsLinkOptions; Linux must not carry them",
         ));
     }
+    // Resolve once per request, not once per codegen unit. Windows has its own
+    // explicit linker contract and never reads this Linux-only configuration.
+    let linux_linker = if windows {
+        None
+    } else {
+        linux_linker_argument(
+            &options.clang,
+            std::env::var_os("ZIL_LINUX_LINKER").as_deref(),
+            std::env::var_os("PATH").as_deref(),
+        )?
+    };
     let imports = options
         .windows
         .as_ref()
@@ -322,7 +334,8 @@ fn build_traced(
         },
         |unit_trace| {
             let objects = if !split && options.backend == NativeBackend::Clang {
-                // Keep the legacy one-process Unix path exactly, including its flags.
+                // Keep the one-process Unix reference path; select the same
+                // link strategy used by the separate LLVM API link below.
                 drop(plan.units);
                 let mut command = Command::new(&options.clang);
                 command
@@ -332,6 +345,8 @@ fn build_traced(
                     .arg(optimization);
                 if windows {
                     command.arg("-c");
+                } else if let Some(linker) = &linux_linker {
+                    command.arg(linker);
                 }
                 command.arg(&ir_path).arg("-o").arg(if windows {
                     &object_path
@@ -420,6 +435,9 @@ fn build_traced(
             .args(&objects)
             .arg("-o")
             .arg(&executable_path);
+        if let Some(linker) = &linux_linker {
+            link.arg(linker);
+        }
         commands.push(trace.measure("link", "stage", |_| {
             run_command(&mut link, "E-LLVM-COMPILE")
         })?);
@@ -450,6 +468,83 @@ fn build_traced(
         codegen,
         pending_cache,
     })
+}
+
+/// Prefer the LLD shipped beside the configured Clang. A Clang wrapper or
+/// installation without that sibling retains Clang's original linker choice.
+/// `ZIL_LINUX_LINKER=system` explicitly selects that reference; any other value
+/// is a single executable path/name, resolved without shell tokenization.
+fn linux_linker_argument(
+    clang: &Path,
+    override_linker: Option<&OsStr>,
+    search_path: Option<&OsStr>,
+) -> CompileResult<Option<OsString>> {
+    let linker = match override_linker {
+        Some(value) if value == "system" => return Ok(None),
+        Some(value) if value.is_empty() => {
+            return Err(infra(
+                "E-LINK-LINKER-CONFIG",
+                "ZIL_LINUX_LINKER must be 'system' or a nonempty executable path",
+            ));
+        }
+        Some(value) => executable_path(Path::new(value), search_path)
+            .filter(|path| executable_file(path))
+            .ok_or_else(|| {
+                infra(
+                    "E-LINK-LINKER-MISSING",
+                    format!(
+                        "ZIL_LINUX_LINKER does not name an executable: {}",
+                        Path::new(value).display()
+                    ),
+                )
+            })?,
+        None => {
+            let Some(clang) = executable_path(clang, search_path) else {
+                // Preserve the original Clang launch failure and its diagnostic.
+                return Ok(None);
+            };
+            let Some(directory) = clang.parent() else {
+                return Ok(None);
+            };
+            let linker = directory.join("ld.lld");
+            if !executable_file(&linker) {
+                return Ok(None);
+            }
+            linker
+        }
+    };
+    // Keep the final symlink name: LLD uses argv[0] to choose its driver flavor.
+    // OsString also preserves spaces, shell metacharacters and non-UTF8 paths.
+    let mut argument = OsString::from("--ld-path=");
+    argument.push(linker);
+    Ok(Some(argument))
+}
+
+fn executable_path(program: &Path, search_path: Option<&OsStr>) -> Option<PathBuf> {
+    if program.is_absolute() || program.components().count() > 1 {
+        return std::path::absolute(program).ok();
+    }
+    // Match the Unix default used for a bare Command program when PATH is absent.
+    std::env::split_paths(search_path.unwrap_or(OsStr::new("/bin:/usr/bin")))
+        .map(|directory| directory.join(program))
+        .find(|candidate| executable_file(candidate))
+        .and_then(|candidate| std::path::absolute(candidate).ok())
+}
+
+fn executable_file(path: &Path) -> bool {
+    let Ok(metadata) = fs::metadata(path) else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    true
 }
 
 /// Largest input first reduces tail latency. Workers return results by unit id,

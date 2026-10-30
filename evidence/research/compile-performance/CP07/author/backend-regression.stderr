@@ -1,0 +1,3 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp07/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.65s
+     Running unittests src/lib.rs (/workspace/scratch/ac5966c4c370/target-cp07/debug/deps/zil_backend_llvm-1085b76b58121069)
