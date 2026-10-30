@@ -1,0 +1,31 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp11/crates/zil-expand)
+    Finished `test` profile [unoptimized] target(s) in 0.39s
+     Running tests/generics.rs (/workspace/scratch/ac5966c4c370/target-cp11/debug/deps/generics-bf546739529b01c4)
+
+running 4 tests
+test unused_generic_declaration_attributes_are_not_erased ... ok
+test unused_generic_with_declared_bound_checks_its_symbolic_method_body ... ok
+test unused_generic_bounds_require_builtin_copy_or_declared_nominal_traits ... ok
+test generic_records_use_structural_arguments_and_fresh_source_inexpressible_names ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/project_lookup_cp10.rs (/workspace/scratch/ac5966c4c370/target-cp11/debug/deps/project_lookup_cp10-18f5c1ba4d9121fb)
+
+running 5 tests
+test duplicate_declaration_rejection_still_precedes_consumer_lowering ... ok
+test private_field_errors_keep_the_first_consumer_source ... ok
+test single_module_uses_first_written_aggregate_until_duplicate_check ... ok
+test project_analysis_budget_has_an_exact_fresh_boundary ... ok
+test shared_named_declarations_keep_owner_defaults_and_source_maps ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/source_map_cp11.rs (/workspace/scratch/ac5966c4c370/target-cp11/debug/deps/source_map_cp11-82995f6f5370d468)
+
+running 1 test
+CP11_PROJECT_MAP_BOUNDARY:352:365776dbbbcb572d38267cbbf6435a73d826aee62cc9bb9a66300b4771aae55d:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(1), start: 45, end: 49 }), notes: [] }]
+test project_maps_keep_local_targets_utf8_and_exact_fresh_work ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
