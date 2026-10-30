@@ -1,6 +1,6 @@
 //! Real source controls for borrowed CT argument hints and repeated shape use.
 use std::collections::BTreeMap;
-use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
+use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
 use zil_driver::{CompileOptions, ProjectSources, Stage, compile_project};
 
 fn project(root: &str, library: &str) -> ProjectSources {
@@ -75,4 +75,54 @@ fn compound_parameter_hints_preserve_narrow_ct_overflow_rejection() {
         "{}",
         report.to_json()
     );
+}
+
+#[test]
+fn real_source_repeated_tuple_shapes_keep_complete_core_and_exact_node_boundary() {
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "repeated-tuples.zil",
+        "fn sum(p:((i64,i64),(i64,i64),(i64,i64),(i64,i64)))->i64 { return p.0.0+p.3.1; } fn value()->i64 { let p=((1i64,2i64),(3i64,4i64),(5i64,6i64),(7i64,8i64)); let a=sum(p); let b=sum(p); let c=sum(p); let d=sum(p); return a+b+c+d; }",
+    );
+    let parsed = zil_syntax::parse(&source).into_result().unwrap();
+    let input = zil_expand::expand(&source, &parsed).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let (output, usage) =
+        zil_ct::evaluate_source_constants_with_usage(&input, &target, &limits).unwrap();
+    assert_eq!(output, input, "the entire untrusted Core remains unchanged");
+    assert_eq!(
+        usage.steps, 0,
+        "runtime-only source executes no CT VM operations"
+    );
+    let exact = Limits {
+        max_nodes: usage.nodes,
+        ..limits.clone()
+    };
+    assert_eq!(
+        zil_ct::evaluate_source_constants_with_usage(&input, &target, &exact).unwrap(),
+        (output, usage)
+    );
+    let below = Limits {
+        max_nodes: usage.nodes - 1,
+        ..limits
+    };
+    let errors = zil_ct::evaluate_source_constants_with_usage(&input, &target, &below).unwrap_err();
+    assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+    assert_eq!(errors[0].phase, Phase::Ct);
+    let report = zil_driver::compile_source(
+        &source,
+        &CompileOptions {
+            stop_after: Stage::Lower,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
 }
