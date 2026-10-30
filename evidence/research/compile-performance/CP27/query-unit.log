@@ -1,0 +1,28 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-base)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-llvm-api)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-types)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-lower)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 14.91s
+     Running unittests src/lib.rs (/workspace/scratch/4ab361722127/target-cp27/debug/deps/zil_driver-d95e4edc746046f0)
+
+running 8 tests
+test query_cache::tests::ct_receipt_replays_cumulative_steps_nodes_functions_and_module_order ... ok
+test query_cache::tests::cancelled_atomic_publication_keeps_old_entry_and_removes_temporary ... ok
+test query_cache::tests::all_eleven_limits_change_the_actual_checkpoint_key ... ok
+test query_cache::tests::key_binds_producer_source_identity_rules_target_imports_and_build_options ... ok
+test query_cache::tests::publication_cp27::rename_failure_preserves_destination_and_cleans_owned_file ... ok
+test query_cache::tests::private_metadata_roundtrip_has_no_verified_relations_and_rejects_each_kind ... ok
+test query_cache::tests::publication_cp27::create_new_collision_preserves_unowned_file_and_old_entry ... ok
+test query_cache::tests::publication_cp27::real_write_failure_preserves_old_entry_and_atomic_retry ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 0.01s
+

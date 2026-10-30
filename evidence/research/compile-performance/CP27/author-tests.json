@@ -1,0 +1,121 @@
+{
+  "task": "CP27",
+  "scope": "author targeted correctness; not a full workspace or performance gate",
+  "baseline": "d8872b52f5a215c2efd33aaadba5083f471e0bc2",
+  "worktree_head_at_test": "d8872b52f5a215c2efd33aaadba5083f471e0bc2",
+  "environment_setup": "source /workspace/scratch/4ab361722127/.toolchain/env.sh",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/4ab361722127/target-cp27",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_BUILD_JOBS": "2",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "LD_LIBRARY_PATH": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "ZIL_CLANG": null,
+    "ZIL_LINUX_LINKER": null,
+    "RUSTFLAGS": null,
+    "RUSTDOCFLAGS": null
+  },
+  "tools": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)"
+  },
+  "source_sha256": {
+    "crates/zil-driver/src/query_cache.rs": "7e99237211474081cb08d3ea8c5c750096b375a17c1959d1890d25e453fbb372",
+    "crates/zil-backend-llvm/src/object_cache.rs": "d98f22abb56bef9acd8c4e9eef4b7e949b9954776a2227becd98be687547aa29",
+    "crates/zil-driver/tests/cache_publication_cp27.rs": "864bd1ddc3b2f0698f718cac3829fac189a8504cc6ac350fee57fa17589e7933",
+    "crates/zil-driver/tests/query_cache_cp12.rs": "5eb756712ee748dbef9b011e1a65e7e3386ea6d989eefab4c2c6966e0cffd4cc"
+  },
+  "started_utc": "2026-10-30T19:00:29.371805+00:00",
+  "rows": [
+    {
+      "label": "query-unit",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "query_cache::tests"
+      ],
+      "cwd": "/workspace/scratch/4ab361722127/zil-cp27",
+      "started_utc": "2026-10-30T19:00:29.371875+00:00",
+      "completed_utc": "2026-10-30T19:00:44.311070+00:00",
+      "exit_code": 0,
+      "log": "/tmp/zil-review/cp27-author-tests/query-unit.log",
+      "log_sha256": "32c2ecfd4321ce25d1d4ca2247ff878b2e34b9048929ffd565e27284f49a11a1",
+      "archived_log": "query-unit.log",
+      "passed": 8
+    },
+    {
+      "label": "object-unit",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-backend-llvm",
+        "--lib",
+        "object_cache::tests"
+      ],
+      "cwd": "/workspace/scratch/4ab361722127/zil-cp27",
+      "started_utc": "2026-10-30T19:00:44.311529+00:00",
+      "completed_utc": "2026-10-30T19:00:46.807665+00:00",
+      "exit_code": 0,
+      "log": "/tmp/zil-review/cp27-author-tests/object-unit.log",
+      "log_sha256": "89f4e6b7ade3981b260c5de027bbc2bbf28e3bf65413223c59cc7e1c55acb13b",
+      "archived_log": "object-unit.log",
+      "passed": 10
+    },
+    {
+      "label": "query-native-collision",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "cache_publication_cp27"
+      ],
+      "cwd": "/workspace/scratch/4ab361722127/zil-cp27",
+      "started_utc": "2026-10-30T19:00:46.807975+00:00",
+      "completed_utc": "2026-10-30T19:00:48.805030+00:00",
+      "exit_code": 0,
+      "log": "/tmp/zil-review/cp27-author-tests/query-native-collision.log",
+      "log_sha256": "790d0aa8d73acc6c7ba2f8ed126212d93fcf6cbf1190704c7dc3e570c289351d",
+      "archived_log": "query-native-collision.log",
+      "passed": 1
+    },
+    {
+      "label": "query-existing-cp12",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "query_cache_cp12"
+      ],
+      "cwd": "/workspace/scratch/4ab361722127/zil-cp27",
+      "started_utc": "2026-10-30T19:00:48.805366+00:00",
+      "completed_utc": "2026-10-30T19:00:49.624283+00:00",
+      "exit_code": 0,
+      "log": "/tmp/zil-review/cp27-author-tests/query-existing-cp12.log",
+      "log_sha256": "b0d1ccb40aa8b137bcf60b4efdd59312b851bda3ac52581b3f70ee2080264485",
+      "archived_log": "query-existing-cp12.log",
+      "passed": 12
+    }
+  ],
+  "status": "Pass",
+  "completed_utc": "2026-10-30T19:00:49.625104+00:00",
+  "passed_total": 31,
+  "interpretation": "Author targeted correctness Pass only; independent review pending; full workspace and performance gates NotRun."
+}

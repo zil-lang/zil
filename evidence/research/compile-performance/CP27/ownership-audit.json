@@ -1,0 +1,145 @@
+{
+  "task": "CP27",
+  "author": "/root/toolchain_recovery",
+  "reviewer": "/root/incremental_review",
+  "baseline": "d8872b52f5a215c2efd33aaadba5083f471e0bc2",
+  "baseline_crates_tree": "7e5def64ddddb7def8637bb96d8ab69f6f3813e6",
+  "scope": "Only query_cache::Prepared::publish and object_cache::store temporary path ownership; no format, key, budget, cancellation, verification, fsync policy or performance changes",
+  "status": "AuthorTargetedPass_IndependentReviewPending",
+  "original_findings": [
+    {
+      "path_in_main_research_tree": "evidence/research/compile-performance/COMPILE6/CP12-review-finding.json",
+      "sha256": "7fe3a2fb6ab7b4486e85150749c116148592653f92479dc88eba77f09f60a3f0",
+      "verdict": "ChangesRequested",
+      "baseline_reproduction": {
+        "reproduced": true,
+        "baseline_commit": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+        "binary_sha256": "0f8325ebd29ed14afc159f2def11998ac829043c8900ed7b799fb06ce69cd553",
+        "observations": [
+          {
+            "query_cache_enabled": false,
+            "status": "Success",
+            "output": "/tmp/zil-review/CP12-temp-collision/cache/frontend-cp12-v1/.pending-6-0",
+            "output_exists": true,
+            "sidecar_exists": true,
+            "query_cache": {
+              "requested": false,
+              "state": "disabled",
+              "key": null,
+              "reason": null,
+              "stored": false,
+              "write_reason": null,
+              "ct_steps": 0,
+              "ct_nodes": 0,
+              "ct_functions": 0
+            },
+            "native_exit": 0
+          },
+          {
+            "query_cache_enabled": true,
+            "status": "Success",
+            "output": "/tmp/zil-review/CP12-temp-collision/cache/frontend-cp12-v1/.pending-20-0",
+            "output_exists": false,
+            "sidecar_exists": true,
+            "query_cache": {
+              "requested": true,
+              "state": "miss",
+              "key": "d3db0c03d8d15cab36819e9f6b56fa6b32418517a0a81d2ff10caae6b53084e1",
+              "reason": null,
+              "stored": false,
+              "write_reason": "File exists (os error 17)",
+              "ct_steps": 0,
+              "ct_nodes": 5,
+              "ct_functions": 1
+            }
+          }
+        ],
+        "mechanism": "CP12 Temporary is armed before create_new succeeds. Existing published output causes AlreadyExists and Drop removes the unowned existing path."
+      },
+      "evidence_sha256": {
+        "cp12-temp-collision.py": "7c2b7b9acf6e77983fd87490ffc7b1bc1bf68f39619999f3ccbb3e32dfb2a98d",
+        "CP12-temp-collision.log": "fa2aa389e6a3c2c9d37fd591eb0cd58d19db34f6d81ce28f455d954e03203a19",
+        "CP12-temp-collision/result.json": "e5a1e803d28dee62fbe677b44ee474ac48cfcc03b2692c48231cc4b8e030cd12",
+        "CP12-temp-collision/no.json": "09c029fc1e2104118049777b4bf58853a59dd2fbc85532125b45241dd4f19348",
+        "CP12-temp-collision/yes.json": "2e8d5e739cabcd6356c755b67670cf85c07ebb4fbbdaff22e05364afec63dace",
+        "CP12-temp-collision/exec-same-pid.py": "c400915abcd61e0f86a8b5004023dd6986227e562308e396ae520c0c1d379228"
+      }
+    },
+    {
+      "path_in_main_research_tree": "evidence/research/compile-performance/COMPILE6/OBJECT-review-finding.json",
+      "sha256": "ceaf7e499f2a439e61a0c22a90b529b2a53160a6a565489bfa0992aedb46555f",
+      "verdict": "ChangesRequested",
+      "baseline_reproduction": {
+        "reproduced": true,
+        "baseline_commit": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+        "binary_sha256": "0f8325ebd29ed14afc159f2def11998ac829043c8900ed7b799fb06ce69cd553",
+        "observations": [
+          {
+            "object_cache_enabled": false,
+            "status": "Success",
+            "output": "/tmp/zil-review/OBJECT-temp-collision/cache/objects-v1/3fff609f3c404224415bde55394313c49c415f3c7dc20c54b6bfa344863495a9/.pending-19-0",
+            "output_exists": true,
+            "sidecar_exists": true,
+            "object_cache": null,
+            "native_exit": 0
+          },
+          {
+            "object_cache_enabled": true,
+            "status": "Success",
+            "output": "/tmp/zil-review/OBJECT-temp-collision/cache/objects-v1/3fff609f3c404224415bde55394313c49c415f3c7dc20c54b6bfa344863495a9/.pending-33-0",
+            "output_exists": false,
+            "sidecar_exists": true,
+            "object_cache": null
+          }
+        ],
+        "mechanism": "object_cache::store cleanup runs for every error, including create_new AlreadyExists before ownership. Post-publication cache commit deletes the requested native output."
+      },
+      "evidence_sha256": {
+        "object-temp-collision.py": "8c30451430cc0f1b990974742937c600efd2c6c69cbb875b95ef986be9da227d",
+        "OBJECT-temp-collision.log": "6819893afe7f86ff2d4b44e6b1739e8b71be43313f070d2fd99b5942e77c3697",
+        "OBJECT-temp-collision/result.json": "f01aa643d59046ba0f4d0b610cfee528a2b46c127ea58296e08ebc8246236845",
+        "OBJECT-temp-collision/seed.json": "863451a8add9d7fa377eb41ffdef6533bb7130509edd3f5a89ec3c2b8376e91e",
+        "OBJECT-temp-collision/no.json": "2eb63e091d766aa0e680d94825bdcfc880fdc62e010717b2722dae878615def7",
+        "OBJECT-temp-collision/yes.json": "335bb83bff0c980d033cc6c0f1085c88b6119427fad1dcb2e01cb29ae2e6d484",
+        "OBJECT-temp-collision/exec-same-pid.py": "ca5c06c2cf8e025e7aaf23620213aa7614371468b9ac59244865d0c70b6b486b"
+      }
+    }
+  ],
+  "static_audit": [
+    {
+      "path": "crates/zil-driver/src/query_cache.rs",
+      "preexisting_issue": "guard armed before successful create_new",
+      "candidate": "arm only after successful open; disarm after rename success"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/object_cache.rs",
+      "preexisting_issue": "create_new error fell into unconditional error cleanup",
+      "candidate": "open before the cleanup closure; later failures still clean the owned file"
+    },
+    {
+      "path": "crates/zil-driver/src/parse_cache.rs",
+      "scope": "CP26 fixed acquisition/disarm order, unchanged"
+    },
+    {
+      "path": "crates/zil-db/src/cache.rs",
+      "scope": "open precedes guard; AlreadyExists ownership defect excluded; no broader claim about external name replacement"
+    }
+  ],
+  "planned_validation": [
+    "cargo test --offline --locked -p zil-driver --lib query_cache::tests",
+    "cargo test --offline --locked -p zil-backend-llvm --lib object_cache::tests",
+    "cargo test --offline --locked -p zil-driver --test cache_publication_cp27",
+    "cargo test --offline --locked -p zil-driver --test query_cache_cp12"
+  ],
+  "performance": "NotRun; no performance claim",
+  "full_product_gate": "NotRun",
+  "author_test_receipt": "author-tests.json",
+  "author_test_receipt_sha256": "dc80befa753f1f7df4f9cb7c439603fb61634cbff9b5f689f970b6bf55b817f9",
+  "source_sha256": {
+    "crates/zil-driver/src/query_cache.rs": "7e99237211474081cb08d3ea8c5c750096b375a17c1959d1890d25e453fbb372",
+    "crates/zil-backend-llvm/src/object_cache.rs": "d98f22abb56bef9acd8c4e9eef4b7e949b9954776a2227becd98be687547aa29",
+    "crates/zil-driver/tests/cache_publication_cp27.rs": "864bd1ddc3b2f0698f718cac3829fac189a8504cc6ac350fee57fa17589e7933",
+    "crates/zil-driver/tests/query_cache_cp12.rs": "5eb756712ee748dbef9b011e1a65e7e3386ea6d989eefab4c2c6966e0cffd4cc"
+  },
+  "passed_total": 31
+}

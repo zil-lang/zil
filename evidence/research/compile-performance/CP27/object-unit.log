@@ -1,0 +1,18 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/4ab361722127/zil-cp27/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized] target(s) in 2.45s
+     Running unittests src/lib.rs (/workspace/scratch/4ab361722127/target-cp27/debug/deps/zil_backend_llvm-522137fc57d7c141)
+
+running 10 tests
+test object_cache::tests::key_binds_all_machine_changes_but_not_authorization_comment ... ok
+test object_cache::tests::symlink_and_group_writable_cache_roots_are_rejected ... ok
+test object_cache::tests::entry_roundtrip_corruption_key_and_length_are_checked ... ok
+test object_cache::tests::installed_tool_identity_fallback_detects_changed_content ... ok
+test object_cache::tests::unwritable_cache_cannot_revoke_success ... ok
+test object_cache::tests::pending_objects_are_not_stored_until_success_commit ... ok
+test object_cache::tests::publication_cp27::rename_failure_preserves_destination_and_cleans_owned_file ... ok
+test object_cache::tests::publication_cp27::create_new_collision_preserves_unowned_file_and_old_entry ... ok
+test object_cache::tests::publication_cp27::real_write_failure_preserves_old_entry_and_atomic_retry ... ok
+test object_cache::tests::concurrent_writers_only_publish_complete_entries ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 38 filtered out; finished in 0.03s
+
