@@ -1,0 +1,55 @@
+{
+  "task": "224",
+  "evidence_role": "implementation_author_limited_tests",
+  "implementation_author": "/root/scope_audit",
+  "tested_revision": "3f0f5ee43cf650297a6be18c93dd52c097768ecb",
+  "source_worktree_status": "",
+  "result": "Fail",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "impl224_shared_product",
+    "--",
+    "--nocapture"
+  ],
+  "return_code": 101,
+  "tests": {
+    "passed": 0,
+    "failed": null,
+    "ignored": null
+  },
+  "toolchains": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin"
+  },
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/d286b3aeeb6b/targets/224",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "ZIL_CLANG": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang"
+  },
+  "raw_wire": [],
+  "native_compiles": [],
+  "allocator_runs": [],
+  "phase_boundaries": [],
+  "raw_archive": {
+    "file": "raw.tar.gz",
+    "sha256": "22827888eb49aa54d1753cc3ab782ff46a3e5967ae72463f4c055e36653a76b6",
+    "bytes": 126695
+  },
+  "limits": [
+    "Author tests are not independent review or whole-workspace acceptance.",
+    "Host Linux only; Windows and asynchronous execution are not tested.",
+    "No comparative Rust performance or product-gate conclusion."
+  ]
+}

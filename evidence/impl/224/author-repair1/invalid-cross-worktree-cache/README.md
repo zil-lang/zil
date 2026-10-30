@@ -1,0 +1,1 @@
+本次不是可信的源码验证：targets/224 曾被223独审工作树复用，Cargo只重编后端和driver，Types报出的旧Store文案不在本次224源码。此缓存污染Fail不作为生产缺陷或验收数据。随后完整cargo clean targets/224，重新专用该target，并全量重编当前施工依赖再运行限定11组；有效收据在上级RESULT.json。
