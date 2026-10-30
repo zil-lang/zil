@@ -1,0 +1,14 @@
+    Finished `test` profile [unoptimized] target(s) in 0.00s
+     Running unittests src/lib.rs (target-cp13/debug/deps/zil_backend_llvm-3136df6a873984eb)
+
+running 7 tests
+test object_cache::tests::concurrent_writers_only_publish_complete_entries ... ok
+test object_cache::tests::entry_roundtrip_corruption_key_and_length_are_checked ... ok
+test object_cache::tests::installed_tool_identity_fallback_detects_changed_content ... ok
+test object_cache::tests::key_binds_all_machine_changes_but_not_authorization_comment ... ok
+test object_cache::tests::pending_objects_are_not_stored_until_success_commit ... ok
+test object_cache::tests::symlink_and_group_writable_cache_roots_are_rejected ... ok
+test object_cache::tests::unwritable_cache_cannot_revoke_success ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 35 filtered out; finished in 0.02s
+

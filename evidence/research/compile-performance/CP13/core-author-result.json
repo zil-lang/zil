@@ -1,0 +1,221 @@
+{
+  "schema_version": 1,
+  "experiment": "CP13 closed-executable backend core",
+  "author": "/root/llvm_strategy",
+  "status": "ReadyForIndependentReview",
+  "production_base_commit": "e8e274c1b28509547a4854d46708ae1601e756e4",
+  "checkout_base_commit": "542d30676c42e1b691287bcab55874799ca910c1",
+  "authorization_plan_commit": "845cb23d8ffded03b3ea9511c198e63af33acd98",
+  "source_sha256": {
+    "crates/zil-backend-llvm/src/build.rs": "4f6ae5e177bf57dc02b1660112cc94061eb2f21accdcdd400d48e2e271c310f6",
+    "crates/zil-backend-llvm/src/machine_cgu.rs": "c87b76c13835469766ee8f7875c3db83c064da585c5ec55f33190f5deef6df09",
+    "crates/zil-backend-llvm/tests/closed_executable_cp13.rs": "9d91075af9c106abe60a02cc33902af33d642157b9a9e2c0f9027625aba799fb"
+  },
+  "scope": [
+    "Explicit BuildOptions.closed_executable=false by default; Linux full executable build only",
+    "Existing partition completes before exact nonforeign LIR FunctionId whitelist internalization",
+    "Cross-unit semantic function/address/global-initializer references retain External; all other kinds/items/declarations keep original values",
+    "Public emit/raw API and default builds retain original contracts; None retains old entry error and explicit unsupported targets reject before publication",
+    "Clang one-unit fast path compiles transformed unit-0.ll while public sidecar remains prepartition reference",
+    "CodegenSummary reports requested closed policy and actual count; full machine linkage remains in existing object key",
+    "No LLVM pipeline/pass/target/CPU/relocation/preflight/Verify changes"
+  ],
+  "independent_review_pending": true,
+  "cli_driver_adaptation": "Separate CP12-author commit; no driver/CLI files changed here",
+  "validation": {
+    "machine_cgu_tests": {
+      "passed": 6,
+      "new_tests": 3,
+      "log": "core-unit-tests.log"
+    },
+    "object_cache_existing_tests": {
+      "passed": 7,
+      "log": "core-object-key-tests.log"
+    },
+    "native_api_and_clang_tests": {
+      "passed": 5,
+      "successful_executable_builds_and_runs": 20,
+      "log": "core-native-tests-final.log",
+      "controls": [
+        "O2 normal/closed x Clang/API x one/requested-eight CGUs; exact nm global-symbol comparison",
+        "O2 selected ReturnValue root differs from source main, x both backends and CGU modes",
+        "O0 closed x both backends and CGU modes",
+        "Object cache default/closed/closed/default gives miss/miss/hit/hit; current preflight occurs on hits",
+        "None entry, forged LIR equivalence, explicit Win64 rejection and failed Clang preserve previous artifacts",
+        "Public emit None/Main/ReturnValue remain external after opt-in builds"
+      ]
+    },
+    "default_no_llvm_api_tests": {
+      "passed": 4,
+      "successful_executable_builds_and_runs": 8,
+      "log": "core-default-tests.log"
+    },
+    "clippy_all_targets": {
+      "pass": true,
+      "log": "core-clippy-final.log"
+    },
+    "fmt": {
+      "pass": true,
+      "log": "core-fmt-final.log"
+    },
+    "production_diff_whitespace_check": {
+      "pass": true
+    },
+    "environment": {
+      "CARGO_TARGET_DIR": "/workspace/scratch/ac5966c4c370/zil-cp13/target-cp13",
+      "CARGO_INCREMENTAL": "0",
+      "CARGO_PROFILE_DEV_DEBUG": "0",
+      "CARGO_PROFILE_TEST_DEBUG": "0",
+      "cargo_jobs": 2,
+      "native_test_threads": 1
+    },
+    "commands": [
+      {
+        "name": "core-native-tests-attempt1",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-backend-llvm",
+          "--features",
+          "llvm-api",
+          "--test",
+          "closed_executable_cp13",
+          "-j2",
+          "--",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "core-object-key-tests",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-backend-llvm",
+          "--features",
+          "llvm-api",
+          "--lib",
+          "-j2",
+          "--",
+          "object_cache::tests",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "core-clippy-attempt1",
+        "argv": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-backend-llvm",
+          "--features",
+          "llvm-api",
+          "--all-targets",
+          "-j2",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "core-native-tests-final",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-backend-llvm",
+          "--features",
+          "llvm-api",
+          "--test",
+          "closed_executable_cp13",
+          "-j2",
+          "--",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "core-default-tests",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-backend-llvm",
+          "--no-default-features",
+          "--test",
+          "closed_executable_cp13",
+          "-j2",
+          "--",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "core-clippy-final",
+        "argv": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-backend-llvm",
+          "--features",
+          "llvm-api",
+          "--all-targets",
+          "-j2",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "core-fmt-final",
+        "argv": [
+          "cargo",
+          "fmt",
+          "-p",
+          "zil-backend-llvm",
+          "--",
+          "--check"
+        ],
+        "exit": 0
+      }
+    ]
+  },
+  "failed_test_attempts": [],
+  "notes": [
+    "Initial native validation passed before adding explicit selected-entry and O0 controls; its original passing log is retained. Final counts do not add repeated executions as new tests.",
+    "Raw Rust harness logs retain their terminal blank lines. Full evidence whitespace scans may report log-only EOF blank lines; source checks pass.",
+    "Backend fixtures are hand-authored TypedIR checked by the independent verifier; they are not source-language acceptance cases and do not claim a fresh Verify for each repeated backend invocation."
+  ],
+  "performance": {
+    "measured": false,
+    "speedup_claim": null,
+    "runtime_quality_claim": null,
+    "next": "Non-author exact-commit review, separate CLI/driver adaptation, full five-case correctness and paired runtime quality, then coordinator-controlled formal timing."
+  },
+  "limitations": [
+    "Only Linux closed mode is supported; Windows default path remains untouched.",
+    "Conservative cross-CGU exports can retain unreachable definitions; no LTO or cross-CGU DCE is added.",
+    "No all-workspace test, product gate promotion or GitHub push in this task."
+  ]
+}

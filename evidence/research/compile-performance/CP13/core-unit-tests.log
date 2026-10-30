@@ -1,0 +1,18 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp13/crates/zil-base)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp13/crates/zil-llvm-api)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp13/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp13/crates/zil-verify)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp13/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized] target(s) in 5.87s
+     Running unittests src/lib.rs (target-cp13/debug/deps/zil_backend_llvm-3136df6a873984eb)
+
+running 6 tests
+test machine_cgu::tests::closed_policy_keeps_cross_unit_function_addresses_and_global_initializers ... ok
+test machine_cgu::tests::closed_policy_preserves_local_address_use_and_duplicate_rejection ... ok
+test machine_cgu::tests::closed_policy_uses_exact_nonforeign_identity_and_keeps_other_items ... ok
+test machine_cgu::tests::external_uses_import_only_immediate_declarations ... ok
+test machine_cgu::tests::local_component_falls_back_without_copying_and_duplicates_remain_invalid ... ok
+test machine_cgu::tests::local_identity_and_global_initializers_are_colocated_once ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 36 filtered out; finished in 0.00s
+

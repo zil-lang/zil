@@ -74,11 +74,15 @@ pub struct CodegenSummary {
     pub actual_units: usize,
     pub jobs: usize,
     pub fallback: Option<String>,
+    /// Explicit executable-only policy; the diagnostic sidecar remains prepartition IR.
+    pub closed_executable: bool,
+    /// Definitions changed in the actual codegen units, before object-cache lookup.
+    pub internalized_functions: usize,
 }
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{}}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"closed_executable\":{},\"internalized_functions\":{}}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
             self.object_cache.to_json(),
@@ -87,7 +91,9 @@ impl CodegenSummary {
             self.jobs,
             self.fallback
                 .as_ref()
-                .map_or_else(|| "null".into(), |s| zil_base::json_string(s))
+                .map_or_else(|| "null".into(), |s| zil_base::json_string(s)),
+            self.closed_executable,
+            self.internalized_functions,
         )
     }
 }
@@ -103,6 +109,10 @@ pub struct BuildOptions {
     pub windows: Option<WindowsLinkOptions>,
     /// Explicit trusted local cache; None preserves the uncached reference.
     pub object_cache: Option<PathBuf>,
+    /// Opt-in Linux executable policy. Generated ZIL function identity symbols
+    /// are not an exported ABI; actual cross-unit uses remain externally linked.
+    /// Public emit APIs and raw machine modules never use this policy.
+    pub closed_executable: bool,
 }
 
 impl BuildOptions {
@@ -115,6 +125,7 @@ impl BuildOptions {
             codegen: CodegenOptions::default(),
             windows: None,
             object_cache: None,
+            closed_executable: false,
             emit: EmitOptions {
                 entry: EntryPoint::Main,
             },
@@ -210,7 +221,7 @@ fn build_traced(
     // Diagnostic/reference output only. API preflight runs once per owned unit,
     // immediately before its LLVMBuilder calls; it cannot be bypassed.
     let llvm = trace.value("llvm_text_render", || machine.to_text());
-    let plan = trace.value("cgu_partition", || {
+    let mut plan = trace.value("cgu_partition", || {
         crate::machine_cgu::partition(machine, lir, options.emit.entry, options.codegen.units)
     });
     if options.backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -228,6 +239,22 @@ fn build_traced(
             "object cache requires the LLVM API backend",
         ));
     }
+    if options.closed_executable && lir.target.triple != "x86_64-unknown-linux-gnu" {
+        return Err(vec![Diagnostic::new(
+            Phase::Codegen,
+            ResultCategory::Unsupported,
+            "E-CODEGEN-CLOSED-TARGET",
+            "closed-executable code generation requires the Linux executable target",
+            None,
+        )]);
+    }
+    let internalized_functions = if options.closed_executable {
+        trace.value("closed_executable", || {
+            crate::machine_cgu::internalize_closed_executable(&mut plan.units, lir)
+        })
+    } else {
+        0
+    };
     let mut cache_summary = ObjectCacheSummary {
         requested: options.object_cache.is_some(),
         ..ObjectCacheSummary::default()
@@ -259,6 +286,8 @@ fn build_traced(
         actual_units,
         jobs: options.codegen.jobs.min(actual_units),
         fallback: plan.fallback.map(str::to_owned),
+        closed_executable: options.closed_executable,
+        internalized_functions,
     };
     let mut staging_timing = trace.scope("staging_prepare", "stage");
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
@@ -336,6 +365,17 @@ fn build_traced(
             let objects = if !split && options.backend == NativeBackend::Clang {
                 // Keep the one-process Unix reference path; select the same
                 // link strategy used by the separate LLVM API link below.
+                // The public sidecar is the original prepartition reference.
+                // An explicit closed executable must compile the transformed
+                // unit here just as the API and multi-unit Clang paths do.
+                let transformed_ir = if options.closed_executable {
+                    let input = staging.0.join("unit-0.ll");
+                    fs::write(&input, plan.units[0].to_text())
+                        .map_err(|e| io_error("write codegen unit", &input, e))?;
+                    Some(input)
+                } else {
+                    None
+                };
                 drop(plan.units);
                 let mut command = Command::new(&options.clang);
                 command
@@ -348,11 +388,14 @@ fn build_traced(
                 } else if let Some(linker) = &linux_linker {
                     command.arg(linker);
                 }
-                command.arg(&ir_path).arg("-o").arg(if windows {
-                    &object_path
-                } else {
-                    &executable_path
-                });
+                command
+                    .arg(transformed_ir.as_ref().unwrap_or(&ir_path))
+                    .arg("-o")
+                    .arg(if windows {
+                        &object_path
+                    } else {
+                        &executable_path
+                    });
                 commands.push(unit_trace.measure(
                     if windows {
                         "clang_object"
