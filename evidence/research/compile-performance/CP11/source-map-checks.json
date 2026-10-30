@@ -1,0 +1,71 @@
+[
+  {
+    "name": "source-map-unit-tests",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-base",
+      "--lib",
+      "-j2",
+      "--",
+      "source_map::tests",
+      "--nocapture"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "source-map-regression-tests",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-expand",
+      "--test",
+      "project_lookup_cp10",
+      "--test",
+      "normalization",
+      "-j2",
+      "--",
+      "--nocapture"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "source-map-clippy",
+    "argv": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-base",
+      "-p",
+      "zil-expand",
+      "--all-targets",
+      "-j2",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "source-map-fmt",
+    "argv": [
+      "cargo",
+      "fmt",
+      "-p",
+      "zil-base",
+      "-p",
+      "zil-expand",
+      "--",
+      "--check"
+    ],
+    "exit_code": 0
+  }
+]
