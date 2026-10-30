@@ -1,0 +1,4 @@
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp07/crates/zil-llvm-api)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp07/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.44s
+     Running tests/linux_linker.rs (/workspace/scratch/ac5966c4c370/target-cp07/debug/deps/linux_linker-ff9282f833e70287)

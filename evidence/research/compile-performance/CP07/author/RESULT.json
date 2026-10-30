@@ -1,0 +1,191 @@
+{
+  "task": "CP07",
+  "implementation_author": "/root/toolchain_setup",
+  "source_commit": "6339ed8b5f2b8250982a3511371e91ad9ba71bc2",
+  "baseline": "6c3b3adb2435137fac9f4a1c8257c44e47d909e8",
+  "evidence_kind": "hand-authored TypedIR through independent Verify and real Clang/LLVM API/link tools; not source-language or performance evidence",
+  "started_at": "2026-10-30T06:57:46.754070+00:00",
+  "toolchain": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+    "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/bin",
+    "lld": "LLD 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5) (compatible with GNU linkers)"
+  },
+  "commands": [
+    {
+      "name": "format",
+      "argv": [
+        "cargo",
+        "fmt",
+        "-p",
+        "zil-backend-llvm",
+        "--check"
+      ],
+      "exit_code": 0,
+      "stdout": "evidence/research/compile-performance/CP07/author/format.stdout",
+      "stderr": "evidence/research/compile-performance/CP07/author/format.stderr",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "summaries": [],
+      "configuration_cases": []
+    },
+    {
+      "name": "linker-api",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "llvm-api",
+        "--test",
+        "linux_linker",
+        "--target-dir",
+        "/workspace/scratch/ac5966c4c370/target-cp07",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "stdout": "evidence/research/compile-performance/CP07/author/linker-api.stdout",
+      "stderr": "evidence/research/compile-performance/CP07/author/linker-api.stderr",
+      "stdout_sha256": "3e986f95e043183b09c4ddd68afd690188149a138051816e926c3a0a0854d681",
+      "stderr_sha256": "1fba9102384ae1929e3de720ee8682c6948acd3a7866735d29a6d5c962ec5e15",
+      "summaries": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s"
+      ],
+      "configuration_cases": [
+        "CP07 auto: Pass",
+        "CP07 split: Pass",
+        "CP07 path: Pass",
+        "CP07 symlink: Pass",
+        "CP07 system: Pass",
+        "CP07 absent: Pass",
+        "CP07 explicit: Pass",
+        "CP07 empty: Pass",
+        "CP07 missing: Pass",
+        "CP07 nonexecutable: Pass",
+        "CP07 failed: Pass",
+        "CP07 windows: Pass",
+        "CP07 auto-api: Pass",
+        "CP07 split-api: Pass",
+        "CP07 failed-api: Pass"
+      ]
+    },
+    {
+      "name": "backend-regression",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "llvm-api",
+        "--lib",
+        "--target-dir",
+        "/workspace/scratch/ac5966c4c370/target-cp07",
+        "-j2"
+      ],
+      "exit_code": 0,
+      "stdout": "evidence/research/compile-performance/CP07/author/backend-regression.stdout",
+      "stderr": "evidence/research/compile-performance/CP07/author/backend-regression.stderr",
+      "stdout_sha256": "f710f8e710f6a2d39cdc079c0255b5e51f31231422d00567846012e7f302defe",
+      "stderr_sha256": "aa8d9aa01d6ab45168958df07c694778e7437de19b0713dbc5b4aa70523e8a86",
+      "summaries": [
+        "test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s"
+      ],
+      "configuration_cases": []
+    },
+    {
+      "name": "linker-reference",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-backend-llvm",
+        "--no-default-features",
+        "--test",
+        "linux_linker",
+        "--target-dir",
+        "/workspace/scratch/ac5966c4c370/target-cp07",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "stdout": "evidence/research/compile-performance/CP07/author/linker-reference.stdout",
+      "stderr": "evidence/research/compile-performance/CP07/author/linker-reference.stderr",
+      "stdout_sha256": "cc143b41856c1c7dc5e99568a58fbf1ac2aaeec33b1490a992db10c75f8b5bcb",
+      "stderr_sha256": "25771bf712ba9a188be78ba614f444d35a7f2177194d76e0ece15fb7ace58bf1",
+      "summaries": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s"
+      ],
+      "configuration_cases": [
+        "CP07 auto: Pass",
+        "CP07 split: Pass",
+        "CP07 path: Pass",
+        "CP07 symlink: Pass",
+        "CP07 system: Pass",
+        "CP07 absent: Pass",
+        "CP07 explicit: Pass",
+        "CP07 empty: Pass",
+        "CP07 missing: Pass",
+        "CP07 nonexecutable: Pass",
+        "CP07 failed: Pass",
+        "CP07 windows: Pass"
+      ]
+    },
+    {
+      "name": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "llvm-api",
+        "--all-targets",
+        "--target-dir",
+        "/workspace/scratch/ac5966c4c370/target-cp07",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "stdout": "evidence/research/compile-performance/CP07/author/clippy.stdout",
+      "stderr": "evidence/research/compile-performance/CP07/author/clippy.stderr",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "ee1d3fffa2022e962e63e0dbe4d35c9c198450a20c29fc09030f635dbb38bfcd",
+      "summaries": [],
+      "configuration_cases": []
+    }
+  ],
+  "source_hashes": {
+    "crates/zil-backend-llvm/src/build.rs": "a932992914b95152d5996024adf0cb825a4db763ca7a38657330757b6a6464fc",
+    "crates/zil-backend-llvm/tests/linux_linker.rs": "5e61cd609d1206d4ff7b6e878cefa50d03040776dbb4ef45697a4e2bf4bb1bc7"
+  },
+  "status": "Pass",
+  "development_failures": [
+    {
+      "phase": "initial uncommitted test fixture",
+      "command": "cargo test -p zil-backend-llvm --features llvm-api --test linux_linker --target-dir /workspace/scratch/ac5966c4c370/target-cp07 -j2 -- --nocapture",
+      "actual": "auto passed; split asserted actual_units=2 but actual_units was 1; process exit 101",
+      "reason": "two hand-authored functions had the same FileId, so the existing source-group CGU rule correctly kept them together",
+      "repair": "fixture assigns distinct FileId per function; production partition and thresholds unchanged"
+    }
+  ],
+  "scope_limits": [
+    "No performance benchmark run by this author; coordinator owns the quiet A/B window.",
+    "Windows test checks Linux override isolation by real lld-link unresolved ExitProcess diagnostic; no native Windows execution.",
+    "No full workspace/product gate claimed.",
+    "CLI/source acceptance, ABI, pass pipeline and verifier semantics unchanged.",
+    "The parent integration process must perform independent exact-commit review before promotion."
+  ],
+  "rust_goal_review": {
+    "safety": "link-driver selection only; no acceptance or verifier changes",
+    "runtime_memory": "no extra runtime protocol or ABI changes; comparative runtime measurement delegated to coordinator",
+    "syntax_maintenance": "no language syntax change; one explicit Linux linker override for diagnosis",
+    "compile_cost": "candidate targets real linking stage; net benefit and Rust comparison unmeasured here",
+    "breakthrough": "not established by this implementation/test receipt"
+  }
+}
