@@ -1,6 +1,6 @@
 //! Partition the owned machine IR by semantic symbol references, never by parsing
 //! LLVM assembly. Local-linkage definitions and all users remain co-located.
-use crate::EntryPoint;
+use crate::{EntryPoint, Optimization};
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{FileId, Fingerprint};
 use zil_ir::LirModule;
@@ -15,6 +15,46 @@ struct Definition {
     index: usize,
     local: bool,
     refs: BTreeSet<String>,
+}
+
+/// CP14 keeps small, explicitly closed O2 programs in one optimization unit.
+/// The frozen limit counts actual machine instructions across all definitions;
+/// it does not depend on source names, benchmark identity, or requested workers.
+pub(crate) fn partition_for_build(
+    module: Module,
+    lir: &LirModule,
+    entry: EntryPoint,
+    count: usize,
+    optimization: Optimization,
+    closed_executable: bool,
+) -> Plan {
+    if closed_executable
+        && optimization == Optimization::O2
+        && count > 1
+        && small_optimized_program(&module)
+    {
+        return Plan {
+            units: vec![module],
+            fallback: Some("small optimized closed executable"),
+        };
+    }
+    partition(module, lir, entry, count)
+}
+
+fn small_optimized_program(module: &Module) -> bool {
+    let mut remaining = 2048_usize;
+    for item in &module.items {
+        let Item::Function(function) = item else {
+            continue;
+        };
+        for block in function.blocks.iter().flatten() {
+            let Some(next) = remaining.checked_sub(block.instructions.len()) else {
+                return false;
+            };
+            remaining = next;
+        }
+    }
+    true
 }
 
 pub(crate) fn partition(module: Module, lir: &LirModule, entry: EntryPoint, count: usize) -> Plan {
@@ -444,6 +484,122 @@ mod tests {
             })
             .collect();
         module
+    }
+
+    // Machine-model controls: the two real definitions have distinct source
+    // groups and a cross-group call, with an exact total instruction count.
+    fn sized_pair(instructions: usize) -> (Module, LirModule) {
+        assert!(instructions >= 3);
+        let mut body = (0..instructions - 3)
+            .map(|index| {
+                Inst::new(
+                    Some(format!("pad.{index}")),
+                    Op::Binary {
+                        opcode: "add".into(),
+                        ty: Ty::Int(32),
+                        left: Val::Int(0),
+                        right: Val::Int(0),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        body.push(Inst::new(
+            Some("called".into()),
+            Op::Call {
+                result: Ty::Int(32),
+                result_attrs: vec![],
+                callee: Val::Global("zil.fn.1".into()),
+                args: vec![],
+                vararg: None,
+            },
+        ));
+        body.push(Inst::new(
+            None,
+            Op::Return(Some(Arg::new(Ty::Int(32), Val::Local("called".into())))),
+        ));
+        let caller = Item::Function(Function {
+            name: "zil.fn.0".into(),
+            linkage: Linkage::External,
+            signature: Signature::new(Ty::Int(32), vec![]),
+            attrs: vec![],
+            blocks: Some(vec![Block {
+                name: "entry".into(),
+                instructions: body,
+            }]),
+        });
+        let declaration = match f("foreign.declaration", Ty::Int(32), Val::Int(0)) {
+            Item::Function(function) => Item::Function(function.declaration()),
+            _ => unreachable!(),
+        };
+        let module = m(vec![
+            caller,
+            f("zil.fn.1", Ty::Int(32), Val::Int(37)),
+            declaration,
+        ]);
+        let mut lir = candidate_lir(&[0, 1]);
+        lir.functions[1].span.file = FileId(1);
+        (module, lir)
+    }
+
+    #[test]
+    fn cp14_small_closed_o2_obeys_total_instruction_boundary() {
+        for instructions in [2047, 2048, 2049] {
+            let (module, lir) = sized_pair(instructions);
+            zil_llvm_api::validate_module(&module).unwrap();
+            let plan = partition_for_build(
+                module.clone(),
+                &lir,
+                EntryPoint::None,
+                8,
+                Optimization::O2,
+                true,
+            );
+            if instructions <= 2048 {
+                assert_eq!(plan.units, vec![module]);
+                assert_eq!(plan.fallback, Some("small optimized closed executable"));
+            } else {
+                let ordinary = partition(module, &lir, EntryPoint::None, 8);
+                assert_eq!(plan.units, ordinary.units);
+                assert_eq!(plan.fallback, ordinary.fallback);
+                assert_eq!(plan.units.len(), 2);
+            }
+        }
+    }
+
+    #[test]
+    fn cp14_disabled_and_single_unit_paths_are_unchanged() {
+        let (module, lir) = sized_pair(8);
+        for (optimization, closed, count) in [
+            (Optimization::O0, true, 8),
+            (Optimization::O0, false, 8),
+            (Optimization::O2, false, 8),
+            (Optimization::O2, true, 1),
+        ] {
+            let ordinary = partition(module.clone(), &lir, EntryPoint::None, count);
+            let plan = partition_for_build(
+                module.clone(),
+                &lir,
+                EntryPoint::None,
+                count,
+                optimization,
+                closed,
+            );
+            assert_eq!(plan.units, ordinary.units);
+            assert_eq!(plan.fallback, ordinary.fallback);
+        }
+    }
+
+    #[test]
+    fn cp14_large_closed_program_preserves_cross_unit_reference() {
+        let (module, lir) = sized_pair(2049);
+        let mut plan =
+            partition_for_build(module, &lir, EntryPoint::None, 8, Optimization::O2, true);
+        assert_eq!(internalize_closed_executable(&mut plan.units, &lir), 1);
+        assert_eq!(plan.units.len(), 2);
+        for unit in &plan.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+            assert_eq!(function_linkage(unit, "zil.fn.1"), Linkage::External);
+        }
     }
 
     fn function_linkage(module: &Module, name: &str) -> Linkage {

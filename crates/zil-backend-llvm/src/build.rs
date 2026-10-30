@@ -222,7 +222,14 @@ fn build_traced(
     // immediately before its LLVMBuilder calls; it cannot be bypassed.
     let llvm = trace.value("llvm_text_render", || machine.to_text());
     let mut plan = trace.value("cgu_partition", || {
-        crate::machine_cgu::partition(machine, lir, options.emit.entry, options.codegen.units)
+        crate::machine_cgu::partition_for_build(
+            machine,
+            lir,
+            options.emit.entry,
+            options.codegen.units,
+            options.optimization,
+            options.closed_executable,
+        )
     });
     if options.backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
         return Err(vec![Diagnostic::new(
