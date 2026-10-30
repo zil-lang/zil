@@ -1,0 +1,14 @@
+{
+  "at_utc": "2026-10-30T05:29:52.208753+00:00",
+  "old_spec_hash": "14109fb881d03f4e3633d8d5f851287df9c5a4ed35f642ff6942c9fd7a9190f2",
+  "old_normative_hash": "51bce715057b382d1cf15de405c8ee7357aacd3935ed736df9b6268b5c3ec0d0",
+  "spec_hash": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+  "normative_hash": "e4bd2d0f939a205b01618c0d5ce53a8725549be093db2658272633021131e44d",
+  "change": "这里关闭的 callable 参数/结果指具体 Closure、F 及拥有或动态环境值；既有有限无环境 FunctionPointer/ForeignCallback 仍按原 Copy 形状和原调用/FFI 许可处理，不由本条新增调用能力。Store 叶形状对三类 callable 的既有显式限制保持。",
+  "production_acceptance_changed": false,
+  "historical_acceptance_rewritten": false,
+  "review_assignment": {
+    "219": "/root",
+    "218/220/221": "/root/language_parallel"
+  }
+}

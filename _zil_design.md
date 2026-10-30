@@ -553,6 +553,8 @@ opaque 返回只隐藏具体类型名；Hold、Call、Cleanup、Resume、来源�
 
 普通自由函数允许一个直接 `F:Fn(...) -> R`、`F:FnMut(...) -> R` 或 `F:FnOnce(...) -> R` 类型绑定，可将一个按值 `f:F` 转入新的自含闭包，并通过 `-> impl Fn...` 返回该新环境。其余普通参数复用既有有限普通工厂的 Copy、直接 Managed 和完整可捕获 Package 准入；不得通过伴随 Package/State 再隐藏 F/G 输入。不新增普通类型参数、State 参数、borrowed F、多个 F、receiver、foreign 或动态擦除。F 及返回 callable 的参数限既有有限 Copy 或同步 Copy/slice 地址参数，结果限有限 Copy/Unit；新 profile 不开放环境 lending、callable 参数/结果或 retained 地址。
 
+这里关闭的 callable 参数/结果指具体 Closure、F 及拥有或动态环境值；既有有限无环境 FunctionPointer/ForeignCallback 仍按原 Copy 形状和原调用/FFI 许可处理，不由本条新增调用能力。Store 叶形状对三类 callable 的既有显式限制保持。
+
 按定义模块、源定义身份及完整 F 具体类型实例化，每个实例只有一个隐藏返回环境类型。不同定义或不同 F 即使签名与布局相同也不合并；相同 F 类型的不同运行时值不合并来源、活性、调用次数或清理责任。调用方求值、准备和转交每个实参各一次，Copy 实际值沿原 Value 复制规则取得独立实参位置；F 约束自身不授予 Copy。
 
 定义体在未被调用时也按声明约束检查。F 参数经过普通局部绑定、move 与捕获后，其调用能力仍来自实际值位置的声明来源：实际 Fn 或 FnMut 适配到声明 FnOnce 后，后续调用仍消费该位置；不能按实际 ClosureId 恢复更强接口。FnMut 必须取得可写拥有位置。返回环境的调用模式由实际声明模式下的正文和责任变化决定，并与公开 opaque 声明精确匹配；不增加 opaque kind 的隐式适配。不同局部实例即使同型，也不得相互借用声明来源。

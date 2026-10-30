@@ -69,3 +69,7 @@ Types 拟写集为 `src/{helpers,helper_plan,helper_flow,retained,lib,program,in
 ## 正式派工补充
 
 218由language218实施前端，220由root实施Analyze与集成，221由language_review_plan实施Verify，219由language_parallel实施源选择。精确独占写集以主树工单为准；219的session/project/ct_program接点已纳入其独占写集，私有模块注册随所属单一文件施工并由root统一发布。交叉独审与组合回归保持。
+
+## Copy 签名消歧
+
+这里关闭的 callable 参数/结果指具体 Closure、F 及拥有或动态环境值；既有有限无环境 FunctionPointer/ForeignCallback 仍按原 Copy 形状和原调用/FFI 许可处理，不由本条新增调用能力。Store 叶形状对三类 callable 的既有显式限制保持。 这是既有 Copy 与拥有环境边界的文字澄清；生产接受性、schema 和默认限额不变，三阶段继续独立核验。
