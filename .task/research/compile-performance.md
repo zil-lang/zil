@@ -7,8 +7,8 @@ Doing
   "parent_task": "B0",
   "status": "Doing",
   "baseline": "11e05a70419a5f64191a06f72bc3f16744d01f7b",
-  "spec_hash": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
-  "normative_hash": "e4bd2d0f939a205b01618c0d5ce53a8725549be093db2658272633021131e44d",
+  "spec_hash": "58e6c031b059a1efbdbe49a7f0c2eecd61fed0518be1e9d04a0af2f75b07a9cf",
+  "normative_hash": "5029830ff7d09378a69ee7cc310536b85f9fec3e7a438ddacc187b14aa6b421a",
   "branch": "research/compile-performance",
   "authority": "user-requested independent research branch",
   "experiments": {
@@ -308,6 +308,36 @@ Doing
       "acceptance_scope": "Research implementation and targeted verification only; mainline/product gates NotRun.",
       "published_candidate": "0284ddd1154b94ef5b3765166a854307b43d0661",
       "run": "https://github.com/zil-lang/zil/actions/runs/41068328117"
+    },
+    "CP18": {
+      "status": "Doing",
+      "author": "/root/shape_opt",
+      "baseline": "17d31322fdc12bb22ea17c7e1d3a64d7c378ce10",
+      "purpose": "Preserve checks, diagnostic order and logical charges while sharing sparse project declaration views and borrowing unchanged shape resolution. Separate implementation commits and measurements.",
+      "plan": "docs/research/compile-performance/COMPILE5-PLAN.md",
+      "write_set": [
+        "crates/zil-types/src/aggregates.rs",
+        "crates/zil-types/src/enums.rs",
+        "crates/zil-types/src/program.rs",
+        "crates/zil-types/src/inference.rs",
+        "crates/zil-types/src/lib.rs",
+        "crates/zil-types/tests/shape_resolution_cp18.rs"
+      ]
+    },
+    "CP19": {
+      "status": "Doing",
+      "author": "/root/ct_opt",
+      "baseline": "17d31322fdc12bb22ea17c7e1d3a64d7c378ce10",
+      "purpose": "Investigate CT allocation/index reuse; do not skip walker checks or resolve/check stages. Implementation only after demonstrated concrete redundant work.",
+      "plan": "docs/research/compile-performance/COMPILE5-PLAN.md",
+      "write_set": [
+        "crates/zil-ct/src/source.rs",
+        "crates/zil-ct/src/source",
+        "crates/zil-driver/src/ct_program.rs",
+        "crates/zil-driver/src/project.rs",
+        "crates/zil-ct/tests/borrowed_source_cp19.rs",
+        "crates/zil-driver/tests/ct_reuse_cp19.rs"
+      ]
     }
   },
   "mainline_acceptance": "Hold: this research is not merged into main; full workspace tests and product gates NotRun. CP14 small-program runtime quality recovered in this three-block window; overall compile superiority to Rust not reached.",
