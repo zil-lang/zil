@@ -22,7 +22,7 @@ fn unsupported(span: Span, message: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::unsupported(Phase::Ct, message, Some(span))]
 }
 
-fn integer(value: &s::Expr) -> Option<(i128, &'static str)> {
+pub(super) fn integer(value: &s::Expr) -> Option<(i128, &'static str)> {
     let s::ExprKind::Literal(s::Literal::Integer(text)) = &value.kind else {
         return None;
     };

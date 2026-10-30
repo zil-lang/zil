@@ -5,6 +5,7 @@ mod context;
 mod generation;
 mod hygiene;
 mod materialize;
+mod type_values;
 
 use budget::Budget;
 use context::Context;
