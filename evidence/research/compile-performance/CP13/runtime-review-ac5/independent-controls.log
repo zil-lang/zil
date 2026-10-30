@@ -1,0 +1,51 @@
+{
+  "reviewed_commit": "ac5d7ca1d8cd3b1ef8949f18c354f9651ec81d86",
+  "reviewer": "/root/benchmark_audit",
+  "scope": "Independent synthetic receipt mutations; no performance scores or compiler builds.",
+  "author_controls_replayed": 18,
+  "independent_counterexamples": [
+    {
+      "case": "optimization-drift",
+      "rejected": true,
+      "reason": "Frozen build configuration changed: x/B"
+    },
+    {
+      "case": "jobs-drift",
+      "rejected": true,
+      "reason": "Frozen build configuration changed: x/B"
+    },
+    {
+      "case": "units-drift",
+      "rejected": true,
+      "reason": "Frozen build configuration changed: x/B"
+    },
+    {
+      "case": "extra-overriding-optimization",
+      "rejected": true,
+      "reason": "Frozen build configuration changed: x/B"
+    },
+    {
+      "case": "closed-ignored",
+      "rejected": true,
+      "reason": "Compiler did not confirm frozen closed-executable mode"
+    },
+    {
+      "case": "closed-missing",
+      "rejected": true,
+      "reason": "Compiler did not confirm frozen closed-executable mode"
+    },
+    {
+      "case": "closed-string",
+      "rejected": true,
+      "reason": "Compiler did not confirm frozen closed-executable mode"
+    },
+    {
+      "case": "closed-integer",
+      "rejected": true,
+      "reason": "Compiler did not confirm frozen closed-executable mode"
+    }
+  ],
+  "old_o0_default_preserved": true,
+  "pass": true,
+  "findings": "Build argv binds per-arm optimization/units/jobs/flag; missing/ignored/non-boolean requested closed mode rejects after raw-log and receipt digests are recomputed. Existing tests separately retain single CPU, ABBA, weights and excluding compile/startup/warmup."
+}
