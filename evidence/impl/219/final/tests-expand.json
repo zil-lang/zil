@@ -1,0 +1,23 @@
+{
+  "source_commit": "4b4ac10315a84429a5ad8f2b3a46810b2598f272",
+  "git_status": "",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-expand",
+    "--test",
+    "impl219_preflight",
+    "-j",
+    "1",
+    "--",
+    "--test-threads=1"
+  ],
+  "start": 1793338385.7327268,
+  "status": "Pass",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "llvm": "23.1.4",
+  "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)",
+  "exit_code": 0,
+  "end": 1793338385.7666035
+}

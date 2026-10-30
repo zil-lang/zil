@@ -1,0 +1,35 @@
+    Checking zil-base v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-base)
+    Checking zil-ir v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-ir)
+    Checking zil-verify v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-verify)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-llvm-api)
+    Checking zil-syntax v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-syntax)
+    Checking zil-backend-llvm v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-backend-llvm)
+    Checking zil-types v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-types)
+    Checking zil-expand v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-expand)
+    Checking zil-ct v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-ct)
+    Checking zil-lower v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-lower)
+    Checking zil-analyze v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-analyze)
+    Checking zil-db v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-db)
+    Checking zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-219/crates/zil-driver)
+error: this `if` statement can be collapsed
+   --> crates/zil-driver/src/ct_selection/context.rs:367:25
+    |
+367 | /                         if import.alias == *alias {
+368 | |                             if found.replace(import.module).is_some() {
+369 | |                                 return Ok(None);
+370 | |                             }
+371 | |                         }
+    | |_________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+367 ~                         if import.alias == *alias
+368 ~                             && found.replace(import.module).is_some() {
+369 |                                 return Ok(None);
+370 ~                             }
+    |
+
+error: could not compile `zil-driver` (lib) due to 1 previous error

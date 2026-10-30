@@ -1,0 +1,80 @@
+{
+  "status": "AuthorValidated",
+  "review": "PendingIndependentRootReview",
+  "source_commit": "4b4ac10315a84429a5ad8f2b3a46810b2598f272",
+  "compiler_source_commit": "4b4ac10315a84429a5ad8f2b3a46810b2598f272",
+  "cli_sha256": "697a1c445d9429e62b55714dc61130d19a9eb83259db42565d7f111aec57b0c8",
+  "tested_tree_spec_hash": "14109fb881d03f4e3633d8d5f851287df9c5a4ed35f642ff6942c9fd7a9190f2",
+  "tested_tree_normative_hash": "40895de024c0718ab4fd1d7c73c8cc1dd19e3b7eadb0706c033351ef3b95617c",
+  "current_authority_migration": {
+    "main_commit": "25506bd6",
+    "spec_hash": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+    "normative_hash": "e4bd2d0f939a205b01618c0d5ce53a8725549be093db2658272633021131e44d",
+    "note": "Root registered the phase diagnostic and clarified the separate 218 Copy function-pointer boundary; section 16.3 selection behavior is unchanged. Integration consumes the current main registry."
+  },
+  "scope": "ZIL-COMPTIME / design 16.3 / source_selection_219 closed scalar source #if; no schema/Wire change",
+  "limited_tests": {
+    "passed": 52,
+    "failed": 0,
+    "ignored": 0,
+    "new_tests": 13,
+    "adjacent_existing_tests": 39,
+    "groups": {
+      "impl068_vertical": 6,
+      "impl122_ct_declarations": 6,
+      "impl219_budget": 3,
+      "impl219_ct_boundary": 3,
+      "impl219_selection": 5,
+      "projects": 27,
+      "impl219_preflight": 2
+    },
+    "formal_full_workspace": "NotRunByAuthor"
+  },
+  "clippy": {
+    "status": "Pass",
+    "scope": "zil-driver and zil-expand lib; llvm-api; -D warnings"
+  },
+  "native": {
+    "status": "Pass",
+    "configurations": [
+      "compact",
+      "wide"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "modules_per_build": 3,
+    "llvm_api_builds": 4,
+    "executions": 100,
+    "ordinary_executions": 24,
+    "instrumented_executions": 76,
+    "actual_allocation_failures": 28,
+    "all_final_live_zero": true,
+    "max_requested_payload_bytes": 10,
+    "runtime_error_cleanup": "actual enum error propagation, ordinary/early exit, allocation failure, receiving-block cleanup order"
+  },
+  "budget": {
+    "core_steps": 127,
+    "full_steps": 205,
+    "full_nodes": 645,
+    "input_sha256": "c1af488970433c2ac012fd6fde094099cd90c9e23486c516f775ebb3ab0a677c"
+  },
+  "failures_retained": [
+    "../initial-failures/integer-i64",
+    "../initial-failures/project",
+    "../initial-failures/pipeline-transitive",
+    "../initial-failures/3563759-clippy.json"
+  ],
+  "prior_candidate": "35637591455eeaeffcb5ab9753fddb9cb33cfa51 native 100/28 and limited tests passed, but pipeline dependency trace/phase diagnostic and one Clippy finding were repaired; prior executions are not added to final counts",
+  "archive": {
+    "path": "raw-evidence.tar.gz",
+    "bytes": 1972951,
+    "sha256": "db67dbd4a5f69dcc8e7fc97cd2b8b9471caa474ac0294c567ef583dafa61e089",
+    "contents": "Final and prior exact-commit commands, compiler receipts, frozen inputs, original stdout/stderr, source/IR/interfaces/selection maps, native binaries and allocation probes. No compiler executable or external toolchain copy."
+  },
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "zui_framework": "NotDeveloped"
+}

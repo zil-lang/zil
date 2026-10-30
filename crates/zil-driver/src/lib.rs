@@ -5,6 +5,7 @@
 mod artifacts;
 mod contracts;
 mod ct_program;
+mod ct_selection;
 mod project;
 mod session;
 pub use project::{ProjectSources, compile_project};
