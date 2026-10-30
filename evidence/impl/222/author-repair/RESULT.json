@@ -1,0 +1,223 @@
+{
+  "status": "AuthorPass",
+  "implementation_author": "/root/ct_for",
+  "tested_revision": "566bda6a12ab9dbe9be5adbf5b870a411189dc37",
+  "source_tree": "40506e151a5e0ef11b7535426548e40ffa769ba1",
+  "git_status": "",
+  "cli_sha256": "7253b2c98df466d7328342001be5f0c3e20734a6e8ff28debcbf9752e6c81131",
+  "executed_design_sha256": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+  "checks": {
+    "fmt": {
+      "source_commit": "566bda6a12ab9dbe9be5adbf5b870a411189dc37",
+      "source_tree": "40506e151a5e0ef11b7535426548e40ffa769ba1",
+      "git_status": "",
+      "design_sha256": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+      "interfaces_sha256": "f8a3448739fdf5100c684113b2a17bc9f7664c0aadb91791caf98a47b0543dfe",
+      "test_report_dir": "/workspace/scratch/d286b3aeeb6b/recovery/222-clean-566bda6a1/tests",
+      "environment_sha256": "5582a9c81cb003f6d941357e11f537a2629849f4ed3f6350a95fa35fdc783655",
+      "command": [
+        "sh",
+        "/workspace/scratch/d286b3aeeb6b/recovery/222-env.sh",
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "start": 1793373198.2818723,
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793373200.7036057,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "cli-build": {
+      "source_commit": "566bda6a12ab9dbe9be5adbf5b870a411189dc37",
+      "source_tree": "40506e151a5e0ef11b7535426548e40ffa769ba1",
+      "git_status": "",
+      "design_sha256": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+      "interfaces_sha256": "f8a3448739fdf5100c684113b2a17bc9f7664c0aadb91791caf98a47b0543dfe",
+      "test_report_dir": "/workspace/scratch/d286b3aeeb6b/recovery/222-clean-566bda6a1/tests",
+      "environment_sha256": "5582a9c81cb003f6d941357e11f537a2629849f4ed3f6350a95fa35fdc783655",
+      "command": [
+        "sh",
+        "/workspace/scratch/d286b3aeeb6b/recovery/222-env.sh",
+        "cargo",
+        "build",
+        "--locked",
+        "-p",
+        "zil-cli"
+      ],
+      "start": 1793373200.748532,
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793373201.318682,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "d586131dd7f11c6ffd8de57899445ad2b66e0715ef0a46da1df7d1b843a93f39",
+      "cli_sha256": "7253b2c98df466d7328342001be5f0c3e20734a6e8ff28debcbf9752e6c81131"
+    },
+    "tests": {
+      "source_commit": "566bda6a12ab9dbe9be5adbf5b870a411189dc37",
+      "source_tree": "40506e151a5e0ef11b7535426548e40ffa769ba1",
+      "git_status": "",
+      "design_sha256": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+      "interfaces_sha256": "f8a3448739fdf5100c684113b2a17bc9f7664c0aadb91791caf98a47b0543dfe",
+      "test_report_dir": "/workspace/scratch/d286b3aeeb6b/recovery/222-clean-566bda6a1/tests",
+      "environment_sha256": "5582a9c81cb003f6d941357e11f537a2629849f4ed3f6350a95fa35fdc783655",
+      "command": [
+        "sh",
+        "/workspace/scratch/d286b3aeeb6b/recovery/222-env.sh",
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl222_generation",
+        "--test",
+        "impl222_review_regressions",
+        "--test",
+        "impl219_selection",
+        "--test",
+        "impl219_budget",
+        "--features",
+        "llvm-api"
+      ],
+      "start": 1793373201.6194558,
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793373205.4900217,
+      "stdout_sha256": "e49e5644e94e606f4f593c1de69518a5e88b5fe0938649aae3ecc250732cc916",
+      "stderr_sha256": "43692162fa6cb9db79db0c7da8345a39c128f3ff59117a66bf973ab7d36af46a"
+    },
+    "clippy": {
+      "source_commit": "566bda6a12ab9dbe9be5adbf5b870a411189dc37",
+      "source_tree": "40506e151a5e0ef11b7535426548e40ffa769ba1",
+      "git_status": "",
+      "design_sha256": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+      "interfaces_sha256": "f8a3448739fdf5100c684113b2a17bc9f7664c0aadb91791caf98a47b0543dfe",
+      "test_report_dir": "/workspace/scratch/d286b3aeeb6b/recovery/222-clean-566bda6a1/tests",
+      "environment_sha256": "5582a9c81cb003f6d941357e11f537a2629849f4ed3f6350a95fa35fdc783655",
+      "command": [
+        "sh",
+        "/workspace/scratch/d286b3aeeb6b/recovery/222-env.sh",
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "--test",
+        "impl222_generation",
+        "--test",
+        "impl222_review_regressions",
+        "--features",
+        "llvm-api",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "start": 1793373205.5435824,
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793373206.3656673,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "dc266c5602a729a7ca025f40de5e0e765b01393ce1f50d17e4e2c06f59813678"
+    }
+  },
+  "tests": {
+    "passed": 17,
+    "failed": 0,
+    "ignored": 0,
+    "impl222_generation": 6,
+    "promoted_non_author_fixture_author_rerun": 2,
+    "existing_impl219": 9
+  },
+  "functional_native": {
+    "input_cases": 29,
+    "generated_cases": 28,
+    "ordinary_api_controls": 1,
+    "llvm_api_builds": 58,
+    "executions": 58
+  },
+  "resource_consumer": {
+    "native_executions": 54,
+    "actual_allocation_failures": 18,
+    "all_final_live_zero": true,
+    "summary_sha256": "cf1bc4d7ce4af6963160fef55664db11c1de2213ce0ba70de9658e79787fdb4c"
+  },
+  "budget": {
+    "impl222": {
+      "core_steps": 71,
+      "full_steps": 138,
+      "full_nodes": 751
+    },
+    "impl219_unchanged": {
+      "core_steps": 127,
+      "full_steps": 205,
+      "full_nodes": 645
+    }
+  },
+  "namespace_controls": {
+    "before": [
+      {
+        "name": "namespace-plain",
+        "source_sha256": "8d497fc5432aa844b8ba0f6f67ab4c958d3fcd145329e58ba3f116ebdcb450bf",
+        "cli_exit": 1,
+        "cli_status": "SafeReject",
+        "cli_phase": "types",
+        "independent_api_status": "Success",
+        "independent_api_fixture_commit": "ed77523f9",
+        "source_commit": "7265b8dbe24cae56925f983de1ccd08a4222c3ad",
+        "cli_sha256": "6196ba1703331d527c0c2692e47a9e6e91e767deee74198bf7fb3ec1d97dc1fd"
+      },
+      {
+        "name": "namespace-generated",
+        "source_sha256": "360838cf80b0d665abf2ee04df35e030351a2319a9638a3887bb0b95b2c17214",
+        "cli_exit": 1,
+        "cli_status": "SafeReject",
+        "cli_phase": "types",
+        "independent_api_status": "SafeReject",
+        "independent_api_fixture_commit": "ed77523f9",
+        "source_commit": "7265b8dbe24cae56925f983de1ccd08a4222c3ad",
+        "cli_sha256": "6196ba1703331d527c0c2692e47a9e6e91e767deee74198bf7fb3ec1d97dc1fd"
+      }
+    ],
+    "after": [
+      {
+        "name": "namespace-plain",
+        "source_sha256": "8d497fc5432aa844b8ba0f6f67ab4c958d3fcd145329e58ba3f116ebdcb450bf",
+        "cli_exit": 1,
+        "cli_status": "SafeReject",
+        "cli_phase": "types",
+        "api_status": "Success",
+        "source_commit": "566bda6a12ab9dbe9be5adbf5b870a411189dc37",
+        "cli_sha256": "7253b2c98df466d7328342001be5f0c3e20734a6e8ff28debcbf9752e6c81131"
+      },
+      {
+        "name": "namespace-generated",
+        "source_sha256": "360838cf80b0d665abf2ee04df35e030351a2319a9638a3887bb0b95b2c17214",
+        "cli_exit": 0,
+        "cli_status": "Success",
+        "cli_phase": "verify",
+        "api_status": "Success",
+        "source_commit": "566bda6a12ab9dbe9be5adbf5b870a411189dc37",
+        "cli_sha256": "7253b2c98df466d7328342001be5f0c3e20734a6e8ff28debcbf9752e6c81131"
+      }
+    ],
+    "ordinary_cli_behavior_unchanged": true,
+    "independent_discovery": "/root/product_store, fixture ed77523f9; adopted probes executed here remain author reruns"
+  },
+  "old_evidence": "evidence/impl/222/final/RESULT.json remains unchanged, bound to d1f8d695f",
+  "limits": [
+    "Ordinary function item generation only.",
+    "Existing TypeRef scalar slots supported; general Type/Syntax, type-name generation, emit and conditional imports remain unsupported.",
+    "No author independent-review or full-workspace claim.",
+    "No native Windows or comparative Rust performance conclusion."
+  ],
+  "archive": {
+    "file": "raw-evidence.tar.gz",
+    "sha256": "f5959b9756f047e0d912d231228b46d27fdb9a97d5b5922843fec8263da38fc3",
+    "bytes": 1719623,
+    "files": 2114
+  }
+}
