@@ -1,0 +1,3 @@
+helper: Analyze N=1464; Verify N=1908; Wire N=1908; N-1 ResourceLimit; fresh N identical
+state: Analyze N=4701; Verify N=7043; Wire N=7043; N-1 ResourceLimit; fresh N identical
+opaque: Analyze N=3960; Verify N=5479; Wire N=5479; N-1 ResourceLimit; fresh N identical

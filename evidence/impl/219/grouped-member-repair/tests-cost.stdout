@@ -1,0 +1,6 @@
+
+running 1 test
+test adapter::tests::ct122_original_teardown_is_bounded_before_query_copy ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+

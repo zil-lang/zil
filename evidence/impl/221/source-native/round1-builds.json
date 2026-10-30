@@ -1,0 +1,674 @@
+[
+  {
+    "case": "factory221-callback-store-O0-117-2",
+    "compile_report_sha256": "1bb77f8e3a942c4a99e07da741a4241270df4d3df6084d2aca4d11abe630701b",
+    "source_sha256": "fb1618190965dd504987293cd425c0a854a925da658bc57902cc585c4f9117f1",
+    "program_sha256": "206aab3789ae6af7bf5ba7bc7ca52346ca592df4bb71303bfe7c2fd0951959a5",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O0>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 9120,
+          "input_kind": "builder",
+          "preflight_ns": 1559911,
+          "builder_ns": 816620,
+          "parse_ns": 0,
+          "optimize_ns": 111094,
+          "emit_ns": 4866421,
+          "total_ns": 7886005
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "case": "factory221-callback-store-O2-117-3",
+    "compile_report_sha256": "c76ee80007d0f3e38bc2378a329b117c109db448b69e2aaafb3a78115514570d",
+    "source_sha256": "fb1618190965dd504987293cd425c0a854a925da658bc57902cc585c4f9117f1",
+    "program_sha256": "35c8b636780893e1cf16b1ef39bffb2ad7a1432b1e80d34d81f5c5f409778f2c",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 2904,
+          "input_kind": "builder",
+          "preflight_ns": 1591869,
+          "builder_ns": 836169,
+          "parse_ns": 0,
+          "optimize_ns": 8783725,
+          "emit_ns": 8833420,
+          "total_ns": 20362743
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "case": "factory221-cross-module-O0-117-4",
+    "compile_report_sha256": "8e2cf933bb2ec1bc3ea26dac61f97cd742471b89007f9e56c7da0667fb22e0a5",
+    "source_sha256": "8db3d3fc6f0c8d36d05aac3e62aa71a4ed3c31cf62674324d8f298b73b958779",
+    "program_sha256": "b1f6b64655a4d07364ddbd0ad2036b1c396b3dbd3c0c6c4faa3c473e858cae86",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O0>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 3672,
+          "input_kind": "builder",
+          "preflight_ns": 777041,
+          "builder_ns": 390479,
+          "parse_ns": 0,
+          "optimize_ns": 83824,
+          "emit_ns": 2760791,
+          "total_ns": 4369224
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "case": "factory221-cross-module-O2-117-5",
+    "compile_report_sha256": "66c2e13775ddb2da29529c48634f5c36a3847c5663f66d15fb337dbefca67832",
+    "source_sha256": "8db3d3fc6f0c8d36d05aac3e62aa71a4ed3c31cf62674324d8f298b73b958779",
+    "program_sha256": "5c8d859e48628344ccb17eca56835511764c1dfa3e679ff57fc3789a4d9615d0",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 1232,
+          "input_kind": "builder",
+          "preflight_ns": 829800,
+          "builder_ns": 438991,
+          "parse_ns": 0,
+          "optimize_ns": 3298908,
+          "emit_ns": 4130901,
+          "total_ns": 8998254
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "case": "factory221-discard-and-eager-O0-117-12",
+    "compile_report_sha256": "12130d76173452b7400f32eba0d349fba0d402122f23deddf4416456cc98da47",
+    "source_sha256": "84095a022bdc2528006f9d2c1544c0fbc8c7319a9e570d936c7c20262649769f",
+    "program_sha256": "2a5cd2315d33b3daeaf0adf1e3b9999b15ec2c1f71edbbbd763103bf30851e25",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O0>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 3136,
+          "input_kind": "builder",
+          "preflight_ns": 503636,
+          "builder_ns": 278523,
+          "parse_ns": 0,
+          "optimize_ns": 79317,
+          "emit_ns": 3130158,
+          "total_ns": 4229977
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "case": "factory221-discard-and-eager-O2-117-13",
+    "compile_report_sha256": "c8f5cfc6ca536b42f2fb4a01bd50ee967d3d775be49a11659fe226fc6751f4a6",
+    "source_sha256": "84095a022bdc2528006f9d2c1544c0fbc8c7319a9e570d936c7c20262649769f",
+    "program_sha256": "930169405a49489e24a15cde1b9f3858e2a9ec0731080004c83b729fea4aa79e",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 1240,
+          "input_kind": "builder",
+          "preflight_ns": 602663,
+          "builder_ns": 312613,
+          "parse_ns": 0,
+          "optimize_ns": 2066241,
+          "emit_ns": 2771377,
+          "total_ns": 5963607
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "case": "factory221-fn-owned-O0-117-6",
+    "compile_report_sha256": "0edce6a0d8d455755d1673f1105dd036185b59f399f22d9583ccd17d71c49867",
+    "source_sha256": "380ba2ddf160d3e23f83baffb3d39c548ede330d0ce1494373b6e80936a2fa24",
+    "program_sha256": "129137af8c057112fa22417833c2150b21e7c06d47e073eae13126bacbc2a2f8",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O0>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 3056,
+          "input_kind": "builder",
+          "preflight_ns": 471038,
+          "builder_ns": 294827,
+          "parse_ns": 0,
+          "optimize_ns": 79869,
+          "emit_ns": 1721681,
+          "total_ns": 2827079
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "case": "factory221-fn-owned-O2-117-7",
+    "compile_report_sha256": "11aeae132a16d88303aa27af60dff238687203b4feb5f0bf400446cda2475f53",
+    "source_sha256": "380ba2ddf160d3e23f83baffb3d39c548ede330d0ce1494373b6e80936a2fa24",
+    "program_sha256": "2359608caba582b975c17779ab5b9af1465cc77630b06add4d6ec156b2d9e428",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 1080,
+          "input_kind": "builder",
+          "preflight_ns": 741939,
+          "builder_ns": 279634,
+          "parse_ns": 0,
+          "optimize_ns": 2154653,
+          "emit_ns": 2130287,
+          "total_ns": 5519639
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "case": "factory221-mut-owned-O0-117-10",
+    "compile_report_sha256": "5a5e3349645f456f2fc5e1d4b8601fe57ef47314a5173c5a9667d5035f4376c8",
+    "source_sha256": "4aaab1ff7520d37cd83d143ff4cd0b1d78d559122ba970b9f3cca2dd8e8374a4",
+    "program_sha256": "e07a73413aacfd500d72faf96a2f0ff85fed604e7714c24bb2cd6411e85750d2",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O0>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 2808,
+          "input_kind": "builder",
+          "preflight_ns": 647630,
+          "builder_ns": 286194,
+          "parse_ns": 0,
+          "optimize_ns": 82842,
+          "emit_ns": 1871573,
+          "total_ns": 3112793
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "case": "factory221-mut-owned-O2-117-11",
+    "compile_report_sha256": "d949514bdbac7454ffca968c31aa183253fd5bdca45a46b75686492c86877f5d",
+    "source_sha256": "4aaab1ff7520d37cd83d143ff4cd0b1d78d559122ba970b9f3cca2dd8e8374a4",
+    "program_sha256": "b601103317f7540bdf55b5c5269fce683dc8608ba9d496efc03aff62757c2f13",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 1088,
+          "input_kind": "builder",
+          "preflight_ns": 476416,
+          "builder_ns": 284822,
+          "parse_ns": 0,
+          "optimize_ns": 3289625,
+          "emit_ns": 2850904,
+          "total_ns": 7204615
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "case": "factory221-once-identities-O0-117-8",
+    "compile_report_sha256": "e5591beedb229a2d94b7111dd4a55f14ea4b1e9e7129ec85922b3c0321d1d871",
+    "source_sha256": "8fad57b471b8e3ce4b3ab6d9952d63292c83ff340abde28c3be138db9b692d94",
+    "program_sha256": "9156f8ad909f40adef5b9df556a734311c9a72c984450bb226b5e231b89cde3b",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O0>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 3272,
+          "input_kind": "builder",
+          "preflight_ns": 530736,
+          "builder_ns": 352652,
+          "parse_ns": 0,
+          "optimize_ns": 83464,
+          "emit_ns": 1965042,
+          "total_ns": 3143217
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "case": "factory221-once-identities-O2-117-9",
+    "compile_report_sha256": "faa0713b216cd170fe001a13a390a81aa7befb8040f84f34bdf428f51f2124b7",
+    "source_sha256": "8fad57b471b8e3ce4b3ab6d9952d63292c83ff340abde28c3be138db9b692d94",
+    "program_sha256": "c7d3c03eb7d17fd599329c0bba1291bdc6d95862ea9899fceb8e3dc0693aca39",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 1120,
+          "input_kind": "builder",
+          "preflight_ns": 660779,
+          "builder_ns": 376238,
+          "parse_ns": 0,
+          "optimize_ns": 2949501,
+          "emit_ns": 2699631,
+          "total_ns": 7085178
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "case": "factory221-prepare-failure-O0-117-0",
+    "compile_report_sha256": "de23a118bf1b191a0f27b0811de4475fc006e1b1546dd0042d5f00a11e67a8b0",
+    "source_sha256": "3a7f8bf749bdc3491008191a1c0481d3d4fdaa235e33f64e0224ab8cc3a804be",
+    "program_sha256": "74d14694000807f4e2dfc115f70559f1078ef78b83b59b6fb3c487c6cb9a0151",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O0>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 4488,
+          "input_kind": "builder",
+          "preflight_ns": 645857,
+          "builder_ns": 719506,
+          "parse_ns": 0,
+          "optimize_ns": 401235,
+          "emit_ns": 6625643,
+          "total_ns": 10428137
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "case": "factory221-prepare-failure-O2-117-1",
+    "compile_report_sha256": "0488d50f9db339afb29c82f234c263c3bd3518eea3cdba376f971c2b7a06a630",
+    "source_sha256": "3a7f8bf749bdc3491008191a1c0481d3d4fdaa235e33f64e0224ab8cc3a804be",
+    "program_sha256": "0fe60d8e12af53f2e22343a2aeb5c96a3f40f32a70841e53c778fc70f0ca1920",
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 2008,
+          "input_kind": "builder",
+          "preflight_ns": 709041,
+          "builder_ns": 415456,
+          "parse_ns": 0,
+          "optimize_ns": 7074773,
+          "emit_ns": 5579648,
+          "total_ns": 14078991
+        }
+      ],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  }
+]

@@ -1,0 +1,1 @@
+fn count(n:i32)->i32{var i=0;while i<n{i+=1}return i}#if(count(3)==3){fn selected()->i32=>3}else{fn selected()->i32=>missing}fn main()->i32{#if(count(4)==4){let n=#(count(5))}else{let n=missing}return n-5}

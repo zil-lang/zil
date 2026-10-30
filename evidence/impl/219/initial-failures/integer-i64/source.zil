@@ -1,0 +1,1 @@
+fn main()->i32{#if(9000000000i64>1i64){return 0}else{return 0}}

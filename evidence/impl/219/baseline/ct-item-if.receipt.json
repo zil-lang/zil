@@ -1,0 +1,11 @@
+{
+  "source_commit": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
+  "command": [
+    "/workspace/scratch/3cf12ce32e36/targets/baseline/release/zil",
+    "check",
+    "tools/language/219/original/ct-item-if.zil",
+    "--json"
+  ],
+  "source_sha256": "f16c9205744b609bdea1ea3e24ce8bbe854bb74a1a583757951f6b0ed6e44f93",
+  "exit": 3
+}

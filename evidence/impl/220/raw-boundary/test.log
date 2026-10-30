@@ -1,0 +1,20 @@
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-analyze)
+    Finished `test` profile [unoptimized] target(s) in 0.27s
+     Running tests/impl220_factory.rs (/workspace/scratch/3cf12ce32e36/targets/220/debug/deps/impl220_factory-18811f2f70523288)
+
+running 11 tests
+test captured_owning_closure_cannot_be_copied_by_read_capture ... ok
+test deep_borrowed_captures_are_not_hidden_by_an_owning_parent ... ok
+test companion_state_cannot_hide_another_callable_input ... ok
+test capture_cycles_and_noncanonical_entry_identities_are_rejected ... ok
+test same_type_positions_cannot_take_one_input_twice ... ok
+test borrowed_and_multiple_environment_inputs_remain_closed ... ok
+test returning_the_input_type_does_not_become_a_fresh_factory ... ok
+test closure_result_requires_an_exact_independent_return_contract ... ok
+test direct_store_companion_requires_the_existing_leaf_capture_profile ... ok
+test actual_modes_admit_retaining_or_dropping_the_input ... ok
+synthetic Analyze220 exact budget N=878
+test raw_and_wire_replay_charge_exact_n_and_reject_one_less ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

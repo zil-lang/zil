@@ -1,0 +1,25 @@
+{
+  "source_commit": "b602d32e224832db6771f6232aed347853308918",
+  "command": "cargo test -p zil-driver --test impl218_factory_types --offline -- --nocapture",
+  "exit_code": 101,
+  "passed": 0,
+  "failed": 4,
+  "failure": "The old ordinary-opaque dispatch guard ran before callable template instantiation: callable factory result identity has not been resolved.",
+  "repair": "Limit that guard to signatures with no callable parameters; new factories instantiate before reading their actual result type.",
+  "incremental_build_observation": {
+    "initial_rerun": "After the guard edit, Cargo printed a zil-types rebuild but the test still executed the old rejection. The .rmeta timestamp advanced while the linked .rlib remained older.",
+    "control_command": "CARGO_TARGET_DIR=/workspace/scratch/3cf12ce32e36/targets/218 cargo clean -p zil-types --offline; ZIL_DEBUG218=1 cargo test -v -p zil-driver --test impl218_factory_types three_declared_modes_create_real_owned_boundaries --offline -- --nocapture",
+    "removed": "13 files, 23.1 MiB, exclusively from this task target",
+    "observed_link": "rustc source was zil-218/crates/zil-types/src/lib.rs; --extern zil_types and the executed test binary both used targets/218/debug/deps",
+    "source_change_during_control": false,
+    "control_result": "1 selected test passed, covering Fn/FnMut/FnOnce; the following four-test run also passed",
+    "scope": "Local build reuse anomaly; compiler/toolchain-wide root cause not established"
+  },
+  "additional_probe": {
+    "source": "factory_body_can_forward_a_grounded_new_factory_result",
+    "initial_result": "7 of 8 expanded Types tests passed; factory-body forwarding stopped at old ordinary generic unification of opaque Impl result",
+    "repair": "Only new factory profile skips opaque-as-type-argument inference; exact final kind/signature and fresh identity checks remain",
+    "working_tree_result": "8 of 8 Types test functions and 4 of 4 target-diagnostic Expand test functions passed before publication"
+  },
+  "acceptance": "NotAccepted; combination and machine evidence remain separate"
+}

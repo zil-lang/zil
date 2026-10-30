@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "accepted_source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+  "tasks": [
+    "218",
+    "219",
+    "220",
+    "221"
+  ],
+  "spec_hash": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+  "normative_hash": "e4bd2d0f939a205b01618c0d5ce53a8725549be093db2658272633021131e44d",
+  "ci": "evidence/integration/221/ci41057841800/RESULT.json",
+  "reviews": {
+    "218": "evidence/reviews/218-221/by_language_parallel/REVIEW-218.json",
+    "219": "evidence/reviews/219/by_root/REVIEW.json",
+    "220": "evidence/reviews/218-221/by_language_parallel/REVIEW-220.json",
+    "221": "evidence/reviews/218-221/by_language_parallel/REVIEW-221.json"
+  },
+  "readiness": "evidence/integration/221/readiness-final/READINESS.json",
+  "local_incomplete_workspace": "InfrastructureFailure; excluded from Pass counts",
+  "full_language": "NotSatisfied",
+  "full_zui": "NotSatisfied",
+  "B0": "Doing",
+  "product_gates": "NotRun",
+  "native_windows": "NotRun",
+  "accepted_at_utc": "2026-10-30T13:12:39.047426+00:00",
+  "history": "All author deliveries and the combined source are preserved as real ancestors; final main merge also includes documentation/evidence added after testing."
+}

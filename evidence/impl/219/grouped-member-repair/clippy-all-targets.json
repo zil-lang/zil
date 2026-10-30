@@ -1,0 +1,29 @@
+{
+  "source_commit": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+  "git_status": "",
+  "command": [
+    "cargo",
+    "clippy",
+    "-p",
+    "zil-driver",
+    "-p",
+    "zil-expand",
+    "--all-targets",
+    "--features",
+    "zil-driver/llvm-api",
+    "-j",
+    "1",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "start": 1793363220.7441275,
+  "status": "UnresolvedDiagnosticReplay",
+  "exit_code": 0,
+  "end": 1793363220.980763,
+  "head_after": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+  "git_status_after": "",
+  "cli_sha256": "b87bf8b0c7128a5048c68d39d82af2ebf772b689d064f7d067562244644948d7",
+  "initial_automatic_status": "Pass",
+  "interpretation": "exit0 replayed old error diagnostics not matching fixed current source; fresh target rerun required"
+}

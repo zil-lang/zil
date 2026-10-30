@@ -1,0 +1,24 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-221/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-221/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-221/crates/zil-verify)
+error[E0599]: no variant, associated function, or constant named `Paths` found for enum `zil_ir::CallableTraces` in the current scope
+   --> crates/zil-verify/src/retained_tests.rs:422:33
+    |
+422 |         traces: CallableTraces::Paths(vec![]),
+    |                                 ^^^^^ variant, associated function, or constant not found in `zil_ir::CallableTraces`
+
+error[E0433]: cannot find type `ResultCategory` in this scope
+   --> crates/zil-verify/src/retained_tests.rs:526:52
+    |
+526 | ...                   .all(|e| e.category == ResultCategory::ResourceLimit),
+    |                                              ^^^^^^^^^^^^^^ use of undeclared type `ResultCategory`
+
+error[E0433]: cannot find type `ResultCategory` in this scope
+   --> crates/zil-verify/src/retained_tests.rs:538:40
+    |
+538 |                 .all(|e| e.category == ResultCategory::ResourceLimit)
+    |                                        ^^^^^^^^^^^^^^ use of undeclared type `ResultCategory`
+
+Some errors have detailed explanations: E0433, E0599.
+For more information about an error, try `rustc --explain E0433`.
+error: could not compile `zil-verify` (lib test) due to 3 previous errors

@@ -1,0 +1,49 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-220/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 11.04s
+     Running tests/impl218_factory_types.rs (/workspace/scratch/3cf12ce32e36/targets/220/debug/deps/impl218_factory_types-801bb4b7698305d6)
+
+running 8 tests
+test same_concrete_type_does_not_share_declaration_mode ... ok
+test copy_actual_argument_retains_the_callers_original_position ... ok
+test input_may_be_consumed_or_dropped_without_capture ... ok
+test borrowed_direct_or_nested_input_cannot_become_self_contained ... ok
+test declared_once_survives_nested_capture_and_actual_mutable_input ... ok
+test three_declared_modes_create_real_owned_boundaries ... ok
+test complete_environment_identity_and_runtime_instances_remain_distinct ... ok
+test factory_body_can_forward_a_grounded_new_factory_result ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/impl220_factory_source.rs (/workspace/scratch/3cf12ce32e36/targets/220/debug/deps/impl220_factory_source-25d4e509963ae94f)
+
+running 5 tests
+
+thread 'source_input_capture_graph_must_remain_self_contained' (126) panicked at crates/zil-driver/tests/impl220_factory_source.rs:76:13:
+wanted "complete self-contained captures": [
+    Diagnostic {
+        phase: Analyze,
+        category: SafeReject,
+        code: "E-ANALYZE-IR",
+        message: "callable result captures an external address or description",
+        span: None,
+        notes: [],
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test source_input_capture_graph_must_remain_self_contained ... FAILED
+test source_transfer_cannot_be_repeated_or_replaced_with_a_copy ... ok
+test source_factory_return_claims_are_not_trusted ... ok
+test source_owned_modes_pass_the_independent_analyze_boundary ... ok
+source-derived Analyze220 N=7901
+test source_owning_factory_has_an_exact_replayable_analysis_limit ... ok
+
+failures:
+
+failures:
+    source_input_capture_graph_must_remain_self_contained
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p zil-driver --test impl220_factory_source`

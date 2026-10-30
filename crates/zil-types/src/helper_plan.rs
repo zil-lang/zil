@@ -97,6 +97,7 @@ struct Walk<'a, 'b> {
     store_shapes: bool,
     full_values: bool,
     restart_full: bool,
+    owned_factory: bool,
 }
 
 impl Walk<'_, '_> {
@@ -841,6 +842,27 @@ impl Walk<'_, '_> {
                     .snapshot(a.work().saturating_add(b.work()), expression.span)?;
                 if a == b { a } else { Shape::Unknown }
             }
+            CoreExprKind::Closure {
+                parameters, body, ..
+            } if self.owned_factory => {
+                self.state
+                    .snapshot(parameters.len().saturating_add(1), expression.span)?;
+                self.scopes.push(BTreeMap::new());
+                for parameter in parameters {
+                    let shape = if let Some(ty) = &parameter.ty {
+                        self.shape(ty, &[], Bindings::default(), parameter.span, depth + 1)?
+                    } else {
+                        Shape::Unknown
+                    };
+                    self.bind(&parameter.name, shape, parameter.span)?;
+                }
+                self.block(body, depth + 1)?;
+                self.scopes.pop();
+                // This is dependency scheduling only. No unresolved shape can
+                // supply a concrete helper binding; Builder must finish the
+                // real closure before using its actual identity.
+                Shape::Unknown
+            }
             CoreExprKind::Closure { .. } => {
                 return Err(unsupported(
                     expression.span,
@@ -1016,6 +1038,7 @@ fn dependencies(
         store_shapes: template.store_shapes,
         full_values: false,
         restart_full: false,
+        owned_factory: owning_factory::template(function),
     };
     for parameter in &function.parameters {
         let shape = walk.shape(&parameter.ty, bounds, bindings, parameter.span, 0)?;
@@ -1164,6 +1187,7 @@ mod result_shape_tests {
             store_shapes: false,
             full_values: false,
             restart_full: false,
+            owned_factory: false,
         };
         let span = Span::default();
         let pattern = CorePattern {

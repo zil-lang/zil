@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Analyze,
+        category: ResourceLimit,
+        code: "E-RESOURCE-LIMIT",
+        message: "analysis budget exceeded during dense Hold candidate",
+        span: None,
+        notes: [],
+    },
+]

@@ -1,0 +1,24 @@
+{
+  "source_commit": "35637591455eeaeffcb5ab9753fddb9cb33cfa51",
+  "git_status": "",
+  "command": [
+    "cargo",
+    "clippy",
+    "-p",
+    "zil-driver",
+    "-p",
+    "zil-expand",
+    "--lib",
+    "--features",
+    "zil-driver/llvm-api",
+    "-j",
+    "1",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "start": 1793338082.5911496,
+  "status": "Fail",
+  "exit_code": 101,
+  "end": 1793338090.114591
+}

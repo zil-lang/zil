@@ -1,0 +1,104 @@
+{
+  "checkpoint": "E; working tree prepared for parent publication",
+  "source_base": "14d90ce014600b26db4820b7262cacfa5cc7a8d4",
+  "spec_hash": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+  "normative_hash": "e4bd2d0f939a205b01618c0d5ce53a8725549be093db2658272633021131e44d",
+  "production_sha256": {
+    "crates/zil-expand/src/generic_check.rs": "c4138ea6684f4bf06c50cb6a7af8e2abffadc9850f4feb6491d4c89c9a2a885c",
+    "crates/zil-expand/src/generic_factory.rs": "1c44132c79434813779da15505d52e9f08d36cc0ab0dfc8334ffc1bda5fd6d83",
+    "crates/zil-types/src/closures.rs": "31bc5fec1e9dccef94d767ef26bffb017897862ee4ad149a4258afb484b66406",
+    "crates/zil-types/src/helpers.rs": "2bf6ca604bde358ea6014157e40b6163779f96821d0c96d448bc88407de5a940"
+  },
+  "changes": [
+    "Default capture requires an actual owning use per captured position; owning F does not silently own a neighboring borrowed Copy local",
+    "Package manages-field consumption without refill yields FnOnce; all exits with refill yield FnMut",
+    "Managed and owned Store positions are checked and transferred at capture creation; Store aliases are invalidated",
+    "Expected result snapshots and capture lookups are charged before traversal/copy; self-contained new-factory input walk uses actual remaining budget before inspection",
+    "Same-grounded-result conditional expression retains the fresh-result identity rule"
+  ],
+  "commands": [
+    {
+      "command": "cargo test -p zil-expand --test impl218_factory --offline -- --nocapture",
+      "passed": 6,
+      "failed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test -p zil-driver --test impl218_factory_types --test impl218_factory_budget --offline -- --nocapture",
+      "suites": {
+        "impl218_factory_types": {
+          "passed": 14,
+          "failed": 0
+        },
+        "impl218_factory_budget": {
+          "passed": 2,
+          "failed": 0
+        }
+      },
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test -p zil-driver --test impl194_copy_callable uninstantiated_templates_do_not_gain_numeric_member_or_forged_capabilities --offline -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test -p zil-driver --test impl200_state_source uncalled_definitions_and_closed_owning_shapes_do_not_gain_permissions --offline -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "environment": "source ../recovery/zil-env.sh; CARGO_TARGET_DIR=/workspace/scratch/3cf12ce32e36/targets/218; build jobs 1; offline",
+  "actual_failures_retained": [
+    {
+      "case": "unused_owned_store_capture_consumes_its_real_input_position",
+      "before": "Expand accepted source reusing items after move capture",
+      "repair": "Mark real owned Store transfer and invalidate originating descriptor aliases",
+      "after": "Same input rejected with used after move diagnostic"
+    },
+    {
+      "case": "real_owned_uses_preserve_existing_default_capture_inference",
+      "before": "New definition checker rejected default F:FnOnce owning capture",
+      "repair": "Infer each capture from its real owning use and retain explicit-move requirement for other retained captures",
+      "after": "Default F:FnOnce, nested ownership and default Managed give controls pass"
+    },
+    {
+      "case": "ordinary_managed_package_product_and_leaf_store_companions",
+      "before": "Product value.child.tag+value.tag failed kind adaptation",
+      "baseline": "Read-only old 63b compiler gives the same Unsupported Types rejection; PRODUCT-CHILD-BASELINE.json preserves raw response",
+      "resolution": "Use root Copy field for the companion positive; no old Product child semantics changed"
+    },
+    {
+      "case": "fixture corrections",
+      "before": [
+        "if expression omitted required arm braces",
+        "store_new::<Leaf>() supplied type arguments to a nongeneric builtin",
+        "nested impl in callable signature was not valid source syntax",
+        "initial pointer-negative expectation omitted existing recursive/escaping callable diagnostics",
+        "budget owning fixture default-captured read-only bias and was correctly non-self-contained"
+      ],
+      "resolution": [
+        "Use if flag{output}else{output}",
+        "Use let items:Store<Leaf>=store_new()",
+        "Use valid F signature rejection and actual captured-Closure versus bare function pointer control",
+        "Assert actual target-specific existing diagnostics",
+        "Use explicit move for the finite owning budget fixture"
+      ],
+      "classification": "Fixture/oracle corrections; not production fixes"
+    }
+  ],
+  "budgets": "FRONTEND-BUDGETS.json; old helper/State/opaque exact N and byte-identical Core/Typed serialization, new owning/forwarding N/N-1/fresh-N",
+  "limitations": [
+    "Tests stop at Types except two existing bounded old source controls",
+    "No final Analyze/Verify/Wire/native or failure-cleanup conclusion from this branch",
+    "Independent review binds the parent-published combination",
+    "No full workspace or product-gates run; no compile-time speed claim"
+  ],
+  "acceptance": "NotAccepted; ready for parent checkpoint publication and combined independent review"
+}

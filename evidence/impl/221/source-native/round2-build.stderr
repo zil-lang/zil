@@ -1,0 +1,4 @@
+     Locking 13 packages to highest Rust 1.99.1 compatible versions
+   Compiling zil-source221 v0.0.0 (/workspace/scratch/3cf12ce32e36/recovery/continue-review/source221-round2-cargo)
+    Finished `test` profile [unoptimized] target(s) in 0.38s
+     Running unittests /workspace/scratch/3cf12ce32e36/zil-221/crates/zil-driver/tests/impl221_factory_verify.rs (/workspace/scratch/3cf12ce32e36/targets/221/debug/deps/zil_source221-e0cbf59b7ca3621d)

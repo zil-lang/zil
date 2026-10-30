@@ -1,0 +1,574 @@
+[
+  {
+    "case": "factory221-callback-store-O0-117-2",
+    "run": "fail-0",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 0,
+    "stdout": "AB",
+    "allocation": {
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 160
+    },
+    "stdout_sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153",
+    "stderr_sha256": "c12f2bfed483f972c45455003074613ef59e4aafd0929a9be81a1a0afa4189ae"
+  },
+  {
+    "case": "factory221-callback-store-O0-117-2",
+    "run": "fail-1",
+    "actual_exit": 1,
+    "expected_exit": 1,
+    "fail_at": 1,
+    "stdout": "BA",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    "stdout_sha256": "296d71a7f66e75b751c597094536329dcf2cf484f83e475d91f7aea1ff4c9738",
+    "stderr_sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8"
+  },
+  {
+    "case": "factory221-callback-store-O0-117-2",
+    "run": "fail-2",
+    "actual_exit": 2,
+    "expected_exit": 2,
+    "fail_at": 2,
+    "stdout": "AB",
+    "allocation": {
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 80
+    },
+    "stdout_sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153",
+    "stderr_sha256": "3c300939b51ba1097604ac5926434d2919a53fb2d94c777f3865ffcc83dcc78a"
+  },
+  {
+    "case": "factory221-callback-store-O0-117-2",
+    "run": "fail-3",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 3,
+    "stdout": "AB",
+    "allocation": {
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 160
+    },
+    "stdout_sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153",
+    "stderr_sha256": "c12f2bfed483f972c45455003074613ef59e4aafd0929a9be81a1a0afa4189ae"
+  },
+  {
+    "case": "factory221-callback-store-O0-117-2",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "AB",
+    "allocation": null,
+    "stdout_sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-callback-store-O2-117-3",
+    "run": "fail-0",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 0,
+    "stdout": "AB",
+    "allocation": {
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 160
+    },
+    "stdout_sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153",
+    "stderr_sha256": "c12f2bfed483f972c45455003074613ef59e4aafd0929a9be81a1a0afa4189ae"
+  },
+  {
+    "case": "factory221-callback-store-O2-117-3",
+    "run": "fail-1",
+    "actual_exit": 1,
+    "expected_exit": 1,
+    "fail_at": 1,
+    "stdout": "BA",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    "stdout_sha256": "296d71a7f66e75b751c597094536329dcf2cf484f83e475d91f7aea1ff4c9738",
+    "stderr_sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8"
+  },
+  {
+    "case": "factory221-callback-store-O2-117-3",
+    "run": "fail-2",
+    "actual_exit": 2,
+    "expected_exit": 2,
+    "fail_at": 2,
+    "stdout": "AB",
+    "allocation": {
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 80
+    },
+    "stdout_sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153",
+    "stderr_sha256": "3c300939b51ba1097604ac5926434d2919a53fb2d94c777f3865ffcc83dcc78a"
+  },
+  {
+    "case": "factory221-callback-store-O2-117-3",
+    "run": "fail-3",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 3,
+    "stdout": "AB",
+    "allocation": {
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 160
+    },
+    "stdout_sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153",
+    "stderr_sha256": "c12f2bfed483f972c45455003074613ef59e4aafd0929a9be81a1a0afa4189ae"
+  },
+  {
+    "case": "factory221-callback-store-O2-117-3",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "AB",
+    "allocation": null,
+    "stdout_sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-cross-module-O0-117-4",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "XA",
+    "allocation": null,
+    "stdout_sha256": "ae3d0dd541417a13b17cb41393242588e82aa8b2dbbecdbd53121cf30faae088",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-cross-module-O2-117-5",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "XA",
+    "allocation": null,
+    "stdout_sha256": "ae3d0dd541417a13b17cb41393242588e82aa8b2dbbecdbd53121cf30faae088",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-discard-and-eager-O0-117-12",
+    "run": "instrumented",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 0,
+    "stdout": "ABX",
+    "allocation": {
+      "alloc_calls": 0,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    "stdout_sha256": "fb256c39d2c795e5edde2aa53621a6398fe3a4170d89449363a0e7d09ebc807f",
+    "stderr_sha256": "c8c982d493d330c574bca535e6f5942c69b029c7686a93d1bd0e27dd20d40224"
+  },
+  {
+    "case": "factory221-discard-and-eager-O0-117-12",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "ABX",
+    "allocation": null,
+    "stdout_sha256": "fb256c39d2c795e5edde2aa53621a6398fe3a4170d89449363a0e7d09ebc807f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-discard-and-eager-O2-117-13",
+    "run": "instrumented",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 0,
+    "stdout": "ABX",
+    "allocation": {
+      "alloc_calls": 0,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    "stdout_sha256": "fb256c39d2c795e5edde2aa53621a6398fe3a4170d89449363a0e7d09ebc807f",
+    "stderr_sha256": "c8c982d493d330c574bca535e6f5942c69b029c7686a93d1bd0e27dd20d40224"
+  },
+  {
+    "case": "factory221-discard-and-eager-O2-117-13",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "ABX",
+    "allocation": null,
+    "stdout_sha256": "fb256c39d2c795e5edde2aa53621a6398fe3a4170d89449363a0e7d09ebc807f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-fn-owned-O0-117-6",
+    "run": "instrumented",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 0,
+    "stdout": "XAB",
+    "allocation": {
+      "alloc_calls": 0,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    "stdout_sha256": "b7d3a1317012c90868a75dab2b439be8ff6ec4231eedc4ce77000ba7932f396b",
+    "stderr_sha256": "c8c982d493d330c574bca535e6f5942c69b029c7686a93d1bd0e27dd20d40224"
+  },
+  {
+    "case": "factory221-fn-owned-O0-117-6",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "XAB",
+    "allocation": null,
+    "stdout_sha256": "b7d3a1317012c90868a75dab2b439be8ff6ec4231eedc4ce77000ba7932f396b",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-fn-owned-O2-117-7",
+    "run": "instrumented",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 0,
+    "stdout": "XAB",
+    "allocation": {
+      "alloc_calls": 0,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    "stdout_sha256": "b7d3a1317012c90868a75dab2b439be8ff6ec4231eedc4ce77000ba7932f396b",
+    "stderr_sha256": "c8c982d493d330c574bca535e6f5942c69b029c7686a93d1bd0e27dd20d40224"
+  },
+  {
+    "case": "factory221-fn-owned-O2-117-7",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "XAB",
+    "allocation": null,
+    "stdout_sha256": "b7d3a1317012c90868a75dab2b439be8ff6ec4231eedc4ce77000ba7932f396b",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-mut-owned-O0-117-10",
+    "run": "instrumented",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 0,
+    "stdout": "XC",
+    "allocation": {
+      "alloc_calls": 0,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    "stdout_sha256": "f5cbed1751cd629fd435acd5a8dcc13f4c90ceadf7388b9b39736fa79a62fd08",
+    "stderr_sha256": "c8c982d493d330c574bca535e6f5942c69b029c7686a93d1bd0e27dd20d40224"
+  },
+  {
+    "case": "factory221-mut-owned-O0-117-10",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "XC",
+    "allocation": null,
+    "stdout_sha256": "f5cbed1751cd629fd435acd5a8dcc13f4c90ceadf7388b9b39736fa79a62fd08",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-mut-owned-O2-117-11",
+    "run": "instrumented",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 0,
+    "stdout": "XC",
+    "allocation": {
+      "alloc_calls": 0,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    "stdout_sha256": "f5cbed1751cd629fd435acd5a8dcc13f4c90ceadf7388b9b39736fa79a62fd08",
+    "stderr_sha256": "c8c982d493d330c574bca535e6f5942c69b029c7686a93d1bd0e27dd20d40224"
+  },
+  {
+    "case": "factory221-mut-owned-O2-117-11",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "XC",
+    "allocation": null,
+    "stdout_sha256": "f5cbed1751cd629fd435acd5a8dcc13f4c90ceadf7388b9b39736fa79a62fd08",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-once-identities-O0-117-8",
+    "run": "instrumented",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 0,
+    "stdout": "AXB",
+    "allocation": {
+      "alloc_calls": 0,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    "stdout_sha256": "6b62d79b7863f0ed7992c76f1979cb46d37f29afec26913e8f5b40c692367ad9",
+    "stderr_sha256": "c8c982d493d330c574bca535e6f5942c69b029c7686a93d1bd0e27dd20d40224"
+  },
+  {
+    "case": "factory221-once-identities-O0-117-8",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "AXB",
+    "allocation": null,
+    "stdout_sha256": "6b62d79b7863f0ed7992c76f1979cb46d37f29afec26913e8f5b40c692367ad9",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-once-identities-O2-117-9",
+    "run": "instrumented",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 0,
+    "stdout": "AXB",
+    "allocation": {
+      "alloc_calls": 0,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    "stdout_sha256": "6b62d79b7863f0ed7992c76f1979cb46d37f29afec26913e8f5b40c692367ad9",
+    "stderr_sha256": "c8c982d493d330c574bca535e6f5942c69b029c7686a93d1bd0e27dd20d40224"
+  },
+  {
+    "case": "factory221-once-identities-O2-117-9",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "AXB",
+    "allocation": null,
+    "stdout_sha256": "6b62d79b7863f0ed7992c76f1979cb46d37f29afec26913e8f5b40c692367ad9",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-prepare-failure-O0-117-0",
+    "run": "fail-0",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 0,
+    "stdout": "PSAX",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 32
+    },
+    "stdout_sha256": "a13a8df45d587175c0c788b8ad14aedc9daecfceadc5a87b7160794b97223a74",
+    "stderr_sha256": "4eb2acf6d19b7bce184d87367281c8c59fa48cfa8e09f0e712421a9c30a36e87"
+  },
+  {
+    "case": "factory221-prepare-failure-O0-117-0",
+    "run": "fail-1",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 1,
+    "stdout": "PAX",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    "stdout_sha256": "0361473f1092e46d35914922c221d4b0f63502ab4a107436038eb36911b9f521",
+    "stderr_sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8"
+  },
+  {
+    "case": "factory221-prepare-failure-O0-117-0",
+    "run": "fail-2",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 2,
+    "stdout": "PSAX",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 32
+    },
+    "stdout_sha256": "a13a8df45d587175c0c788b8ad14aedc9daecfceadc5a87b7160794b97223a74",
+    "stderr_sha256": "4eb2acf6d19b7bce184d87367281c8c59fa48cfa8e09f0e712421a9c30a36e87"
+  },
+  {
+    "case": "factory221-prepare-failure-O0-117-0",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "PSAX",
+    "allocation": null,
+    "stdout_sha256": "a13a8df45d587175c0c788b8ad14aedc9daecfceadc5a87b7160794b97223a74",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "case": "factory221-prepare-failure-O2-117-1",
+    "run": "fail-0",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 0,
+    "stdout": "PSAX",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 32
+    },
+    "stdout_sha256": "a13a8df45d587175c0c788b8ad14aedc9daecfceadc5a87b7160794b97223a74",
+    "stderr_sha256": "4eb2acf6d19b7bce184d87367281c8c59fa48cfa8e09f0e712421a9c30a36e87"
+  },
+  {
+    "case": "factory221-prepare-failure-O2-117-1",
+    "run": "fail-1",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 1,
+    "stdout": "PAX",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    },
+    "stdout_sha256": "0361473f1092e46d35914922c221d4b0f63502ab4a107436038eb36911b9f521",
+    "stderr_sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8"
+  },
+  {
+    "case": "factory221-prepare-failure-O2-117-1",
+    "run": "fail-2",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": 2,
+    "stdout": "PSAX",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 32
+    },
+    "stdout_sha256": "a13a8df45d587175c0c788b8ad14aedc9daecfceadc5a87b7160794b97223a74",
+    "stderr_sha256": "4eb2acf6d19b7bce184d87367281c8c59fa48cfa8e09f0e712421a9c30a36e87"
+  },
+  {
+    "case": "factory221-prepare-failure-O2-117-1",
+    "run": "ordinary",
+    "actual_exit": 0,
+    "expected_exit": 0,
+    "fail_at": null,
+    "stdout": "PSAX",
+    "allocation": null,
+    "stdout_sha256": "a13a8df45d587175c0c788b8ad14aedc9daecfceadc5a87b7160794b97223a74",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

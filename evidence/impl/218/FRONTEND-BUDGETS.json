@@ -1,0 +1,102 @@
+{
+  "baseline_commit": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
+  "candidate_base": "14d90ce014600b26db4820b7262cacfa5cc7a8d4",
+  "candidate": "uncommitted checkpoint E source; repeat after publication",
+  "baseline_source": "git archive 63b5d064f443e9ed7989e0ec87d4e18b540a370a Cargo.toml Cargo.lock crates; test-only standalone Cargo harness linked the archived zil-base/zil-syntax/zil-expand/zil-types",
+  "commands": {
+    "baseline": "CARGO_TARGET_DIR=/workspace/scratch/3cf12ce32e36/targets/218-baseline ZIL_218_BUDGET_OUT=/workspace/scratch/3cf12ce32e36/recovery/continue218/budgets-baseline cargo test --manifest-path ../recovery/continue218/legacy-source/crates/impl218-budget-harness/Cargo.toml legacy_helper_state_and_opaque_exact_boundaries --offline -- --nocapture",
+    "candidate": "CARGO_TARGET_DIR=/workspace/scratch/3cf12ce32e36/targets/218 ZIL_218_BUDGET_OUT=/workspace/scratch/3cf12ce32e36/recovery/continue218/budgets-current cargo test -p zil-driver --test impl218_factory_budget --offline -- --nocapture"
+  },
+  "oracle": "default == N == fresh N; N-1 is only ResourceLimit in the expected phase; legacy Core and Typed debug serialization byte-identical across fixed baseline/new source",
+  "cases": {
+    "helper": {
+      "new": {
+        "case": "helper",
+        "expand_work": 586,
+        "types_work": 421,
+        "types_locals": 6,
+        "types_functions": 4,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      "source_sha256": "0d39319801dac9d8f6307c420dc2d33dfeccec67fd549760d201e6f5b03ad0c9",
+      "baseline": {
+        "case": "helper",
+        "expand_work": 586,
+        "types_work": 421,
+        "types_locals": 6,
+        "types_functions": 4,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      "core_txt_sha256": "c441d6e0ec1af40d36fce976bcb67a46f8c9ea5011a66f79e400aa154e8a60fc",
+      "typed_txt_sha256": "2a23bc013e0804210b265fba279ac8635d5078faa119c6e7ddcd3d6e0b82bc88",
+      "old_exact_boundaries_and_ir": "unchanged"
+    },
+    "state": {
+      "new": {
+        "case": "state",
+        "expand_work": 829,
+        "types_work": 1441,
+        "types_locals": 8,
+        "types_functions": 4,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      "source_sha256": "63784cf122e4e0172b97ed02494fb25dfb093f517aaeeca530fd9a725bd49bfa",
+      "baseline": {
+        "case": "state",
+        "expand_work": 829,
+        "types_work": 1441,
+        "types_locals": 8,
+        "types_functions": 4,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      "core_txt_sha256": "c3ec25bae89f73c56e7be0db0081823489d6265fe13279a2eda48daf3447296d",
+      "typed_txt_sha256": "c2c081511467efe8ba643ea9ae9b9392b6c8697f8b1265e41eac4ffdfb943a7c",
+      "old_exact_boundaries_and_ir": "unchanged"
+    },
+    "opaque": {
+      "new": {
+        "case": "opaque",
+        "expand_work": 3,
+        "types_work": 462,
+        "types_locals": 7,
+        "types_functions": 3,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      "source_sha256": "f6a8f7a274a0aeea329df1174d5eddd2f0b8280770349336480d281aeb5025f9",
+      "baseline": {
+        "case": "opaque",
+        "expand_work": 3,
+        "types_work": 462,
+        "types_locals": 7,
+        "types_functions": 3,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      "core_txt_sha256": "07e9473b1007390752f86816389be304d3ef0b6acfeb3aa45630e76485f4f7ee",
+      "typed_txt_sha256": "f9383ca78d94ec9bd069bc5701e0d1fcbe00d7cd7201bef73c3a4d123bd0d9c5",
+      "old_exact_boundaries_and_ir": "unchanged"
+    },
+    "owning": {
+      "new": {
+        "case": "owning",
+        "expand_work": 724,
+        "types_work": 770,
+        "types_locals": 12,
+        "types_functions": 5,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      "source_sha256": "9935c0c078fed5fe9c9fe511b06c9e5024d9d9bc73afce5a88024208f1ab238a"
+    },
+    "forwarding": {
+      "new": {
+        "case": "forwarding",
+        "expand_work": 1438,
+        "types_work": 1556,
+        "types_locals": 18,
+        "types_functions": 7,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      "source_sha256": "52d701a4d3ce4d46baf204b958c2b5613f02f3f3031d197862abf9da37d0b198"
+    }
+  },
+  "scope": "finite front-end budgets only; no compile-time speed or whole-language acceptance claim"
+}

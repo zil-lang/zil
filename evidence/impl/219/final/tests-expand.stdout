@@ -1,0 +1,7 @@
+
+running 2 tests
+test exact_borrowed_size_and_text_limits_are_enforced_before_lowering ... ok
+test raw_deep_trees_fail_as_resource_limit_without_returning_a_partial_core ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

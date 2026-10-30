@@ -488,6 +488,20 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 env(&function.locals[p.0 as usize].ty).map(|_| (index as u32, *p))
             })
             .collect::<Vec<_>>();
+        // retained::check_function already reconstructed every public factory
+        // from its actual signature, capture graph and reachable Return sites.
+        // One direct owning input is an ordinary transfer, not a noescape role.
+        if function.callable_contract.is_none()
+            && function.callable_return_contract.is_some()
+            && candidates.len() == 1
+            && matches!(
+                function.locals[candidates[0].1.0 as usize].ty,
+                Type::Closure(_)
+            )
+            && matches!(function.return_type, Type::Closure(_))
+        {
+            continue;
+        }
         if function.callable_contract.is_none()
             && candidates.len() == 1
             && function.environment.is_none()

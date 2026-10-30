@@ -1,0 +1,522 @@
+{
+  "RESULT.json": {
+    "bytes": 3075,
+    "sha256": "abab5ad465f2f647cb5f2dd3c51137ccd4806c563b8fbb061b933756fa377a93"
+  },
+  "cases/factory221-address-signatures-75-0/candidate.txt": {
+    "bytes": 30960,
+    "sha256": "3eeea365a0df6fe08bae690404a1fed4c37a7f95f5db45146dc3f6466988735a"
+  },
+  "cases/factory221-address-signatures-75-0/core.txt": {
+    "bytes": 114195,
+    "sha256": "f8e174006a714f832043c9c1dc7c528056741d5a363955f2601d05a357622b13"
+  },
+  "cases/factory221-address-signatures-75-0/source.zil": {
+    "bytes": 603,
+    "sha256": "3987ecf6984fc238579ebca5ea9d136637cb5fbf40a5063f19e51748c6cb6a87"
+  },
+  "cases/factory221-address-signatures-75-0/typed.txt": {
+    "bytes": 181131,
+    "sha256": "c9c940c99e3998d258dd6ae7c410a2f6af68220e59aedecdcb55f499d34765d6"
+  },
+  "cases/factory221-address-signatures-75-1/input.wire": {
+    "bytes": 9858,
+    "sha256": "5cfa9406ba1c18a71127ef2da837148d32d86325ec9ce56d406d3d23778113bd"
+  },
+  "cases/factory221-address-signatures-75-1/raw.ll": {
+    "bytes": 13481,
+    "sha256": "1332814cad9c3ecff8c6db35b8cfa4c932023b599bc2c847693a6dd0d7d19a04"
+  },
+  "cases/factory221-address-signatures-75-1/raw.txt": {
+    "bytes": 74,
+    "sha256": "795ac6f9a305fdd44b9c727af58bd06c9c07961162cf48bf2eb84ef1b54daf7f"
+  },
+  "cases/factory221-address-signatures-75-1/typed.txt": {
+    "bytes": 181131,
+    "sha256": "c9c940c99e3998d258dd6ae7c410a2f6af68220e59aedecdcb55f499d34765d6"
+  },
+  "cases/factory221-address-signatures-75-1/wire.ll": {
+    "bytes": 13481,
+    "sha256": "1332814cad9c3ecff8c6db35b8cfa4c932023b599bc2c847693a6dd0d7d19a04"
+  },
+  "cases/factory221-address-signatures-75-1/wire.txt": {
+    "bytes": 74,
+    "sha256": "795ac6f9a305fdd44b9c727af58bd06c9c07961162cf48bf2eb84ef1b54daf7f"
+  },
+  "cases/factory221-address-signatures-O0-75-2/compile.json": {
+    "bytes": 3340,
+    "sha256": "92e1d49ce2d02ec838378de01dfd33f4dfc1526650acde7a291a20ea656693b3"
+  },
+  "cases/factory221-address-signatures-O0-75-2/main.zil": {
+    "bytes": 603,
+    "sha256": "3987ecf6984fc238579ebca5ea9d136637cb5fbf40a5063f19e51748c6cb6a87"
+  },
+  "cases/factory221-address-signatures-O0-75-2/ordinary.json": {
+    "bytes": 51,
+    "sha256": "4b9bc5a9d7d8e6db261e1692498b5713775ae2c7cacde5ec2111b3ea130f0929"
+  },
+  "cases/factory221-address-signatures-O0-75-2/ordinary.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cases/factory221-address-signatures-O0-75-2/ordinary.stdout": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cases/factory221-address-signatures-O0-75-2/phases/candidate.txt": {
+    "bytes": 30960,
+    "sha256": "3eeea365a0df6fe08bae690404a1fed4c37a7f95f5db45146dc3f6466988735a"
+  },
+  "cases/factory221-address-signatures-O0-75-2/phases/core.txt": {
+    "bytes": 114195,
+    "sha256": "f8e174006a714f832043c9c1dc7c528056741d5a363955f2601d05a357622b13"
+  },
+  "cases/factory221-address-signatures-O0-75-2/phases/ct-core.txt": {
+    "bytes": 115197,
+    "sha256": "d705f795511e20b9cf333c43058ae2b035ceacc84fc96c903caead1558bdb011"
+  },
+  "cases/factory221-address-signatures-O0-75-2/phases/lir.txt": {
+    "bytes": 181967,
+    "sha256": "bc7215f5504a69e1efefb6c48eb02d40e74f85982d07e73794ae457604652bee"
+  },
+  "cases/factory221-address-signatures-O0-75-2/phases/llvm.ll": {
+    "bytes": 13574,
+    "sha256": "0855b9a91abca42b8e363103fd5f8810035e3910159c5980b87f3c2badbc0ac4"
+  },
+  "cases/factory221-address-signatures-O0-75-2/phases/source-map.txt": {
+    "bytes": 56013,
+    "sha256": "26d16ef0f0cc87889d80568307cc773106640b52de865704ae7a3d96595872cd"
+  },
+  "cases/factory221-address-signatures-O0-75-2/phases/syntax.txt": {
+    "bytes": 256599,
+    "sha256": "5b616ad230f7a6bd8e7f7085e08ccc584fc4d6d8d2272a66c9270b46a2620b20"
+  },
+  "cases/factory221-address-signatures-O0-75-2/phases/typed.txt": {
+    "bytes": 181131,
+    "sha256": "c9c940c99e3998d258dd6ae7c410a2f6af68220e59aedecdcb55f499d34765d6"
+  },
+  "cases/factory221-address-signatures-O0-75-2/phases/verified.txt": {
+    "bytes": 181208,
+    "sha256": "dbb682287d3629fcfcd088ecacbd314a7415460088eada6d8a051d2f02c09a60"
+  },
+  "cases/factory221-address-signatures-O0-75-2/program": {
+    "bytes": 16352,
+    "sha256": "40a2ae890b976ef44280aefa864bc059f66efcefd5c071930fdd6434311517e0"
+  },
+  "cases/factory221-address-signatures-O0-75-2/program.ll": {
+    "bytes": 13574,
+    "sha256": "0855b9a91abca42b8e363103fd5f8810035e3910159c5980b87f3c2badbc0ac4"
+  },
+  "cases/factory221-address-signatures-O2-75-3/compile.json": {
+    "bytes": 3342,
+    "sha256": "f3473e5fceabb0a327bbbcb1507dfd46b7fdee663edc312dcc355a3805bb3867"
+  },
+  "cases/factory221-address-signatures-O2-75-3/main.zil": {
+    "bytes": 603,
+    "sha256": "3987ecf6984fc238579ebca5ea9d136637cb5fbf40a5063f19e51748c6cb6a87"
+  },
+  "cases/factory221-address-signatures-O2-75-3/ordinary.json": {
+    "bytes": 51,
+    "sha256": "4b9bc5a9d7d8e6db261e1692498b5713775ae2c7cacde5ec2111b3ea130f0929"
+  },
+  "cases/factory221-address-signatures-O2-75-3/ordinary.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cases/factory221-address-signatures-O2-75-3/ordinary.stdout": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cases/factory221-address-signatures-O2-75-3/phases/candidate.txt": {
+    "bytes": 30960,
+    "sha256": "3eeea365a0df6fe08bae690404a1fed4c37a7f95f5db45146dc3f6466988735a"
+  },
+  "cases/factory221-address-signatures-O2-75-3/phases/core.txt": {
+    "bytes": 114195,
+    "sha256": "f8e174006a714f832043c9c1dc7c528056741d5a363955f2601d05a357622b13"
+  },
+  "cases/factory221-address-signatures-O2-75-3/phases/ct-core.txt": {
+    "bytes": 115197,
+    "sha256": "d705f795511e20b9cf333c43058ae2b035ceacc84fc96c903caead1558bdb011"
+  },
+  "cases/factory221-address-signatures-O2-75-3/phases/lir.txt": {
+    "bytes": 181967,
+    "sha256": "bc7215f5504a69e1efefb6c48eb02d40e74f85982d07e73794ae457604652bee"
+  },
+  "cases/factory221-address-signatures-O2-75-3/phases/llvm.ll": {
+    "bytes": 13574,
+    "sha256": "0855b9a91abca42b8e363103fd5f8810035e3910159c5980b87f3c2badbc0ac4"
+  },
+  "cases/factory221-address-signatures-O2-75-3/phases/source-map.txt": {
+    "bytes": 56013,
+    "sha256": "26d16ef0f0cc87889d80568307cc773106640b52de865704ae7a3d96595872cd"
+  },
+  "cases/factory221-address-signatures-O2-75-3/phases/syntax.txt": {
+    "bytes": 256599,
+    "sha256": "5b616ad230f7a6bd8e7f7085e08ccc584fc4d6d8d2272a66c9270b46a2620b20"
+  },
+  "cases/factory221-address-signatures-O2-75-3/phases/typed.txt": {
+    "bytes": 181131,
+    "sha256": "c9c940c99e3998d258dd6ae7c410a2f6af68220e59aedecdcb55f499d34765d6"
+  },
+  "cases/factory221-address-signatures-O2-75-3/phases/verified.txt": {
+    "bytes": 181208,
+    "sha256": "dbb682287d3629fcfcd088ecacbd314a7415460088eada6d8a051d2f02c09a60"
+  },
+  "cases/factory221-address-signatures-O2-75-3/program": {
+    "bytes": 16096,
+    "sha256": "881a0b077b6c5716c84dce66fda3aa4ebc427d8cb098377734b1f393f42877b8"
+  },
+  "cases/factory221-address-signatures-O2-75-3/program.ll": {
+    "bytes": 13574,
+    "sha256": "0855b9a91abca42b8e363103fd5f8810035e3910159c5980b87f3c2badbc0ac4"
+  },
+  "cases/factory221-copy-error-result-75-4/candidate.txt": {
+    "bytes": 24709,
+    "sha256": "982f1c3ea51f2e4c657a317807c1d7984cc7828c25ac984cf5ea27d3dba80c33"
+  },
+  "cases/factory221-copy-error-result-75-4/core.txt": {
+    "bytes": 107191,
+    "sha256": "8ab425220cc57bf7177b39e1a288eff02735b864ac166745d783b453ecc2539b"
+  },
+  "cases/factory221-copy-error-result-75-4/source.zil": {
+    "bytes": 761,
+    "sha256": "b3f120f78b9d9341bd5a5944e859efd94ce4f965017281e2ecb1b574fdc18d58"
+  },
+  "cases/factory221-copy-error-result-75-4/typed.txt": {
+    "bytes": 227772,
+    "sha256": "d55210e00c1876dbe35e71f4af27dd4c2979237dd7a4d9bf15ef7a9de6f1dabd"
+  },
+  "cases/factory221-copy-error-result-75-5/input.wire": {
+    "bytes": 12488,
+    "sha256": "ca5e5f5cfe0a33665a12e5b4a1a772aae5e14a0fc78f2b44b767b47d0ae7b718"
+  },
+  "cases/factory221-copy-error-result-75-5/raw.ll": {
+    "bytes": 21977,
+    "sha256": "ed805b8afa947cc477faa93f4b5ef5f3e77a9411213d7c8ca28d6dbe0d6e6f80"
+  },
+  "cases/factory221-copy-error-result-75-5/raw.txt": {
+    "bytes": 74,
+    "sha256": "1854effc87dcdb1d49fe4b496becfa92479f770ac049be6d775283d8e4629210"
+  },
+  "cases/factory221-copy-error-result-75-5/typed.txt": {
+    "bytes": 227772,
+    "sha256": "d55210e00c1876dbe35e71f4af27dd4c2979237dd7a4d9bf15ef7a9de6f1dabd"
+  },
+  "cases/factory221-copy-error-result-75-5/wire.ll": {
+    "bytes": 21977,
+    "sha256": "ed805b8afa947cc477faa93f4b5ef5f3e77a9411213d7c8ca28d6dbe0d6e6f80"
+  },
+  "cases/factory221-copy-error-result-75-5/wire.txt": {
+    "bytes": 74,
+    "sha256": "1854effc87dcdb1d49fe4b496becfa92479f770ac049be6d775283d8e4629210"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/compile.json": {
+    "bytes": 3330,
+    "sha256": "8024f9370f694a4eb452b58c5a58ee8922fa44de61a299739f6a254921b5bae2"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/main.zil": {
+    "bytes": 761,
+    "sha256": "b3f120f78b9d9341bd5a5944e859efd94ce4f965017281e2ecb1b574fdc18d58"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/ordinary.json": {
+    "bytes": 51,
+    "sha256": "4b9bc5a9d7d8e6db261e1692498b5713775ae2c7cacde5ec2111b3ea130f0929"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/ordinary.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/ordinary.stdout": {
+    "bytes": 6,
+    "sha256": "0d43c56fc0601d37218ab3262837c1abdb92233e4aa71603caca51d55d388973"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/phases/candidate.txt": {
+    "bytes": 24709,
+    "sha256": "982f1c3ea51f2e4c657a317807c1d7984cc7828c25ac984cf5ea27d3dba80c33"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/phases/core.txt": {
+    "bytes": 107191,
+    "sha256": "8ab425220cc57bf7177b39e1a288eff02735b864ac166745d783b453ecc2539b"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/phases/ct-core.txt": {
+    "bytes": 111924,
+    "sha256": "940226e6181ddeaf004b55cd134c4704be0dbbf531d2393542373a9bf4b66892"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/phases/lir.txt": {
+    "bytes": 228599,
+    "sha256": "703c55eda737484e3c3db2721e44f4f565b3a96c38b70e736995cde2ca681237"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/phases/llvm.ll": {
+    "bytes": 22070,
+    "sha256": "5854c0d822a07d3c79b912c7a2fcf6fd64f6db4a02c64cbff4cec6bdd5741cab"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/phases/source-map.txt": {
+    "bytes": 64489,
+    "sha256": "72bbc549012f808e87a636ac915f2260d096143a8e61a446b37a53121c50c128"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/phases/syntax.txt": {
+    "bytes": 247199,
+    "sha256": "2c6b10603b85c23ef77655c9325e7330f9732a064255613ab6fa9f88bc00d9a4"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/phases/typed.txt": {
+    "bytes": 227772,
+    "sha256": "d55210e00c1876dbe35e71f4af27dd4c2979237dd7a4d9bf15ef7a9de6f1dabd"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/phases/verified.txt": {
+    "bytes": 227849,
+    "sha256": "6dc746c31e8100c6c393282677aca197c3c01c38d614541f6dfee93b318eaabe"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/program": {
+    "bytes": 16192,
+    "sha256": "4a2492c399c067fbc96436793f44652d7c23b573e0ec3ae7422b43d521af0df9"
+  },
+  "cases/factory221-copy-error-result-O0-75-6/program.ll": {
+    "bytes": 22070,
+    "sha256": "5854c0d822a07d3c79b912c7a2fcf6fd64f6db4a02c64cbff4cec6bdd5741cab"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/compile.json": {
+    "bytes": 3332,
+    "sha256": "6662703b9d68b8de61ce1c18ed26c022525d7a71bb7014fed56fee8fbaddb0c3"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/main.zil": {
+    "bytes": 761,
+    "sha256": "b3f120f78b9d9341bd5a5944e859efd94ce4f965017281e2ecb1b574fdc18d58"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/ordinary.json": {
+    "bytes": 51,
+    "sha256": "4b9bc5a9d7d8e6db261e1692498b5713775ae2c7cacde5ec2111b3ea130f0929"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/ordinary.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/ordinary.stdout": {
+    "bytes": 6,
+    "sha256": "0d43c56fc0601d37218ab3262837c1abdb92233e4aa71603caca51d55d388973"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/phases/candidate.txt": {
+    "bytes": 24709,
+    "sha256": "982f1c3ea51f2e4c657a317807c1d7984cc7828c25ac984cf5ea27d3dba80c33"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/phases/core.txt": {
+    "bytes": 107191,
+    "sha256": "8ab425220cc57bf7177b39e1a288eff02735b864ac166745d783b453ecc2539b"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/phases/ct-core.txt": {
+    "bytes": 111924,
+    "sha256": "940226e6181ddeaf004b55cd134c4704be0dbbf531d2393542373a9bf4b66892"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/phases/lir.txt": {
+    "bytes": 228599,
+    "sha256": "703c55eda737484e3c3db2721e44f4f565b3a96c38b70e736995cde2ca681237"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/phases/llvm.ll": {
+    "bytes": 22070,
+    "sha256": "5854c0d822a07d3c79b912c7a2fcf6fd64f6db4a02c64cbff4cec6bdd5741cab"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/phases/source-map.txt": {
+    "bytes": 64489,
+    "sha256": "72bbc549012f808e87a636ac915f2260d096143a8e61a446b37a53121c50c128"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/phases/syntax.txt": {
+    "bytes": 247199,
+    "sha256": "2c6b10603b85c23ef77655c9325e7330f9732a064255613ab6fa9f88bc00d9a4"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/phases/typed.txt": {
+    "bytes": 227772,
+    "sha256": "d55210e00c1876dbe35e71f4af27dd4c2979237dd7a4d9bf15ef7a9de6f1dabd"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/phases/verified.txt": {
+    "bytes": 227849,
+    "sha256": "6dc746c31e8100c6c393282677aca197c3c01c38d614541f6dfee93b318eaabe"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/program": {
+    "bytes": 16104,
+    "sha256": "0afaa955943345d129b355480afb48673438aa9015394939d61d8cb08be41944"
+  },
+  "cases/factory221-copy-error-result-O2-75-7/program.ll": {
+    "bytes": 22070,
+    "sha256": "5854c0d822a07d3c79b912c7a2fcf6fd64f6db4a02c64cbff4cec6bdd5741cab"
+  },
+  "cases/factory221-lending-child-75-8/candidate.txt": {
+    "bytes": 9863,
+    "sha256": "9ec61487f7bac6cc096743cb396de2067abeedc6e09a6b8145246c5762632ec1"
+  },
+  "cases/factory221-lending-child-75-8/core.txt": {
+    "bytes": 41314,
+    "sha256": "bececa5e8eb79722f65c8e3284f7e579189f36fc00a6b299244d87942f15c178"
+  },
+  "cases/factory221-lending-child-75-8/source.zil": {
+    "bytes": 285,
+    "sha256": "1f45273fe58c15fc762a5a6cb4dd72c643c626989111ad91f8b578b185fd07ff"
+  },
+  "cases/factory221-lending-child-75-8/typed.txt": {
+    "bytes": 76074,
+    "sha256": "0f774d1b443f67e863eb0dac2230451b002dd5d0e7af736815efffeb40796ab2"
+  },
+  "cases/factory221-lending-child-75-9/input.wire": {
+    "bytes": 4268,
+    "sha256": "2d573d4d9a6db7b839e2b9e6f10b10ea2f6f3240e3f262cb1569c2a637933819"
+  },
+  "cases/factory221-lending-child-75-9/raw.ll": {
+    "bytes": 6237,
+    "sha256": "a43ee986818806de5a8c6d50d6e60e01d8d4414b5e22c9f1db258108545cf796"
+  },
+  "cases/factory221-lending-child-75-9/raw.txt": {
+    "bytes": 74,
+    "sha256": "edc80d21a7133e8bc341ef77f386d9bc4f5330785b44dcaf51e39ed554d7da23"
+  },
+  "cases/factory221-lending-child-75-9/typed.txt": {
+    "bytes": 76074,
+    "sha256": "0f774d1b443f67e863eb0dac2230451b002dd5d0e7af736815efffeb40796ab2"
+  },
+  "cases/factory221-lending-child-75-9/wire.ll": {
+    "bytes": 6237,
+    "sha256": "a43ee986818806de5a8c6d50d6e60e01d8d4414b5e22c9f1db258108545cf796"
+  },
+  "cases/factory221-lending-child-75-9/wire.txt": {
+    "bytes": 74,
+    "sha256": "edc80d21a7133e8bc341ef77f386d9bc4f5330785b44dcaf51e39ed554d7da23"
+  },
+  "cases/factory221-lending-child-O0-75-10/compile.json": {
+    "bytes": 3293,
+    "sha256": "f095fc752783c005a030b7ea07e5b4c5b40654bee4e92339b950dcbfec11fbd7"
+  },
+  "cases/factory221-lending-child-O0-75-10/main.zil": {
+    "bytes": 285,
+    "sha256": "1f45273fe58c15fc762a5a6cb4dd72c643c626989111ad91f8b578b185fd07ff"
+  },
+  "cases/factory221-lending-child-O0-75-10/ordinary.json": {
+    "bytes": 51,
+    "sha256": "4b9bc5a9d7d8e6db261e1692498b5713775ae2c7cacde5ec2111b3ea130f0929"
+  },
+  "cases/factory221-lending-child-O0-75-10/ordinary.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cases/factory221-lending-child-O0-75-10/ordinary.stdout": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cases/factory221-lending-child-O0-75-10/phases/candidate.txt": {
+    "bytes": 9863,
+    "sha256": "9ec61487f7bac6cc096743cb396de2067abeedc6e09a6b8145246c5762632ec1"
+  },
+  "cases/factory221-lending-child-O0-75-10/phases/core.txt": {
+    "bytes": 41314,
+    "sha256": "bececa5e8eb79722f65c8e3284f7e579189f36fc00a6b299244d87942f15c178"
+  },
+  "cases/factory221-lending-child-O0-75-10/phases/ct-core.txt": {
+    "bytes": 42120,
+    "sha256": "79561ad9dd5fc627c108492c894435ce8ab8eb7d3222fb6ab94ce1458380dcf2"
+  },
+  "cases/factory221-lending-child-O0-75-10/phases/lir.txt": {
+    "bytes": 76903,
+    "sha256": "80a5f6f4ee8c1e528dcffc2f3f8a81ba2790fc1d69ed037ca0a1b854a60f0d27"
+  },
+  "cases/factory221-lending-child-O0-75-10/phases/llvm.ll": {
+    "bytes": 6330,
+    "sha256": "f8fa77e282df8faacc19ed605dcf03aa5d3565cd47cd19a6c81fe8883b272c64"
+  },
+  "cases/factory221-lending-child-O0-75-10/phases/source-map.txt": {
+    "bytes": 23026,
+    "sha256": "b94c6039dd5af67caac56e900e5545c126c9866e6e5f0dc4bcd2949cca4aefc7"
+  },
+  "cases/factory221-lending-child-O0-75-10/phases/syntax.txt": {
+    "bytes": 98182,
+    "sha256": "98689b01f9be8d3809d5c1fdc3ca47a2dc142b151d76cef5350c830f8c9fd5b8"
+  },
+  "cases/factory221-lending-child-O0-75-10/phases/typed.txt": {
+    "bytes": 76074,
+    "sha256": "0f774d1b443f67e863eb0dac2230451b002dd5d0e7af736815efffeb40796ab2"
+  },
+  "cases/factory221-lending-child-O0-75-10/phases/verified.txt": {
+    "bytes": 76151,
+    "sha256": "2fcefe5ab207f37c0ef2b5d9d4939f9437dc807b39789e02c1ccd523e4bfe30f"
+  },
+  "cases/factory221-lending-child-O0-75-10/program": {
+    "bytes": 16120,
+    "sha256": "b2b79aeb725be06f68caac6f3f3fdb86859a5660e7343180961a5e336b250dde"
+  },
+  "cases/factory221-lending-child-O0-75-10/program.ll": {
+    "bytes": 6330,
+    "sha256": "f8fa77e282df8faacc19ed605dcf03aa5d3565cd47cd19a6c81fe8883b272c64"
+  },
+  "cases/factory221-lending-child-O2-75-11/compile.json": {
+    "bytes": 3294,
+    "sha256": "d7f893c342bb6f0b9bcab5569dda5406ed3abb134f133e77bbf9ccc79af967bd"
+  },
+  "cases/factory221-lending-child-O2-75-11/main.zil": {
+    "bytes": 285,
+    "sha256": "1f45273fe58c15fc762a5a6cb4dd72c643c626989111ad91f8b578b185fd07ff"
+  },
+  "cases/factory221-lending-child-O2-75-11/ordinary.json": {
+    "bytes": 51,
+    "sha256": "4b9bc5a9d7d8e6db261e1692498b5713775ae2c7cacde5ec2111b3ea130f0929"
+  },
+  "cases/factory221-lending-child-O2-75-11/ordinary.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cases/factory221-lending-child-O2-75-11/ordinary.stdout": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cases/factory221-lending-child-O2-75-11/phases/candidate.txt": {
+    "bytes": 9863,
+    "sha256": "9ec61487f7bac6cc096743cb396de2067abeedc6e09a6b8145246c5762632ec1"
+  },
+  "cases/factory221-lending-child-O2-75-11/phases/core.txt": {
+    "bytes": 41314,
+    "sha256": "bececa5e8eb79722f65c8e3284f7e579189f36fc00a6b299244d87942f15c178"
+  },
+  "cases/factory221-lending-child-O2-75-11/phases/ct-core.txt": {
+    "bytes": 42120,
+    "sha256": "79561ad9dd5fc627c108492c894435ce8ab8eb7d3222fb6ab94ce1458380dcf2"
+  },
+  "cases/factory221-lending-child-O2-75-11/phases/lir.txt": {
+    "bytes": 76903,
+    "sha256": "80a5f6f4ee8c1e528dcffc2f3f8a81ba2790fc1d69ed037ca0a1b854a60f0d27"
+  },
+  "cases/factory221-lending-child-O2-75-11/phases/llvm.ll": {
+    "bytes": 6330,
+    "sha256": "f8fa77e282df8faacc19ed605dcf03aa5d3565cd47cd19a6c81fe8883b272c64"
+  },
+  "cases/factory221-lending-child-O2-75-11/phases/source-map.txt": {
+    "bytes": 23026,
+    "sha256": "b94c6039dd5af67caac56e900e5545c126c9866e6e5f0dc4bcd2949cca4aefc7"
+  },
+  "cases/factory221-lending-child-O2-75-11/phases/syntax.txt": {
+    "bytes": 98182,
+    "sha256": "98689b01f9be8d3809d5c1fdc3ca47a2dc142b151d76cef5350c830f8c9fd5b8"
+  },
+  "cases/factory221-lending-child-O2-75-11/phases/typed.txt": {
+    "bytes": 76074,
+    "sha256": "0f774d1b443f67e863eb0dac2230451b002dd5d0e7af736815efffeb40796ab2"
+  },
+  "cases/factory221-lending-child-O2-75-11/phases/verified.txt": {
+    "bytes": 76151,
+    "sha256": "2fcefe5ab207f37c0ef2b5d9d4939f9437dc807b39789e02c1ccd523e4bfe30f"
+  },
+  "cases/factory221-lending-child-O2-75-11/program": {
+    "bytes": 15992,
+    "sha256": "127a4bb361876390c34c2bb96044394fed59ee57d5a7f80da4dca96ddfeb39df"
+  },
+  "cases/factory221-lending-child-O2-75-11/program.ll": {
+    "bytes": 6330,
+    "sha256": "f8fa77e282df8faacc19ed605dcf03aa5d3565cd47cd19a6c81fe8883b272c64"
+  },
+  "inputs.json": {
+    "bytes": 23664,
+    "sha256": "048e8c99c501b353244800e59ecb86820d200bc48ba0b71e8ee9e66aa4290310"
+  },
+  "stderr.log": {
+    "bytes": 446,
+    "sha256": "78cf2239e753d39d46b1158db412d7ee199101ba6d11f9acd47bec742e22d489"
+  },
+  "stdout.log": {
+    "bytes": 187,
+    "sha256": "10f5ca343e1c693489a87b99ff7457edd5785808e71298efbcf2a9978465b547"
+  }
+}
