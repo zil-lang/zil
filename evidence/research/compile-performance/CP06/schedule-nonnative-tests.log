@@ -1,0 +1,39 @@
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp06/crates/zil-llvm-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.19s
+     Running tests/allocation211.rs (target/debug/deps/allocation211-ae48ee80cc72d1b0)
+
+running 4 tests
+test fragments_do_not_hide_missing_or_nested_function_boundaries ... ok
+test operand_iterator_keeps_order_multiplicity_and_nested_values ... ok
+test bounded_fragments_match_one_event_stream_and_manual_items ... ok
+test dense_schedule_deduplicates_operand_and_sequence_edges_without_missing_errors ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/machine210.rs (target/debug/deps/machine210-7e4bb3e9c21ff2bd)
+
+running 12 tests
+test direct_call_signature_and_narrow_abi_checked ... ok
+test bad_global_initializers_rejected ... ok
+test missing_definition_and_forward_local_use_rejected ... ok
+test phi_wrong_predecessor_rejected ... ok
+test duplicate_predecessor_phi_requires_same_values ... ok
+test malformed_cfg_and_duplicate_names_rejected ... ok
+test valid_phi_and_forward_block_order ... ok
+test void_and_duplicate_global_and_recursive_type_rejected ... ok
+test structure_assembly_cannot_silently_drop_events ... ok
+test non_dominating_branch_value_rejected ... ok
+test phi_type_mismatch_rejected ... ok
+test type_indices_alignment_and_constants_checked_before_ffi ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/schedule_cp06.rs (target/debug/deps/schedule_cp06-e19ecb6d49d194d0)
+
+running 3 tests
+test natural_order_does_not_skip_phi_or_dominance_checks ... ok
+test unreachable_non_phi_cycles_still_reach_the_rejecting_fallback ... ok
+test textual_block_permutations_and_phi_backedges_are_all_valid ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

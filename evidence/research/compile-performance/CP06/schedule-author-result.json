@@ -1,0 +1,63 @@
+{
+  "experiment": "CP06b",
+  "author": "/root/llvm_strategy",
+  "status": "AuthorLimitedTestsPass",
+  "parent_candidate": "bff04689ec987da9dbaeede7acd6ae1f012bd3f8",
+  "date_utc": "2026-10-30T06:55:31.498759+00:00",
+  "changes": "Use original non-phi order only after complete preflight proves every operand handle is already available; otherwise retain original Kahn dependency schedule and cycle rejection.",
+  "semantic_changes": false,
+  "configuration_or_cache_namespace_changes": false,
+  "invariant": "Every non-phi dependency is a parameter, a precreated phi, an earlier instruction in the same block (mandatory existing check), or a non-phi in an earlier textual block. Original block order then gives a topological schedule and preserves per-block effect order. All type, CFG, name, phi edge and dominance checks complete before the early return.",
+  "files": {
+    "crates/zil-llvm-api/src/preflight.rs": "c904167c51b5fd659ced4098c42e52d5fd4d9feb49738c3818b0f7cde71698c4",
+    "crates/zil-llvm-api/tests/schedule_cp06.rs": "41a9bbbea8c75d93a97e040ed7573e7b20e88bfe363972de35004cb9943152dd"
+  },
+  "test_commands": [
+    {
+      "command": "CARGO_TARGET_DIR=$PWD/target cargo test -p zil-llvm-api --features native -j2 --test schedule_cp06 --test machine210 --test allocation211 --test builder210 --test native211 --test local_names_cp06",
+      "exit_code": 0,
+      "passed": 33,
+      "groups": {
+        "allocation211": 4,
+        "builder210": 8,
+        "local_names_cp06": 3,
+        "machine210": 12,
+        "native211": 2,
+        "schedule_cp06": 4
+      },
+      "log": "schedule-tests.log"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=$PWD/target cargo test -p zil-llvm-api -j2 --test schedule_cp06 --test machine210 --test allocation211",
+      "exit_code": 0,
+      "passed": 19,
+      "groups": {
+        "allocation211": 4,
+        "machine210": 12,
+        "schedule_cp06": 3
+      },
+      "log": "schedule-nonnative-tests.log"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=$PWD/target cargo clippy -p zil-llvm-api --features native --all-targets -j2 -- -D warnings",
+      "exit_code": 0,
+      "log": "schedule-clippy.log"
+    }
+  ],
+  "new_test_coverage": [
+    "All six textual permutations of three dependent non-entry blocks",
+    "Natural and forward textual phi-loop orders",
+    "Sixteen Linux O0/O2 compilation/link/execution checks with expected 42 and empty stdout/stderr",
+    "Ordered stores without SSA results retain observable order",
+    "Unreachable non-phi dependency cycle rejects in both orders; breaking cycle restores acceptance",
+    "Natural order still rejects invalid phi predecessor multiset and non-dominating use"
+  ],
+  "evidence_level": "Machine-model and target-machine behavior tests; not full ZIL-language or product acceptance",
+  "performance": "NotRun; coordinator runs isolated A/B",
+  "independent_review": "NotRun",
+  "logs": {
+    "schedule-clippy.log": "51ccce5325664b8ea629b1fb600453ca30b08ca5eb980362a2a380cae035a37b",
+    "schedule-tests.log": "cd6c53188b3ca8a00497677e07dc3631095df2159019bbf5fbfc2f1fdf37be32",
+    "schedule-nonnative-tests.log": "1b5e5cdace8224dc9002cd26f210d52bc5853aa478479c2c0c03f7d67f58eada"
+  }
+}
