@@ -1,0 +1,268 @@
+{
+  "task": "CP05",
+  "reviewer": "/root/toolchain_setup",
+  "implementation_author": "/root",
+  "implementation_commit": "124158826aab043882f4ee29e45ff379465874e8",
+  "verdict": "Pass",
+  "timestamp": "2026-10-30T07:09:13.492658+00:00",
+  "scope": "Independent feature/call-path/source review, finite effect/panic/drop probe and relevant driver/CLI/API tests. No performance, full-workspace or product gate.",
+  "source_hashes": {
+    "changes/compile-performance-cp05-timing-feature.md": "98e21f6f26ffa9522d9d52d128b9cda25c73d1d8fbf29cf9fed9c6d2b3af4919",
+    "crates/zil-backend-llvm/Cargo.toml": "09122cd642e6d1502b4905089ae818f1d41c136cf334e2043d8afd7401ba93c3",
+    "crates/zil-cli/Cargo.toml": "7e1851ed8f211bff48e7e26fdfc6249b42cef81781625d353e880c50fe32e09c",
+    "crates/zil-cli/src/main.rs": "fb70f7f08d3becee0e646ddf31578d5879ddc5d7491d163d74338120b638830c",
+    "crates/zil-cli/tests/stage_timings.rs": "dd6ee32ec751cff7cf8fca6cc9894c309ba1363e261863aa8080d34157aa495b",
+    "crates/zil-cli/tests/timing_feature.rs": "f43cec58415b4ca59c2c357e3e1365f8d08ee7fa093d150897cd92fef1035c7a",
+    "crates/zil-driver/Cargo.toml": "05c24cd37b7c83e5ac44f449d54783dbf96ab7d83bc0bb41ce2b189e0473deff",
+    "crates/zil-driver/src/lib.rs": "2facb7dad0c508abd238f48048c3e05dce53d354ea02ed34e10ca69b97385ac5",
+    "crates/zil-driver/src/project.rs": "8fc7673b8f37664327aab37453a3b7a4789e9b29bc133e201d7e69fcab9ffa04",
+    "crates/zil-driver/src/session.rs": "3a471bb4b548886984a904e69367ecca9d11c3fb60064905f0284e5588dbc7ed",
+    "crates/zil-driver/tests/stage_timings.rs": "1ad79fe63243ecbbeb70b05412061b2022f1a7732e9ef9634842784d60eaeb9d",
+    "crates/zil-driver/tests/timing_feature.rs": "5ec82b87252ab7a6ad87041fa715932c2fe4df8ba4c44ab365d4f47adff4ef94",
+    "crates/zil-llvm-api/Cargo.toml": "84483851f45ac4f6a6f2621e3e22f1e44a988f39ccd85db41678e7d212927083",
+    "crates/zil-llvm-api/src/timing.rs": "05e8b537a3bb3f168c0474eb78e71b417834f1cfddd4fac91a85233eab3f08cf"
+  },
+  "feature_matrix": [
+    {
+      "argv": [
+        "cargo",
+        "metadata",
+        "--format-version",
+        "1",
+        "--locked",
+        "--offline"
+      ],
+      "features": {
+        "zil-backend-llvm": [
+          "default",
+          "llvm-api"
+        ],
+        "zil-cli": [
+          "default",
+          "llvm-api"
+        ],
+        "zil-driver": [
+          "default",
+          "llvm-api"
+        ],
+        "zil-llvm-api": [
+          "default",
+          "native"
+        ]
+      }
+    },
+    {
+      "argv": [
+        "cargo",
+        "metadata",
+        "--format-version",
+        "1",
+        "--locked",
+        "--offline",
+        "--features",
+        "zil-cli/timings"
+      ],
+      "features": {
+        "zil-backend-llvm": [
+          "default",
+          "llvm-api",
+          "timings"
+        ],
+        "zil-cli": [
+          "default",
+          "llvm-api",
+          "timings"
+        ],
+        "zil-driver": [
+          "default",
+          "llvm-api",
+          "timings"
+        ],
+        "zil-llvm-api": [
+          "default",
+          "native",
+          "timings"
+        ]
+      }
+    }
+  ],
+  "findings": [
+    "Cargo resolver confirms timings is absent by default in all four crates and enabling zil-cli/timings enables exactly the intended chain into driver/backend/API.",
+    "Without the feature TimingTrace/TimingScope are zero-sized with no Drop implementation. measure/value evaluate their supplied FnOnce once and preserve its return/error/panic and captured-value destruction; the independent probe exercises both compile configurations.",
+    "Enabled collector field/clock/parent/unit/Mutex/drop logic is preserved under the module; no safety, ABI, query-key or language-budget change.",
+    "CLI rejects an unavailable --timings request with E-CLI-ARGUMENT exit64. Driver checks compile_source, compile_project and compile_path before reading a path or invoking parsing/query/Verify work, returning Driver Unsupported.",
+    "Existing collector parent scopes, early errors, actual Verify runs and cache reuse remain covered by enabled tests."
+  ],
+  "observations": [
+    "The no-feature configuration error guarantee is no source read or verification; normal report setup and an existing session-capacity eviction guard can still occur before the compile_source/project support check. This is not a claim of literally zero work on an invalid request.",
+    "The disabled collector does not remove unrelated existing CompileReport seconds/object receipt timers. Zero-size/drop properties alone do not establish end-to-end performance gain.",
+    "Direct TimingTrace users must honor timing::available(); documented driver/CLI entry points reject unavailable requests."
+  ],
+  "independent_probe": {
+    "source": "#![allow(dead_code)]\nmod timing;\nuse timing::*;\nuse std::{cell::Cell,panic::{catch_unwind,AssertUnwindSafe},sync::atomic::{AtomicUsize,Ordering}};\nstruct Token<'a>(&'a Cell<usize>);\nimpl Drop for Token<'_> { fn drop(&mut self){self.0.set(self.0.get()+1)} }\nfn main(){\n    let enabled=cfg!(feature=\"timings\");\n    assert_eq!(available(),enabled);\n    if !enabled {\n        assert_eq!(std::mem::size_of::<TimingTrace>(),0);\n        assert_eq!(std::mem::size_of::<TimingScope>(),0);\n        assert!(!std::mem::needs_drop::<TimingTrace>());\n        assert!(!std::mem::needs_drop::<TimingScope>());\n    }\n    let trace=TimingTrace::new(true);\n    let effects=Cell::new(0);let dropped=Cell::new(0);\n    let token=trace.value(\"value\",||{effects.set(effects.get()+1);Token(&dropped)});\n    assert_eq!(effects.get(),1);assert_eq!(dropped.get(),0);drop(token);assert_eq!(dropped.get(),1);\n    let err=trace.measure(\"error\",\"stage\",|child|{assert_eq!(child.report().is_some(),enabled);effects.set(effects.get()+1);Err::<u32,_>(\"preserve error\")});\n    assert_eq!(err,Err(\"preserve error\"));\n    let panicked=catch_unwind(AssertUnwindSafe(|| trace.value(\"panic\",||{let _token=Token(&dropped);effects.set(effects.get()+1);panic!(\"CP05 expected probe panic\")})));\n    assert!(panicked.is_err());assert_eq!(dropped.get(),2);assert_eq!(effects.get(),3);\n    {let mut scope=trace.unit_scope(\"manual\",\"stage\",Some(7));scope.finish(\"ok\");scope.finish(\"wrong second outcome\");}\n    let calls=AtomicUsize::new(0);\n    std::thread::scope(|scope|{for _ in 0..4 {let calls=&calls;let trace=&trace;scope.spawn(move||{trace.value(\"worker\",||{calls.fetch_add(1,Ordering::SeqCst);});});}});\n    assert_eq!(calls.load(Ordering::SeqCst),4);\n    if let Some(report)=trace.report(){\n        assert!(enabled);assert_eq!(report.spans.len(),8);\n        assert!(report.spans.iter().all(|s|s.outcome!=\"running\"));\n        assert_eq!(report.spans.iter().find(|s|s.name==\"error\").unwrap().outcome,\"error\");\n        assert_eq!(report.spans.iter().find(|s|s.name==\"panic\").unwrap().outcome,\"panic\");\n        let manual=report.spans.iter().find(|s|s.name==\"manual\").unwrap();assert_eq!(manual.outcome,\"ok\");assert_eq!(manual.unit_index,Some(7));\n    }else{assert!(!enabled)}\n    println!(\"{{\\\"enabled\\\":{enabled},\\\"closure_effects\\\":3,\\\"drops\\\":2,\\\"worker_calls\\\":4,\\\"error_preserved\\\":true,\\\"panic_preserved\\\":true}}\");\n}\n",
+    "source_sha256": "a1c60479710901fe2b1ba44fa44188323adab3b2019cd01468ff17b039cb2a38",
+    "included_timing_source": "124158826aab043882f4ee29e45ff379465874e8:crates/zil-llvm-api/src/timing.rs",
+    "included_timing_sha256": "05e8b537a3bb3f168c0474eb78e71b417834f1cfddd4fac91a85233eab3f08cf",
+    "default_result": {
+      "enabled": false,
+      "closure_effects": 3,
+      "drops": 2,
+      "worker_calls": 4,
+      "error_preserved": true,
+      "panic_preserved": true
+    },
+    "enabled_result": {
+      "enabled": true,
+      "closure_effects": 3,
+      "drops": 2,
+      "worker_calls": 4,
+      "error_preserved": true,
+      "panic_preserved": true
+    }
+  },
+  "commands": [
+    {
+      "name": "probe-default-build",
+      "argv": [
+        "rustc",
+        "--edition=2024",
+        "/tmp/cp05-review-toolchain-setup/probe.rs",
+        "-o",
+        "/tmp/cp05-review-toolchain-setup/probe-default"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "summaries": []
+    },
+    {
+      "name": "probe-default",
+      "argv": [
+        "/tmp/cp05-review-toolchain-setup/probe-default"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"enabled\":false,\"closure_effects\":3,\"drops\":2,\"worker_calls\":4,\"error_preserved\":true,\"panic_preserved\":true}\n",
+      "stderr": "\nthread 'main' (24) panicked at /tmp/cp05-review-toolchain-setup/probe.rs:22:130:\nCP05 expected probe panic\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "summaries": []
+    },
+    {
+      "name": "probe-enabled-build",
+      "argv": [
+        "rustc",
+        "--edition=2024",
+        "--cfg",
+        "feature=\"timings\"",
+        "/tmp/cp05-review-toolchain-setup/probe.rs",
+        "-o",
+        "/tmp/cp05-review-toolchain-setup/probe-enabled"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "summaries": []
+    },
+    {
+      "name": "probe-enabled",
+      "argv": [
+        "/tmp/cp05-review-toolchain-setup/probe-enabled"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"enabled\":true,\"closure_effects\":3,\"drops\":2,\"worker_calls\":4,\"error_preserved\":true,\"panic_preserved\":true}\n",
+      "stderr": "\nthread 'main' (47) panicked at /tmp/cp05-review-toolchain-setup/probe.rs:22:130:\nCP05 expected probe panic\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "summaries": []
+    },
+    {
+      "name": "default-driver-cli",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-cli",
+        "-p",
+        "zil-driver",
+        "--test",
+        "timing_feature",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "stdout": "\nrunning 1 test\ntest requested_uncompiled_timings_is_an_explicit_argument_error ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s\n\n\nrunning 1 test\ntest unavailable_requested_timings_reject_all_driver_entry_points ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n\n",
+      "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s\n     Running tests/timing_feature.rs (target/debug/deps/timing_feature-d953d1cfba0d0c35)\n     Running tests/timing_feature.rs (target/debug/deps/timing_feature-cad63cb6f8aa5fa6)\n",
+      "summaries": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "name": "enabled-driver-cli",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-cli",
+        "-p",
+        "zil-driver",
+        "--features",
+        "zil-cli/timings",
+        "--test",
+        "stage_timings",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "stdout": "\nrunning 2 tests\ntest failed_source_keeps_diagnostics_and_completed_timing_scopes ... ok\ntest optional_timings_are_structured_and_do_not_replace_cli_output ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s\n\n\nrunning 5 tests\ntest rejected_and_cancelled_requests_keep_only_actual_intervals ... ok\ntest filesystem_discovery_failure_and_parse_stop_have_distinct_scopes ... ok\ntest timing_switch_is_not_a_query_key_and_verify_still_runs ... ok\ntest request_root_includes_real_session_capacity_eviction ... ok\ntest native_cold_hit_and_link_failure_preserve_bytes_and_current_verification ... ok\n\ntest result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s\n\n",
+      "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.00s\n     Running tests/stage_timings.rs (target/debug/deps/stage_timings-6a8ce3ca6e81e7d2)\n     Running tests/stage_timings.rs (target/debug/deps/stage_timings-944f8120dbf6f05f)\n",
+      "summaries": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s"
+      ]
+    },
+    {
+      "name": "default-api",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-llvm-api",
+        "--lib",
+        "stripped_tests",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "stdout": "\nrunning 1 test\ntest timing::stripped_tests::propagation_is_zero_sized_without_drop_or_collection ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n",
+      "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s\n     Running unittests src/lib.rs (target/debug/deps/zil_llvm_api-b5feb2440c965ef9)\n",
+      "summaries": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "enabled-api",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "timings",
+        "--lib",
+        "collector::tests",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "stdout": "\nrunning 2 tests\ntest timing::collector::tests::disabled_trace_has_no_state_or_records ... ok\ntest timing::collector::tests::nested_errors_and_worker_intervals_keep_their_parentage ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n",
+      "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.00s\n     Running unittests src/lib.rs (target/debug/deps/zil_llvm_api-29942eadd0b81940)\n",
+      "summaries": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    }
+  ],
+  "limited_tests_passed": 12,
+  "performance": "NotRun",
+  "promotion": "Functionally reviewed; timing benefit requires coordinator's frozen complete-request A/B."
+}
