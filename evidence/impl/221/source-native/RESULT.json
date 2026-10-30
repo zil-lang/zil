@@ -1,0 +1,65 @@
+{
+  "status": "AuthorLimitedPass",
+  "compiler_commit": "eed58269f4cdeb25c9e71052a104d270aea6dcc4",
+  "implementation_task_head_before_test_checkpoint": "5e43de6d0d20adca600df6576820209a28ff2ff7",
+  "tested_harness_identity": "exact SHA256 map in round1-receipt.json; root will publish same files",
+  "test_groups": {
+    "passed": 9,
+    "failed": 0,
+    "ignored": 0
+  },
+  "native": {
+    "ordinary_llvm_api": 14,
+    "additional_linker_observer": 22,
+    "total": 36,
+    "actual_allocator_failures": 6,
+    "all_live_zero": true,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "backend_fallback": false
+  },
+  "source_derived_verify_budgets": {
+    "raw": 16559,
+    "wire": 16559,
+    "N_minus_1": "ResourceLimit",
+    "fresh_N": "same Verified fingerprint as default"
+  },
+  "scope": [
+    "source Fn/FnMut/FnOnce owning factories",
+    "input consumption or cleanup without retaining it",
+    "same ClosureId distinct runtime responsibilities",
+    "two nested cross-module instantiations with F in second parameter position",
+    "source-derived raw/Wire structural forgeries",
+    "parameter preparation allocation failure",
+    "State and callback Store inline stride and each real allocation failure"
+  ],
+  "raw_archive": {
+    "file": "round1-raw.zip",
+    "bytes": 832819,
+    "sha256": "b468776176c1f7a50e47ae287eecc69d04329f1a8f84461e28b9a07f7fb5bb01",
+    "file_manifest": "round1-files.json",
+    "file_manifest_sha256": "974a5ec2ef85553baabca448547dd46b54471ac6319e11e5c426483b172abfee"
+  },
+  "prior_compile_attempt": {
+    "status": "Fail",
+    "cargo_exit": 0,
+    "reason": "production input hashes changed during compilation while root imported frontend D; no source/native execution took place",
+    "evidence": "compile-during-update/RESULT.json"
+  },
+  "remaining": [
+    "synchronous Copy/slice Address signature source controls",
+    "Copy error-union callback result and consuming error exit",
+    "legal lending child with Copy root result",
+    "non-author exact-commit review",
+    "root integrated full-workspace validation"
+  ],
+  "not_claimed": [
+    "full language 1.4",
+    "all ZUI prerequisites",
+    "native Windows",
+    "product gates",
+    "compiler performance improvement"
+  ]
+}
