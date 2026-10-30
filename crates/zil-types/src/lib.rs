@@ -105,6 +105,10 @@ fn signatures(
         {
             concrete_index += 1;
         }
+        if let Err(diagnostic) = owning_factory::preflight(f, &mut foreign_work, limits) {
+            errors.push(diagnostic);
+            continue;
+        }
         if let Err(diagnostic) = retained::validate_factory(f) {
             errors.push(diagnostic);
         }

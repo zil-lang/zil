@@ -11,6 +11,34 @@ pub(super) fn signature(signature: &Signature) -> bool {
     signature.callable_return.is_some() && !signature.callable.is_empty()
 }
 
+pub(super) fn preflight(function: &CoreFunction, work: &mut usize, limits: &Limits) -> R<()> {
+    if !template(function) { return Ok(()) }
+    for parameter in &function.parameters {
+        // All subsequent new-profile header walks are reserved here, before
+        // recursive shape predicates run or any retained template is cloned.
+        let cost = inference::type_snapshot_work(&parameter.ty, parameter.span, limits)?;
+        *work = work.checked_sub(cost.saturating_mul(12)).ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "owning factory header work budget exceeded", Some(parameter.span))
+        })?;
+    }
+    Ok(())
+}
+
+fn contains_environment(ty: &Type) -> bool {
+    match ty {
+        Type::Closure(_) | Type::Opaque { .. } => true,
+        Type::Tuple(fields) => fields.iter().any(contains_environment),
+        Type::Record { fields, .. } | Type::Package { fields, .. } => fields.iter().any(|(_, ty)| contains_environment(ty)),
+        Type::Enum { variants, .. } => variants.iter().any(|(_, fields)| fields.iter().any(contains_environment)),
+        Type::Array { element, .. } | Type::Slice { element } | Type::OwnedStore { element }
+        | Type::Managed(element) | Type::Desc(element) | Type::Address { inner: element, .. } => contains_environment(element),
+        Type::ErrorUnion { error, result } => contains_environment(error) || contains_environment(result),
+        Type::FunctionPointer { parameters, result } | Type::ForeignCallback { parameters, result } =>
+            parameters.iter().any(contains_environment) || contains_environment(result),
+        _ => false,
+    }
+}
+
 pub(super) fn validate(function: &CoreFunction) -> R<()> {
     let reject = || unsupported(function.span, "owning callable factory requires one direct by-value self-contained F, finite ordinary inputs and a fresh Copy-result opaque environment");
     let [input] = function.callable_parameters.as_slice() else { return Err(reject()) };
@@ -28,9 +56,9 @@ pub(super) fn validate(function: &CoreFunction) -> R<()> {
         || helpers::parameter_mode(&parameter.ty, &input.generic_name) != Some(None)
         || !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy | PassingMode::Move)
         || function.parameters.iter().enumerate().any(|(index, parameter)| {
-            index != input.index as usize && !(parameter.ty.is_copy_value()
+            index != input.index as usize && (contains_environment(&parameter.ty) || !(parameter.ty.is_copy_value()
                 || matches!(&parameter.ty, Type::Managed(_) if resources::supported(&parameter.ty))
-                || packages::capture_supported(&parameter.ty))
+                || packages::capture_supported(&parameter.ty)))
         })
     { return Err(reject()); }
     let Type::Opaque { identity, hidden } = &function.return_type else { return Err(reject()) };

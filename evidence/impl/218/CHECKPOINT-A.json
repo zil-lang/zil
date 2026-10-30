@@ -1,0 +1,12 @@
+{
+  "source_commit": "62a529a21883dbbf246ba9f99de67228d03c0e9b",
+  "toolchain": "Rust/Cargo 1.99.1, LLVM 23.1.4",
+  "command": "cargo test -p zil-expand --test impl218_factory --offline -- --nocapture",
+  "exit_code": 101,
+  "passed": 2,
+  "failed": 2,
+  "failure": "The two positive test functions stopped at generic type_key on the opaque Impl result with E-UNSUPPORTED: this generic type argument needs additional type resolution.",
+  "negative_target_coverage": "NotEstablished: the old early rejection could satisfy some negative assertions.",
+  "next_change": "Profile-specific opaque result signature comparison; strengthen negative assertions to prove target diagnostics.",
+  "acceptance": "NotAccepted"
+}

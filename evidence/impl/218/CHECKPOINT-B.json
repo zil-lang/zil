@@ -1,0 +1,9 @@
+{
+  "source_commit": "bda0c02aa7a9c2f4e9c5460f55827d7aee619102",
+  "command": "cargo test -p zil-expand --test impl218_factory --offline -- --nocapture",
+  "exit_code": 0,
+  "passed": 4,
+  "failed": 0,
+  "scope": "Expand only; negative assertions still require target diagnostic strengthening. Types source combination not executed yet.",
+  "acceptance": "NotAccepted"
+}
