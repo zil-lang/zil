@@ -1,0 +1,53 @@
+{
+  "experiment": "CP06a",
+  "author": "/root/llvm_strategy",
+  "status": "AuthorLimitedTestsPass",
+  "baseline": "6c3b3adb2435137fac9f4a1c8257c44e47d909e8",
+  "date_utc": "2026-10-30T06:53:36.059546+00:00",
+  "changes": "Discard LLVM structured-Builder local value names; retain machine model, sidecar, global symbols and ABI names",
+  "semantic_changes": false,
+  "configuration_or_cache_namespace_changes": false,
+  "cache_identity_note": "Existing namespace binds installed current_exe identity, so changed compiler binaries remain isolated; no key/schema modification.",
+  "files": {
+    "crates/zil-llvm-api/src/native.rs": "0ac1cda97b0ada838df5ccf2e6cc86346488d2d417d6e0c593354ff36e902001",
+    "crates/zil-llvm-api/src/native/builder.rs": "3be25cce38bfab2d65f20163af13fb8ad065b2b86e687acbf6a07f7c11a0201e",
+    "crates/zil-llvm-api/tests/local_names_cp06.rs": "6dc045ab5c6a9e0b8eefd7fa0542f37ceb4a981ec7e186cf9ecd4f37e1b5ff75"
+  },
+  "test_commands": [
+    {
+      "command": "CARGO_TARGET_DIR=$PWD/target cargo test -p zil-llvm-api --features native -j2 --test local_names_cp06 --test builder210 --test native211 --test machine210",
+      "exit_code": 0,
+      "passed": 25,
+      "groups": {
+        "builder210": 8,
+        "local_names_cp06": 3,
+        "machine210": 12,
+        "native211": 2
+      },
+      "log": "names-tests.log"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=$PWD/target cargo clippy -p zil-llvm-api --features native --all-targets -j2 -- -D warnings",
+      "exit_code": 0,
+      "log": "names-clippy.log"
+    }
+  ],
+  "coverage": [
+    "Linux/Win64 O0/O2 local alpha-renaming object equality, immutable readable machine text",
+    "Linux O0/O2 C harness links exported global/function and resolves external call",
+    "Model duplicate/NUL SSA names still rejected",
+    "Existing direct loop/Phi/forward textual blocks, aggregates, indirect calls, narrow ABI, varargs, cancellation, separate contexts and invalid machine inputs"
+  ],
+  "evidence_level": "Machine-model and target-machine behavior tests; not new ZIL source or full-language acceptance",
+  "performance": "NotRun; coordinator runs isolated A/B",
+  "independent_review": "NotRun",
+  "sources": [
+    "https://llvm.org/doxygen/group__LLVMCCoreContext.html",
+    "https://github.com/rust-lang/rust/blob/main/compiler/rustc_codegen_llvm/src/back/llvm_backend.rs",
+    "https://github.com/rust-lang/rust/blob/main/compiler/rustc_codegen_llvm/src/builder.rs"
+  ],
+  "logs": {
+    "names-tests.log": "80861ae15365ac11fc3ead49494024cbe93b8ee33703cbd2fe34edad7790276f",
+    "names-clippy.log": "c79674156c600bcd9c8db82206683b72fb82096ef18239e4097fd753c343bfb8"
+  }
+}
