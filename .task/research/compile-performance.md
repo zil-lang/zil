@@ -129,7 +129,7 @@ Doing
       "performance": "Pending fresh quiet-window results"
     },
     "CP10": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/llvm_strategy",
       "baseline": "0d28a51452f57c2cd27c1007058056c021bf3481",
       "write_set": [
@@ -141,7 +141,10 @@ Doing
         "crates/zil-expand/src/receivers.rs"
       ],
       "purpose": "Build immutable project aggregate/callable-name lookup tables once per request; preserve all budget charges, input order, diagnostics and validation",
-      "plan": "docs/research/compile-performance/CP10-PLAN.md"
+      "plan": "docs/research/compile-performance/CP10-PLAN.md",
+      "candidate": "c317862f4f9b821645238b30ef03b4508a122038",
+      "review": "cb6d016b0fb784f4f1a322f0326595abb2f1f2d6",
+      "performance": "Pending fresh quiet-window results"
     }
   },
   "mainline_acceptance": "Hold: CP02 disabled-path compile cost requires further validation",
