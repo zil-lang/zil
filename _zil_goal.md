@@ -151,3 +151,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-30 施工8接续
 
 以GitHub main a8e8831a为实际基线，222源级有限#for、223完整Product Store元素、224完整Product共享借入并行。公共接点由集成者协调、独立核验及机器清理闭合后验收；编译性能支线仍独立。历史handoff Fail原样保存，不以新编号掩盖旧状态；完整语言、B0及产品门保持。
+
+## 2026-10-30：222–224组合验收中
+
+有限源级#for、完整Product Store及普通共享Product分别完成实现并经交叉独审返修；root补入实际三者组合与旧边界迁移，本地11组132/0/0通过。正式全仓由GitHub统一执行，当前不能据此写整批已合入。精确作者、独审、原失败和整仓身份见docs/LANGUAGE-222-224.md及evidence/integration/222-224/。完整Type/Syntax生成、深层拥有容器、长期外部生命周期和挂起并发继续保留；B0/181、完整1.4、全部ZUI、Rust产品门不随有限片升级。
