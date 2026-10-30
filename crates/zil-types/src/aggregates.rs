@@ -138,7 +138,31 @@ impl<'a> Visibility<'a> {
 
 pub(super) fn resolve(core: CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
     let mut remaining = limits.max_analysis_steps;
-    resolve_indexed(core, &[], limits, &mut remaining)
+    let callable_names = collect_callable_names([&core]);
+    resolve_indexed(core, &[], &callable_names, limits, &mut remaining)
+}
+
+fn collect_callable_names<'a>(
+    modules: impl IntoIterator<Item = &'a CoreModule>,
+) -> BTreeSet<String> {
+    modules
+        .into_iter()
+        .flat_map(|module| &module.functions)
+        .flat_map(|function| {
+            function
+                .callable_parameters
+                .iter()
+                .map(|binding| &binding.generic_name)
+                .chain(
+                    function
+                        .state_parameters
+                        .iter()
+                        .flat_map(|state| &state.bindings)
+                        .map(|binding| &binding.generic_name),
+                )
+        })
+        .cloned()
+        .collect()
 }
 
 pub(super) fn project_symbol(name: &str) -> bool {
@@ -154,9 +178,19 @@ pub(super) fn resolve_program(
 ) -> CompileResult<CoreProgram> {
     let mut remaining = limits.max_analysis_steps;
     let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+    // Each core below is cloned from this same immutable project. The old
+    // local-plus-project union therefore has identical membership and size
+    // for every module; only that uncharged lookup construction is shared.
+    let callable_names = collect_callable_names(modules.iter().copied());
     let mut normalized = Vec::new();
     for module in &program.modules {
-        let core = resolve_indexed(module.core.clone(), &modules, limits, &mut remaining)?;
+        let core = resolve_indexed(
+            module.core.clone(),
+            &modules,
+            &callable_names,
+            limits,
+            &mut remaining,
+        )?;
         normalized.push(ProgramModule {
             core,
             imports: module.imports.clone(),
@@ -173,6 +207,7 @@ pub(super) fn resolve_program(
 fn resolve_indexed(
     mut core: CoreModule,
     project: &[&CoreModule],
+    callable_names: &BTreeSet<String>,
     limits: &Limits,
     remaining: &mut usize,
 ) -> CompileResult<CoreModule> {
@@ -309,40 +344,7 @@ fn resolve_indexed(
         ordinary_parameter: None,
         active_callable_parameters: &[],
         active_state_parameters: &[],
-        callable_names: core
-            .functions
-            .iter()
-            .flat_map(|f| f.callable_parameters.iter().map(|b| b.generic_name.clone()))
-            .chain(
-                project
-                    .iter()
-                    .flat_map(|m| m.functions.iter())
-                    .flat_map(|f| f.callable_parameters.iter().map(|b| b.generic_name.clone())),
-            )
-            .chain(
-                core.functions
-                    .iter()
-                    .flat_map(|f| f.state_parameters.iter())
-                    .flat_map(|state| {
-                        state
-                            .bindings
-                            .iter()
-                            .map(|binding| binding.generic_name.clone())
-                    }),
-            )
-            .chain(
-                project
-                    .iter()
-                    .flat_map(|m| m.functions.iter())
-                    .flat_map(|f| f.state_parameters.iter())
-                    .flat_map(|state| {
-                        state
-                            .bindings
-                            .iter()
-                            .map(|binding| binding.generic_name.clone())
-                    }),
-            )
-            .collect(),
+        callable_names,
         declarations,
         enum_declarations,
         owners,
@@ -472,7 +474,7 @@ fn owned_mode_type(ty: &Type) -> Type {
 }
 
 struct Resolver<'a> {
-    callable_names: BTreeSet<String>,
+    callable_names: &'a BTreeSet<String>,
     ordinary_parameter: Option<String>,
     active_callable_parameters: &'a [CoreCallableParameter],
     active_state_parameters: &'a [CoreStateParameter],
