@@ -244,6 +244,20 @@ fn check_element_with_limits(
     budget: &mut Budget,
 ) -> Check<()> {
     resources::charge_payload(element, budget)?;
+    if packages::has_children(element) {
+        // Raw module/resource shapes are bounded before admission. Rebuild
+        // complete nominal children, actual leaf definitions and the layout;
+        // no producer classifier or claimed stride grants container ownership.
+        packages::check_ordinary_type(module, element, span, budget)?;
+        let (bytes, _) = layout(element, None, budget)?;
+        if bytes == 0 {
+            return Err(unsupported(
+                "Product Store element requires nonzero actual inline layout",
+                span,
+            ));
+        }
+        return Ok(());
+    }
     let Type::Package { fields, .. } = element else {
         return Err(unsupported(
             "Store elements require a complete direct-Managed Package",
@@ -668,6 +682,16 @@ pub(super) fn check_instruction(
             Type::Bool
         }
         InstructionKind::OwnedStoreBorrow { .. } | InstructionKind::OwnedStoreBorrowMut { .. } => {
+            if matches!(
+                instruction.kind,
+                InstructionKind::OwnedStoreBorrowMut { .. }
+            ) && packages::has_children(element)
+            {
+                return Err(unsupported(
+                    "Product Store elements currently expose only shared windows",
+                    span,
+                ));
+            }
             if value_type(function, extra.expect("element index"), span)? != &Type::I64 {
                 return Err(bad("Store element index must be i64"));
             }
