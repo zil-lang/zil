@@ -1,0 +1,102 @@
+{
+  "runner_source_commit": "8bb908a8c7187d0206d75fb44a6d4aaed2abdd32",
+  "compiler_source_commit": "397bf24fef0d7f58aaefb444c17c733652b5e12f",
+  "scope": "Real 8 build preflight rows, explicit query cache, no measured/score rows",
+  "pass": true,
+  "frozen_plan": "/tmp/cp12-runner-8bb908a8-plan/plan.json",
+  "plan_sha256": "0d329d3528eafa86980e2c8024c00d6dc153249a63547114379af9bac554caa9",
+  "preflight": "/tmp/cp12-runner-8bb908a8-preflight/result.json",
+  "preflight_sha256": "edc2dc6213abfb006fb03b63ae23e499a207173d2a9bd050e6470d71717a8765",
+  "rows": 8,
+  "oracle_checks": 24,
+  "builds": [
+    {
+      "arm": "A",
+      "request": "cold_process",
+      "pass": true
+    },
+    {
+      "arm": "A",
+      "request": "unchanged",
+      "pass": true
+    },
+    {
+      "arm": "A",
+      "request": "private_edit",
+      "pass": true
+    },
+    {
+      "arm": "A",
+      "request": "public_edit",
+      "pass": true
+    },
+    {
+      "arm": "B",
+      "request": "cold_process",
+      "pass": true,
+      "query_cache": {
+        "requested": true,
+        "state": "miss",
+        "key": "81bad1914b565cec258b22483eb6b9f06b2d5bd0dd564283e9a79be83ca36860",
+        "reason": null,
+        "stored": true,
+        "write_reason": null,
+        "ct_steps": 0,
+        "ct_nodes": 357,
+        "ct_functions": 18
+      },
+      "verification_runs": 1
+    },
+    {
+      "arm": "B",
+      "request": "unchanged",
+      "pass": true,
+      "query_cache": {
+        "requested": true,
+        "state": "hit",
+        "key": "81bad1914b565cec258b22483eb6b9f06b2d5bd0dd564283e9a79be83ca36860",
+        "reason": null,
+        "stored": false,
+        "write_reason": null,
+        "ct_steps": 0,
+        "ct_nodes": 357,
+        "ct_functions": 18
+      },
+      "verification_runs": 1
+    },
+    {
+      "arm": "B",
+      "request": "private_edit",
+      "pass": true,
+      "query_cache": {
+        "requested": true,
+        "state": "miss",
+        "key": "7f98f867b04322c408138cdb1894bb1d4c1ae14561121b78683a1dee61408653",
+        "reason": null,
+        "stored": true,
+        "write_reason": null,
+        "ct_steps": 0,
+        "ct_nodes": 357,
+        "ct_functions": 18
+      },
+      "verification_runs": 1
+    },
+    {
+      "arm": "B",
+      "request": "public_edit",
+      "pass": true,
+      "query_cache": {
+        "requested": true,
+        "state": "miss",
+        "key": "78fd5eeb82593409da664d092b160de1bdf1d72e158c15b535f0bc04c167e445",
+        "reason": null,
+        "stored": true,
+        "write_reason": null,
+        "ct_steps": 0,
+        "ct_nodes": 363,
+        "ct_functions": 18
+      },
+      "verification_runs": 1
+    }
+  ]
+}

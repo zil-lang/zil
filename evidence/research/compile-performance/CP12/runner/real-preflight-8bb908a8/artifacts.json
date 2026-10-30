@@ -1,0 +1,156 @@
+[
+  {
+    "case": "tree4x2",
+    "arm": "A",
+    "executable": {
+      "path": "/tmp/cp12-runner-8bb908a8-preflight/executables/tree4x2-A",
+      "sha256": "8efb158622bd71d1b98f051a11c832b603ae6f105a5c55fe9926030486f5b5b6",
+      "size": 4529704,
+      "mtime_ns": 1793347702255696043,
+      "ctime_ns": 1793347702307810024
+    },
+    "startup": {
+      "executable": {
+        "path": "/tmp/cp12-runner-8bb908a8-preflight/executables/tree4x2-A",
+        "sha256": "8efb158622bd71d1b98f051a11c832b603ae6f105a5c55fe9926030486f5b5b6",
+        "size": 4529704,
+        "mtime_ns": 1793347702255696043,
+        "ctime_ns": 1793347702307810024
+      },
+      "input": "inputs/empty.bin",
+      "expected": "expected/empty.bin",
+      "stdout": "00000.startup.stdout.bin",
+      "stderr": "00000.startup.stderr.bin",
+      "pass": true,
+      "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "wall_seconds": 0.002149273,
+      "cpu_user": 0.00156,
+      "cpu_system": 0.0,
+      "exit": 0,
+      "timeout": false,
+      "max_process_rss_kib": 18092,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "input_after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "executable_after": {
+        "path": "/tmp/cp12-runner-8bb908a8-preflight/executables/tree4x2-A",
+        "sha256": "8efb158622bd71d1b98f051a11c832b603ae6f105a5c55fe9926030486f5b5b6",
+        "size": 4529704,
+        "mtime_ns": 1793347702255696043,
+        "ctime_ns": 1793347702307810024
+      }
+    },
+    "warmup": {
+      "executable": {
+        "path": "/tmp/cp12-runner-8bb908a8-preflight/executables/tree4x2-A",
+        "sha256": "8efb158622bd71d1b98f051a11c832b603ae6f105a5c55fe9926030486f5b5b6",
+        "size": 4529704,
+        "mtime_ns": 1793347702255696043,
+        "ctime_ns": 1793347702307810024
+      },
+      "input": "inputs/tree4x2.bin",
+      "expected": "expected/tree4x2.bin",
+      "stdout": "00000.warmup.stdout.bin",
+      "stderr": "00000.warmup.stderr.bin",
+      "pass": true,
+      "input_sha256": "e91db7585175e26eed3527e57a3cbd55a8832e64f7021ab1c64c067dcc990ab2",
+      "expected_stdout_sha256": "c1807ea5e4ca2fdb5636a595e93ea378b5e038bc9a8a9c3f6dd0ad45a65c9140",
+      "wall_seconds": 0.05577661,
+      "cpu_user": 0.051053,
+      "cpu_system": 0.004112,
+      "exit": 0,
+      "timeout": false,
+      "max_process_rss_kib": 18092,
+      "stdout_sha256": "c1807ea5e4ca2fdb5636a595e93ea378b5e038bc9a8a9c3f6dd0ad45a65c9140",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 1048576,
+      "input_after_sha256": "e91db7585175e26eed3527e57a3cbd55a8832e64f7021ab1c64c067dcc990ab2",
+      "executable_after": {
+        "path": "/tmp/cp12-runner-8bb908a8-preflight/executables/tree4x2-A",
+        "sha256": "8efb158622bd71d1b98f051a11c832b603ae6f105a5c55fe9926030486f5b5b6",
+        "size": 4529704,
+        "mtime_ns": 1793347702255696043,
+        "ctime_ns": 1793347702307810024
+      }
+    }
+  },
+  {
+    "case": "tree4x2",
+    "arm": "B",
+    "executable": {
+      "path": "/tmp/cp12-runner-8bb908a8-preflight/executables/tree4x2-B",
+      "sha256": "7cffd532bbed46ed27d73a490527c682770bdee27d2e0b685f11ce7a62bc1289",
+      "size": 8600,
+      "mtime_ns": 1793347702714419305,
+      "ctime_ns": 1793347702731651994
+    },
+    "startup": {
+      "executable": {
+        "path": "/tmp/cp12-runner-8bb908a8-preflight/executables/tree4x2-B",
+        "sha256": "7cffd532bbed46ed27d73a490527c682770bdee27d2e0b685f11ce7a62bc1289",
+        "size": 8600,
+        "mtime_ns": 1793347702714419305,
+        "ctime_ns": 1793347702731651994
+      },
+      "input": "inputs/empty.bin",
+      "expected": "expected/empty.bin",
+      "stdout": "00004.startup.stdout.bin",
+      "stderr": "00004.startup.stderr.bin",
+      "pass": true,
+      "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "wall_seconds": 0.001385392,
+      "cpu_user": 0.001106,
+      "cpu_system": 0.0,
+      "exit": 0,
+      "timeout": false,
+      "max_process_rss_kib": 18096,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "input_after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "executable_after": {
+        "path": "/tmp/cp12-runner-8bb908a8-preflight/executables/tree4x2-B",
+        "sha256": "7cffd532bbed46ed27d73a490527c682770bdee27d2e0b685f11ce7a62bc1289",
+        "size": 8600,
+        "mtime_ns": 1793347702714419305,
+        "ctime_ns": 1793347702731651994
+      }
+    },
+    "warmup": {
+      "executable": {
+        "path": "/tmp/cp12-runner-8bb908a8-preflight/executables/tree4x2-B",
+        "sha256": "7cffd532bbed46ed27d73a490527c682770bdee27d2e0b685f11ce7a62bc1289",
+        "size": 8600,
+        "mtime_ns": 1793347702714419305,
+        "ctime_ns": 1793347702731651994
+      },
+      "input": "inputs/tree4x2.bin",
+      "expected": "expected/tree4x2.bin",
+      "stdout": "00004.warmup.stdout.bin",
+      "stderr": "00004.warmup.stderr.bin",
+      "pass": true,
+      "input_sha256": "e91db7585175e26eed3527e57a3cbd55a8832e64f7021ab1c64c067dcc990ab2",
+      "expected_stdout_sha256": "c1807ea5e4ca2fdb5636a595e93ea378b5e038bc9a8a9c3f6dd0ad45a65c9140",
+      "wall_seconds": 0.069292408,
+      "cpu_user": 0.06477999999999999,
+      "cpu_system": 0.003964,
+      "exit": 0,
+      "timeout": false,
+      "max_process_rss_kib": 18096,
+      "stdout_sha256": "c1807ea5e4ca2fdb5636a595e93ea378b5e038bc9a8a9c3f6dd0ad45a65c9140",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 1048576,
+      "input_after_sha256": "e91db7585175e26eed3527e57a3cbd55a8832e64f7021ab1c64c067dcc990ab2",
+      "executable_after": {
+        "path": "/tmp/cp12-runner-8bb908a8-preflight/executables/tree4x2-B",
+        "sha256": "7cffd532bbed46ed27d73a490527c682770bdee27d2e0b685f11ce7a62bc1289",
+        "size": 8600,
+        "mtime_ns": 1793347702714419305,
+        "ctime_ns": 1793347702731651994
+      }
+    }
+  }
+]
