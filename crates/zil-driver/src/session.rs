@@ -27,7 +27,7 @@ pub(super) enum RawSnapshot {
     Typed(Arc<TypedModule>),
     Candidate(Arc<CandidatePlan>),
     Project(Arc<super::project::ExpandedProject>),
-    ProjectCore(Arc<zil_ir::CoreProgram>),
+    ProjectCore(Arc<super::project::EvaluatedProject>),
     ProjectTyped(Arc<zil_ir::TypedProgram>),
 }
 impl RawSnapshot {
@@ -130,6 +130,8 @@ impl CompilationSession {
         }
         let start = Instant::now();
         let mut report = CompileReport::new(source);
+        report.query_cache =
+            QueryCacheReport::requested(options, "direct source entry uses the original pipeline");
         report.trace = request.trace().clone();
         if let Err(errors) = self.pipeline(source, options, &mut report, observer) {
             report.fail(errors);
@@ -360,6 +362,7 @@ impl CompilationSession {
             artifacts,
             None,
         )
+        .map(|_| ())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -372,7 +375,7 @@ impl CompilationSession {
         typed_snapshot: Arc<QuerySnapshot>,
         artifacts: ArtifactPlan,
         project: Option<&zil_ir::TypedProgram>,
-    ) -> CompileResult<()> {
+    ) -> CompileResult<Arc<CandidatePlan>> {
         // Types and Analyze depend on the same complete request identity. The
         // cached raw result is still independently checked below on every call.
         let mut analysis_key = typed_snapshot.key.clone();
@@ -394,6 +397,23 @@ impl CompilationSession {
                 "analysis query returned another snapshot kind",
             ));
         };
+        self.finish_candidate(
+            options, report, observer, typed, &candidate, artifacts, project,
+        )?;
+        Ok(candidate)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn finish_candidate(
+        &mut self,
+        options: &CompileOptions,
+        report: &mut CompileReport,
+        observer: &mut dyn FnMut(&QueryEvent),
+        typed: &TypedModule,
+        candidate: &CandidatePlan,
+        artifacts: ArtifactPlan,
+        project: Option<&zil_ir::TypedProgram>,
+    ) -> CompileResult<()> {
         report.phase = Phase::Analyze;
         artifacts.dump_lazy(report, options, "candidate", |_| format!("{candidate:#?}"))?;
         if options.stop_after == Stage::Analyze {

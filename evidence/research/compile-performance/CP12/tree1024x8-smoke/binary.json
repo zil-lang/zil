@@ -1,0 +1,15 @@
+{
+  "source_commit": "397bf24fef0d7f58aaefb444c17c733652b5e12f",
+  "binary": "/workspace/scratch/ac5966c4c370/binaries/cp12-397bf24fe",
+  "sha256": "babd2b9fd8809ed8cca393f88fbd9f7fe7737699081d74235dcc58fb873dee58",
+  "bytes": 7082872,
+  "mtime_ns": 1793347429383902126,
+  "inode": 1173693,
+  "build_target": "/tmp/zil-cp12-release-target",
+  "cargo_command": "cargo build --offline --release -p zil-cli -j2",
+  "CARGO_BUILD_JOBS": 2,
+  "CARGO_PROFILE_RELEASE_DEBUG": 0,
+  "CARGO_INCREMENTAL": 0,
+  "features": "default (llvm-api), timings disabled",
+  "formal_performance_sample": false
+}
