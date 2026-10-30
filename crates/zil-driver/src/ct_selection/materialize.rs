@@ -88,6 +88,9 @@ impl Materializer<'_, '_> {
     }
     fn item(&mut self, item: &mut s::Item, depth: usize) -> CompileResult<()> {
         self.budget.node(item.span, depth)?;
+        if !self.iterations.is_empty() {
+            self.generation_attributes(&mut item.attributes, depth + 1)?;
+        }
         match &mut item.kind {
             s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } => {
                 self.function(f, depth + 1)?
@@ -158,6 +161,9 @@ impl Materializer<'_, '_> {
         }
         for p in &f.params {
             self.bind_name(&p.name, p.span)?;
+        }
+        if !self.iterations.is_empty() {
+            self.generation_signature(f, depth + 1)?;
         }
         let result = match &mut f.body {
             s::FunctionBody::Block(b) => self.block(b, depth + 1),
@@ -258,7 +264,14 @@ impl Materializer<'_, '_> {
     fn statement(&mut self, s: &mut s::Stmt, depth: usize) -> CompileResult<()> {
         self.budget.node(s.span, depth)?;
         match &mut s.kind {
-            s::StmtKind::Binding { pattern, value, .. } => {
+            s::StmtKind::Binding {
+                pattern, ty, value, ..
+            } => {
+                if !self.iterations.is_empty()
+                    && let Some(ty) = ty
+                {
+                    self.generation_type(ty, depth + 1)?;
+                }
                 self.expression(value, depth + 1)?;
                 self.bind(pattern, depth + 1)?;
             }
@@ -366,8 +379,12 @@ impl Materializer<'_, '_> {
             s::ExprKind::TypeApply { callee, arguments } => {
                 self.expression(callee, depth + 1)?;
                 for a in arguments {
-                    if let s::GenericArg::Const(e) = a {
-                        self.expression(e, depth + 1)?;
+                    match a {
+                        s::GenericArg::Const(e) => self.expression(e, depth + 1)?,
+                        s::GenericArg::Type(ty) if !self.iterations.is_empty() => {
+                            self.generation_type(ty, depth + 1)?;
+                        }
+                        s::GenericArg::Type(_) => {}
                     }
                 }
             }
@@ -389,8 +406,15 @@ impl Materializer<'_, '_> {
                 }
             }
             s::ExprKind::Record { ty, base, fields } => {
-                for e in [ty, base].into_iter().flatten() {
-                    self.expression(e, depth + 1)?;
+                if let Some(ty) = ty {
+                    if self.iterations.is_empty() {
+                        self.expression(ty, depth + 1)?;
+                    } else {
+                        self.generation_record_type(ty, depth + 1)?;
+                    }
+                }
+                if let Some(base) = base {
+                    self.expression(base, depth + 1)?;
                 }
                 for f in fields {
                     self.budget.node(f.span, depth + 1)?;
@@ -406,10 +430,25 @@ impl Materializer<'_, '_> {
                     }
                 }
             }
-            s::ExprKind::Closure { params, body, .. } => {
+            s::ExprKind::Closure {
+                params,
+                return_type,
+                body,
+                ..
+            } => {
                 self.locals.push(Vec::new());
-                for p in params {
+                for p in params.iter() {
                     self.bind_name(&p.name, p.span)?;
+                }
+                if !self.iterations.is_empty() {
+                    for p in params.iter_mut() {
+                        if let Some(ty) = &mut p.ty {
+                            self.generation_type(ty, depth + 1)?;
+                        }
+                    }
+                    if let Some(ty) = return_type {
+                        self.generation_type(ty, depth + 1)?;
+                    }
                 }
                 self.arrow(body, depth + 1)?;
                 self.locals.pop();

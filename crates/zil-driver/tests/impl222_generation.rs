@@ -52,6 +52,44 @@ fn reject(label: &str, text: &str) -> CompileReport {
 
 const CASES: &[(&str, &str)] = &[
     (
+        "array-length-closure-parameter-review",
+        include_str!(
+            "../../../examples/mainline/ct_for222/review_repair/array-closure-parameter.zil"
+        ),
+    ),
+    (
+        "array-length-u8",
+        "fn main()->i32{#for(n in [u8(2)]){let data:[i32;n]=[4,8];return data[1]-8}}",
+    ),
+    (
+        "array-length-parameter-review",
+        include_str!(
+            "../../../examples/mainline/ct_for222/review_repair/array-length-parameter.zil"
+        ),
+    ),
+    (
+        "array-length-local-review",
+        include_str!("../../../examples/mainline/ct_for222/review_repair/array-length-local.zil"),
+    ),
+    (
+        "array-length-result",
+        include_str!("../../../examples/mainline/ct_for222/review_repair/array-return-type.zil"),
+    ),
+    (
+        "array-length-closure",
+        "fn main()->i32{#for(n in [2]){let f=(a:[i32;n])->[i32;n]=>a;let data=f([4,8]);return data[1]-8}}",
+    ),
+    (
+        "array-length-type-argument",
+        include_str!(
+            "../../../examples/mainline/ct_for222/review_repair/array-generic-typearg.zil"
+        ),
+    ),
+    (
+        "record-type-namespace",
+        "struct n{value:i32}fn main()->i32{var sum=0;#for(n in [2,3]){let data=n{value:n};sum+=data.value}return sum-5}",
+    ),
+    (
         "range",
         "fn main()->i32{var sum=0;#for(i in 0..4){let item=i*3;sum+=item}return sum-18}",
     ),
@@ -141,6 +179,18 @@ fn ordered_ranges_arrays_nested_selection_and_hygiene_reach_verify() {
 #[test]
 fn generation_boundaries_and_runtime_shadowing_fail_closed() {
     for (label, text) in [
+        (
+            "array-length-runtime-shadow",
+            "fn main()->i32{#for(n in [2]){let n=2;let data:[i32;n]=[4,8];return data[1]-8}}",
+        ),
+        (
+            "array-length-negative-iterator",
+            "fn main()->i32{#for(n in [-1]){let data:[i32;n]=[4,8];return data[1]-8}}",
+        ),
+        (
+            "type-name-is-not-value-binding",
+            "#for(T in [2]){pub fn bad(x:T)->i32=>0}fn main()->i32=>0",
+        ),
         (
             "runtime-bound",
             "fn main()->i32{let n=3;#for(i in 0..n){}return 0}",
