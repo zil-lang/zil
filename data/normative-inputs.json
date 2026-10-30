@@ -8,7 +8,7 @@
     "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
     "policy/dependencies.json": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7",
     "spec/interfaces.json": "f8a3448739fdf5100c684113b2a17bc9f7664c0aadb91791caf98a47b0543dfe",
-    "spec/diagnostics.json": "0258adda6f803a4fffd4d24f6cd1b05fb313dbdad2b4b99d4cb26f74c0fad991"
+    "spec/diagnostics.json": "76d7b0eda1addd47ad03d81fa083d2d016c2ec7eeb46297ee868ae3d59131cb8"
   },
-  "normative_hash": "40895de024c0718ab4fd1d7c73c8cc1dd19e3b7eadb0706c033351ef3b95617c"
+  "normative_hash": "51bce715057b382d1cf15de405c8ee7357aacd3935ed736df9b6268b5c3ec0d0"
 }

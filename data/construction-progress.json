@@ -1,41 +1,46 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-30T04:35:10.795832+00:00",
+  "observed_at_utc": "2026-10-30T05:06:19.793025+00:00",
   "status": "Implementing",
   "accepted_main_at_start": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
-  "milestone": "Toolchain restored; fresh218 and independent219 inputs frozen; baseline release compiler built",
+  "milestone": "Three independently compiling source checkpoints published and read back; language acceptance still pending",
   "tasks": [
     {
       "id": "218",
       "state": "施工",
       "owner": "/root/language218",
       "branch": "task/218",
-      "latest_source_checkpoint": null
+      "latest_source_checkpoint": "62a529a21883dbbf246ba9f99de67228d03c0e9b",
+      "observed_work": "Expand编译检查通过；Types和限定测试继续"
     },
     {
       "id": "219",
       "state": "施工",
       "owner": "/root/language_parallel",
       "branch": "task/219",
-      "latest_source_checkpoint": null
+      "latest_source_checkpoint": null,
+      "observed_work": "已保存原217拒绝探针；源选择模块实施中"
     },
     {
       "id": "220",
       "state": "施工",
       "owner": "/root",
       "branch": "task/220",
-      "latest_source_checkpoint": null
+      "latest_source_checkpoint": "0fba9fed65c1c460bc51bd851d7d9e7317e0570f",
+      "observed_work": "Analyze独立拥有工厂图与伴随参数入口编译通过；raw/Wire测试继续"
     },
     {
       "id": "221",
       "state": "施工",
       "owner": "/root/language_review_plan",
       "branch": "task/221",
-      "latest_source_checkpoint": null
+      "latest_source_checkpoint": "5c4588e50cf796aa4cc70fd3b0ed48999bb632e9",
+      "observed_work": "Verify独立入口编译通过；raw/Wire测试继续"
     }
   ],
   "proof": [
-    "evidence/planning/218-221/FREEZE.json"
+    "evidence/planning/218-221/FREEZE.json",
+    "evidence/planning/218-221/DIAGNOSTIC-AMENDMENT.json"
   ],
   "stale_after_minutes": 20,
   "stale_interpretation": "StatusUnknown; an old heartbeat does not prove execution or termination.",
@@ -47,5 +52,11 @@
   },
   "previous218_recovered": false,
   "full_language": "NotSatisfied",
-  "full_zui": "NotSatisfied"
+  "full_zui": "NotSatisfied",
+  "last_main_ci": {
+    "source": "4153fbd0a2a0effd90da4bee4034247e1e822cc1",
+    "run_id": 41005715432,
+    "observed_status": "in_progress",
+    "url": "https://github.com/zil-lang/zil/actions/runs/41005715432"
+  }
 }
