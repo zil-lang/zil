@@ -1,0 +1,464 @@
+{
+  "status": "ChangesRequired",
+  "scope": "Post-merge handoff audit at 66d4954; no compiler runs and no repository writes. Historical handoff still Fail; this run identifies ten metadata deltas to restore the 1138-error baseline.",
+  "source_commit": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
+  "repo_dirty_before_and_after": false,
+  "historical_handoff_status": "Fail",
+  "historical_error_count": 1138,
+  "baseline_path": "/workspace/scratch/3cf12ce32e36/recovery/handoff-continue-20261030.json",
+  "baseline_file_sha256": "8060b37947a4bb51606e97d6d2a84705c06fb7ccec0ef0482779f111544cda5c",
+  "baseline_error_count": 1138,
+  "error_multisets_equal": false,
+  "added_errors": [
+    {
+      "id": "181",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "208",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "209",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "210",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "211",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "212",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "218",
+      "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+    },
+    {
+      "id": "219",
+      "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+    },
+    {
+      "id": "220",
+      "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+    },
+    {
+      "id": "221",
+      "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+    }
+  ],
+  "removed_errors": [],
+  "new_cards_errors": [
+    {
+      "id": "218",
+      "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+    },
+    {
+      "id": "219",
+      "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+    },
+    {
+      "id": "220",
+      "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+    },
+    {
+      "id": "221",
+      "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+    }
+  ],
+  "new_cards": [
+    {
+      "id": "218",
+      "status": "已合入",
+      "committed": true,
+      "author": "/root/language218",
+      "reviewer": "/root/language_parallel",
+      "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "author_delivery_commit": "4d331dd6b321685ea575a132c05dfb03aa7758fc",
+      "integration_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "author_differs_reviewer": true,
+      "baseline_ancestor_implementation": true,
+      "author_delivery_ancestor_main": true,
+      "implementation_ancestor_main": true,
+      "integration_ancestor_main": true,
+      "evidence": [
+        {
+          "path": "evidence/integration/221/RESULT.json",
+          "sha256": "97265e8efa255433b5d54f8eb494a7159483177d4c1a411a0e668e9c300370a6",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/221/ci41057841800/RESULT.json",
+          "sha256": "bd424e63c312414dce2e3d25e4a07362f471fd5c95b535e7bad0213d772488ce",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/221/readiness-final/READINESS.json",
+          "sha256": "73cfb5e470186e2d5cea025da80462bbfab513674abfdfb5bfc5dfc988a046b8",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/planning/218-221/FREEZE.json",
+          "sha256": "f272013efb5454dd75473c3a720cf657c6e945e8697f5de603d48a8023922620",
+          "location": "main",
+          "passing": false
+        },
+        {
+          "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-218.json",
+          "sha256": "2a38792027cbae78b45882f5b84a82f569045ec13dbce0e8bb0e3845933f82a0",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "review": {
+        "reviewer": "/root/language_parallel",
+        "verdict": "Pass",
+        "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+        "evidence": [
+          {
+            "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-218.json",
+            "sha256": "2a38792027cbae78b45882f5b84a82f569045ec13dbce0e8bb0e3845933f82a0",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      },
+      "review_binding_valid": true,
+      "acceptance_evidence_pass_without_planning": true
+    },
+    {
+      "id": "219",
+      "status": "已合入",
+      "committed": true,
+      "author": "/root/language_parallel",
+      "reviewer": "/root",
+      "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "author_delivery_commit": "19375551b7963f4c44536895322c9502fa4945e5",
+      "integration_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "author_differs_reviewer": true,
+      "baseline_ancestor_implementation": true,
+      "author_delivery_ancestor_main": true,
+      "implementation_ancestor_main": true,
+      "integration_ancestor_main": true,
+      "evidence": [
+        {
+          "path": "evidence/integration/221/RESULT.json",
+          "sha256": "97265e8efa255433b5d54f8eb494a7159483177d4c1a411a0e668e9c300370a6",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/221/ci41057841800/RESULT.json",
+          "sha256": "bd424e63c312414dce2e3d25e4a07362f471fd5c95b535e7bad0213d772488ce",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/221/readiness-final/READINESS.json",
+          "sha256": "73cfb5e470186e2d5cea025da80462bbfab513674abfdfb5bfc5dfc988a046b8",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/planning/218-221/FREEZE.json",
+          "sha256": "f272013efb5454dd75473c3a720cf657c6e945e8697f5de603d48a8023922620",
+          "location": "main",
+          "passing": false
+        },
+        {
+          "path": "evidence/reviews/219/by_root/REVIEW.json",
+          "sha256": "15815a45c80a5638fe337e112c229859c89b2976816bca833b483b1d52bc77f9",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "review": {
+        "reviewer": "/root",
+        "verdict": "Pass",
+        "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+        "evidence": [
+          {
+            "path": "evidence/reviews/219/by_root/REVIEW.json",
+            "sha256": "15815a45c80a5638fe337e112c229859c89b2976816bca833b483b1d52bc77f9",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      },
+      "review_binding_valid": true,
+      "acceptance_evidence_pass_without_planning": true
+    },
+    {
+      "id": "220",
+      "status": "已合入",
+      "committed": true,
+      "author": "/root",
+      "reviewer": "/root/language_parallel",
+      "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "author_delivery_commit": "e115ba5cfdc2cf56d092b912ae5077cffd0d92a3",
+      "integration_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "author_differs_reviewer": true,
+      "baseline_ancestor_implementation": true,
+      "author_delivery_ancestor_main": true,
+      "implementation_ancestor_main": true,
+      "integration_ancestor_main": true,
+      "evidence": [
+        {
+          "path": "evidence/integration/221/RESULT.json",
+          "sha256": "97265e8efa255433b5d54f8eb494a7159483177d4c1a411a0e668e9c300370a6",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/221/ci41057841800/RESULT.json",
+          "sha256": "bd424e63c312414dce2e3d25e4a07362f471fd5c95b535e7bad0213d772488ce",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/221/readiness-final/READINESS.json",
+          "sha256": "73cfb5e470186e2d5cea025da80462bbfab513674abfdfb5bfc5dfc988a046b8",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/planning/218-221/FREEZE.json",
+          "sha256": "f272013efb5454dd75473c3a720cf657c6e945e8697f5de603d48a8023922620",
+          "location": "main",
+          "passing": false
+        },
+        {
+          "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-220.json",
+          "sha256": "4ca0cd79c42642dadab03dcd083581bd2d7032b0f00b5f0a8dc2d9b3fda16fb2",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "review": {
+        "reviewer": "/root/language_parallel",
+        "verdict": "Pass",
+        "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+        "evidence": [
+          {
+            "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-220.json",
+            "sha256": "4ca0cd79c42642dadab03dcd083581bd2d7032b0f00b5f0a8dc2d9b3fda16fb2",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      },
+      "review_binding_valid": true,
+      "acceptance_evidence_pass_without_planning": true
+    },
+    {
+      "id": "221",
+      "status": "已合入",
+      "committed": true,
+      "author": "/root/language_review_plan",
+      "reviewer": "/root/language_parallel",
+      "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "author_delivery_commit": "d61264ba57af08ddb7e0b8dafe2fc584632c6833",
+      "integration_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "author_differs_reviewer": true,
+      "baseline_ancestor_implementation": true,
+      "author_delivery_ancestor_main": true,
+      "implementation_ancestor_main": true,
+      "integration_ancestor_main": true,
+      "evidence": [
+        {
+          "path": "evidence/integration/221/RESULT.json",
+          "sha256": "97265e8efa255433b5d54f8eb494a7159483177d4c1a411a0e668e9c300370a6",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/221/ci41057841800/RESULT.json",
+          "sha256": "bd424e63c312414dce2e3d25e4a07362f471fd5c95b535e7bad0213d772488ce",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/221/readiness-final/READINESS.json",
+          "sha256": "73cfb5e470186e2d5cea025da80462bbfab513674abfdfb5bfc5dfc988a046b8",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/planning/218-221/FREEZE.json",
+          "sha256": "f272013efb5454dd75473c3a720cf657c6e945e8697f5de603d48a8023922620",
+          "location": "main",
+          "passing": false
+        },
+        {
+          "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-221.json",
+          "sha256": "379c6c18386dad83409c3796a539d8066268a897590b53f58f513b044cc4f202",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "review": {
+        "reviewer": "/root/language_parallel",
+        "verdict": "Pass",
+        "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+        "evidence": [
+          {
+            "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-221.json",
+            "sha256": "379c6c18386dad83409c3796a539d8066268a897590b53f58f513b044cc4f202",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      },
+      "review_binding_valid": true,
+      "acceptance_evidence_pass_without_planning": true
+    }
+  ],
+  "check_plan": {
+    "scope": "Construction plan consistency only; not compiler, language-safety or product acceptance.",
+    "ok": true,
+    "tasks": 14,
+    "protocol_case_requirements": 63,
+    "conformance_sources": 93,
+    "registered_artifacts": 23,
+    "unordered_task_pairs_checked": 21,
+    "ready_tasks": [],
+    "errors": [],
+    "warnings": [],
+    "self_tests": [
+      {
+        "name": "dependency cycle",
+        "rejected": true
+      },
+      {
+        "name": "missing artifact owner",
+        "rejected": true
+      },
+      {
+        "name": "parallel write conflict",
+        "rejected": true
+      },
+      {
+        "name": "Ready without baseline",
+        "rejected": true
+      },
+      {
+        "name": "zero execution minimum",
+        "rejected": true
+      },
+      {
+        "name": "unmapped protocol case",
+        "rejected": true
+      },
+      {
+        "name": "Done without actual results",
+        "rejected": true
+      }
+    ]
+  },
+  "required_followup": [
+    "Integrator corrects the four acceptance evidence arrays and records normative migration for the six still-in-progress cards, without altering historical evidence or upgrading their states.",
+    "Generate data/handoff.json from final main with node tools/handoff.mjs; generator writes only that file. It should retain Fail and the 1138 historical error multiset.",
+    "Commit metadata changes and refresh/verify that 218–221 have zero handoff errors, current added errors are zero, and check-plan remains Pass. No code changes or Cargo reruns needed."
+  ],
+  "actual_handoff_error_count": 1148,
+  "normative_timeline": [
+    {
+      "commit": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
+      "author_date": "2026-10-30T11:40:36+08:00",
+      "subject": "docs: correct the branch-retirement evidence link",
+      "spec_hash": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+      "normative_hash": "8b4b3d219999c8f2904b276e051745bf65f9761e421630bdb4bbe0ec2781e02d"
+    },
+    {
+      "commit": "4153fbd0a2a0effd90da4bee4034247e1e822cc1",
+      "author_date": "2026-10-30T12:57:18+08:00",
+      "subject": "docs(language): freeze fresh owning factories and compile-time selection work",
+      "spec_hash": "14109fb881d03f4e3633d8d5f851287df9c5a4ed35f642ff6942c9fd7a9190f2",
+      "normative_hash": "40895de024c0718ab4fd1d7c73c8cc1dd19e3b7eadb0706c033351ef3b95617c"
+    },
+    {
+      "commit": "e9d6f1c9e7181bb349c6c9387c6a749ebf355f61",
+      "author_date": "2026-10-30T13:06:49+08:00",
+      "subject": "docs: record three source checkpoints and frozen CT phase diagnostic [skip ci]",
+      "spec_hash": "14109fb881d03f4e3633d8d5f851287df9c5a4ed35f642ff6942c9fd7a9190f2",
+      "normative_hash": "51bce715057b382d1cf15de405c8ee7357aacd3935ed736df9b6268b5c3ec0d0"
+    },
+    {
+      "commit": "25506bd61a681d41b02f1cd98a5a614e9c058787",
+      "author_date": "2026-10-30T13:30:14+08:00",
+      "subject": "docs: clarify existing Copy callable signatures and record native milestones [skip ci]",
+      "spec_hash": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+      "normative_hash": "e4bd2d0f939a205b01618c0d5ce53a8725549be093db2658272633021131e44d"
+    },
+    {
+      "commit": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
+      "author_date": "2026-10-30T21:15:16+08:00",
+      "subject": "merge: accept language 218-221 with independent review and full CI",
+      "spec_hash": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+      "normative_hash": "e4bd2d0f939a205b01618c0d5ce53a8725549be093db2658272633021131e44d"
+    }
+  ],
+  "in_progress_stale_metadata": {
+    "ids": [
+      "181",
+      "208",
+      "209",
+      "210",
+      "211",
+      "212"
+    ],
+    "state": "施工",
+    "last_card_change": "cb6ae2fc75945c0c7596a8a64ff807c1b7238fa1",
+    "last_card_change_beijing": "2026-10-30 10:29:37 +08:00",
+    "first_current_batch_stale_commit": "4153fbd0a2a0effd90da4bee4034247e1e822cc1",
+    "first_current_batch_stale_beijing": "2026-10-30 12:57:18 +08:00",
+    "card_spec_hash": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+    "card_normative_hash": "8b4b3d219999c8f2904b276e051745bf65f9761e421630bdb4bbe0ec2781e02d",
+    "already_present_at_preintegration_4153": true,
+    "unchanged_between_main331_and_main66": true,
+    "repair": "Integrator records current normative migration and impact, changes only current spec/normative fields, retaining state/baseline/implementation IDs/history/evidence. Earlier archived handoff files remain untouched."
+  },
+  "preintegration_baseline": {
+    "path": "/workspace/scratch/3cf12ce32e36/recovery/continue-review/handoff221-start.json",
+    "sha256": "41cbcc249e065f3ea1a1e6364835bc9d8040ccf984d3552ace7100f97c79b70c",
+    "head": "4153fbd0a2a0effd90da4bee4034247e1e822cc1",
+    "errors": 1144,
+    "added_errors_to_postmerge": [
+      {
+        "id": "218",
+        "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+      },
+      {
+        "id": "219",
+        "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+      },
+      {
+        "id": "220",
+        "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+      },
+      {
+        "id": "221",
+        "reason": "Evidence has no passing outcome: evidence/planning/218-221/FREEZE.json"
+      }
+    ],
+    "removed_errors_to_postmerge": []
+  },
+  "planning_evidence_field": {
+    "allowed": true,
+    "rationale": "Numbered slices have no closed-key JSON schema. handoff.mjs parses records and validates known fields without rejecting unknown keys; check-plan.py only loads top-level formal tasks. planning_evidence is informational and ignored by handoff; it is not passing evidence.",
+    "action": "Move evidence/planning/218-221/FREEZE.json out of the four passing evidence arrays into planning_evidence; preserve its InputsFrozen result and original hash."
+  },
+  "stale_summary": {
+    "snapshot_main_head": "b896eb363c5a3abb9dd895d5ddbb185d19e34ff9",
+    "final_summary_source_commit": "9219be40ff0aa2d7e2902cd0a6da151bd44b3cb4",
+    "final_summary_result_path": "evidence/integration/217/RESULT.json",
+    "suggestion": "Update final-summary to the actual accepted combined source and 221 result while preserving full language/full ZUI NotSatisfied and product NotRun. Then generate handoff so its measured section references current acceptance."
+  }
+}
