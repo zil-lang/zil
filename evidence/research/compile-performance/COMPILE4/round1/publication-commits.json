@@ -1,0 +1,617 @@
+{
+  "schema_version": 1,
+  "purpose": "Restore exact Git Data API publication commit objects without changing refs or working trees",
+  "repository": "zil-lang/zil",
+  "remote_head": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+  "remote_head_tree": "858d665ee84d154f8e4da4534d337330c53124a9",
+  "remote_baseline": "64072793a0f41994f216a6207bf49ee1e2d224f8",
+  "known_frontier": [
+    "f95e751d6782310d8d48c7b3eba3037e176e3eb3",
+    "a8e8831a9e28ac2ec83be6eac740a8f04a00af7d"
+  ],
+  "snapshot_before": {
+    "head": "a62a5445fcd90cf625414cf058d3c47f9f8d34a9",
+    "head_symbolic": "refs/heads/research/compile-performance",
+    "refs": [
+      "refs/heads/main a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
+      "refs/heads/research/compile-performance a62a5445fcd90cf625414cf058d3c47f9f8d34a9",
+      "refs/heads/task/cp14-o2-small-units 0ed1043c98e6ffc2256b86b34cb8dd626c15c861",
+      "refs/heads/task/cp15-borrowed-inference 6b543595e8d86cb03816f86cdcfb56941e5a3876",
+      "refs/heads/task/cp16-benchmark-controls e6314eaa82b42c1d8c0782a813c0f9ff010499dc",
+      "refs/heads/task/cp17-compile4-runner d7a8abc52bdf460b73de5f0f32d2683af456372f",
+      "refs/remotes/artifact/merge fc5b3c058c1f4c112cbadffdb4f9f41705049ea6",
+      "refs/remotes/origin/main a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
+      "refs/remotes/origin/research/compile-performance f95e751d6782310d8d48c7b3eba3037e176e3eb3",
+      "refs/remotes/origin/task/218 4d331dd6b321685ea575a132c05dfb03aa7758fc",
+      "refs/remotes/origin/task/219 19375551b7963f4c44536895322c9502fa4945e5",
+      "refs/remotes/origin/task/220 69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "refs/remotes/origin/task/221 d61264ba57af08ddb7e0b8dafe2fc584632c6833"
+    ],
+    "worktree_status": []
+  },
+  "restoration": {
+    "status": "Pass",
+    "restored_at_utc": "2026-10-30T14:04:55.822770+00:00",
+    "exact_commit_count": 11,
+    "objects": [
+      {
+        "sha": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+        "tree": "858d665ee84d154f8e4da4534d337330c53124a9",
+        "exact_sha_verified": true,
+        "parents_present": true,
+        "existing_local_commits_with_same_tree": [
+          "a62a5445fcd90cf625414cf058d3c47f9f8d34a9"
+        ]
+      },
+      {
+        "sha": "95607c55ca9af7b000760f64e0b723db166de13e",
+        "tree": "01c5a0792c5e87b69f882cc9b99d385c07906038",
+        "exact_sha_verified": true,
+        "parents_present": true,
+        "existing_local_commits_with_same_tree": [
+          "42dc0423f8d673b018451cfdd57b8987f24feeaf"
+        ]
+      },
+      {
+        "sha": "40774a2125ad1d6491120642210ff203574184c1",
+        "tree": "86b7d640265390212eb541c2d8967488d53345e0",
+        "exact_sha_verified": true,
+        "parents_present": true,
+        "existing_local_commits_with_same_tree": [
+          "43d1f3b4e8c89fc760c67070f2b3708bd7239cb3"
+        ]
+      },
+      {
+        "sha": "0284ddd1154b94ef5b3765166a854307b43d0661",
+        "tree": "604183ce958b11c4792d931597a9d6b8e4127851",
+        "exact_sha_verified": true,
+        "parents_present": true,
+        "existing_local_commits_with_same_tree": [
+          "d7a8abc52bdf460b73de5f0f32d2683af456372f"
+        ]
+      },
+      {
+        "sha": "fa62b3d5e26f3c103decd551329e25ae40d90a2c",
+        "tree": "37e421796e606749888312a3b4a6aa958041a7d7",
+        "exact_sha_verified": true,
+        "parents_present": true,
+        "existing_local_commits_with_same_tree": [
+          "5aa760e99221a4673fe6492e283fc687fa244fc7"
+        ]
+      },
+      {
+        "sha": "6fe00cda5a2de694bb6338dc32c5fe88af2e9571",
+        "tree": "ed325f88f324027e20e7284883ca7280bb12480a",
+        "exact_sha_verified": true,
+        "parents_present": true,
+        "existing_local_commits_with_same_tree": [
+          "e6314eaa82b42c1d8c0782a813c0f9ff010499dc"
+        ]
+      },
+      {
+        "sha": "e2fbade5d2159a3a276c02f7357125d68752da44",
+        "tree": "b0caa31ec4786d9738fdbeb2f17e71b54695dbbc",
+        "exact_sha_verified": true,
+        "parents_present": true,
+        "existing_local_commits_with_same_tree": [
+          "44b7608ce84476f60d4a1ef7192e02e44e3d04dd"
+        ]
+      },
+      {
+        "sha": "aa5cf96328097d6c8ec1d965c53f4511cec97474",
+        "tree": "d6b54e188098e00f1ea7b36cdd300d8428cc6bfe",
+        "exact_sha_verified": true,
+        "parents_present": true,
+        "existing_local_commits_with_same_tree": [
+          "6b543595e8d86cb03816f86cdcfb56941e5a3876"
+        ]
+      },
+      {
+        "sha": "64072793a0f41994f216a6207bf49ee1e2d224f8",
+        "tree": "2ac0f98645c5c72dbaf2172047f737aa2aee1eb7",
+        "exact_sha_verified": true,
+        "parents_present": true,
+        "existing_local_commits_with_same_tree": [
+          "0a4e00250a58809daaa56d2d225ad5f123a71d3b"
+        ]
+      },
+      {
+        "sha": "021d1411fe4297469a067b9cd2408f3318d918a0",
+        "tree": "9b37794efb1de9a491a8a0df51ac3d0a5711874a",
+        "exact_sha_verified": true,
+        "parents_present": true,
+        "existing_local_commits_with_same_tree": [
+          "0ed1043c98e6ffc2256b86b34cb8dd626c15c861"
+        ]
+      },
+      {
+        "sha": "fffff9f611785118bf81a7abe37c666ec09cad30",
+        "tree": "1b0c0f79d1186106d5ef9152cdbd818a8a90ee38",
+        "exact_sha_verified": true,
+        "parents_present": true,
+        "existing_local_commits_with_same_tree": [
+          "32b143f8cef796c356cf4710b39892f1458b7296"
+        ]
+      }
+    ],
+    "refs_and_worktree_unchanged": true,
+    "connectivity_check": {
+      "command": [
+        "git",
+        "fsck",
+        "--connectivity-only",
+        "--no-reflogs",
+        "--no-dangling",
+        "0393660f7dc8414b0ab8c77cd3d576395f4fe095"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  "commits": [
+    {
+      "type": "commit",
+      "data": {
+        "sha": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+        "node_id": "C_kwDOVXdqJNoAKDAzOTM2NjBmN2RjODQxNGIwYWI4Yzc3Y2QzZDU3NjM5NWY0ZmUwOTU",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/commits/0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+        "html_url": "https://github.com/zil-lang/zil/commit/0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+        "author": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T14:02:25Z"
+        },
+        "committer": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T14:02:25Z"
+        },
+        "tree": {
+          "sha": "858d665ee84d154f8e4da4534d337330c53124a9",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/trees/858d665ee84d154f8e4da4534d337330c53124a9"
+        },
+        "message": "research: freeze compile4 source, corrected tests and reviewed CI matrix\n\nFreeze candidate crates tree 0221fa705e8dc926c54f6b85f2dc9ef3af98559a against baseline 64072793a0f41994f216a6207bf49ee1e2d224f8. Includes the independently identified Option<CoreExpr> test fix, official Rust 1.99.1 formatting, non-author review receipts and the full five-case serial CI matrix. Backend library tests are explicitly selected.\n\nExact local source tree from a62a5445fcd90cf625414cf058d3c47f9f8d34a9. Git API publication changes commit metadata only. Performance, actual Rust compilation and adoption remain pending this Actions run.",
+        "parents": [
+          {
+            "sha": "95607c55ca9af7b000760f64e0b723db166de13e",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/95607c55ca9af7b000760f64e0b723db166de13e",
+            "html_url": "https://github.com/zil-lang/zil/commit/95607c55ca9af7b000760f64e0b723db166de13e"
+          }
+        ],
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      }
+    },
+    {
+      "type": "commit",
+      "data": {
+        "sha": "95607c55ca9af7b000760f64e0b723db166de13e",
+        "node_id": "C_kwDOVXdqJNoAKDk1NjA3YzU1Y2E5YWY3YjAwMDc2MGY2NGUwYjcyM2RiMTY2ZGUxM2U",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/commits/95607c55ca9af7b000760f64e0b723db166de13e",
+        "html_url": "https://github.com/zil-lang/zil/commit/95607c55ca9af7b000760f64e0b723db166de13e",
+        "author": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:52Z"
+        },
+        "committer": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:52Z"
+        },
+        "tree": {
+          "sha": "01c5a0792c5e87b69f882cc9b99d385c07906038",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/trees/01c5a0792c5e87b69f882cc9b99d385c07906038"
+        },
+        "message": "Merge commit 'd7a8abc52bdf460b73de5f0f32d2683af456372f' into research/compile-performance\n\nExact local source tree: 01c5a0792c5e87b69f882cc9b99d385c07906038. Local author commit: 42dc0423f8d673b018451cfdd57b8987f24feeaf. Published through Git data API with equivalent mapped parents; commit metadata differs. Execution and adoption depend on the final integrated Actions run.",
+        "parents": [
+          {
+            "sha": "40774a2125ad1d6491120642210ff203574184c1",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/40774a2125ad1d6491120642210ff203574184c1",
+            "html_url": "https://github.com/zil-lang/zil/commit/40774a2125ad1d6491120642210ff203574184c1"
+          },
+          {
+            "sha": "0284ddd1154b94ef5b3765166a854307b43d0661",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/0284ddd1154b94ef5b3765166a854307b43d0661",
+            "html_url": "https://github.com/zil-lang/zil/commit/0284ddd1154b94ef5b3765166a854307b43d0661"
+          }
+        ],
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      }
+    },
+    {
+      "type": "commit",
+      "data": {
+        "sha": "40774a2125ad1d6491120642210ff203574184c1",
+        "node_id": "C_kwDOVXdqJNoAKDQwNzc0YTIxMjVhZDFkNjQ5MTEyMDY0MjIxMGZmMjAzNTc0MTg0YzE",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/commits/40774a2125ad1d6491120642210ff203574184c1",
+        "html_url": "https://github.com/zil-lang/zil/commit/40774a2125ad1d6491120642210ff203574184c1",
+        "author": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:51Z"
+        },
+        "committer": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:51Z"
+        },
+        "tree": {
+          "sha": "86b7d640265390212eb541c2d8967488d53345e0",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/trees/86b7d640265390212eb541c2d8967488d53345e0"
+        },
+        "message": "Merge commit 'e6314eaa82b42c1d8c0782a813c0f9ff010499dc' into research/compile-performance\n\nExact local source tree: 86b7d640265390212eb541c2d8967488d53345e0. Local author commit: 43d1f3b4e8c89fc760c67070f2b3708bd7239cb3. Published through Git data API with equivalent mapped parents; commit metadata differs. Execution and adoption depend on the final integrated Actions run.",
+        "parents": [
+          {
+            "sha": "fa62b3d5e26f3c103decd551329e25ae40d90a2c",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/fa62b3d5e26f3c103decd551329e25ae40d90a2c",
+            "html_url": "https://github.com/zil-lang/zil/commit/fa62b3d5e26f3c103decd551329e25ae40d90a2c"
+          },
+          {
+            "sha": "6fe00cda5a2de694bb6338dc32c5fe88af2e9571",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/6fe00cda5a2de694bb6338dc32c5fe88af2e9571",
+            "html_url": "https://github.com/zil-lang/zil/commit/6fe00cda5a2de694bb6338dc32c5fe88af2e9571"
+          }
+        ],
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      }
+    },
+    {
+      "type": "commit",
+      "data": {
+        "sha": "0284ddd1154b94ef5b3765166a854307b43d0661",
+        "node_id": "C_kwDOVXdqJNoAKDAyODRkZGQxMTU0Yjk0ZWY1YjM3NjUxNjZhODU0MzA3YjQzZDA2NjE",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/commits/0284ddd1154b94ef5b3765166a854307b43d0661",
+        "html_url": "https://github.com/zil-lang/zil/commit/0284ddd1154b94ef5b3765166a854307b43d0661",
+        "author": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:52Z"
+        },
+        "committer": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:52Z"
+        },
+        "tree": {
+          "sha": "604183ce958b11c4792d931597a9d6b8e4127851",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/trees/604183ce958b11c4792d931597a9d6b8e4127851"
+        },
+        "message": "research: add reproducible compile4 Actions entrypoint\n\nExact local source tree: 604183ce958b11c4792d931597a9d6b8e4127851. Local author commit: d7a8abc52bdf460b73de5f0f32d2683af456372f. Published through Git data API with equivalent mapped parents; commit metadata differs. Execution and adoption depend on the final integrated Actions run.",
+        "parents": [
+          {
+            "sha": "6fe00cda5a2de694bb6338dc32c5fe88af2e9571",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/6fe00cda5a2de694bb6338dc32c5fe88af2e9571",
+            "html_url": "https://github.com/zil-lang/zil/commit/6fe00cda5a2de694bb6338dc32c5fe88af2e9571"
+          }
+        ],
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      }
+    },
+    {
+      "type": "commit",
+      "data": {
+        "sha": "fa62b3d5e26f3c103decd551329e25ae40d90a2c",
+        "node_id": "C_kwDOVXdqJNoAKGZhNjJiM2Q1ZTI2ZjNjMTAzZGVjZDU1MTMyOWUyNWFlNDBkOTBhMmM",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/commits/fa62b3d5e26f3c103decd551329e25ae40d90a2c",
+        "html_url": "https://github.com/zil-lang/zil/commit/fa62b3d5e26f3c103decd551329e25ae40d90a2c",
+        "author": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:49Z"
+        },
+        "committer": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:49Z"
+        },
+        "tree": {
+          "sha": "37e421796e606749888312a3b4a6aa958041a7d7",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/trees/37e421796e606749888312a3b4a6aa958041a7d7"
+        },
+        "message": "merge: add borrowed inference without resetting selection budgets\n\nExact local source tree: 37e421796e606749888312a3b4a6aa958041a7d7. Local author commit: 5aa760e99221a4673fe6492e283fc687fa244fc7. Published through Git data API with equivalent mapped parents; commit metadata differs. Execution and adoption depend on the final integrated Actions run.",
+        "parents": [
+          {
+            "sha": "e2fbade5d2159a3a276c02f7357125d68752da44",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/e2fbade5d2159a3a276c02f7357125d68752da44",
+            "html_url": "https://github.com/zil-lang/zil/commit/e2fbade5d2159a3a276c02f7357125d68752da44"
+          },
+          {
+            "sha": "aa5cf96328097d6c8ec1d965c53f4511cec97474",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/aa5cf96328097d6c8ec1d965c53f4511cec97474",
+            "html_url": "https://github.com/zil-lang/zil/commit/aa5cf96328097d6c8ec1d965c53f4511cec97474"
+          }
+        ],
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      }
+    },
+    {
+      "type": "commit",
+      "data": {
+        "sha": "6fe00cda5a2de694bb6338dc32c5fe88af2e9571",
+        "node_id": "C_kwDOVXdqJNoAKDZmZTAwY2RhNWEyZGU2OTRiYjYzMzhkYzMyYzVmZTg4YWYyZTk1NzE",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/commits/6fe00cda5a2de694bb6338dc32c5fe88af2e9571",
+        "html_url": "https://github.com/zil-lang/zil/commit/6fe00cda5a2de694bb6338dc32c5fe88af2e9571",
+        "author": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:50Z"
+        },
+        "committer": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:50Z"
+        },
+        "tree": {
+          "sha": "ed325f88f324027e20e7284883ca7280bb12480a",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/trees/ed325f88f324027e20e7284883ca7280bb12480a"
+        },
+        "message": "research: freeze explicit Rust LTO comparison mode\n\nExact local source tree: ed325f88f324027e20e7284883ca7280bb12480a. Local author commit: e6314eaa82b42c1d8c0782a813c0f9ff010499dc. Published through Git data API with equivalent mapped parents; commit metadata differs. Execution and adoption depend on the final integrated Actions run.",
+        "parents": [
+          {
+            "sha": "f95e751d6782310d8d48c7b3eba3037e176e3eb3",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/f95e751d6782310d8d48c7b3eba3037e176e3eb3",
+            "html_url": "https://github.com/zil-lang/zil/commit/f95e751d6782310d8d48c7b3eba3037e176e3eb3"
+          }
+        ],
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      }
+    },
+    {
+      "type": "commit",
+      "data": {
+        "sha": "e2fbade5d2159a3a276c02f7357125d68752da44",
+        "node_id": "C_kwDOVXdqJNoAKGUyZmJhZGU1ZDIxNTlhM2EyNzZjMDJmNzM1NzEyNWQ2ODc1MmRhNDQ",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/commits/e2fbade5d2159a3a276c02f7357125d68752da44",
+        "html_url": "https://github.com/zil-lang/zil/commit/e2fbade5d2159a3a276c02f7357125d68752da44",
+        "author": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:48Z"
+        },
+        "committer": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:48Z"
+        },
+        "tree": {
+          "sha": "b0caa31ec4786d9738fdbeb2f17e71b54695dbbc",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/trees/b0caa31ec4786d9738fdbeb2f17e71b54695dbbc"
+        },
+        "message": "Merge branch 'task/cp14-o2-small-units' into research/compile-performance\n\nExact local source tree: b0caa31ec4786d9738fdbeb2f17e71b54695dbbc. Local author commit: 44b7608ce84476f60d4a1ef7192e02e44e3d04dd. Published through Git data API with equivalent mapped parents; commit metadata differs. Execution and adoption depend on the final integrated Actions run.",
+        "parents": [
+          {
+            "sha": "64072793a0f41994f216a6207bf49ee1e2d224f8",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/64072793a0f41994f216a6207bf49ee1e2d224f8",
+            "html_url": "https://github.com/zil-lang/zil/commit/64072793a0f41994f216a6207bf49ee1e2d224f8"
+          },
+          {
+            "sha": "021d1411fe4297469a067b9cd2408f3318d918a0",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/021d1411fe4297469a067b9cd2408f3318d918a0",
+            "html_url": "https://github.com/zil-lang/zil/commit/021d1411fe4297469a067b9cd2408f3318d918a0"
+          }
+        ],
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      }
+    },
+    {
+      "type": "commit",
+      "data": {
+        "sha": "aa5cf96328097d6c8ec1d965c53f4511cec97474",
+        "node_id": "C_kwDOVXdqJNoAKGFhNWNmOTYzMjgwOTdkNmM4ZWMxZDk2NWM1M2Y0NTExY2VjOTc0NzQ",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/commits/aa5cf96328097d6c8ec1d965c53f4511cec97474",
+        "html_url": "https://github.com/zil-lang/zil/commit/aa5cf96328097d6c8ec1d965c53f4511cec97474",
+        "author": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:48Z"
+        },
+        "committer": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:48Z"
+        },
+        "tree": {
+          "sha": "d6b54e188098e00f1ea7b36cdd300d8428cc6bfe",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/trees/d6b54e188098e00f1ea7b36cdd300d8428cc6bfe"
+        },
+        "message": "perf(types): borrow unchanged bounded closure inference results\n\nExact local source tree: d6b54e188098e00f1ea7b36cdd300d8428cc6bfe. Local author commit: 6b543595e8d86cb03816f86cdcfb56941e5a3876. Published through Git data API with equivalent mapped parents; commit metadata differs. Execution and adoption depend on the final integrated Actions run.",
+        "parents": [
+          {
+            "sha": "fffff9f611785118bf81a7abe37c666ec09cad30",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/fffff9f611785118bf81a7abe37c666ec09cad30",
+            "html_url": "https://github.com/zil-lang/zil/commit/fffff9f611785118bf81a7abe37c666ec09cad30"
+          }
+        ],
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      }
+    },
+    {
+      "type": "commit",
+      "data": {
+        "sha": "64072793a0f41994f216a6207bf49ee1e2d224f8",
+        "node_id": "C_kwDOVXdqJNoAKDY0MDcyNzkzYTBmNDE5OTRmMjE2YTYyMDdiZjQ5ZWUxZTJkMjI0Zjg",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/commits/64072793a0f41994f216a6207bf49ee1e2d224f8",
+        "html_url": "https://github.com/zil-lang/zil/commit/64072793a0f41994f216a6207bf49ee1e2d224f8",
+        "author": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:53:13Z"
+        },
+        "committer": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:53:13Z"
+        },
+        "tree": {
+          "sha": "2ac0f98645c5c72dbaf2172047f737aa2aee1eb7",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/trees/2ac0f98645c5c72dbaf2172047f737aa2aee1eb7"
+        },
+        "message": "merge: refresh compile research on accepted main with selection budget isolation\n\nMerge accepted main a8e8831a9e28ac2ec83be6eac740a8f04a00af7d into the existing research lineage. Preserve CP10 shared aggregate lookup and bypass CP12 checkpoints for source #if so source-selection CtUsage cannot be lost. Add an executable budget regression.\n\nExact tree from local reviewed merge 0a4e00250a58809daaa56d2d225ad5f123a71d3b. Independent review: StaticPassPendingExecution. This is the frozen compile4 baseline; no new performance claim or production acceptance.",
+        "parents": [
+          {
+            "sha": "fffff9f611785118bf81a7abe37c666ec09cad30",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/fffff9f611785118bf81a7abe37c666ec09cad30",
+            "html_url": "https://github.com/zil-lang/zil/commit/fffff9f611785118bf81a7abe37c666ec09cad30"
+          },
+          {
+            "sha": "a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
+            "html_url": "https://github.com/zil-lang/zil/commit/a8e8831a9e28ac2ec83be6eac740a8f04a00af7d"
+          }
+        ],
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      }
+    },
+    {
+      "type": "commit",
+      "data": {
+        "sha": "021d1411fe4297469a067b9cd2408f3318d918a0",
+        "node_id": "C_kwDOVXdqJNoAKDAyMWQxNDExZmU0Mjk3NDY5YTA2N2I5Y2QyNDA4ZjMzMThkOTE4YTA",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/commits/021d1411fe4297469a067b9cd2408f3318d918a0",
+        "html_url": "https://github.com/zil-lang/zil/commit/021d1411fe4297469a067b9cd2408f3318d918a0",
+        "author": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:47Z"
+        },
+        "committer": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:59:47Z"
+        },
+        "tree": {
+          "sha": "9b37794efb1de9a491a8a0df51ac3d0a5711874a",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/trees/9b37794efb1de9a491a8a0df51ac3d0a5711874a"
+        },
+        "message": "perf(llvm): retain small closed O2 programs in one codegen unit\n\nExact local source tree: 9b37794efb1de9a491a8a0df51ac3d0a5711874a. Local author commit: 0ed1043c98e6ffc2256b86b34cb8dd626c15c861. Published through Git data API with equivalent mapped parents; commit metadata differs. Execution and adoption depend on the final integrated Actions run.",
+        "parents": [
+          {
+            "sha": "f95e751d6782310d8d48c7b3eba3037e176e3eb3",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/f95e751d6782310d8d48c7b3eba3037e176e3eb3",
+            "html_url": "https://github.com/zil-lang/zil/commit/f95e751d6782310d8d48c7b3eba3037e176e3eb3"
+          }
+        ],
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      }
+    },
+    {
+      "type": "commit",
+      "data": {
+        "sha": "fffff9f611785118bf81a7abe37c666ec09cad30",
+        "node_id": "C_kwDOVXdqJNoAKGZmZmZmOWY2MTE3ODUxMThiZjgxYTdhYmUzN2M2NjZlYzA5Y2FkMzA",
+        "url": "https://api.github.com/repos/zil-lang/zil/git/commits/fffff9f611785118bf81a7abe37c666ec09cad30",
+        "html_url": "https://github.com/zil-lang/zil/commit/fffff9f611785118bf81a7abe37c666ec09cad30",
+        "author": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:53:05Z"
+        },
+        "committer": {
+          "name": "cicin",
+          "email": "dsscicin@163.com",
+          "date": "2026-10-30T13:53:05Z"
+        },
+        "tree": {
+          "sha": "1b0c0f79d1186106d5ef9152cdbd818a8a90ee38",
+          "url": "https://api.github.com/repos/zil-lang/zil/git/trees/1b0c0f79d1186106d5ef9152cdbd818a8a90ee38"
+        },
+        "message": "research: dispatch compile4 O2, borrowed inference and fair comparison work\n\nExact tree from local reviewed planning commit 32b143f8cef796c356cf4710b39892f1458b7296. Published through Git data API; author and commit metadata differ.",
+        "parents": [
+          {
+            "sha": "f95e751d6782310d8d48c7b3eba3037e176e3eb3",
+            "url": "https://api.github.com/repos/zil-lang/zil/git/commits/f95e751d6782310d8d48c7b3eba3037e176e3eb3",
+            "html_url": "https://github.com/zil-lang/zil/commit/f95e751d6782310d8d48c7b3eba3037e176e3eb3"
+          }
+        ],
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      }
+    }
+  ],
+  "snapshot_after": {
+    "head": "a62a5445fcd90cf625414cf058d3c47f9f8d34a9",
+    "head_symbolic": "refs/heads/research/compile-performance",
+    "refs": [
+      "refs/heads/main a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
+      "refs/heads/research/compile-performance a62a5445fcd90cf625414cf058d3c47f9f8d34a9",
+      "refs/heads/task/cp14-o2-small-units 0ed1043c98e6ffc2256b86b34cb8dd626c15c861",
+      "refs/heads/task/cp15-borrowed-inference 6b543595e8d86cb03816f86cdcfb56941e5a3876",
+      "refs/heads/task/cp16-benchmark-controls e6314eaa82b42c1d8c0782a813c0f9ff010499dc",
+      "refs/heads/task/cp17-compile4-runner d7a8abc52bdf460b73de5f0f32d2683af456372f",
+      "refs/remotes/artifact/merge fc5b3c058c1f4c112cbadffdb4f9f41705049ea6",
+      "refs/remotes/origin/main a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
+      "refs/remotes/origin/research/compile-performance f95e751d6782310d8d48c7b3eba3037e176e3eb3",
+      "refs/remotes/origin/task/218 4d331dd6b321685ea575a132c05dfb03aa7758fc",
+      "refs/remotes/origin/task/219 19375551b7963f4c44536895322c9502fa4945e5",
+      "refs/remotes/origin/task/220 69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "refs/remotes/origin/task/221 d61264ba57af08ddb7e0b8dafe2fc584632c6833"
+    ],
+    "worktree_status": []
+  }
+}

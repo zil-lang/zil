@@ -1,0 +1,15 @@
+{
+  "command": [
+    "node",
+    "tools/handoff.mjs",
+    "--check"
+  ],
+  "exit_code": 1,
+  "errors": 1138,
+  "warnings": 0,
+  "same_errors_as_main": true,
+  "main_commit": "a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
+  "candidate_commit": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+  "new_errors": 0,
+  "status": "InheritedHistoricalErrors_NotPass"
+}

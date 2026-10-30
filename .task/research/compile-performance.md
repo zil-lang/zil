@@ -236,7 +236,7 @@ Doing
       "runtime_review": "256b0f40d1f119b39f3fb2fbe9962af579ddaafe"
     },
     "CP14": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/o2_strategy",
       "baseline": "f95e751d6782310d8d48c7b3eba3037e176e3eb3",
       "purpose": "Keep small closed O2 executables in one codegen unit using a frozen 2048 machine-instruction threshold; preserve default modes and reject invalid unit counts.",
@@ -247,10 +247,15 @@ Doing
         "crates/zil-backend-llvm/tests/closed_executable_cp13.rs",
         "crates/zil-backend-llvm/tests/closed_executable_cp14.rs"
       ],
-      "candidate": "0ed1043c98e6ffc2256b86b34cb8dd626c15c861"
+      "candidate": "0ed1043c98e6ffc2256b86b34cb8dd626c15c861",
+      "measured_source": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+      "result": "docs/research/compile-performance/COMPILE4-RESULT.md",
+      "acceptance_scope": "Research implementation and targeted verification only; mainline/product gates NotRun.",
+      "published_candidate": "021d1411fe4297469a067b9cd2408f3318d918a0",
+      "performance": "Direct closed O2 1/1 versus candidate requested8/4: small tree and retained ELF identical, no stable per-case regression observed in three blocks; not universal adoption. Whole candidate O2/Rust compile1.096820."
     },
     "CP15": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root",
       "baseline": "f95e751d6782310d8d48c7b3eba3037e176e3eb3",
       "purpose": "Avoid deep copying unchanged closure-inference output while executing all original validation and logical budget charges.",
@@ -262,10 +267,15 @@ Doing
         "crates/zil-driver/src/project.rs",
         "crates/zil-driver/tests/borrowed_inference_cp15.rs"
       ],
-      "candidate": "6b543595e8d86cb03816f86cdcfb56941e5a3876"
+      "candidate": "6b543595e8d86cb03816f86cdcfb56941e5a3876",
+      "measured_source": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+      "result": "docs/research/compile-performance/COMPILE4-RESULT.md",
+      "acceptance_scope": "Research implementation and targeted verification only; mainline/product gates NotRun.",
+      "published_candidate": "aa5cf96328097d6c8ec1d965c53f4511cec97474",
+      "performance": "O0 source/object/no-query same-host bridge0.991120 wall,0.993421CPU; small0.89% wall gain, not universal across cases; all recorded O0 ELF unchanged. Test Option fix in integrated0393660f."
     },
     "CP16": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/benchmark_review",
       "baseline": "f95e751d6782310d8d48c7b3eba3037e176e3eb3",
       "purpose": "Freeze explicit optional Rust LTO controls alongside the unchanged native primary comparison.",
@@ -275,10 +285,14 @@ Doing
         "tools/research/compile-performance/test_rust_bench.py",
         "docs/research/compile-performance/CP16-BENCHMARK-CONTROLS.md"
       ],
-      "candidate": "e6314eaa82b42c1d8c0782a813c0f9ff010499dc"
+      "candidate": "e6314eaa82b42c1d8c0782a813c0f9ff010499dc",
+      "measured_source": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+      "result": "docs/research/compile-performance/COMPILE4-RESULT.md",
+      "acceptance_scope": "Research implementation and targeted verification only; mainline/product gates NotRun.",
+      "published_candidate": "6fe00cda5a2de694bb6338dc32c5fe88af2e9571"
     },
     "CP17": {
-      "status": "Doing",
+      "status": "ReviewPass",
       "author": "/root/benchmark_review",
       "baseline": "e6314eaa82b42c1d8c0782a813c0f9ff010499dc",
       "candidate": "d7a8abc52bdf460b73de5f0f32d2683af456372f",
@@ -288,16 +302,21 @@ Doing
         "tools/research/compile-performance/compile4_ci.py",
         ".github/workflows/compile-performance.yml",
         "docs/research/compile-performance/CP17-CI.md"
-      ]
+      ],
+      "measured_source": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+      "result": "docs/research/compile-performance/COMPILE4-RESULT.md",
+      "acceptance_scope": "Research implementation and targeted verification only; mainline/product gates NotRun.",
+      "published_candidate": "0284ddd1154b94ef5b3765166a854307b43d0661",
+      "run": "https://github.com/zil-lang/zil/actions/runs/41068328117"
     }
   },
-  "mainline_acceptance": "Hold: main unchanged and product gates NotRun. Combined O0 gains confirmed in this research window; CP13 closed 8/4 adoption is NoGo for per-case runtime regression.",
+  "mainline_acceptance": "Hold: this research is not merged into main; full workspace tests and product gates NotRun. CP14 small-program runtime quality recovered in this three-block window; overall compile superiority to Rust not reached.",
   "next_priority": "Fine-grained frontend invalidation for edited incremental requests; O2 compile improvements that also pass per-case native runtime quality. Preserve all complete and failed historical windows.",
-  "latest_result": "docs/research/compile-performance/LLVM23-RESULT.md",
-  "measured_source": "6e8e63a5ceae861447d0447c325bed78b59c3f42",
-  "scope": "O0 wins in the frozen five-case comparison; edited incremental and quality-preserving O2 superiority remain open. main unchanged, product gates NotRun.",
+  "latest_result": "docs/research/compile-performance/COMPILE4-RESULT.md",
+  "measured_source": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+  "scope": "Same-host O0 bridge improves0.89%; Rust O0cold0.999300, incremental1.200135,O2closed1.096820. Earlier LLVM23 results retain their original host and source; no claim of universal Rust advantage.",
   "compile4_baseline": "64072793a0f41994f216a6207bf49ee1e2d224f8",
-  "compile4_status": "Candidate assembled; Rust compilation, correctness execution and new performance scores pending. Historical results retain their original source identity."
+  "compile4_status": "Complete_Exploratory_NotAProductGate:149 Cargo tests and52 Python controls pass;600 build+240 runtime rows independently checked."
 }
 ```
 
@@ -307,3 +326,5 @@ Doing
 2026-10-30 zil编译4：承接 f95e751d6，CP14/15/16 并行派工。已合入最新主线 a8e8831a，远端基线固定为 64072793；main 本身不受本轮未验收改动影响。
 
 2026-10-30 CP17 由根协调者派工并审核上述写集。CP15 实际回归位于 driver，以真实解析/展开输入覆盖借用、改写及预算；合流保留 source #if 扣费，且独立复核发现并修正测试中 Option<CoreExpr> 解包遗漏。仍等待真实 Rust 执行。
+
+2026-10-30 zil编译4：候选0393660f完成远端执行和独立复算。CP14/15/16/17按研究范围ReviewPass；149项定向Cargo测试、52项工具控制通过，840条正式计时记录完整；总体超过Rust未达成，main合流Hold。详见COMPILE4-RESULT.md，历史负结果不改。

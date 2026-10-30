@@ -1,0 +1,14 @@
+{
+  "baseline": {
+    "source_commit": "64072793a0f41994f216a6207bf49ee1e2d224f8",
+    "path": "/home/runner/work/_temp/compile4-evidence/binaries/zil-baseline",
+    "sha256": "896aecfe398b4f4babd84052f96a3f0bf0d01ff0ab504bab469a1ff1210effec",
+    "bytes": 7312488
+  },
+  "candidate": {
+    "source_commit": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+    "path": "/home/runner/work/_temp/compile4-evidence/binaries/zil-candidate",
+    "sha256": "3da310e2179a30bff2c6d520215b5e109ac346edb7baea13892ee026fe873dec",
+    "bytes": 7317512
+  }
+}

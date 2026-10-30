@@ -1,0 +1,70 @@
+{
+  "schema": "zil-compile4-ci/1",
+  "run_id": "compile4-round1",
+  "manifest": "tools/research/compile-performance/compile4-run.json",
+  "manifest_sha256": "d978df9b93e5baa63e4a1c9d8b9c42833b4eb55d01212caeed12e853cd4de328",
+  "base_revision": "64072793a0f41994f216a6207bf49ee1e2d224f8",
+  "candidate_revision": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+  "candidate_crates_tree": "0221fa705e8dc926c54f6b85f2dc9ef3af98559a",
+  "base_crates_tree": "dca1c046f0e03cfa037ac49e7275c5b114c3d3cc",
+  "runner_sha256": "4d5d3b36022c2e31b4d6fd327934172a25c7d04e6348ac102f11daed3f7b3513",
+  "status": "Complete_Exploratory_NotAProductGate",
+  "original_evidence_root": "/home/runner/work/_temp/compile4-evidence",
+  "budget_seconds": 3600,
+  "windows": [
+    {
+      "name": "o0-bridge-source-object-no-query",
+      "summary": "windows/o0-bridge/summary.json",
+      "sha256": "4105b34ab8f824cc71a6ac11ce3148bee534a3abb457364a248b5631f443ee7f",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    {
+      "name": "rust-o0-cold-build",
+      "summary": "windows/rust-o0-cold/build-summary.json",
+      "sha256": "222c8d9364cf7e94af566e6c4f75946b858712195d5d1db99036116f268e20a3",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    {
+      "name": "rust-o0-cold-runtime",
+      "summary": "windows/rust-o0-cold/runtime-summary.json",
+      "sha256": "475f54432a79811dddaf21d4c1b26e2b6397c1b39bd325161052b31765e48a82",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    {
+      "name": "rust-o0-incremental-build",
+      "summary": "windows/rust-o0-incremental/build-summary.json",
+      "sha256": "c857f2be22e33e5fede56719047d7ba791e1f8f6093aacfa6206954952cba921",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    {
+      "name": "rust-o0-incremental-runtime",
+      "summary": "windows/rust-o0-incremental/runtime-summary.json",
+      "sha256": "f5cbc9b63b01ed3927b898adb39471309ea14b8ed771054f6940f90d90147116",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    {
+      "name": "rust-o2-closed-build",
+      "summary": "windows/rust-o2-closed/build-summary.json",
+      "sha256": "1575d299ea49f13bb37710a935cf5a872f16b89d02d95e11599e4ab316200c2c",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    {
+      "name": "rust-o2-closed-runtime",
+      "summary": "windows/rust-o2-closed/runtime-summary.json",
+      "sha256": "fa0057d84efd4c6c35a53dfe69a874c1628b4dfd5b1d329d88ab531a9d0763df",
+      "verdict": "ExploratoryComplete_NotAProductGate"
+    },
+    {
+      "name": "baseline-closed-o2-1x1-vs-candidate-closed-o2-8x4",
+      "summary": "windows/o2-direct-quality/summary.json",
+      "sha256": "9e1a5dd2644d0fe6d2adf35b5c59a55e60bdc88901f9b197ed3f26228ad9734c",
+      "verdict": "ExploratoryRuntimeQuality_NotAProductGate"
+    }
+  ],
+  "product_gates": "NotRun",
+  "independent_review": "NotRun",
+  "performance_adoption": "NotEvaluated",
+  "started_unix": 1793369013.4407475,
+  "finished_unix": 1793369809.7976105,
+  "scope": "Five cases, original weights, three paired blocks; source/object/no-query ZIL bridge differs from query-enabled Rust incremental comparison. All compiler builds/tests precede serial measurement. Direct O2 runtime compares baseline closed 1/1 and candidate closed 8/4. No pooled score, no claim of physical host exclusivity, no automatic performance adoption."
+}

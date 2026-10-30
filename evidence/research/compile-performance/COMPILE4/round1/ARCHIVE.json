@@ -1,0 +1,23 @@
+{
+  "schema": "zil-compile4-archive/1",
+  "run_url": "https://github.com/zil-lang/zil/actions/runs/41068328117",
+  "artifact_id": 12982919612,
+  "artifact_zip_bytes": 68839984,
+  "artifact_zip_sha256": "bda15069c64693d6e9afbb0acd944e2c499d3bbc8495afc9713db5f16afa1d7b",
+  "archive": "raw-evidence.tar.xz",
+  "format": "xz-compressed original tar byte stream",
+  "sha256": "ab3c783d01494c95f794855598e5e832f592e7b9994aa2634a545431aac6fc4a",
+  "bytes": 9930828,
+  "tar_sha256": "a8d98528c59e7f00ed559d3bc2458f04dd86b27c2537a8d3eb63a2b5d9f5ad0f",
+  "tar_bytes": 364175360,
+  "original_gzip_sha256": "d56bb7d139bee4cf0fba8c11ccb5a7815827cf12031336445ae599503938fbc3",
+  "tar_files_including_index": 40358,
+  "indexed_files": 40357,
+  "indexed_bytes": 329813038,
+  "original_evidence_root": "/home/runner/work/_temp/compile4-evidence",
+  "archive_prefix": "compile4-evidence",
+  "path_mapping": "Map the original_evidence_root prefix to the extracted compile4-evidence directory; validate bytes and saved hashes, not replacement inode/ctime.",
+  "preservation": "XZ contains the exact original tar byte stream from the Actions gzip; no header/member change. Original ZIP/gzip were independently checked before temporary duplicate cleanup. Setup and LLVM installation receipts are saved separately.",
+  "source_commit": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+  "base_commit": "64072793a0f41994f216a6207bf49ee1e2d224f8"
+}

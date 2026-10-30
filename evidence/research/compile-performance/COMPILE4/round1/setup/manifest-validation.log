@@ -1,0 +1,10 @@
+{
+  "status": "ManifestValidated_NotMeasured",
+  "manifest": "tools/research/compile-performance/compile4-run.json",
+  "manifest_sha256": "d978df9b93e5baa63e4a1c9d8b9c42833b4eb55d01212caeed12e853cd4de328",
+  "base_revision": "64072793a0f41994f216a6207bf49ee1e2d224f8",
+  "candidate_revision": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+  "candidate_crates_tree": "0221fa705e8dc926c54f6b85f2dc9ef3af98559a",
+  "base_crates_tree": "dca1c046f0e03cfa037ac49e7275c5b114c3d3cc",
+  "runner_sha256": "4d5d3b36022c2e31b4d6fd327934172a25c7d04e6348ac102f11daed3f7b3513"
+}

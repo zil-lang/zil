@@ -1,0 +1,545 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/restore_environment",
+  "status": "Pass_TargetedExecutionAndArtifactIntegrity",
+  "scope": "Independent artifact integrity and actual targeted CI execution review; no new benchmark run and no full-workspace product gate.",
+  "github": {
+    "run": {
+      "id": 41068328117,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+      "head_branch": "research/compile-performance",
+      "event": "push",
+      "attempt": 1,
+      "workflow": ".github/workflows/compile-performance.yml",
+      "url": "https://github.com/zil-lang/zil/actions/runs/41068328117"
+    },
+    "artifact": {
+      "id": 12982919612,
+      "name": "zil-compile4-41068328117-1",
+      "digest": "sha256:bda15069c64693d6e9afbb0acd944e2c499d3bbc8495afc9713db5f16afa1d7b",
+      "size_in_bytes": 68839984,
+      "expired": false,
+      "workflow_run": {
+        "id": 41068328117,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "research/compile-performance",
+        "head_sha": "0393660f7dc8414b0ab8c77cd3d576395f4fe095"
+      }
+    },
+    "metadata_independently_fetched": true
+  },
+  "inventory": {
+    "status": "Pass",
+    "listed_files": 40357,
+    "verified_files": 40357,
+    "logical_bytes_hashed": 329813038,
+    "distinct_inodes": 2399,
+    "missing": [],
+    "unlisted_except_inventory_itself": [],
+    "failures": [],
+    "elapsed_seconds": 3.6571736335754395,
+    "inventory_sha256": "147fd5c6ad2287b8a3ddbd54135cb6a8966692aa5816501fc8eda18dc4e51747",
+    "method": "Each listed path independently opened and streamed in 1 MiB blocks; no inode-based hash shortcut or source modification."
+  },
+  "tar_members": {
+    "status": "Pass",
+    "regular_files": 40358,
+    "directories": 292,
+    "other_members": [],
+    "missing": [],
+    "failures": [],
+    "elapsed_seconds": 5.223251581192017,
+    "method": "Streamed original tar.gz without extracting new copies; independently verified every regular member hash/size and extracted POSIX mode, including files.json."
+  },
+  "retained_recompression": {
+    "path": "/workspace/scratch/87d454884917/zil/evidence/research/compile-performance/COMPILE4/round1/raw-evidence.tar.xz",
+    "archive_bytes": 9930828,
+    "archive_sha256": "ab3c783d01494c95f794855598e5e832f592e7b9994aa2634a545431aac6fc4a",
+    "tar_stream_bytes": 364175360,
+    "tar_stream_sha256": "a8d98528c59e7f00ed559d3bc2458f04dd86b27c2537a8d3eb63a2b5d9f5ad0f",
+    "independently_stream_verified": true,
+    "original_gzip_tar_stream_digest_source": "Integrator recompression receipt; original gzip file contents and modes had independently passed before reclamation."
+  },
+  "source_identity": {
+    "candidate": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+    "candidate_tree": "858d665ee84d154f8e4da4534d337330c53124a9",
+    "candidate_crates_tree": "0221fa705e8dc926c54f6b85f2dc9ef3af98559a",
+    "baseline": "64072793a0f41994f216a6207bf49ee1e2d224f8",
+    "baseline_crates_tree": "dca1c046f0e03cfa037ac49e7275c5b114c3d3cc",
+    "committed_manifest_sha256": "d978df9b93e5baa63e4a1c9d8b9c42833b4eb55d01212caeed12e853cd4de328",
+    "artifact_manifest_semantics_equal": true,
+    "artifact_manifest_bytes_equal": true,
+    "setup_commit_matches": true,
+    "setup_validation_matches": true,
+    "full_git_ls_tree_matches": true,
+    "source_listing_sha256": "28d52c5a60e928a1862333eae2b5caaf1a514eb15fcc7a76ac0304eb87e4811f",
+    "orchestrator_sha256": "4d5d3b36022c2e31b4d6fd327934172a25c7d04e6348ac102f11daed3f7b3513",
+    "backend_library_tests_explicitly_selected": true
+  },
+  "compiler_builds": {
+    "status": "Pass",
+    "binaries": {
+      "baseline": {
+        "source_commit": "64072793a0f41994f216a6207bf49ee1e2d224f8",
+        "path": "/home/runner/work/_temp/compile4-evidence/binaries/zil-baseline",
+        "sha256": "896aecfe398b4f4babd84052f96a3f0bf0d01ff0ab504bab469a1ff1210effec",
+        "bytes": 7312488
+      },
+      "candidate": {
+        "source_commit": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
+        "path": "/home/runner/work/_temp/compile4-evidence/binaries/zil-candidate",
+        "sha256": "3da310e2179a30bff2c6d520215b5e109ac346edb7baea13892ee026fe873dec",
+        "bytes": 7317512
+      }
+    },
+    "actual_bytes_sha256_and_executable_modes_verified": true
+  },
+  "archives": {
+    "original_zip_sha256": "bda15069c64693d6e9afbb0acd944e2c499d3bbc8495afc9713db5f16afa1d7b",
+    "original_zip_digest_matches_independent_GitHub_metadata": true,
+    "zip_independent_rehash": "NotPossible_LocalZipAlreadyTruncated; historical extraction receipt and independent GitHub digest agree",
+    "original_tar_gzip_sha256": "d56bb7d139bee4cf0fba8c11ccb5a7815827cf12031336445ae599503938fbc3",
+    "original_tar_gzip_bytes": 68051944,
+    "gzip_independently_rehashed_before_reclamation": true,
+    "tar_sidecar_matches": true,
+    "all_original_tar_members_verified_before_recompression": true,
+    "no_original_files_modified_or_copied_by_reviewer": true
+  },
+  "commands": {
+    "count": 42,
+    "all_exit_zero": true,
+    "all_status_pass": true,
+    "all_timeout_false": true,
+    "all_stdout_stderr_hashes_match": true,
+    "ordered_without_overlap": true,
+    "maximum_adjacent_end_minus_start_seconds": -0.0004875659942626953,
+    "builds_and_tests_end_before_first_plan_prepare": true,
+    "formatting_argv": [
+      "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "candidate_check_argv": [
+      "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "check",
+      "--locked",
+      "--workspace"
+    ],
+    "baseline_build_argv": [
+      "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "build",
+      "--release",
+      "--locked",
+      "-p",
+      "zil-cli"
+    ],
+    "candidate_build_argv": [
+      "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "build",
+      "--release",
+      "--locked",
+      "-p",
+      "zil-cli"
+    ]
+  },
+  "cargo_targeted_tests": {
+    "harnesses": [
+      {
+        "package": "zil-types",
+        "target": "unittests src/lib.rs",
+        "passed": 18,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 18,
+        "stdout": "logs/013-candidate-tests-0.stdout",
+        "stderr": "logs/013-candidate-tests-0.stderr",
+        "receipt": "logs/013-candidate-tests-0.json"
+      },
+      {
+        "package": "zil-types",
+        "target": "tests/project_lookup_cp10.rs",
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 6,
+        "stdout": "logs/013-candidate-tests-0.stdout",
+        "stderr": "logs/013-candidate-tests-0.stderr",
+        "receipt": "logs/013-candidate-tests-0.json"
+      },
+      {
+        "package": "zil-backend-llvm",
+        "target": "unittests src/lib.rs",
+        "passed": 45,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 45,
+        "stdout": "logs/014-candidate-tests-1.stdout",
+        "stderr": "logs/014-candidate-tests-1.stderr",
+        "receipt": "logs/014-candidate-tests-1.json"
+      },
+      {
+        "package": "zil-backend-llvm",
+        "target": "tests/closed_executable_cp13.rs",
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 6,
+        "stdout": "logs/014-candidate-tests-1.stdout",
+        "stderr": "logs/014-candidate-tests-1.stderr",
+        "receipt": "logs/014-candidate-tests-1.json"
+      },
+      {
+        "package": "zil-driver",
+        "target": "tests/borrowed_inference_cp15.rs",
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 4,
+        "stdout": "logs/015-candidate-tests-2.stdout",
+        "stderr": "logs/015-candidate-tests-2.stderr",
+        "receipt": "logs/015-candidate-tests-2.json"
+      },
+      {
+        "package": "zil-driver",
+        "target": "tests/closures_frontend.rs",
+        "passed": 22,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 22,
+        "stdout": "logs/015-candidate-tests-2.stdout",
+        "stderr": "logs/015-candidate-tests-2.stderr",
+        "receipt": "logs/015-candidate-tests-2.json"
+      },
+      {
+        "package": "zil-driver",
+        "target": "tests/impl219_budget.rs",
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 3,
+        "stdout": "logs/015-candidate-tests-2.stdout",
+        "stderr": "logs/015-candidate-tests-2.stderr",
+        "receipt": "logs/015-candidate-tests-2.json"
+      },
+      {
+        "package": "zil-driver",
+        "target": "tests/impl219_selection.rs",
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 6,
+        "stdout": "logs/015-candidate-tests-2.stdout",
+        "stderr": "logs/015-candidate-tests-2.stderr",
+        "receipt": "logs/015-candidate-tests-2.json"
+      },
+      {
+        "package": "zil-driver",
+        "target": "tests/projects.rs",
+        "passed": 27,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 27,
+        "stdout": "logs/015-candidate-tests-2.stdout",
+        "stderr": "logs/015-candidate-tests-2.stderr",
+        "receipt": "logs/015-candidate-tests-2.json"
+      },
+      {
+        "package": "zil-driver",
+        "target": "tests/query_cache_cp12.rs",
+        "passed": 12,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 12,
+        "stdout": "logs/015-candidate-tests-2.stdout",
+        "stderr": "logs/015-candidate-tests-2.stderr",
+        "receipt": "logs/015-candidate-tests-2.json"
+      }
+    ],
+    "harness_count": 10,
+    "tests_passed": 149,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 0,
+    "method": "Matched stderr Running targets to stdout harness blocks; independently counted individual test ... ok lines and matched every running count and full result counter.",
+    "scope": "Two selected library harnesses plus eight named integration harnesses; not cargo test --workspace."
+  },
+  "python_controls": {
+    "suites": [
+      {
+        "runner": "test_bench.py",
+        "passed": 8,
+        "status": "OK",
+        "skipped": 0,
+        "receipt": "logs/007-test_bench.json",
+        "stderr": "logs/007-test_bench.stderr"
+      },
+      {
+        "runner": "test_rust_bench.py",
+        "passed": 26,
+        "status": "OK",
+        "skipped": 0,
+        "receipt": "logs/008-test_rust_bench.json",
+        "stderr": "logs/008-test_rust_bench.stderr"
+      },
+      {
+        "runner": "test_runtime_bench.py",
+        "passed": 18,
+        "status": "OK",
+        "skipped": 0,
+        "receipt": "logs/009-test_runtime_bench.json",
+        "stderr": "logs/009-test_runtime_bench.stderr"
+      }
+    ],
+    "passed": 52,
+    "skipped": 0,
+    "all_commands_exit_zero": true
+  },
+  "required_regressions": {
+    "all_named_controls_executed_and_passed": true,
+    "groups": {
+      "cp14_boundary_loop": [
+        "machine_cgu::tests::cp14_small_closed_o2_obeys_total_instruction_boundary"
+      ],
+      "cp14_fallback_and_guards": [
+        "machine_cgu::tests::cp14_disabled_and_single_unit_paths_are_unchanged",
+        "machine_cgu::tests::cp14_large_closed_program_preserves_cross_unit_reference",
+        "cp14_small_closed_o2_cannot_bypass_invalid_codegen_options"
+      ],
+      "cp15_new_regressions": [
+        "unchanged_scalar_project_borrows_the_exact_original_storage",
+        "rewritten_function_preserves_both_unchanged_neighbors_and_source",
+        "normalized_project_keeps_changes_in_a_module_without_closures",
+        "borrowing_does_not_skip_metadata_or_zero_work_failures"
+      ],
+      "checkpoint_and_selection_budgets": [
+        "source_selection_bypasses_checkpoint_and_replays_current_ct_budget",
+        "ct_exact_limit_and_n_minus_one_match_uncached_requests",
+        "selection_and_later_constants_share_steps_nodes_and_fresh_request_recovery",
+        "project_source_dependency_edits_reselect_with_fresh_independent_verification",
+        "target_and_limits_invalidate_selection_but_original_no_selection_paths_keep_their_identity"
+      ]
+    },
+    "cp14_instruction_counts": [
+      2047,
+      2048,
+      2049
+    ],
+    "cp14_three_boundaries_share_one_successful_test_function": true,
+    "source_binding": "Read exact candidate tests and verified the complete recorded Git tree listing against that commit."
+  },
+  "toolchain": {
+    "status": "Pass",
+    "llvm_clang_lld_version": "23.1.4",
+    "rust_cargo_version": "1.99.1",
+    "rust_embedded_llvm_version": "23.1.1",
+    "rust_version_log": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+    "actual_rustc_frozen_identity": {
+      "path": "/home/runner/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+      "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+      "size": 648536
+    },
+    "checked_tool_identities": {
+      "llvm": {
+        "path": "/home/runner/work/_temp/compile4-llvm-23.1.4/lib/libLLVM.so.23.1",
+        "sha256": "82441dae7d94aac9e1964b06ee6d4bb0f28c0fcf3aaa31df91c886806a112567",
+        "version": "23.1.4"
+      },
+      "clang": {
+        "path": "/home/runner/work/_temp/compile4-llvm-23.1.4/bin/clang-23",
+        "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+        "version": "23.1.4",
+        "banner": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+      },
+      "lld_link": {
+        "path": "/home/runner/work/_temp/compile4-llvm-23.1.4/bin/lld",
+        "sha256": "0f8d53acaf6ff4990506a26739c12fb90315fdcc0430ec4c305ca75115774d4b",
+        "version": "23.1.4",
+        "banner": "LLD 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+      },
+      "rustc": {
+        "path": "/home/runner/.cargo/bin/rustup",
+        "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4",
+        "version": "1.99.1",
+        "banner": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+      },
+      "cargo": {
+        "path": "/home/runner/.cargo/bin/rustup",
+        "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4",
+        "version": "1.99.1",
+        "banner": "cargo 1.99.1 (5f94df478 2026-08-27)"
+      }
+    },
+    "install_receipt_sha256": "0e926c774aec8b885cd37dada75414bae65e4c33ec9ea31090ad949d4aa28c62",
+    "installer_matches_candidate": true,
+    "installation_commands": 12,
+    "all_installation_command_log_hashes_match": true,
+    "recorded_archive": {
+      "bytes": 1190060068,
+      "sha256": "efdd1dbd089b99bfcfcde7b8eb1236163f2e88df5a981cca4f783ec9cb5e0378"
+    },
+    "recorded_component_count": 61,
+    "scope": "Installation logs and cross-receipt identities verified. The 1.19 GB original LLVM archive, DSO and system toolchain binaries were not retained locally for rehash."
+  },
+  "frozen_plan_identity": [
+    {
+      "window": "o0-bridge",
+      "runner_and_helpers_match_candidate": true,
+      "source_and_compiler_hashes_match": true,
+      "LLVM_Clang_LLD_hashes_match_toolchain_receipts": true,
+      "rust_policy": "not_applicable"
+    },
+    {
+      "window": "o2-direct-quality",
+      "runner_and_helpers_match_candidate": true,
+      "source_and_compiler_hashes_match": true,
+      "LLVM_Clang_LLD_hashes_match_toolchain_receipts": true,
+      "rust_policy": "not_applicable"
+    },
+    {
+      "window": "rust-o0-cold",
+      "runner_and_helpers_match_candidate": true,
+      "source_and_compiler_hashes_match": true,
+      "LLVM_Clang_LLD_hashes_match_toolchain_receipts": true,
+      "rust_policy": "native"
+    },
+    {
+      "window": "rust-o0-incremental",
+      "runner_and_helpers_match_candidate": true,
+      "source_and_compiler_hashes_match": true,
+      "LLVM_Clang_LLD_hashes_match_toolchain_receipts": true,
+      "rust_policy": "native"
+    },
+    {
+      "window": "rust-o2-closed",
+      "runner_and_helpers_match_candidate": true,
+      "source_and_compiler_hashes_match": true,
+      "LLVM_Clang_LLD_hashes_match_toolchain_receipts": true,
+      "rust_policy": "native"
+    }
+  ],
+  "completed_evidence_windows": {
+    "entries": [
+      {
+        "name": "o0-bridge-source-object-no-query",
+        "kind": "build",
+        "rows": 240,
+        "summary": "windows/o0-bridge/summary.json",
+        "sha256": "4105b34ab8f824cc71a6ac11ce3148bee534a3abb457364a248b5631f443ee7f",
+        "coverage_complete": true,
+        "complete_json_independently_bound": true,
+        "failed_rows": 0
+      },
+      {
+        "name": "rust-o0-cold-build",
+        "kind": "build",
+        "rows": 60,
+        "summary": "windows/rust-o0-cold/build-summary.json",
+        "sha256": "222c8d9364cf7e94af566e6c4f75946b858712195d5d1db99036116f268e20a3",
+        "coverage_complete": true,
+        "complete_json_independently_bound": true,
+        "failed_rows": 0
+      },
+      {
+        "name": "rust-o0-cold-runtime",
+        "kind": "runtime",
+        "rows": 60,
+        "summary": "windows/rust-o0-cold/runtime-summary.json",
+        "sha256": "475f54432a79811dddaf21d4c1b26e2b6397c1b39bd325161052b31765e48a82",
+        "coverage_complete": true,
+        "complete_json_independently_bound": true,
+        "failed_rows": 0
+      },
+      {
+        "name": "rust-o0-incremental-build",
+        "kind": "build",
+        "rows": 240,
+        "summary": "windows/rust-o0-incremental/build-summary.json",
+        "sha256": "c857f2be22e33e5fede56719047d7ba791e1f8f6093aacfa6206954952cba921",
+        "coverage_complete": true,
+        "complete_json_independently_bound": true,
+        "failed_rows": 0
+      },
+      {
+        "name": "rust-o0-incremental-runtime",
+        "kind": "runtime",
+        "rows": 60,
+        "summary": "windows/rust-o0-incremental/runtime-summary.json",
+        "sha256": "f5cbc9b63b01ed3927b898adb39471309ea14b8ed771054f6940f90d90147116",
+        "coverage_complete": true,
+        "complete_json_independently_bound": true,
+        "failed_rows": 0
+      },
+      {
+        "name": "rust-o2-closed-build",
+        "kind": "build",
+        "rows": 60,
+        "summary": "windows/rust-o2-closed/build-summary.json",
+        "sha256": "1575d299ea49f13bb37710a935cf5a872f16b89d02d95e11599e4ab316200c2c",
+        "coverage_complete": true,
+        "complete_json_independently_bound": true,
+        "failed_rows": 0
+      },
+      {
+        "name": "rust-o2-closed-runtime",
+        "kind": "runtime",
+        "rows": 60,
+        "summary": "windows/rust-o2-closed/runtime-summary.json",
+        "sha256": "fa0057d84efd4c6c35a53dfe69a874c1628b4dfd5b1d329d88ab531a9d0763df",
+        "coverage_complete": true,
+        "complete_json_independently_bound": true,
+        "failed_rows": 0
+      },
+      {
+        "name": "baseline-closed-o2-1x1-vs-candidate-closed-o2-8x4",
+        "kind": "runtime",
+        "rows": 60,
+        "summary": "windows/o2-direct-quality/summary.json",
+        "sha256": "9e1a5dd2644d0fe6d2adf35b5c59a55e60bdc88901f9b197ed3f26228ad9734c",
+        "coverage_complete": true,
+        "complete_json_independently_bound": true,
+        "failed_rows": 0
+      }
+    ],
+    "count": 8,
+    "build_rows": 600,
+    "native_runtime_rows": 240,
+    "scope": "Summary/raw-record/complete-receipt identity and passing row counts verified; performance statistics and adoption reviewed separately."
+  },
+  "reviewed_at_utc": "2026-10-30T14:29:34.977544+00:00",
+  "product_gates": "NotRun",
+  "performance_adoption": "NotEvaluatedByThisReview",
+  "limitations": [
+    "Post-run independent evidence verification; no new execution of Rust/LLVM in this local environment.",
+    "Ten explicitly selected Cargo harnesses ran. cargo check --workspace and cargo fmt --all -- --check passed; cargo test --workspace and formal product gates were not run.",
+    "The original ZIP was already truncated locally; its historical extraction digest matches independent GitHub metadata. The retained gzip tar and every extracted regular file were independently rehashed before duplicate gzip reclamation.",
+    "Hardlink deduplication preserves verified bytes and modes. Original runner paths, inodes and ctime are not recreated. Original evidence was not edited.",
+    "Rust embeds LLVM 23.1.1 while ZIL uses LLVM 23.1.4. These differences remain explicit.",
+    "Successful regressions and complete exploratory samples do not establish performance improvement or runtime nonregression."
+  ]
+}
