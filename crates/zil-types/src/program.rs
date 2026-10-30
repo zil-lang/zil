@@ -26,6 +26,7 @@ pub fn check_program(
 ) -> CompileResult<TypedProgram> {
     let inferred = resolve_program_shapes(program, limits)?;
     let program = &inferred;
+    let project_enums = enums::ProjectDefinitions::new(program);
     let reject = |code: &str, text: &str| vec![Diagnostic::error(Phase::Types, code, None, text)];
     let limit = || {
         vec![Diagnostic::limit(
@@ -155,7 +156,7 @@ pub fn check_program(
                     .iter()
                     .map(|i| (i.alias.clone(), i.module))
                     .collect(),
-                enums: enums::project_definitions(program, core, &mut enum_budget, limits)?,
+                enums: project_enums.resolve(core, &mut enum_budget, limits)?,
             });
             helpers::install(core, context, &mut closure_state, limits).map_err(|e| vec![e])?;
         }
@@ -192,7 +193,7 @@ pub fn check_program(
     for id in factory_order {
         let (module, f) = factory_sources[&id];
         let core = &module.core;
-        let enum_types = enums::project_definitions(program, core, &mut enum_work, limits)?;
+        let enum_types = project_enums.resolve(core, &mut enum_work, limits)?;
         let table = &signatures_by_module[&core.module_id];
         let imports = imports_for(module, &signatures_by_module)?;
         let pending_start = closure_state.pending.len();
@@ -235,7 +236,7 @@ pub fn check_program(
         let core = &module.core;
         let table = &signatures_by_module[&core.module_id];
         resources.extend(resources::definitions(core, table).map_err(|e| vec![e])?);
-        let enum_types = enums::project_definitions(program, core, &mut enum_work, limits)?;
+        let enum_types = project_enums.resolve(core, &mut enum_work, limits)?;
         let imports = imports_for(module, &signatures_by_module)?;
         let mut exports = Vec::new();
         for f in core.functions.iter().filter(|f| {
