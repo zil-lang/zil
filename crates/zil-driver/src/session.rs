@@ -522,6 +522,7 @@ impl CompilationSession {
         build.backend = options.backend;
         build.optimization = options.optimization;
         build.codegen = options.codegen;
+        build.closed_executable = options.closed_executable;
         build.object_cache = options.object_cache.clone();
         build.windows = options.windows.clone();
         build.clang = options
