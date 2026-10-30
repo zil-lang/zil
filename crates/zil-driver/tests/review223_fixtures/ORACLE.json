@@ -1,0 +1,10 @@
+{
+  "reviewer": "/root/scope_audit",
+  "implementation_commit": "9ca5d5b0ecc6ad531d497217df3b90b77616f5ef",
+  "frozen_before_execution": true,
+  "mutable_control_source": "Accept: existing mutable flat Store window parameter",
+  "coherent_nested_mutation": "Reject: nested Product mutable window capability remains closed, including unused definitions",
+  "unit_protocols_source": "Accept: exact Product!Unit and Unit!Product shells",
+  "non_unit_raw_mutations": ["Product!i32: Reject", "Product!Product: Reject", "(Product!Unit)!Unit: Reject", "bool!Product: Reject"],
+  "wire_policy": "Each raw input is encoded with a fresh exact module fingerprint, then independently verified through raw and bytes APIs."
+}
