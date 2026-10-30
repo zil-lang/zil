@@ -1,0 +1,37 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-verify)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-ct)
+    Finished `test` profile [unoptimized] target(s) in 5.89s
+     Running unittests src/lib.rs (/workspace/scratch/fec853c597a1/target-cp19-check/debug/deps/zil_ct-667afafb88496c44)
+
+running 26 tests
+test materialize::tests::impl090_slice_identity_cursor_visits_object_and_both_bounds ... ok
+test materialize::tests::ct202_fresh_ids_include_the_static_callee_inside_type_application ... ok
+test materialize::tests::identity_header_overflow_precedes_body_budget_and_empty_input_is_free ... ok
+test materialize::tests::impl105_enum_reification_charges_fresh_constructor_nodes_text_and_depth ... ok
+test materialize::tests::lazy_identity_cursor_preserves_exact_node_depth_and_diagnostic_order ... ok
+test source::reuse_cp19::deeper_call_site_and_parameter_limits_cannot_reuse_a_shallower_success ... ok
+test source::reuse_cp19::equal_types_have_separate_borrowed_identities_and_leaves_have_no_entries ... ok
+test source::tests::callable_return_metadata_is_preserved_and_bounded_before_clone ... ok
+test source::tests::bytes083_standalone_scalar_hints_are_symmetric_and_cumulatively_bounded ... ok
+test source::reuse_cp19::compound_replay_preserves_all_node_work_edges_and_current_error_span ... ok
+test source::tests::ct203_runtime_bare_ordinary_scalar_hint_indexed ... ok
+test source::tests::ct202_runtime_application_preserves_metadata_and_scalar_argument_context ... ok
+test source::tests::arithmetic_error_does_not_publish_core ... ok
+test source::tests::ct203_runtime_bare_ordinary_scalar_hint_plain ... ok
+test source::tests::ct202_type_application_is_forbidden_in_direct_scalar_query ... ok
+test source::tests::ct202_template_metadata_and_type_arguments_are_bounded_before_copy ... ok
+test source::tests::source_ct_budget_is_shared_by_all_expressions ... ok
+test source::tests::ct203_runtime_bare_state_scalar_hint_indexed ... ok
+test source::tests::minimum_target_integer_is_preserved ... ok
+test source::tests::ct203_runtime_bare_state_scalar_hint_plain ... ok
+test source::tests::source_ct_does_not_eagerly_execute_short_circuit_rhs ... ok
+test source::tests::source_ct_returns_ordinary_core_with_source_identity ... ok
+test tests::checked_division_reports_error ... ok
+test tests::executes_verified_arithmetic ... ok
+test source::tests::source_ct_verifier_rejects_mixed_types ... ok
+test tests::overflow_and_wrapping_differ ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

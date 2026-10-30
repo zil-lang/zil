@@ -1,0 +1,55 @@
+{
+  "source_commit": "8cd1a412e5ab260843469a3d9b25125a9bed5140",
+  "scope": "CP18 affected target validation, not workspace or product gates",
+  "features": "default",
+  "toolchain": "Rust 1.99.1; Clang/LLVM 23.1.4 via fixed installed environment",
+  "logs": [
+    {
+      "path": "/workspace/scratch/fec853c597a1/cp18-tests-first.log",
+      "sha256": "112acb906b806891a3eb1d7e794c3546be6b97c44c912f98bd61fd2b274eed56",
+      "harnesses": [
+        {
+          "target": "unittests src/lib.rs (/workspace/scratch/fec853c597a1/target-cp18-check/debug/deps/zil_types-55569649a6339222)",
+          "selected": 18,
+          "result": "ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.17s"
+        },
+        {
+          "target": "tests/project_lookup_cp10.rs (/workspace/scratch/fec853c597a1/target-cp18-check/debug/deps/project_lookup_cp10-0f6fa32b3c0fa143)",
+          "selected": 6,
+          "result": "ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+        },
+        {
+          "target": "tests/shape_resolution_cp18.rs (/workspace/scratch/fec853c597a1/target-cp18-check/debug/deps/shape_resolution_cp18-189a206e3286f902)",
+          "selected": 6,
+          "result": "ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/scratch/fec853c597a1/cp18-driver-tests-first.log",
+      "sha256": "8574320dca1a19da07adc23b065f2984cb13bc700238191beb4ba8c9dce4d282",
+      "harnesses": [
+        {
+          "target": "tests/aggregates.rs (/workspace/scratch/fec853c597a1/target-cp18-check/debug/deps/aggregates-24fa8ae1ac829357)",
+          "selected": 10,
+          "result": "ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s"
+        },
+        {
+          "target": "tests/closures_frontend.rs (/workspace/scratch/fec853c597a1/target-cp18-check/debug/deps/closures_frontend-daceba255de762e2)",
+          "selected": 22,
+          "result": "ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s"
+        },
+        {
+          "target": "tests/impl105_ct_enum.rs (/workspace/scratch/fec853c597a1/target-cp18-check/debug/deps/impl105_ct_enum-15721a0c057b7617)",
+          "selected": 12,
+          "result": "ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s"
+        },
+        {
+          "target": "tests/receiver_regression.rs (/workspace/scratch/fec853c597a1/target-cp18-check/debug/deps/receiver_regression-00df79dee5131e1f)",
+          "selected": 4,
+          "result": "ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s"
+        }
+      ]
+    }
+  ]
+}

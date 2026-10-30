@@ -1,0 +1,69 @@
+{
+  "schema": "zil-compile5-local-validation/1",
+  "cp18_source": "8cd1a412e5ab260843469a3d9b25125a9bed5140",
+  "cp19_source": "ce2d87e7ef93594e7461760fc184efc7f181d5f2",
+  "cp20_source": "71d2c20c554ddfa36a0741be4aa1ed290de9ea5c",
+  "scope": "Separate author trees, default Rust features, not the combined remote performance gate",
+  "files": [
+    {
+      "file": "cp18-driver-tests-first.log",
+      "sha256": "8574320dca1a19da07adc23b065f2984cb13bc700238191beb4ba8c9dce4d282",
+      "bytes": 5375
+    },
+    {
+      "file": "cp18-check-2.log",
+      "sha256": "d4a19e8b88d91aae333765806efb718346d361132993c8676072fe10c71ebdc8",
+      "bytes": 150
+    },
+    {
+      "file": "cp18-check.log",
+      "sha256": "8d5bdd74aa985c37e7b488b831e20a433738de9824b010cb8e83e568631e1d8d",
+      "bytes": 884
+    },
+    {
+      "file": "cp18-tests-first.log",
+      "sha256": "112acb906b806891a3eb1d7e794c3546be6b97c44c912f98bd61fd2b274eed56",
+      "bytes": 3606
+    },
+    {
+      "file": "cp18-test-summary.json",
+      "sha256": "7b076051ba9c01da37a5c83dad0afaf2c430785d07fb4051349d4bf5bd22156d",
+      "bytes": 2734
+    },
+    {
+      "file": "check-first.log",
+      "sha256": "b59f489db30debbab88f8baa5c92e53b8b2f5a6f53c0cbd026a9b3da29d647a4",
+      "bytes": 1242
+    },
+    {
+      "file": "ct-lib-first.log",
+      "sha256": "ab680c8b78dbd6a7338b7e0602fcc9990d57c16e6c756be2898b9c6f7141a741",
+      "bytes": 2784
+    },
+    {
+      "file": "driver-second.log",
+      "sha256": "0eef2bd70e515e958a65fa61d3982aa573d7e8099fb294b2e7859c4fd3dd7745",
+      "bytes": 719
+    },
+    {
+      "file": "driver-first.log",
+      "sha256": "ebd6ede08de12d0cefda4881e61bb1426118c5ee9a6ca8df35f6256ad82c16a2",
+      "bytes": 5478
+    },
+    {
+      "file": "cp20-test_bench.py.log",
+      "sha256": "249c545a4fc970f08983dd9d23c5f90e392306e7f904273806ab7cc797f68b38",
+      "bytes": 118
+    },
+    {
+      "file": "cp20-test_rust_bench.py.log",
+      "sha256": "706c85eeb0731705baf8bf31ed496b5d2e5e7d96c3439b6989c9703f1199884a",
+      "bytes": 125
+    },
+    {
+      "file": "cp20-test_runtime_bench.py.log",
+      "sha256": "fade57d64958c5977ef58c3c2a94da0e202288698aa5c79db1a7a50f4c050a14",
+      "bytes": 118
+    }
+  ]
+}

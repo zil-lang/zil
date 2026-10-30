@@ -1,0 +1,12 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.32s
+     Running tests/ct_reuse_cp19.rs (/workspace/scratch/fec853c597a1/target-cp19-check/debug/deps/ct_reuse_cp19-928ea5ba7d5d49b4)
+
+running 4 tests
+test compound_parameter_hints_preserve_narrow_ct_overflow_rejection ... ok
+test repeated_cross_module_compound_hints_keep_ct_context_and_current_verify ... ok
+test real_source_repeated_tuple_shapes_keep_complete_core_and_exact_node_boundary ... ok
+test borrowed_hints_do_not_grant_visibility_or_hide_argument_errors ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

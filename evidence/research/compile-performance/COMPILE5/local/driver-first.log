@@ -1,0 +1,42 @@
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-syntax)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-llvm-api)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-lower)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp19/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 21.00s
+     Running tests/ct_reuse_cp19.rs (/workspace/scratch/fec853c597a1/target-cp19-check/debug/deps/ct_reuse_cp19-928ea5ba7d5d49b4)
+
+running 4 tests
+test real_source_repeated_tuple_shapes_keep_complete_core_and_exact_node_boundary ... FAILED
+test compound_parameter_hints_preserve_narrow_ct_overflow_rejection ... ok
+test repeated_cross_module_compound_hints_keep_ct_context_and_current_verify ... ok
+test borrowed_hints_do_not_grant_visibility_or_hide_argument_errors ... FAILED
+
+failures:
+
+---- real_source_repeated_tuple_shapes_keep_complete_core_and_exact_node_boundary stdout ----
+
+thread 'real_source_repeated_tuple_shapes_keep_complete_core_and_exact_node_boundary' (205) panicked at crates/zil-driver/tests/ct_reuse_cp19.rs:88:59:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Lex, category: SafeReject, code: "E-LEX-NUMBER", message: "invalid number spelling, suffix, or separator", span: Some(Span { file: FileId(0), start: 107, end: 111 }), notes: [] }, Diagnostic { phase: Lex, category: SafeReject, code: "E-LEX-NUMBER", message: "invalid number spelling, suffix, or separator", span: Some(Span { file: FileId(0), start: 112, end: 116 }), notes: [] }, Diagnostic { phase: Lex, category: SafeReject, code: "E-LEX-NUMBER", message: "invalid number spelling, suffix, or separator", span: Some(Span { file: FileId(0), start: 119, end: 123 }), notes: [] }, Diagnostic { phase: Lex, category: SafeReject, code: "E-LEX-NUMBER", message: "invalid number spelling, suffix, or separator", span: Some(Span { file: FileId(0), start: 124, end: 128 }), notes: [] }, Diagnostic { phase: Lex, category: SafeReject, code: "E-LEX-NUMBER", message: "invalid number spelling, suffix, or separator", span: Some(Span { file: FileId(0), start: 131, end: 135 }), notes: [] }, Diagnostic { phase: Lex, category: SafeReject, code: "E-LEX-NUMBER", message: "invalid number spelling, suffix, or separator", span: Some(Span { file: FileId(0), start: 136, end: 140 }), notes: [] }, Diagnostic { phase: Lex, category: SafeReject, code: "E-LEX-NUMBER", message: "invalid number spelling, suffix, or separator", span: Some(Span { file: FileId(0), start: 143, end: 147 }), notes: [] }, Diagnostic { phase: Lex, category: SafeReject, code: "E-LEX-NUMBER", message: "invalid number spelling, suffix, or separator", span: Some(Span { file: FileId(0), start: 148, end: 152 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- borrowed_hints_do_not_grant_visibility_or_hide_argument_errors stdout ----
+
+thread 'borrowed_hints_do_not_grant_visibility_or_hide_argument_errors' (203) panicked at crates/zil-driver/tests/ct_reuse_cp19.rs:51:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"lex","diagnostics":[{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":59,"end":63},"notes":[]},{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":64,"end":68},"notes":[]},{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":71,"end":75},"notes":[]},{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":76,"end":80},"notes":[]},{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":83,"end":87},"notes":[]}],"artifacts":{},"input_fingerprint":"ebd936f168ff4676d3652b40474d654d9dbaf37c673a55df8ed334e29fa6caf3","seconds":0.000320084,"timings":null,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_cache":{"requested":false,"state":"disabled","key":null,"reason":null,"stored":false,"write_reason":null,"ct_steps":0,"ct_nodes":0,"ct_functions":0},"query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"root.zil","1":"library.zil"},"scalar_interfaces":[]}
+  left: Lex
+ right: Types
+
+
+failures:
+    borrowed_hints_do_not_grant_visibility_or_hide_argument_errors
+    real_source_repeated_tuple_shapes_keep_complete_core_and_exact_node_boundary
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p zil-driver --test ct_reuse_cp19`

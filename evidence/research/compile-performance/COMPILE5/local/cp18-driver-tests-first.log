@@ -1,0 +1,82 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp18/crates/zil-verify)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp18/crates/zil-llvm-api)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp18/crates/zil-backend-llvm)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp18/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp18/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp18/crates/zil-lower)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp18/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp18/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/fec853c597a1/zil-cp18/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 16.99s
+     Running tests/aggregates.rs (/workspace/scratch/fec853c597a1/target-cp18-check/debug/deps/aggregates-24fa8ae1ac829357)
+
+running 10 tests
+test raw_aggregate_shapes_obey_work_and_depth_limits_before_identity_checks ... ok
+test instance_method_value_is_not_silently_bound ... ok
+test wire_roundtrip_and_independent_field_forgery_rejection ... ok
+test malformed_record_fields_and_nominal_mismatch ... ok
+test record_defaults_context_and_inferred_updates ... ok
+test records_nested_update_parameter_and_return ... ok
+test arrays_nested_fields_loop_and_copy_return ... ok
+test empty_unit_bool_tuples_and_nested_arrays ... ok
+test static_and_value_receiver_methods ... ok
+test signed_and_upper_bounds_reads_and_writes_trap ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+
+     Running tests/closures_frontend.rs (/workspace/scratch/fec853c597a1/target-cp18-check/debug/deps/closures_frontend-daceba255de762e2)
+
+running 22 tests
+test c014_03_parameter_and_inner_binding_shadow_outer_capture_candidates ... ok
+test c014_01_first_call_resolves_identity_and_repeated_calls_keep_one_environment ... ok
+test c014_04_capture_identity_and_source_order_survive_later_shadowing ... ok
+test c014_02_known_i64_capture_constrains_unannotated_parameter_and_literals ... ok
+test c014_05_local_copy_assignment_and_pending_capture_are_concrete_values ... ok
+test c014_07_body_call_signature_and_boolean_constraints_infer_without_call_defaults ... ok
+test c014_14_known_later_argument_constrains_earlier_unsuffixed_literal ... ok
+test c014_10_ct_parameter_shadowing_does_not_use_outer_i64_hint ... ok
+test c014_12_callee_is_evaluated_once_before_arguments ... ok
+test c014_09_closure_body_resolves_imports_without_exporting_environment_functions ... ok
+test c014_11_captureless_unit_closure_and_scalar_control_flow_are_supported ... ok
+test c014_06_rejects_ambiguous_conflicting_and_mutating_closures ... ok
+test c014_08_synthetic_functions_share_graph_budgets ... ok
+test c014_20_raw_type_and_metadata_budgets_precede_recursive_cloning ... ok
+test c014_21_budget_preflight_visits_tail_after_first_closure_and_charges_names ... ok
+test c014_22_synthetic_function_budget_is_global_and_checked_before_ct ... ok
+test c014_17_explicit_types_still_conflict_and_return_annotations_constrain ... ok
+test c014_19_ct_unit_equality_remains_available_without_runtime_admission ... ok
+test c014_13_real_native_pending_capture_copy_and_i64_inference ... ok
+test c014_18_lexical_capture_identity_does_not_follow_later_bindings ... ok
+test c014_16_ct_uses_solved_context_before_verified_evaluation ... ok
+test c014_15_whole_function_constraints_are_preserved_and_call_order_independent ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running tests/impl105_ct_enum.rs (/workspace/scratch/fec853c597a1/target-cp18-check/debug/deps/impl105_ct_enum-15721a0c057b7617)
+
+running 12 tests
+test reified_nominal_owner_is_checked_again_by_ordinary_types ... ok
+test raw_and_wire_reconstruct_tags_payloads_initialization_and_capabilities ... ok
+test source_capability_and_payload_controls_remain_rejections ... ok
+test vm_counts_full_enum_shapes_and_exact_steps_cells_and_call_depth ... ok
+test well_formed_wrong_active_projection_traps_before_reading_payload ... ok
+test repeated_enum_queries_share_the_actual_execution_budget ... ok
+test same_spelling_in_distinct_modules_preserves_nominal_identity ... ok
+test deep_and_wide_enum_metadata_is_bounded_on_raw_and_wire_entry ... ok
+test nominal_reification_is_hygienic_in_runtime_scopes_and_closures ... ok
+test multi_module_plan_uses_real_dynamic_inputs_at_o0_and_o2 ... ok
+test nested_record_array_and_enum_values_keep_active_tags ... ok
+test direct_and_helper_queries_reify_unit_and_payload_variants ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+     Running tests/receiver_regression.rs (/workspace/scratch/fec853c597a1/target-cp18-check/debug/deps/receiver_regression-00df79dee5131e1f)
+
+running 4 tests
+test r005_04_program_metadata_budgets_still_precede_lexical_walk ... ok
+test r005_01_four_frozen_receiver_cases_match_source_and_file_entries ... ok
+test r005_02_non_root_modules_keep_lexical_errors_and_original_spans ... ok
+test r005_03_programs_shared_receivers_and_finite_local_trait_impls_work ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
