@@ -1,0 +1,11 @@
+{
+  "version": "23.1.4",
+  "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.4/LLVM-23.1.4-Linux-X64.tar.zst",
+  "archive_bytes": 1190060068,
+  "archive_sha256": "efdd1dbd089b99bfcfcde7b8eb1236163f2e88df5a981cca4f783ec9cb5e0378",
+  "archive_root": "LLVM-23.1.4-Linux-X64",
+  "components": ["core", "irreader", "passes", "x86", "asmparser", "asmprinter", "target"],
+  "shared_library_origin": "locally relinked from official PIC component archives; upstream Linux release does not include a libLLVM DSO",
+  "upstream_recipe": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/tools/llvm-shlib/CMakeLists.txt",
+  "system_library_policy": "Ubuntu 24.04 runtime libz.so.1, libzstd.so.1 and libxml2.so.2; other system libraries as reported by llvm-config; actual loaded dependencies and ELF loader recorded"
+}

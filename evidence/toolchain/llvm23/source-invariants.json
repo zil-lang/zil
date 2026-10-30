@@ -1,0 +1,38 @@
+{
+  "status": "Pass",
+  "baseline": "ad509b5003d9d2a303428f9d01732292988084d8",
+  "candidate": "48fa354559be0bc7f6330b388a367e30c7184312",
+  "unchanged_paths": [
+    "crates/zil-analyze",
+    "crates/zil-driver",
+    "crates/zil-verify",
+    "crates/zil-types",
+    "crates/zil-lower",
+    "crates/zil-ir",
+    "validation",
+    "spec",
+    "_zil_goal.md",
+    "_zil_design.md",
+    "Cargo.lock",
+    "rust-toolchain.toml"
+  ],
+  "candidate_git_objects": {
+    "crates/zil-analyze": "5a90893912f64e47c81e33cfd6c881f06888b713",
+    "crates/zil-driver": "404ccbb6f543d0c52c5afa0613d01bd38946c5ca",
+    "crates/zil-verify": "09ad2d557b77871c959dae1337f2b236eadaa0f9",
+    "crates/zil-types": "0d13f12f37c9990a767803ac34416351a61e94e8",
+    "crates/zil-lower": "bd645eda1a5265c9e3f8c3aad38832206ede83bf",
+    "crates/zil-ir": "f4e9dc7497d38651e0a4fc22ba3785aab86baa49",
+    "validation": "a29184c470b02779a6e5f700d7d5b6d6631c8a64",
+    "spec": "016186a1182a530865f801b040bf53a573e64dad",
+    "_zil_goal.md": "764add90f3a458f9f2317f7b195a9e73816682bd",
+    "_zil_design.md": "ab0ed6b5cf80934da64276aa9a33df3bb491504a",
+    "Cargo.lock": "9107f4a982d037b5736d62c8906f58b40805f431",
+    "rust-toolchain.toml": "58eef2ccd48f957feeada49b17ad1e3fd667bf8c"
+  },
+  "spec_hash": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+  "baseline_normative_hash": "4d5480fd3f7de30f6a846489e624ce01bb64d7e835c7e01930bd3410a2206db1",
+  "candidate_normative_hash": "8b4b3d219999c8f2904b276e051745bf65f9761e421630bdb4bbe0ec2781e02d",
+  "normative_change": "Only upstream LLVM version entry in policy/dependencies.json, recorded by the task; prior task hashes not rewritten",
+  "performance": "NotMeasured"
+}

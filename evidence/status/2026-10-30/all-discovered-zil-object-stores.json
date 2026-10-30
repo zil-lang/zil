@@ -1,0 +1,57 @@
+{
+  "stores": [
+    {
+      "common_git_dir": "/workspace/scratch/39be3faa4442/cold-173-audit-review/repository.git",
+      "worktrees": [
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review169-composition",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review168",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review168-helper",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review163",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review169-consumer",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review164",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review167",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review167-budget",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/base",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review166",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review171-package170",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review169-final",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review163-combo",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review169-lock",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review165",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review172-cross170",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review170",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/review167-final",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/main",
+        "/workspace/scratch/39be3faa4442/cold-173-audit-review/preflight173"
+      ],
+      "present": {
+        "7157b502c3f8e29b36349338752d7abc51a4624f": false,
+        "2f6110f46c17c575aeb5a0b38166a5f839a951ae": false,
+        "9dbc175063d2363ccd880ae877db74cafd5a8ca6": false
+      }
+    },
+    {
+      "common_git_dir": "/workspace/scratch/037bacfed72a/llvm23-preupgrade-check/.git",
+      "worktrees": [
+        "/workspace/scratch/037bacfed72a/llvm23-preupgrade-check"
+      ],
+      "present": {
+        "7157b502c3f8e29b36349338752d7abc51a4624f": false,
+        "2f6110f46c17c575aeb5a0b38166a5f839a951ae": false,
+        "9dbc175063d2363ccd880ae877db74cafd5a8ca6": false
+      }
+    },
+    {
+      "common_git_dir": "/workspace/scratch/037bacfed72a/zil-llvm23-integration/.git",
+      "worktrees": [
+        "/workspace/scratch/037bacfed72a/zil-llvm23-integration"
+      ],
+      "present": {
+        "7157b502c3f8e29b36349338752d7abc51a4624f": false,
+        "2f6110f46c17c575aeb5a0b38166a5f839a951ae": false,
+        "9dbc175063d2363ccd880ae877db74cafd5a8ca6": false
+      }
+    }
+  ],
+  "invalid_roots": []
+}

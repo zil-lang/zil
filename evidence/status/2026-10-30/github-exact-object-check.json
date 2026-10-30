@@ -1,0 +1,48 @@
+{
+  "queries": [
+    {
+      "sha": "7157b502c3f8e29b36349338752d7abc51a4624f",
+      "result": {
+        "error": "GitHub API error 404: {\"message\":\"Not Found\",\"documentation_url\":\"https://docs.github.com/rest/git/commits#get-a-commit-object\",\"status\":\"404\"}",
+        "error_code": "NOT_FOUND",
+        "error_data": {
+          "message": "Not Found",
+          "documentation_url": "https://docs.github.com/rest/git/commits#get-a-commit-object",
+          "status": "404"
+        }
+      }
+    },
+    {
+      "sha": "2f6110f46c17c575aeb5a0b38166a5f839a951ae",
+      "result": {
+        "error": "GitHub API error 404: {\"message\":\"Not Found\",\"documentation_url\":\"https://docs.github.com/rest/git/commits#get-a-commit-object\",\"status\":\"404\"}",
+        "error_code": "NOT_FOUND",
+        "error_data": {
+          "message": "Not Found",
+          "documentation_url": "https://docs.github.com/rest/git/commits#get-a-commit-object",
+          "status": "404"
+        }
+      }
+    },
+    {
+      "sha": "9dbc175063d2363ccd880ae877db74cafd5a8ca6",
+      "result": {
+        "error": "GitHub API error 404: {\"message\":\"Not Found\",\"documentation_url\":\"https://docs.github.com/rest/git/commits#get-a-commit-object\",\"status\":\"404\"}",
+        "error_code": "NOT_FOUND",
+        "error_data": {
+          "message": "Not Found",
+          "documentation_url": "https://docs.github.com/rest/git/commits#get-a-commit-object",
+          "status": "404"
+        }
+      }
+    }
+  ],
+  "positive_control": {
+    "sha": "cb6ae2fc75945c0c7596a8a64ff807c1b7238fa1",
+    "tree": "e5a6bcc756fb0115a2b64e1337abbcfdce8a10f6",
+    "parents": [
+      "918de0208229010e54183690d61a0453216b7b2a"
+    ]
+  },
+  "mutations": false
+}

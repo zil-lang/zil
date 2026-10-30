@@ -1,0 +1,450 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-29T18:05:22.740029+00:00",
+  "reviewer": "/root/llvm_migration_audit",
+  "ci_subreviewer": "/root/llvm_migration_audit/ci_evidence_crosscheck",
+  "implementation_author": "/root",
+  "migration_controls_author_and_executor": "/root/llvm_controls",
+  "baseline": "ad509b5003d9d2a303428f9d01732292988084d8",
+  "implementation_commit": "48fa354559be0bc7f6330b388a367e30c7184312",
+  "implementation_tree": "0a5ce57b74581e55b34be381ca7f7b54f1ed921a",
+  "crates_tree": "00f82b6884c647269c76de05340cc4f82b98b0ea",
+  "verdict": "Pass",
+  "accepted_scope": "Independent acceptance-evidence review for the LLVM 23.1.4 maintenance migration and existing Linux gates, combined with the prior exact-source static review and 58 independent limited native tests.",
+  "recommendation": "Ready for integration review of this one-time toolchain upgrade. This receipt does not merge main or declare whole-product acceptance.",
+  "new_blocking_findings": [],
+  "prior_review": {
+    "path": "/workspace/scratch/037bacfed72a/llvm23-audit/candidate/48fa354/independent-review.json",
+    "bytes": 5679,
+    "sha256": "33ebca46c195667b02c216a9b5dbb99c617a73747cbbda0214bc98ebf61e70b2"
+  },
+  "prior_review_continuity": "Original independent-review.json and finalized candidate-review-bundle.tar.xz are byte-identical. This addendum closes their pending full-gate evidence review without rewriting historical receipts.",
+  "ci": {
+    "run_id": 40921888880,
+    "job_id_from_retained_log": 123617831611,
+    "url": "https://github.com/zil-lang/zil/actions/runs/40921888880",
+    "run_status": "completed/success",
+    "actual_checkout": "6e673330a68333240d4e09f0ba02f78dd277bc4e",
+    "ordered_parents": [
+      "ad509b5003d9d2a303428f9d01732292988084d8",
+      "48fa354559be0bc7f6330b388a367e30c7184312"
+    ],
+    "source_tree": "0a5ce57b74581e55b34be381ca7f7b54f1ed921a",
+    "merge_object_sha_reconstructed_from_saved_signed_object": "6e673330a68333240d4e09f0ba02f78dd277bc4e",
+    "candidate_tree_byte_equal": true,
+    "source_tree_listing_sha256": "81ae4190dca3938687168406c5a0b67bcf54c81094c63da50a066a179e77655e",
+    "test_counts": {
+      "workspace": {
+        "summary_lines": 285,
+        "states": [
+          "ok"
+        ],
+        "passed": 2743,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 2743
+      },
+      "reference": {
+        "summary_lines": 285,
+        "states": [
+          "ok"
+        ],
+        "passed": 2711,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 2711
+      },
+      "text-reference": {
+        "summary_lines": 8,
+        "states": [
+          "ok"
+        ],
+        "passed": 36,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 36
+      }
+    },
+    "complete_existing_gates": {
+      "format": "Pass",
+      "workspace": "Pass",
+      "reference_workspace": "Pass",
+      "release_cli": "Pass",
+      "consumer208": "Pass",
+      "all_target_clippy_deny_warnings": "Pass"
+    },
+    "synthetic_migration_runner": {
+      "test_count": 9,
+      "result": "OK",
+      "kind": "synthetic runner tests, separate from production/native tests"
+    },
+    "consumer": {
+      "status": "Pass",
+      "source_commit": "6e673330a68333240d4e09f0ba02f78dd277bc4e",
+      "source_identity_kind": "observed-git",
+      "builds": 16,
+      "executions": 128,
+      "injected_failures": 56,
+      "commands": 145,
+      "object_report_count": 40,
+      "object_versions": [
+        "23.1.4"
+      ],
+      "object_verify_before_after_values": [
+        true
+      ],
+      "verification_runs_values": [
+        1
+      ],
+      "backends": [
+        "llvm-api"
+      ],
+      "input_kinds": [
+        "builder"
+      ]
+    },
+    "exact_workflow_shell_blocks_present": 14,
+    "artifact_zip_digests_verified": 3,
+    "reference_acceptance_basis": "Complete same-tree CI run. Neither incomplete local reference attempt contributes a Pass or a partial accepted count.",
+    "job_metadata_limit": "No separate saved job API JSON is available. Recorded run success is corroborated by the sole job in the exact workflow, all shell blocks, complete raw success logs and final artifact/cleanup completion; no individual API step conclusion is invented."
+  },
+  "local_evidence": {
+    "gate_receipts": {
+      "workspace-complete-inputs": {
+        "source": "48fa354559be0bc7f6330b388a367e30c7184312",
+        "status": "Pass",
+        "exit_code": 0,
+        "command": [
+          "cargo",
+          "test",
+          "--offline",
+          "--locked",
+          "--workspace"
+        ],
+        "receipt": "/workspace/scratch/037bacfed72a/llvm23-validation/workspace-complete-inputs/result.json",
+        "counts": {
+          "passed": 2743,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "summaries": 285
+        }
+      },
+      "release": {
+        "source": "48fa354559be0bc7f6330b388a367e30c7184312",
+        "status": "Pass",
+        "exit_code": 0,
+        "command": [
+          "cargo",
+          "build",
+          "--offline",
+          "--locked",
+          "--release",
+          "-p",
+          "zil-cli"
+        ],
+        "receipt": "/workspace/scratch/037bacfed72a/llvm23-validation/release/result.json"
+      },
+      "clippy": {
+        "source": "48fa354559be0bc7f6330b388a367e30c7184312",
+        "status": "Pass",
+        "exit_code": 0,
+        "command": [
+          "cargo",
+          "clippy",
+          "--offline",
+          "--locked",
+          "--workspace",
+          "--all-targets",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "receipt": "/workspace/scratch/037bacfed72a/llvm23-validation/clippy/result.json"
+      },
+      "format": {
+        "source": "27a474ed07d1f51682c4f700c2173b3602729c35",
+        "status": "Pass",
+        "exit_code": 0,
+        "command": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "receipt": "/workspace/scratch/037bacfed72a/llvm23-validation/format/result.json",
+        "qualification": "Local formatting run was on prior 27a with the identical crates tree; candidate-exact formatting is provided by CI."
+      }
+    },
+    "migration_controls": {
+      "builds": 10,
+      "native_runs": 10,
+      "all_native_exit": 42,
+      "commands": 33,
+      "cells": [
+        {
+          "name": "O0-baseline-cold",
+          "version": "17.0.6",
+          "units": 3,
+          "hits": 0,
+          "misses": 3,
+          "stored": 3,
+          "native_exit": 42,
+          "current_verify": 1
+        },
+        {
+          "name": "O0-baseline-warm",
+          "version": "17.0.6",
+          "units": 3,
+          "hits": 3,
+          "misses": 0,
+          "stored": 0,
+          "native_exit": 42,
+          "current_verify": 1
+        },
+        {
+          "name": "O0-candidate-cold",
+          "version": "23.1.4",
+          "units": 3,
+          "hits": 0,
+          "misses": 3,
+          "stored": 3,
+          "native_exit": 42,
+          "current_verify": 1
+        },
+        {
+          "name": "O0-baseline-warm-after-candidate",
+          "version": "17.0.6",
+          "units": 3,
+          "hits": 3,
+          "misses": 0,
+          "stored": 0,
+          "native_exit": 42,
+          "current_verify": 1
+        },
+        {
+          "name": "O0-candidate-warm",
+          "version": "23.1.4",
+          "units": 3,
+          "hits": 3,
+          "misses": 0,
+          "stored": 0,
+          "native_exit": 42,
+          "current_verify": 1
+        },
+        {
+          "name": "O2-baseline-cold",
+          "version": "17.0.6",
+          "units": 1,
+          "hits": 0,
+          "misses": 1,
+          "stored": 1,
+          "native_exit": 42,
+          "current_verify": 1
+        },
+        {
+          "name": "O2-baseline-warm",
+          "version": "17.0.6",
+          "units": 1,
+          "hits": 1,
+          "misses": 0,
+          "stored": 0,
+          "native_exit": 42,
+          "current_verify": 1
+        },
+        {
+          "name": "O2-candidate-cold",
+          "version": "23.1.4",
+          "units": 1,
+          "hits": 0,
+          "misses": 1,
+          "stored": 1,
+          "native_exit": 42,
+          "current_verify": 1
+        },
+        {
+          "name": "O2-baseline-warm-after-candidate",
+          "version": "17.0.6",
+          "units": 1,
+          "hits": 1,
+          "misses": 0,
+          "stored": 0,
+          "native_exit": 42,
+          "current_verify": 1
+        },
+        {
+          "name": "O2-candidate-warm",
+          "version": "23.1.4",
+          "units": 1,
+          "hits": 1,
+          "misses": 0,
+          "stored": 0,
+          "native_exit": 42,
+          "current_verify": 1
+        }
+      ],
+      "real_clang_mismatch": "Pass",
+      "version_function_interposition": "Pass",
+      "cache_and_previous_output_preserved": true,
+      "independent_execution": false
+    },
+    "consumer208": {
+      "builds": 16,
+      "native_runs": 128,
+      "allocation_failure_injections": 56,
+      "object_receipts": 40,
+      "llvm_version": "23.1.4",
+      "all_builder_parse_zero": true,
+      "current_verify_every_build": true,
+      "raw_observations_reconciled": 128,
+      "independent_execution": false
+    },
+    "separate_clean_source_cli_build_receipts": {
+      "candidate_binary_sha256": "310d924701d7ddd91195953166aef16485fb0219179e34981071623dcee10f1e",
+      "baseline_binary_sha256": "aeb711106c185d4eb5570a4a22c9ba64502e96e566fb40f73a8c96091d31ff66",
+      "separate_clean_source_build_receipts_verified": true
+    },
+    "source_invariants_verified": [
+      "crates/zil-analyze",
+      "crates/zil-driver",
+      "crates/zil-verify",
+      "crates/zil-types",
+      "crates/zil-lower",
+      "crates/zil-ir",
+      "validation",
+      "spec",
+      "_zil_goal.md",
+      "_zil_design.md",
+      "Cargo.lock",
+      "rust-toolchain.toml"
+    ],
+    "author_run_provenance": "Migration and consumer runs were performed by their author, not relabeled independent executions. Their raw records and command hashes were independently reconciled here.",
+    "raw_input_file_identities_reconciled": 549
+  },
+  "failure_retention": {
+    "default_workspace_first_attempt": {
+      "status": "Fail",
+      "counts": {
+        "passed": 723,
+        "failed": 5,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0,
+        "summaries": 74
+      },
+      "scope": "Earlier incomplete sparse checkout; accepted full run is separate."
+    },
+    "reference_first_attempt": {
+      "status": "InfrastructureFail",
+      "cargo_exit": null,
+      "runner_exit": 1,
+      "reason": "ENOSPC while tests were running; runner result serialization also failed. Original logs and partial result file retained; no Pass reconstructed.",
+      "accepted_as_pass": false
+    },
+    "reference_retry": {
+      "status": "InfrastructureInterrupted",
+      "cargo_exit": null,
+      "runner_exit": null,
+      "reason": "The exec session became unknown; no matching runner or cargo process remains. No result.json was produced, and the test log ends before workspace completion. Exact termination cause is undetermined; this attempt is not accepted as Pass.",
+      "accepted_as_pass": false
+    },
+    "independent_driver_zero_selection": "Prior Fail remains in candidate/native/result.json; corrected explicit llvm-api retry executed 22 tests. Zero selection is not counted as Pass.",
+    "installer_and_review_findings": "Initial extraction failure and 27a RequestChanges remain preserved in existing archives. I1/I2 fixes were independently closed before this addendum.",
+    "partial_or_cancelled_runs_used_for_acceptance": false
+  },
+  "final_report_review": {
+    "report": {
+      "path": "/workspace/scratch/037bacfed72a/zil-toolchain-llvm23/docs/toolchain/llvm23/RESULT.md",
+      "bytes": 10703,
+      "sha256": "6ed434de5afd46edadeb261e46de7731c80b636889a4d239f3f908d43f8eb288"
+    },
+    "verdict": "ClaimsConsistentWithReviewedEvidence",
+    "concrete_fixes_required": [],
+    "checks": [
+      "Exact implementation versus actual PR merge checkout is distinguished.",
+      "Overlapping test suites are not summed into a product claim.",
+      "10 builds/10 native exit-42 executions and both mismatch controls match the retained raw command evidence.",
+      "16 consumer builds/128 native observations/56 real allocation-failure injections and 40 Builder object reports match raw local records and CI summaries.",
+      "Failures, unknown reference exits and local-only large archive retention are disclosed.",
+      "No performance, native-Windows, complete-language or product-level Go is inferred."
+    ],
+    "current_delivery_diff_scope": "Only task metadata, RESULT.md and evidence paths differ from the tested candidate; production code, toolchain entrypoints and workflows are unchanged."
+  },
+  "provenance_qualifications": [
+    "CI and local LLVM DSOs differ by host relinking (CI 82441dae... versus local 4af7bc67...). The 61 official component hash maps, pinned archive, installer source and LLVM tool hashes match; cross-host DSO byte reproducibility is not claimed.",
+    "CI rustc/cargo hashes identify the invoked rustup dispatcher; version commands report 1.99.1. They do not identify the dispatched backend files. Local standalone component identities are separately recorded.",
+    "Local formatting ran on 27a with the same crates tree; exact candidate formatting acceptance comes from the equivalent-tree CI run.",
+    "The wrong-LLVM control interposes LLVMGetVersion only. It is not execution of the LLVM23 candidate against the complete LLVM17 ABI.",
+    "Cache coexistence validates complete compiler-plus-DSO identity separation, not attribution to an individual cache-key field.",
+    "GitHub signed-commit metadata and reconstructed object SHA were checked; independent public-key trust verification was not performed.",
+    "This is an offline review of retained raw evidence, not a new GitHub retrieval or a repeat compiler test run.",
+    "Large native archives remain in the current sandbox only. Their attempted additional Library upload was reported rejected; no persisted Library copy or workaround is claimed. Compact logs, manifests and hashes are staged for the authorized repository.",
+    "Existing handoff/history gaps remain outside the maintenance upgrade and are explicitly excluded by the report."
+  ],
+  "unchanged_limits": {
+    "performance": "NotMeasured",
+    "windows_native": "NotRun",
+    "whole_product_acceptance": "NotRun",
+    "full_language_satisfaction": "NotSatisfied; unchanged existing status",
+    "main_merge": "Not performed; pending integration"
+  },
+  "new_test_or_compiler_executions": 0,
+  "production_edits": 0,
+  "remote_writes": 0,
+  "evidence": {
+    "local_reconciliation": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-audit/candidate/48fa354/acceptance-local-checks.json",
+      "bytes": 130293,
+      "sha256": "2c083cfcd772e9062a5c26d23a601d1f9e510d2ea66c926374d454cd97a2d97d"
+    },
+    "ci_crosscheck": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-audit/candidate/48fa354/ci-crosscheck/ci-crosscheck.json",
+      "bytes": 17029,
+      "sha256": "0724e19d1ef421dcbd94274c6e21cb7f1c431ec3cded7bccb9a1103786f168e1"
+    },
+    "raw_ci_job_log": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-ci/job-123617831611.log",
+      "bytes": 884201,
+      "sha256": "9cbe796b534b8f275779b135c188453e72c666c9ae74cfea25d53fb33b6d69e8"
+    },
+    "saved_ci_run": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-ci/run.json",
+      "bytes": 13388,
+      "sha256": "786a861635fe021456108083837f6ec27977546f5d10cc67ed813999f36299ee"
+    },
+    "saved_merge_commit": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-ci/merge-commit.json",
+      "bytes": 2752,
+      "sha256": "5091a695346d671b6f9171c1e76e0d98920e46c6ab03e19e4034414e6a75e05b"
+    },
+    "migration_result": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-validation/migration-controls/result.json",
+      "bytes": 96708,
+      "sha256": "1819c892158ca6343aae1592d9c8b6613e05c812a674d6327b50525a0552a128"
+    },
+    "consumer_result": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-validation/consumer208/summary.json",
+      "bytes": 76512,
+      "sha256": "16561fe156cbf55633b0b15ddac5ce17365387e1de4218d370768a69b4f88cf4"
+    },
+    "compact_archive_index_before_addendum": {
+      "path": "/workspace/scratch/037bacfed72a/zil-toolchain-llvm23/evidence/toolchain/llvm23/bundle-index.json",
+      "bytes": 1859,
+      "sha256": "c3de68370efdea2c03418db2a25239bbb6636186589233c2e71a780b243c8a44"
+    },
+    "compact_archive_hashes_verified": 8,
+    "large_archive_retention_declaration": {
+      "path": "/workspace/scratch/037bacfed72a/zil-toolchain-llvm23/evidence/toolchain/llvm23/native-archive-retention.json",
+      "bytes": 2196,
+      "sha256": "c79f02c25ed631ab93683f705812a735cb5460519d7782f19c59e3a2e95c1f3c"
+    }
+  }
+}

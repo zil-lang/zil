@@ -1,4 +1,4 @@
-//! Audited raw LLVM C API boundary (LLVM tag llvmorg-17.0.6).
+//! Audited raw LLVM C API boundary (LLVM tag llvmorg-23.1.4).
 //! Invariants: every owned handle is released once; module dies before context;
 //! ParseIR consumes its memory buffer even on failure; target refs are borrowed;
 //! all LLVM work for one unit stays on one thread. No raw handle is Send/Sync.
@@ -187,10 +187,10 @@ pub(super) fn check_config(config: &Config<'_>) -> Result<[u32; 3], Error> {
     let mut version = [0; 3];
     // SAFETY: distinct, initialized u32 outputs. No target initialization needed.
     unsafe { LLVMGetVersion(&mut version[0], &mut version[1], &mut version[2]) };
-    if version != [17, 0, 6] {
+    if version != super::LLVM_VERSION_COMPONENTS {
         return Err(error(
             ErrorKind::Version,
-            format!("expected LLVM 17.0.6, got {version:?}"),
+            format!("expected LLVM {}, got {version:?}", super::LLVM_VERSION),
         ));
     }
     Ok(version)
@@ -422,7 +422,7 @@ fn compile_input(
     Ok(Object {
         bytes,
         receipt: Receipt {
-            llvm_version: "17.0.6".into(),
+            llvm_version: super::LLVM_VERSION.into(),
             triple: config.triple.into(),
             cpu: "x86-64".into(),
             features: String::new(),

@@ -1,0 +1,1329 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/llvm_migration_audit",
+  "provisioner": "/root/dependency_inventory",
+  "branch": "chore/llvm-23-upgrade",
+  "baseline_commit": "ad509b5003d9d2a303428f9d01732292988084d8",
+  "status": "Pass",
+  "scope": "Exact upstream source recipe, package configuration, archive/receipt integrity, and independent read-only ELF/symbol inspection; no production candidate review or independent LLVM/native-program execution.",
+  "upstream_sources": [
+    {
+      "path": "llvm/tools/llvm-shlib/CMakeLists.txt",
+      "tag": "llvmorg-23.1.4",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/tools/llvm-shlib/CMakeLists.txt",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/tools/llvm-shlib/CMakeLists.txt",
+      "github_blob_sha": "acf10b8a515b4e18bfd94392d87197cd5a8b5137",
+      "bytes": 8475,
+      "sha256": "ab1dd57a3c91e04b1c1533ee8da409e8a278af4d382addcd375f774fe2cdd27a",
+      "computed_git_blob_sha": "acf10b8a515b4e18bfd94392d87197cd5a8b5137"
+    },
+    {
+      "path": "llvm/tools/llvm-shlib/libllvm.cpp",
+      "tag": "llvmorg-23.1.4",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/tools/llvm-shlib/libllvm.cpp",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/tools/llvm-shlib/libllvm.cpp",
+      "github_blob_sha": "51abeb79ad96e6febc729538cc23289adcd8744d",
+      "bytes": 582,
+      "sha256": "4fd308e7ba1794dfa65f92a8289a550ec373ffa1078109fbbd01cb0fc9430d14",
+      "computed_git_blob_sha": "51abeb79ad96e6febc729538cc23289adcd8744d"
+    },
+    {
+      "path": "llvm/tools/llvm-shlib/simple_version_script.map.in",
+      "tag": "llvmorg-23.1.4",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/tools/llvm-shlib/simple_version_script.map.in",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/tools/llvm-shlib/simple_version_script.map.in",
+      "github_blob_sha": "cb2306d1f596828d081e33e3c5c8e6cef181864d",
+      "bytes": 44,
+      "sha256": "3ed28912e9d8ff561ad59bf4916aa0090305ddca88eb693ca49d9568a448618c",
+      "computed_git_blob_sha": "cb2306d1f596828d081e33e3c5c8e6cef181864d"
+    },
+    {
+      "path": "llvm/cmake/modules/AddLLVM.cmake",
+      "tag": "llvmorg-23.1.4",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/cmake/modules/AddLLVM.cmake",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/cmake/modules/AddLLVM.cmake",
+      "github_blob_sha": "a267166eb6c2d8fecbc8d4aa0190cb1947e99e67",
+      "bytes": 111049,
+      "sha256": "863b6baab4f7f06534b0f0e07de27e7bbda698c81c3871eeec1ea0bcb4d6a26c",
+      "computed_git_blob_sha": "a267166eb6c2d8fecbc8d4aa0190cb1947e99e67"
+    },
+    {
+      "path": "llvm/cmake/modules/LLVM-Config.cmake",
+      "tag": "llvmorg-23.1.4",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/cmake/modules/LLVM-Config.cmake",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/cmake/modules/LLVM-Config.cmake",
+      "github_blob_sha": "7da7e40f3b0fe037fa2cd49ffbaf5e9a6e145de0",
+      "bytes": 13451,
+      "sha256": "498af69125618f73bce3c81440db92f22148a601f8caa3d34ad3f83b77586b98",
+      "computed_git_blob_sha": "7da7e40f3b0fe037fa2cd49ffbaf5e9a6e145de0"
+    },
+    {
+      "path": "llvm/cmake/modules/HandleLLVMOptions.cmake",
+      "tag": "llvmorg-23.1.4",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/cmake/modules/HandleLLVMOptions.cmake",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/cmake/modules/HandleLLVMOptions.cmake",
+      "github_blob_sha": "deca0485295446561bdd001ba3a2d8e749391a95",
+      "bytes": 73554,
+      "sha256": "f5f7da5697bafb363e31d6a410be3a83c7fb07dc59947b73c089d6ebbf8602c3",
+      "computed_git_blob_sha": "deca0485295446561bdd001ba3a2d8e749391a95"
+    },
+    {
+      "path": "llvm/tools/llvm-config/llvm-config.cpp",
+      "tag": "llvmorg-23.1.4",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/tools/llvm-config/llvm-config.cpp",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/tools/llvm-config/llvm-config.cpp",
+      "github_blob_sha": "76aa9f82eb0a7706248ac176af11ffa5681c3ec6",
+      "bytes": 29146,
+      "sha256": "7c54727d9deda1689a7e6c9096f6627d73659da04a6ac88c3e0a0595f26e74bb",
+      "computed_git_blob_sha": "76aa9f82eb0a7706248ac176af11ffa5681c3ec6"
+    },
+    {
+      "path": "llvm/CMakeLists.txt",
+      "tag": "llvmorg-23.1.4",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/CMakeLists.txt",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/CMakeLists.txt",
+      "github_blob_sha": "c1e375b88afca10888010eb3dcff85900e231d90",
+      "bytes": 69236,
+      "sha256": "964930f958f35a2323cd312461ecc91e53dd601f0feaaf34c66b8fbdd194d5d3",
+      "computed_git_blob_sha": "c1e375b88afca10888010eb3dcff85900e231d90"
+    },
+    {
+      "path": "llvm/lib/Support/CMakeLists.txt",
+      "tag": "llvmorg-23.1.4",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/lib/Support/CMakeLists.txt",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/lib/Support/CMakeLists.txt",
+      "github_blob_sha": "1a3fa39c81e29f0f317c745ef6e4c3cde555cfa0",
+      "bytes": 12425,
+      "sha256": "5974ebfa484c4591be225bcfc1eaca14ff0bc63908283a36ae6875f54ce8f894",
+      "computed_git_blob_sha": "1a3fa39c81e29f0f317c745ef6e4c3cde555cfa0"
+    }
+  ],
+  "checks": [
+    {
+      "name": "upstream_hash:llvm/tools/llvm-shlib/CMakeLists.txt",
+      "status": "Pass",
+      "detail": "acf10b8a515b4e18bfd94392d87197cd5a8b5137"
+    },
+    {
+      "name": "upstream_hash:llvm/tools/llvm-shlib/libllvm.cpp",
+      "status": "Pass",
+      "detail": "51abeb79ad96e6febc729538cc23289adcd8744d"
+    },
+    {
+      "name": "upstream_hash:llvm/tools/llvm-shlib/simple_version_script.map.in",
+      "status": "Pass",
+      "detail": "cb2306d1f596828d081e33e3c5c8e6cef181864d"
+    },
+    {
+      "name": "upstream_hash:llvm/cmake/modules/AddLLVM.cmake",
+      "status": "Pass",
+      "detail": "a267166eb6c2d8fecbc8d4aa0190cb1947e99e67"
+    },
+    {
+      "name": "upstream_hash:llvm/cmake/modules/LLVM-Config.cmake",
+      "status": "Pass",
+      "detail": "7da7e40f3b0fe037fa2cd49ffbaf5e9a6e145de0"
+    },
+    {
+      "name": "upstream_hash:llvm/cmake/modules/HandleLLVMOptions.cmake",
+      "status": "Pass",
+      "detail": "deca0485295446561bdd001ba3a2d8e749391a95"
+    },
+    {
+      "name": "upstream_hash:llvm/tools/llvm-config/llvm-config.cpp",
+      "status": "Pass",
+      "detail": "76aa9f82eb0a7706248ac176af11ffa5681c3ec6"
+    },
+    {
+      "name": "upstream_hash:llvm/CMakeLists.txt",
+      "status": "Pass",
+      "detail": "c1e375b88afca10888010eb3dcff85900e231d90"
+    },
+    {
+      "name": "upstream_hash:llvm/lib/Support/CMakeLists.txt",
+      "status": "Pass",
+      "detail": "1a3fa39c81e29f0f317c745ef6e4c3cde555cfa0"
+    },
+    {
+      "name": "whole_archive_pattern",
+      "status": "Pass",
+      "detail": "All selected component objects are retained."
+    },
+    {
+      "name": "tablegen_excluded",
+      "status": "Pass",
+      "detail": "Upstream excludes internal TableGen and its global options."
+    },
+    {
+      "name": "component_selection_supported",
+      "status": "Pass",
+      "detail": "Upstream accepts an explicit component set."
+    },
+    {
+      "name": "symbol_version_template",
+      "status": "Pass",
+      "detail": "No custom C-only export allowlist is needed."
+    },
+    {
+      "name": "symbol_version_default",
+      "status": "Pass",
+      "detail": "Expected generated node LLVM_23.1."
+    },
+    {
+      "name": "unix_soname",
+      "status": "Pass",
+      "detail": "Expected ELF SONAME libLLVM.so.23.1."
+    },
+    {
+      "name": "major_compat_symlink",
+      "status": "Pass",
+      "detail": "libLLVM-23.so is an upstream compatibility name."
+    },
+    {
+      "name": "symbolic_functions",
+      "status": "Pass",
+      "detail": "Upstream uses it when supported."
+    },
+    {
+      "name": "pic_compile_option",
+      "status": "Pass",
+      "detail": "Actual installed configuration must also declare PIC; link-only -fPIC cannot fix non-PIC input."
+    },
+    {
+      "name": "empty_helper_source",
+      "status": "Pass",
+      "detail": "There is no required llvm-shlib.cpp shim or added implementation."
+    },
+    {
+      "name": "shared_zstd_supported",
+      "status": "Pass",
+      "detail": "Upstream supports shared and static zstd packaging variants."
+    },
+    {
+      "name": "actual_package_pic",
+      "status": "Pass",
+      "detail": {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/cmake/llvm/LLVMConfig.cmake",
+        "bytes": 23479,
+        "sha256": "6937949bb2a58406ff92388b83e1986be45affa41368c3711b5aa1ae1e8c7815"
+      }
+    },
+    {
+      "name": "command:llvm-config-version",
+      "status": "Pass",
+      "detail": {
+        "command": [
+          "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/bin/llvm-config",
+          "--version"
+        ],
+        "exit_code": 0,
+        "log": "inspection-logs/llvm-config-version.log",
+        "log_sha256": "78f2ccd8940c1e6bc812b09fdb7d917a66342d0b4991219e5dd7afc73bc46b36",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "command:llvm-config-system-libs",
+      "status": "Pass",
+      "detail": {
+        "command": [
+          "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/bin/llvm-config",
+          "--link-static",
+          "--system-libs",
+          "core",
+          "irreader",
+          "passes",
+          "x86",
+          "asmparser",
+          "asmprinter",
+          "target"
+        ],
+        "exit_code": 0,
+        "log": "inspection-logs/llvm-config-system-libs.log",
+        "log_sha256": "510cd326ef7cd383cd610d12e255217c203f0d0ed8a055bfb9dbc7be055c8b62",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "command:llvm-config-components",
+      "status": "Pass",
+      "detail": {
+        "command": [
+          "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/bin/llvm-config",
+          "--link-static",
+          "--libfiles",
+          "core",
+          "irreader",
+          "passes",
+          "x86",
+          "asmparser",
+          "asmprinter",
+          "target"
+        ],
+        "exit_code": 0,
+        "log": "inspection-logs/llvm-config-components.log",
+        "log_sha256": "1216ca66939454c5cfdadb695b91482228044f18a7a6891763d24b1d5d607cd2",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "command:llvm-config-cxxflags",
+      "status": "Pass",
+      "detail": {
+        "command": [
+          "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/bin/llvm-config",
+          "--cxxflags"
+        ],
+        "exit_code": 0,
+        "log": "inspection-logs/llvm-config-cxxflags.log",
+        "log_sha256": "9dc003e5cda621514040c6dea75610620e1ce99af6052afc6c471e9e88dae050",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "command:llvm-config-build-mode",
+      "status": "Pass",
+      "detail": {
+        "command": [
+          "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/bin/llvm-config",
+          "--build-mode"
+        ],
+        "exit_code": 0,
+        "log": "inspection-logs/llvm-config-build-mode.log",
+        "log_sha256": "6d30ee8c053c86feb5aeac64ff5cdb0d1b2e1c85d7692079e41d9c547293563b",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "actual_llvm_config_version",
+      "status": "Pass",
+      "detail": "23.1.4"
+    },
+    {
+      "name": "unique_component_closure",
+      "status": "Pass",
+      "detail": {
+        "count": 61,
+        "unique": 61
+      }
+    },
+    {
+      "name": "no_tablegen_component",
+      "status": "Pass",
+      "detail": []
+    },
+    {
+      "name": "actual_whole_archive_exact_closure",
+      "status": "Pass",
+      "detail": "Recorded linker command exactly retains the llvm-config component closure."
+    },
+    {
+      "name": "actual_link_defenses",
+      "status": "Pass",
+      "detail": [
+        "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMSupport.a",
+        "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMDemangle.a",
+        "-Wl,--no-whole-archive",
+        "-lrt",
+        "-ldl",
+        "-lm",
+        "-lz",
+        "/usr/lib/x86_64-linux-gnu/libzstd.so.1",
+        "/usr/lib/x86_64-linux-gnu/libxml2.so.2",
+        "-Wl,-soname,libLLVM.so.23.1",
+        "-Wl,--version-script=/workspace/scratch/037bacfed72a/toolchains-llvm23/derived-llvm23/simple_version_script.map",
+        "-Wl,-Bsymbolic-functions",
+        "-Wl,-z,defs",
+        "-Wl,-z,text",
+        "-Wl,--build-id=sha1",
+        "-o",
+        "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVM.so.23.1"
+      ]
+    },
+    {
+      "name": "system_deps_outside_whole_archive",
+      "status": "Pass",
+      "detail": [
+        "-lrt",
+        "-ldl",
+        "-lm",
+        "-lz",
+        "/usr/lib/x86_64-linux-gnu/libzstd.so.1",
+        "/usr/lib/x86_64-linux-gnu/libxml2.so.2"
+      ]
+    },
+    {
+      "name": "actual_version_script",
+      "status": "Pass",
+      "detail": {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/derived-llvm23/simple_version_script.map",
+        "bytes": 26,
+        "sha256": "7e6c6fb86f956727d860bfe92be44d248413de3e382ae51dba9fc796d0553454"
+      }
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMX86TargetMCA.a",
+      "status": "Pass",
+      "detail": "a0f4fb7f4d78aabfcf14f725c6fc94c4b4f372d903f9b4aff4c2c0f7d994adf4"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMMCA.a",
+      "status": "Pass",
+      "detail": "1637457f6fc7c83df504222d1f82f74972114312ebd81d1f0cfafeafe334d618"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMX86Disassembler.a",
+      "status": "Pass",
+      "detail": "38926350e38c4b3561b3f2da48315ae2da4227c8fac0cc91f97f1e8213e1aee1"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMX86AsmParser.a",
+      "status": "Pass",
+      "detail": "52b538a089105054aff2ecdc30187e838305a30c4414788835b6f3e51c3720cd"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMX86CodeGen.a",
+      "status": "Pass",
+      "detail": "1af528650868938e92d046b55662af89a02b970570ea1d7c9a00e8ed2a07d73d"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMX86Desc.a",
+      "status": "Pass",
+      "detail": "5ec1b671203e82abe4aad8a030a2ab48fefa43534bf856ae760492b42d8377fe"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMX86Info.a",
+      "status": "Pass",
+      "detail": "ca7b255278460784971675f583e225eb33b65af7df9cdaa5df85df5960836243"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMMCDisassembler.a",
+      "status": "Pass",
+      "detail": "c11f2f0a9c7fc900c1dac670e6e67f86bd5518fab12c2065ecd74abf8aafd25e"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMAsmPrinter.a",
+      "status": "Pass",
+      "detail": "32c6a226862758aae01b4e88e410d924b03b46d1e93a76ed633d2485da6ed921"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMPasses.a",
+      "status": "Pass",
+      "detail": "3196f89e2b3af1a1fa8c45659075e1555832029d0ae86fc45bdb4c4b0a6da64e"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMIRPrinter.a",
+      "status": "Pass",
+      "detail": "62011ea9cc20893039047dc299a43b9731b03913a5581cf184934f4157ec3e83"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMHipStdPar.a",
+      "status": "Pass",
+      "detail": "11a383ca5b6a1cd2f146a93307fdb2e0dc4d936a27c59bb4911b1085cf41e7b1"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMCoroutines.a",
+      "status": "Pass",
+      "detail": "cf335b7ba6ad28c62e198d2dafc68e3afe4984b64dcc1aa9db78583c75f18c41"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMipo.a",
+      "status": "Pass",
+      "detail": "255eedfe9d7bcc149a041272b28cef57d7ccae86eccc3d7e976fd6c65c936f77"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMInstrumentation.a",
+      "status": "Pass",
+      "detail": "984629597740b776ffe7d0a90897d6b5460be05843725ef959c8d5fdb302f5d4"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMVectorize.a",
+      "status": "Pass",
+      "detail": "e2c77eade53cb1c40e287670f09dca1329ee8bec63c319c6e86ffe7525c1d20a"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMSandboxIR.a",
+      "status": "Pass",
+      "detail": "2c14263cfd1aa7e691c8c04e4bd951715106d32adc4f61cfef6989971e718dab"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMLinker.a",
+      "status": "Pass",
+      "detail": "8d9d1baa3da0655d5d4314fe14186f83b79842015fd4620e3fadd9d5a27b84e6"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMFrontendOpenMP.a",
+      "status": "Pass",
+      "detail": "a31259bb2001ba2ff94d2113d1177e76eb47c0b6859e5941cefcc415a67686ee"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMFrontendDirective.a",
+      "status": "Pass",
+      "detail": "3e64121d6a0777e27e58c8120f2070e6f61a8f76cec5e5bcd0bbaba685ade319"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMFrontendAtomic.a",
+      "status": "Pass",
+      "detail": "e8c926837818307e5bd8398bf874b5c7c32d736f6b8f87f8b760aae9eb1cb9cd"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMFrontendOffloading.a",
+      "status": "Pass",
+      "detail": "7fd873dcbca290842114a590d1fb6ec7c8419655abe6a6b59ef7c623ebc9ca64"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMObjectYAML.a",
+      "status": "Pass",
+      "detail": "83be5ce146a780efe0e9b383004ad906af0228e620f9c1a87bfedea9346076fe"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMGlobalISel.a",
+      "status": "Pass",
+      "detail": "62d7f04b1453d1b1fdb67cc64410c441b0e3a0c717f9a5b7ab4b88ec91fd75f2"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMSelectionDAG.a",
+      "status": "Pass",
+      "detail": "48f53448a4ee5f1fdae16743761e110e2b0aa77c89faa63fcf3c24c451c3ab1f"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMCodeGen.a",
+      "status": "Pass",
+      "detail": "f521f67642796e18d0dd5259b423b4c9b65db08eea101e270b8c08e82114acfd"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMTarget.a",
+      "status": "Pass",
+      "detail": "8b20362d08c22add2ba3ef453a5f5580f15975bad6e90cca7815b047b4f1c5f1"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMScalarOpts.a",
+      "status": "Pass",
+      "detail": "887c2d169359c51a52e83b6d23de3f7a762387c0dd06a1e6feb8851d402bc5ca"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMInstCombine.a",
+      "status": "Pass",
+      "detail": "d941c62ad900264b0c7dd7a96f6bd224e15e0dc0382dd055c24908ffedba7ac2"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMObjCARCOpts.a",
+      "status": "Pass",
+      "detail": "4a5b03cdaf68a9f0c4a2c3bf6143b28971728efc7148f3c90ebf6ac4414fc331"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMCodeGenTypes.a",
+      "status": "Pass",
+      "detail": "7f00fe5e74b728f44f195264acd0853d4efac2c77137875868172074f785b0ae"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMCGData.a",
+      "status": "Pass",
+      "detail": "45146dd99decc850bcbb80117afd5a0b9e5eac79b872eca1e3d8b0dd8d2deb48"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMBitWriter.a",
+      "status": "Pass",
+      "detail": "9f0582baa83cfa58fc93834f23165e0b465552ee4486621703d966375c8e9fe2"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMCFGuard.a",
+      "status": "Pass",
+      "detail": "d278ffba7d92fc30f89eb078e493406e92a17a04b932a8d8851e22d48d6245bf"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMAggressiveInstCombine.a",
+      "status": "Pass",
+      "detail": "b1bb995f6171b298ebdc14e24e19e4181d6ab6ffc3cdde4d851993e13377454e"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMTransformUtils.a",
+      "status": "Pass",
+      "detail": "26298882ec58ea7e30dba4070f0dc333ebbcc4ceba689b5dcb3844e8220bb457"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMAnalysis.a",
+      "status": "Pass",
+      "detail": "9f961b06c906e01a880d8dbb6dcda7878a2f533adc4a04dce20f0f56b46c4ffb"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMProfileData.a",
+      "status": "Pass",
+      "detail": "8be9c01f299722c675b3f4a39094ca66641b2c4b5f77eb13b2defac38ce61943"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMSymbolize.a",
+      "status": "Pass",
+      "detail": "3487b8fb97ae4c4f6e9133751fc00b7d1b4cd71365e0205408a0dfc865128cce"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMDebugInfoBTF.a",
+      "status": "Pass",
+      "detail": "b393071771bc839b0d86cf89064ebb5fffdb0a6848467c483271510a01e86403"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMDebugInfoPDB.a",
+      "status": "Pass",
+      "detail": "77945187c0857fd73afe2053e03fd1cef4fb968ce0d0955e38a4a95ea1f4410d"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMDebugInfoMSF.a",
+      "status": "Pass",
+      "detail": "a5fb7fda3914ff938c4e292063a1e95946fa9a4171d18677aed2d2d333858fb9"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMDebugInfoCodeView.a",
+      "status": "Pass",
+      "detail": "9901089d3e71b5877bbcd50d68c9aeae064f0c95667eba1a46d178d1af9cf004"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMDebugInfoGSYM.a",
+      "status": "Pass",
+      "detail": "9a794600a783bbc6267305a081225113356f8600498ffeb639d7be632598dab6"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMDebugInfoDWARF.a",
+      "status": "Pass",
+      "detail": "8a6980b0d973fa16e38062271b510094fc52926ca356796bb8f67ca3210b73dd"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMObject.a",
+      "status": "Pass",
+      "detail": "fe12104c146508c81cf5f71a0505576e25ecff0e57d73c642716db74a0fb6c27"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMTextAPI.a",
+      "status": "Pass",
+      "detail": "098fe0d53a7dfbc409e1e92bcc7b406bdc9841656a0bd8ef371ed755028f7ebe"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMMCParser.a",
+      "status": "Pass",
+      "detail": "60a94eea7fc4fd9aa2a2a8cca396f11453a0bfbc1f36460720c1cd4fda266bef"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMMC.a",
+      "status": "Pass",
+      "detail": "07e06db74db38440b74bc7d4c3f5d667ecf5cedd443ee2d175de466c97f5779f"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMDebugInfoDWARFLowLevel.a",
+      "status": "Pass",
+      "detail": "65e41a287c15a327131fedf007e62b8b33f9673c7ba807dc54766dcaefde06b5"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMFrontendHLSL.a",
+      "status": "Pass",
+      "detail": "222ad3dafdc5007bb37077c5dc53c132d0456cce4fb9d302af1c9ea2c25f48e5"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMIRReader.a",
+      "status": "Pass",
+      "detail": "7aaea30aca6d4d0c478bc583cebf73ba52463fe76453f7b7a6adf754ce2b1fb6"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMBitReader.a",
+      "status": "Pass",
+      "detail": "875c912391053b426eaaec6079178f7835e5879429e5cd3b871a1fb7ef45c223"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMAsmParser.a",
+      "status": "Pass",
+      "detail": "076c22989cefd74173f7930f9b8153f92c8abf21b1f72ed96c565a7a464c1bbb"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMCore.a",
+      "status": "Pass",
+      "detail": "e9487584a6995306cf01226886afc5e3700c14ba7c97f27bae3467902d57e471"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMRemarks.a",
+      "status": "Pass",
+      "detail": "3bfb924b0a74326e3dd41161f51057dbe7984578dbc8eaa205973c872bb2a3b1"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMBitstreamReader.a",
+      "status": "Pass",
+      "detail": "dc218da24c236eb7e32154b2bae37852028becb29e2eea54bfe81801fdcaeeca"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMBinaryFormat.a",
+      "status": "Pass",
+      "detail": "775b11f59f5b83cafa70a2fba1109906997c603974e0e7a31c8d6e341f5416ea"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMTargetParser.a",
+      "status": "Pass",
+      "detail": "a9df2ee0a80674d97ee848b42fdcb6a90782a1bd536759e260199f45366755a5"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMSupport.a",
+      "status": "Pass",
+      "detail": "9d71d69dc57cbf82b6caeeee19981b5680cfa8dd684d9e5cfa0f07940b7032f5"
+    },
+    {
+      "name": "archive_matches_link_receipt:libLLVMDemangle.a",
+      "status": "Pass",
+      "detail": "c11561838e30351a262b051e830a4a3c565d8555cdd7272a4e539a4bdacf2c3a"
+    },
+    {
+      "name": "actual_dso_matches_receipts",
+      "status": "Pass",
+      "detail": {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVM.so.23.1",
+        "bytes": 72146032,
+        "sha256": "4af7bc67bebd262ac4944cbd5a7996bdae1479cf61ee625ab1d98f44d1ceea75"
+      }
+    },
+    {
+      "name": "command:independent-readelf-dynamic",
+      "status": "Pass",
+      "detail": {
+        "command": [
+          "readelf",
+          "-d",
+          "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVM.so.23.1"
+        ],
+        "exit_code": 0,
+        "log": "inspection-logs/independent-readelf-dynamic.log",
+        "log_sha256": "455e21f2fb87cb96858d505df6a29e1d5b0dbd88b012fd8d589ad896d6cccac8",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "command:independent-dynamic-symbols",
+      "status": "Pass",
+      "detail": {
+        "command": [
+          "nm",
+          "-D",
+          "--defined-only",
+          "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVM.so.23.1"
+        ],
+        "exit_code": 0,
+        "log": "inspection-logs/independent-dynamic-symbols.log",
+        "log_sha256": "d1b21ca1c2e21f826f03798928550d0c308a729e75d9d90c92cb6d5e70b5fea6",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "command:independent-readelf-notes",
+      "status": "Pass",
+      "detail": {
+        "command": [
+          "readelf",
+          "-n",
+          "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVM.so.23.1"
+        ],
+        "exit_code": 0,
+        "log": "inspection-logs/independent-readelf-notes.log",
+        "log_sha256": "b5ca7adebabbbb6946229c233821f1917f822ae1e512cd2ab5515c50229bd3cf",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "elf_soname",
+      "status": "Pass",
+      "detail": "SONAME verified from actual ELF metadata."
+    },
+    {
+      "name": "no_textrel",
+      "status": "Pass",
+      "detail": "No DT_TEXTREL in actual ELF metadata."
+    },
+    {
+      "name": "has_build_id",
+      "status": "Pass",
+      "detail": "Installed object-cache identity can use the ELF build-id."
+    },
+    {
+      "name": "all_104_default_versioned_symbols",
+      "status": "Pass",
+      "detail": {
+        "expected": 104,
+        "missing": []
+      }
+    },
+    {
+      "name": "provisioner_symbol_inventory_matches_baseline",
+      "status": "Pass",
+      "detail": "Existing provisioner native receipt checked as evidence; LLVM functions were not re-executed by this reviewer."
+    },
+    {
+      "name": "provisioner_actual_version_and_targets",
+      "status": "Pass",
+      "detail": "Receipt content reviewed, not an independent native rerun."
+    },
+    {
+      "name": "provisioner_log_hash:derived-dso-readelf.log",
+      "status": "Pass",
+      "detail": "455e21f2fb87cb96858d505df6a29e1d5b0dbd88b012fd8d589ad896d6cccac8"
+    },
+    {
+      "name": "provisioner_log_hash:derived-dso-ldd.log",
+      "status": "Pass",
+      "detail": "b6ac75a22a63f088cfce675d20985e6cf635ad14d462ecdd7bf61419e95614dd"
+    },
+    {
+      "name": "provisioner_log_hash:derived-dso-nm.log",
+      "status": "Pass",
+      "detail": "d1b21ca1c2e21f826f03798928550d0c308a729e75d9d90c92cb6d5e70b5fea6"
+    },
+    {
+      "name": "runtime_dependency_hash:ld-linux-x86-64.so.2",
+      "status": "Pass",
+      "detail": "6222a16be7f2d458d6870efe6e715fc0c8d45766fb79cf7dcc3125538d703e28"
+    },
+    {
+      "name": "runtime_dependency_hash:libc.so.6",
+      "status": "Pass",
+      "detail": "511f825ee075610ac9c0f7f91e2c13de2000d0f7b859f6461137e809a0a009d0"
+    },
+    {
+      "name": "runtime_dependency_hash:libgcc_s.so.1",
+      "status": "Pass",
+      "detail": "d93224d2b0dab4247598be683adca02f5cf00586f99c187579cd7e92058fb7cb"
+    },
+    {
+      "name": "runtime_dependency_hash:libicudata.so.74.2",
+      "status": "Pass",
+      "detail": "ddbb3718b8bd9cbd780e5ab08b4503c30a6c4fa0706ebe5d074ed6b596c1714e"
+    },
+    {
+      "name": "runtime_dependency_hash:libicuuc.so.74.2",
+      "status": "Pass",
+      "detail": "7560aadde38e5f4237a47a1ddd5891f9b36768a77a60faae30beee003ac01901"
+    },
+    {
+      "name": "runtime_dependency_hash:liblzma.so.5.4.5",
+      "status": "Pass",
+      "detail": "a9793942a8a5f6f4d0f523ef9e0a5be4f0033f2c6c28520cd2b4e706d53c6e17"
+    },
+    {
+      "name": "runtime_dependency_hash:libm.so.6",
+      "status": "Pass",
+      "detail": "f06f2ce1f1833df5f41cf13b6447ff07bea993ad9b27297d3428c2f70ab3f0e7"
+    },
+    {
+      "name": "runtime_dependency_hash:libstdc++.so.6.0.33",
+      "status": "Pass",
+      "detail": "1fd75fe70354a416d75aef22bcae68c47bd25d20e2d0568c30b1a9838cf62f11"
+    },
+    {
+      "name": "runtime_dependency_hash:libxml2.so.2.9.14",
+      "status": "Pass",
+      "detail": "3061d35b168d1eb472bba5d2c52931e408364770ec9b00ae1100aacd0c35c7da"
+    },
+    {
+      "name": "runtime_dependency_hash:libz.so.1.3",
+      "status": "Pass",
+      "detail": "9b64150b28505a33d6bc3ecf709c279f6de97a1c184dbda65d06ee4537f6d286"
+    },
+    {
+      "name": "runtime_dependency_hash:libzstd.so.1.5.5",
+      "status": "Pass",
+      "detail": "0a2128bc10841fb29e76d08d945864dfb0b6a66da5df6df5d8299197439e54bb"
+    }
+  ],
+  "failures": [],
+  "package": {
+    "prefix": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64",
+    "options": {
+      "LLVM_ENABLE_PIC": "ON",
+      "LLVM_ENABLE_EH": "OFF",
+      "LLVM_ENABLE_RTTI": "OFF",
+      "LLVM_ENABLE_THREADS": "ON",
+      "LLVM_ENABLE_FFI": "OFF",
+      "LLVM_ENABLE_ZLIB": "1",
+      "LLVM_ENABLE_ZSTD": "TRUE",
+      "LLVM_ENABLE_LIBXML2": "1"
+    },
+    "config": {
+      "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/cmake/llvm/LLVMConfig.cmake",
+      "bytes": 23479,
+      "sha256": "6937949bb2a58406ff92388b83e1986be45affa41368c3711b5aa1ae1e8c7815"
+    },
+    "llvm_config": {
+      "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/bin/llvm-config",
+      "bytes": 768536,
+      "sha256": "4c73fe388a403df9a30a6a700781396dfc46dfa25a5f412e3166889472c14199"
+    },
+    "version": "23.1.4",
+    "build_mode": "RELEASE",
+    "cxxflags": "-I/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/include -std=c++17  -D_GNU_SOURCE -D_GLIBCXX_USE_CXX11_ABI=1 -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -fno-exceptions -fno-rtti\n",
+    "components": [
+      "core",
+      "irreader",
+      "passes",
+      "x86",
+      "asmparser",
+      "asmprinter",
+      "target"
+    ],
+    "component_archives": [
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMX86TargetMCA.a",
+        "bytes": 6320,
+        "sha256": "a0f4fb7f4d78aabfcf14f725c6fc94c4b4f372d903f9b4aff4c2c0f7d994adf4"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMMCA.a",
+        "bytes": 326814,
+        "sha256": "1637457f6fc7c83df504222d1f82f74972114312ebd81d1f0cfafeafe334d618"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMX86Disassembler.a",
+        "bytes": 1431302,
+        "sha256": "38926350e38c4b3561b3f2da48315ae2da4227c8fac0cc91f97f1e8213e1aee1"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMX86AsmParser.a",
+        "bytes": 1342894,
+        "sha256": "52b538a089105054aff2ecdc30187e838305a30c4414788835b6f3e51c3720cd"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMX86CodeGen.a",
+        "bytes": 11075704,
+        "sha256": "1af528650868938e92d046b55662af89a02b970570ea1d7c9a00e8ed2a07d73d"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMX86Desc.a",
+        "bytes": 4159152,
+        "sha256": "5ec1b671203e82abe4aad8a030a2ab48fefa43534bf856ae760492b42d8377fe"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMX86Info.a",
+        "bytes": 6812,
+        "sha256": "ca7b255278460784971675f583e225eb33b65af7df9cdaa5df85df5960836243"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMMCDisassembler.a",
+        "bytes": 40424,
+        "sha256": "c11f2f0a9c7fc900c1dac670e6e67f86bd5518fab12c2065ecd74abf8aafd25e"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMAsmPrinter.a",
+        "bytes": 2442342,
+        "sha256": "32c6a226862758aae01b4e88e410d924b03b46d1e93a76ed633d2485da6ed921"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMPasses.a",
+        "bytes": 7146264,
+        "sha256": "3196f89e2b3af1a1fa8c45659075e1555832029d0ae86fc45bdb4c4b0a6da64e"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMIRPrinter.a",
+        "bytes": 10632,
+        "sha256": "62011ea9cc20893039047dc299a43b9731b03913a5581cf184934f4157ec3e83"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMHipStdPar.a",
+        "bytes": 63748,
+        "sha256": "11a383ca5b6a1cd2f146a93307fdb2e0dc4d936a27c59bb4911b1085cf41e7b1"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMCoroutines.a",
+        "bytes": 678032,
+        "sha256": "cf335b7ba6ad28c62e198d2dafc68e3afe4984b64dcc1aa9db78583c75f18c41"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMipo.a",
+        "bytes": 9750572,
+        "sha256": "255eedfe9d7bcc149a041272b28cef57d7ccae86eccc3d7e976fd6c65c936f77"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMInstrumentation.a",
+        "bytes": 3580386,
+        "sha256": "984629597740b776ffe7d0a90897d6b5460be05843725ef959c8d5fdb302f5d4"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMVectorize.a",
+        "bytes": 9120134,
+        "sha256": "e2c77eade53cb1c40e287670f09dca1329ee8bec63c319c6e86ffe7525c1d20a"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMSandboxIR.a",
+        "bytes": 936806,
+        "sha256": "2c14263cfd1aa7e691c8c04e4bd951715106d32adc4f61cfef6989971e718dab"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMLinker.a",
+        "bytes": 221820,
+        "sha256": "8d9d1baa3da0655d5d4314fe14186f83b79842015fd4620e3fadd9d5a27b84e6"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMFrontendOpenMP.a",
+        "bytes": 1313462,
+        "sha256": "a31259bb2001ba2ff94d2113d1177e76eb47c0b6859e5941cefcc415a67686ee"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMFrontendDirective.a",
+        "bytes": 1762,
+        "sha256": "3e64121d6a0777e27e58c8120f2070e6f61a8f76cec5e5bcd0bbaba685ade319"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMFrontendAtomic.a",
+        "bytes": 27984,
+        "sha256": "e8c926837818307e5bd8398bf874b5c7c32d736f6b8f87f8b760aae9eb1cb9cd"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMFrontendOffloading.a",
+        "bytes": 150930,
+        "sha256": "7fd873dcbca290842114a590d1fb6ec7c8419655abe6a6b59ef7c623ebc9ca64"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMObjectYAML.a",
+        "bytes": 4379830,
+        "sha256": "83be5ce146a780efe0e9b383004ad906af0228e620f9c1a87bfedea9346076fe"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMGlobalISel.a",
+        "bytes": 2923716,
+        "sha256": "62d7f04b1453d1b1fdb67cc64410c441b0e3a0c717f9a5b7ab4b88ec91fd75f2"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMSelectionDAG.a",
+        "bytes": 8199270,
+        "sha256": "48f53448a4ee5f1fdae16743761e110e2b0aa77c89faa63fcf3c24c451c3ab1f"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMCodeGen.a",
+        "bytes": 18907998,
+        "sha256": "f521f67642796e18d0dd5259b423b4c9b65db08eea101e270b8c08e82114acfd"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMTarget.a",
+        "bytes": 123972,
+        "sha256": "8b20362d08c22add2ba3ef453a5f5580f15975bad6e90cca7815b047b4f1c5f1"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMScalarOpts.a",
+        "bytes": 7941334,
+        "sha256": "887c2d169359c51a52e83b6d23de3f7a762387c0dd06a1e6feb8851d402bc5ca"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMInstCombine.a",
+        "bytes": 4175764,
+        "sha256": "d941c62ad900264b0c7dd7a96f6bd224e15e0dc0382dd055c24908ffedba7ac2"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMObjCARCOpts.a",
+        "bytes": 308894,
+        "sha256": "4a5b03cdaf68a9f0c4a2c3bf6143b28971728efc7148f3c90ebf6ac4414fc331"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMCodeGenTypes.a",
+        "bytes": 14160,
+        "sha256": "7f00fe5e74b728f44f195264acd0853d4efac2c77137875868172074f785b0ae"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMCGData.a",
+        "bytes": 370734,
+        "sha256": "45146dd99decc850bcbb80117afd5a0b9e5eac79b872eca1e3d8b0dd8d2deb48"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMBitWriter.a",
+        "bytes": 626400,
+        "sha256": "9f0582baa83cfa58fc93834f23165e0b465552ee4486621703d966375c8e9fe2"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMCFGuard.a",
+        "bytes": 33596,
+        "sha256": "d278ffba7d92fc30f89eb078e493406e92a17a04b932a8d8851e22d48d6245bf"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMAggressiveInstCombine.a",
+        "bytes": 240246,
+        "sha256": "b1bb995f6171b298ebdc14e24e19e4181d6ab6ffc3cdde4d851993e13377454e"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMTransformUtils.a",
+        "bytes": 6323120,
+        "sha256": "26298882ec58ea7e30dba4070f0dc333ebbcc4ceba689b5dcb3844e8220bb457"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMAnalysis.a",
+        "bytes": 13208756,
+        "sha256": "9f961b06c906e01a880d8dbb6dcda7878a2f533adc4a04dce20f0f56b46c4ffb"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMProfileData.a",
+        "bytes": 3156554,
+        "sha256": "8be9c01f299722c675b3f4a39094ca66641b2c4b5f77eb13b2defac38ce61943"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMSymbolize.a",
+        "bytes": 369778,
+        "sha256": "3487b8fb97ae4c4f6e9133751fc00b7d1b4cd71365e0205408a0dfc865128cce"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMDebugInfoBTF.a",
+        "bytes": 106278,
+        "sha256": "b393071771bc839b0d86cf89064ebb5fffdb0a6848467c483271510a01e86403"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMDebugInfoPDB.a",
+        "bytes": 2682400,
+        "sha256": "77945187c0857fd73afe2053e03fd1cef4fb968ce0d0955e38a4a95ea1f4410d"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMDebugInfoMSF.a",
+        "bytes": 124098,
+        "sha256": "a5fb7fda3914ff938c4e292063a1e95946fa9a4171d18677aed2d2d333858fb9"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMDebugInfoCodeView.a",
+        "bytes": 1522974,
+        "sha256": "9901089d3e71b5877bbcd50d68c9aeae064f0c95667eba1a46d178d1af9cf004"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMDebugInfoGSYM.a",
+        "bytes": 656094,
+        "sha256": "9a794600a783bbc6267305a081225113356f8600498ffeb639d7be632598dab6"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMDebugInfoDWARF.a",
+        "bytes": 2028102,
+        "sha256": "8a6980b0d973fa16e38062271b510094fc52926ca356796bb8f67ca3210b73dd"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMObject.a",
+        "bytes": 3521834,
+        "sha256": "fe12104c146508c81cf5f71a0505576e25ecff0e57d73c642716db74a0fb6c27"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMTextAPI.a",
+        "bytes": 772816,
+        "sha256": "098fe0d53a7dfbc409e1e92bcc7b406bdc9841656a0bd8ef371ed755028f7ebe"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMMCParser.a",
+        "bytes": 1043198,
+        "sha256": "60a94eea7fc4fd9aa2a2a8cca396f11453a0bfbc1f36460720c1cd4fda266bef"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMMC.a",
+        "bytes": 2789230,
+        "sha256": "07e06db74db38440b74bc7d4c3f5d667ecf5cedd443ee2d175de466c97f5779f"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMDebugInfoDWARFLowLevel.a",
+        "bytes": 80806,
+        "sha256": "65e41a287c15a327131fedf007e62b8b33f9673c7ba807dc54766dcaefde06b5"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMFrontendHLSL.a",
+        "bytes": 153304,
+        "sha256": "222ad3dafdc5007bb37077c5dc53c132d0456cce4fb9d302af1c9ea2c25f48e5"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMIRReader.a",
+        "bytes": 29916,
+        "sha256": "7aaea30aca6d4d0c478bc583cebf73ba52463fe76453f7b7a6adf754ce2b1fb6"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMBitReader.a",
+        "bytes": 1069126,
+        "sha256": "875c912391053b426eaaec6079178f7835e5879429e5cd3b871a1fb7ef45c223"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMAsmParser.a",
+        "bytes": 1163438,
+        "sha256": "076c22989cefd74173f7930f9b8153f92c8abf21b1f72ed96c565a7a464c1bbb"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMCore.a",
+        "bytes": 9839556,
+        "sha256": "e9487584a6995306cf01226886afc5e3700c14ba7c97f27bae3467902d57e471"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMRemarks.a",
+        "bytes": 378756,
+        "sha256": "3bfb924b0a74326e3dd41161f51057dbe7984578dbc8eaa205973c872bb2a3b1"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMBitstreamReader.a",
+        "bytes": 84850,
+        "sha256": "dc218da24c236eb7e32154b2bae37852028becb29e2eea54bfe81801fdcaeeca"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMBinaryFormat.a",
+        "bytes": 479398,
+        "sha256": "775b11f59f5b83cafa70a2fba1109906997c603974e0e7a31c8d6e341f5416ea"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMTargetParser.a",
+        "bytes": 979268,
+        "sha256": "a9df2ee0a80674d97ee848b42fdcb6a90782a1bd536759e260199f45366755a5"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMSupport.a",
+        "bytes": 5329258,
+        "sha256": "9d71d69dc57cbf82b6caeeee19981b5680cfa8dd684d9e5cfa0f07940b7032f5"
+      },
+      {
+        "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVMDemangle.a",
+        "bytes": 553058,
+        "sha256": "c11561838e30351a262b051e830a4a3c565d8555cdd7272a4e539a4bdacf2c3a"
+      }
+    ],
+    "archive_bytes": 160526176,
+    "system_libraries_requested_by_package": "-lrt -ldl -lm -lz /usr/lib/x86_64-linux-gnu/libzstd.a -lxml2\n"
+  },
+  "linked_dso": {
+    "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVM.so.23.1",
+    "bytes": 72146032,
+    "sha256": "4af7bc67bebd262ac4944cbd5a7996bdae1479cf61ee625ab1d98f44d1ceea75",
+    "needed": [
+      "libm.so.6",
+      "libz.so.1",
+      "libzstd.so.1",
+      "libxml2.so.2",
+      "libstdc++.so.6",
+      "libgcc_s.so.1",
+      "libc.so.6",
+      "ld-linux-x86-64.so.2"
+    ],
+    "default_versioned_required_symbols": 104,
+    "build_id": "0f06c51542ac3ceb5b5408156e210260ddb5fffc"
+  },
+  "provisioner_receipts_reviewed": [
+    {
+      "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/receipts/llvm-derived-dso-link.json",
+      "bytes": 30755,
+      "sha256": "352bfb2922407ec519a602818094589733d3b96d0010948bfde12ed7015fb66b"
+    },
+    {
+      "path": "/workspace/scratch/037bacfed72a/toolchains-llvm23/receipts/llvm-derived-dso-preflight.json",
+      "bytes": 6986,
+      "sha256": "6c0f4815effa313ce251299c16c17c5136cf5c62750518735df697b997a2fbcd"
+    }
+  ],
+  "packaging_difference": "Use actual host shared libzstd.so.1 and libxml2.so.2; upstream build-host staticzstd path and unversionedXML link file are absent. Preserve this distinction in performance attribution.",
+  "actual_system_link_arguments": [
+    "-lrt",
+    "-ldl",
+    "-lm",
+    "-lz",
+    "/usr/lib/x86_64-linux-gnu/libzstd.so.1",
+    "/usr/lib/x86_64-linux-gnu/libxml2.so.2"
+  ],
+  "interpretation": [
+    "This is a locally relinked subset of official LLVM23.1.4 component archives, not an upstream-prebuilt monolithic DSO.",
+    "The official shlib recipe supports explicit component selection and whole-archive retention. Its helper source libllvm.cpp is empty.",
+    "X86 components must retain ELF and COFF target-machine behavior; source selection and successful target lookup are not full code-generation acceptance.",
+    "Shared zstd is supported upstream, but replacing the package's static-zstd build-host path with a host DSO changes the dependency/linkage profile and must remain disclosed.",
+    "Do not attribute a compiler performance difference to LLVM version alone without recording this packaging and runtime dependency closure.",
+    "No new ABI ownership relaxation or unsafe fallback is justified by this packaging route."
+  ],
+  "still_required": [
+    "Exact candidate code review",
+    "ZIL regression and native behavior closure",
+    "Wrong-version rejection controls",
+    "Cross-version object-cache isolation",
+    "Frozen compile and generated-program performance comparison"
+  ],
+  "commands": [
+    {
+      "command": [
+        "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/bin/llvm-config",
+        "--version"
+      ],
+      "exit_code": 0,
+      "log": "inspection-logs/llvm-config-version.log",
+      "log_sha256": "78f2ccd8940c1e6bc812b09fdb7d917a66342d0b4991219e5dd7afc73bc46b36",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/bin/llvm-config",
+        "--link-static",
+        "--system-libs",
+        "core",
+        "irreader",
+        "passes",
+        "x86",
+        "asmparser",
+        "asmprinter",
+        "target"
+      ],
+      "exit_code": 0,
+      "log": "inspection-logs/llvm-config-system-libs.log",
+      "log_sha256": "510cd326ef7cd383cd610d12e255217c203f0d0ed8a055bfb9dbc7be055c8b62",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/bin/llvm-config",
+        "--link-static",
+        "--libfiles",
+        "core",
+        "irreader",
+        "passes",
+        "x86",
+        "asmparser",
+        "asmprinter",
+        "target"
+      ],
+      "exit_code": 0,
+      "log": "inspection-logs/llvm-config-components.log",
+      "log_sha256": "1216ca66939454c5cfdadb695b91482228044f18a7a6891763d24b1d5d607cd2",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/bin/llvm-config",
+        "--cxxflags"
+      ],
+      "exit_code": 0,
+      "log": "inspection-logs/llvm-config-cxxflags.log",
+      "log_sha256": "9dc003e5cda621514040c6dea75610620e1ce99af6052afc6c471e9e88dae050",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/bin/llvm-config",
+        "--build-mode"
+      ],
+      "exit_code": 0,
+      "log": "inspection-logs/llvm-config-build-mode.log",
+      "log_sha256": "6d30ee8c053c86feb5aeac64ff5cdb0d1b2e1c85d7692079e41d9c547293563b",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "readelf",
+        "-d",
+        "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVM.so.23.1"
+      ],
+      "exit_code": 0,
+      "log": "inspection-logs/independent-readelf-dynamic.log",
+      "log_sha256": "455e21f2fb87cb96858d505df6a29e1d5b0dbd88b012fd8d589ad896d6cccac8",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "nm",
+        "-D",
+        "--defined-only",
+        "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVM.so.23.1"
+      ],
+      "exit_code": 0,
+      "log": "inspection-logs/independent-dynamic-symbols.log",
+      "log_sha256": "d1b21ca1c2e21f826f03798928550d0c308a729e75d9d90c92cb6d5e70b5fea6",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "readelf",
+        "-n",
+        "/workspace/scratch/037bacfed72a/toolchains-llvm23/llvm/LLVM-23.1.4-Linux-X64/lib/libLLVM.so.23.1"
+      ],
+      "exit_code": 0,
+      "log": "inspection-logs/independent-readelf-notes.log",
+      "log_sha256": "b5ca7adebabbbb6946229c233821f1917f822ae1e512cd2ab5515c50229bd3cf",
+      "stderr": ""
+    }
+  ],
+  "script_sha256": "3c4acee0a1dc92e53774ed7946ded445bb35f645a8d27593602f05aef8858b14"
+}

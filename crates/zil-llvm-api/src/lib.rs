@@ -1,11 +1,13 @@
 #![deny(unsafe_code)]
-//! LLVM 17.0.6 object-generation boundary. This is NOT a ZIL safety checker.
+//! Pinned LLVM object-generation boundary. This is NOT a ZIL safety checker.
 //! One call owns one context and returns owned bytes; no LLVM pointer escapes.
 //! Native support is optional for library/reference builds; the mainline CLI enables it.
 
 pub mod model;
 mod preflight;
 pub mod timing;
+
+include!(concat!(env!("OUT_DIR"), "/llvm_version.rs"));
 
 #[cfg(feature = "native")]
 #[allow(unsafe_code)]
@@ -142,7 +144,7 @@ pub fn compile_module_with_trace(
         let _ = (module, config, cancelled, trace);
         Err(Error {
             kind: ErrorKind::Unavailable,
-            message: "rebuild with llvm-api feature and LLVM 17.0.6".into(),
+            message: format!("rebuild with llvm-api feature and LLVM {LLVM_VERSION}"),
         })
     }
 }

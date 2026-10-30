@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/merge_acceptance_check",
+  "scope": "Lightweight workflow consistency checks only; no compiler or full test execution",
+  "baseline": "ad509b5003d9d2a303428f9d01732292988084d8",
+  "main_merge": "918de0208229010e54183690d61a0453216b7b2a",
+  "restoration": {
+    "ci_run": 40927910495,
+    "artifact_id": 12922526702,
+    "zip_bytes": 58153271,
+    "zip_sha256": "6a48b7dbbd2d0dd667a1d2258fb09834029977b5d9883591a3005a0e4956e19e",
+    "git_history": "restored exact published bundle; older missing commits not invented",
+    "signed_merge_object": "SHA reconstructed exactly from GitHub verification payload and signature; no independent public-key trust verification"
+  },
+  "baseline_checks": {
+    "handoff": {
+      "exit_code": 1,
+      "status": "Fail",
+      "errors": 1138
+    },
+    "check_plan": {
+      "exit_code": 0,
+      "report": {
+        "scope": "Construction plan consistency only; not compiler, language-safety or product acceptance.",
+        "ok": true,
+        "tasks": 14,
+        "protocol_case_requirements": 63,
+        "conformance_sources": 93,
+        "registered_artifacts": 23,
+        "unordered_task_pairs_checked": 21,
+        "ready_tasks": [],
+        "errors": [],
+        "warnings": [],
+        "self_tests": [
+          {
+            "name": "dependency cycle",
+            "rejected": true
+          },
+          {
+            "name": "missing artifact owner",
+            "rejected": true
+          },
+          {
+            "name": "parallel write conflict",
+            "rejected": true
+          },
+          {
+            "name": "Ready without baseline",
+            "rejected": true
+          },
+          {
+            "name": "zero execution minimum",
+            "rejected": true
+          },
+          {
+            "name": "unmapped protocol case",
+            "rejected": true
+          },
+          {
+            "name": "Done without actual results",
+            "rejected": true
+          }
+        ]
+      }
+    }
+  },
+  "post_merge_checks": {
+    "handoff": {
+      "exit_code": 1,
+      "status": "Fail",
+      "errors": 1140
+    },
+    "check_plan": {
+      "exit_code": 1,
+      "report": {
+        "scope": "Construction plan consistency only; not compiler, language-safety or product acceptance.",
+        "ok": false,
+        "tasks": 14,
+        "protocol_case_requirements": 63,
+        "conformance_sources": 93,
+        "registered_artifacts": 23,
+        "unordered_task_pairs_checked": 21,
+        "ready_tasks": [],
+        "errors": [
+          "B0: stale/missing normative_hash",
+          "T01: stale/missing normative_hash",
+          "T02: stale/missing normative_hash",
+          "T03: stale/missing normative_hash",
+          "T04: stale/missing normative_hash",
+          "T05: stale/missing normative_hash",
+          "T06: stale/missing normative_hash",
+          "T07: stale/missing normative_hash",
+          "T08: stale/missing normative_hash",
+          "T09: stale/missing normative_hash",
+          "W1: stale/missing normative_hash",
+          "W2: stale/missing normative_hash",
+          "W3: stale/missing normative_hash",
+          "W4: stale/missing normative_hash"
+        ],
+        "warnings": []
+      }
+    }
+  },
+  "new_handoff_errors": [
+    {
+      "id": "normative",
+      "reason": "Changed or missing input: policy/dependencies.json",
+      "count": 1
+    },
+    {
+      "id": "normative",
+      "reason": "Normative input digest does not match its registry.",
+      "count": 1
+    }
+  ],
+  "removed_handoff_errors": [],
+  "required_integration_followup": "Refresh current normative-input registry and explicitly migrate current formal task hashes under integrator authority. Preserve historical implementation-bound hashes. This is bookkeeping induced by policy LLVM version migration, not a compiler-test failure.",
+  "logs": [
+    {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-integration-recovery/handoff-check.stdout.log",
+      "bytes": 484359,
+      "sha256": "e77fdb3f066290c7a5433795fae89f4e5a1fd3fe6dcdfba12b1c1f6b0cd56b48"
+    },
+    {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-integration-recovery/handoff-check.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-integration-recovery/baseline-handoff-check.stdout.log",
+      "bytes": 484145,
+      "sha256": "094522dfaaa41000ced129baed6d1913e1f2eeb7b7f20b6cd2d37d5b712ab873"
+    },
+    {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-integration-recovery/baseline-handoff-check.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-integration-recovery/check-plan-self-test.stdout.log",
+      "bytes": 895,
+      "sha256": "05427c25f554b443fdb1630ec1dc3e5d42d563397bd1eb6207bfb2c4a903268b"
+    },
+    {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-integration-recovery/check-plan-self-test.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-integration-recovery/baseline-check-plan-self-test.stdout.log",
+      "bytes": 877,
+      "sha256": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916"
+    },
+    {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-integration-recovery/baseline-check-plan-self-test.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

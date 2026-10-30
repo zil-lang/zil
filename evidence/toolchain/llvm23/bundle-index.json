@@ -1,0 +1,57 @@
+{
+  "source_candidate": "48fa354559be0bc7f6330b388a367e30c7184312",
+  "bundles": [
+    {
+      "name": "source-audit-bundle.tar.xz",
+      "bytes": 58200,
+      "sha256": "3908f36308be65d18e8ce2ca2e3858c6509d59c18b5b97af252a8c027219ed29",
+      "verification": "per originating audit receipts"
+    },
+    {
+      "name": "shlib-audit-bundle.tar.xz",
+      "bytes": 551232,
+      "sha256": "aeb162b4ce7c220f575fe39087179fd768e1961bb164c55a31243048a69a8204",
+      "verification": "per originating audit receipts"
+    },
+    {
+      "name": "candidate-review-bundle.tar.xz",
+      "bytes": 34520,
+      "sha256": "e3baca374e7152005cb71450bdcf1393f7715c32f2f2787040bd69126daceb9a",
+      "verification": "per originating audit receipts"
+    },
+    {
+      "name": "acquisition-bundle.tar.xz",
+      "bytes": 1856036,
+      "sha256": "e693f451f909224a637b6abe05d6e2e4331f217a74b44c966b03f03a797439be",
+      "verification": "per originating audit receipts"
+    },
+    {
+      "name": "local-validation.tar.xz",
+      "bytes": 152572,
+      "sha256": "fb7d76886c86e59dc5f3125d8e5e49af965dd008d2ab964f98d9d7d35428aa6a",
+      "files": 643,
+      "all_archived_bytes_verified": true
+    },
+    {
+      "name": "github-ci.tar.xz",
+      "bytes": 1577236,
+      "sha256": "e81c263218a3f7f8751d98ab64c0b015fafdbe8b9797a01382b0947c621e059a",
+      "files": 49,
+      "all_archived_bytes_verified": true
+    },
+    {
+      "name": "installer-validation.tar.xz",
+      "bytes": 87316,
+      "sha256": "6d6115427a9dbe7696854eb6af67090a49487474ad932fb0aca2c02c233fa602",
+      "files": 58,
+      "all_archived_bytes_verified": true
+    },
+    {
+      "name": "native-archive-manifests.tar.xz",
+      "bytes": 6015016,
+      "sha256": "1150f83341f18a31615d7e81dc3d14fe6e7f364ac394b5e3caa9b3365b30711b",
+      "files": 4,
+      "all_archived_bytes_verified": true
+    }
+  ]
+}

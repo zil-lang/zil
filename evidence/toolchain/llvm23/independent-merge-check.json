@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/merge_acceptance_check",
+  "review_type": "Read-only independent pre-merge check using fresh GitHub metadata, original CI logs, source objects and prior independent acceptance receipt",
+  "verdict": "Pass",
+  "accepted_scope": "LLVM 23.1.4 maintenance upgrade and existing Linux gates; no new compiler executions",
+  "head": "c1fcc745e859c19cef83256e8977dde895749a5e",
+  "base": "ad509b5003d9d2a303428f9d01732292988084d8",
+  "pr_number": 7,
+  "pr_premerge": {
+    "state": "open",
+    "draft": false,
+    "merged": false,
+    "mergeable": true,
+    "mergeable_state": "clean",
+    "submitted_reviews": 0,
+    "review_threads": 0
+  },
+  "latest_ci": {
+    "id": 40927910495,
+    "url": "https://github.com/zil-lang/zil/actions/runs/40927910495",
+    "head_sha": "c1fcc745e859c19cef83256e8977dde895749a5e",
+    "status": "completed",
+    "conclusion": "success",
+    "updated_at_utc": "2026-10-29T18:22:43Z",
+    "job_id": 123638261289,
+    "job_conclusion": "success",
+    "all_listed_steps_success": true,
+    "listed_steps": 21,
+    "raw_job_log_characters": 886068,
+    "actual_checkout": "b32e5c3220bfc1de579d19fa8850dcaeb16b02e8",
+    "ordered_parents": [
+      "ad509b5003d9d2a303428f9d01732292988084d8",
+      "c1fcc745e859c19cef83256e8977dde895749a5e"
+    ],
+    "tree": "a8ae7b6a4eabe95f627e7017505fe807654d0380",
+    "head_tree_equal": true,
+    "test_counts": {
+      "workspace": {
+        "groups": 285,
+        "passed": 2743,
+        "failed": 0,
+        "ignored": 0,
+        "states": [
+          "ok"
+        ]
+      },
+      "reference": {
+        "groups": 285,
+        "passed": 2711,
+        "failed": 0,
+        "ignored": 0,
+        "states": [
+          "ok"
+        ]
+      },
+      "text-reference": {
+        "groups": 8,
+        "passed": 36,
+        "failed": 0,
+        "ignored": 0,
+        "states": [
+          "ok"
+        ]
+      }
+    },
+    "consumer": {
+      "status": "Pass",
+      "builds": 16,
+      "executions": 128,
+      "injected_failures": 56
+    },
+    "synthetic_runner": {
+      "tests": 9,
+      "result": "OK"
+    },
+    "error_annotations": 0
+  },
+  "prior_acceptance": {
+    "path": "evidence/toolchain/llvm23/acceptance-addendum.json",
+    "git_blob": "a59fee0840f949c970bf6bd13d26419dd2ea21c7",
+    "verdict": "Pass",
+    "new_blocking_findings": []
+  },
+  "delivery_diff": {
+    "base": "48fa354559be0bc7f6330b388a367e30c7184312",
+    "head": "c1fcc745e859c19cef83256e8977dde895749a5e",
+    "commits": 1,
+    "paths": 27,
+    "scope": "task metadata, result report and evidence only; production compiler/toolchain scripts/workflows unchanged"
+  },
+  "merge_readback": {
+    "sha": "918de0208229010e54183690d61a0453216b7b2a",
+    "tree": "a8ae7b6a4eabe95f627e7017505fe807654d0380",
+    "github_signature_status": "verified/valid; public-key verification not independently performed"
+  },
+  "limits": {
+    "performance": "NotMeasured",
+    "windows_native": "NotRun",
+    "whole_product": "NotRun",
+    "full_language": "NotSatisfied; unchanged"
+  },
+  "remote_writes": 0,
+  "new_test_executions": 0
+}

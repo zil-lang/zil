@@ -1,0 +1,438 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "reviewer": "/root/llvm_migration_audit/ci_evidence_crosscheck",
+  "created_at_utc": "2026-10-29T18:03:10.523667+00:00",
+  "scope": "Independent read-only crosscheck of saved CI metadata, raw log, archive bytes and extracted receipts; no builds, tests, network requests, remote writes or production edits performed.",
+  "candidate": {
+    "commit": "48fa354559be0bc7f6330b388a367e30c7184312",
+    "tree": "0a5ce57b74581e55b34be381ca7f7b54f1ed921a",
+    "baseline": "ad509b5003d9d2a303428f9d01732292988084d8"
+  },
+  "run": {
+    "id": 40921888880,
+    "run_attempt": 1,
+    "event": "pull_request",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "48fa354559be0bc7f6330b388a367e30c7184312",
+    "path": ".github/workflows/verify-main.yml",
+    "created_at": "2026-10-29T17:29:56Z",
+    "updated_at": "2026-10-29T17:47:58Z",
+    "html_url": "https://github.com/zil-lang/zil/actions/runs/40921888880"
+  },
+  "job_evidence": {
+    "job_id_from_log_filename": 123617831611,
+    "job_name": "workspace",
+    "separate_job_api_json_available": false,
+    "assessment": "Consistent with success: saved completed/success run, sole workspace job in exact workflow, all 14 script echoes present, complete success receipts, no raw error annotations, final artifact upload and post-job cleanup. Individual API step conclusions were not independently available.",
+    "raw_line_count": 9806,
+    "raw_error_annotations": [],
+    "workflow_sha256": "e61b4d1a36e870093d30aa33cd4c8e29642f792491a7d5478097321829ac6b30",
+    "workflow_script_blocks": [
+      {
+        "name": "Install the supported LLVM API toolchain",
+        "script_sha256": "c2d0020041f53bd7a081ace7a1cdb9cffeada671e9f76e3156e6bd48b5aef1d5",
+        "raw_log_first_line": 247,
+        "exact_script_echo_match": true
+      },
+      {
+        "name": "Record exact checkout and restorable source history",
+        "script_sha256": "5fb79474d4a617bf8f38122dbf2cd880bc9755c7e3b7412e5466c812e3058b2b",
+        "raw_log_first_line": 316,
+        "exact_script_echo_match": true
+      },
+      {
+        "name": "Formatting",
+        "script_sha256": "7e83913328e297e1fbdedace79460b3fc51c3c4deab981ee3e2e52972698e93b",
+        "raw_log_first_line": 357,
+        "exact_script_echo_match": true
+      },
+      {
+        "name": "Record workspace resources before tests",
+        "script_sha256": "5898e945a56f56d0a87d948dedb0e8c896212e9d937c1765b637e8b087efc45a",
+        "raw_log_first_line": 374,
+        "exact_script_echo_match": true
+      },
+      {
+        "name": "Complete workspace tests",
+        "script_sha256": "78539164b0e4d5d673dec5544cb7c605590efda55947aaeb642326c7ee8f786f",
+        "raw_log_first_line": 397,
+        "exact_script_echo_match": true
+      },
+      {
+        "name": "Record workspace resources after tests",
+        "script_sha256": "1354f347a63509361e75f9b214b9d661865be367e2a1659e60043dad8e35f3b4",
+        "raw_log_first_line": 4883,
+        "exact_script_echo_match": true
+      },
+      {
+        "name": "Release only the archived workspace compiler cache",
+        "script_sha256": "3faddce1629a6fc5b151808ac2928e4fd22b6ad935465d2d531431a77a009dc1",
+        "raw_log_first_line": 4948,
+        "exact_script_echo_match": true
+      },
+      {
+        "name": "Record reference resources before tests",
+        "script_sha256": "edc645de55136aa599e7a9a9a76bcb4e110dfc5119c381a318f652e810cffb0d",
+        "raw_log_first_line": 4982,
+        "exact_script_echo_match": true
+      },
+      {
+        "name": "Reference-only build and explicit unavailable control",
+        "script_sha256": "96710becddd3cc5e82bf90d66501497db179650626dd6d393e2968eeaa9e88a0",
+        "raw_log_first_line": 5005,
+        "exact_script_echo_match": true
+      },
+      {
+        "name": "Record reference resources after tests",
+        "script_sha256": "458687466ee11fe450e3ee79015f2b675cd254ecd4d2b1a59f8d218850535346",
+        "raw_log_first_line": 9459,
+        "exact_script_echo_match": true
+      },
+      {
+        "name": "Release only the archived reference compiler cache",
+        "script_sha256": "eb07f6a84c0abf81db8f8fc74b4305d676f0702ab93b3be5c41b582859043b85",
+        "raw_log_first_line": 9524,
+        "exact_script_echo_match": true
+      },
+      {
+        "name": "Native API State and allocation-failure controls",
+        "script_sha256": "3939d855d80b9c23b4d4117671963d2ec4b48fd7be4ea0b12b082ad2d03fbe97",
+        "raw_log_first_line": 9558,
+        "exact_script_echo_match": true
+      },
+      {
+        "name": "All-target Clippy",
+        "script_sha256": "f5e1f55876d7cdb2c0d9a0987ffa50a7cca24c02cddb08c4f23d163c18d03959",
+        "raw_log_first_line": 9605,
+        "exact_script_echo_match": true
+      },
+      {
+        "name": "Explicit LLVM text-reference boundary",
+        "script_sha256": "705647f42e0bd94ab39921988334d787f093e62c392452fb5ee7d4aebaa514cb",
+        "raw_log_first_line": 9638,
+        "exact_script_echo_match": true
+      }
+    ],
+    "nonempty_receipts_fully_present_in_normalized_log": {
+      "clippy.log": true,
+      "migration-runner.log": true,
+      "bundle-verify.log": true
+    },
+    "fmt_empty_receipt": true,
+    "clippy_finished": true
+  },
+  "checkout": {
+    "actual_commit": "6e673330a68333240d4e09f0ba02f78dd277bc4e",
+    "tree": "0a5ce57b74581e55b34be381ca7f7b54f1ed921a",
+    "parents_in_order": [
+      "ad509b5003d9d2a303428f9d01732292988084d8",
+      "48fa354559be0bc7f6330b388a367e30c7184312"
+    ],
+    "signed_object_reconstructed_sha1": "6e673330a68333240d4e09f0ba02f78dd277bc4e",
+    "signed_object_bytes": 1165,
+    "github_signature_metadata": {
+      "verified": true,
+      "reason": "valid"
+    },
+    "local_gpg_trust_validation_performed": false,
+    "source_tree_bytes": 11438649,
+    "source_tree_sha256": "81ae4190dca3938687168406c5a0b67bcf54c81094c63da50a066a179e77655e",
+    "candidate_git_ls_tree_byte_equal": true
+  },
+  "tests": {
+    "workspace.log": {
+      "counts": {
+        "summary_lines": 285,
+        "states": [
+          "ok"
+        ],
+        "passed": 2743,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 2743
+      },
+      "raw_log_range_inclusive": [
+        396,
+        4881
+      ],
+      "full_receipt_in_normalized_raw_log": true,
+      "sha256": "1d1be695987d61a4cfe32ae1ce22c83597e91eb0b72366d87d18f48d1d599e72"
+    },
+    "reference.log": {
+      "counts": {
+        "summary_lines": 285,
+        "states": [
+          "ok"
+        ],
+        "passed": 2711,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 2711
+      },
+      "raw_log_range_inclusive": [
+        5004,
+        9457
+      ],
+      "full_receipt_in_normalized_raw_log": true,
+      "sha256": "6f15562af679d34c7c58540c35819ca8fb860d7eafe1e4a4aafdbb3df0489549"
+    },
+    "text-reference.log": {
+      "counts": {
+        "summary_lines": 8,
+        "states": [
+          "ok"
+        ],
+        "passed": 36,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "individual_ok_lines": 36
+      },
+      "raw_log_range_inclusive": [
+        9637,
+        9745
+      ],
+      "full_receipt_in_normalized_raw_log": true,
+      "sha256": "c7da80e6f1fa8f64791bda65837f26318dc6421904756dc32e91aeb72a5c9837"
+    }
+  },
+  "synthetic_migration_runner": {
+    "test_count": 9,
+    "result": "OK",
+    "kind": "synthetic runner tests, separate from production/native tests"
+  },
+  "native_consumer": {
+    "status": "Pass",
+    "source_commit": "6e673330a68333240d4e09f0ba02f78dd277bc4e",
+    "source_identity_kind": "observed-git",
+    "builds": 16,
+    "executions": 128,
+    "injected_failures": 56,
+    "commands": 145,
+    "object_report_count": 40,
+    "object_versions": [
+      "23.1.4"
+    ],
+    "object_verify_before_after_values": [
+      true
+    ],
+    "verification_runs_values": [
+      1
+    ],
+    "backends": [
+      "llvm-api"
+    ],
+    "input_kinds": [
+      "builder"
+    ]
+  },
+  "native_consumer_command": "python3 tools/research/208/validate.py --repo . --cli \"$CARGO_TARGET_DIR/release/zil\" --clang \"$ZIL_CLANG\" --out \"$RUNNER_TEMP/consumer209\"",
+  "archives": [
+    {
+      "artifact_id": 12918759312,
+      "file": "llvm23-ci/llvm23-ci-reference.zip",
+      "bytes": 1652094,
+      "sha256": "19aff0e9ac5f3145cfa8ff5b701e8b772999035e53b41a40bc3a191607ce79fa",
+      "digest_matches_artifact_download_and_raw_upload": true,
+      "receipt_members_compared": 7,
+      "extracted_receipt_mismatches": [],
+      "mismatches_against_final_receipts": []
+    },
+    {
+      "artifact_id": 12918642711,
+      "file": "llvm23-ci/llvm23-ci-workspace.zip",
+      "bytes": 1652672,
+      "sha256": "b250b30de146c7e829437d8bd93398a106b1d0d246cdeda2534e83517c3f4f6e",
+      "digest_matches_artifact_download_and_raw_upload": true,
+      "receipt_members_compared": 7,
+      "extracted_receipt_mismatches": [],
+      "mismatches_against_final_receipts": []
+    },
+    {
+      "artifact_id": 12920096925,
+      "file": "llvm23-ci/llvm23-ci-final.zip",
+      "bytes": 47737953,
+      "sha256": "18c311aba81949f79bb65ffe7129a185e6dda85b624c4b46c725bd1d5571c144",
+      "digest_matches_artifact_download_and_raw_upload": true,
+      "receipt_members_compared": 18,
+      "extracted_receipt_mismatches": [],
+      "mismatches_against_final_receipts": []
+    }
+  ],
+  "installer_comparison": {
+    "component_count": 61,
+    "component_maps_equal": true,
+    "component_map_canonical_sha256": "12c3927a68e8a1fd71d57f36c75f4c88d9fdd737173c3f541775ea026a3a75f5",
+    "installer_sha256": "5732842ebdc834e069cd2bb084e2da68e0b1af9c1dcf7e4c2323c370fc4ea172",
+    "archive": {
+      "bytes": 1190060068,
+      "sha256": "efdd1dbd089b99bfcfcde7b8eb1236163f2e88df5a981cca4f783ec9cb5e0378"
+    },
+    "all_12_ci_installer_commands_exit_zero": true,
+    "tool_hashes_equal": {
+      "clang": true,
+      "opt": true,
+      "llvm-config": true,
+      "lld-link": true
+    },
+    "ci_library": {
+      "path": "lib/libLLVM.so.23.1",
+      "sha256": "82441dae7d94aac9e1964b06ee6d4bb0f28c0fcf3aaa31df91c886806a112567",
+      "version": "23.1.4"
+    },
+    "local_library": {
+      "path": "lib/libLLVM.so.23.1",
+      "sha256": "4af7bc67bebd262ac4944cbd5a7996bdae1479cf61ee625ab1d98f44d1ceea75",
+      "version": "23.1.4"
+    },
+    "library_bytes_claimed_equal": false,
+    "linked_system_libraries": [
+      "-lrt",
+      "-ldl",
+      "-lm",
+      "-l:libz.so.1",
+      "-l:libzstd.so.1",
+      "-l:libxml2.so.2"
+    ],
+    "different_runtime_dependency_paths": [
+      "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "/usr/lib/x86_64-linux-gnu/liblzma.so.5.4.5",
+      "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "/usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14",
+      "/usr/lib/x86_64-linux-gnu/libz.so.1.3"
+    ]
+  },
+  "rust_identity": {
+    "rustc": {
+      "path": "/home/runner/.cargo/bin/rustup",
+      "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4",
+      "version": "1.99.1",
+      "banner": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+    },
+    "cargo": {
+      "path": "/home/runner/.cargo/bin/rustup",
+      "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4",
+      "version": "1.99.1",
+      "banner": "cargo 1.99.1 (5f94df478 2026-08-27)"
+    },
+    "binary_hash_scope": "rustup dispatcher file only; 1.99.1 version banners do not identify the rustc/cargo backend executable bytes"
+  },
+  "qualifications": [
+    "Offline consistency audit of retained evidence; no fresh GitHub retrieval.",
+    "The merge is GitHub PR merge checkout 6e673330..., with exact base/head parents and candidate-equivalent tree; CI did not directly checkout head 48fa354.",
+    "Signed merge-object SHA reconstructed locally from retained payload and signature; GitHub verified/valid signature metadata recorded without independent public-key trust verification.",
+    "CI libLLVM SHA-256 82441dae... and local libLLVM SHA-256 4af7bc67... differ. Both receipts describe host relinking from the same 61 official component inputs and record different runtime dependencies; byte-identical DSOs or host runtime closure are not claimed.",
+    "Rustc/cargo hashes identify /home/runner/.cargo/bin/rustup, with 1.99.1 banners. Backend executable identity is not established by those hashes.",
+    "Consumer current-Verify and LLVM23 facts are checked from all recorded builds/object reports; consumer execution was not rerun."
+  ],
+  "out_of_scope_observations": [
+    "AGENTS.md-required node tools/handoff.mjs --check returned exit 1 for historical missing or uncommitted evidence. Authority identified the candidate worktree. These existing handoff gaps are outside this CI crosscheck; no follow-up handoff checks were performed."
+  ],
+  "input_file_hashes": {
+    "llvm23-ci/run.json": {
+      "bytes": 13388,
+      "sha256": "786a861635fe021456108083837f6ec27977546f5d10cc67ed813999f36299ee"
+    },
+    "llvm23-ci/merge-commit.json": {
+      "bytes": 2752,
+      "sha256": "5091a695346d671b6f9171c1e76e0d98920e46c6ab03e19e4034414e6a75e05b"
+    },
+    "llvm23-ci/artifacts.json": {
+      "bytes": 2460,
+      "sha256": "85002b9e2c9960f9d5f1b49e960f5aad27751f798e13dfba186e15dfab23893d"
+    },
+    "llvm23-ci/download-receipt.json": {
+      "bytes": 791,
+      "sha256": "7d848af3ad37dd54ae05c3e3d3d091677c278a04b5735cc893d220f177b4e826"
+    },
+    "llvm23-ci/job-123617831611.log": {
+      "bytes": 884201,
+      "sha256": "9cbe796b534b8f275779b135c188453e72c666c9ae74cfea25d53fb33b6d69e8"
+    },
+    "llvm23-installed-v3/install-receipt.json": {
+      "bytes": 36377,
+      "sha256": "3c5e11099a8fb1ab0e5306a522c6fa7dba4052dfff25ac18c377c6db17b54336"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/bundle-verify.log": {
+      "bytes": 526,
+      "sha256": "fc77de6c2241c074e4598fd54eddcefe0052c00380195f07bae7ce599dda3c46"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/clippy.log": {
+      "bytes": 1190,
+      "sha256": "63482fb870eeac920270d60f12d15c8d119c5df786d41cda2d4afdcdbd78b4f3"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/commit.txt": {
+      "bytes": 41,
+      "sha256": "be48b46499e7c859954c09f9a69094470cdae707018e45b3ae8fd2473344706e"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/consumer209.json": {
+      "bytes": 76499,
+      "sha256": "f0c28dc747b67a06d0d9d1ce7d003542897373fc313bd522395ba4703bdead84"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/fmt.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/llvm-api-toolchain.json": {
+      "bytes": 1397,
+      "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/llvm-install.json": {
+      "bytes": 35133,
+      "sha256": "c7bf4378da12d714ca58dbe381681fe3cc00ee54bc4512c90b8fbe5df88d1289"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/migration-runner.log": {
+      "bytes": 107,
+      "sha256": "d041de1238c0ff86f970a1ff7932c08b9ea56782fc94936eb6589c72421feaf7"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/reference-resources-after.log": {
+      "bytes": 388,
+      "sha256": "ed3beb4341fe9bb43303a7da93e78eb16856cce227f31fdfc423495e0e6e554d"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/reference-resources-before.log": {
+      "bytes": 226,
+      "sha256": "b5868881c2071c23e2a4b6b95f515c758cad62544f82f08ee6b35e74c246a9c3"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/reference.log": {
+      "bytes": 277792,
+      "sha256": "6f15562af679d34c7c58540c35819ca8fb860d7eafe1e4a4aafdbb3df0489549"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/repository.bundle": {
+      "bytes": 47451590,
+      "sha256": "9286dcebd6b3ff67e6f5765184e5ad4e661aff6e8d7324ea0409ae26da3c49fa"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/source-tree.txt": {
+      "bytes": 11438649,
+      "sha256": "81ae4190dca3938687168406c5a0b67bcf54c81094c63da50a066a179e77655e"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/text-reference.log": {
+      "bytes": 3931,
+      "sha256": "c7da80e6f1fa8f64791bda65837f26318dc6421904756dc32e91aeb72a5c9837"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/toolchain.txt": {
+      "bytes": 404,
+      "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/workspace-resources-after.log": {
+      "bytes": 344,
+      "sha256": "812364eaadb8ce8a72da4346d3938a9560df8fb3c061012c5c174e8b3087aff9"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/workspace-resources-before.log": {
+      "bytes": 144,
+      "sha256": "904780a5a5f9e74550115e5a73694bc1bd89146a04c7a5685cc774bfcc00a584"
+    },
+    "llvm23-ci/llvm23-ci-final/receipts/workspace.log": {
+      "bytes": 277226,
+      "sha256": "1d1be695987d61a4cfe32ae1ce22c83597e91eb0b72366d87d18f48d1d599e72"
+    }
+  },
+  "failures": []
+}

@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-29T17:39:11.371884+00:00",
+  "reviewer": "/root/llvm_migration_audit",
+  "implementation_author": "/root",
+  "controls_implementation_author": "/root/llvm_controls",
+  "baseline": "ad509b5003d9d2a303428f9d01732292988084d8",
+  "implementation_commit": "48fa354559be0bc7f6330b388a367e30c7184312",
+  "tree": "0a5ce57b74581e55b34be381ca7f7b54f1ed921a",
+  "crates_tree": "00f82b6884c647269c76de05340cc4f82b98b0ea",
+  "verdict": "Pass",
+  "verdict_scope": "Independent static review of all 23 changed files and the authorized 58 actual limited native regression tests. This is not a claim that the integrator full gate set has passed or mainline acceptance has completed.",
+  "findings": [
+    {
+      "id": "I1",
+      "severity": "medium",
+      "status": "Closed",
+      "fixed_by": "48fa354559be0bc7f6330b388a367e30c7184312",
+      "summary": "Standalone installer now links the runtime zlib SONAME declared by its prerequisites."
+    },
+    {
+      "id": "I2",
+      "severity": "low",
+      "status": "Closed",
+      "fixed_by": "48fa354559be0bc7f6330b388a367e30c7184312",
+      "summary": "Runtime receipt now records and hashes the directly listed canonical ELF loader."
+    }
+  ],
+  "new_blocking_findings": [],
+  "source_review": [
+    "Single 23.1.4 pin controls generated Rust version constants, LLVM link major, native runtime guards, test expectations and receipts.",
+    "Raw FFI declarations, ownership, target configuration, pass pipeline and object cache protocol remain unchanged.",
+    "No text-parser fallback or expanded unsafe exception was added.",
+    "Dependency policy records the upstream change; language design and Cargo.lock remain byte-identical to baseline.",
+    "Installer uses hash-verified official static PIC inputs and explicitly reports the locally relinked DSO and host runtime dependencies.",
+    "Checker enforces exact LLVM/Clang/LLD/Rust identities and structured failures; CI keeps existing product gates and adds migration checks.",
+    "Migration runner keeps actual source/native exit-code, cache-isolation and version-refusal controls distinct from synthetic runner tests.",
+    "Negative controls and failure logs are retained rather than replaced by later Pass receipts."
+  ],
+  "evidence": {
+    "reviewed_file_identities": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-audit/candidate/48fa354/reviewed-file-identities.json",
+      "bytes": 6515,
+      "sha256": "e58979d7f8cc202f7ddb5055144b77b4252772b41900288d1eb2030c627802fe"
+    },
+    "fix_validation": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-audit/candidate/48fa354/fix-validation.json",
+      "bytes": 3159,
+      "sha256": "10521dd35b7a4ec81a6e385dd38711263d0a4e49677017f6f644f834ae434a53"
+    },
+    "limited_native_validation": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-audit/candidate/48fa354/limited-native-validation.json",
+      "bytes": 7201,
+      "sha256": "eef4dbc62c78f7ee348b2379a09e289a673ae93c71e8074c46be954feee63b60"
+    },
+    "previous_request_changes": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-audit/candidate/27a474ed/static-review.json",
+      "bytes": 1795,
+      "sha256": "edcb800c1b167782a92515ca895f159284788dc2a7e54a26ac38636c56850bfe"
+    },
+    "upstream_ffi_audit": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-audit/source-audit.json",
+      "bytes": 76608,
+      "sha256": "e543a2fc2aff34c6c8dbdb3ac88460ac0b7aea2e42dd9a4de21633afb4e89e5e"
+    },
+    "upstream_shlib_recipe_audit": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-audit/shlib/recipe-audit.json",
+      "bytes": 53055,
+      "sha256": "9ed970a624e9e039f7f3424bbb8df16d709e92bc79d2050356b96a88ce8fab6c"
+    },
+    "earlier_negative_entrypoint_controls": {
+      "path": "/workspace/scratch/037bacfed72a/llvm23-audit/candidate/27a474ed/negative-entrypoint-controls.json",
+      "bytes": 2787,
+      "sha256": "8d59f9c89549601c96ff383cedf56f14be66afb437405a16294641bbe676139e"
+    }
+  },
+  "earlier_negative_control_scope": "Three actual refusal checks were run at 27a, not rerun at 48f. The only follow-up edits are the later link argument and dependency enumeration; checksum refusal and existing-prefix refusal paths are untouched, and the checker is byte-identical. These are retained supporting evidence, not newly counted candidate test executions.",
+  "independent_native_totals": {
+    "passed": 58,
+    "failed": 0,
+    "ignored": 0
+  },
+  "integrator_full_gate_evidence_review": "Pending; integrator is still completing full workspace/reference and migration control gates.",
+  "mainline_acceptance": "Pending",
+  "main_merged": false,
+  "performance": "NotMeasured",
+  "windows_native": "NotRun",
+  "infrastructure_note": "After all independent tests completed, disk exhaustion prevented several read-only sandbox starts. One approved cache-only cleanup removed llvm23-target-review; source, raw logs and native evidence were preserved. No failed start was a compiler test. Review writing resumed after space became available.",
+  "cache_cleanup_authorization": "Only the regenerable reviewer Cargo target may be reclaimed; all paths under llvm23-audit are evidence and must be preserved.",
+  "source_after_capture": {
+    "head": "48fa354559be0bc7f6330b388a367e30c7184312",
+    "tree": "0a5ce57b74581e55b34be381ca7f7b54f1ed921a",
+    "crates_tree": "00f82b6884c647269c76de05340cc4f82b98b0ea",
+    "status": ""
+  },
+  "capture_script": {
+    "path": "/workspace/scratch/037bacfed72a/llvm23-audit/candidate/capture_final_review.py",
+    "bytes": 14959,
+    "sha256": "8424e087dd6f8f8df6524bf72a42a8c37972765e34cc3e5d0eda5ed1e3f5bd42"
+  }
+}

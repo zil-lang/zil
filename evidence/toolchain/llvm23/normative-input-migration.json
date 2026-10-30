@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "authority": "User explicitly authorized mainline acceptance and merge on 2026-10-30; integrator records current normative-input migration under docs/WORKFLOW.md",
+  "integration_commit": "918de0208229010e54183690d61a0453216b7b2a",
+  "old_normative_hash": "4d5480fd3f7de30f6a846489e624ce01bb64d7e835c7e01930bd3410a2206db1",
+  "new_normative_hash": "8b4b3d219999c8f2904b276e051745bf65f9761e421630bdb4bbe0ec2781e02d",
+  "spec_hash": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+  "changed_normative_inputs": [
+    "policy/dependencies.json"
+  ],
+  "reason": "policy/dependencies.json records the LLVM 23.1.4 upstream version; current registry and active/formal task snapshots need to follow this input change",
+  "formal_tasks": [
+    "B0",
+    "T01",
+    "T02",
+    "T03",
+    "T04",
+    "T05",
+    "T06",
+    "T07",
+    "T08",
+    "T09",
+    "W1",
+    "W2",
+    "W3",
+    "W4"
+  ],
+  "current_active_slices": [
+    "181",
+    "208",
+    "209",
+    "210",
+    "211",
+    "212"
+  ],
+  "preserved": "All historical accepted slice hashes, task states, baselines, implementation/review identities and old evidence remain unchanged; 19 already-stale active slices remain out of scope",
+  "derived_indexes": [
+    "data/normative-inputs.json",
+    "data/task-index.json",
+    "data/handoff.json"
+  ],
+  "tests": "Existing exact-head LLVM23 compiler CI remains bound to c1fcc745; only lightweight construction-plan/handoff checks are rerun after metadata migration",
+  "previous_failure_record": "workflow-checks.json",
+  "post_migration_record": "integration-workflow-validation.json"
+}
