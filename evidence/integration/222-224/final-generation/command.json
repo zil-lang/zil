@@ -1,0 +1,28 @@
+{
+  "commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "tree": "6ec628b56387fb5437179986dfeef0e90d553c68",
+  "status_before": "",
+  "command": [
+    "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh",
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "impl222_generation",
+    "--test",
+    "impl222_review_regressions",
+    "--test",
+    "impl219_selection",
+    "--test",
+    "impl219_budget",
+    "--test",
+    "impl222_224_composition"
+  ],
+  "started_utc": "2026-10-30T15:12:56Z",
+  "exit_code": 0,
+  "finished_utc": "2026-10-30T15:13:03Z"
+}
