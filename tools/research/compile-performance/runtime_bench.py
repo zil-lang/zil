@@ -50,7 +50,7 @@ def prepare(args):
         raise SystemExit("--cpu is outside the allowed affinity")
     upstream_path = args.corpus_plan.resolve()
     upstream = json.loads(upstream_path.read_text())
-    if upstream.get("schema") != "zil-compile-performance/1":
+    if upstream.get("schema") not in ("zil-compile-performance/1", "zil-compile-performance/2"):
         raise SystemExit("Expected the frozen CP01/CP03 corpus plan")
     if {c["id"] for c in upstream["cases"]} != set(INPUT_BYTES) or len(upstream["cases"]) != 5:
         raise SystemExit("Runtime contract requires all five frozen cases")

@@ -299,8 +299,14 @@ class RuntimeControls(unittest.TestCase):
         self.assertNotIn("wall", result)
 
     def test_prepare_freezes_base_sources_and_all_runtime_inputs(self):
+        self.check_prepare("zil-compile-performance/1")
+
+    def test_prepare_accepts_hardened_bridge_corpus_schema(self):
+        self.check_prepare("zil-compile-performance/2")
+
+    def check_prepare(self, schema):
         upstream_root = self.root / "upstream"
-        upstream = {"schema": "zil-compile-performance/1", "cases": [], "fixtures_sha256": {},
+        upstream = {"schema": schema, "cases": [], "fixtures_sha256": {},
                     "dependencies_sha256": {p: bench.sha(bench.ROOT / p) for p in bench.common.DEPENDENCIES}}
         for name in bench.INPUT_BYTES:
             path = upstream_root / "corpus" / name / "base/zil/main.zil"
