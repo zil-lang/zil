@@ -38,16 +38,29 @@ fn repeated_cross_module_compound_hints_keep_ct_context_and_current_verify() {
 #[test]
 fn borrowed_hints_do_not_grant_visibility_or_hide_argument_errors() {
     for (source, library, code) in [
-        (SOURCE.to_string(), LIBRARY.replacen("pub ", "", 1), "E-MODULE-PRIVATE"),
-        (SOURCE.replace("#(2)", "true"), LIBRARY.to_string(), "E-TYPE-MISMATCH"),
         (
-            "import library as wide\nfn value()->i64 { return wide.sum([[1i64,2i64],[3i64,4i64]],0i64); }".into(),
+            SOURCE.to_string(),
+            LIBRARY.replacen("pub ", "", 1),
+            "E-MODULE-PRIVATE",
+        ),
+        (
+            SOURCE.replace("#(2)", "true"),
+            LIBRARY.to_string(),
+            "E-TYPE-MISMATCH",
+        ),
+        (
+            "import library as wide\nfn value()->i64 { return wide.sum([[1,2],[3,4]],0); }".into(),
             LIBRARY.to_string(),
             "E-CALL-ARITY",
         ),
     ] {
         let report = compile_project(&project(&source, &library), &CompileOptions::default());
-        assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
         assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
         assert_eq!(report.diagnostics[0].code, code, "{}", report.to_json());
     }
@@ -83,7 +96,7 @@ fn real_source_repeated_tuple_shapes_keep_complete_core_and_exact_node_boundary(
         FileId(0),
         ModuleId(0),
         "repeated-tuples.zil",
-        "fn sum(p:((i64,i64),(i64,i64),(i64,i64),(i64,i64)))->i64 { return p.0.0+p.3.1; } fn value()->i64 { let p=((1i64,2i64),(3i64,4i64),(5i64,6i64),(7i64,8i64)); let a=sum(p); let b=sum(p); let c=sum(p); let d=sum(p); return a+b+c+d; }",
+        "fn sum(p:((i64,i64),(i64,i64),(i64,i64),(i64,i64)))->i64 { return p.0.0+p.3.1; } fn value()->i64 { let p:((i64,i64),(i64,i64),(i64,i64),(i64,i64))=((1,2),(3,4),(5,6),(7,8)); let a=sum(p); let b=sum(p); let c=sum(p); let d=sum(p); return a+b+c+d; }",
     );
     let parsed = zil_syntax::parse(&source).into_result().unwrap();
     let input = zil_expand::expand(&source, &parsed).unwrap();
