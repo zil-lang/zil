@@ -19,6 +19,9 @@ pub(crate) struct CallableTemplates {
     pub roles: Vec<CallableTemplate>,
     pub state_bindings: Vec<CallableTemplate>,
     pub owned_state: bool,
+    /// A single direct owned F producing a fresh opaque environment. This
+    /// source classification grants no concrete ownership proof.
+    pub owned_factory: bool,
     /// One type slot, but two real owning inputs. Syntax classification keeps
     /// its old role storage until the paid selector pass publishes the owner.
     pub state_replacement: Option<StateReplacement>,
@@ -539,6 +542,16 @@ fn template_with_state(
     if callables.is_empty() {
         return Ok(None);
     }
+    let owned_factory = function
+        .return_type
+        .as_ref()
+        .is_some_and(|ty| opaque_signature(ty).is_some());
+    if owned_factory && (callables.len() != 1 || function.generics.len() != 1) {
+        return Err(unsupported(
+            function.span,
+            "owning callable factories require one direct callable type and no ordinary type parameter",
+        ));
+    }
     if callables.len() > 2
         || function.generics.len() > callables.len() + 1
         || !function.where_clause.is_empty()
@@ -615,6 +628,12 @@ fn template_with_state(
             .iter()
             .any(|p| is_state(&p.ty, &parameter.name, dual));
         let owning = returns_state || takes_state;
+        if owned_factory && owning {
+            return Err(unsupported(
+                function.span,
+                "owning callable factories do not accept State parameters",
+            ));
+        }
         // Two direct F inputs remain the constructor profile. A single State
         // and a direct owned F have a separate, complete-returning boundary.
         let constructor = returns_state && !takes_state;
@@ -628,6 +647,12 @@ fn template_with_state(
                 continue;
             }
             let mode = parameter_mode(&input.ty, &parameter.name);
+            if owned_factory && (count != 0 || mode != Some(None) || input.give) {
+                return Err(unsupported(
+                    input.span,
+                    "owning callable factories require exactly one direct by-value F input",
+                ));
+            }
             let state_input = mode.is_none() && is_state(&input.ty, &parameter.name, dual);
             if (mode.is_none() && !state_input) || input.give {
                 return Err(unsupported(
@@ -667,7 +692,7 @@ fn template_with_state(
                 direct_owner = Some(index);
             }
             match (kind, mode) {
-                (CallableKind::FnMut, None) if !owning => {
+                (CallableKind::FnMut, None) if !owning && !owned_factory => {
                     return Err(unsupported(
                         input.span,
                         "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
@@ -749,6 +774,7 @@ fn template_with_state(
         roles,
         state_bindings,
         owned_state,
+        owned_factory,
         state_replacement,
     }))
 }
