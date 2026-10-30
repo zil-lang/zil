@@ -17,6 +17,17 @@ pub(super) struct Scope {
 }
 
 impl Check<'_, '_, '_> {
+    pub(super) fn factory_same_result(&mut self, actual: &TypeRef, expected: &TypeRef, span: Span) -> R<()> {
+        let (Some((ak, ap, ar)), Some((ek, ep, er))) =
+            (callable::opaque_signature(actual), callable::opaque_signature(expected)) else {
+                return Err(error(span, "owning factory result requires a fresh opaque callable"));
+            };
+        if ak != ek || ap.len() != ep.len() {
+            return Err(error(span, "factory closure kind and signature must exactly match its opaque declaration"));
+        }
+        for (a, e) in ap.iter().zip(ep) { same(a, e, span, self.budget)?; }
+        same(ar, er, span, self.budget)
+    }
     fn factory_copy(&mut self, ty: &TypeRef) -> R<()> {
         copy::require(ty, self.nominals, &self.bounds, &self.variables, self.budget)
     }
