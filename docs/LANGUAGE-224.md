@@ -10,7 +10,7 @@
 
 BorrowLocal 在 Analyze 与 Verify 分别检查 shell 及所有 owning child 的完整责任。内联子包只能完整进入其父字段；父字段债务代表完整子包。AddressField 保留实际父地址与共享权限，不创建拥有值或可变 Desc。Verify 从指令重建 Hold 和活跃 loan；候选不是安全证明。
 
-活跃借入期间，whole move/drop 及相交 child take/replace 均拒绝。最后一次读取结束后，现有 NLL 允许移动整个 Product 或取走 child。借入返回/逃逸、长期捕获、可变嵌套 Product、共享地址下复制拥有 child/owner、ByteBuffer 的可变 Desc 和异步均未开放。
+活跃借入期间，whole move/drop 及相交 child take/replace 均拒绝。最后一次读取结束后，现有 NLL 允许移动整个 Product 或取走 child。借入返回/逃逸、`&Product` 的闭包捕获（包括当前立即同步调用形状）、可变嵌套 Product、共享地址下复制拥有 child/owner、ByteBuffer 的可变 Desc 和异步均未开放。
 
 ## 实现和表示
 

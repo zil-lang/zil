@@ -1,0 +1,108 @@
+{
+  "schema": "zil.postmerge-document-review.v1",
+  "verdict": "Pass",
+  "author": "/root",
+  "reviewer": "/root/scope_audit",
+  "review_kind": "Static review of conditional closeout drafts and the postmerge identity gate; not final main CI acceptance",
+  "created_at_utc": "2026-10-30T18:17:05Z",
+  "draft_sha256": {
+    "CURRENT-HANDOFF.md": "a664e7fba0c3ad57632c48a8be2ba097bb24b438f06486c85663775cdf5627c5",
+    "CONSTRUCTION-PROGRESS.md": "0264e7372eddb555a2a2ddfcae00d94a6808aa9a3ec14f1d0377a5442b40185c",
+    "LANGUAGE-222-224.md": "446c3431b4dbdae733e0d954fd6395f97f5673a94748607ab539d9ea7bf65a20"
+  },
+  "draft_bytes": {
+    "CURRENT-HANDOFF.md": 5079,
+    "CONSTRUCTION-PROGRESS.md": 4452,
+    "LANGUAGE-222-224.md": 12515
+  },
+  "draft_bases_sha256": "6431e5fb877948da59b6dcdc653b6c675cbe1e802b1ae60d620877f186fc7294",
+  "previous_reviewed_drafts": {
+    "directory": "drafts-pr9-reviewed",
+    "bases_sha256": "eaee28df88ea1e19c1dcd03cdbc47c6023e5f5c9429a32780092225181024466",
+    "draft_sha256": {
+      "CURRENT-HANDOFF.md": "f83d6b1c8a121420f5e95aca221cad97d88e245ad7cbe95a4ca0b2dd1808f7ff",
+      "CONSTRUCTION-PROGRESS.md": "61c60ee5b241b49ef9083c37653a8b351c8eb2b535e8ea34b47c60755b592824",
+      "LANGUAGE-222-224.md": "a80247d7e5f527a6e4f1672eeadc4ec190b2011459aeb621324779da950e36ac"
+    },
+    "all_previous_draft_bytes_and_hashes_retained": true
+  },
+  "source_identities": {
+    "pr_candidate": "f4c742fd8bb9567120902812c9a7117928784e5c",
+    "pr_run": 41088376020,
+    "original_main_merge": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+    "failed_main_run": 41101248493,
+    "failed_main_audit_sha256": "2151648f7eb2c874cbd63519a24ac57dbb6047a94ec1192fd6e0bcd85b54f437",
+    "stdin_repair_code": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+    "final_repaired_main_merge": "Not assigned or accepted by this document review"
+  },
+  "document_findings": {
+    "original_main_remains_fail": true,
+    "original_default_counts": {
+      "passed": 2860,
+      "failed": 1,
+      "ignored": 0
+    },
+    "original_reference_counts": {
+      "passed": 2826,
+      "failed": 0,
+      "ignored": 0
+    },
+    "failing_invocation_output_not_claimed_pass": "The added paragraph explicitly states BrokenPipe occurred before exit/stdout/stderr collection; it does not reuse prior native output as this failed invocation result.",
+    "repair_description_matches_exact_patch": "The no-input entry_error invocation uses Option::None and null stdin; required mode-byte invocations keep Some(mode), piped stdin and strict write_all. The stdout/exit/stderr and allocation oracles are unchanged.",
+    "only_code_path_changed_by_e38": "crates/zil-driver/tests/review223_machine.rs",
+    "pr_and_final_main_trees_not_equated": true,
+    "no_compiler_language_or_product_scope_expansion": true,
+    "historical_fail_incomplete_superseded_results_retained": true,
+    "no_sum_of_overlapping_local_author_reviewer_or_ci_counts": true,
+    "drafts_remain_conditional": "The draft comment and six unfilled placeholders prohibit a current Pass or integrated claim until root binds successful actual PR and repaired-main CI identities."
+  },
+  "preserved_scope_boundaries": [
+    "Complete language 1.4 and complete ZUI remain NotSatisfied; Rust product gates and native Windows remain NotRun; B0/181 are not closed.",
+    "Ordinary defer lowering, general Type/Syntax/#emit/type declarations, Product borrowing escape and Product closure capture remain outside these slices.",
+    "Product-contained Store, recursive Store, owning Store<Product> capture, arbitrary owning Sum and mutable nested Product remain closed.",
+    "Readiness 29 checks remain 15/12/2 with zero native executions; old inputs and old failures are not reclassified.",
+    "Performance research remains a separate branch; no relative-to-Rust product or compilation-performance claim is introduced."
+  ],
+  "apply_script_static_review": {
+    "path": "recovery/apply-construction8-closeout.py",
+    "sha256": "c47ed5c539f6b4d2fd5d22b50af00a89dd0fd69a821097a40699ac228d72b55d",
+    "verdict": "Pass for the inspected static identity and write-preflight boundaries",
+    "final_ci_gate_retained": [
+      "PR and final main must have distinct actual run IDs, none of PRIOR_RUNS may be final acceptance.",
+      "Final main raw run must be completed/success, event push, branch main, and head == actual receipt checkout == accepted main merge.",
+      "Final main raw job and each recorded step must be completed/success; required step names and audit/raw inventories must match. Empty or missing steps cannot pass.",
+      "PR tree is bound to f4; repaired main tree is bound separately to actual accepted HEAD. Each has its own raw Git object and all three commit receipts.",
+      "Whole receipt archive and transport parts are digest checked; archived and top-level AUDIT bytes must match for final PR/main acceptance."
+    ],
+    "postmerge_gate_retained": [
+      "Original M tree equals the accepted PR tree; fixed e38 changes exactly review223_machine.rs relative to M.",
+      "The final tested main contains the e38 test bytes exactly and only the permitted test, 223 work-order and postmerge-stdin-repair evidence paths differ from the PR candidate.",
+      "Original M, e38, author delivery and independent review commits must all be ancestors of final R.",
+      "Repair author is product_store and non-author reviewer is ct_for; review JSON must be Pass and bind exact e38, and reviewed JSON bytes must remain unchanged.",
+      "Original M AUDIT is bound to frozen SHA2151648f..., status Fail, completed/failure job and unchanged 2860/1/0 counts; its null aggregate run conclusion and older in_progress snapshot remain intact."
+    ],
+    "write_boundary": "All identity, review, draft hashes, placeholders, source-difference and archive checks complete before WritePlan.apply; this review did not invoke preflight/apply or mutate the repository."
+  },
+  "findings_resolved_during_review": [
+    {
+      "finding": "The initial postmerge gate demanded old_audit.run_conclusion == failure even though the frozen M aggregate API conclusion is null.",
+      "resolution": "Root now pins the original AUDIT digest, validates the terminal failed job and preserves the lagging null/in_progress aggregate fields. Final new-main success requirements were not relaxed."
+    },
+    {
+      "finding": "New draft hashes had been updated while BASES draft_bytes still held pre-amendment sizes.",
+      "resolution": "Root corrected current draft sizes to 5079/4452/12515; old reviewed drafts and their sizes/hashes remain unchanged."
+    }
+  ],
+  "execution_and_authority": {
+    "new_cargo_invocations": 0,
+    "new_compiler_builds": 0,
+    "new_native_executions": 0,
+    "new_workflow_runs": 0,
+    "formal_repository_writes": 0,
+    "apply_script_executed": false,
+    "final_main_ci_pass_claimed": false,
+    "independent_224_implementation_approval_claimed": false,
+    "only_written_file": "recovery/closeout-materials/POSTMERGE-DOCUMENT-REVIEW.json"
+  },
+  "application_condition": "Use these drafts only after independent complete successful CI for the actual repaired main R. This static Pass does not accept original failed M or substitute for the pending R audit."
+}

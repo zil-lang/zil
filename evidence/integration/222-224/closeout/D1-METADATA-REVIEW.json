@@ -1,0 +1,883 @@
+{
+  "schema": "zil.construction8.d1-metadata-review.v1",
+  "verdict": "Pass",
+  "reviewer": "/root/product_store",
+  "metadata_author": "/root",
+  "recorded_at_utc": "2026-10-30T19:02:46.379770+00:00",
+  "scope": "Read-only review of the actual uncommitted D1 documentation/task/status diff and archived acceptance identities at R; not a new compiler test, final handoff execution, D1/D2 commit or final metadata CI result",
+  "source_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+  "source_tree": "a7509a9fea1ed2f5818bcb454af4e9b6e6568e7f",
+  "branch": "main",
+  "diff_binding": {
+    "modified_existing_files": 13,
+    "added_files": 53,
+    "existing_patch_bytes": 54558,
+    "existing_patch_sha256": "cd3c9a39ac70ba52468ab90f6bc55102eb5310bd7793c2578fc294808b891fc5",
+    "existing_patch_command": [
+      "git",
+      "diff",
+      "--no-ext-diff",
+      "--no-color",
+      "--full-index",
+      "HEAD",
+      "--",
+      ".task/impl/222.md",
+      ".task/impl/223.md",
+      ".task/impl/224.md",
+      "_zil_goal.md",
+      "data/construction-progress.json",
+      "docs/CONSTRUCTION-PROGRESS.md",
+      "docs/CURRENT-HANDOFF.md",
+      "docs/IMPLEMENTATION-STATUS.md",
+      "docs/LANGUAGE-222-224.md",
+      "docs/LANGUAGE-222.md",
+      "docs/LANGUAGE-224.md",
+      "docs/RUST-GOALS.md",
+      "docs/STATUS-20261030.md"
+    ],
+    "manifest": [
+      {
+        "path": ".task/impl/222.md",
+        "change": "modified",
+        "bytes": 3604,
+        "sha256": "4c08c8e0f0587dd03224a037b95984c829126541ce8c30c96b0f6dc6791c8b6f",
+        "git_blob_sha": "df5facee5439504780f0a31b727a70e82e0f3307",
+        "mode": "0644"
+      },
+      {
+        "path": ".task/impl/223.md",
+        "change": "modified",
+        "bytes": 6179,
+        "sha256": "24ece8ec8ac90da45e6eca61f9ab580bfe0994fc4a4d7316103d94ad5cdc97b8",
+        "git_blob_sha": "3355b4f77021d7ced7a34c7faa7d4562760f0682",
+        "mode": "0644"
+      },
+      {
+        "path": ".task/impl/224.md",
+        "change": "modified",
+        "bytes": 4105,
+        "sha256": "b7d476dceee8e02e256854437dbacb69fd1368586fab946231b07d428fc1aa53",
+        "git_blob_sha": "7a221b36f7b9e28878a8e3657be718a3074cf4b0",
+        "mode": "0644"
+      },
+      {
+        "path": "_zil_goal.md",
+        "change": "modified",
+        "bytes": 26660,
+        "sha256": "5324c70573bd4782b0ea9f84525de08e4a47ad5adece30704b1935a465b8bf81",
+        "git_blob_sha": "c7df6fdd645b41d737248f5161ca851757944cc0",
+        "mode": "0644"
+      },
+      {
+        "path": "data/construction-progress.json",
+        "change": "modified",
+        "bytes": 5903,
+        "sha256": "cc093016d69ab34ea2eda7d641723abdc89267380c5f94abd4c0c47bb7b7aced",
+        "git_blob_sha": "b32ea9d6155917f501022eb0ea251229e9bb0e1f",
+        "mode": "0644"
+      },
+      {
+        "path": "docs/CONSTRUCTION-PROGRESS.md",
+        "change": "modified",
+        "bytes": 4364,
+        "sha256": "7d51a3b35eeafca67c92435a228b65a01e8cfc20dc5860b3095331bf8f173bb0",
+        "git_blob_sha": "3caa01402d5f1b70f5b55b6dc095eb59ec272d29",
+        "mode": "0644"
+      },
+      {
+        "path": "docs/CURRENT-HANDOFF.md",
+        "change": "modified",
+        "bytes": 4991,
+        "sha256": "b03431de2c9773532bdf4f6b336c1d7d7101e5afb7db73d7ce024e130a87035a",
+        "git_blob_sha": "bad8192bf4219ca630454f78345a41bf6637f894",
+        "mode": "0644"
+      },
+      {
+        "path": "docs/IMPLEMENTATION-STATUS.md",
+        "change": "modified",
+        "bytes": 51029,
+        "sha256": "77fb1597b4cbd93b53dc30fa6e9e021d876432d65142303308cd4d241adb0e46",
+        "git_blob_sha": "c0833dda76591f6fb57d58df587b482f769e6481",
+        "mode": "0644"
+      },
+      {
+        "path": "docs/LANGUAGE-222-224.md",
+        "change": "modified",
+        "bytes": 12427,
+        "sha256": "d30223a646cc0d1485384cff4396be9677c8f93a3e836aed101a183d804f92cc",
+        "git_blob_sha": "e363a86ab92e5781790ad707dc18e7b528e9fcf5",
+        "mode": "0644"
+      },
+      {
+        "path": "docs/LANGUAGE-222.md",
+        "change": "modified",
+        "bytes": 12525,
+        "sha256": "4c82a968c3f6897b5cc8cdb2bb2cead28024a5a8e849cf61bc11572931f72ce7",
+        "git_blob_sha": "191b78bcb2992614c2065747146a7be6880f8580",
+        "mode": "0644"
+      },
+      {
+        "path": "docs/LANGUAGE-224.md",
+        "change": "modified",
+        "bytes": 7318,
+        "sha256": "7419c1eeeabaeff2972193407b6af7c153eca63ef1d5587c37d5fa1f852c3e64",
+        "git_blob_sha": "c54ba23a3d488894c112d9dd1e176eb7acbba7e6",
+        "mode": "0644"
+      },
+      {
+        "path": "docs/RUST-GOALS.md",
+        "change": "modified",
+        "bytes": 44490,
+        "sha256": "1939124eeced1eba47a0266917da1fef2426fc99c740329562a89b88f8a8890b",
+        "git_blob_sha": "b76d21e94636f00ed32f3a2f72a723071d2dbe4c",
+        "mode": "0644"
+      },
+      {
+        "path": "docs/STATUS-20261030.md",
+        "change": "modified",
+        "bytes": 6479,
+        "sha256": "affdaac82a22df4df9f14023d12bf52d278ec6f06eda212cf28bd8b897ffdff2",
+        "git_blob_sha": "8b189fb7e66a32b2298ce78009897b265b632e6a",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41082643919/AUDIT.json",
+        "change": "added",
+        "bytes": 7317,
+        "sha256": "1220842708000c2134e9d4bde83db30e9909f502ca97d91a72c2a66f1d7567d9",
+        "git_blob_sha": "7824c7d20664b2bf994193ffa9927c26d37316ef",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41082643919/RESULT.json",
+        "change": "added",
+        "bytes": 1344,
+        "sha256": "8fff189a1210d1096bec603a373112dae03161deb01a162f9f2dc29f5eee4010",
+        "git_blob_sha": "615d3bf5e04c51fa3d53e96f7a8753baf71b54e2",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41082643919/artifact-manifest.json",
+        "change": "added",
+        "bytes": 6444,
+        "sha256": "1936a216a0852274d6ab5140d99b250ccad165a7c9f7666d2ae3764b041d50a7",
+        "git_blob_sha": "1ccb287c2025236a5dfd528bc3879b95ddf7dcf3",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41082643919/raw-receipts.tar.gz",
+        "change": "added",
+        "bytes": 8449243,
+        "sha256": "6ca5b9ef97238d8a27f5e3a9637b2a1090949ffc75a8dc861949849790863802",
+        "git_blob_sha": "7fee0cab087bfd74d1a3faef530575dc4ecce95d",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41084362447/AUDIT.json",
+        "change": "added",
+        "bytes": 12535,
+        "sha256": "3c55c37e366a7cd89a7055e5231cdadc7f8f97dae716f1b4e58369ca082ee614",
+        "git_blob_sha": "4fbffc14108b99fe641b99518cd34603444bfc88",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41084362447/RESULT.json",
+        "change": "added",
+        "bytes": 633,
+        "sha256": "f7e677b15b5411b6369ff67a6e3d4bd5081140888949cdfb2dcbf98b3dd2334d",
+        "git_blob_sha": "9c1326996c6c1c23c91211e1ef0816cbd4403b41",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41084362447/artifact-manifest.json",
+        "change": "added",
+        "bytes": 2701,
+        "sha256": "f15163b6e077ed9c54bc2c8cacda48b86afc5806fbbb0812ed22beb8d2b73a3c",
+        "git_blob_sha": "68b0fbbbc8848b76edf1a756c8c26906d38947c3",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41084362447/raw-receipts.tar.gz",
+        "change": "added",
+        "bytes": 3435327,
+        "sha256": "6f60531facc7c448fdeece3a9e5a501acfbfc3f925abb334a16892783e12bedd",
+        "git_blob_sha": "3f403128439eefd3de7a01af50b09520fc691ce0",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41087541771/AUDIT.json",
+        "change": "added",
+        "bytes": 1332,
+        "sha256": "d8b84f34e168d353f7756ca4447f369acb8d7a924ed410ea736d8e1153faaedf",
+        "git_blob_sha": "4ba90dcf10473e80ddb81a98411cc5f486fa611d",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41087541771/artifact-manifest.json",
+        "change": "added",
+        "bytes": 1053,
+        "sha256": "7c9de56b237529592158e284b4a7a95934c01f85f7e245c927770e81302dd3fc",
+        "git_blob_sha": "02d1f5d603efac9775552c92ddada584e91c1928",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41087541771/raw-receipts.tar.gz",
+        "change": "added",
+        "bytes": 38697,
+        "sha256": "bacbde5218a1a1cb6e31bfe6637cc605b3a11a6fb5839b4f9309f647f2bd99a5",
+        "git_blob_sha": "e1ee2cda3ccd24ada82fbdb85ff80eec51de14f5",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41088078934/AUDIT.json",
+        "change": "added",
+        "bytes": 1079,
+        "sha256": "d039066bdb01d355aaa4dcb11ef9ad0fc3b3eaddd4652244fa178bfc5d8f4cd8",
+        "git_blob_sha": "0a8f689943286297688e3aa883c1a901b2f5d98b",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41088078934/artifact-manifest.json",
+        "change": "added",
+        "bytes": 1052,
+        "sha256": "bac34e1607aeac13ab26a8b8663658837f398c247c669102397d7e980789f9ca",
+        "git_blob_sha": "65ff3f9cfdf0585a50105c33b4cd9998bc3c24d3",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41088078934/raw-receipts.tar.gz",
+        "change": "added",
+        "bytes": 15499,
+        "sha256": "59f48d76a23919327cf4cb027c53e6e9b3c6a1df711cbd9d8b15efd2c4ef2dc6",
+        "git_blob_sha": "f2043b492e1a8d7740f2461afbf1a575c31ebe14",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41088376020/AUDIT.json",
+        "change": "added",
+        "bytes": 17529,
+        "sha256": "c71d414d04a72d2502ff17ad73f60961ca04459652315706f00faf1d9276d705",
+        "git_blob_sha": "33d02ce4405276242e570bda758e2feb95f5eb7f",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41088376020/README.md",
+        "change": "added",
+        "bytes": 526,
+        "sha256": "bb083740ce4bc21a303b903b2402fcf6b934e9f930da5fe3e94b807f1e9e6f57",
+        "git_blob_sha": "753fb1323407a5c31d304c70a5a3d8feacde704e",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41088376020/RESULT.json",
+        "change": "added",
+        "bytes": 925,
+        "sha256": "d553f0b4511e0060a57ad7fd6c47883f0fd564b3fa953a36088bd1d801cf368c",
+        "git_blob_sha": "e987db87a61358b957a48a507315d2b146fa4b59",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41088376020/artifact-manifest.json",
+        "change": "added",
+        "bytes": 14487,
+        "sha256": "462ed5ccb62e450c9422a394d22cad6148a0d0e6d6aaf2d2b4deadee5ba54bc4",
+        "git_blob_sha": "970ae68ad2286348d97a4db9b44bedb1827604da",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41088376020/raw-receipts.tar.gz.part-000",
+        "change": "added",
+        "bytes": 8388608,
+        "sha256": "fa0ade659cdf7f30e580cf8449aa5b01ba515c35a2f13f4fd5a129a69dcefd83",
+        "git_blob_sha": "e52b59d31d9c1029718e379fefad046efc51356d",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41088376020/raw-receipts.tar.gz.part-001",
+        "change": "added",
+        "bytes": 8388608,
+        "sha256": "b39a1f8e78aa13b1dae85654768cf04e2f917a6ed9e8928fd9479b0c6fa6953c",
+        "git_blob_sha": "8ee1fe578c3788786d923a53daf330fda85a48a7",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41088376020/raw-receipts.tar.gz.part-002",
+        "change": "added",
+        "bytes": 2585370,
+        "sha256": "a375099d108bd30409362306c70ab3ebfe4c3a27f2167dcfe638ee2edec0d98f",
+        "git_blob_sha": "d9a8ab10291e4ea362143ea384c3157d0be349a3",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41088376020/restore-raw-receipts.py",
+        "change": "added",
+        "bytes": 1418,
+        "sha256": "dd91dcf724ae6655df34a79b615a7c4102a127be91b7780a2bbfd31cd34fd9b7",
+        "git_blob_sha": "0f09f511b58dabc34ee0bc3e012f8ebcc777c17b",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41101248493/AUDIT.json",
+        "change": "added",
+        "bytes": 16343,
+        "sha256": "2151648f7eb2c874cbd63519a24ac57dbb6047a94ec1192fd6e0bcd85b54f437",
+        "git_blob_sha": "9163d11475c81e7706dd235489c33f70421ae92f",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41101248493/README.md",
+        "change": "added",
+        "bytes": 526,
+        "sha256": "bb083740ce4bc21a303b903b2402fcf6b934e9f930da5fe3e94b807f1e9e6f57",
+        "git_blob_sha": "753fb1323407a5c31d304c70a5a3d8feacde704e",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41101248493/RESULT.json",
+        "change": "added",
+        "bytes": 887,
+        "sha256": "7d4a7353c905debdcd7ea880c9bd112f81fe5e271626259a8de7913c8e78161a",
+        "git_blob_sha": "0df47cf419ef2523911f514c69310d269f3c0bcd",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41101248493/artifact-manifest.json",
+        "change": "added",
+        "bytes": 16081,
+        "sha256": "73a22bba519bfc602446862af1a7e9e38d49ecf3bc9e5226074d4f2c282844f6",
+        "git_blob_sha": "ab7699b977e8216ceccb5dd5901222e4bb561ef8",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41101248493/raw-receipts.tar.gz.part-000",
+        "change": "added",
+        "bytes": 8388608,
+        "sha256": "8d6a2572def8ec351f9033b209bbb6a9cb8818c29844560b93dfa6e7185ba3d0",
+        "git_blob_sha": "7042855dba2c7b71222707a7a7a7a1b4648d125b",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41101248493/raw-receipts.tar.gz.part-001",
+        "change": "added",
+        "bytes": 8388608,
+        "sha256": "ec8a2d93ddeb4c43e742c7df03fad5c38c6e003cfda443f27e464bb1456e1036",
+        "git_blob_sha": "95239cf037e6a0bb6348285547ebcd0bdea73b88",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41101248493/raw-receipts.tar.gz.part-002",
+        "change": "added",
+        "bytes": 2587943,
+        "sha256": "c298292ffec2d10ad6fe225e1b0cb5c82ad1d71607cd4eb1ecce61b5653aa37c",
+        "git_blob_sha": "3b1e3811db41cf9b8153c2551b1a32b9337b4dcb",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41101248493/restore-raw-receipts.py",
+        "change": "added",
+        "bytes": 1418,
+        "sha256": "dd91dcf724ae6655df34a79b615a7c4102a127be91b7780a2bbfd31cd34fd9b7",
+        "git_blob_sha": "0f09f511b58dabc34ee0bc3e012f8ebcc777c17b",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41106864272/AUDIT.json",
+        "change": "added",
+        "bytes": 20786,
+        "sha256": "136bd7d838a4343888555d1b975afb40eb2ed45b65037af00457166d21800f34",
+        "git_blob_sha": "b38488a7f9dc4eb46f6b4d38c1e89d25d9e61c5c",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41106864272/README.md",
+        "change": "added",
+        "bytes": 526,
+        "sha256": "bb083740ce4bc21a303b903b2402fcf6b934e9f930da5fe3e94b807f1e9e6f57",
+        "git_blob_sha": "753fb1323407a5c31d304c70a5a3d8feacde704e",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41106864272/RESULT.json",
+        "change": "added",
+        "bytes": 887,
+        "sha256": "872accf244e4aeb10e7f09ce8cd842fff99f66c4c6a7aa9e816e20782d9fcb7c",
+        "git_blob_sha": "6894862aa4a5e6e029783995d8bd19ae1c2de2cb",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41106864272/artifact-manifest.json",
+        "change": "added",
+        "bytes": 16467,
+        "sha256": "6bf93d0daf08cff72449c8e6c51e93f161b28d9d51203ad1c0a3e48adcba8a07",
+        "git_blob_sha": "f4d047ce7bc5081ef2f3411dc206dbc83d10613c",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41106864272/raw-receipts.tar.gz.part-000",
+        "change": "added",
+        "bytes": 8388608,
+        "sha256": "9d8925d9b22ce646a17b3b9e7f06958d9d34f8611cf123698ac786889e9d8512",
+        "git_blob_sha": "2bd7bfd0d33bf28fef34724ebb49dda3208ebf62",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41106864272/raw-receipts.tar.gz.part-001",
+        "change": "added",
+        "bytes": 8388608,
+        "sha256": "0c65aca7e3b0cc78a82fd4bee6199db23da6d4c8477d76116ce65c243ea0665f",
+        "git_blob_sha": "927e9ecc037a8771be47fde1c2f3ebc6e17d2589",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41106864272/raw-receipts.tar.gz.part-002",
+        "change": "added",
+        "bytes": 2596592,
+        "sha256": "1c50202439bad1c4cf9f9665007e04f181e8edfef3ec270232c21d733aba1ecd",
+        "git_blob_sha": "f18393bcb4e6f6f5371a51a6688240872701609f",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/ci41106864272/restore-raw-receipts.py",
+        "change": "added",
+        "bytes": 1418,
+        "sha256": "dd91dcf724ae6655df34a79b615a7c4102a127be91b7780a2bbfd31cd34fd9b7",
+        "git_blob_sha": "0f09f511b58dabc34ee0bc3e012f8ebcc777c17b",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/ACCEPTANCE.json",
+        "change": "added",
+        "bytes": 2251,
+        "sha256": "4011dde4b3eade5eb752d54ece4367ae2af6ca93d0905b1d2aa5cb71a7493936",
+        "git_blob_sha": "330516f024e16d59fc7d450275b7b8e142a601cb",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/CI-HISTORY-PRIOR.json",
+        "change": "added",
+        "bytes": 1908,
+        "sha256": "c4e4b2c35fc6e041077150b4de36caf55c8f94b7fd873bef904aa2d041303c8e",
+        "git_blob_sha": "c947ab1fb08456bcc9cf6bb9186273c79fadc861",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/CLEANUP-STATIC-REVIEW.json",
+        "change": "added",
+        "bytes": 7021,
+        "sha256": "355a0556ebef5fb37c3fdae714bfd5796013e29d1818c0311d2f65e74f3c1fbe",
+        "git_blob_sha": "dbd3e08915072c2e01966dba61fb8af868a0d122",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/CLOSEOUT-SCRIPTS-STATIC-REVIEW.json",
+        "change": "added",
+        "bytes": 9562,
+        "sha256": "aef16a8ee47dbe2693277332792e94a7ec0b3f6d7a72631d970c9a3ba762a72c",
+        "git_blob_sha": "afd2b518b69538d6d29f4084e07774e3f5e0a5f3",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/DOCUMENT-APPLICATION.json",
+        "change": "added",
+        "bytes": 2215,
+        "sha256": "32d93796fe97cc724d47d387283ffee89e796107cd4f88826121d7ab7645f023",
+        "git_blob_sha": "05f549e642b1b2ee2767aa2514a65d84a276967f",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/DOCUMENT-SCOPE-REVIEW.json",
+        "change": "added",
+        "bytes": 33524,
+        "sha256": "45b9b4c7d72ab846d9e314a33b6c3569e1e0cb51e47118431ced626606921252",
+        "git_blob_sha": "245fa166e720617d8c778e90c830f1005c5f55f6",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/FROZEN-CODE-COMPARISON.json",
+        "change": "added",
+        "bytes": 1489,
+        "sha256": "2297bedd10512b269e3210d9e8ad8823d99b19fac94e3a85e6b7eca7194aa40d",
+        "git_blob_sha": "c7f9d2c90032b389f9b60c61561e41861a945a16",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/POSTMERGE-DOCUMENT-REVIEW.json",
+        "change": "added",
+        "bytes": 7251,
+        "sha256": "3206a0cbe12be03a483f06bb6778063c3b3e97e72e5c268852f1899048c9776e",
+        "git_blob_sha": "716e90a58a7c54c644e393e1eec4b9d714eb98d9",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/POSTMERGE-REPAIR-BINDING.json",
+        "change": "added",
+        "bytes": 3913,
+        "sha256": "7dbed1386ac666b103ced872863f88191bf1d82f6e0670106274bcb19cc21455",
+        "git_blob_sha": "f500f7ed2e616c27a17503f17d242d9fad43d934",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/TRANSPORT-REVIEW.json",
+        "change": "added",
+        "bytes": 578,
+        "sha256": "c6406f6073f1378f4c88c94c70bc152a5e52db37f9862fdb0137952897b8a68e",
+        "git_blob_sha": "89b1c761761257ecc6f5dd622796e624fe5103ce",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/handoff-baseline/RESULT.json",
+        "change": "added",
+        "bytes": 1332,
+        "sha256": "7254b7ac6cf2a9025c7eea19d001c3e053f52d353e9a04fce9e14d1af3873053",
+        "git_blob_sha": "15dd6ba927ea3f8288ff56c7a3b18106180da6f2",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/handoff-baseline/raw-check.tar.gz",
+        "change": "added",
+        "bytes": 52975,
+        "sha256": "2c3d5bef7e72c01bf38763d0ae3583c559829e2249e9358adeee017022e050f1",
+        "git_blob_sha": "ecaff2481ff19a254bb54422c0b11d7968db0e6d",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/plan-self-test/RESULT.json",
+        "change": "added",
+        "bytes": 1249,
+        "sha256": "80a1566de49ebde03c072ad9f587d987f4b6ef91545265e42801cb410450874a",
+        "git_blob_sha": "12571d45b6133db7cb00cdaefb49bf98c16a4997",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/plan-self-test/stderr.txt",
+        "change": "added",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+        "mode": "0644"
+      },
+      {
+        "path": "evidence/integration/222-224/closeout/plan-self-test/stdout.json",
+        "change": "added",
+        "bytes": 877,
+        "sha256": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916",
+        "git_blob_sha": "ace6fb0bc2e61e89ef3b207d1b06a5b4721cda6a",
+        "mode": "0644"
+      }
+    ],
+    "note": "Manifest binds the reviewed working-tree bytes whether unstaged or subsequently staged. This review itself is outside the repository and is not part of the listed pending files."
+  },
+  "source_scope": {
+    "compiler_production_changed": false,
+    "source_fixtures_changed": false,
+    "tests_changed": false,
+    "toolchain_or_cargo_changed": false,
+    "workflow_changed": false,
+    "normative_registry_changed": false,
+    "normative_hash": "1e9be8621c14b53ceaa4668ddb910ca80217907e916043e7fba322844d41c246",
+    "normative_inputs": [
+      {
+        "path": "_zil_design.md",
+        "sha256": "a9fbba01612959917c8ede69a5eeee7854d6ce8e0ff5f5a02d0ab362c6d9eebb",
+        "unchanged_from_R": true
+      },
+      {
+        "path": "spec/grammar.ebnf",
+        "sha256": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+        "unchanged_from_R": true
+      },
+      {
+        "path": "spec/attributes.json",
+        "sha256": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+        "unchanged_from_R": true
+      },
+      {
+        "path": "spec/diagnostics.json",
+        "sha256": "76d7b0eda1addd47ad03d81fa083d2d016c2ec7eeb46297ee868ae3d59131cb8",
+        "unchanged_from_R": true
+      },
+      {
+        "path": "spec/interfaces.json",
+        "sha256": "138d32b57c1d7e0a154335f9321dabd2c47fd78511e322d097f1fcbd7647efcb",
+        "unchanged_from_R": true
+      },
+      {
+        "path": "policy/dependencies.json",
+        "sha256": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7",
+        "unchanged_from_R": true
+      },
+      {
+        "path": "validation/product-gates.json",
+        "sha256": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
+        "unchanged_from_R": true
+      }
+    ],
+    "all_new_files_in_batch_evidence": true,
+    "existing_evidence_modified": false
+  },
+  "task_identity": {
+    "222": {
+      "status": "已合入",
+      "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+      "review": {
+        "reviewer": "/root/product_store",
+        "verdict": "Pass",
+        "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+        "evidence": [
+          "evidence/reviews/222-224/REVIEW-222.json"
+        ]
+      },
+      "original_review_unchanged": true,
+      "review_file_sha256": "8f756eedf0430ee7a9cdc68ecae04accb26e15a325a443467ae159558a3bfe53",
+      "integration_commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+      "main_merge_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "original_pr_merge_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+      "changed_record_keys": [
+        "evidence",
+        "integration_commit",
+        "main_merge_commit",
+        "original_pr_merge_commit",
+        "status"
+      ]
+    },
+    "223": {
+      "status": "已合入",
+      "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+      "review": {
+        "reviewer": "/root/scope_audit",
+        "verdict": "Pass",
+        "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+        "evidence": [
+          "evidence/reviews/222-224/REVIEW-223.json"
+        ]
+      },
+      "original_review_unchanged": true,
+      "review_file_sha256": "86e64a8053830bcb8882b763290d590a7fd804379cff267a750a90b5d8a34b13",
+      "integration_commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+      "main_merge_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "original_pr_merge_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+      "changed_record_keys": [
+        "evidence",
+        "integration_commit",
+        "main_merge_commit",
+        "original_pr_merge_commit",
+        "post_merge_ci_repair",
+        "status"
+      ],
+      "post_merge_ci_repair": {
+        "author": "/root/product_store",
+        "reviewer": "/root/ct_for",
+        "base_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+        "branch": "repair/construction8-stdin",
+        "write_set": [
+          "crates/zil-driver/tests/review223_machine.rs",
+          "evidence/integration/222-224/postmerge-stdin-repair/**"
+        ],
+        "scope": "Test stdin protocol only; preserve source fixtures, compiler production code and all behavioral/allocation oracles",
+        "failure_run": 41101248493,
+        "status": "Accepted",
+        "code_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+        "author_delivery_commit": "bcce4ca58cbd7edb1692c9140a0babb314491ddc",
+        "review_commit": "2276a6dcd41e6e8828fb7908cddf1fc4ff37b0a8",
+        "review_evidence": "evidence/integration/222-224/postmerge-stdin-repair/review/REVIEW.json",
+        "review_verdict": "Pass",
+        "accepted_main_merge": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+        "accepted_main_run": 41106864272
+      }
+    },
+    "224": {
+      "status": "已合入",
+      "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+      "review": {
+        "reviewer": "/root/ct_for",
+        "verdict": "Pass",
+        "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+        "evidence": [
+          "evidence/reviews/222-224/REVIEW-224.json"
+        ]
+      },
+      "original_review_unchanged": true,
+      "review_file_sha256": "06db282a57f8c098b4d6b0c5391c3ff302318c988a80210bd297fbd87be4afa2",
+      "integration_commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+      "main_merge_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "original_pr_merge_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+      "changed_record_keys": [
+        "evidence",
+        "integration_commit",
+        "main_merge_commit",
+        "original_pr_merge_commit",
+        "status"
+      ]
+    }
+  },
+  "acceptance": {
+    "path": "evidence/integration/222-224/closeout/ACCEPTANCE.json",
+    "sha256": "4011dde4b3eade5eb752d54ece4367ae2af6ca93d0905b1d2aa5cb71a7493936",
+    "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+    "candidate_commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+    "main_merge": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+    "ci": [
+      {
+        "role": "pr",
+        "status": "Pass",
+        "run_id": 41088376020,
+        "run_url": "https://github.com/zil-lang/zil/actions/runs/41088376020",
+        "actual_checkout": "4d3df5891aafebdd8337337180a7e2559daec361",
+        "tree": "c6ce79652a5276f127ee43598b0a1b8d57284787",
+        "workspace": {
+          "passed": 2861,
+          "failed": 0,
+          "ignored": 0
+        },
+        "reference": {
+          "passed": 2826,
+          "failed": 0,
+          "ignored": 0
+        },
+        "all_required_steps_success": true,
+        "successful_step_count": 25,
+        "audit_sha256": "c71d414d04a72d2502ff17ad73f60961ca04459652315706f00faf1d9276d705",
+        "evidence": "evidence/integration/222-224/ci41088376020/RESULT.json",
+        "raw_run_job_steps_read_from_original_archive": true,
+        "raw_steps_successful": 25,
+        "raw_job_id": 124176030260
+      },
+      {
+        "role": "main",
+        "status": "Pass",
+        "run_id": 41106864272,
+        "run_url": "https://github.com/zil-lang/zil/actions/runs/41106864272",
+        "actual_checkout": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+        "tree": "a7509a9fea1ed2f5818bcb454af4e9b6e6568e7f",
+        "workspace": {
+          "passed": 2861,
+          "failed": 0,
+          "ignored": 0
+        },
+        "reference": {
+          "passed": 2826,
+          "failed": 0,
+          "ignored": 0
+        },
+        "all_required_steps_success": true,
+        "successful_step_count": 25,
+        "audit_sha256": "136bd7d838a4343888555d1b975afb40eb2ed45b65037af00457166d21800f34",
+        "evidence": "evidence/integration/222-224/ci41106864272/RESULT.json",
+        "raw_run_job_steps_read_from_original_archive": true,
+        "raw_steps_successful": 25,
+        "raw_job_id": 124238861941
+      }
+    ],
+    "counts_not_added_across_runs": true
+  },
+  "postmerge_binding": {
+    "path": "evidence/integration/222-224/closeout/POSTMERGE-REPAIR-BINDING.json",
+    "sha256": "7dbed1386ac666b103ced872863f88191bf1d82f6e0670106274bcb19cc21455",
+    "full_pr_and_final_main_trees_equal": false,
+    "production_source_configuration_and_fixtures_unchanged": true,
+    "changed_paths_since_pr_candidate": 33,
+    "repair_code_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+    "repair_review_commit": "2276a6dcd41e6e8828fb7908cddf1fc4ff37b0a8",
+    "repair_review_sha256": "76038a072e801815528aea113e9bd4b4a6b98f9ee0281acf42919f2959b805af",
+    "statement_review": "PR actual tree equals original M; R has a distinct exact tree and independent completed main CI. D1 adds metadata only relative to R. No equality of the full PR and R trees is claimed."
+  },
+  "original_failure": {
+    "run_id": 41101248493,
+    "source_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+    "status": "Fail",
+    "audit_sha256": "2151648f7eb2c874cbd63519a24ac57dbb6047a94ec1192fd6e0bcd85b54f437",
+    "workspace": {
+      "passed": 2860,
+      "failed": 1,
+      "ignored": 0
+    },
+    "reference": {
+      "passed": 2826,
+      "failed": 0,
+      "ignored": 0
+    },
+    "job_status": "completed",
+    "job_conclusion": "failure",
+    "run_status_observed": "in_progress",
+    "run_conclusion": null,
+    "preserved": true
+  },
+  "global_scope": {
+    "B0": "Doing",
+    "181": "施工",
+    "full_language": "NotSatisfied",
+    "full_zui": "NotSatisfied",
+    "product": "NotRun",
+    "native_windows": "NotRun",
+    "protected_file_hashes": {
+      ".task/B0.md": {
+        "sha256": "ae6ec2cace2758b353d8d77a8c6973656ebdc88c42f0d03d869a6b404e4663e2",
+        "unchanged_from_R": true
+      },
+      ".task/impl/181.md": {
+        "sha256": "8a376aae0271c4fcdaa3cb8ac82d012c5069a2dbe01a1bfb1fc26b8ec542975e",
+        "unchanged_from_R": true
+      },
+      "data/normative-inputs.json": {
+        "sha256": "8672e7af8ccf5958f131b68f7d0e81dc3f8a1a43992b09c97cc5cf69f589ab94",
+        "unchanged_from_R": true
+      },
+      "data/handoff.json": {
+        "sha256": "6faeb81dd08b4133c2fe057742f4fcf505df5ec38d9511efbf858a25e7d84332",
+        "unchanged_from_R": true
+      }
+    },
+    "readiness": {
+      "source_commit": "6b0d974bedfb40c93eb36e491ceb18a138718dac",
+      "unchanged_original_sources": 29,
+      "success": 15,
+      "unsupported": 12,
+      "malformed_excluded": 2,
+      "promoted": [
+        "product-store-element",
+        "product-error-union"
+      ],
+      "old_success_regressions": 0,
+      "receipt": "evidence/integration/222-224/readiness/READINESS.json",
+      "full_readiness": false
+    },
+    "overlapping_132_19_not_added": true,
+    "no_rust_performance_breakthrough_claim": true,
+    "research_branch_not_changed": true
+  },
+  "documentation": {
+    "three_rendered_docs_match_DOCUMENT_APPLICATION_hashes": true,
+    "defer_ordinary_lowering_unsupported_retained": true,
+    "shared_product_closure_capture_including_immediate_call_remains_closed": true,
+    "owning_store_product_capture_remains_closed": true,
+    "prior_fail_incomplete_superseded_results_remain_separate": true,
+    "historical_1138_handoff_count_explicitly_not_current_check": true,
+    "global_errors_not_zeroed": true,
+    "original_M_failure_explicit_in_current_documents": true
+  },
+  "evidence_preservation": {
+    "copied_files_exactly_equal_materials": 47,
+    "remaining_added_files": {
+      "generated_binding_and_document_application": 2,
+      "root_plan_self_test_receipts": 3,
+      "ct_for_cleanup_static_review": 1
+    },
+    "PR_and_R_multipart_digest_and_original_raw_run_job_checkout_receipts_checked": true,
+    "new_compiler_or_native_execution_claimed": false,
+    "handoff_baseline_preserved_as_Fail_1356": true,
+    "final_handoff_executed_by_this_review": false
+  },
+  "independence_limit": "This metadata review does not replace the original slice reviews or scope_audit's completed R CI audit. product_store authored slice 223 and its stdin repair; the original non-author approvals from scope_audit and ct_for remain intact and are not reissued here.",
+  "findings": [],
+  "blocking_findings": [],
+  "actions": {
+    "formal_repository_writes": 0,
+    "cargo_invocations": 0,
+    "handoff_invocations": 0,
+    "additional_tests": 0,
+    "github_writes": 0,
+    "page_writes": 0,
+    "only_written_file": "recovery/D1-METADATA-REVIEW.json"
+  },
+  "publication_limit": "No D1 or D2 commit SHA exists in this review. Later final handoff generation, D2 metadata CI and remote publication must retain their own real identities and results."
+}

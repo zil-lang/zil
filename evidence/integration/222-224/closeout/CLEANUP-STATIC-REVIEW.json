@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/ct_for",
+  "verdict": "Pass",
+  "scope": "Read-only static review of the six exact cleanup targets and their guards; not cleanup execution or final-main CI acceptance.",
+  "template_path": "/workspace/scratch/d286b3aeeb6b/recovery/cleanup-construction8.template.yml",
+  "template_sha256": "a3ca849f91c756c2a5c5f03d784a4b18f6a01c4b23860d74935ac79b35864584",
+  "recorded_at_utc": "2026-10-30 18:57:38 UTC",
+  "remote_observation": {
+    "method": "GitHub connector GET /repos/zil-lang/zil/branches?per_page=100",
+    "main": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+    "branches": {
+      "impl/222-ct-for": "a9aa46a8c32fbd52463c3de3b848984321a20c99",
+      "impl/223-product-store": "aefc031d83c92aaea0c6154fdfe9b94834a9b105",
+      "impl/224-readonly-product": "2b98ac8b99c3a4f7dcdc29bb1b6e62d0a4da4ba0",
+      "integration/222-224": "f4c742fd8bb9567120902812c9a7117928784e5c",
+      "main": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "repair/construction8-stdin": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "research/compile-performance": "3d55c0ecf731a92688ae69b4763bc435c565744a",
+      "research/cp21-invalidate": "8c4fa27f677b992e6d5590493a4ea530b95ae46d",
+      "research/cp22-parse-cache": "74142bc822c57b1246c9bf328c019fd364ee150a",
+      "research/cp23-query-read": "1cb27ac6b907aeef28b8a472d15ee1859b9959c1",
+      "research/cp26-parse-publication": "7e7f8083af9361de17793c602bfaa7117e6f47b9",
+      "sync/construction8-history": "f1e29652886c9fd9e3200350c55e501f9e859a0a"
+    }
+  },
+  "deletion_targets": [
+    {
+      "branch": "impl/222-ct-for",
+      "refspec": ":refs/heads/impl/222-ct-for",
+      "expected_tip": "a9aa46a8c32fbd52463c3de3b848984321a20c99",
+      "observed_tip": "a9aa46a8c32fbd52463c3de3b848984321a20c99",
+      "tip_matches": true,
+      "force_with_lease": "refs/heads/impl/222-ct-for:a9aa46a8c32fbd52463c3de3b848984321a20c99",
+      "ancestry_verified_against": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "is_ancestor": true,
+      "merge_base_exit_code": 0
+    },
+    {
+      "branch": "impl/223-product-store",
+      "refspec": ":refs/heads/impl/223-product-store",
+      "expected_tip": "aefc031d83c92aaea0c6154fdfe9b94834a9b105",
+      "observed_tip": "aefc031d83c92aaea0c6154fdfe9b94834a9b105",
+      "tip_matches": true,
+      "force_with_lease": "refs/heads/impl/223-product-store:aefc031d83c92aaea0c6154fdfe9b94834a9b105",
+      "ancestry_verified_against": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "is_ancestor": true,
+      "merge_base_exit_code": 0
+    },
+    {
+      "branch": "impl/224-readonly-product",
+      "refspec": ":refs/heads/impl/224-readonly-product",
+      "expected_tip": "2b98ac8b99c3a4f7dcdc29bb1b6e62d0a4da4ba0",
+      "observed_tip": "2b98ac8b99c3a4f7dcdc29bb1b6e62d0a4da4ba0",
+      "tip_matches": true,
+      "force_with_lease": "refs/heads/impl/224-readonly-product:2b98ac8b99c3a4f7dcdc29bb1b6e62d0a4da4ba0",
+      "ancestry_verified_against": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "is_ancestor": true,
+      "merge_base_exit_code": 0
+    },
+    {
+      "branch": "integration/222-224",
+      "refspec": ":refs/heads/integration/222-224",
+      "expected_tip": "f4c742fd8bb9567120902812c9a7117928784e5c",
+      "observed_tip": "f4c742fd8bb9567120902812c9a7117928784e5c",
+      "tip_matches": true,
+      "force_with_lease": "refs/heads/integration/222-224:f4c742fd8bb9567120902812c9a7117928784e5c",
+      "ancestry_verified_against": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "is_ancestor": true,
+      "merge_base_exit_code": 0
+    },
+    {
+      "branch": "repair/construction8-stdin",
+      "refspec": ":refs/heads/repair/construction8-stdin",
+      "expected_tip": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "observed_tip": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "tip_matches": true,
+      "force_with_lease": "refs/heads/repair/construction8-stdin:ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "ancestry_verified_against": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "is_ancestor": true,
+      "merge_base_exit_code": 0
+    },
+    {
+      "branch": "sync/construction8-history",
+      "refspec": ":refs/heads/sync/construction8-history",
+      "observed_tip": "f1e29652886c9fd9e3200350c55e501f9e859a0a",
+      "expected_tip_at_execution": "$GITHUB_SHA",
+      "force_with_lease": "refs/heads/sync/construction8-history:$GITHUB_SHA",
+      "guards": [
+        "git rev-parse HEAD equals $GITHUB_SHA",
+        "git rev-parse refs/remotes/origin/sync/construction8-history equals $GITHUB_SHA"
+      ],
+      "main_ancestry_checked": false,
+      "note": "The cleanup workflow's synchronization branch is retired under its own exact event-tip guard; it is not claimed to be a main ancestor."
+    }
+  ],
+  "guard_checks": {
+    "explicit_deletion_target_count": 6,
+    "implementation_branch_ancestry_count": 5,
+    "synchronization_branch_self_tip_count": 1,
+    "no_wildcard_deletion": true,
+    "no_dynamic_target_expansion": true,
+    "main_not_in_deletion_targets": true,
+    "all_research_branches_not_in_deletion_targets": true,
+    "explicit_lease_for_each_target": true,
+    "push_uses_atomic": true,
+    "shell_strict_mode": "set -euo pipefail",
+    "trigger_branch": "sync/construction8-history",
+    "trigger_path": ".github/workflows/import-construction8.yml"
+  },
+  "final_main_rendering": {
+    "placeholder": "__FINAL_MAIN__",
+    "occurrences": 2,
+    "resolved_in_reviewed_template": false,
+    "required_before_execution": "Root must replace both occurrences with the exact final-main SHA. The template checks origin/main equality and uses that same SHA for all five implementation ancestry checks."
+  },
+  "protected_research_snapshot": {
+    "research/compile-performance": "3d55c0ecf731a92688ae69b4763bc435c565744a",
+    "research/cp21-invalidate": "8c4fa27f677b992e6d5590493a4ea530b95ae46d",
+    "research/cp22-parse-cache": "74142bc822c57b1246c9bf328c019fd364ee150a",
+    "research/cp23-query-read": "1cb27ac6b907aeef28b8a472d15ee1859b9959c1",
+    "research/cp26-parse-publication": "7e7f8083af9361de17793c602bfaa7117e6f47b9"
+  },
+  "actions": {
+    "cleanup_executed": false,
+    "remote_writes": 0,
+    "page_reads_during_this_review": 0,
+    "page_writes_during_this_review": 0,
+    "page_ownership": "Root formally took heartbeat ownership at 2026-10-31 02:53:30 Asia/Shanghai; this reviewer stopped all Page writes.",
+    "additional_tests": 0,
+    "artifact_write": "Only this JSON was written after root explicitly requested the saved read-only review."
+  },
+  "limits": [
+    "The five fixed implementation tips were observed on GitHub and independently checked as ancestors of current main R using local immutable Git objects.",
+    "The synchronization branch has an event-tip guard, not a main-ancestry claim.",
+    "Final-main substitution, actual deletion and post-deletion readback remain root responsibilities.",
+    "This review does not replace scope_audit's R workflow audit."
+  ]
+}

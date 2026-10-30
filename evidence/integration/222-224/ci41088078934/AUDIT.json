@@ -1,0 +1,28 @@
+{
+  "audit_kind": "Read-only record of a superseded CI attempt; not final verification",
+  "reviewer": "/root/scope_audit",
+  "run_id": 41088078934,
+  "run_attempt": 1,
+  "status": "Superseded",
+  "run_conclusion": "cancelled",
+  "pr_head": "e3e231b493c4d64f04d01beaf0c394a1f148dbb5",
+  "actual_checkout_commit": "390c07d121e6374080b55790e2b00a15fdf64fc1",
+  "actual_tree": "d7f0f898607e278bfa569a39412a9429363e970d",
+  "identity_evidence": [
+    "job.log git log -1 --format=%H",
+    "github-merge.json"
+  ],
+  "workspace": "Cancelled before completion",
+  "workspace_counts": null,
+  "reference": "NotRun",
+  "later_test_gates": "NotRun",
+  "native_inventory": {
+    "status": "Capture step completed successfully",
+    "native_upload": "Skipped",
+    "release": "Skipped",
+    "manifest_read": false
+  },
+  "artifacts": "Only GitHub artifact metadata retained here; neither ZIP independently downloaded",
+  "job_log_sha256": "63beddb33d93f91dba1dfd68ede3780fe2f398bfeb27fbc59e63e6bb514efd10",
+  "score_policy": "No partial results count toward final candidate verification"
+}

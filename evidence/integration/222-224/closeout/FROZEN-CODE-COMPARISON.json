@@ -1,0 +1,35 @@
+{
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "candidate": "f4c742fd8bb9567120902812c9a7117928784e5c",
+  "candidate_tree": "c6ce79652a5276f127ee43598b0a1b8d57284787",
+  "original_manifest_sha256": "598404ece7b40b25b630167ea2fe4d3bb73cd8da9c5e91f272780c30e9bde810",
+  "entries": 209,
+  "unchanged_entries": 208,
+  "changed_entries": [
+    {
+      "path": "crates/zil-verify/src/package_tests/captures.rs",
+      "frozen_entry": "100644 blob a872783d44fa71fdd67b90f8484aa891e197e455\tcrates/zil-verify/src/package_tests/captures.rs",
+      "candidate_entry": "100644 blob dd753141652160c84dc6a7824c2ad36f9156fed5\tcrates/zil-verify/src/package_tests/captures.rs"
+    }
+  ],
+  "all_209_entries_identical": false,
+  "changed_entry_test_only": true,
+  "test_module_gate": "crates/zil-verify/src/lib.rs: #[cfg(test)] mod package_tests;",
+  "production_compiler_byte_changes": [],
+  "normative_snapshots": [
+    {
+      "commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+      "status": "Pass",
+      "required_input_count": 7,
+      "normative_hash": "1e9be8621c14b53ceaa4668ddb910ca80217907e916043e7fba322844d41c246",
+      "all_registered_inputs_match_exact_commit": true
+    },
+    {
+      "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+      "status": "Pass",
+      "required_input_count": 7,
+      "normative_hash": "1e9be8621c14b53ceaa4668ddb910ca80217907e916043e7fba322844d41c246",
+      "all_registered_inputs_match_exact_commit": true
+    }
+  ]
+}

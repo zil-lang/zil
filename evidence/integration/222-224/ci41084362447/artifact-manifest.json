@@ -1,0 +1,87 @@
+{
+  "archive": "raw-receipts.tar.gz",
+  "bytes": 3435327,
+  "sha256": "6f60531facc7c448fdeece3a9e5a501acfbfc3f925abb334a16892783e12bedd",
+  "files": [
+    {
+      "path": "AUDIT.json",
+      "bytes": 12535,
+      "sha256": "3c55c37e366a7cd89a7055e5231cdadc7f8f97dae716f1b4e58369ca082ee614"
+    },
+    {
+      "path": "annotations-reader-unavailable.json",
+      "bytes": 166,
+      "sha256": "87af17e69a22bbb00512bddcaa53aa02a3abb0c320c9feca494439ed28b70f94"
+    },
+    {
+      "path": "github-artifacts.json",
+      "bytes": 835,
+      "sha256": "5dd450852961e122f53aa96187b9b9e47d57d151c06ea9f3c2231449893af8c9"
+    },
+    {
+      "path": "github-checks.json",
+      "bytes": 5015,
+      "sha256": "70954091dec2ed77898168c4bf9416fbab85e299f0fad3440b28470e964f6f32"
+    },
+    {
+      "path": "github-jobs.json",
+      "bytes": 6230,
+      "sha256": "00fd4a8a38d4e271314c7b353f71505606b380cec23a5aed0930a6cecc995ea9"
+    },
+    {
+      "path": "github-merge.json",
+      "bytes": 2752,
+      "sha256": "dda740fe2c40feff985ffea6b246502d01693d38f249ff804ee8088eb6a50ca2"
+    },
+    {
+      "path": "github-run.json",
+      "bytes": 13432,
+      "sha256": "deb78db48a1ef290c1e890a610f3c464bde33ab7e12c5a7772a7319ba6e1787a"
+    },
+    {
+      "path": "job-logs-unavailable.json",
+      "bytes": 576,
+      "sha256": "5c15d50d1828a87d944c9adec816399751e97a913f402306926498ef7d112f7a"
+    },
+    {
+      "path": "workspace/artifact.zip",
+      "bytes": 1674916,
+      "sha256": "a3491cafe918f9ccfaf5fd2e753980cdd0eb80bb555f67fcd17b4fb85ffc9355"
+    },
+    {
+      "path": "workspace/commit.txt",
+      "bytes": 41,
+      "sha256": "ec1c7b23b8ff997bfdefbad64291241d31112f78e1da99e17443981eec896c79"
+    },
+    {
+      "path": "workspace/llvm-api-toolchain.json",
+      "bytes": 1397,
+      "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+    },
+    {
+      "path": "workspace/source-tree.txt",
+      "bytes": 11491130,
+      "sha256": "63efd3ce6caae6424e762f1ab9e483f64a02fa2b5f440da4a4a2c029a2730ac3"
+    },
+    {
+      "path": "workspace/toolchain.txt",
+      "bytes": 404,
+      "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+    },
+    {
+      "path": "workspace/workspace-resources-after.log",
+      "bytes": 344,
+      "sha256": "c57cf70c786034199b74762d37e8742aa65f863f75b72918309e394288ad94ac"
+    },
+    {
+      "path": "workspace/workspace-resources-before.log",
+      "bytes": 144,
+      "sha256": "de24f0d0529cfff985db96595c69486d86d91b415baf2ae0629ba8883ee97620"
+    },
+    {
+      "path": "workspace/workspace.log",
+      "bytes": 309033,
+      "sha256": "4989b020f836d588f5d66ea81d02f669cfbc1fa138a34c97036c69e511c6d707"
+    }
+  ]
+}

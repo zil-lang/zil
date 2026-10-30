@@ -1,0 +1,60 @@
+{
+  "status": "Pass",
+  "recorded_at_utc": "2026-10-30T18:59:45.672346+00:00",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "candidate_commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+  "main_merge": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+  "pr_ci": {
+    "status": "Pass",
+    "run_id": 41088376020,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41088376020",
+    "actual_checkout": "4d3df5891aafebdd8337337180a7e2559daec361",
+    "tree": "c6ce79652a5276f127ee43598b0a1b8d57284787",
+    "workspace": {
+      "passed": 2861,
+      "failed": 0,
+      "ignored": 0
+    },
+    "reference": {
+      "passed": 2826,
+      "failed": 0,
+      "ignored": 0
+    },
+    "all_required_steps_success": true,
+    "successful_step_count": 25,
+    "audit_sha256": "c71d414d04a72d2502ff17ad73f60961ca04459652315706f00faf1d9276d705",
+    "evidence": "evidence/integration/222-224/ci41088376020/RESULT.json"
+  },
+  "main_ci": {
+    "status": "Pass",
+    "run_id": 41106864272,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41106864272",
+    "actual_checkout": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+    "tree": "a7509a9fea1ed2f5818bcb454af4e9b6e6568e7f",
+    "workspace": {
+      "passed": 2861,
+      "failed": 0,
+      "ignored": 0
+    },
+    "reference": {
+      "passed": 2826,
+      "failed": 0,
+      "ignored": 0
+    },
+    "all_required_steps_success": true,
+    "successful_step_count": 25,
+    "audit_sha256": "136bd7d838a4343888555d1b975afb40eb2ed45b65037af00457166d21800f34",
+    "evidence": "evidence/integration/222-224/ci41106864272/RESULT.json"
+  },
+  "postmerge_repair": {
+    "base_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+    "failed_run_id": 41101248493,
+    "code_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+    "author_delivery_commit": "bcce4ca58cbd7edb1692c9140a0babb314491ddc",
+    "review_commit": "2276a6dcd41e6e8828fb7908cddf1fc4ff37b0a8",
+    "review_evidence": "evidence/integration/222-224/postmerge-stdin-repair/review/REVIEW.json",
+    "author": "/root/product_store",
+    "reviewer": "/root/ct_for",
+    "scope": "Optional stdin protocol in the independent machine test only; fixtures, compiler source and behavioral oracles unchanged"
+  }
+}

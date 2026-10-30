@@ -1,0 +1,479 @@
+{
+  "audit_kind": "Read-only CI receipt audit; not a new independent implementation review",
+  "reviewer": "/root/scope_audit",
+  "run_id": 41088376020,
+  "run_attempt": 1,
+  "run_url": "https://github.com/zil-lang/zil/actions/runs/41088376020",
+  "status": "Pass",
+  "completeness": "Complete",
+  "run_conclusion": "success",
+  "pr_head": "f4c742fd8bb9567120902812c9a7117928784e5c",
+  "actual_tested_commit": "4d3df5891aafebdd8337337180a7e2559daec361",
+  "actual_tree": "c6ce79652a5276f127ee43598b0a1b8d57284787",
+  "original_common_implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "identity_evidence": {
+    "commit_txt": [
+      "workspace/commit.txt",
+      "reference/commit.txt",
+      "final/receipts/commit.txt"
+    ],
+    "source_tree": [
+      "workspace/source-tree.txt",
+      "reference/source-tree.txt",
+      "final/receipts/source-tree.txt"
+    ],
+    "source_tree_sha256": "1cd4003ad77e007b0b8d4f9a202e52e6693782e6fb7bb340fabfb77e596ed9d2",
+    "source_tree_exactly_matches_frozen_head_listing": true,
+    "all_three_receipt_sets_byte_identical": true,
+    "remote_merge_git_object": "github-merge.json",
+    "head_not_substituted_for_tested_merge": true,
+    "production_difference": {
+      "runtime_implementation_changes_since_4d7bbb": [],
+      "test_only_src_difference": "crates/zil-verify/src/package_tests/captures.rs: rejection needle changed from non-Copy type to Package capture views cannot expose a local address; module is #[cfg(test)]",
+      "test_files_changed_or_added": [
+        "crates/zil-analyze/tests/impl201_store.rs",
+        "crates/zil-driver/tests/impl192_copy_fields.rs",
+        "crates/zil-driver/tests/impl214_source.rs",
+        "crates/zil-driver/tests/review222_independent.rs",
+        "crates/zil-driver/tests/review224_independent.rs"
+      ],
+      "cargo_manifests_lock_and_toolchain_unchanged": true,
+      "old_manifest_hashes_not_rewritten": true
+    }
+  },
+  "workspace": {
+    "status": "Pass",
+    "command": "cargo test --locked --workspace --no-fail-fast",
+    "passed": 2861,
+    "failed": 0,
+    "ignored": 0,
+    "summary_records": 306,
+    "nonempty_test_groups": 288,
+    "log": "workspace/workspace.log",
+    "log_sha256": "67c3b2d553d696de41784ef87c2fb0fde4f3ae3224460b8ab210f8e312f7d825"
+  },
+  "reference": {
+    "status": "Pass",
+    "command": "cargo test --locked --workspace --no-default-features --no-fail-fast",
+    "passed": 2826,
+    "failed": 0,
+    "ignored": 0,
+    "summary_records": 306,
+    "nonempty_test_groups": 284,
+    "log": "reference/reference.log",
+    "log_sha256": "c6c84c507a4d9ed03ef117728aaedab60e85f34efad35657bb10c7b8b0a0553e"
+  },
+  "feature_count_difference": {
+    "default_only_api_tests": 38,
+    "reference_only_explicit_unavailable_controls": 3,
+    "net_passed_difference": 35,
+    "evidence": "feature-count-differences.json",
+    "counts_not_added_across_configurations": true
+  },
+  "later_gates": {
+    "formatting": "Pass",
+    "native_api_state_allocator": {
+      "status": "Pass",
+      "source_commit": "4d3df5891aafebdd8337337180a7e2559daec361",
+      "builds": 16,
+      "executions": 128,
+      "allocator_observations": 88,
+      "real_allocation_failures": 56,
+      "all_observed_allocations_released": true,
+      "all_builder_api_without_fallback": true,
+      "consumer_sha256": "70397ab301af4b428f8e453b87b85cd6ddd38af78f809df57bf1d5d1ec0e7c6e",
+      "commands": 145
+    },
+    "all_target_clippy": {
+      "status": "Pass",
+      "command": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+      "log": "final/receipts/clippy.log"
+    },
+    "text_reference": {
+      "status": "Pass",
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0,
+      "log": "final/receipts/text-reference.log"
+    },
+    "python_migration": {
+      "tests": 9,
+      "status": "OK",
+      "log": "final/receipts/migration-runner.log"
+    },
+    "final_artifact_upload": "Pass"
+  },
+  "native_artifacts": [
+    {
+      "phase": "workspace",
+      "artifact_id": 12993461914,
+      "artifact_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/12993461914",
+      "zip_bytes": 187669722,
+      "github_digest": "sha256:318a2ead9523235860b02212ae0df010670a03dee74b9b57c0175e986fd56417",
+      "expires_at": "2026-11-29T16:26:59Z",
+      "independently_downloaded": false,
+      "manifest": "workspace/workspace-native-manifest.json",
+      "manifest_sha256": "4d11ae14f4657a80ec28f1e26aadfe5c4d80ce37d20a7e64fcfd2e5718cafdac",
+      "manifest_file_count": 61149,
+      "manifest_payload_bytes": 3029783071,
+      "manifest_executable_file_count": 2395,
+      "upload": "success",
+      "release_after_inventory_recheck": "success",
+      "evidence_basis": "GitHub API artifact metadata, complete downloaded file manifest, successful workflow upload and exact inventory-protected release; no independent native ZIP byte verification"
+    },
+    {
+      "phase": "reference",
+      "artifact_id": 12994736302,
+      "artifact_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/12994736302",
+      "zip_bytes": 186120840,
+      "github_digest": "sha256:88528b89e25b866cda12932fbb7e64417458e598a06fa1115c4450d964dcfc11",
+      "expires_at": "2026-11-29T16:36:15Z",
+      "independently_downloaded": false,
+      "manifest": "reference/reference-native-manifest.json",
+      "manifest_sha256": "71045fc300a97f5357df05affce1603be5d2656d9fff3476dafbe8d2c93f5cdf",
+      "manifest_file_count": 60035,
+      "manifest_payload_bytes": 3007796812,
+      "manifest_executable_file_count": 2327,
+      "upload": "success",
+      "release_after_inventory_recheck": "success",
+      "evidence_basis": "GitHub API artifact metadata, complete downloaded file manifest, successful workflow upload and exact inventory-protected release; no independent native ZIP byte verification"
+    }
+  ],
+  "cleanup_evidence": {
+    "release_lines": [
+      "2026-10-30T16:28:44.4386082Z Released 61149 inventoried native files after archival",
+      "2026-10-30T16:37:48.4638230Z Released 60035 inventoried native files after archival"
+    ],
+    "free_bytes_after_cleanup_lines": [
+      "2026-10-30T16:28:44.4395974Z Free bytes after cleanup: 5648412672",
+      "2026-10-30T16:28:45.0951844Z Free bytes after cleanup: 10465406976",
+      "2026-10-30T16:37:48.4639405Z Free bytes after cleanup: 5766656000",
+      "2026-10-30T16:37:49.0541868Z Free bytes after cleanup: 10451390464"
+    ],
+    "reference_start_available_kib": 10220096,
+    "reference_end_available_kib": 2533924,
+    "resource_receipts": [
+      "workspace/workspace-resources-before.log",
+      "workspace/workspace-resources-after.log",
+      "reference/reference-resources-before.log",
+      "reference/reference-resources-after.log"
+    ],
+    "no_retrospective_claim_about_run41084362447_termination_cause": true
+  },
+  "downloaded_receipt_artifacts": [
+    {
+      "artifact_id": 12993427193,
+      "zip_bytes": 3346704,
+      "zip_sha256": "d562cc484ebd781c2d008144805c55724619405336180d137d83a63706a83cae",
+      "matches_github_digest": true,
+      "zip_saved": "../workspace.zip",
+      "entries": [
+        {
+          "path": "commit.txt",
+          "bytes": 41,
+          "sha256": "23ad7bc5e5ffce395a428fd0be26e653232480a739426cbcaa1f20831b88dc22"
+        },
+        {
+          "path": "llvm-api-toolchain.json",
+          "bytes": 1397,
+          "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+        },
+        {
+          "path": "source-tree.txt",
+          "bytes": 11492337,
+          "sha256": "1cd4003ad77e007b0b8d4f9a202e52e6693782e6fb7bb340fabfb77e596ed9d2"
+        },
+        {
+          "path": "toolchain.txt",
+          "bytes": 404,
+          "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+        },
+        {
+          "path": "workspace-native-manifest.json",
+          "bytes": 12320060,
+          "sha256": "4d11ae14f4657a80ec28f1e26aadfe5c4d80ce37d20a7e64fcfd2e5718cafdac"
+        },
+        {
+          "path": "workspace-resources-after.log",
+          "bytes": 344,
+          "sha256": "2a6673ebe224f4d192dc57f8636149515d949f530fdd1693de486383584a06f4"
+        },
+        {
+          "path": "workspace-resources-before.log",
+          "bytes": 144,
+          "sha256": "47fe31203cd1b1809107c2021a3e72affeb60a3a13d284aba5edc3daf4baaa46"
+        },
+        {
+          "path": "workspace.log",
+          "bytes": 291242,
+          "sha256": "67c3b2d553d696de41784ef87c2fb0fde4f3ae3224460b8ab210f8e312f7d825"
+        }
+      ]
+    },
+    {
+      "artifact_id": 12993817707,
+      "zip_bytes": 3313557,
+      "zip_sha256": "0713d8eb4417ee365e5c4e4afecd5b05a26dfb5319e71f6ae57351551ef6bf1e",
+      "matches_github_digest": true,
+      "zip_saved": "../reference.zip",
+      "entries": [
+        {
+          "path": "commit.txt",
+          "bytes": 41,
+          "sha256": "23ad7bc5e5ffce395a428fd0be26e653232480a739426cbcaa1f20831b88dc22"
+        },
+        {
+          "path": "llvm-api-toolchain.json",
+          "bytes": 1397,
+          "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+        },
+        {
+          "path": "reference-native-manifest.json",
+          "bytes": 12083147,
+          "sha256": "71045fc300a97f5357df05affce1603be5d2656d9fff3476dafbe8d2c93f5cdf"
+        },
+        {
+          "path": "reference-resources-after.log",
+          "bytes": 388,
+          "sha256": "3b681b0b6fdd4509391082c3f035d15852294ef789912961fe07aebae886ef8b"
+        },
+        {
+          "path": "reference-resources-before.log",
+          "bytes": 220,
+          "sha256": "204242a22df3dc44d1dda1ddfe8f465fa026ce9d62dc462e2634d8243386d726"
+        },
+        {
+          "path": "reference.log",
+          "bytes": 291780,
+          "sha256": "c6c84c507a4d9ed03ef117728aaedab60e85f34efad35657bb10c7b8b0a0553e"
+        },
+        {
+          "path": "source-tree.txt",
+          "bytes": 11492337,
+          "sha256": "1cd4003ad77e007b0b8d4f9a202e52e6693782e6fb7bb340fabfb77e596ed9d2"
+        },
+        {
+          "path": "toolchain.txt",
+          "bytes": 404,
+          "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+        }
+      ]
+    },
+    {
+      "artifact_id": 12994292572,
+      "zip_bytes": 220942393,
+      "zip_sha256": "38ae14588bb258de32cf3606252ae4fc5410c1957948632b367c53c74a59aee4",
+      "matches_github_digest": true,
+      "entire_zip_downloaded_and_hashed_in_memory": true,
+      "zip_saved": false,
+      "repository_bundle_saved": false,
+      "not_extracted": [
+        {
+          "path": "receipts/repository.bundle",
+          "uncompressed_bytes": 217361288,
+          "compressed_bytes": 215779096,
+          "crc32": "fc8c81a4",
+          "not_written_or_expanded": true
+        }
+      ]
+    }
+  ],
+  "source_history_bundle": {
+    "ci_bundle_verify_step": "success",
+    "final_zip_downloaded_and_hashed_in_memory": true,
+    "bundle_not_extracted_or_written": true,
+    "details": [
+      {
+        "path": "receipts/repository.bundle",
+        "uncompressed_bytes": 217361288,
+        "compressed_bytes": 215779096,
+        "crc32": "fc8c81a4",
+        "not_written_or_expanded": true
+      }
+    ]
+  },
+  "workflow_steps": {
+    "Set up job": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:17:41Z",
+      "completed_at": "2026-10-30T16:17:42Z"
+    },
+    "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:17:42Z",
+      "completed_at": "2026-10-30T16:17:57Z"
+    },
+    "Install the supported LLVM API toolchain": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:17:57Z",
+      "completed_at": "2026-10-30T16:18:43Z"
+    },
+    "Record exact checkout and restorable source history": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:18:43Z",
+      "completed_at": "2026-10-30T16:18:55Z"
+    },
+    "Formatting": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:18:55Z",
+      "completed_at": "2026-10-30T16:18:57Z"
+    },
+    "Record workspace resources before tests": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:18:57Z",
+      "completed_at": "2026-10-30T16:18:57Z"
+    },
+    "Complete workspace tests": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:18:57Z",
+      "completed_at": "2026-10-30T16:26:34Z"
+    },
+    "Record workspace resources after tests": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:26:34Z",
+      "completed_at": "2026-10-30T16:26:45Z"
+    },
+    "Preserve workspace receipts before releasing its cache": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:26:45Z",
+      "completed_at": "2026-10-30T16:26:48Z"
+    },
+    "Preserve all workspace native evidence before releasing it": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:26:48Z",
+      "completed_at": "2026-10-30T16:28:23Z"
+    },
+    "Release only the archived workspace native evidence": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:28:23Z",
+      "completed_at": "2026-10-30T16:28:44Z"
+    },
+    "Release only the archived workspace compiler cache": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:28:44Z",
+      "completed_at": "2026-10-30T16:28:45Z"
+    },
+    "Record reference resources before tests": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:28:45Z",
+      "completed_at": "2026-10-30T16:28:45Z"
+    },
+    "Reference-only build and explicit unavailable control": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:28:45Z",
+      "completed_at": "2026-10-30T16:35:53Z"
+    },
+    "Record reference resources after tests": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:35:53Z",
+      "completed_at": "2026-10-30T16:36:03Z"
+    },
+    "Preserve reference receipts before releasing its cache": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:36:03Z",
+      "completed_at": "2026-10-30T16:36:06Z"
+    },
+    "Preserve all reference native evidence before releasing it": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:36:06Z",
+      "completed_at": "2026-10-30T16:37:33Z"
+    },
+    "Release only the archived reference native evidence": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:37:33Z",
+      "completed_at": "2026-10-30T16:37:48Z"
+    },
+    "Release only the archived reference compiler cache": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:37:48Z",
+      "completed_at": "2026-10-30T16:37:49Z"
+    },
+    "Native API State and allocation-failure controls": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:37:49Z",
+      "completed_at": "2026-10-30T16:39:20Z"
+    },
+    "All-target Clippy": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:39:20Z",
+      "completed_at": "2026-10-30T16:39:49Z"
+    },
+    "Explicit LLVM text-reference boundary": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:39:49Z",
+      "completed_at": "2026-10-30T16:39:51Z"
+    },
+    "Small recovery artifact, never target caches": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:39:51Z",
+      "completed_at": "2026-10-30T16:40:05Z"
+    },
+    "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:40:05Z",
+      "completed_at": "2026-10-30T16:40:05Z"
+    },
+    "Complete job": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T16:40:05Z",
+      "completed_at": "2026-10-30T16:40:05Z"
+    }
+  },
+  "successful_step_count": 25,
+  "job_log": "job.log",
+  "job_log_sha256": "d02a34747ce7c3f4e4d526ec6f349a276803173ceda1bb655702ea5077129bd1",
+  "local_execution_claim": {
+    "cargo_runs": 0,
+    "native_builds_or_executions_by_this_auditor": 0,
+    "all_execution_counts_above_are_this_specific_GitHub_run": true
+  },
+  "prior_attempts_preserved": [
+    {
+      "run_id": 41082643919,
+      "status": "Fail",
+      "audit": "../run41082643919/AUDIT.json"
+    },
+    {
+      "run_id": 41084362447,
+      "status": "Fail/Incomplete",
+      "audit": "../run41084362447/AUDIT.json"
+    },
+    {
+      "run_id": 41087541771,
+      "status": "Superseded/Cancelled",
+      "audit": "../run41087541771/AUDIT.json"
+    },
+    {
+      "run_id": 41088078934,
+      "status": "Superseded/Cancelled",
+      "audit": "../run41088078934/AUDIT.json"
+    }
+  ],
+  "score_policy": "Do not add prior attempts, author/reviewer runs, or overlapping configuration results into this run; no complete-language or product-completion claim",
+  "created_at_utc": "2026-10-30T16:44:42.319953+00:00"
+}

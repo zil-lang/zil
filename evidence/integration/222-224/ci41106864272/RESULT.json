@@ -1,0 +1,21 @@
+{
+  "status": "Pass",
+  "scope": "Original GitHub CI receipts and independent read-only audit; not a new test execution",
+  "run_id": 41106864272,
+  "run_url": "https://github.com/zil-lang/zil/actions/runs/41106864272",
+  "pr_head": null,
+  "actual_tested_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+  "actual_tree": "a7509a9fea1ed2f5818bcb454af4e9b6e6568e7f",
+  "full_audit": "AUDIT.json",
+  "audit_sha256": "136bd7d838a4343888555d1b975afb40eb2ed45b65037af00457166d21800f34",
+  "raw_archive": "raw-receipts.tar.gz",
+  "archive_sha256": "e72b7afe1341adc50dfc443c4cf28274e010ca0b06dd025e4d04c40c3d33d728",
+  "recorded_at_utc": "2026-10-30T18:58:28.319479+00:00",
+  "archive_storage": "multipart",
+  "archive_manifest": "artifact-manifest.json",
+  "archive_parts": [
+    "raw-receipts.tar.gz.part-000",
+    "raw-receipts.tar.gz.part-001",
+    "raw-receipts.tar.gz.part-002"
+  ]
+}

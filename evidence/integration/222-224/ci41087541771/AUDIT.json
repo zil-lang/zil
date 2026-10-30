@@ -1,0 +1,31 @@
+{
+  "audit_kind": "Read-only record of a superseded CI attempt; not final verification",
+  "reviewer": "/root/scope_audit",
+  "run_id": 41087541771,
+  "run_attempt": 1,
+  "status": "Superseded",
+  "run_conclusion": "cancelled",
+  "pr_head": "91609072b0687d944fc25489b5536e8f7a7e2106",
+  "actual_checkout_commit": "474c2d93ae18b4e5599eea462d2e5c031b7da461",
+  "actual_tree": "8196965c771de7f68352f639bf1d23824dd54058",
+  "identity_evidence": [
+    "job.log git log -1 --format=%H",
+    "github-merge.json"
+  ],
+  "workspace": "Cancelled before completion",
+  "workspace_counts": null,
+  "reference": "NotRun",
+  "later_test_gates": "NotRun",
+  "native_inventory": {
+    "status": "Failed after cancellation",
+    "diagnostic": "Native evidence must contain only regular files",
+    "observed_at_utc": "2026-10-30T16:15:11.4346543Z",
+    "path_and_type": "Unknown: original diagnostic does not name the path; a concurrently removed path can also make is_file return false",
+    "cause": "Not established",
+    "no_fifo_claim": true,
+    "release": "Skipped"
+  },
+  "artifacts": "Only GitHub artifact metadata retained here; neither ZIP independently downloaded",
+  "job_log_sha256": "d3885087121f51110b9866afca6258880c1f1265c2e6fbffd32cd8fc6284402e",
+  "score_policy": "No partial results count toward final candidate verification"
+}

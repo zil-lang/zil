@@ -1,0 +1,37 @@
+{
+  "archive": "raw-receipts.tar.gz",
+  "bytes": 15499,
+  "sha256": "59f48d76a23919327cf4cb027c53e6e9b3c6a1df711cbd9d8b15efd2c4ef2dc6",
+  "files": [
+    {
+      "path": "AUDIT.json",
+      "bytes": 1079,
+      "sha256": "d039066bdb01d355aaa4dcb11ef9ad0fc3b3eaddd4652244fa178bfc5d8f4cd8"
+    },
+    {
+      "path": "github-artifacts.json",
+      "bytes": 1644,
+      "sha256": "03f13f47f4d41e06f9bf5acc7bf0c4f4b18e7b455ff5c39805a1c0c206bb2f4b"
+    },
+    {
+      "path": "github-jobs.json",
+      "bytes": 4620,
+      "sha256": "285854b1b5665d0059db9b90e501b870634e242350c5da780959abcb00252d66"
+    },
+    {
+      "path": "github-merge.json",
+      "bytes": 2752,
+      "sha256": "93f2ddda5e11dda01f05b899163ce4c618a8e089f1d5eb3fe6892f0c97d4f11a"
+    },
+    {
+      "path": "github-run.json",
+      "bytes": 13417,
+      "sha256": "27acddb63efae1ae4bafbbaef2035218bd226fbf185b2bdc191a730d42c423bc"
+    },
+    {
+      "path": "job.log",
+      "bytes": 48481,
+      "sha256": "63beddb33d93f91dba1dfd68ede3780fe2f398bfeb27fbc59e63e6bb514efd10"
+    }
+  ]
+}

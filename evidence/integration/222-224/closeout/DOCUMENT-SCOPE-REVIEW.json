@@ -1,0 +1,630 @@
+{
+  "schema": "zil.document-scope-review.v1",
+  "status": "Completed",
+  "review_kind": "StaticDocumentationScopeReview",
+  "documentation_verdict": "CorrectionsRequiredAtReviewedSnapshot",
+  "reviewer": "/root/product_store",
+  "created_at_utc": "2026-10-30T16:26:07.001143+00:00",
+  "purpose": "将本轮有限实现、已有证据与仍未完成的语言、公共接口、平台及产品边界准确写入最终 handoff。此文件记录待修文案，不声称文案已应用。",
+  "candidate": {
+    "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+    "ci_run_id": 41088376020,
+    "ci_identity_source": "Integrator instruction; this review did not query or determine the run outcome.",
+    "ci_outcome": "NotAssessedByThisReview",
+    "repository_recorded_status": "AwaitingGitHubCI",
+    "initial_static_review_snapshot": "e3e231b493c4d64f04d01beaf0c394a1f148dbb5",
+    "files_changed_from_initial_snapshot": [
+      "evidence/integration/222-224/ci-native-paths/RESULT.json",
+      "evidence/integration/222-224/ci-native-paths/repair.patch.gz",
+      "tools/ci/native_evidence.py"
+    ],
+    "reviewed_language_documents_unchanged_from_initial_snapshot": true,
+    "superseded_candidates": [
+      {
+        "commit": "e3e231b493c4d64f04d01beaf0c394a1f148dbb5",
+        "ci_run_id": 41088078934,
+        "status": "Superseded",
+        "source": "Integrator instruction"
+      },
+      {
+        "commit": "91609072b0687d944fc25489b5536e8f7a7e2106",
+        "status": "Superseded",
+        "source": "Integrator instruction"
+      }
+    ],
+    "binding_limit": "Current commit identity binds this static document review only. Historical compiler/native observations below retain their actual original build identities."
+  },
+  "execution_and_authority": {
+    "new_cargo_invocations": 0,
+    "new_compilations": 0,
+    "new_test_executions": 0,
+    "new_native_executions": 0,
+    "new_readiness_probe_invocations": 0,
+    "new_ci_pass_claimed": false,
+    "repository_files_written_by_this_review": [],
+    "only_output": "/workspace/scratch/d286b3aeeb6b/recovery/closeout-materials/DOCUMENT-SCOPE-REVIEW.json",
+    "implementation_acceptance_verdict_issued": false,
+    "reviewer_role_limit": "Reviewer authored slice 223 and independently reviewed slice 222. This is a static document-scope review, not independent implementation acceptance of slice 223 or a replacement for the combined non-author reviews.",
+    "method": "Read frozen Git objects, existing receipts and existing test source; cite their identities and exact anchors. No tests, Cargo, compiler or native programs were run for this report."
+  },
+  "necessary_corrections": [
+    {
+      "id": "DOC-222-DEFER",
+      "finding": "当前文案把 defer 与已执行的普通语句/清理语义并列，容易夸大本片普通 lowering 和机器执行范围。",
+      "locations": [
+        {
+          "path": "docs/LANGUAGE-222.md",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "851554ebd4b0d40c70eac24d74eb81b74a62e1a3f0d91464ceb20092890bba11",
+          "line": 48,
+          "anchor": "return、defer",
+          "excerpt": "生成大括号不插入运行期作用域。语句按迭代顺序进入接收列表，return、defer、break/continue 和资源清理按实际发射的普通程序解释。三模块消费者专门让各轮 ByteBuffer 和 Marker 活到接收函数退出，检查其逆构造顺序清理；错误的“每轮额外作用域”无法匹配这个 oracle。"
+        }
+      ],
+      "replace_text": "生成大括号不插入运行期作用域。语句按迭代顺序进入接收列表，return、defer、break/continue 和资源清理按实际发射的普通程序解释。",
+      "proposed_text": "生成大括号不插入运行期作用域。语句按迭代顺序进入接收列表；return、break/continue 和资源清理沿已支持普通程序的语义执行。defer 只保留生成遍历，其普通 Core lowering 仍为 Unsupported，本片没有报告 defer 的机器执行通过。",
+      "edit_scope": "保留本段后续三模块消费者及逆构造顺序清理说明。",
+      "actual_boundary": "Materializer/hygiene 遍历 Defer 不代表普通 Core lowering 支持；独审的 defer 机器执行明确为 NotRun。",
+      "evidence": [
+        {
+          "path": "crates/zil-expand/src/lib.rs",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "9dbbf611bf4583dd48a990513d4ecf67bb63ca23da5c3745cf5eac75f7b078fd",
+          "line": 906,
+          "anchor": "statement requires a later language capability",
+          "excerpt": "                \"statement requires a later language capability\".into(),"
+        },
+        {
+          "path": "crates/zil-driver/src/ct_selection/materialize.rs",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "74bae5737f8f82f9e2d03ffaae871b686134de98db5f9e6363fd02013a0f7f0b",
+          "line": 286,
+          "anchor": "StmtKind::Defer",
+          "excerpt": "            s::StmtKind::Defer(b) | s::StmtKind::Loop(b) | s::StmtKind::Unsafe(b) => {"
+        },
+        {
+          "path": "crates/zil-driver/src/ct_selection/hygiene.rs",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "7f41f59ad411e0c94c60275e3d813392b0e04b37b0c5511acd7da970f90ffc50",
+          "line": 227,
+          "anchor": "StmtKind::Defer",
+          "excerpt": "            s::StmtKind::Defer(body) | s::StmtKind::Loop(body) | s::StmtKind::Unsafe(body) => {"
+        },
+        {
+          "path": "evidence/reviews/222/RESULT.json",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "90487dffa905037006deb5abf474d875d9d3f83dfa863706cf41e8c9c91fcf60",
+          "line": 191,
+          "anchor": "Defer machine execution is NotRun",
+          "excerpt": "    \"Defer machine execution is NotRun: ordinary Core lowering still maps this statement to its later-capability Unsupported fallback (zil-expand/src/lib.rs::stmt). Only materializer/hygiene traversal was statically inspected.\","
+        }
+      ],
+      "existing_test_basis": "已有独审 RESULT 的明确限制及生产 lowering 静态分支；本审查不新增或冒认 defer 执行测试。"
+    },
+    {
+      "id": "DOC-224-SHARED-CAPTURE",
+      "finding": "只写长期捕获未开放过窄；当前 &Product 闭包捕获负例包括创建后立即同步调用。",
+      "locations": [
+        {
+          "path": "docs/LANGUAGE-222-224.md",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "60308ff72c9769225827eecf3c91b3b548b7ea1f687a05d3db747fcd0415919f",
+          "line": 11,
+          "anchor": "| 224：",
+          "excerpt": "| 224：共享 `&Product` | 普通参数、局部地址、直接 `&root.child`、同步转借及嵌套 Copy/有限 Copy 用户资源头读取；真实根来源、完整责任、活跃 loan 和 NLL；零存储普通头不继承 Store 的非零元素限制 | 活跃共享借入期间禁止相交 move/take/drop/replace；不开放可变 Product、借入逃逸或长期捕获，也不从共享地址制造可变 Desc |"
+        },
+        {
+          "path": "docs/LANGUAGE-224.md",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "b04b99f5ebe7a1d7de549a724b9176c539a560b7d1ebb674c541a0b9da8326b3",
+          "line": 13,
+          "anchor": "长期捕获",
+          "excerpt": "活跃借入期间，whole move/drop 及相交 child take/replace 均拒绝。最后一次读取结束后，现有 NLL 允许移动整个 Product 或取走 child。借入返回/逃逸、长期捕获、可变嵌套 Product、共享地址下复制拥有 child/owner、ByteBuffer 的可变 Desc 和异步均未开放。"
+        }
+      ],
+      "proposed_total_report_boundary": "活跃共享借入期间禁止相交 move/take/drop/replace；本片不开放可变嵌套 Product、借入返回/逃逸或 &Product 的闭包捕获，包括当前立即同步调用的受测形状；共享地址不制造可变 Desc。",
+      "proposed_slice_report_paragraph": "活跃借入期间，whole move/drop 及相交 child take/replace 均拒绝。最后一次读取结束后，现有 NLL 允许移动整个 Product 或取走 child。借入返回/逃逸、&Product 的闭包捕获（包括当前创建后立即同步调用的受测形状）、可变嵌套 Product、共享地址下复制拥有 child/owner、ByteBuffer 的可变 Desc 和异步均未开放。",
+      "evidence": [
+        {
+          "path": "crates/zil-driver/tests/impl224_shared_product.rs",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "f287b41d14f10f400c8538068549d3183c962dec03edc17d96f4b6f0e877ea6f",
+          "line": 182,
+          "anchor": "fn sharing_does_not_add_mutable_owned_reads_retention_or_escape",
+          "excerpt": "fn sharing_does_not_add_mutable_owned_reads_retention_or_escape() {"
+        },
+        {
+          "path": "crates/zil-driver/tests/impl224_shared_product.rs",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "f287b41d14f10f400c8538068549d3183c962dec03edc17d96f4b6f0e877ea6f",
+          "line": 198,
+          "anchor": "\"capture\"",
+          "excerpt": "            \"capture\","
+        },
+        {
+          "path": "crates/zil-driver/tests/impl224_shared_product.rs",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "f287b41d14f10f400c8538068549d3183c962dec03edc17d96f4b6f0e877ea6f",
+          "line": 199,
+          "anchor": "let p=&root;let f=()=>value(p);return f()",
+          "excerpt": "            format!(\"fn main()->i32{{let root={ROOT};let p=&root;let f=()=>value(p);return f()}}\"),"
+        }
+      ],
+      "existing_test_basis": {
+        "test": "sharing_does_not_add_mutable_owned_reads_retention_or_escape",
+        "case": "capture",
+        "fixture": "let p=&root;let f=()=>value(p);return f()",
+        "meaning": "闭包捕获持有 &root 的 p，然后立即调用。不是捕获 &p，也不限于长期留存。"
+      },
+      "limit": "普通同步参数和局部转借成功不授予新增闭包捕获合同。"
+    },
+    {
+      "id": "DOC-223-OWNED-STORE-CAPTURE",
+      "finding": "总报告 223 边界行遗漏了拥有捕获 Store<Product> 仍关闭。",
+      "locations": [
+        {
+          "path": "docs/LANGUAGE-222-224.md",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "60308ff72c9769225827eecf3c91b3b548b7ea1f687a05d3db747fcd0415919f",
+          "line": 10,
+          "anchor": "| 223：",
+          "excerpt": "| 223：完整 Product Store | 有限完整嵌套 Product 可作为动态 Store 元素，真实内联布局、push/pop/reserve、失败载荷返还与递归声明序清理；普通 `T:StoreElement` helper 传递完整元素身份 | Product 内 Store、递归 Store、树内 callback、拥有数组、任意 owning Sum、Product 独占元素窗口仍未开放；只支持精确 `Product!Unit` / `Unit!Product` 协议壳 |"
+        }
+      ],
+      "proposed_boundary": "Product 内 Store、递归 Store、树内 callback、拥有数组、任意 owning Sum、拥有捕获 Store<Product>、Product 独占元素窗口仍未开放；只支持精确 Product!Unit / Unit!Product 协议壳。",
+      "evidence": [
+        {
+          "path": "docs/LANGUAGE-223.md",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "d1b158978d13edceb4944878dc9b77862b4e46fec1885ea5bbed065108aeccfe",
+          "line": 105,
+          "anchor": "拥有捕获 Store<Product>",
+          "excerpt": "Product 内 Store、递归 Store、Product 树中的 Closure/异构 dyn、拥有数组、任意 owning Sum、拥有捕获 Store<Product>、Product 独占窗口、长期借入、挂起/取消和并发继续保留各自未完成边界。217 的 `product-owning-store` 与 `nested-store-element` 不随此片完成。未开发完整 ZUI 框架。"
+        },
+        {
+          "path": "crates/zil-driver/tests/impl223_product_store.rs",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "b7a1c571a7a8556cc1dd075ff1052cf3a33ffce08865e79644c53dfc20f5cc02",
+          "line": 265,
+          "anchor": "\"captured-product-store\"",
+          "excerpt": "            \"captured-product-store\","
+        },
+        {
+          "path": "crates/zil-driver/tests/impl223_product_store.rs",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "b7a1c571a7a8556cc1dd075ff1052cf3a33ffce08865e79644c53dfc20f5cc02",
+          "line": 267,
+          "anchor": "let f=move ()=>i32(store_len(s))",
+          "excerpt": "                \"{MODEL} fn main(){{let s:Store<Root>=store_new();let f=move ()=>i32(store_len(s))}}\""
+        }
+      ],
+      "existing_test_basis": {
+        "case": "captured-product-store",
+        "fixture": "let s:Store<Root>=store_new();let f=move ()=>i32(store_len(s))",
+        "expected_scope": "既有 Unsupported 负例"
+      },
+      "limit": "旧直接叶 Store 的有限拥有捕获按其原资格保留，不能据此推导新 Product 元素也获准拥有捕获。"
+    }
+  ],
+  "ambiguity_clarifications": [
+    {
+      "id": "DOC-COMPOSITION-VALUES-NOT-DECLARATIONS",
+      "finding": "“使用 #for 生成 Product”可能被误读为生成 Product 类型声明。实际组合先声明类型，再展开元素构造和 Store 操作。",
+      "locations": [
+        {
+          "path": "docs/LANGUAGE-222-224.md",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "60308ff72c9769225827eecf3c91b3b548b7ea1f687a05d3db747fcd0415919f",
+          "line": 27,
+          "anchor": "新组合程序使用",
+          "excerpt": "新组合程序使用 `#for` 生成 Product，放入 Store，经共享子视图和普通函数读取；最后一次使用结束后可扩容、弹出，O0/O2 均按预期输出 `BA`。直接子包共享读取后移动完整值输出 `A`。保持视图活跃时的 reserve/push/pop/consume 四条近邻均由 Verify 以 `E-BORROW-CONFLICT` 拒绝。"
+        }
+      ],
+      "replace_text": "新组合程序使用 `#for` 生成 Product，放入 Store，经共享子视图和普通函数读取",
+      "proposed_text": "新组合程序在已有 Product 类型上，用 `#for` 展开元素构造和 Store 操作，经共享子视图和普通函数读取",
+      "evidence": [
+        {
+          "path": "crates/zil-driver/tests/impl222_224_composition.rs",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "8d639609dc9f4b8fc142a0cffd26e336d854431decd8e844a3b8548a16f5e099",
+          "line": 16,
+          "anchor": "package Root",
+          "excerpt": "package Root{child:Leaf;tag:i32}"
+        },
+        {
+          "path": "crates/zil-driver/tests/impl222_224_composition.rs",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "8d639609dc9f4b8fc142a0cffd26e336d854431decd8e844a3b8548a16f5e099",
+          "line": 75,
+          "anchor": "fn generated_product_elements_keep_shared_child_lifetimes_and_recursive_cleanup",
+          "excerpt": "fn generated_product_elements_keep_shared_child_lifetimes_and_recursive_cleanup() {"
+        },
+        {
+          "path": "crates/zil-driver/tests/impl222_224_composition.rs",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "8d639609dc9f4b8fc142a0cffd26e336d854431decd8e844a3b8548a16f5e099",
+          "line": 80,
+          "anchor": "#for(code",
+          "excerpt": " #for(code in [65,66]){store_push(s,make(code,code-60))}"
+        }
+      ],
+      "limit": "保留原有 O0/O2 输出与 loan 近邻结果的原证据身份；本静态审查没有重跑它们。"
+    },
+    {
+      "id": "DOC-NATIVE-WINDOWS",
+      "finding": "总报告应显式承接分片已有的原生 Windows NotRun，防止把 Linux 或历史 Win64/Wine 当作本轮原生 Windows 验收。",
+      "locations": [
+        {
+          "path": "docs/LANGUAGE-222-224.md",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "60308ff72c9769225827eecf3c91b3b548b7ea1f687a05d3db747fcd0415919f"
+        }
+      ],
+      "suggested_location": "总报告开头范围声明或最终平台边界段。",
+      "proposed_text": "本轮新增机器证据属于 Linux x86_64 的相应受测路径；原生 Windows 为 NotRun。历史 Win64/Wine 结果保留原身份，不计作本轮原生 Windows 验收。",
+      "evidence": [
+        {
+          "path": "data/construction-progress.json",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "3816b38c3f1e0a9326991ca03ef03a0cb533edf68f55037435e35f4fa280e3df",
+          "line": 74,
+          "anchor": "\"native_windows\"",
+          "excerpt": "  \"native_windows\": \"NotRun\","
+        },
+        {
+          "path": "docs/LANGUAGE-222.md",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "851554ebd4b0d40c70eac24d74eb81b74a62e1a3f0d91464ceb20092890bba11",
+          "line": 135,
+          "anchor": "原生 Windows",
+          "excerpt": "作者没有自审、合入或运行整仓正式 gate。非作者审查、组合全量、GitHub 发布与任务状态由 root 负责。完整语言保持 NotSatisfied，产品保持 NotRun，原生 Windows 保持 NotRun；本片不宣称完整 1.4、B0 或 ZUI 完成。"
+        },
+        {
+          "path": ".github/workflows/verify-main.yml",
+          "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+          "sha256": "444f002027da6c6616029728415618bf90ad60154eeaa03dee1f45c38a48d836",
+          "line": 14,
+          "anchor": "runs-on: ubuntu-24.04",
+          "excerpt": "    runs-on: ubuntu-24.04"
+        }
+      ]
+    }
+  ],
+  "retained_scope_boundaries": {
+    "222": [
+      "只生成普通 fn 声明及已支持的普通语句；不生成 struct/enum/trait/impl/type alias/package。",
+      "迭代数组为显式同型 Unit/bool/u8/u16/i32/i64 标量；range 两端同型 u8/u16/i32/i64，半开升序，相等或降序为空。",
+      "ConfigReady 为封闭快照；生成声明不能反馈后续 CT 查询。零次迭代仍要求 body 可解析，不执行模板语义。",
+      "既有 TypeRef 标量槽替换不构成通用 Type/Syntax 或类型名生成；#emit、条件导入、任意 CT 全局/反射和新增 CT 权限未开放。",
+      "defer 的普通 Core lowering 仍 Unsupported、机器执行 NotRun；API/CLI 同名 constructor 的既有入口差异另存，不能声称全局消除。"
+    ],
+    "223": [
+      "有限完整名义 Product 树；有限 Copy 陪伴、直接 Managed ByteBuffer 或有限 Copy 用户资源头叶。Store 根元素要求非零真实布局，普通零存储拥有 child 仍可负有清理责任。",
+      "仅精确 Product!Unit / Unit!Product 协议壳；不推出任意 E!Product、Product!i32、嵌套 owning Sum 或拥有 enum。",
+      "Product 内 Store、递归 Store、Product 树内 Closure/异构 dyn、拥有数组、拥有捕获 Store<Product>、Product 独占元素窗口、长期借入、挂起/取消和并发未开放。",
+      "旧 direct-managed/callback/叶 Store 捕获维持各自资格；Store 元素资格不能授予普通地址能力，各层保留独立责任。"
+    ],
+    "224": [
+      "完整普通 Product 的同步共享参数、局部地址、直接子包地址与转借；维持真实根来源、完整责任、活跃 loan 和 NLL。",
+      "只读取 Copy 叶及有限用户资源 Copy 头；不推出返回/逃逸借入、&Product 闭包捕获、可变嵌套 Product、复制拥有 child/owner、新 ByteBuffer 头/Desc 权限或异步。",
+      "原 192 的 &state.bytes 形状仍 Types Unsupported；新 &state / &state.r 资格不能改写旧负例。",
+      "普通共享 Product 资格独立于 Store 非零限制；普通零存储头可合法。"
+    ],
+    "other_unfinished_obligations": [
+      "通用 trait/关联项、life/HRTB/lending/dyn。",
+      "完整 Type/Syntax 声明表面、映射与全面卫生范围。",
+      "更深的拥有容器与变体组合。",
+      "外部 retained userdata、重入、unregister/drain/no-future、挂起/取消和并发。"
+    ],
+    "interpretation_limit": "这些是完整语言/产品尚未完成的真实义务；不要反向宣称所有同步手写 ZUI 起步程序必须先具备全部义务。"
+  },
+  "readiness_observation_scope": {
+    "source": {
+      "path": "evidence/integration/222-224/readiness/READINESS.json",
+      "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+      "sha256": "5681eab3f42c72dfd4b6f9842cb7c4c9bf1a3726c6a37e5002d9b93f27855353"
+    },
+    "status_meaning": "Completed 仅表示 29 份冻结原输入的观察已完成，不表示 29 项能力通过。",
+    "compiler_build_commit": "6b0d974bedfb40c93eb36e491ceb18a138718dac",
+    "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+    "cli_sha256": "593da735017a4bf5db773d38ef7c5f3c139c19d75ef6d9a2785d94017b4f1d71",
+    "actual_check_invocations": 29,
+    "counts": {
+      "Success": 15,
+      "Unsupported": 12,
+      "SafeReject": 2
+    },
+    "previous_counts": {
+      "Success": 13,
+      "Unsupported": 14,
+      "SafeReject": 2
+    },
+    "original_217_counts": {
+      "Success": 11,
+      "Unsupported": 16,
+      "SafeReject": 2
+    },
+    "regressions": [],
+    "promotions": [
+      {
+        "name": "product-store-element",
+        "source_sha256": "ec2fe34c2c8a9b52cd66015160b7cbf4caa4fb1cfc66e4a38c8b516a66ff6376",
+        "previous": {
+          "status": "Unsupported",
+          "phase": "types",
+          "verification_runs": 0,
+          "exit": 3,
+          "codes": [
+            "E-UNSUPPORTED"
+          ]
+        },
+        "current": {
+          "status": "Success",
+          "phase": "verify",
+          "verification_runs": 1,
+          "exit": 0,
+          "codes": []
+        },
+        "meaning": "完整有限Product进入Store的原始源到达Verify"
+      },
+      {
+        "name": "product-error-union",
+        "source_sha256": "1dbfaccd1c2ef7f2632aa4f6fb9ee50ced554232f9f4184486162b04cd230f67",
+        "previous": {
+          "status": "Unsupported",
+          "phase": "types",
+          "verification_runs": 0,
+          "exit": 3,
+          "codes": [
+            "E-UNSUPPORTED"
+          ]
+        },
+        "current": {
+          "status": "Success",
+          "phase": "verify",
+          "verification_runs": 1,
+          "exit": 0,
+          "codes": []
+        },
+        "meaning": "原始void!Root（Unit!Product）签名到达Verify；并非任意拥有错误联合"
+      }
+    ],
+    "remaining_unsupported": [
+      {
+        "name": "bytebuffer-slice-capture",
+        "phase": "types",
+        "interpretation": "直接将借入 slice 捕获到闭包仍未实现。"
+      },
+      {
+        "name": "callback-return-generic",
+        "phase": "expand",
+        "interpretation": "该源要求把原 F 原样返回；有限公共拥有包装工厂的既有能力不能与本签名等同。"
+      },
+      {
+        "name": "closure-owned-error-result",
+        "phase": "types",
+        "interpretation": "文件名含 error，但原始源实际让闭包返回直接资源 R，没有 ErrorUnion；仅按真实源记录拒绝。"
+      },
+      {
+        "name": "closure-package-param",
+        "phase": "types",
+        "interpretation": "拥有 Package 作为普通闭包参数并返回的该签名仍被 Types 拒绝。"
+      },
+      {
+        "name": "optional-parameter",
+        "phase": "types",
+        "interpretation": "i32? 表面类型仍未 lowered；原 Copy Option<T> 库控制继续成功。"
+      },
+      {
+        "name": "generic-lifetime",
+        "phase": "expand",
+        "interpretation": "具名 life 参数及其来源签名仍需要相应语义求解。"
+      },
+      {
+        "name": "product-owning-store",
+        "phase": "types",
+        "interpretation": "普通嵌套 Product 拥有 Store 的该形状仍未开放。"
+      },
+      {
+        "name": "nested-store-element",
+        "phase": "types",
+        "interpretation": "含 Store 的拥有 Package 再作为 Store 元素仍未开放。"
+      },
+      {
+        "name": "owning-enum-option",
+        "phase": "types",
+        "interpretation": "含拥有 Leaf 的 enum variant 仍被有限 Copy payload 门拒绝。"
+      },
+      {
+        "name": "associated-type",
+        "phase": "types",
+        "interpretation": "该 trait 的关联类型仍不在有限本地 trait 范围。"
+      },
+      {
+        "name": "dyn-valid-parameter",
+        "phase": "types",
+        "interpretation": "合法 dyn 参数源仍在 Types 拒绝；不是由原 malformed dyn-parameter 推断。"
+      },
+      {
+        "name": "syntax-valid-alias",
+        "phase": "expand",
+        "interpretation": "合法 syntax use 源仍在 Expand 拒绝；不是由原 malformed syntax-extension 推断。"
+      }
+    ],
+    "malformed_excluded": [
+      {
+        "name": "dyn-parameter",
+        "current": {
+          "status": "SafeReject",
+          "phase": "parse",
+          "verification_runs": 0,
+          "exit": 1,
+          "codes": [
+            "E-PARSE-FUNCTION-BODY"
+          ]
+        },
+        "unchanged_from_prior": true,
+        "source_sha256": "33b6eb967a57c8fcc7bf5054d87ec0b83aeeb26645e5322967338542a9c7e28c",
+        "capability_evidence": false
+      },
+      {
+        "name": "syntax-extension",
+        "current": {
+          "status": "SafeReject",
+          "phase": "parse",
+          "verification_runs": 0,
+          "exit": 1,
+          "codes": [
+            "E-PARSE-IDENTIFIER"
+          ]
+        },
+        "unchanged_from_prior": true,
+        "source_sha256": "ec178d9d59e8acc5aa1fa4e36911cc9783420ae308542708ee77d8277f514cbd",
+        "capability_evidence": false
+      }
+    ],
+    "input_integrity": {
+      "all_42_manifest_entries_match_before_and_after": true,
+      "all_29_source_bytes_match_original_manifest_and_prior_results": true,
+      "original_probe_oracle_unchanged": true,
+      "previous_RESULT_unchanged": true,
+      "cli_unchanged": true,
+      "source_checkout_clean_before_and_after": true,
+      "original_probe_oracle_sha256": "1f25af9895df1f0bf0f5ae8000b8e262f3462634c41e40300561ece97017868b",
+      "source_manifest_sha256": "09f51d1f3d73818de60384ef6de2eee4fdf062c2abe88dbabb1c525e1ce74d22",
+      "previous_RESULT_sha256": "907f96f3f676ab6bd5c5fb7cf390155d1e1783b6c53be56670c49f7794131a9f"
+    },
+    "execution_scope": {
+      "cargo_invocations": 0,
+      "native_executions": 0,
+      "phase_artifacts_requested": false,
+      "extra_cases": 0
+    },
+    "limits": [
+      "The unchanged old matrix has no #for or shared ordinary Product input; it cannot measure the full 222/224 increment.",
+      "The product-error-union source declares an unused fn make()->void!Root. Success here establishes source-to-Verify admission of that exact Unit/Product form only; no native execution or arbitrary owning Sum conclusion.",
+      "Source-to-Verify observations do not replace independent raw/Wire or machine cleanup review.",
+      "No whole-language, full-ZUI, platform or product acceptance conclusion."
+    ],
+    "identity_limit": "这些既有 29 次观察属于 6b0d974 构建/4d7bbb7 实现，不改标为当前 f4c742f 的重新执行。product-error-union 仅为 unused fn make()->void!Root 的源到 Verify 接纳；没有由此新增机器清理或任意 owning Sum 结论。"
+  },
+  "formal_and_product_gates": {
+    "sources": [
+      {
+        "path": ".task/B0.md",
+        "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+        "sha256": "ae6ec2cace2758b353d8d77a8c6973656ebdc88c42f0d03d869a6b404e4663e2",
+        "line": 8,
+        "anchor": "\"status\": \"Doing\"",
+        "excerpt": "  \"status\": \"Doing\","
+      },
+      {
+        "path": ".task/impl/181.md",
+        "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+        "sha256": "8a376aae0271c4fcdaa3cb8ac82d012c5069a2dbe01a1bfb1fc26b8ec542975e",
+        "line": 8,
+        "anchor": "\"status\": \"施工\"",
+        "excerpt": "  \"status\": \"施工\","
+      },
+      {
+        "path": "data/construction-progress.json",
+        "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+        "sha256": "3816b38c3f1e0a9326991ca03ef03a0cb533edf68f55037435e35f4fa280e3df"
+      }
+    ],
+    "B0": "Doing",
+    "impl181": "施工",
+    "full_language": "NotSatisfied",
+    "full_zui": "NotSatisfied",
+    "product": "NotRun",
+    "native_windows": "NotRun",
+    "limits": [
+      "内部 schema/Wire27 不等于 B0 公共 schema.v1 与公共接口验收完成。",
+      "181 历史有限实现/审查提交不能替代完整 1.4、公共接口和组合合同 Done。",
+      "readiness 的 full_zui=NotClaimed 只描述其观察范围，与全局 NotSatisfied 并不矛盾。",
+      "Rust 四项目标的合取与可重复产品净突破未建立；机器输出、live=0、334 字节载荷不构成 Rust runtime/RSS/尾延迟对照。",
+      "逻辑预算 N/N-1/fresh 计数不是编译速度比较；独立编译器性能研究结果不得移借。"
+    ]
+  },
+  "historical_identity_requirements": {
+    "ci": [
+      "当前 41088376020 的结果必须等实际正式收据；本静态文档审查既不读取它的完成状态，也不预填 Pass。",
+      "e3e231b / 41088078934 与 91609072 候选按协调者指令保留 Superseded，不能合并为 Pass 或 Fail。",
+      "保留首轮 41082643919 的真实失败；第二轮 41084362447 的 default 2858/3/0 与 reference 未完成按原收据记录，未收尾原因尚未证实，不能改称已确认磁盘故障。",
+      "旧 218–221 的 workspace 2817 / reference 2785 结果不替代本批当前门；本地 132 与 19 个受影响测试有重叠，不能相加虚增覆盖。"
+    ],
+    "original_failures_to_preserve": [
+      {
+        "scope": "222",
+        "identities": [
+          "a54b7cd5a",
+          "7265b8dbe"
+        ],
+        "classification": "OriginalIndependentReviewFail",
+        "sources": [
+          "evidence/reviews/222/INITIAL-a54.json",
+          "evidence/reviews/222/INITIAL-7265.json"
+        ]
+      },
+      {
+        "scope": "223",
+        "identity": "9ca5d5b0",
+        "classification": "OriginalMutableAddressRawAndWireUnexpectedAccept",
+        "source": "evidence/impl/223/review-scope-audit/"
+      },
+      {
+        "scope": "224",
+        "identity": "2b799ed7f405c89c7725b86978286c144070e87f",
+        "classification": "OriginalDirectChildCodegenFailure",
+        "source": "evidence/impl/224/author-history/"
+      },
+      {
+        "scope": "cross-worktree target contamination",
+        "classification": "Infrastructure/InvalidEvidence",
+        "limit": "不能当作代码回归或有效 Pass。"
+      }
+    ],
+    "historical_handoff": {
+      "source": {
+        "path": "evidence/integration/221/closeout/RESULT.json",
+        "commit": "f4c742fd8bb9567120902812c9a7117928784e5c",
+        "sha256": "5334b5fa5af1fbe3951b89ba6a07daff70c23b827d8cb414eae63532a81ff151"
+      },
+      "metadata_scope_status": "Pass",
+      "scope": "Metadata closeout and generated handoff snapshot only; full historical handoff remains Fail.",
+      "metadata_commit": "f064b953462529288409c66eaa1f0aa95b43400e",
+      "accepted_source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+      "handoff_exit_code": 1,
+      "handoff_status": "Fail",
+      "historical_errors": 1138,
+      "new_errors": 0,
+      "task_218_to_221_errors": 0,
+      "limit": "1138 是此历史收据的计数，不是当前新运行计数。metadata closeout Pass 不能改写全量历史 handoff Fail；稀疏 checkout 的历史文件缺失也不得改写原验收身份。"
+    },
+    "summary_identity": "evidence/final-summary.json 中已接受的 218–221 身份必须与当前待收尾的 222–224 身份区分，最终更新仅采用正式最终收据。"
+  },
+  "entry_document_followups": [
+    {
+      "path": "docs/IMPLEMENTATION-STATUS.md",
+      "existing_anchor": "# 2026-10-29 当前入口：213–217",
+      "suggestion": "添加 222–224 的真实最终状态入口，将旧入口标为历史；保留旧计数及其身份。"
+    },
+    {
+      "path": "_zil_goal.md",
+      "existing_context": "218–221 段的“当前”29 探针 13/14/2",
+      "suggestion": "只将旧段“当前”改成“当轮”，保留 13/14/2；另列本轮 15/12/2 及其实际构建身份。"
+    },
+    {
+      "path": "docs/STATUS-20261030.md",
+      "existing_context": "218 恢复阻塞、尚未交付 GitHub 的历史时间点",
+      "suggestion": "添加历史时间点说明或后续恢复验收链接，不删除当时真实阻塞与失败。"
+    }
+  ],
+  "final_handoff_requirements": [
+    "应用三项必要修正与两项歧义澄清；不要用文档修改冒充能力实现。",
+    "正式 CI 当前状态仅由准确绑定 f4c742f / run 41088376020 或其实际后继的最终收据决定。",
+    "保留所有原 Fail、Infrastructure/InvalidEvidence 与 Superseded 身份；修后有限 Pass 与历史失败分别陈述。",
+    "最终 handoff 保留 B0/181 未完、完整语言与完整 ZUI NotSatisfied、product 与 native Windows NotRun。",
+    "本次报告是静态审查产物，不增加编译、测试、native 或产品通过数。"
+  ]
+}

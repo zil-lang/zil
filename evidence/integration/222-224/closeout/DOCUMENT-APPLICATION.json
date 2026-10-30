@@ -1,0 +1,52 @@
+{
+  "status": "Pass",
+  "scope": "Reviewed document corrections applied only after complete PR and main CI acceptance; no new compiler test execution",
+  "base_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+  "review": "DOCUMENT-SCOPE-REVIEW.json",
+  "rendered_documents": [
+    {
+      "path": "docs/CURRENT-HANDOFF.md",
+      "base_blob": "edf5121ba162a3c9665b2f3992eec90d538491d9",
+      "sha256": "b03431de2c9773532bdf4f6b336c1d7d7101e5afb7db73d7ce024e130a87035a"
+    },
+    {
+      "path": "docs/CONSTRUCTION-PROGRESS.md",
+      "base_blob": "c1a29f568870417c85b22163a05c5daa58a1788e",
+      "sha256": "7d51a3b35eeafca67c92435a228b65a01e8cfc20dc5860b3095331bf8f173bb0"
+    },
+    {
+      "path": "docs/LANGUAGE-222-224.md",
+      "base_blob": "8a61a392b9c5322960f963695f811f868223c160",
+      "sha256": "d30223a646cc0d1485384cff4396be9677c8f93a3e836aed101a183d804f92cc"
+    }
+  ],
+  "ci_identity_bindings": [
+    {
+      "role": "pr",
+      "run_id": 41088376020,
+      "actual_checkout": "4d3df5891aafebdd8337337180a7e2559daec361",
+      "tree": "c6ce79652a5276f127ee43598b0a1b8d57284787",
+      "audit_sha256": "c71d414d04a72d2502ff17ad73f60961ca04459652315706f00faf1d9276d705",
+      "github_run_sha256": "98f9430b103b05961b811cf7e6cbd99b762384aca3cf7810473bcfe1e86ed18d",
+      "github_jobs_sha256": "f22830058588e69d72fe242fd7ca6177615e45989719b027cbe62ed7686fd8f4",
+      "archive_sha256": "c3ccd71d8e815627965342967acb8f79631c825f71e80cb6592adcc8e47192ad",
+      "archive_storage": "multipart"
+    },
+    {
+      "role": "main",
+      "run_id": 41106864272,
+      "actual_checkout": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+      "tree": "a7509a9fea1ed2f5818bcb454af4e9b6e6568e7f",
+      "audit_sha256": "136bd7d838a4343888555d1b975afb40eb2ed45b65037af00457166d21800f34",
+      "github_run_sha256": "64e35437d677ccda0884362cca4bdc2a319c96232a38be1997c1f84182252a56",
+      "github_jobs_sha256": "203c109f97632419fe2cab9dedd3d956d7082793ea20a32fed07649516b913fd",
+      "archive_sha256": "e72b7afe1341adc50dfc443c4cf28274e010ca0b06dd025e4d04c40c3d33d728",
+      "archive_storage": "multipart"
+    }
+  ],
+  "formal_tasks_not_closed": [
+    "B0",
+    "181"
+  ],
+  "product_gates_changed": false
+}

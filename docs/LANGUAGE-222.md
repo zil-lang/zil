@@ -45,7 +45,7 @@ fn main() -> i32 => first() + second() - 8
 
 选中后的私有函数和接收列表顶层局部通过源不可拼写、由模块与迭代次序决定的名字区分。嵌套普通块保留自己的词法作用域，同一轮的重复绑定仍是重复绑定；不会给每个重复声明任意新名字来让错误程序通过。生成私有名字不暴露给模板外的普通源码。
 
-生成大括号不插入运行期作用域。语句按迭代顺序进入接收列表，return、defer、break/continue 和资源清理按实际发射的普通程序解释。三模块消费者专门让各轮 ByteBuffer 和 Marker 活到接收函数退出，检查其逆构造顺序清理；错误的“每轮额外作用域”无法匹配这个 oracle。
+生成大括号不插入运行期作用域。语句按迭代顺序进入接收列表，return、break/continue 和资源清理沿已支持普通程序的语义执行。defer 只保留生成遍历，其普通 Core lowering 仍为 Unsupported，本片没有报告 defer 的机器执行通过。三模块消费者专门让各轮 ByteBuffer 和 Marker 活到接收函数退出，检查其逆构造顺序清理；错误的“每轮额外作用域”无法匹配这个 oracle。
 
 零轮模板仍须语法正确，但其未知名字、未知类型等语义不执行。ConfigReady 在本请求内不可变；本批生成的函数不是后续 CT 条件的候选，实际依赖获得 `E-CT-PHASE-DEPENDENCY`，不进行反复求值。跨模块查询保留 public/import 约束，轨迹记录实际 `rounds → configured_rounds`，以及原 module/span。
 

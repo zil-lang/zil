@@ -1,0 +1,45 @@
+{
+  "scope": "Prior attempts only; their outcomes are not reused as final acceptance",
+  "runs": [
+    {
+      "run_id": 41082643919,
+      "status": "Fail",
+      "actual_tested_commit": "9d97bdd4066c84b3c1e085c49bba39b98f333698",
+      "pr_head": "616c562ed6363df437c2d48358da624d86e6960d",
+      "original_audit": "ci41082643919/AUDIT.json",
+      "archive": "ci41082643919/raw-receipts.tar.gz",
+      "actual_tree": "d795d34319c4e85417f7aacfc338a95403d3ea02",
+      "run_url": "https://github.com/zil-lang/zil/actions/runs/41082643919"
+    },
+    {
+      "run_id": 41084362447,
+      "status": "Fail",
+      "actual_tested_commit": "a056f6e7569d8c6cf0a67acfac45dca19950e973",
+      "pr_head": "2270a16abe3c04d50ca412ba3fe997c3ed2b9ec9",
+      "original_audit": "ci41084362447/AUDIT.json",
+      "archive": "ci41084362447/raw-receipts.tar.gz",
+      "actual_tree": "eff182e7f79bbe4c6f5744078afc1a450d924a57",
+      "run_url": "https://github.com/zil-lang/zil/actions/runs/41084362447"
+    },
+    {
+      "run_id": 41087541771,
+      "status": "Superseded",
+      "actual_tested_commit": "474c2d93ae18b4e5599eea462d2e5c031b7da461",
+      "pr_head": "91609072b0687d944fc25489b5536e8f7a7e2106",
+      "original_audit": "ci41087541771/AUDIT.json",
+      "archive": "ci41087541771/raw-receipts.tar.gz",
+      "actual_tree": "8196965c771de7f68352f639bf1d23824dd54058",
+      "run_url": "https://github.com/zil-lang/zil/actions/runs/41087541771"
+    },
+    {
+      "run_id": 41088078934,
+      "status": "Superseded",
+      "actual_tested_commit": "390c07d121e6374080b55790e2b00a15fdf64fc1",
+      "pr_head": "e3e231b493c4d64f04d01beaf0c394a1f148dbb5",
+      "original_audit": "ci41088078934/AUDIT.json",
+      "archive": "ci41088078934/raw-receipts.tar.gz",
+      "actual_tree": "d7f0f898607e278bfa569a39412a9429363e970d",
+      "run_url": "https://github.com/zil-lang/zil/actions/runs/41088078934"
+    }
+  ]
+}

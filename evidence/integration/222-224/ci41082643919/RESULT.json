@@ -1,0 +1,46 @@
+{
+  "status": "Fail",
+  "scope": "Original complete CI workflow outcome; partial workspace execution is not full acceptance",
+  "run_id": 41082643919,
+  "url": "https://github.com/zil-lang/zil/actions/runs/41082643919",
+  "head": "616c562ed6363df437c2d48358da624d86e6960d",
+  "actual_checkout": "9d97bdd4066c84b3c1e085c49bba39b98f333698",
+  "tree": "d795d34319c4e85417f7aacfc338a95403d3ea02",
+  "default_workspace": {
+    "passed": 64,
+    "failed": 1,
+    "ignored": 0,
+    "complete": false
+  },
+  "reference_workspace": {
+    "passed": 64,
+    "failed": 1,
+    "ignored": 0,
+    "complete": false
+  },
+  "same_failure": "Original 201 Nested+Closure rejection diagnostic expectation",
+  "original_inputs_preserved": true,
+  "other_gates": {
+    "fmt": "Pass",
+    "native208": {
+      "builds": 16,
+      "executions": 128,
+      "observed_executions": 88,
+      "actual_allocation_failures": 56,
+      "final_live_zero": true
+    },
+    "clippy": "Pass",
+    "text_reference": {
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0
+    },
+    "migration_runner": {
+      "passed": 9
+    }
+  },
+  "independent_audit": "AUDIT.json",
+  "raw_archive_sha256": "6ca5b9ef97238d8a27f5e3a9637b2a1090949ffc75a8dc861949849790863802",
+  "raw_archive_bytes": 8449243,
+  "reviewed_followup": "evidence/integration/222-224/ci201-repair/RESULT.json"
+}

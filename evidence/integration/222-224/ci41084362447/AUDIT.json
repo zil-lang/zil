@@ -1,0 +1,312 @@
+{
+  "audit_kind": "Read-only CI evidence audit; not a new independent implementation review",
+  "reviewer": "/root/scope_audit",
+  "run_id": 41084362447,
+  "run_attempt": 1,
+  "run_url": "https://github.com/zil-lang/zil/actions/runs/41084362447",
+  "status": "Fail",
+  "completeness": "Incomplete after the completed default-workspace test round",
+  "run_conclusion": "failure",
+  "pr_head": "2270a16abe3c04d50ca412ba3fe997c3ed2b9ec9",
+  "actual_tested_commit": "a056f6e7569d8c6cf0a67acfac45dca19950e973",
+  "actual_tree": "eff182e7f79bbe4c6f5744078afc1a450d924a57",
+  "identity_evidence": {
+    "commit_txt": "workspace/commit.txt",
+    "source_tree": "workspace/source-tree.txt",
+    "source_tree_sha256": "63efd3ce6caae6424e762f1ab9e483f64a02fa2b5f440da4a4a2c029a2730ac3",
+    "source_tree_exactly_matches_local_head_listing": true,
+    "remote_merge_git_object": "github-merge.json",
+    "head_is_not_substituted_for_tested_merge": true,
+    "production_byte_diff_from_4d7bbb": []
+  },
+  "workspace": {
+    "status": "Fail",
+    "summary_records": 306,
+    "nonempty_test_groups": 288,
+    "passed": 2858,
+    "failed": 3,
+    "ignored": 0,
+    "no_fail_fast_reached_final_three_target_failure_summary": true,
+    "log": "workspace/workspace.log",
+    "log_sha256": "4989b020f836d588f5d66ea81d02f669cfbc1fa138a34c97036c69e511c6d707",
+    "failed_targets": [
+      "-p zil-driver --test impl192_copy_fields",
+      "-p zil-driver --test impl214_source",
+      "-p zil-verify --lib"
+    ],
+    "failures": [
+      {
+        "test": "ordinary_package_and_noncopy_field_addresses_remain_closed",
+        "path": "crates/zil-driver/tests/impl192_copy_fields.rs",
+        "observed": "Original var state=make(); let p=&state; now succeeds at Verify, but old test expects Types Unsupported.",
+        "source_preservation_review": "The original test contains three source strings: &state, &state.r and &state.bytes. The ByteBuffer source remains a rejection boundary; do not promote the entire old list blindly."
+      },
+      {
+        "test": "new_capture_does_not_make_product_a_store_element",
+        "path": "crates/zil-driver/tests/impl214_source.rs",
+        "observed": "Original Store<Root>=store_new() source succeeds at Types; old unwrap_err panics.",
+        "evidence_layer": "This original fixture stops at Types, not Verify/native.",
+        "actual_canonical_identity": "@builtin:OwnedStore<@module0:Root>, element Package.name=@module0:Root"
+      },
+      {
+        "test": "package_tests::captures::package_view_addresses_and_immutable_rebinding_remain_closed",
+        "path": "crates/zil-verify/src/package_tests/captures.rs",
+        "observed": "Raw/Wire BorrowLocal of a bound Package capture view remains rejected by E-VERIFY-CAPTURE: Package capture views cannot expose a local address; old assertion expects non-Copy type.",
+        "unchanged_neighbor": "The following immutable rebinding control remains a separate rejection."
+      }
+    ]
+  },
+  "reference": {
+    "status": "Incomplete",
+    "counts": null,
+    "api_last_step_status": "in_progress with no completed_at despite completed/failure job",
+    "receipt_artifact_present": false,
+    "job_logs_available": false,
+    "reason": "The job terminated before reference resource/receipt steps finished. No full reference count or test failure set is available."
+  },
+  "later_gates": {
+    "formatting": "Pass (API completed/success)",
+    "native_api_state_allocator": "NotRun (API pending when job completed)",
+    "all_target_clippy": "NotRun (API pending when job completed)",
+    "text_reference_and_migration": "NotRun (API pending when job completed)",
+    "reference_and_final_artifact_upload": "NotRun (API pending when job completed)"
+  },
+  "api_steps": {
+    "Set up job": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T15:50:17Z",
+      "completed_at": "2026-10-30T15:50:18Z"
+    },
+    "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T15:50:18Z",
+      "completed_at": "2026-10-30T15:50:33Z"
+    },
+    "Install the supported LLVM API toolchain": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T15:50:33Z",
+      "completed_at": "2026-10-30T15:51:08Z"
+    },
+    "Record exact checkout and restorable source history": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T15:51:08Z",
+      "completed_at": "2026-10-30T15:51:19Z"
+    },
+    "Formatting": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T15:51:19Z",
+      "completed_at": "2026-10-30T15:51:21Z"
+    },
+    "Record workspace resources before tests": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T15:51:21Z",
+      "completed_at": "2026-10-30T15:51:21Z"
+    },
+    "Complete workspace tests": {
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-10-30T15:51:21Z",
+      "completed_at": "2026-10-30T15:57:22Z"
+    },
+    "Record workspace resources after tests": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T15:57:22Z",
+      "completed_at": "2026-10-30T15:57:22Z"
+    },
+    "Preserve workspace receipts before releasing its cache": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T15:57:22Z",
+      "completed_at": "2026-10-30T15:57:24Z"
+    },
+    "Release only the archived workspace compiler cache": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T15:57:24Z",
+      "completed_at": "2026-10-30T15:57:25Z"
+    },
+    "Record reference resources before tests": {
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-30T15:57:25Z",
+      "completed_at": "2026-10-30T15:57:25Z"
+    },
+    "Reference-only build and explicit unavailable control": {
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2026-10-30T15:57:25Z",
+      "completed_at": null
+    },
+    "Record reference resources after tests": {
+      "status": "pending",
+      "conclusion": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    "Preserve reference receipts before releasing its cache": {
+      "status": "pending",
+      "conclusion": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    "Release only the archived reference compiler cache": {
+      "status": "pending",
+      "conclusion": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    "Native API State and allocation-failure controls": {
+      "status": "pending",
+      "conclusion": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    "All-target Clippy": {
+      "status": "pending",
+      "conclusion": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    "Explicit LLVM text-reference boundary": {
+      "status": "pending",
+      "conclusion": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    "Small recovery artifact, never target caches": {
+      "status": "pending",
+      "conclusion": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": {
+      "status": "pending",
+      "conclusion": null,
+      "started_at": null,
+      "completed_at": null
+    }
+  },
+  "job_completed_at": "2026-10-30T16:02:06Z",
+  "check_annotation_count": 1,
+  "annotation_contents_available": false,
+  "unavailable_evidence": [
+    "job-logs-unavailable.json",
+    "annotations-reader-unavailable.json"
+  ],
+  "capacity_observation": {
+    "units": "KiB, as reported by df -Pk and du -sk",
+    "workspace_before_available": 10242948,
+    "workspace_after_available": 2403596,
+    "workspace_cache_size": 4704144,
+    "native_evidence_size": 3132420,
+    "receipt_paths": [
+      "workspace/workspace-resources-before.log",
+      "workspace/workspace-resources-after.log"
+    ],
+    "inference": "If the next compiler cache and additional native-evidence round have the observed workspace sizes, releasing only the first compiler cache leaves a projected shortfall of 728,824 KiB (about 0.70 GiB). Actual reference sizes were not recovered.",
+    "proven_runner_exit_cause": false,
+    "qualification": "The runner termination cause was not recovered from an original runner error. This is a resource arithmetic inference, not a claim that GitHub explicitly diagnosed disk exhaustion."
+  },
+  "followup_read_only_findings": [
+    "Keep all original source/raw fixtures; migrate only the behaviors and diagnostics explicitly changed by the finite 223/224 contracts.",
+    "The proposed 214 Root Store assertion must use @module0:Root or equality with the actual canonical type; this name was read from the frozen CI TypedModule.",
+    "crates/zil-verify/src/package_tests/captures.rs is under #[cfg(test)] mod package_tests. Its updated assertion is a test-only source-byte difference; preserve old manifests instead of rewriting historical hashes.",
+    "Reviewed proposed phase-native archival helper/workflow: separate native artifacts preserve small-receipt layout, manifests bind every file path/size/hash, upload-success guards and re-inventory control deletion, and symlinks/nonregular files fail closed. No helper/Cargo execution by this auditor."
+  ],
+  "artifact": {
+    "id": 12991002746,
+    "name": "zil-main-41084362447-1-workspace",
+    "bytes": 1674916,
+    "digest": "sha256:a3491cafe918f9ccfaf5fd2e753980cdd0eb80bb555f67fcd17b4fb85ffc9355",
+    "whole_zip_digest_verified": true,
+    "zip_path": "workspace/artifact.zip",
+    "final_large_bundle_downloaded": false
+  },
+  "files": [
+    {
+      "path": "annotations-reader-unavailable.json",
+      "bytes": 166,
+      "sha256": "87af17e69a22bbb00512bddcaa53aa02a3abb0c320c9feca494439ed28b70f94"
+    },
+    {
+      "path": "github-artifacts.json",
+      "bytes": 835,
+      "sha256": "5dd450852961e122f53aa96187b9b9e47d57d151c06ea9f3c2231449893af8c9"
+    },
+    {
+      "path": "github-checks.json",
+      "bytes": 5015,
+      "sha256": "70954091dec2ed77898168c4bf9416fbab85e299f0fad3440b28470e964f6f32"
+    },
+    {
+      "path": "github-jobs.json",
+      "bytes": 6230,
+      "sha256": "00fd4a8a38d4e271314c7b353f71505606b380cec23a5aed0930a6cecc995ea9"
+    },
+    {
+      "path": "github-merge.json",
+      "bytes": 2752,
+      "sha256": "dda740fe2c40feff985ffea6b246502d01693d38f249ff804ee8088eb6a50ca2"
+    },
+    {
+      "path": "github-run.json",
+      "bytes": 13432,
+      "sha256": "deb78db48a1ef290c1e890a610f3c464bde33ab7e12c5a7772a7319ba6e1787a"
+    },
+    {
+      "path": "job-logs-unavailable.json",
+      "bytes": 576,
+      "sha256": "5c15d50d1828a87d944c9adec816399751e97a913f402306926498ef7d112f7a"
+    },
+    {
+      "path": "workspace/artifact.zip",
+      "bytes": 1674916,
+      "sha256": "a3491cafe918f9ccfaf5fd2e753980cdd0eb80bb555f67fcd17b4fb85ffc9355"
+    },
+    {
+      "path": "workspace/commit.txt",
+      "bytes": 41,
+      "sha256": "ec1c7b23b8ff997bfdefbad64291241d31112f78e1da99e17443981eec896c79"
+    },
+    {
+      "path": "workspace/llvm-api-toolchain.json",
+      "bytes": 1397,
+      "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+    },
+    {
+      "path": "workspace/source-tree.txt",
+      "bytes": 11491130,
+      "sha256": "63efd3ce6caae6424e762f1ab9e483f64a02fa2b5f440da4a4a2c029a2730ac3"
+    },
+    {
+      "path": "workspace/toolchain.txt",
+      "bytes": 404,
+      "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+    },
+    {
+      "path": "workspace/workspace-resources-after.log",
+      "bytes": 344,
+      "sha256": "c57cf70c786034199b74762d37e8742aa65f863f75b72918309e394288ad94ac"
+    },
+    {
+      "path": "workspace/workspace-resources-before.log",
+      "bytes": 144,
+      "sha256": "de24f0d0529cfff985db96595c69486d86d91b415baf2ae0629ba8883ee97620"
+    },
+    {
+      "path": "workspace/workspace.log",
+      "bytes": 309033,
+      "sha256": "4989b020f836d588f5d66ea81d02f669cfbc1fa138a34c97036c69e511c6d707"
+    }
+  ],
+  "local_auditor_cargo_or_compiler_invocations": 0,
+  "counting": "Do not transfer the first run’s completed reference or later-gate results to this incomplete second run. Do not sum overlapping runs as new coverage.",
+  "reviewed_at_utc": "2026-10-30T16:10:55.724572+00:00"
+}

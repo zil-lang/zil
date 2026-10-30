@@ -1,0 +1,468 @@
+{
+  "archive": "raw-receipts.tar.gz",
+  "bytes": 19365159,
+  "sha256": "3814a363b8dfde7f33ff962341c7b8918af6b2db741ef532fa7ce61656871dd4",
+  "files": [
+    {
+      "path": "AUDIT.json",
+      "bytes": 16343,
+      "sha256": "2151648f7eb2c874cbd63519a24ac57dbb6047a94ec1192fd6e0bcd85b54f437"
+    },
+    {
+      "path": "feature-count-differences.json",
+      "bytes": 3063,
+      "sha256": "8766eb2fa2ec601dfde67d698ca2c86f5479f0f3a07435eedfcb9ba5ce6ab358"
+    },
+    {
+      "path": "final/artifact-manifest.json",
+      "bytes": 8376,
+      "sha256": "b08a13cb3c5698c6bbf9783f4e969a2c32c24eb5408737bd1a9c411a058744dc"
+    },
+    {
+      "path": "final/llvm-23.1.4/install-receipt.json",
+      "bytes": 35125,
+      "sha256": "a8ccbc6110b8165477e15e7fe9b3a46ec2b80186c5119e9ce43c53cc6e754d76"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/archive-list.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/archive-list.stdout",
+      "bytes": 730699,
+      "sha256": "c0f15d62ca82a2b556612368658809b0dad14fc948da7c13dd19458f7ddae32b"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/clang-version.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/clang-version.stdout",
+      "bytes": 208,
+      "sha256": "5bd7f7a8c744b29dd95c839285591392ae41ed1c6cc3ad6a5b5957ed493a936f"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/component-libraries.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/component-libraries.stdout",
+      "bytes": 3681,
+      "sha256": "cd513d07781e5679e8a875a8662c9fd277703f9fb4a9243b32e60bc04bdd1412"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/dependencies.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/dependencies.stdout",
+      "bytes": 818,
+      "sha256": "d916942f4a8a6c03a6d181f701d70a5b86df86f586397028eed8bb9bb72a7a78"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/dynamic-section.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/dynamic-section.stdout",
+      "bytes": 2013,
+      "sha256": "455e21f2fb87cb96858d505df6a29e1d5b0dbd88b012fd8d589ad896d6cccac8"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/extract.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/extract.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/link-dso.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/link-dso.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/lld-link-version.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/lld-link-version.stdout",
+      "bytes": 91,
+      "sha256": "8c0455ba6d118efcd627d1b661b9012d90307a536deb4d2e836fca76695697e1"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/llvm-config-version.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/llvm-config-version.stdout",
+      "bytes": 7,
+      "sha256": "78f2ccd8940c1e6bc812b09fdb7d917a66342d0b4991219e5dd7afc73bc46b36"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/llvm-version.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/llvm-version.stdout",
+      "bytes": 7,
+      "sha256": "78f2ccd8940c1e6bc812b09fdb7d917a66342d0b4991219e5dd7afc73bc46b36"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/llvm.map",
+      "bytes": 26,
+      "sha256": "7e6c6fb86f956727d860bfe92be44d248413de3e382ae51dba9fc796d0553454"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/opt-version.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/opt-version.stdout",
+      "bytes": 128,
+      "sha256": "3ef43cd114bbf25aceae507d66c1e68abbb42d703b97a569c83a7f94ba7f36ec"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/system-libraries.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/llvm-23.1.4/installation-logs/system-libraries.stdout",
+      "bytes": 61,
+      "sha256": "510cd326ef7cd383cd610d12e255217c203f0d0ed8a055bfb9dbc7be055c8b62"
+    },
+    {
+      "path": "final/receipts/bundle-verify.log",
+      "bytes": 850,
+      "sha256": "59e823829844aa84191eb63cc120e6ee802a4e7d7505ab8d3df557b829acd3d5"
+    },
+    {
+      "path": "final/receipts/clippy.log",
+      "bytes": 1190,
+      "sha256": "1185497eeb0a9b5fadbcc70550b07bca8828aa73ab59014008bad3d9943866f9"
+    },
+    {
+      "path": "final/receipts/commit.txt",
+      "bytes": 41,
+      "sha256": "8768902ba0a8184928f90efdb67fa88e759f43616811bb61dc13bfbf752aca49"
+    },
+    {
+      "path": "final/receipts/consumer209.json",
+      "bytes": 76503,
+      "sha256": "0ef53eeffbc65ac060a661136b3782dfafea593e7c8078f8d388a7873f9e7f67"
+    },
+    {
+      "path": "final/receipts/fmt.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final/receipts/llvm-api-toolchain.json",
+      "bytes": 1397,
+      "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+    },
+    {
+      "path": "final/receipts/llvm-install.json",
+      "bytes": 35125,
+      "sha256": "a8ccbc6110b8165477e15e7fe9b3a46ec2b80186c5119e9ce43c53cc6e754d76"
+    },
+    {
+      "path": "final/receipts/migration-runner.log",
+      "bytes": 107,
+      "sha256": "d041de1238c0ff86f970a1ff7932c08b9ea56782fc94936eb6589c72421feaf7"
+    },
+    {
+      "path": "final/receipts/reference-native-manifest.json",
+      "bytes": 12083102,
+      "sha256": "c03c50b08ad64f33076ddc27e30483acc00d988d3fa543defc7ad4ca0906fd7c"
+    },
+    {
+      "path": "final/receipts/reference-resources-after.log",
+      "bytes": 388,
+      "sha256": "f3ba2b0e9af8e435c325f69034cf02e6a7f18de2aa591fff0752960265f5e571"
+    },
+    {
+      "path": "final/receipts/reference-resources-before.log",
+      "bytes": 220,
+      "sha256": "0e1dd8611338484ca3bed569729e5df17a649eecf1975f49828303361c1a0c40"
+    },
+    {
+      "path": "final/receipts/reference.log",
+      "bytes": 291780,
+      "sha256": "8762214762162c82c2861d22f31512d983b8118bbae103322259b8e489b4c5b5"
+    },
+    {
+      "path": "final/receipts/source-tree.txt",
+      "bytes": 11492337,
+      "sha256": "1cd4003ad77e007b0b8d4f9a202e52e6693782e6fb7bb340fabfb77e596ed9d2"
+    },
+    {
+      "path": "final/receipts/text-reference.log",
+      "bytes": 3931,
+      "sha256": "3f7c27b68b9c91761aa605beccdd0e6cd2b385589a91ea6938483381ddaae2d3"
+    },
+    {
+      "path": "final/receipts/toolchain.txt",
+      "bytes": 404,
+      "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+    },
+    {
+      "path": "final/receipts/workspace-native-manifest.json",
+      "bytes": 12316498,
+      "sha256": "4cc5e4e4603de9e14d5565829a4afdf3302da0b36d1985998c24e58f40457079"
+    },
+    {
+      "path": "final/receipts/workspace-resources-after.log",
+      "bytes": 344,
+      "sha256": "4b160b9e80a9adbd901065ff435ef63f90b1a13b6345bf9a063cb21d62c10484"
+    },
+    {
+      "path": "final/receipts/workspace-resources-before.log",
+      "bytes": 144,
+      "sha256": "e54cac60b1b9452e3abfef397be6fd76307f2fdc0c14abebb8b9f03867b56edf"
+    },
+    {
+      "path": "final/receipts/workspace.log",
+      "bytes": 291894,
+      "sha256": "0865feb203bde3de20688a6e2e19663cb0f7e6bf07cc88034da1d6391af4592d"
+    },
+    {
+      "path": "final-audit.json",
+      "bytes": 1599,
+      "sha256": "4d7e2460e9d8d7c8c387c68cefb0c6ea19e4d9145c7e89489129697c0f67cf2a"
+    },
+    {
+      "path": "github-artifacts.json",
+      "bytes": 3237,
+      "sha256": "c652580694d46971c597cc65ee0e37d48a29f8b7d676dfb71cac4634aa3c9644"
+    },
+    {
+      "path": "github-check-runs.json",
+      "bytes": 3061,
+      "sha256": "80495746619832b71e0943339fc8e275f322d4c2037e52548fa40dfd8198bd0b"
+    },
+    {
+      "path": "github-job-steps.json",
+      "bytes": 13,
+      "sha256": "4dfdf4c2e8f3f3c86a3ca3c75648d3ce52c2f43b9cda2a72ff2fc563c3825886"
+    },
+    {
+      "path": "github-jobs.json",
+      "bytes": 898,
+      "sha256": "6c8c9435fb95482bc8d9bc7933a1540db831071089398a14c2a2e1db27a9d910"
+    },
+    {
+      "path": "github-merge.json",
+      "bytes": 3004,
+      "sha256": "dfc6b0561e991b5c9eba28170e49d2809fe4008d34ba7e3c51dbfd3fa6d3f40d"
+    },
+    {
+      "path": "github-run-list.json",
+      "bytes": 11700,
+      "sha256": "ba2f3ffd4c91dd2e1e54fca4232aad9cf01547be88251638c180b9fc52b5877d"
+    },
+    {
+      "path": "github-run.json",
+      "bytes": 11664,
+      "sha256": "efdd12bccf081784b8530e98512b4fa1e8f310eb8a6303485cbf7e75eb4b083b"
+    },
+    {
+      "path": "initial-github-run.json",
+      "bytes": 11659,
+      "sha256": "3d6a028946d2841e34018633f424180e24271c0c04e7d63e6230e9723c6721ed"
+    },
+    {
+      "path": "job.log",
+      "bytes": 940001,
+      "sha256": "63525043c1cb2441423cd73311d27398ea3e96f70e5eb4c8f9048161834d554b"
+    },
+    {
+      "path": "metadata-lag.json",
+      "bytes": 629,
+      "sha256": "999eea64668ce666d605832066367ea758b3e9022467eb78cc708265100a24b2"
+    },
+    {
+      "path": "reference/artifact-manifest.json",
+      "bytes": 1476,
+      "sha256": "816371417f1c27d5fb6824564cff68142d14c346b7514767921c6e8d256648c1"
+    },
+    {
+      "path": "reference/commit.txt",
+      "bytes": 41,
+      "sha256": "8768902ba0a8184928f90efdb67fa88e759f43616811bb61dc13bfbf752aca49"
+    },
+    {
+      "path": "reference/llvm-api-toolchain.json",
+      "bytes": 1397,
+      "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+    },
+    {
+      "path": "reference/reference-native-manifest.json",
+      "bytes": 12083102,
+      "sha256": "c03c50b08ad64f33076ddc27e30483acc00d988d3fa543defc7ad4ca0906fd7c"
+    },
+    {
+      "path": "reference/reference-resources-after.log",
+      "bytes": 388,
+      "sha256": "f3ba2b0e9af8e435c325f69034cf02e6a7f18de2aa591fff0752960265f5e571"
+    },
+    {
+      "path": "reference/reference-resources-before.log",
+      "bytes": 220,
+      "sha256": "0e1dd8611338484ca3bed569729e5df17a649eecf1975f49828303361c1a0c40"
+    },
+    {
+      "path": "reference/reference.log",
+      "bytes": 291780,
+      "sha256": "8762214762162c82c2861d22f31512d983b8118bbae103322259b8e489b4c5b5"
+    },
+    {
+      "path": "reference/source-tree.txt",
+      "bytes": 11492337,
+      "sha256": "1cd4003ad77e007b0b8d4f9a202e52e6693782e6fb7bb340fabfb77e596ed9d2"
+    },
+    {
+      "path": "reference/toolchain.txt",
+      "bytes": 404,
+      "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+    },
+    {
+      "path": "reference-audit.json",
+      "bytes": 2758,
+      "sha256": "e1008b813bab186883472e683b332e83a807fcbb48e572930f0c52949ceb9fe7"
+    },
+    {
+      "path": "reference-manifest-inspection.json",
+      "bytes": 210,
+      "sha256": "8dd86fc4a93090d2bb8c803cc682d9424e787773cb09855bd1e97fbc1f2f254e"
+    },
+    {
+      "path": "reference.zip",
+      "bytes": 3313550,
+      "sha256": "30c4f3de1ba3e828f9da94152f591880cdc8b600d040dbcc003156f79de48e19"
+    },
+    {
+      "path": "running-github-jobs.json",
+      "bytes": 1099,
+      "sha256": "60493529fba5300d77b956be39647588b24c25698f5a47176507d5feadde3385"
+    },
+    {
+      "path": "running-github-run.json",
+      "bytes": 12998,
+      "sha256": "04b33a18cc95cdb638efe16fd6c320abbb00de7f96321cdf985bd5b97bde066d"
+    },
+    {
+      "path": "workspace/artifact-manifest.json",
+      "bytes": 1476,
+      "sha256": "37a22f3c4f07222b9ab3d5fa05275f1cf3231ccaf9804d93e1ec9997caa916f4"
+    },
+    {
+      "path": "workspace/commit.txt",
+      "bytes": 41,
+      "sha256": "8768902ba0a8184928f90efdb67fa88e759f43616811bb61dc13bfbf752aca49"
+    },
+    {
+      "path": "workspace/llvm-api-toolchain.json",
+      "bytes": 1397,
+      "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+    },
+    {
+      "path": "workspace/source-tree.txt",
+      "bytes": 11492337,
+      "sha256": "1cd4003ad77e007b0b8d4f9a202e52e6693782e6fb7bb340fabfb77e596ed9d2"
+    },
+    {
+      "path": "workspace/toolchain.txt",
+      "bytes": 404,
+      "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+    },
+    {
+      "path": "workspace/workspace-native-manifest.json",
+      "bytes": 12316498,
+      "sha256": "4cc5e4e4603de9e14d5565829a4afdf3302da0b36d1985998c24e58f40457079"
+    },
+    {
+      "path": "workspace/workspace-resources-after.log",
+      "bytes": 344,
+      "sha256": "4b160b9e80a9adbd901065ff435ef63f90b1a13b6345bf9a063cb21d62c10484"
+    },
+    {
+      "path": "workspace/workspace-resources-before.log",
+      "bytes": 144,
+      "sha256": "e54cac60b1b9452e3abfef397be6fd76307f2fdc0c14abebb8b9f03867b56edf"
+    },
+    {
+      "path": "workspace/workspace.log",
+      "bytes": 291894,
+      "sha256": "0865feb203bde3de20688a6e2e19663cb0f7e6bf07cc88034da1d6391af4592d"
+    },
+    {
+      "path": "workspace-audit.json",
+      "bytes": 3342,
+      "sha256": "fcebba3b32789785ddfe74b114c767b53ede5f9437b1650200c4eda6590905b6"
+    },
+    {
+      "path": "workspace-failure-evidence.json",
+      "bytes": 4340,
+      "sha256": "bd09a88efc9ba8c8e77c7015ffb8d30d27262edd246de65c1642c2dbf0cb54a0"
+    },
+    {
+      "path": "workspace-github-artifacts.json",
+      "bytes": 1625,
+      "sha256": "585e75517aeddb67a9d298d4defdaab7dd233265d4cd1c0b93e2a36c5b7f9dad"
+    },
+    {
+      "path": "workspace-manifest-inspection.json",
+      "bytes": 226,
+      "sha256": "0eab04ba7259e0c41c5e4a7aa8cd86e98fdf2cfa188fd90599bbe981098b7fad"
+    },
+    {
+      "path": "workspace.zip",
+      "bytes": 3346284,
+      "sha256": "7a66eab8da0feee55b9d5d25a905a747238a9613715a7f37b9b4634ee4335a2f"
+    }
+  ],
+  "storage": "multipart",
+  "archive_parts": [
+    {
+      "ordinal": 0,
+      "path": "raw-receipts.tar.gz.part-000",
+      "bytes": 8388608,
+      "sha256": "8d6a2572def8ec351f9033b209bbb6a9cb8818c29844560b93dfa6e7185ba3d0",
+      "git_blob_sha": "7042855dba2c7b71222707a7a7a7a1b4648d125b"
+    },
+    {
+      "ordinal": 1,
+      "path": "raw-receipts.tar.gz.part-001",
+      "bytes": 8388608,
+      "sha256": "ec8a2d93ddeb4c43e742c7df03fad5c38c6e003cfda443f27e464bb1456e1036",
+      "git_blob_sha": "95239cf037e6a0bb6348285547ebcd0bdea73b88"
+    },
+    {
+      "ordinal": 2,
+      "path": "raw-receipts.tar.gz.part-002",
+      "bytes": 2587943,
+      "sha256": "c298292ffec2d10ad6fe225e1b0cb5c82ad1d71607cd4eb1ecce61b5653aa37c",
+      "git_blob_sha": "3b1e3811db41cf9b8153c2551b1a32b9337b4dcb"
+    }
+  ],
+  "restore_script": "restore-raw-receipts.py",
+  "archive_note": "The whole archive is a reassembly target. All numbered parts are retained; concatenation in ordinal order restores the exact original archive SHA256. No audit or receipt bytes were changed."
+}

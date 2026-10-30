@@ -1,0 +1,154 @@
+{
+  "schema": "zil.construction8.closeout-script-static-review.v1",
+  "verdict": "Pass",
+  "scope": "Static review of conditional closeout, normalization and handoff evidence scripts only; not CI acceptance, compiler correctness or execution evidence",
+  "reviewer": "/root/product_store",
+  "recorded_at_utc": "2026-10-30T18:45:16.353151+00:00",
+  "scripts": [
+    {
+      "path": "recovery/apply-construction8-closeout.py",
+      "bytes": 34371,
+      "sha256": "7d277f636697dd463d335e1bd46c06c74c66dbe35ed22ec54fc86372be4fa443"
+    },
+    {
+      "path": "recovery/prepare-acceptance.py",
+      "bytes": 3103,
+      "sha256": "78b266e1b4425a4c8c2152a0522a7eefe0127c943ecf513738f39fb4ecf78762"
+    },
+    {
+      "path": "recovery/record-final-handoff.py",
+      "bytes": 6324,
+      "sha256": "7fbb4bdeffd6bf57aa41b1dc9379ca430a4f687a1a08493f289ec9fb5f39d1c8"
+    }
+  ],
+  "reviewed_repo": {
+    "head": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+    "tree": "a7509a9fea1ed2f5818bcb454af4e9b6e6568e7f",
+    "branch": "main",
+    "clean": true
+  },
+  "identity_constants": {
+    "pr_candidate": "f4c742fd8bb9567120902812c9a7117928784e5c",
+    "pr_run": 41088376020,
+    "pr_actual_checkout": "4d3df5891aafebdd8337337180a7e2559daec361",
+    "pr_tree": "c6ce79652a5276f127ee43598b0a1b8d57284787",
+    "original_main_merge": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+    "original_main_failure_run": 41101248493,
+    "repair_code": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+    "repair_author_delivery": "bcce4ca58cbd7edb1692c9140a0babb314491ddc",
+    "repair_non_author_review": "2276a6dcd41e6e8828fb7908cddf1fc4ff37b0a8",
+    "repaired_main": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+    "repaired_main_run": 41106864272
+  },
+  "acceptance_gate": {
+    "verdict": "Pass for inspected control flow; not an assertion that the new main CI passed",
+    "prepare_acceptance": "Both exact PR and repaired-main audits are evaluated before ACCEPTANCE-INPUT is written. Their audit status, completeness, run conclusion, checkout/tree, complete successful step inventory and nonzero passed counts with zero failures/ignored must agree.",
+    "apply_independent_validation": "apply uses unconditional require checks, independent of the normalization script: distinct non-historical PR/main run IDs; archived/top AUDIT equality; raw run completed/success; exact repo/workflow/attempt; PR actual merge parents; main event push, branch main, head == actual checkout == acceptance.main_merge; actual Git object/tree and three raw commit receipts; single expected job; all raw/audited steps complete/success with required-step coverage; exact phase counts and audited log hashes.",
+    "write_order": "preflight validates all CI evidence, postmerge identity, archives, baseline, document-review hashes, draft bases/replacements and task/global states before WritePlan.apply creates or replaces any repository file. Existing evidence conflicts fail. Main HEAD/branch/clean state are rechecked before apply.",
+    "normalization_is_not_authority": "prepare-acceptance.py uses Python assert for input normalization; final acceptance remains guarded independently by apply require checks and is not derived solely from the normalized Pass label.",
+    "local_repaired_main_audit_present_at_review": false,
+    "local_missing_audit_observation": "At review time closeout-materials/ci41106864272/AUDIT.json was absent. This observation describes local material availability, not the live remote workflow status. No acceptance script was executed.",
+    "can_accept_without_complete_successful_repaired_main_evidence": false
+  },
+  "original_failure_preservation": {
+    "audit_sha256": "2151648f7eb2c874cbd63519a24ac57dbb6047a94ec1192fd6e0bcd85b54f437",
+    "archive_sha256": "3814a363b8dfde7f33ff962341c7b8918af6b2db741ef532fa7ce61656871dd4",
+    "archive_bytes": 19365159,
+    "raw_job": {
+      "id": 124218708563,
+      "run_id": 41101248493,
+      "head_sha": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    "default_counts": {
+      "passed": 2860,
+      "failed": 1,
+      "ignored": 0
+    },
+    "lagging_original_aggregate": {
+      "run_status_observed": "in_progress",
+      "run_conclusion": null
+    },
+    "read_only_checks": "Current frozen archive digest, its original AUDIT bytes and raw job identity were read directly and matched the new script guards. The old aggregate snapshot remains unchanged while the failed job is terminal. No old failure is reclassified."
+  },
+  "post_pr_production_identity": {
+    "full_pr_and_repaired_main_trees_equal": false,
+    "changed_paths": 33,
+    "outside_allowed_paths": [],
+    "allowed_changes": [
+      "crates/zil-driver/tests/review223_machine.rs",
+      ".task/impl/223.md",
+      "evidence/integration/222-224/postmerge-stdin-repair/**"
+    ],
+    "correct_statement": "The original PR tree equals the original M tree. Repaired R has its own exact tree and full main CI. Relative to PR candidate f4, compiler production source, source fixtures and configuration remain unchanged; the optional-stdin test driver, its work order and repair evidence differ.",
+    "static_binding": "The script requires M/e38/author-delivery/non-author-review ancestry, exact e38 driver bytes at R, the narrow f4-to-R path allowlist and unchanged exact non-author review JSON. This review did not repeat the compiler or native tests."
+  },
+  "handoff_baseline": {
+    "source_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+    "status": "Fail",
+    "errors": 1356,
+    "distinct_error_ids": 203,
+    "warnings": 0,
+    "new_slice_errors": {
+      "222": 0,
+      "223": 0,
+      "224": 0
+    },
+    "archive_sha256": "2c3d5bef7e72c01bf38763d0ae3583c559829e2249e9358adeee017022e050f1",
+    "archive_bytes": 52975,
+    "error_multiset_sha256": "e2a3e9d3db053aab9cee9680153140e53996274220c9367dc12bbde2aaf714b7",
+    "read_only_checks": "The archive has exactly the four recorded stdout/stderr/exit/summary files. All four sizes and SHA256 values match RESULT and the original recovery files byte for byte; stdout source, status, counts and exit 1 match the summary.",
+    "copy_gate": "The final reviewed apply revision pins the frozen archive SHA256, hashes the actual bytes, binds source/status/counts and copies via the conflict-rejecting immutable WritePlan. The prior source only compared the digest against RESULT; that observation was resolved before this verdict.",
+    "global_failure_retained": true,
+    "historical_1138_count_reinterpreted": false
+  },
+  "final_handoff_script": {
+    "verdict": "No blocking static defect found for the prescribed post-D1 invocation",
+    "preconditions": "Explicit clean main metadata descendant of R; exact expected HEAD; no source/toolchain/workflow diff in the stated production paths; frozen R baseline source and exact error multiset digest.",
+    "preservation": "Actual node command stdout/stderr/exit and generated portable snapshot are retained. The original global Fail is copied from the live report. Added and removed errors are computed as multisets; the comparison verdict remains separate from the global handoff status.",
+    "completion_checks": "Before successful script completion it requires unchanged error multiset, zero errors for 222/223/224, their 已合入 states, exit 1/global Fail and zero warnings. On a failed comparison it retains the raw receipt and exits unsuccessfully instead of deleting or rewriting the errors.",
+    "scope_limit": "This script is a post-acceptance handoff recorder, not an alternate source of main CI acceptance. It was not executed in this review."
+  },
+  "document_and_global_scope": {
+    "new_postmerge_document_review_sha256": "3206a0cbe12be03a483f06bb6778063c3b3e97e72e5c268852f1899048c9776e",
+    "review_author": "/root",
+    "reviewer": "/root/scope_audit",
+    "guards": "Current draft content hashes must match independently reviewed amendment hashes; fixed base file bytes and blobs must match; all six placeholders bind real acceptance inputs before writing.",
+    "states_preserved": {
+      "full_language": "NotSatisfied",
+      "full_zui": "NotSatisfied",
+      "product": "NotRun",
+      "native_windows": "NotRun"
+    },
+    "not_closed": [
+      "B0",
+      "181"
+    ],
+    "old_fail_incomplete_superseded_preserved": true,
+    "local_counts_132_and_19_not_added": true
+  },
+  "resolved_findings": [
+    {
+      "location": "apply-construction8-closeout.py handoff baseline block",
+      "initial_script_sha256": "7d2588fc55ce8eb9ab24e72e5576f1463b5696ed9d064cfcdd8223eec3698dd5",
+      "finding": "The baseline archive digest was checked only against the adjacent RESULT, without fixing its frozen identity.",
+      "resolution": "Root added an unconditional fixed archive SHA256 guard. Removing exactly those two added source lines reconstructs the entire previously reviewed file SHA256, proving no unrelated change accompanied this strengthening.",
+      "final_script_sha256": "7d277f636697dd463d335e1bd46c06c74c66dbe35ed22ec54fc86372be4fa443"
+    }
+  ],
+  "blocking_findings": [],
+  "execution_limits": {
+    "apply_executed": false,
+    "prepare_acceptance_executed": false,
+    "record_final_handoff_executed": false,
+    "compiler_or_cargo_invocations": 0,
+    "new_native_executions": 0,
+    "negative_controls_executed": 0,
+    "formal_repository_writes": 0,
+    "github_writes": 0,
+    "page_writes": 0,
+    "final_main_ci_pass_claimed": false,
+    "only_written_file": "recovery/CLOSEOUT-SCRIPTS-STATIC-REVIEW.json"
+  }
+}

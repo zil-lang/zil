@@ -1,32 +1,35 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-30T15:33:56.193470+00:00",
-  "status": "AwaitingGitHubCI",
+  "observed_at_utc": "2026-10-30T18:59:48.290660+00:00",
+  "status": "Integrated",
   "conversation": "zil施工8",
   "accepted_main_at_start": "a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
   "milestone": "222–224 finite generation, Product Store, shared Product borrow",
-  "active_development_agents": 2,
+  "active_development_agents": 0,
   "tasks": [
     {
       "id": "222",
-      "state": "待验",
+      "state": "已合入",
       "owner": "/root/ct_for",
       "branch": "impl/222-ct-for",
-      "review": "evidence/reviews/222-224/REVIEW-222.json"
+      "review": "evidence/reviews/222-224/REVIEW-222.json",
+      "branch_role": "historical implementation branch retained in main history"
     },
     {
       "id": "223",
-      "state": "待验",
+      "state": "已合入",
       "owner": "/root/product_store",
       "branch": "impl/223-product-store",
-      "review": "evidence/reviews/222-224/REVIEW-223.json"
+      "review": "evidence/reviews/222-224/REVIEW-223.json",
+      "branch_role": "historical implementation branch retained in main history"
     },
     {
       "id": "224",
-      "state": "待验",
+      "state": "已合入",
       "owner": "/root/scope_audit",
       "branch": "impl/224-readonly-product",
-      "review": "evidence/reviews/222-224/REVIEW-224.json"
+      "review": "evidence/reviews/222-224/REVIEW-224.json",
+      "branch_role": "historical implementation branch retained in main history"
     }
   ],
   "local_affected_regression": {
@@ -37,26 +40,67 @@
     "receipt": "evidence/integration/222-224/local/RESULT.json"
   },
   "candidate_ci": {
-    "status": "Pending"
+    "status": "Pass",
+    "run_id": 41088376020,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41088376020",
+    "actual_checkout": "4d3df5891aafebdd8337337180a7e2559daec361",
+    "tree": "c6ce79652a5276f127ee43598b0a1b8d57284787",
+    "workspace": {
+      "passed": 2861,
+      "failed": 0,
+      "ignored": 0
+    },
+    "reference": {
+      "passed": 2826,
+      "failed": 0,
+      "ignored": 0
+    },
+    "all_required_steps_success": true,
+    "successful_step_count": 25,
+    "audit_sha256": "c71d414d04a72d2502ff17ad73f60961ca04459652315706f00faf1d9276d705",
+    "evidence": "evidence/integration/222-224/ci41088376020/RESULT.json"
   },
   "last_acceptance_ci": {
-    "source": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-    "run_id": 41057841800,
-    "url": "https://github.com/zil-lang/zil/actions/runs/41057841800",
-    "pr": 8,
-    "observed_status": "completed",
-    "default_workspace": "success",
-    "full_workflow_conclusion": "success",
-    "actual_checkout": "fc5b3c058c1f4c112cbadffdb4f9f41705049ea6",
-    "same_tree": true
+    "status": "Pass",
+    "run_id": 41106864272,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41106864272",
+    "actual_checkout": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+    "tree": "a7509a9fea1ed2f5818bcb454af4e9b6e6568e7f",
+    "workspace": {
+      "passed": 2861,
+      "failed": 0,
+      "ignored": 0
+    },
+    "reference": {
+      "passed": 2826,
+      "failed": 0,
+      "ignored": 0
+    },
+    "all_required_steps_success": true,
+    "successful_step_count": 25,
+    "audit_sha256": "136bd7d838a4343888555d1b975afb40eb2ed45b65037af00457166d21800f34",
+    "evidence": "evidence/integration/222-224/ci41106864272/RESULT.json"
   },
   "last_main_ci": {
-    "source": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
-    "run_id": 41061704505,
-    "url": "https://github.com/zil-lang/zil/actions/runs/41061704505",
-    "observed_status": "completed",
-    "conclusion": "success",
-    "receipt": "evidence/integration/221/ci41061704505/RESULT.json"
+    "status": "Pass",
+    "run_id": 41106864272,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41106864272",
+    "actual_checkout": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+    "tree": "a7509a9fea1ed2f5818bcb454af4e9b6e6568e7f",
+    "workspace": {
+      "passed": 2861,
+      "failed": 0,
+      "ignored": 0
+    },
+    "reference": {
+      "passed": 2826,
+      "failed": 0,
+      "ignored": 0
+    },
+    "all_required_steps_success": true,
+    "successful_step_count": 25,
+    "audit_sha256": "136bd7d838a4343888555d1b975afb40eb2ed45b65037af00457166d21800f34",
+    "evidence": "evidence/integration/222-224/ci41106864272/RESULT.json"
   },
   "notification": {
     "requested_minutes_approximately": 10,
@@ -93,5 +137,20 @@
     "old_success_regressions": 0,
     "receipt": "evidence/integration/222-224/readiness/READINESS.json",
     "full_readiness": false
-  }
+  },
+  "mainline_merge_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+  "postmerge_repair": {
+    "base_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+    "failed_run_id": 41101248493,
+    "code_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
+    "author_delivery_commit": "bcce4ca58cbd7edb1692c9140a0babb314491ddc",
+    "review_commit": "2276a6dcd41e6e8828fb7908cddf1fc4ff37b0a8",
+    "review_evidence": "evidence/integration/222-224/postmerge-stdin-repair/review/REVIEW.json",
+    "author": "/root/product_store",
+    "reviewer": "/root/ct_for",
+    "scope": "Optional stdin protocol in the independent machine test only; fixtures, compiler source and behavioral oracles unchanged"
+  },
+  "original_pr_merge_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
+  "verification_snapshot_note": "The original PR and the final post-repair main have separate exact source identities; the first main failure remains Fail. Later documentation-only descendants can have newer workflow runs; read the live GitHub ref for current status.",
+  "closeout_receipt": "evidence/integration/222-224/closeout/ACCEPTANCE.json"
 }

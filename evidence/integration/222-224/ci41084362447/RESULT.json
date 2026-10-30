@@ -1,0 +1,17 @@
+{
+  "status": "Fail",
+  "run_id": 41084362447,
+  "head_commit": "2270a16abe3c04d50ca412ba3fe997c3ed2b9ec9",
+  "actual_checkout": "a056f6e7569d8c6cf0a67acfac45dca19950e973",
+  "tree": "eff182e7f79bbe4c6f5744078afc1a450d924a57",
+  "default": {
+    "passed": 2858,
+    "failed": 3,
+    "ignored": 0
+  },
+  "reference": "Incomplete",
+  "later_gates": "NotRun",
+  "audit_sha256": "3c55c37e366a7cd89a7055e5231cdadc7f8f97dae716f1b4e58369ca082ee614",
+  "preservation": "Original failures and incomplete stage kept; runner root cause unknown; capacity risk is a quantified inference",
+  "created_at_utc": "2026-10-30T16:16:58.867904+00:00"
+}

@@ -1,0 +1,46 @@
+{
+  "status": "Pass",
+  "scope": "Construction-plan integrity and in-memory negative controls; not a new ZIL compiler or native test execution",
+  "argv": [
+    "python3",
+    "tools/check-plan.py",
+    "--self-test"
+  ],
+  "source_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
+  "started_at_utc": "2026-10-30T19:00:13.832181+00:00",
+  "finished_at_utc": "2026-10-30T19:00:13.913452+00:00",
+  "exit_code": 0,
+  "pending_changes": "Reviewed documentation, slice task metadata, indexes and archived evidence only",
+  "stdout_sha256": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "self_tests": [
+    {
+      "name": "dependency cycle",
+      "rejected": true
+    },
+    {
+      "name": "missing artifact owner",
+      "rejected": true
+    },
+    {
+      "name": "parallel write conflict",
+      "rejected": true
+    },
+    {
+      "name": "Ready without baseline",
+      "rejected": true
+    },
+    {
+      "name": "zero execution minimum",
+      "rejected": true
+    },
+    {
+      "name": "unmapped protocol case",
+      "rejected": true
+    },
+    {
+      "name": "Done without actual results",
+      "rejected": true
+    }
+  ]
+}
