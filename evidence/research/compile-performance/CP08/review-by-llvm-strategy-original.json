@@ -1,0 +1,66 @@
+{
+  "experiment": "CP08",
+  "reviewer": "/root/llvm_strategy",
+  "implementation_author": "/root/benchmark_audit",
+  "implementation_commit": "5198946d262cbb2d7749197d5238ede201278b28",
+  "verdict": "Fail",
+  "date_utc": "2026-10-30T07:07:15.198650+00:00",
+  "scope": "Independent benchmark contract, failure scoring and frozen-tool integrity audit; no performance run.",
+  "source_sha256": {
+    "tools/research/compile-performance/rust_bench.py": "cb09f0e92cc2e877c135e441dcc40cc03262d9944ecc805b2e80b5052df93f40",
+    "tools/research/compile-performance/test_rust_bench.py": "5d0af288bb836abca6b04650b9551fc4e0c8166daaf7b6a155d7875a5b114425",
+    "docs/research/compile-performance/CP08-BENCHMARK.md": "513ad135d603e75ae939ff4ef9b423fc680a9d6976d534b351203587ecddc9c2"
+  },
+  "accepted_contract_parts": [
+    "Actual Rust and ZIL compile-to-executable commands; no Cargo no-op substitution; phase timing disabled.",
+    "O0/O2 and cold/incremental plans separated; native Rust codegen-unit default retained, matched profile explicitly diagnostic.",
+    "Checked arithmetic and valid-input corpus bounds aligned; std/libc differences and allocation/panic failure limits disclosed.",
+    "Every compiler process and reaped descendant CPU cost measured through wait4; construction/link included; source generator and independent oracle are benchmark setup.",
+    "ABBA/BAAB balanced blocks, paired mean then block median then weighted absolute times; heterogeneous 48-row Decimal control matches within 4e-14 absolute.",
+    "Runtime executes frozen base artifacts in separate window, with compilation/startup diagnosis/warmup unscored.",
+    "Missing/failed/timed-out rows, changed source/log/oracle and mutated output controls reject scoring in tested paths."
+  ],
+  "blocking_findings": [
+    {
+      "id": "CP08-R1",
+      "location": "rust_bench.py tool_inventory",
+      "problem": "An explicit ZIL_LINUX_LINKER executable is not automatically inventoried. Keeping its environment string unchanged while changing file bytes passes load().",
+      "reproduction": "Synthetic temporary SDK files, mocked sysroot probe/PATH enumeration, actual tool_inventory and load implementations.",
+      "required_change": "Freeze and revalidate actual explicit linker path/name resolution and executable identity, not only the environment variable text."
+    },
+    {
+      "id": "CP08-R2",
+      "location": "tool_inventory/common.inventory and load tool check",
+      "problem": "Resolving ld.lld to its target when freezing loses the callable alias path. Retargeting the clang-sibling ld.lld symlink while leaving old target intact passes load().",
+      "reproduction": "Real symlink changed from lld-one to lld-two; actual load check accepts.",
+      "required_change": "Retain selection/alias path and re-resolve it during validation; reject changed selection even when the previously resolved binary is unchanged."
+    }
+  ],
+  "independent_tests": [
+    {
+      "command": "python3 tools/research/compile-performance/test_rust_bench.py",
+      "exit_code": 0,
+      "passed": 13,
+      "log": "review-tool-tests.log"
+    },
+    {
+      "kind": "two independently constructed actual inventory/load counterexamples",
+      "result": "Both forbidden drifts accepted by original candidate",
+      "log": "review-tool-drift-counterexamples.json"
+    },
+    {
+      "kind": "Decimal45 independent weighted aggregation control",
+      "rows": 48,
+      "result": "Pass",
+      "log": "review-arithmetic-control.json"
+    }
+  ],
+  "failure_scope": "This is a frozen-tool completeness failure, not evidence that any existing measurement was contaminated and not a rejection of the overall Rust comparison design.",
+  "performance": "NotRun",
+  "product_gates": "NotRun",
+  "evidence_sha256": {
+    "review-arithmetic-control.json": "b3d92cff720edf1bf6e53cdc6f3f1831df2f7424a624864f08b6c1d78f79e715",
+    "review-tool-tests.log": "8e56781e85dd94d3a543b913b4072ebe64e611ae608e4096bbe38c3e400a4914",
+    "review-tool-drift-counterexamples.json": "89d3889eeebb3b044b833be0d4c0b4b0ef35d61a0113464e20295be14001de91"
+  }
+}

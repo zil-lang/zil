@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "experiment": "CP08",
+  "reviewer": "/root/llvm_strategy",
+  "implementation_author": "/root/benchmark_audit",
+  "implementation_commit": "de4b3a65673d246b8e88789b1c4ad0675662334c",
+  "verdict": "Pass",
+  "prior_implementation_commit": "5198946d262cbb2d7749197d5238ede201278b28",
+  "prior_verdict": "Fail",
+  "prior_receipt": "evidence/research/compile-performance/CP08/review-by-llvm-strategy-original.json",
+  "scope": "Independent re-review of frozen-tool identity repair plus rerun of CP08 benchmark controls. Prior source review of full-build/runtime boundaries and failure scoring remains applicable to unchanged code.",
+  "source_sha256": {
+    "tools/research/compile-performance/rust_bench.py": "1ddf5f13846f3e2fe480bfa250b3fd9c197bc47bd58afdb9cfeda40f30f24831",
+    "tools/research/compile-performance/test_rust_bench.py": "456cd8f932b010d211ab50ce640f086223e33d7c400c1488fcd6ac121d638513",
+    "docs/research/compile-performance/CP08-BENCHMARK.md": "ecde84e363e7f9f89846741469bc0eb3409f4f6accc295a424ef8144b6440033"
+  },
+  "checks": [
+    {
+      "name": "original scoring and repaired tool identity controls",
+      "command": "python3 -m unittest discover -s tools/research/compile-performance -p test_rust_bench.py -v",
+      "tests": 17,
+      "passed": 17,
+      "exit": 0,
+      "log": "review-repaired-tool-tests.log"
+    },
+    {
+      "name": "independently reconstructed actual inventory/load drift cases",
+      "cases": 4,
+      "passed": 4,
+      "record": "review-repaired-drift-controls.json",
+      "coverage": [
+        "explicit override path content replacement",
+        "explicit override basename content replacement",
+        "ld.lld alias retarget to identical bytes with old target unchanged",
+        "new paired ld.lld appearing after plan freeze"
+      ],
+      "fixture_level": "Synthetic executable files; actual inventory and load; only rustc sysroot subprocess probe mocked. Unchanged load succeeds before every mutation."
+    }
+  ],
+  "reasoning": [
+    "Compiler/library/linker identities preserve absolute invocation path, resolved target path, direct symlink text and target bytes/stat. Clang and LLD multicall names are no longer collapsed to their target basenames.",
+    "Explicit ZIL_LINUX_LINKER paths and PATH names are enumerated automatically; system retains its explicit no-override meaning.",
+    "Load repeats candidate selection against the frozen PATH and override, detecting appearance of higher-priority PATH tools or a paired sibling in addition to mutations of existing tools.",
+    "Original two rejection gaps are closed; scoring/warmup/absolute-weight aggregation code is unchanged by this repair."
+  ],
+  "limitations": [
+    "No performance run or full-workspace/native platform acceptance is claimed.",
+    "A new frozen plan is required; historical plans and smoke evidence are not rewritten.",
+    "This is benchmark-tool correctness review, not a ZIL-over-Rust performance verdict."
+  ],
+  "evidence_sha256": {
+    "review-repaired-tool-tests.log": "d99bca2b9ef232d8ac5688c36a22fbc7f1d7d4b4dc1f5b89aff52bd1c1e031e1",
+    "review-repaired-drift-controls.json": "73addb3b127bd1b7cb7454151a56a31dc413f8d232444000f065d7088c0b6075"
+  }
+}

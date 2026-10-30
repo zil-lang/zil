@@ -1,0 +1,22 @@
+test_abba_baab_order_has_balanced_pairs (test_rust_bench.RustBenchmarkControls.test_abba_baab_order_has_balanced_pairs) ... ok
+test_changed_compiler_log_suppresses_score (test_rust_bench.RustBenchmarkControls.test_changed_compiler_log_suppresses_score) ... ok
+test_compiler_failure_retains_rows_and_logs (test_rust_bench.RustBenchmarkControls.test_compiler_failure_retains_rows_and_logs) ... ok
+test_complete_build_uses_only_measured_rows (test_rust_bench.RustBenchmarkControls.test_complete_build_uses_only_measured_rows) ... ok
+test_explicit_zil_linker_content_drift_rejected (test_rust_bench.RustBenchmarkControls.test_explicit_zil_linker_content_drift_rejected) ... ok
+test_invocation_aliases_preserved_and_compiler_retarget_rejected (test_rust_bench.RustBenchmarkControls.test_invocation_aliases_preserved_and_compiler_retarget_rejected) ... ok
+test_linker_symlink_retarget_rejected_with_old_target_unchanged (test_rust_bench.RustBenchmarkControls.test_linker_symlink_retarget_rejected_with_old_target_unchanged) ... ok
+test_missing_rows_suppress_score (test_rust_bench.RustBenchmarkControls.test_missing_rows_suppress_score) ... ok
+test_missing_verifier_or_enabled_timings_rejected (test_rust_bench.RustBenchmarkControls.test_missing_verifier_or_enabled_timings_rejected) ... ok
+test_native_rust_cgu_and_cold_profile_do_not_add_caches (test_rust_bench.RustBenchmarkControls.test_native_rust_cgu_and_cold_profile_do_not_add_caches) ... ok
+test_new_higher_priority_path_linker_rejected (test_rust_bench.RustBenchmarkControls.test_new_higher_priority_path_linker_rejected) ... ok
+test_nonfinite_times_and_zero_wall_rejected (test_rust_bench.RustBenchmarkControls.test_nonfinite_times_and_zero_wall_rejected) ... ok
+test_preflight_artifact_mutation_is_rejected (test_rust_bench.RustBenchmarkControls.test_preflight_artifact_mutation_is_rejected) ... ok
+test_requested_incremental_cache_cannot_silently_fall_back (test_rust_bench.RustBenchmarkControls.test_requested_incremental_cache_cannot_silently_fall_back) ... ok
+test_runtime_excludes_compilation_and_warmup (test_rust_bench.RustBenchmarkControls.test_runtime_excludes_compilation_and_warmup) ... ok
+test_runtime_oracle_drift_suppresses_score (test_rust_bench.RustBenchmarkControls.test_runtime_oracle_drift_suppresses_score) ... ok
+test_source_mutation_during_build_is_rejected (test_rust_bench.RustBenchmarkControls.test_source_mutation_during_build_is_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 0.345s
+
+OK

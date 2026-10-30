@@ -1,0 +1,34 @@
+[
+  {
+    "scenario": "explicit_path_content",
+    "unchanged_plan_load": "Pass",
+    "drift_rejected": true,
+    "reason": "Frozen toolchain changed: /tmp/cp08-independent-fixed-k_6mmglo/tools/custom",
+    "old_target_unchanged": true,
+    "kind": "synthetic files, actual tool_inventory/load; only sysroot subprocess probe mocked"
+  },
+  {
+    "scenario": "explicit_basename_content",
+    "unchanged_plan_load": "Pass",
+    "drift_rejected": true,
+    "reason": "Frozen toolchain changed: /tmp/cp08-independent-fixed-ldqkv43c/tools/custom",
+    "old_target_unchanged": true,
+    "kind": "synthetic files, actual tool_inventory/load; only sysroot subprocess probe mocked"
+  },
+  {
+    "scenario": "sibling_alias_same_bytes",
+    "unchanged_plan_load": "Pass",
+    "drift_rejected": true,
+    "reason": "Frozen toolchain changed: /tmp/cp08-independent-fixed-c_ydkh9c/tools/ld.lld",
+    "old_target_unchanged": true,
+    "kind": "synthetic files, actual tool_inventory/load; only sysroot subprocess probe mocked"
+  },
+  {
+    "scenario": "new_clang_sibling",
+    "unchanged_plan_load": "Pass",
+    "drift_rejected": true,
+    "reason": "Frozen linker selection changed",
+    "old_target_unchanged": true,
+    "kind": "synthetic files, actual tool_inventory/load; only sysroot subprocess probe mocked"
+  }
+]
