@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-30T13:12:39.047426+00:00",
+  "observed_at_utc": "2026-10-30T13:25:00.673676+00:00",
   "status": "MilestoneAccepted",
   "accepted_main_at_start": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
-  "milestone": "218–221 independently reviewed and complete GitHub CI passed; merge to main",
+  "milestone": "218–221 accepted and merged into main; completed task branches removed",
   "tasks": [
     {
       "id": "218",
@@ -12,7 +12,8 @@
       "branch": "task/218",
       "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
       "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
-      "author_delivery_checkpoint": "4d331dd6b321685ea575a132c05dfb03aa7758fc"
+      "author_delivery_checkpoint": "4d331dd6b321685ea575a132c05dfb03aa7758fc",
+      "branch_status": "DeletedAfterMerge"
     },
     {
       "id": "219",
@@ -21,7 +22,8 @@
       "branch": "task/219",
       "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
       "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
-      "author_delivery_checkpoint": "19375551b7963f4c44536895322c9502fa4945e5"
+      "author_delivery_checkpoint": "19375551b7963f4c44536895322c9502fa4945e5",
+      "branch_status": "DeletedAfterMerge"
     },
     {
       "id": "220",
@@ -30,7 +32,8 @@
       "branch": "task/220",
       "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
       "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
-      "author_delivery_checkpoint": "e115ba5cfdc2cf56d092b912ae5077cffd0d92a3"
+      "author_delivery_checkpoint": "e115ba5cfdc2cf56d092b912ae5077cffd0d92a3",
+      "branch_status": "DeletedAfterMerge"
     },
     {
       "id": "221",
@@ -39,7 +42,8 @@
       "branch": "task/221",
       "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
       "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
-      "author_delivery_checkpoint": "d61264ba57af08ddb7e0b8dafe2fc584632c6833"
+      "author_delivery_checkpoint": "d61264ba57af08ddb7e0b8dafe2fc584632c6833",
+      "branch_status": "DeletedAfterMerge"
     }
   ],
   "proof": [
@@ -61,15 +65,16 @@
   "full_language": "NotSatisfied",
   "full_zui": "NotSatisfied",
   "last_main_ci": {
-    "source": "4153fbd0a2a0effd90da4bee4034247e1e822cc1",
-    "run_id": 41005715432,
-    "observed_status": "completed",
-    "url": "https://github.com/zil-lang/zil/actions/runs/41005715432",
-    "conclusion": "success"
+    "source": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
+    "run_id": 41061704505,
+    "url": "https://github.com/zil-lang/zil/actions/runs/41061704505",
+    "observed_status": "in_progress",
+    "conclusion": null,
+    "observed_at_utc": "2026-10-30T13:25:00.673676+00:00"
   },
   "new_language_acceptance": true,
   "readiness_recheck": {
-    "source_commit": "2212505a667508dc9c7565cbab674c8e59700457",
+    "source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
     "unchanged_original_sources": 29,
     "success": 13,
     "unsupported": 14,
@@ -78,7 +83,8 @@
       "ct-item-if",
       "ct-statement-if"
     ],
-    "full_readiness": false
+    "full_readiness": false,
+    "receipt": "evidence/integration/221/readiness-final/READINESS.json"
   },
   "candidate_ci": {
     "source": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
@@ -102,5 +108,20 @@
     "full_workflow_conclusion": "success",
     "actual_checkout": "fc5b3c058c1f4c112cbadffdb4f9f41705049ea6",
     "same_tree": true
+  },
+  "accepted_main_commit": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
+  "closeout_status": "Repairing handoff metadata; historical errors remain separately recorded",
+  "branch_cleanup": {
+    "completed_tasks": [
+      "task/218",
+      "task/219",
+      "task/220",
+      "task/221"
+    ],
+    "preserved_branches": [
+      "main",
+      "research/compile-performance"
+    ],
+    "receipt": "evidence/integration/221/closeout/BRANCHES.json"
   }
 }
