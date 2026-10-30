@@ -1,0 +1,46 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp10/crates/zil-types)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.62s
+     Running unittests src/lib.rs (target/debug/deps/zil_types-a54470832ded7f32)
+
+running 18 tests
+test resource_effects::worklist_tests::disabled_dependency_collection_is_zero_sized ... ok
+test names::tests::local_self_cannot_shadow_receiver ... ok
+test names::tests::leading_dot_does_not_fallback_to_other_names ... ok
+test helpers::plan::result_shape_tests::binding_a_whole_union_preserves_both_sides_and_try_selects_only_success ... ok
+test resource_effects::worklist_tests::empty_worklist_and_seedless_cycles_have_no_effects ... ok
+test resource_effects::worklist_tests::shadowed_calls_remain_conservative_and_imports_register_real_ids ... ok
+test resource_effects::worklist_tests::direct_byte_primitives_foreign_and_unknown_calls_remain_seeds ... ok
+test tests::minimum_signed_integer_supported ... ok
+test tests::scalar_arithmetic_builds_cfg ... ok
+test tests::unknown_name_rejected ... ok
+test tests::wrong_return_type_rejected ... ok
+functions=16 reverse=false old_work=608 new_work=460
+test resource_effects::worklist_tests::every_two_node_transfer_and_summary_assignment_matches_local_relation ... ok
+functions=16 reverse=true old_work=5065 new_work=767
+test resource_effects::worklist_tests::every_current_core_variant_preserves_origin_support_and_transfer ... ok
+functions=32 reverse=false old_work=1248 new_work=940
+test resource_effects::worklist_tests::worklist_every_failure_prefix_and_recovery ... ok
+test resource_effects::worklist_tests::small_dispatch_preserves_every_old_budget_boundary ... ok
+functions=32 reverse=true old_work=20129 new_work=1583
+functions=64 reverse=false old_work=2528 new_work=1900
+test resource_effects::worklist_tests::exhaustive_three_node_graphs_and_seeds_match_sweeps ... ok
+test resource_effects::worklist_tests::larger_mixed_graphs_and_function_order_permutations_match ... ok
+functions=64 reverse=true old_work=80209 new_work=3215
+functions=128 reverse=false old_work=5142 new_work=3847
+functions=128 reverse=true old_work=323789 new_work=6535
+test resource_effects::worklist_tests::forward_and_reverse_chain_growth_is_measured_without_time_claims ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.55s
+
+     Running tests/project_lookup_cp10.rs (target/debug/deps/project_lookup_cp10-4a296781889e637b)
+
+running 6 tests
+test declaration_errors_keep_precedence_over_later_invalid_shapes ... ok
+test standalone_inference_keeps_its_local_state_declarations ... ok
+test a_previous_request_cannot_supply_missing_callable_declarations ... ok
+test aggregate_and_enum_index_charges_remain_per_module ... ok
+test symbolic_store_and_state_have_exact_fresh_analysis_budgets ... ok
+test project_collects_callable_and_state_names_from_all_modules ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

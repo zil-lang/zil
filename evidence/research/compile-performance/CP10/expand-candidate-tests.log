@@ -1,0 +1,78 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp10/crates/zil-expand)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.47s
+     Running tests/impl203_state_bindings.rs (target/debug/deps/impl203_state_bindings-6f9637329ea5f91a)
+
+running 15 tests
+test marker_unsafe_scope_retains_consumption_and_hides_its_locals ... ok
+test marker_foreign_arguments_and_result_follow_the_real_declaration ... ok
+test a_single_root_child_family_keeps_its_old_identity_inside_a_dual_scope ... ok
+test original_once_repetition_is_checked_before_instantiation ... ok
+test a_state_owner_is_not_two_runtime_arguments_and_has_only_two_direct_fields ... ok
+test marker_foreign_calls_require_unsafe_even_in_an_unused_definition ... ok
+test original_reversed_modes_do_not_follow_one_representative_bound ... ok
+test field_selectors_follow_aggregate_positions_not_function_binder_order ... ok
+test two_declared_callback_results_cannot_gain_lending_from_concrete_arguments ... ok
+test original_cleanup_markers_keep_the_same_state_mapping ... ok
+test original_same_factory_has_two_declared_state_bindings ... ok
+test non_generic_values_keep_original_ordinary_templates_without_fake_binders ... ok
+test an_owned_dual_state_can_remain_complete_on_an_error_union_side ... ok
+test whole_t_store_identity_accepts_two_declared_callable_fields ... ok
+state203_dual_expand_n=3993
+state203_markers_expand_n=4386
+state203_value_expand_n=4249
+test dual_state_metadata_and_marker_work_have_fresh_exact_budget_boundaries ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/impl205_state_replace.rs (target/debug/deps/impl205_state_replace-11d927849f196ec8)
+
+running 13 tests
+test original_138_bytes_publish_one_owner_and_one_real_replacement ... ok
+test a_refreshed_alias_remains_valid_after_zero_or_more_iterations ... ok
+test adjacent_shapes_do_not_use_the_mixed_header_exception ... ok
+test conditional_addresses_and_reborrows_preserve_alternatives_and_parent_precision ... ok
+test last_use_sibling_and_fresh_epoch_keep_distinct_field_positions ... ok
+test branch_join_and_loop_condition_do_not_resurrect_an_old_epoch ... ok
+test callee_and_earlier_argument_windows_survive_nested_preparation ... ok
+test original_omitted_and_retained_definitions_reject_the_same_old_address ... ok
+test declaration_positions_and_field_count_are_not_the_single_type_slot ... ok
+test unused_copy_parameter_keeps_the_early_complete_header_obligation ... ok
+test single_f_producer_and_replacement_keep_bare_complete_value_inference ... ok
+state205_header_expand_n=503
+state205_unused_alias_expand_n=688
+state205_legacy_alias_expand_n=1938
+test real_alias_work_and_new_header_have_exact_fresh_budget_boundaries ... ok
+state205_single_f_complete_value_expand_n=3877
+test single_f_value_inference_preserves_explicit_and_contextless_constraints ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/normalization.rs (target/debug/deps/normalization-c43d5e7e68195916)
+
+running 12 tests
+test explicit_compile_time_marker_survives_until_the_ct_stage ... ok
+test plan_t01_002_implicit_parameter_and_shorthand_map_to_real_sources ... ok
+test context_records_do_not_infer_nominal_types_from_fields_or_outer_closure_return ... ok
+test plan_t01_002_explicit_group_default_and_static_are_fixed_before_body ... ok
+test plan_t01_004_failed_override_does_not_commit_or_run_later_fields ... ok
+test plan_t01_002_nested_closures_inherit_lexical_receiver_only ... ok
+test plan_t01_002_trait_receiver_comes_from_signature_not_body_or_order ... ok
+test plan_t01_004_pipeline_order_single_input_and_callable_factory ... ok
+test range_name_and_ordered_endpoints_survive_source_expansion ... ok
+test plan_t01_004_record_update_prepares_base_then_source_order_overrides ... ok
+test record_defaults_keep_declaration_scope_and_declared_order ... ok
+test source_map_covers_unique_core_node_ids_and_is_deterministic ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/project_lookup_cp10.rs (target/debug/deps/project_lookup_cp10-28931705e26c890b)
+
+running 5 tests
+test duplicate_declaration_rejection_still_precedes_consumer_lowering ... ok
+test single_module_uses_first_written_aggregate_until_duplicate_check ... ok
+test private_field_errors_keep_the_first_consumer_source ... ok
+test project_analysis_budget_has_an_exact_fresh_boundary ... ok
+test shared_named_declarations_keep_owner_defaults_and_source_maps ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

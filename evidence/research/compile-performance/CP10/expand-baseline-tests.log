@@ -1,0 +1,13 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp10/crates/zil-expand)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.40s
+     Running tests/project_lookup_cp10.rs (target/debug/deps/project_lookup_cp10-28931705e26c890b)
+
+running 5 tests
+test duplicate_declaration_rejection_still_precedes_consumer_lowering ... ok
+test single_module_uses_first_written_aggregate_until_duplicate_check ... ok
+test private_field_errors_keep_the_first_consumer_source ... ok
+test project_analysis_budget_has_an_exact_fresh_boundary ... ok
+test shared_named_declarations_keep_owner_defaults_and_source_maps ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

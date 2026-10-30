@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "experiment": "CP10b",
+  "implementation_author": "/root/llvm_strategy",
+  "baseline_commit": "c5ed700131e4e8f6309a8e37faf40ef82ed262d5",
+  "original_types_baseline_commit": "0d28a51452f57c2cd27c1007058056c021bf3481",
+  "status": "ReadyForIndependentReview",
+  "change": "Collect the project callable and State generic-name set once per immutable aggregate-resolution call. All per-module resolvers borrow it; standalone resolution collects its original local set.",
+  "invariants": [
+    "The old set was the union of current core names and every project core name. Every current core is a clone of a member of that same project, so project-only collection has exactly the same members and cardinality.",
+    "All consumers use membership or cardinality only; no iteration order, active binding metadata or callable mode is substituted.",
+    "Project aggregate/enum declaration loops, duplicate errors, owner identities, every logical budget charge and per-module resolution order remain unchanged.",
+    "A fresh set is collected for each resolve_program invocation, including separate calls before and after closure inference. No cross-request or cross-phase cache.",
+    "No public API/schema, source language, ABI, Verify, runtime representation or cache identity change."
+  ],
+  "source_sha256": {
+    "crates/zil-types/src/aggregates.rs": "f429d587c45559cdb4e6127f98fb0118ec3fed81bb04d0b8f0b4b1ed03e1bf82",
+    "crates/zil-types/tests/project_lookup_cp10.rs": "aebf32cbc5bad2d3d7e8f6b2281e8d6b3f11d33444758f58954ac95e7467c252"
+  },
+  "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+  "commands": [
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/scratch/ac5966c4c370/zil-cp10/target cargo test -p zil-types --test project_lookup_cp10 -j2 -- --nocapture",
+      "source": "unchanged Types production baseline plus new tests",
+      "passed": 6,
+      "failed": 0,
+      "log": "types-baseline-tests.log"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/scratch/ac5966c4c370/zil-cp10/target cargo test -p zil-types --test project_lookup_cp10 --lib -j2 -- --nocapture",
+      "source": "candidate",
+      "passed": 24,
+      "failed": 0,
+      "log": "types-candidate-tests.log"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/scratch/ac5966c4c370/zil-cp10/target cargo clippy -p zil-types --all-targets -j2 -- -D warnings",
+      "exit": 0,
+      "log": "types-clippy.log"
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    }
+  ],
+  "new_controls": [
+    "Four module orders for callable-only, State-only and mixed declarations retain symbolic Package/Store layouts and distinct FnMut/FnOnce field positions.",
+    "Single-module State inference still obtains its local declaration set.",
+    "A missing-declaration request after a successful request remains Unsupported at the same field; a fresh valid retry exactly reproduces Core.",
+    "Duplicate aggregate rejection precedes a later invalid shape.",
+    "Frozen callable/State/mixed boundaries 273/707/780 retain exact N-1 factory dependency errors and fresh-N Core equality.",
+    "Eight-module aggregate+enum index case retains exact budget1568, N-1 aggregate error at module7 field, nominal identity and fresh-N Core equality."
+  ],
+  "evidence_sha256": {
+    "types-baseline-tests.log": "01b041766aabded4359572f0420a6448149dac3cb39e82f223507b5796130d48",
+    "types-candidate-tests.log": "a0ae387d1ffce1a68ca3086058a53f37854a2a9ed0b8a1760156cea1eceab6b6",
+    "types-clippy.log": "bfc66e04bdf657c12096b122206b60ba90d116231d3fca7e347cefea9789e890"
+  },
+  "rlib_sha256": {
+    "target/debug/deps/libzil_base-5c35b8d75b11b027.rlib": "b91d517b768742a223af2b6bfa1b76ccd7c972212a42e66aba47d6c8d8709997",
+    "target/debug/deps/libzil_expand-6d9139c291fa803d.rlib": "43ebc2dc303b1fe4c4f18437883c96e7c6421f5a1cf45b49a501ca10083f5dd3",
+    "target/debug/deps/libzil_ir-6c546f30e52478f3.rlib": "78f433d7dda73055c48591c304d6a5d91bb332aac0d1f191a7f58bc852cc37ab",
+    "target/debug/deps/libzil_syntax-6f618e86e17ef189.rlib": "4b27d29677cad0577370440f17e0157593cabceb23339434b719b4af3fa2af7b",
+    "target/debug/deps/libzil_types-775b2d3108eff98d.rlib": "7f65c3d9671d5a801b1bd1a43a52e1a88690a2463968d026491a397a876bd6be"
+  },
+  "rust_goal_assessment": {
+    "safety": "Lookup contents/size and all charged validation retained; targeted raw input and boundary controls pass.",
+    "runtime_memory": "No runtime-layout change intended; no native performance comparison by author.",
+    "expression_maintenance": "No source syntax/API change; one explicit immutable set replaces repeated equivalent construction.",
+    "compile_cost": "Removes repeated full-project function scans and duplicate name allocations; full-request gain pending quiet measurement.",
+    "breakthrough": "Not claimed before independent source-level differential review and measured performance."
+  },
+  "limitations": [
+    "New Types cases are raw untrusted Core, not source/native acceptance evidence.",
+    "No formal performance measurement or full-workspace tests by author.",
+    "CP10a source controls and separate non-author source-level differential review cover additional integration paths.",
+    "Inherited handoff status remains Fail, not a global Pass claim."
+  ]
+}

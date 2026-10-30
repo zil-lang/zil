@@ -1,0 +1,14 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp10/crates/zil-types)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.26s
+     Running tests/project_lookup_cp10.rs (target/debug/deps/project_lookup_cp10-4a296781889e637b)
+
+running 6 tests
+test declaration_errors_keep_precedence_over_later_invalid_shapes ... ok
+test standalone_inference_keeps_its_local_state_declarations ... ok
+test a_previous_request_cannot_supply_missing_callable_declarations ... ok
+test aggregate_and_enum_index_charges_remain_per_module ... ok
+test symbolic_store_and_state_have_exact_fresh_analysis_budgets ... ok
+test project_collects_callable_and_state_names_from_all_modules ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
