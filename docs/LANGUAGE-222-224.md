@@ -14,7 +14,7 @@
 
 ## 独立审查实际发现并修复的问题
 
-1. **222 的类型内部标量槽遗漏替换。** 原实现替换普通表达式，却遗漏参数、返回、局部、闭包参数和泛型类型实参中的数组长度。修复统一遍历这些既有 TypeRef 槽；原失败输入保存在 `examples/mainline/ct_for222/review_repair/`。审查还发现同名局部值会使展开后的 record 构造器丢失原类型绑定；普通单源 API 的手写对照成功，CLI 工程入口的既有差异另行记录。该近邻由独立原字节控制继续复验，不用入口差异掩盖卫生缺陷。
+1. **222 的类型内部标量槽遗漏替换。** 原实现替换普通表达式，却遗漏参数、返回、局部、闭包参数和泛型类型实参中的数组长度。修复统一遍历这些既有 TypeRef 槽；原失败输入保存在 `examples/mainline/ct_for222/review_repair/`。审查还发现同名局部值会使展开后的 record 构造器丢失原类型绑定；普通单源 API 的手写对照成功，CLI 工程入口的既有差异另行记录。修复566b保持名义构造器的类型绑定；同一手写/生成API输入均成功，原五份类型槽输入和独立清理程序8次O0/O2执行通过。入口差异与原Fail分别保留。
 2. **223 扩大了普通可变地址资格。** 非作者把合法未用 `&mut Leaf` 输入一致改为嵌套 Product，保持真实字段索引、SSA 与 Hold，并对变异后模块重算指纹，原 raw/Wire 被错误接受。返修分离普通地址资格与 Store/精确 Unit 协议资格，223 自身即能拒绝该越界，不依赖 224 的守卫补救。
 3. **224 的直接子包地址没有机器实现。** 原字节 `&root.child` 通过 Verify 后被 LLVM 后端旧资格拒绝。返修仅为已核的不可变字段地址发射真实父布局上的 GEP，不复制拥有值、不增加权限；同一原输入及直接资源字段近邻已分别执行 O0/O2。
 
@@ -22,7 +22,7 @@
 
 ## 集成与证据入口
 
-本地 clean `a57516d138f85c8f352bec5d440c5c22af259b14` 的 11 组受影响回归为 **132 passed / 0 failed / 0 ignored**。格式及计划一致性自检另行通过。规范输入注册表随后按当前正文重新生成，未改生产源码。精确命令、完整输出、原始产物和首次组合失败见 `evidence/integration/222-224/local/RESULT.json`。
+本地 clean `a57516d138f85c8f352bec5d440c5c22af259b14` 的 11 组受影响回归为 **132 passed / 0 failed / 0 ignored**。最终共同实现 `4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41` 再跑5组受影响CT/组合回归，**19/0/0**；这两轮重叠，不相加成新覆盖。三名非作者按各自范围对该共同提交裁决Pass，精确回执为 `evidence/reviews/222-224/REVIEW-222.json`、`REVIEW-223.json`、`REVIEW-224.json`。格式及计划一致性自检另行通过。规范输入注册表随后按当前正文重新生成，未改生产源码。精确命令、完整输出、原始产物和首次组合失败见 `evidence/integration/222-224/local/RESULT.json`。
 
 新组合程序使用 `#for` 生成 Product，放入 Store，经共享子视图和普通函数读取；最后一次使用结束后可扩容、弹出，O0/O2 均按预期输出 `BA`。直接子包共享读取后移动完整值输出 `A`。保持视图活跃时的 reserve/push/pop/consume 四条近邻均由 Verify 以 `E-BORROW-CONFLICT` 拒绝。
 
@@ -30,10 +30,18 @@
 
 | 证据层 | 定位 |
 | --- | --- |
-| 222 作者与范围 | [LANGUAGE-222.md](LANGUAGE-222.md)，`evidence/impl/222/` |
+| 222 作者与范围 | [LANGUAGE-222.md](LANGUAGE-222.md)，`evidence/impl/222/author-repair/`、`evidence/reviews/222/` |
 | 223 作者、原独审失败与返修 | [LANGUAGE-223.md](LANGUAGE-223.md)，`evidence/impl/223/author/`、`address-admission-repair/`、`review-scope-audit/` |
 | 224 作者、机器遗漏与返修 | [LANGUAGE-224.md](LANGUAGE-224.md)，`evidence/impl/224/author/`、`author-repair1/`、`author-history/` |
 | 当前组合与正式验收 | `evidence/integration/222-224/`，主树 `.task/impl/222.md`–`224.md` |
+
+## 施工7原始未完项重查
+
+最终组合CLI的真实构建提交为 `6b0d974bedfb40c93eb36e491ceb18a138718dac`，生产源与4d7相同。29份原输入及原manifest的42项哈希均未改；恰好29次check、0次native，结果由施工7的13成功/14 Unsupported/2原语法无效，前进到 **15/12/2**，旧成功零回退。
+
+晋升的是 `product-store-element` 与 `product-error-union`；后者原源是未调用的 `fn make()->void!Root`，只证明精确Unit/Product形式到达Verify，不证明任意拥有Sum或机器清理。旧矩阵没有 `#for` 和普通共享Product探针；222/224的实际增量按本片独立源码与机器证据评估。
+
+剩余12份有效输入仍分别缺：直接捕获借入slice、原泛型F原样返回、闭包直接资源返回、拥有Package闭包参数/返回、optional表面类型、具名lifetime泛型、Product拥有Store、含Store的外层Store元素、拥有enum、关联类型trait、合法dyn参数、合法 `syntax use`。它们保留具体拒绝阶段和原失败。`dyn-parameter` 与 `syntax-extension` 两份原Parse无效输入继续排除能力判断。完整逐项结果见 `evidence/integration/222-224/readiness/READINESS.json` 和 `SUMMARY.md`。
 
 ## Rust 四目标与下一范围
 
