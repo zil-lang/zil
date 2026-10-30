@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo test --locked --workspace 2>&1 | tee "$RUNNER_TEMP/receipts/workspace.log"
+          cargo test --locked --workspace --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/workspace.log"
       - name: Record workspace resources after tests
         id: workspace_resources_after
         if: ${{ always() && (steps.workspace_tests.outcome == 'success' || steps.workspace_tests.outcome == 'failure' || steps.workspace_tests.outcome == 'cancelled') }}
@@ -144,7 +144,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          CARGO_TARGET_DIR="$RUNNER_TEMP/target-reference" cargo test --locked --workspace --no-default-features 2>&1 | tee "$RUNNER_TEMP/receipts/reference.log"
+          CARGO_TARGET_DIR="$RUNNER_TEMP/target-reference" cargo test --locked --workspace --no-default-features --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/reference.log"
       - name: Record reference resources after tests
         id: reference_resources_after
         if: ${{ always() && (steps.reference_tests.outcome == 'success' || steps.reference_tests.outcome == 'failure' || steps.reference_tests.outcome == 'cancelled') }}
