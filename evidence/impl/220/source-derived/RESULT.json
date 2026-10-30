@@ -1,0 +1,25 @@
+{
+  "status": "Pass",
+  "production_commit": "eed58269f4cdeb25c9e71052a104d270aea6dcc4",
+  "test_sha256": "3cda4c0ba9113b45f724843ab4580d0d130e8bd9af099b161efe2b67bfc99275",
+  "commands": [
+    "cargo test -p zil-driver --test impl220_factory_source --offline -- --nocapture",
+    "cargo test -p zil-expand -p zil-types -p zil-analyze -p zil-verify --offline"
+  ],
+  "source_derived_analyze": {
+    "passed": 5,
+    "failed": 0,
+    "exact_budget_N": 7901,
+    "N_minus_1": "ResourceLimit",
+    "fresh_N": "Success"
+  },
+  "component_regression": {
+    "groups": 34,
+    "passed": 558,
+    "failed": 0,
+    "ignored": 0
+  },
+  "original_failure": "Test expected a later transitive capture diagnostic; earlier ordinary public base factory correctly rejected the injected external capture. Only test assertion changed, no production repair. Original log retained.",
+  "evidence_level": "Source->Types->Analyze plus source-derived semantic tampering over raw/Wire; native results belong to221",
+  "new_feature_acceptance": "Pending independent review and final integration regression"
+}

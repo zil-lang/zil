@@ -23,7 +23,17 @@ fn typed(text: &str) -> TypedModule {
     let unit = SourceUnit::new(FileId(0), ModuleId(0), "factory220-source.zil", text);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
-    zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
+    let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
+    if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
+        let root = PathBuf::from(root);
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join(format!("source-{}.zil", module.source_fingerprint)),
+            text,
+        )
+        .unwrap();
+    }
+    module
 }
 fn factory(module: &TypedModule) -> usize {
     module
@@ -188,7 +198,10 @@ fn source_input_capture_graph_must_remain_self_contained() {
         unreachable!()
     };
     *capture = Type::Desc(payload.clone());
-    both(&module, Some("complete self-contained captures"));
+    // The source also contains base's ordinary public factory contract. Its
+    // earlier check correctly rejects the now-external capture before wrap's
+    // transitive graph check; the synthetic control isolates that later check.
+    both(&module, Some("captures an external address or description"));
 }
 
 #[test]
