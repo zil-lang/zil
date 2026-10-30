@@ -1,0 +1,14 @@
+{
+  "status": "ObservedUnexpectedAcceptance",
+  "head": "5c4588e50cf796aa4cc70fd3b0ed48999bb632e9",
+  "fixture": "retained_tests::owning_factory_raw_and_wire_direct_store_companion_cannot_hide_another_callback",
+  "route": "both raw and Wire invoked before assertion; raw first observed Ok",
+  "command": "cargo test -p zil-verify retained_tests --offline -- --nocapture",
+  "result": "17 passed; 1 failed",
+  "files": {
+    "crates/zil-verify/src/retained.rs": "e61aa7b6fb2ba23915df016f87c6e45a7071c9e0dbeb6f6c75f94808c0360589",
+    "crates/zil-verify/src/helpers.rs": "2430579b46636a1e631b8d123f61ebdba6da590bf3009f7433e97c4dc1b238d8",
+    "crates/zil-verify/src/retained_tests.rs": "d945736222ece430b0097b93a2ade49746157098b65e47226f9f2e84cae00902"
+  },
+  "scope": "hand-built public IR; not source/native acceptance"
+}
