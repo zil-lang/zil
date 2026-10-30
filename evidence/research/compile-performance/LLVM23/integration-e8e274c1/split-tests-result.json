@@ -1,0 +1,6462 @@
+{
+  "source": "e8e274c1b28509547a4854d46708ae1601e756e4",
+  "reason": "Initial workspace compile exhausted disk; keep exact source and test profile, execute all targets in bounded groups.",
+  "commands": [
+    {
+      "label": "workspace-except-driver",
+      "argv": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--exclude",
+        "zil-driver",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "workspace-except-driver.log",
+      "sha256": "e1ade9ca7159fac1d45196e5b211e575be69e61db685e184a966618ea5f4d5ff",
+      "test_summaries": [
+        [
+          25,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          12,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          10,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          10,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          39,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          23,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          11,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          17,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          15,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          13,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          12,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          36,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          12,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          17,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          11,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          11,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          18,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          256,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          16,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          19,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          24,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          29,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-lib",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-lib.log",
+      "sha256": "55966186e39f0e834019a5d2329f22c2047d728e3633d064b95a0a42976926be",
+      "test_summaries": [
+        [
+          28,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-aggregates",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "aggregates",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-aggregates.log",
+      "sha256": "c2416efb2d546fed6d7209264d2e8d6f41e219d5d07a13dab8be57613f3b68fe",
+      "test_summaries": [
+        [
+          10,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-borrowed_closures",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "borrowed_closures",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-borrowed_closures.log",
+      "sha256": "88fce02e4d89cdb535a33b02786fcb28b8f95895bcd3669e75f11848048c3f77",
+      "test_summaries": [
+        [
+          13,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-closures_frontend",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "closures_frontend",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-closures_frontend.log",
+      "sha256": "fb53d70e8b935b4a9e1bab2bf372a8583eb1ece419a7ad543dc529318a7069d7",
+      "test_summaries": [
+        [
+          22,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-closures_native",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "closures_native",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-closures_native.log",
+      "sha256": "5f2df0f384f8fea2e3468fa871fabba71c695e19a92b1d870bac0a7d721147bf",
+      "test_summaries": [
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-comptime_programs",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "comptime_programs",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-comptime_programs.log",
+      "sha256": "06c3f700ccb8f8d54cb16cef47cdd44b035e2f8079da1c34bc0c32612b0b7294",
+      "test_summaries": [
+        [
+          14,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-cross_function_borrows",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "cross_function_borrows",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-cross_function_borrows.log",
+      "sha256": "3b66231e1fae517abbc9618560722c5c031d0b1ca782f4f3321438268e21875e",
+      "test_summaries": [
+        [
+          11,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-generic_regressions",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "generic_regressions",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-generic_regressions.log",
+      "sha256": "fd9711c2f47b9e529ddbd94ba97d359eb87ab67a06d1c8993a9ad567bafa2766",
+      "test_summaries": [
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-generics",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "generics",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-generics.log",
+      "sha256": "ad3066f1d7d136c1264392ff3dc8e6ddca7eb552405d6267c314bb22af027c94",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl029",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl029",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl029.log",
+      "sha256": "e73241a1b2d2a72e12c6a3ed9c3d93f4d69bd137c5e8ad948311820753114f15",
+      "test_summaries": [
+        [
+          16,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl030",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl030",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl030.log",
+      "sha256": "242faa380cbd3024106bc036863e068a9df3dfe3f7a954f90ffa700a8247db99",
+      "test_summaries": [
+        [
+          14,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl031",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl031",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl031.log",
+      "sha256": "cda9fe9142cc32b2efded22e90de4e3ac066581c06e0ee6ebd1c9bebccda309b",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl032",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl032",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl032.log",
+      "sha256": "506a8e8119ded0fc2e60aee12e32269841681a7a34f5fef760b0768e4b6fc472",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl033",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl033",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl033.log",
+      "sha256": "dcfb23c75203104c221782d3254e7e4bbc92bdaae22a999152f5f1947f5b0eb3",
+      "test_summaries": [
+        [
+          10,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl034",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl034",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl034.log",
+      "sha256": "1ef8b813b110a96eb2f2dc71fdef09de70a795aa03b9f0aaa1239b16e3191cb6",
+      "test_summaries": [
+        [
+          11,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl035",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl035",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl035.log",
+      "sha256": "80c059a7777d11d43c4cb0ceba783234b449f407fe67734a8fd547b4df09f52a",
+      "test_summaries": [
+        [
+          17,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl036",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl036",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl036.log",
+      "sha256": "99d88df531d386865c9d6e4b97b0191fbf7342beb56cb64711f510388d658f1e",
+      "test_summaries": [
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl037",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl037",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl037.log",
+      "sha256": "8f299cd80a248981164bee0848aca4f5ff24ff01e39caca7082aecd9b4d8fc50",
+      "test_summaries": [
+        [
+          13,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl039",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl039",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl039.log",
+      "sha256": "8ceb1b24e67dd668e3ef397e6119b76af2eddb68c290701da3408ef61dbd8ccc",
+      "test_summaries": [
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl040",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl040",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl040.log",
+      "sha256": "b198e95990285af11009c0fa048591308b67d8f7ec1fa6d5c120d851244203ab",
+      "test_summaries": [
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl041",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl041",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl041.log",
+      "sha256": "3a7caf665236e23fd7dde896b58794f5d19e0b512c4ffa105cc3ea9ddc455707",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl042",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl042",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl042.log",
+      "sha256": "999ad62552a565f2c018de22b67b655d565f86ec44f85f2f35a451518aff5474",
+      "test_summaries": [
+        [
+          18,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl043",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl043",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl043.log",
+      "sha256": "99669e1367e47b678f8271ccdf7d115b2b62d6af1dd6eea8965aaf43dd08536c",
+      "test_summaries": [
+        [
+          11,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl044",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl044",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl044.log",
+      "sha256": "1129c3ef10ff3458c892d061eff236e2121028fae60c3565deb6fb6a85ad3d32",
+      "test_summaries": [
+        [
+          14,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl046",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl046",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl046.log",
+      "sha256": "1a29dce039042fd0591327e5a771c8a4f13d3100b7cb1d4aeb3d03d24ddd2f9b",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl047",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl047",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl047.log",
+      "sha256": "2c5cfb3b00033e0ce1832de702d7b2081c9d92670234d71dee54794da71c1d3c",
+      "test_summaries": [
+        [
+          15,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl049",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl049",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl049.log",
+      "sha256": "8efff9710a950d01425e94c569e9a2d58f3c71abb989ef6f00bf3ecade2b8ebe",
+      "test_summaries": [
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl051",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl051",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl051.log",
+      "sha256": "97180d43a2e0393e78e96ea184c7d28a3ed20025c29bf4c41126330a06f1d2b5",
+      "test_summaries": [
+        [
+          16,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl053",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl053",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl053.log",
+      "sha256": "f8971f11117c44b05451d4c552658c7cd0bfef485e59fc423d0ec6aea5333d23",
+      "test_summaries": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl056",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl056",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl056.log",
+      "sha256": "73c78d74ef9d4fe21342248b1f062f07f7aff9c7ce16924d8f2b699d0739e101",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl060",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl060",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl060.log",
+      "sha256": "966488cf162a47f0b857626f3d2bb8900aadeb10f2b4b39776d6838eaccffc05",
+      "test_summaries": [
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl064",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl064",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl064.log",
+      "sha256": "5ef32a6c70b5410ecfd9a114b2253fa3a69862f881dff7f7ff87b2357337a772",
+      "test_summaries": [
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl065_helpers",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl065_helpers",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl065_helpers.log",
+      "sha256": "7a35fc33988106c2d60a634b8b52d979a2d04ea65dcc3bfe6469a5b2a246c579",
+      "test_summaries": [
+        [
+          17,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl068_vertical",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl068_vertical",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl068_vertical.log",
+      "sha256": "1d188a188599f1e6a0033d3d1b7c4c68659114e9d7efe1662c21767b92c4f16d",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl069_retained",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl069_retained",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl069_retained.log",
+      "sha256": "cce531b976673128b3d43e43d69f9786001a76e00bacbd56b1b2aa410dccf989",
+      "test_summaries": [
+        [
+          18,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl070_retained",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl070_retained",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl070_retained.log",
+      "sha256": "3cce1ce7fe42c6465b4cc664da54c9281497eea46e89115af7979cbd90617672",
+      "test_summaries": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl072_packages",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl072_packages",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl072_packages.log",
+      "sha256": "665b6b19c82449f5b582ccc48b6e28f2d91598491a726534b97c60c63670d83f",
+      "test_summaries": [
+        [
+          18,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl074_packages",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl074_packages",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl074_packages.log",
+      "sha256": "86d6aec1fc9c528a85a4c7484554edefd1234ff415cbaa2f2157dcec7f93dace",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl077_package_captures",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl077_package_captures",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl077_package_captures.log",
+      "sha256": "70cc7f377fac2b3d1b5e98c78c72b6aeb243311a93a7f4d2179e29063b89f957",
+      "test_summaries": [
+        [
+          11,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl079_package_captures",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl079_package_captures",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl079_package_captures.log",
+      "sha256": "24932aa34d15046e41f1ce80f5bcf491fdfae112dcd9fb84325b1cbc2cb32dae",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl081_frontend",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl081_frontend",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl081_frontend.log",
+      "sha256": "0dfee401671aeea370dfeb87d69cee584bbe47318a6a67173d77190632bbfefe",
+      "test_summaries": [
+        [
+          13,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl083_bytes_native",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl083_bytes_native",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl083_bytes_native.log",
+      "sha256": "faf28f9f8a5324be8b30ea04857f369bd71d23fb11cb3dd95deffa14561212e1",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl085_frontend",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl085_frontend",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl085_frontend.log",
+      "sha256": "e5cab1fa17b95a96fbc224682360057c6cec9f99350c3b9d2d32674f9bdec841",
+      "test_summaries": [
+        [
+          10,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl087_native",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl087_native",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl087_native.log",
+      "sha256": "2da71830a6b2abf4e24d3842ff0242b641c32ea3627e8765445642ecb3ab8170",
+      "test_summaries": [
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl088_ct_collector",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl088_ct_collector",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl088_ct_collector.log",
+      "sha256": "855abd5c4ce0ccefc70f1b6704df1718ea788e4f41fdf051f809284fa12a7b40",
+      "test_summaries": [
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl088_ct_preflight",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl088_ct_preflight",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl088_ct_preflight.log",
+      "sha256": "4b5742d603e129f225bbd18f7589031c5f5a9ee3d2aa41b71d115299c954751d",
+      "test_summaries": [
+        [
+          12,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl090_slices",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl090_slices",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl090_slices.log",
+      "sha256": "b6be15afa1e5ec57383d4e836c4abdcf39e6e1bd002a954c4b132bcad793663e",
+      "test_summaries": [
+        [
+          13,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl092_slices_native",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl092_slices_native",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl092_slices_native.log",
+      "sha256": "f69604104bab45232648c9f1b90762a53f9a4ce2e6db68b57bb867699bb4a5fd",
+      "test_summaries": [
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl094_byte_buffers",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl094_byte_buffers",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl094_byte_buffers.log",
+      "sha256": "b72ba37c1f76a6c5b9c154a8d8383dc582fec589f6a232d9c8516303551b4c0f",
+      "test_summaries": [
+        [
+          12,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl094_ct_preflight",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl094_ct_preflight",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl094_ct_preflight.log",
+      "sha256": "a0bc60709aa3514a89823543bb68c4761088d34d5140ea869a8080b36be6a5ae",
+      "test_summaries": [
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl096_byte_buffer_native",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl096_byte_buffer_native",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl096_byte_buffer_native.log",
+      "sha256": "42866e3b8fbd5459cca6ccaa9feaae0683f2c16363657d8205c42dcccadb9ba6",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl099_owned_bytes",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl099_owned_bytes",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl099_owned_bytes.log",
+      "sha256": "e8f41cb5d94de026cc2fd9868286c8d00ceafe560edc70a2a2dc80d05d27b9df",
+      "test_summaries": [
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl099_owned_bytes_native",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl099_owned_bytes_native",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl099_owned_bytes_native.log",
+      "sha256": "c67717ee058155653cb75dcdaad9194be937a7e62e9da46d69390c87073597a8",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl103_generic_aliases",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl103_generic_aliases",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl103_generic_aliases.log",
+      "sha256": "023f4b7934d37cc11b2df4d4264a80fa273150482aa2d98d0b52fae3cf07ba7a",
+      "test_summaries": [
+        [
+          13,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl105_ct_enum",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl105_ct_enum",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl105_ct_enum.log",
+      "sha256": "66cf75e5ae0f6f972f6806559e8c77368275e4b569c1db993c3b4b273890836f",
+      "test_summaries": [
+        [
+          12,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl108_foreign_binding",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl108_foreign_binding",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl108_foreign_binding.log",
+      "sha256": "d598bb9a0f59042acbff6716869be91ebb40174bea4f39c9c504b9472b4626ba",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl109_ascii_map",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl109_ascii_map",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl109_ascii_map.log",
+      "sha256": "d9e5d03b43e33da9a9aa161d05fdaeaa625b08cfa78733cf024b75ba1ac3a380",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl120_field_backing",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl120_field_backing",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl120_field_backing.log",
+      "sha256": "5f576e764dd64ff3315bb68e7d63e7f70888f5dc0a0587e65a679c63f48362a4",
+      "test_summaries": [
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl120_field_backing_native",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl120_field_backing_native",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl120_field_backing_native.log",
+      "sha256": "819e114bacccd6b51dc99fd8e01bccec377dbc2dad01a22be06ee290f5fdc6b5",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl121_callable_nominals",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl121_callable_nominals",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl121_callable_nominals.log",
+      "sha256": "c66336099ef80f01408965a66c8d8cb652fa4e71858e3d425fb724b36e16cf6d",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl122_ct_declarations",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl122_ct_declarations",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl122_ct_declarations.log",
+      "sha256": "04b4b6b1336893b84a2f2257792376a2f8deeec1c6199980bdba041f4efcc3a4",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl124_signed_shifts",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl124_signed_shifts",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl124_signed_shifts.log",
+      "sha256": "b1bbf380f111daa4a1fd09f73306928ab64e75869ac5c37d3c04c5ac29506f83",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl125_factory_helpers",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl125_factory_helpers",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl125_factory_helpers.log",
+      "sha256": "15af3bf18a2857a58294ca21aca9576c15f675ed8985ae815200bc74fa62cad1",
+      "test_summaries": [
+        [
+          13,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl126_helper_sequences",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl126_helper_sequences",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl126_helper_sequences.log",
+      "sha256": "69522ebede8a2387c1858bd595e3c0cf099f40879992d4beb035b12a4ca6b3fe",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl127_local_factory",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl127_local_factory",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl127_local_factory.log",
+      "sha256": "a807be864a981794b440ca00c061e676409afa24455e3afa2ab179ff892ea966",
+      "test_summaries": [
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl127_raw_factory",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl127_raw_factory",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl127_raw_factory.log",
+      "sha256": "b9b0619ec6eb4a1d2d32f78e51f6b02973415ecf823049bd0f6ac41896187d11",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl134_project_defaults",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl134_project_defaults",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl134_project_defaults.log",
+      "sha256": "f3431818cb3d376f9bdb8c39febb13945c2a57ff46bdf94fe187b5430053d992",
+      "test_summaries": [
+        [
+          12,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl137_truncate",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl137_truncate",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl137_truncate.log",
+      "sha256": "33b3c5b2b1baab9fd97ddb0b591acbca1c2edb5fd8724d655c95219b372f4d7c",
+      "test_summaries": [
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl139_owned_text",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl139_owned_text",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl139_owned_text.log",
+      "sha256": "5ed3954c87ddfa04478e2dceea4b1159e4387aad922cc90052a7e21d6d7d2b4e",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl142_record_vector",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl142_record_vector",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl142_record_vector.log",
+      "sha256": "6b1a08018960c558e91fd6548610b8a9a6a773d5a9d30b56e06b25f19ebdd219",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl147_static_traits",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl147_static_traits",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl147_static_traits.log",
+      "sha256": "b3426f2b31a079c8899e91de1e149185cd6b8a67ddf1f1accff4b614061a4242",
+      "test_summaries": [
+        [
+          11,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl151_closure_methods",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl151_closure_methods",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl151_closure_methods.log",
+      "sha256": "83c090ba860cf077cf338508613ff9fc4113cd17708e0e080c61ffffa0a6b08b",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl152_growing_inbox",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl152_growing_inbox",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl152_growing_inbox.log",
+      "sha256": "57761b010dd68d93e1ab4fca0252a212853abcd97553814ee5d563f2ff4c9897",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl153_query_replay",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl153_query_replay",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl153_query_replay.log",
+      "sha256": "d50c8755165fdc61af5f0b9f66006ef1d6b46de10335200317c2afd71d9f5b8f",
+      "test_summaries": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl153_queue_layout",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl153_queue_layout",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl153_queue_layout.log",
+      "sha256": "5813144991c6f5d44fdbabbf4da4b2a148fbddea7ad33905629094e2972235a0",
+      "test_summaries": [
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl155_managed_replace",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl155_managed_replace",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl155_managed_replace.log",
+      "sha256": "7aab8480343c7363c3ea0237e1cfb998085fb0177c697db49f0292a2ecba38ee",
+      "test_summaries": [
+        [
+          12,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl156_module_methods",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl156_module_methods",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl156_module_methods.log",
+      "sha256": "d7703b57a3cb2aa1de2407fc98a8fc08394b5eaa221b6361c64b630d05454b7c",
+      "test_summaries": [
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl158_filesystem_cache",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl158_filesystem_cache",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl158_filesystem_cache.log",
+      "sha256": "9d448ce602d785f71c81897e34abafc2d79e8b428f45b656e38191f10ed0d9a4",
+      "test_summaries": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl161_nested_closures",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl161_nested_closures",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl161_nested_closures.log",
+      "sha256": "6a1181f473e834651d90e9bb35429591740ab69eb2906067a7a350b984816b66",
+      "test_summaries": [
+        [
+          16,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl162_trait_bounds",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl162_trait_bounds",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl162_trait_bounds.log",
+      "sha256": "4ffcc56b78b0e2321db9e54422798d414023e750854920a0b7c9db200687492c",
+      "test_summaries": [
+        [
+          12,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl163_resource_methods",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl163_resource_methods",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl163_resource_methods.log",
+      "sha256": "3abcd649be28be6643642fff25d6c5cedf64bfdfa1d0677d4ab98220e69eca90",
+      "test_summaries": [
+        [
+          25,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl166_owned_results",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl166_owned_results",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl166_owned_results.log",
+      "sha256": "43952e6d670250177b7bfa4f59afecc0fc7065934b1e980e5fe1fdeabfd43331",
+      "test_summaries": [
+        [
+          13,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl167_array_capture_boundary",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl167_array_capture_boundary",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl167_array_capture_boundary.log",
+      "sha256": "b93626daadd2b018cf9905c157f94e5b6d62ad66182f27067c71eb0ff163d5a4",
+      "test_summaries": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl167_owned_arrays",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl167_owned_arrays",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl167_owned_arrays.log",
+      "sha256": "3bee91c710c79738a5843dc6b0036105852b6b845407980e13ce086167b64894",
+      "test_summaries": [
+        [
+          32,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl168_retained_composition",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl168_retained_composition",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl168_retained_composition.log",
+      "sha256": "22daf91c4027cd2545c67ade1a8750898ad36161a1d868efb5554dfbb125e2c1",
+      "test_summaries": [
+        [
+          26,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl170_package_fields",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl170_package_fields",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl170_package_fields.log",
+      "sha256": "d0427af6378c143b34c9a9a47461c2e99969814688909bcd147ea2088902f518",
+      "test_summaries": [
+        [
+          16,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl171_resource_heads",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl171_resource_heads",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl171_resource_heads.log",
+      "sha256": "9d035ef7dfd0363c332e9a5c0ab43dcd733b944d9195bf39dda87d386837b0e9",
+      "test_summaries": [
+        [
+          17,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl172_owned_store",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl172_owned_store",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl172_owned_store.log",
+      "sha256": "778db97a56c1c5795f807f3707d89ca8e91c8af8b836f9368a74168ffc2177e6",
+      "test_summaries": [
+        [
+          18,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl174_store_fields",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl174_store_fields",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl174_store_fields.log",
+      "sha256": "3f53a32899c7482a9be52fc6df40708ee5142417c508f0950052f009eff705ea",
+      "test_summaries": [
+        [
+          14,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl175_store_views",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl175_store_views",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl175_store_views.log",
+      "sha256": "3dd43ed16e375f7840d10789ab0011fe6ae108d1f55255ff5e48ff4d87a0970f",
+      "test_summaries": [
+        [
+          20,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl176_callable_fields",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl176_callable_fields",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl176_callable_fields.log",
+      "sha256": "515221f0b7d9b9734fdf08bacadfe1553862cf5193a15e9bdd28f51de6786f2e",
+      "test_summaries": [
+        [
+          12,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl177_public",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl177_public",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl177_public.log",
+      "sha256": "ebfade427def2ddb46b3df1c7945fae496b40045ae005c8f40bb3eb7b506aa74",
+      "test_summaries": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl177_state_composition",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl177_state_composition",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl177_state_composition.log",
+      "sha256": "d85998d96174fddc4b378325d176e1d513590cda90b3a166c8eb863f0fbb9db8",
+      "test_summaries": [
+        [
+          11,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl178_generic_store",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl178_generic_store",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl178_generic_store.log",
+      "sha256": "1a1f03e8dcad2684fac7ca4a60e0dea13043fb4bd8e457b5e02cb84a53a83cff",
+      "test_summaries": [
+        [
+          15,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl178_helper_give",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl178_helper_give",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl178_helper_give.log",
+      "sha256": "90ee656ed05763c1a296b69845122fffaa592d6646aac57c1277aea90af262c4",
+      "test_summaries": [
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl179_field_precision",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl179_field_precision",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl179_field_precision.log",
+      "sha256": "1329b05ae0c39c100e3ad7e7d21f804649bf3c9b0cf98554bb3d0b733d3d1e88",
+      "test_summaries": [
+        [
+          10,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl180_store_mut",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl180_store_mut",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl180_store_mut.log",
+      "sha256": "9a6b6002d1b3ee5f9c3dbcf585f48227b82db3135927d882d164eec9ae1b6eed",
+      "test_summaries": [
+        [
+          19,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl181_composition",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl181_composition",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl181_composition.log",
+      "sha256": "41ab49197dd6bd6d78ae784e0abb0c8ac5faa6300b52e637c744b3b971194632",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl181_win64_store",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl181_win64_store",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl181_win64_store.log",
+      "sha256": "13465e42439be1f1fc1f6896d3490842a6d41d3f1b6d613f39ac9b442e391831",
+      "test_summaries": [
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl182_capture_contracts",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl182_capture_contracts",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl182_capture_contracts.log",
+      "sha256": "4a09f167e5ffdda2fd0364e4dea0fa320bb2dba268129a97a39df65202f0ddca",
+      "test_summaries": [
+        [
+          23,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl183_owned_resource_results",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl183_owned_resource_results",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl183_owned_resource_results.log",
+      "sha256": "9eaedb0a3bb2149420ba956c0d11c87d656e853e4fe0c504d6b8f14dfcfa5fb5",
+      "test_summaries": [
+        [
+          13,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl183_raw_owned_success",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl183_raw_owned_success",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl183_raw_owned_success.log",
+      "sha256": "f7bd28b7003901d251f0ea2d2b559a10e38debe673f15a8dbe5106c556101c2b",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl184_lending",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl184_lending",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl184_lending.log",
+      "sha256": "ffcf8e19bcdfcc84e2a5062caf2a6bc0bfaaa5531c8fccca914112f549c3c069",
+      "test_summaries": [
+        [
+          13,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl184_lending_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl184_lending_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl184_lending_raw.log",
+      "sha256": "88734d56138c31e23deec03739d800fe86b8041183aab57c399ab982284803e1",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl185_lending_schema",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl185_lending_schema",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl185_lending_schema.log",
+      "sha256": "44e6d8f03751cfcac816663a5e849cd9338b072170a79d9dd0ebe745a47c5b2a",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl186_generic_owned_success",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl186_generic_owned_success",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl186_generic_owned_success.log",
+      "sha256": "4eef8b51f8ae6d8282398753d8239a5b354569518e3dde95d245f189d46a2d0b",
+      "test_summaries": [
+        [
+          16,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl186_raw_owned_success",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl186_raw_owned_success",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl186_raw_owned_success.log",
+      "sha256": "2f7579f8e68c497664f3dfb32dc2261e4aed24da4056a03367ccf6c81bf4144e",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl187_borrowed_bytes",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl187_borrowed_bytes",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl187_borrowed_bytes.log",
+      "sha256": "f895c68f7a0e0ca26b07401a51c9f4d3a903b38642f4dcdad1090f3919a4f5b2",
+      "test_summaries": [
+        [
+          24,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl188_nested_helpers",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl188_nested_helpers",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl188_nested_helpers.log",
+      "sha256": "c6d31e5b4f266cdade7d3e35080b50f1c87a6937e03c6a15bcf7f466ddbe6acc",
+      "test_summaries": [
+        [
+          14,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl188_nested_helpers_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl188_nested_helpers_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl188_nested_helpers_raw.log",
+      "sha256": "9df438730fcb8bb98319dbd5e0fa335dc640e55afe79810a877e221183ceaaa1",
+      "test_summaries": [
+        [
+          12,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl189_address",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl189_address",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl189_address.log",
+      "sha256": "6108ea8099f9180456fc72de90fc903374d83b2a6480ab6cc6085cb858c2076d",
+      "test_summaries": [
+        [
+          14,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl189_address_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl189_address_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl189_address_raw.log",
+      "sha256": "d3f916d1c4c71ca962c4c822c057a1bf4383227472e1ac2abbfda75a4baf52fd",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl190_flow_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl190_flow_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl190_flow_raw.log",
+      "sha256": "5066bfe2a6d448cb97d762ad1bf6245632f3375910aa7425fbfc3b716485f5db",
+      "test_summaries": [
+        [
+          14,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl190_flow_source",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl190_flow_source",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl190_flow_source.log",
+      "sha256": "80b6380a3190710a729af479ae4f15872172899927b336940280e0b5dca14d6b",
+      "test_summaries": [
+        [
+          17,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl190_for_ranges",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl190_for_ranges",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl190_for_ranges.log",
+      "sha256": "45ea4fe6170eff2286afba10c52cb090b2d57150e780c965e1859b9f4b60c6fc",
+      "test_summaries": [
+        [
+          10,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl191_flow_transport",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl191_flow_transport",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl191_flow_transport.log",
+      "sha256": "cd8d2db9329bebd382151b19d9c23e25d25981bc0eab077ed63256e555a266c9",
+      "test_summaries": [
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl192_copy_fields",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl192_copy_fields",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl192_copy_fields.log",
+      "sha256": "4a2ceba1affeab2745f1ecf9ae11d851bac62b5fee6e1dc8fabd32cdba901207",
+      "test_summaries": [
+        [
+          20,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl192_copy_fields_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl192_copy_fields_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl192_copy_fields_raw.log",
+      "sha256": "cab1c2d756a7630ccadff37dc802ac3387b7fca9082caa67d1ae6628d6358e06",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl193_slice_arguments",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl193_slice_arguments",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl193_slice_arguments.log",
+      "sha256": "23121f8a7ef89248bf54a06e0cfbc92eb79377b8606959d2b701fcebfef17ae2",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl193_slice_arguments_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl193_slice_arguments_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl193_slice_arguments_raw.log",
+      "sha256": "b89532e21685aa084ead79b2b6b86fb7bc8fa35290997f0ab1c55148c89f5804",
+      "test_summaries": [
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl194_copy_callable",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl194_copy_callable",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl194_copy_callable.log",
+      "sha256": "ec4f5a6057d83f5f951f4bdec230cf24eb0604d397eae6471e3b50ea46a93723",
+      "test_summaries": [
+        [
+          19,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl194_copy_callable_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl194_copy_callable_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl194_copy_callable_raw.log",
+      "sha256": "f4dc73ea2979053917a334916ffd82d7635c09170b6ddf5b4e675c3da4ee02fd",
+      "test_summaries": [
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl195_loop_control_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl195_loop_control_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl195_loop_control_raw.log",
+      "sha256": "d01b2798bed8c24dcb9c771110cb08cdf8979073fa692bfa0e90e361a421c763",
+      "test_summaries": [
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl195_loop_control_source",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl195_loop_control_source",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl195_loop_control_source.log",
+      "sha256": "a3a44104adf02857b7d6e628b2ce0f73362fd599d9eef8111aee27d0db851b8d",
+      "test_summaries": [
+        [
+          12,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl195_symbolic",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl195_symbolic",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl195_symbolic.log",
+      "sha256": "c97b7cdcd6f43a72f0808e4bb3c886d2a6383492627bdb255d1bfe7b456dbe5f",
+      "test_summaries": [
+        [
+          11,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl196_analyze_roles",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl196_analyze_roles",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl196_analyze_roles.log",
+      "sha256": "cbb4e7d49404fbc35a1f17f1e05ac4fc5ac6fdbef1e2e5d36b73cbe9cc0522d4",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl196_roles_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl196_roles_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl196_roles_raw.log",
+      "sha256": "7a8bfadf80ff4b247840fe2e3b0fef494a03717025449b80ca750261c5201537",
+      "test_summaries": [
+        [
+          10,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl196_roles_source",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl196_roles_source",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl196_roles_source.log",
+      "sha256": "828178ec430c5c6cf32a4d34ac260d9e41a096a259089456ca5fc5d153e68b2d",
+      "test_summaries": [
+        [
+          15,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl197_mixed_state",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl197_mixed_state",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl197_mixed_state.log",
+      "sha256": "35130cb54a269e461e11fdf3a020828daa8c7223c7ba3a4c5d1bd124ef99d1f6",
+      "test_summaries": [
+        [
+          14,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl197_mixed_state_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl197_mixed_state_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl197_mixed_state_raw.log",
+      "sha256": "c556e38e73a9d2e8329d27c9212b9a9d740f4c3a5c15f5f8e8d6259b1778bf7c",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl199_callback_place",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl199_callback_place",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl199_callback_place.log",
+      "sha256": "a2a9498b1a7d011ed529b2303ae1467f3765ed03768aceedc10f6ed9a7f20eb7",
+      "test_summaries": [
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl199_callback_place_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl199_callback_place_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl199_callback_place_raw.log",
+      "sha256": "096f8bf914e3e8a3d43ef9385d111785b82e9f77443985c746151657fe89a8c4",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl200_analyze_constructor",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_analyze_constructor",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl200_analyze_constructor.log",
+      "sha256": "a8ffab3ad878eaaaee6f16eaf63f8ab3d43ea9122338821b64439e887214811d",
+      "test_summaries": [
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl200_independent",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_independent",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl200_independent.log",
+      "sha256": "8fb9bc88f78dfae5194b836b93b01f8a04a4c5eb4b314d95ebaba17d67706208",
+      "test_summaries": [
+        [
+          10,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl200_state_source",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_state_source",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl200_state_source.log",
+      "sha256": "ed438431ef634fd77b96e7a76bde9f86b73d0df6e3fb123164d59bd176652b20",
+      "test_summaries": [
+        [
+          14,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl201_analyze_store",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl201_analyze_store",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl201_analyze_store.log",
+      "sha256": "fcfca89efa70f96a17a6ac0530f77daccb7a61af65621cd366422380e2c53518",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl201_independent",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl201_independent",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl201_independent.log",
+      "sha256": "493cd7d780abf5f71e0ee2ea3fb0075a0cf4fa12f2bfee7664a299b2c090415b",
+      "test_summaries": [
+        [
+          13,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl201_source",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl201_source",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl201_source.log",
+      "sha256": "81554c7cea72277aac1ac34a609a28a18174ee40be4159d59c8fb784ad2cb345",
+      "test_summaries": [
+        [
+          16,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl202_budget",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl202_budget",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl202_budget.log",
+      "sha256": "5cd9047f297148d21549587976e0e42df1de705dea78c3ad5d25566f844b35e1",
+      "test_summaries": [
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl202_ct_independent",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl202_ct_independent",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl202_ct_independent.log",
+      "sha256": "474d4c66b45003db82254b48881c211fe357b701c8622114c1954769bf5e20ea",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl202_independent",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl202_independent",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl202_independent.log",
+      "sha256": "066217e359867fc6fbeca7dc855e44884762cd10eb2ca1ff9f89afe507e1dd04",
+      "test_summaries": [
+        [
+          19,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl202_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl202_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl202_raw.log",
+      "sha256": "8300459b766a8c35a82cfc07519680ee1dd8f553cb7142be46512df0ad43cc69",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl202_source",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl202_source",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl202_source.log",
+      "sha256": "7e2dd8148b03306af33062db1346754bddd707d3906d34a94319c566cbf1ba15",
+      "test_summaries": [
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl203_ct_boundary",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl203_ct_boundary",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl203_ct_boundary.log",
+      "sha256": "f82a25e2e556154cf55dabe89af6bb2cb1ffc51cb63ebc7ed0ac41cbd150268e",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl203_ct_independent",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl203_ct_independent",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl203_ct_independent.log",
+      "sha256": "433879fd44b8a90ea677990ee9db462892f6de298ad0972e305a486a040b7b2a",
+      "test_summaries": [
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl203_independent",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl203_independent",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl203_independent.log",
+      "sha256": "3095f8dccee5263f869ffb5a9c6000dd671d054f8f236a4fafa05431c1b16371",
+      "test_summaries": [
+        [
+          28,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl203_source",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl203_source",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl203_source.log",
+      "sha256": "2b27bd590150eb9df00dd324f479839e44acd199bd47126289f686ead8495b5a",
+      "test_summaries": [
+        [
+          13,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl204_analyze_capture",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl204_analyze_capture",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl204_analyze_capture.log",
+      "sha256": "f102e5742d714fd3df452b1fd47542b0de2fa2dfbcae8a0fbe8d42b83b359b34",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl204_budget",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl204_budget",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl204_budget.log",
+      "sha256": "faa0e5f15a4a76113d5c5396356b00af647ae9b71839166366d097a4371aaeae",
+      "test_summaries": [
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl204_review",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl204_review",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl204_review.log",
+      "sha256": "e5b016fe35647f90bdc1630ce99d3a86ec09f3f65fdddfc1cf8ce366e6c8291e",
+      "test_summaries": [
+        [
+          21,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl204_source",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl204_source",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl204_source.log",
+      "sha256": "8f00a7e21a13337c17ecf7941648b9dedea0fc0503d4f982f50caae77c4cd6fb",
+      "test_summaries": [
+        [
+          20,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl205_budget",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_budget",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl205_budget.log",
+      "sha256": "fc278925eb237e70a3fc8e197a93c504c61674e932bcb6bba4ea9272fa098086",
+      "test_summaries": [
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl205_ct_boundary",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_ct_boundary",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl205_ct_boundary.log",
+      "sha256": "43ac9735b0f7f0eb45b7842af87a318c6ebfaf5c918b43f8eec5fb5bf23f977a",
+      "test_summaries": [
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl205_ct_independent",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_ct_independent",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl205_ct_independent.log",
+      "sha256": "ea0955a3e6642b33ecc0b2db5b5d1921ef0b54e268446c7f608f0dbc2a88f7da",
+      "test_summaries": [
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl205_independent",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_independent",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl205_independent.log",
+      "sha256": "7b4ae129c91b0f2640628f37eaf9362e77f7851c8db6b3dee5e9a17898b8a964",
+      "test_summaries": [
+        [
+          27,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl205_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl205_raw.log",
+      "sha256": "366077e5396edc26c8175388c650b6f1bac3fe2ab533b776848265a8d6040eb4",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl205_source",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_source",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl205_source.log",
+      "sha256": "11116fe52f390e68035ba59f61affe78ece66979c8e38883499361c3a3fb7432",
+      "test_summaries": [
+        [
+          16,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl206_analyze",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl206_analyze",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl206_analyze.log",
+      "sha256": "3574e4ba63d4dcf69c90627f6471bb90f864d1e600b0c8a491ab0bcce5c9487c",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl206_budget",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl206_budget",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl206_budget.log",
+      "sha256": "3260f4a1d3efc820840fe7b5ad8e3c7192f55fd764e3b78351cb27fbedd7cb50",
+      "test_summaries": [
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl206_independent",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl206_independent",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl206_independent.log",
+      "sha256": "9e08f42aa2e8359b469a2e8d8c2fa09ad99e947a0c57299d5c2e7df24a2959e7",
+      "test_summaries": [
+        [
+          45,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl206_independent_capture",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl206_independent_capture",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl206_independent_capture.log",
+      "sha256": "2abba6cb336e7707532c0fcda2a7875b25943a182e6a56092b9e5990b3f2fb2d",
+      "test_summaries": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl206_machine",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl206_machine",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl206_machine.log",
+      "sha256": "2cf5d1c6c26b9f029fe6315d374e4eb611de688aa265a74b4590a55ce72127f9",
+      "test_summaries": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl206_source",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl206_source",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl206_source.log",
+      "sha256": "4b844eea5b79987b1e02601ec4a112048e0cee060df13a81a1adb1f84b3e79d4",
+      "test_summaries": [
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl206_verify",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl206_verify",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl206_verify.log",
+      "sha256": "e0eaa01ba9a74dcedd2adfebb9f4d06e48b5de396d015c034e0756a98e5a03e7",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl214_source",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl214_source",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl214_source.log",
+      "sha256": "9e3a4f521a757cc30443d68a3a420475dc83bb89b2618a46da043e0c8d02ad33",
+      "test_summaries": [
+        [
+          20,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl215_capture",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl215_capture",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl215_capture.log",
+      "sha256": "2f61006542537be8eff58c5091211ab662acd74a106b25df995e8a362b6ae428",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl216_machine",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl216_machine",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl216_machine.log",
+      "sha256": "d3043c53f4a7b9a1c7f6d6f6733c4c61ab1c2221789a97d7510807141e784b2b",
+      "test_summaries": [
+        [
+          8,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-impl216_raw",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl216_raw",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-impl216_raw.log",
+      "sha256": "ac8da8c70c0605a2c6b40951fb49d14cd1a6d2ac4b994fa1bf4943efb446e03c",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-llvm_api208",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "llvm_api208",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-llvm_api208.log",
+      "sha256": "a96f3425e142752c28ec559893bd0a21d26a256ceeed52a0a46c27163132c92b",
+      "test_summaries": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-llvm_api_disabled208",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "llvm_api_disabled208",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-llvm_api_disabled208.log",
+      "sha256": "960dd18b90b551b3e0564dfec1ba377f07a2ab7b29ab172fd5ca702482a3c724",
+      "test_summaries": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-mainline_app",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "mainline_app",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-mainline_app.log",
+      "sha256": "5a90a103f2fa126ca0cb92963333c34c42ee007d5c22a06100511ebb6135b513",
+      "test_summaries": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-mainline_composition",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "mainline_composition",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-mainline_composition.log",
+      "sha256": "a815d91abdb5d8297ef9b8ef63a15a55328095e17db94704b3a8444e2b0014f3",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-mainline_stream",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "mainline_stream",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-mainline_stream.log",
+      "sha256": "6a0a33167f0d8ea21ea7bc2943cc686c8eb34be2009df71091708b47e9c48a1e",
+      "test_summaries": [
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-object_cache212",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "object_cache212",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-object_cache212.log",
+      "sha256": "bdb0e075dce08a153259f1e360b013cbc2f6032e3d0349e1f2316010b65c7706",
+      "test_summaries": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-perf206_codegen",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "perf206_codegen",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-perf206_codegen.log",
+      "sha256": "80700305ca1692596bed95c77ec0a154c28ee067790ad217945cbdb9b71074b6",
+      "test_summaries": [
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-projects",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "projects",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-projects.log",
+      "sha256": "c4c4592d35106d472d9fb42e11ae58fc4a22638e50f49ee900243af8db5b92bf",
+      "test_summaries": [
+        [
+          27,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-ranges",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "ranges",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-ranges.log",
+      "sha256": "e62b92d3712a66c5aefaa0b9ac3f97ece72710a8184af9af5b10b6360a625537",
+      "test_summaries": [
+        [
+          15,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-receiver_regression",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "receiver_regression",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-receiver_regression.log",
+      "sha256": "5d6f156182561382b067772457394308b365ad6da69e4ebcfb521d2a8ee08ee8",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review042",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review042",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review042.log",
+      "sha256": "9bd5f70051d81628059c42f3441ec5e8045bb65c6b08f114aff64ec06925d110",
+      "test_summaries": [
+        [
+          10,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review045_loans",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review045_loans",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review045_loans.log",
+      "sha256": "c1acf55aab0bff38b8b9ce388cfef0738de2521b8ab91f569c007995d59eb576",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review090_slices",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review090_slices",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review090_slices.log",
+      "sha256": "3bd3c7a131a9a1ddbca099139241db3c10b7ae5bb86d4af7a3c9362e3fc1346e",
+      "test_summaries": [
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review092_external_abi",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review092_external_abi",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review092_external_abi.log",
+      "sha256": "4ece4ea40630afecc12c10745a4de42cc4759a4d31ec6207942123bec8ce94e1",
+      "test_summaries": [
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review096_byte_storage_boundaries",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review096_byte_storage_boundaries",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review096_byte_storage_boundaries.log",
+      "sha256": "3eabb907e80deef2cbc2197fd944721ac838bc3fc2184c6fe526bfedb44b51c7",
+      "test_summaries": [
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review173_composition",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review173_composition",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review173_composition.log",
+      "sha256": "4ed907534216350108db6cb8c0adc3cb41eb7f04507c91a52a94d62fef06f669",
+      "test_summaries": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review173_package_fields",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review173_package_fields",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review173_package_fields.log",
+      "sha256": "d90d53b6a40a65d79135df25f81c47584f7e1d00781068bdee8445978a6159a9",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review174_store_fields",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review174_store_fields",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review174_store_fields.log",
+      "sha256": "a54580b78c3d381f884e9e22aa8da27e9e7e9be4a3d609ab0290482649ee60bc",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review175_by176",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review175_by176",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review175_by176.log",
+      "sha256": "93f1b9936c1ed20bb41d4fd53dcaa5a4f76e2ad275dbbc190200239beae2f56a",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review176_by175",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review176_by175",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review176_by175.log",
+      "sha256": "c85acd49e3d28e83ec4942e8f0858318e930acc00d91ab1fa1fa839498799d66",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review177_composition",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review177_composition",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review177_composition.log",
+      "sha256": "9d6610b94962edfb3a4b652a712fe94ac565eb933fc38ca52bfbc3073fe374e2",
+      "test_summaries": [
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review177_public",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review177_public",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review177_public.log",
+      "sha256": "34eea22c569aaab40323ab9e723ecaeb608b166a309954006f4725000abac88c",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review178_definitions",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review178_definitions",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review178_definitions.log",
+      "sha256": "a451d621d7584c7ace80f793afcdf8e1b91bbe65a1adcf048f8ed376060d1545",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review179_borrows",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review179_borrows",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review179_borrows.log",
+      "sha256": "b941b210dc381045abe9a3f5b7ccfcabb4883e22f212207d08752f398098ff46",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review180_by179",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review180_by179",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review180_by179.log",
+      "sha256": "52cce3dce57d97a23f98bceb32c4ba5442356e9aa3525fce7b58d6ee9e80105e",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review181_by179",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review181_by179",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review181_by179.log",
+      "sha256": "23936e5cc580a4fa2798fd5540e603b74f4df069c99dc042768a6451e1599aca",
+      "test_summaries": [
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review181_projection",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review181_projection",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review181_projection.log",
+      "sha256": "615d825b77a1d447b9a661a7afa48e2539a714a80fd62745f7bdc37641f401af",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review182_capture_boundaries",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review182_capture_boundaries",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review182_capture_boundaries.log",
+      "sha256": "ce84f98285e5a3f6b4e3f8886c6cd4e8eaa25b7a33f13871e764699e7885115a",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review183_owned_boundaries",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review183_owned_boundaries",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review183_owned_boundaries.log",
+      "sha256": "58c05732831e724b92531b9086dc98ce3b93f3e0279e73ace70c70c0033fa976",
+      "test_summaries": [
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review184_storage",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review184_storage",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review184_storage.log",
+      "sha256": "81fdbbd45a7236e5402e8b93a1a88efd65ea97ef505a84a1b37fc5a960c60483",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review185_lending_transport",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review185_lending_transport",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review185_lending_transport.log",
+      "sha256": "779cea02f7bfa950ba685a37f2d034a6e715a21bdff7b146c7f1563543e5b130",
+      "test_summaries": [
+        [
+          3,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review186_field_origins",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review186_field_origins",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review186_field_origins.log",
+      "sha256": "5a54e1df7595f3e06e7158af847819ca54c23e7b76327ea698b23276a985a01f",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review186_provenance",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review186_provenance",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review186_provenance.log",
+      "sha256": "286d38521b5c160a0ed706c3e7e466cb3b585a98006636e142668766dedc035a",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review187_sources",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review187_sources",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review187_sources.log",
+      "sha256": "d78047d671b7c9188c077ece79db57ecd9e03e2b3c35e2f04327e499bce2df3a",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review188_composition",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review188_composition",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review188_composition.log",
+      "sha256": "eb91063a29d514fd38b5e9b920936d47e600ecc06fce93450c676add6000b93f",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review188_depth_stages",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review188_depth_stages",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review188_depth_stages.log",
+      "sha256": "406a5995b8a85c433b0467481ed19ea79f21d4207aa5bcd82e898e0d0aad1bcc",
+      "test_summaries": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review189_call_arguments",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review189_call_arguments",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review189_call_arguments.log",
+      "sha256": "bb592fecd78f19af391018137ce10f7d351a0e66dfc53fe413076c88d459256c",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review190_by193",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review190_by193",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review190_by193.log",
+      "sha256": "a3197d02063aef27db61e42f6ad1db8adf6435f59d580efa4881f2fb3895a860",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review192_field_composition",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review192_field_composition",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review192_field_composition.log",
+      "sha256": "04a2312e0edbfbbfe150b8417478ba350eb0d1e612cf9b2fd30f12403585ab4e",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review193_slice_composition",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review193_slice_composition",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review193_slice_composition.log",
+      "sha256": "101095a0a382a868146f6f273f1757ae0664f84859128778f43af53a840dbc46",
+      "test_summaries": [
+        [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review194_composition",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review194_composition",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review194_composition.log",
+      "sha256": "c36d54b1edaded9a44fd4123e677e0155edbd180f2ecf08cde0109a941ba8d38",
+      "test_summaries": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review195_by193",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review195_by193",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review195_by193.log",
+      "sha256": "19e9b32bc5f23af1200b95287f9b48dbdf5112c7fa9dbe902eed33d43d63ee00",
+      "test_summaries": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review196_by197",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review196_by197",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review196_by197.log",
+      "sha256": "1bc1cedddcb49068013b98dd7444ff38fec6c7a897d3b22463c55bd8ed4b9d2b",
+      "test_summaries": [
+        [
+          11,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review197_state_identity",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review197_state_identity",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review197_state_identity.log",
+      "sha256": "81e9624c5d28ccc1f6be9bca6db8a46547ab7d2db33467d1d45a67b05f9e76c5",
+      "test_summaries": [
+        [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-review199_by197",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review199_by197",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-review199_by197.log",
+      "sha256": "1f8cc442efd5a806959ec1fdde5f368356254520150e2d436595bd61096a70fb",
+      "test_summaries": [
+        [
+          7,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-shared_addresses",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "shared_addresses",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-shared_addresses.log",
+      "sha256": "31ae1a9ef5629cc287e22eae082aed330c010412fb0d93c46652f84392a8a676",
+      "test_summaries": [
+        [
+          9,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-stage_timings",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "stage_timings",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-stage_timings.log",
+      "sha256": "2d5a4a22b85fe5744a31afe71c470a31e1b8d5bbd64e307077ee313be6e6ba98",
+      "test_summaries": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-test-timing_feature",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "timing_feature",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-test-timing_feature.log",
+      "sha256": "575bff540bedc762a955b55233d28319675703ebc265d6ac99a2bce7f7a1947c",
+      "test_summaries": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-doc",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--doc",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-doc.log",
+      "sha256": "ca23a42ad6751ef19657bc470b0de527c7f70c97781b244a25517323547cb2ac",
+      "test_summaries": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "driver-examples",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--examples",
+        "--locked",
+        "--offline",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "log": "driver-examples.log",
+      "sha256": "00c7c5f54b3b15e4812c06a745b5f5d163008a87ab9e7c739bc2a346d34c5cb8",
+      "test_summaries": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    }
+  ],
+  "pass": true,
+  "totals": [
+    2744,
+    0,
+    0,
+    0,
+    0
+  ]
+}

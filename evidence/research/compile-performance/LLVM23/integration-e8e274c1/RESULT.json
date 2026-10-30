@@ -1,0 +1,45 @@
+{
+  "source": "e8e274c1b28509547a4854d46708ae1601e756e4",
+  "default_workspace_test_pass": true,
+  "tests_passed": 2744,
+  "tests_failed": 0,
+  "tests_ignored": 0,
+  "test_invocations": 219,
+  "test_profile": {
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "jobs": 2
+  },
+  "initial_attempt": {
+    "exit": 101,
+    "observed_free_disk_bytes": 0,
+    "failure": "LLD SIGBUS during linking while filesystem was full; no source edits before successful split execution"
+  },
+  "binaries": {
+    "combined-e8e274c1": {
+      "path": "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1",
+      "sha256": "3ae400c2eaa83d5643362b5cd1aa29915844904fe95ee01d69900b2a2612b0ba",
+      "size": 6912896,
+      "features": [],
+      "source": "e8e274c1b28509547a4854d46708ae1601e756e4"
+    },
+    "combined-e8e274c1-timings": {
+      "path": "/workspace/scratch/ac5966c4c370/binaries/combined-e8e274c1-timings",
+      "sha256": "ef66010b430fefcdd298b58740db27d99f3a94672676dbcde2dbf5a5ec5bdfce",
+      "size": 6945072,
+      "features": [
+        "timings"
+      ],
+      "source": "e8e274c1b28509547a4854d46708ae1601e756e4"
+    }
+  },
+  "files": {
+    "combined-e8e274c1-release-build.log": "dd54440f8bf3d6c8aad6fd46263542ba41c746c5d651279db2256c58e44726c3",
+    "combined-e8e274c1-timings-release-build.log": "e9558d5ef1ffbd7d9d66d4cad4000d9d636baedfba0af11d120ccaab7159880a",
+    "integration-e8e274c1-split-progress.log": "95464ccae7f9f3acdcf8ac5bdd5add332ea7bfcb6d12d6700ed3aea57f9d9e06",
+    "integration-e8e274c1-workspace-test-diskfull.log": "a37b9a41222591f6f4ec3604c516d2f363a5c2d4e55c297d306f9d3a448abea8",
+    "run_integration_split.py": "ad694807021da4f7d44a77783b5f3f6f2ee86c1744200c2ca3c8773ee8feb261",
+    "split-test-logs.tar.xz": "aed68ba729b37c5501e997ee27f863c9765a21347530ae329b4645af6ace411b",
+    "split-tests-result.json": "a64aaac1a1c75f01528b194f4da2cd02f20706736a3561fed4bb691c9e4738a8"
+  }
+}

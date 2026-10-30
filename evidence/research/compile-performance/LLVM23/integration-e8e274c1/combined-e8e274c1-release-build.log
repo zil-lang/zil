@@ -1,0 +1,5 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-driver)
+   Compiling zil-cli v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-cli)
+    Finished `release` profile [optimized] target(s) in 49.42s

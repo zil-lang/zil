@@ -1,0 +1,47 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-base)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-llvm-api)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-analyze)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-types)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-ct)
+   Compiling zil-db v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-driver)
+   Compiling zil-ide v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-ide)
+   Compiling zil-cli v0.1.0 (/workspace/scratch/ac5966c4c370/zil-research/crates/zil-cli)
+error: linking with `cc` failed: exit status: 1
+  |
+  = note:  "cc" "-m64" "/tmp/zil-compile-integration-target/debug/deps/rustc0u8Xh4/symbols.o" "<17 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "/tmp/zil-compile-integration-target/debug/deps/{libzil_lower-83413a68482e75e6,libzil_expand-dd2700c7a1d08ec9,libzil_analyze-a6a245e582c2103c,libzil_types-5cf87fbec5b9f0fc}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*}.rlib" "/tmp/zil-compile-integration-target/debug/deps/{libzil_syntax-85e178f3f1cb215e,libzil_db-0c95043596840708,libzil_ct-16c2caf82848955b,libzil_backend_llvm-a8852012bb6519fe,libzil_llvm_api-b1d9b45237a9de4a,libzil_verify-56204ae9930c84aa,libzil_ir-b9f5982dc757d842,libzil_base-a5cb5dbca91c1029}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-ldl" "-lLLVM-23" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/tmp/zil-compile-integration-target/debug/deps/rustc0u8Xh4/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/lib" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/tmp/zil-compile-integration-target/debug/deps/zil_driver-fa1548cfe1f00883" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-Wl,--strip-debug" "-nodefaultlibs"
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: collect2: fatal error: ld terminated with signal 7 [Bus error]
+          compilation terminated.
+          
+
+error: could not compile `zil-driver` (lib test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: linking with `cc` failed: exit status: 1
+  |
+  = note:  "cc" "-m64" "/tmp/zil-compile-integration-target/debug/deps/rustcFrlU8z/symbols.o" "<2 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*}.rlib" "/tmp/zil-compile-integration-target/debug/deps/{libzil_driver-a9a13b2ff6e7897a,libzil_lower-83413a68482e75e6,libzil_expand-dd2700c7a1d08ec9,libzil_analyze-a6a245e582c2103c,libzil_types-5cf87fbec5b9f0fc,libzil_ct-16c2caf82848955b,libzil_syntax-85e178f3f1cb215e,libzil_db-0c95043596840708,libzil_backend_llvm-a8852012bb6519fe,libzil_llvm_api-b1d9b45237a9de4a,libzil_verify-56204ae9930c84aa,libzil_ir-b9f5982dc757d842,libzil_base-a5cb5dbca91c1029}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-ldl" "-lLLVM-23" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/tmp/zil-compile-integration-target/debug/deps/rustcFrlU8z/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "/workspace/scratch/ac5966c4c370/toolchains/llvm-23.1.4/lib" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/tmp/zil-compile-integration-target/debug/deps/impl139_owned_text-f7be3309dd2285d1" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-Wl,--strip-debug" "-nodefaultlibs"
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace and instructions to reproduce the bug.
+          Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):
+          0  libLLVM.so.23.1-rust-1.99.1-stable 0x00007f11c3d40ada llvm::sys::PrintStackTrace(llvm::raw_ostream&, int) + 42
+          1  libLLVM.so.23.1-rust-1.99.1-stable 0x00007f11c3d4145d
+          2  libc.so.6                          0x00007f11bd833330
+          3  libc.so.6                          0x00007f11bd98f3d3
+          4  rust-lld                           0x000055f1dd887254
+          5  rust-lld                           0x000055f1dd90a37b
+          6  libLLVM.so.23.1-rust-1.99.1-stable 0x00007f11c3ce70e3
+          7  libLLVM.so.23.1-rust-1.99.1-stable 0x00007f11c3ce6f63
+          8  libLLVM.so.23.1-rust-1.99.1-stable 0x00007f11c3c57a70
+          9  libc.so.6                          0x00007f11bd88aaa4
+          10 libc.so.6                          0x00007f11bd917c6c
+          collect2: fatal error: ld terminated with signal 7 [Bus error]
+          compilation terminated.
+          
+
+error: could not compile `zil-driver` (test "impl139_owned_text") due to 1 previous error
