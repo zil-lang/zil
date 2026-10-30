@@ -332,7 +332,10 @@ impl Builder<'_, '_> {
         }
         let owned_state = callable_fields::signature(signature);
         let owned_factory = owning_factory::signature(signature);
-        if !owned_state && !owned_factory && let Some(expected) = expected {
+        if !owned_state
+            && !owned_factory
+            && let Some(expected) = expected
+        {
             self.same(&signature.result, expected, span)?;
         }
         if arguments.len() != signature.parameters.len() {
@@ -800,7 +803,11 @@ impl Builder<'_, '_> {
                     .iter()
                     .map(|p| (p.mode, p.ty.clone()))
                     .collect(),
-                result: if owned_factory { typed.return_type.clone() } else { function.return_type },
+                result: if owned_factory {
+                    typed.return_type.clone()
+                } else {
+                    function.return_type
+                },
                 result_mode: function.result_mode,
             },
         });

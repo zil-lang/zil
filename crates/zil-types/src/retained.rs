@@ -503,10 +503,17 @@ impl Builder<'_, '_> {
                 "opaque callable return requires a closure environment",
             ));
         };
-        if self.factory_modes.is_some() && self.function.parameters.iter().any(|local| {
-            self.function.locals[local.0 as usize].ty == Type::Closure(id)
-        }) {
-            return Err(unsupported(span, "owning callable factory must produce a fresh environment, not its input F"));
+        if self.factory_modes.is_some()
+            && self
+                .function
+                .parameters
+                .iter()
+                .any(|local| self.function.locals[local.0 as usize].ty == Type::Closure(id))
+        {
+            return Err(unsupported(
+                span,
+                "owning callable factory must produce a fresh environment, not its input F",
+            ));
         }
         let bound = self.factory_bound.as_ref().expect("factory return").clone();
         let pending = &mut self.closures.pending[id.0 as usize];

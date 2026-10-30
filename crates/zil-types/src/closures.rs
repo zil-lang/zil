@@ -1315,7 +1315,9 @@ impl LocalType {
     }
     fn bind(self, graph: &mut Graph, ty: &Type, span: Span) -> R<()> {
         match (self, ty) {
-            (Self::Closure(actual, None, _), Type::Closure(expected)) if actual == *expected => Ok(()),
+            (Self::Closure(actual, None, _), Type::Closure(expected)) if actual == *expected => {
+                Ok(())
+            }
             (Self::Closure(actual, Some(available), _), Type::Address { mutable, inner })
                 if matches!(inner.as_ref(), Type::Closure(expected) if actual == *expected)
                     && (available || !mutable) =>
@@ -1358,7 +1360,11 @@ impl LocalType {
     }
     fn unify(self, other: Self, graph: &mut Graph, span: Span) -> R<()> {
         match (self, other) {
-            (Self::Closure(a, am, ak), Self::Closure(b, bm, bk)) if a == b && am == bm && ak == bk => Ok(()),
+            (Self::Closure(a, am, ak), Self::Closure(b, bm, bk))
+                if a == b && am == bm && ak == bk =>
+            {
+                Ok(())
+            }
             (Self::Scalar(a), Self::Scalar(b)) => graph.unify(a, b, span),
             (Self::Address(a, am), Self::Address(b, bm)) if am == bm => graph.unify(a, b, span),
             (Self::Resource(a, am), Self::Resource(b, bm)) if am == bm => graph.unify(a, b, span),
@@ -1595,10 +1601,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 return Ok(*variable);
             }
             let declared_kind = if let Some(declared) = self.declared {
-                *self.work_left = self.work_left.checked_sub(helpers::plan::tree_work(declared.len()))
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(helpers::plan::tree_work(declared.len()))
                     .ok_or_else(|| limit("factory capture declaration budget exceeded", span))?;
                 declared.get(local).copied()
-            } else { None };
+            } else {
+                None
+            };
             let value = LocalType::Closure(*id, None, declared_kind);
             self.captures.push(Capture {
                 name: name.into(),
@@ -1919,8 +1929,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 if actual == wanted || (actual == Some(true) && wanted == Some(false)) =>
             {
                 let pending = self.closures.get(id.0 as usize).ok_or_else(mismatch)?;
-                if !helpers::compatible(declared.unwrap_or_else(|| pending.callable_kind()), bound.kind)
-                    || pending.inference.arity() != bound.parameters.len()
+                if !helpers::compatible(
+                    declared.unwrap_or_else(|| pending.callable_kind()),
+                    bound.kind,
+                ) || pending.inference.arity() != bound.parameters.len()
                 {
                     return Err(mismatch());
                 }
@@ -2365,7 +2377,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         if *op == UnaryOp::BorrowMut {
                             self.name_if_capture_written(operand);
                         }
-                        return Ok(LocalType::Closure(id, Some(*op == UnaryOp::BorrowMut), declared));
+                        return Ok(LocalType::Closure(
+                            id,
+                            Some(*op == UnaryOp::BorrowMut),
+                            declared,
+                        ));
                     }
                     if matches!(value, LocalType::Address(..)) {
                         return Err(unsupported(
