@@ -145,10 +145,58 @@ Doing
       "candidate": "c317862f4f9b821645238b30ef03b4508a122038",
       "review": "cb6d016b0fb784f4f1a322f0326595abb2f1f2d6",
       "performance": "Pending fresh quiet-window results"
+    },
+    "CP11": {
+      "status": "Doing",
+      "author": "/root/toolchain_setup + /root",
+      "baseline": "40ce76276",
+      "purpose": "Preserve all validation and logical costs while sharing SourceMap index and moving owned AST/machine arguments",
+      "plan": "docs/research/compile-performance/CP11-13-PLAN.md",
+      "write_set": [
+        "crates/zil-base/src/source_map.rs",
+        "crates/zil-base/tests",
+        "crates/zil-expand/src/lib.rs",
+        "crates/zil-expand/src/modules.rs",
+        "crates/zil-expand/tests",
+        "crates/zil-backend-llvm/src/emit.rs",
+        "crates/zil-backend-llvm/src/emit/resource_closures.rs",
+        "evidence/research/compile-performance/CP11"
+      ],
+      "performance": "Pending fresh results"
+    },
+    "CP12": {
+      "status": "Doing",
+      "author": "/root/benchmark_audit",
+      "baseline": "40ce76276",
+      "purpose": "Explicit trusted local frontend checkpoint; complete unchanged input only, fresh independent Verify and budget accounting",
+      "plan": "docs/research/compile-performance/CP11-13-PLAN.md",
+      "write_set": [
+        "crates/zil-driver/src",
+        "crates/zil-driver/tests",
+        "crates/zil-cli/src",
+        "crates/zil-cli/tests",
+        "crates/zil-ir/src/program.rs",
+        "crates/zil-ir/src/wire.rs",
+        "evidence/research/compile-performance/CP12",
+        "docs/research/compile-performance/CP12-QUERY-CACHE.md"
+      ],
+      "performance": "Pending fresh results"
+    },
+    "CP13": {
+      "status": "Doing",
+      "author": "/root/llvm_strategy",
+      "baseline": "40ce76276",
+      "purpose": "Investigate O2 multi-CGU configuration and optimization scope with runtime quality controls",
+      "plan": "docs/research/compile-performance/CP11-13-PLAN.md",
+      "write_set": [
+        "evidence/research/compile-performance/CP13",
+        "docs/research/compile-performance/CP13-O2.md"
+      ],
+      "performance": "Pending fresh results"
     }
   },
   "mainline_acceptance": "Hold: CP02 disabled-path compile cost requires further validation",
-  "next_priority": "LLVM23 implementation, independent review, quiet full-build A/B and real Rust comparison"
+  "next_priority": "CP11 repeated work, CP12 explicit frontend checkpoint, CP13 O2 scalability; preserve complete e8 Rust results"
 }
 ```
 
