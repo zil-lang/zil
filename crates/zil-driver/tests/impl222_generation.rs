@@ -86,10 +86,6 @@ const CASES: &[(&str, &str)] = &[
         ),
     ),
     (
-        "record-type-namespace",
-        "struct n{value:i32}fn main()->i32{var sum=0;#for(n in [2,3]){let data=n{value:n};sum+=data.value}return sum-5}",
-    ),
-    (
         "range",
         "fn main()->i32{var sum=0;#for(i in 0..4){let item=i*3;sum+=item}return sum-18}",
     ),
@@ -179,6 +175,14 @@ fn ordered_ranges_arrays_nested_selection_and_hygiene_reach_verify() {
 #[test]
 fn generation_boundaries_and_runtime_shadowing_fail_closed() {
     for (label, text) in [
+        (
+            "record-callee-iterator-shadow",
+            "struct Cell{x:i32}fn main()->i32{#for(Cell in [8]){let c=Cell{x:3};return c.x+Cell-11}}",
+        ),
+        (
+            "record-callee-runtime-shadow-control",
+            "struct Cell{x:i32}fn main()->i32{let Cell=8;let c=Cell{x:3};return c.x+Cell-11}",
+        ),
         (
             "array-length-runtime-shadow",
             "fn main()->i32{#for(n in [2]){let n=2;let data:[i32;n]=[4,8];return data[1]-8}}",
