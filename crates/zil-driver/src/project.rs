@@ -1,7 +1,8 @@
 //! Explicit source graphs. Module identity never depends on a concatenated name
 //! or source buffer. The filesystem adapter is the only import-reading entry.
 use super::artifacts::ArtifactPlan;
-use super::session::{RawSnapshot, check_entry_contract, disk_source, phase_key, query_key};
+use super::query_cache::{CtUsage, Prepared};
+use super::session::{RawSnapshot, check_entry_contract, disk_source, event, phase_key, query_key};
 use super::*;
 use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
@@ -25,6 +26,12 @@ pub struct ProjectSources {
 pub(super) struct ExpandedProject {
     core: CoreProgram,
     maps: Vec<SourceMap>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct EvaluatedProject {
+    core: CoreProgram,
+    usage: Option<Vec<CtUsage>>,
 }
 
 pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> CompileReport {
@@ -78,6 +85,7 @@ impl CompilationSession {
             .find(|m| m.module_id == project.root)
             .unwrap_or(&fallback);
         let mut report = CompileReport::new(root);
+        report.query_cache = QueryCacheReport::requested(options, "checkpoint not reached");
         report.trace = request.trace().clone();
         if let Err(errors) =
             self.project_pipeline(project, options, &mut report, observer, loaded_syntax)
@@ -146,6 +154,10 @@ impl CompilationSession {
             ),
             Err(errors) => {
                 let mut report = CompileReport::new(&project.modules[0]);
+                report.query_cache = QueryCacheReport::requested(
+                    options,
+                    "source discovery failed before checkpoint lookup",
+                );
                 report.source_files = project
                     .modules
                     .iter()
@@ -252,6 +264,42 @@ impl CompilationSession {
         let imports = report.trace.measure("resolve_imports", "stage", |_| {
             resolve_imports(project, &parsed, &options.limits)
         })?;
+        let checkpoint = Prepared::new(
+            options,
+            &key(Phase::Types, true),
+            &imports,
+            loaded_syntax.is_some(),
+            &mut report.query_cache,
+        );
+        if let Some(cache) = &checkpoint {
+            options
+                .cancellation
+                .check(Phase::Driver)
+                .map_err(|e| vec![e])?;
+            let loaded = report.trace.value("query_cache_lookup", || {
+                cache.load(project, fingerprint, options, &mut report.query_cache)
+            });
+            if let Some(loaded) = loaded {
+                // No private process-construction digest or old Verified value
+                // is imported. The checkpoint supplies only raw current inputs.
+                for phase in [Phase::Expand, Phase::Ct, Phase::Types, Phase::Analyze] {
+                    options.cancellation.check(phase).map_err(|e| vec![e])?;
+                    event(phase, QueryDisposition::Reused, report, observer);
+                    options.cancellation.check(phase).map_err(|e| vec![e])?;
+                }
+                report.cache_hit = true;
+                report.scalar_interfaces = loaded.program.interfaces.clone();
+                return self.finish_candidate(
+                    options,
+                    report,
+                    observer,
+                    &loaded.program.module,
+                    &loaded.candidate,
+                    artifacts,
+                    Some(&loaded.program),
+                );
+            }
+        }
         let (raw, expand_snapshot) = self.query(
             key(Phase::Expand, false),
             &dependencies,
@@ -306,6 +354,7 @@ impl CompilationSession {
                 let context = zil_ct::SourceProgramContext::new(&inferred, &options.limits)?;
                 let mut modules = Vec::new();
                 let mut remaining = options.limits.clone();
+                let mut recorded_usage = checkpoint.as_ref().map(|_| Vec::new());
                 for module in &inferred.modules {
                     // Restrict execution to the remaining graph allowance BEFORE
                     // entering the CT verifier/VM, then deduct actual usage.
@@ -337,25 +386,37 @@ impl CompilationSession {
                         Phase::Ct,
                         "project CT function budget exceeded",
                     )?;
+                    if let Some(rows) = &mut recorded_usage {
+                        rows.push(CtUsage {
+                            module: module.core.module_id,
+                            steps: usage.steps,
+                            nodes: usage.nodes,
+                            functions: core.functions.len(),
+                        });
+                    }
                     modules.push(ProgramModule {
                         core,
                         imports: module.imports.clone(),
                         exports: module.exports.clone(),
                     });
                 }
-                Ok(RawSnapshot::ProjectCore(Arc::new(CoreProgram {
-                    root: project.root,
-                    source_fingerprint: fingerprint,
-                    modules,
+                Ok(RawSnapshot::ProjectCore(Arc::new(EvaluatedProject {
+                    core: CoreProgram {
+                        root: project.root,
+                        source_fingerprint: fingerprint,
+                        modules,
+                    },
+                    usage: recorded_usage,
                 })))
             },
         )?;
-        let RawSnapshot::ProjectCore(core) = raw else {
+        let RawSnapshot::ProjectCore(evaluated) = raw else {
             return Err(infra(
                 "E-QUERY-KIND",
                 "project CT query returned another snapshot kind",
             ));
         };
+        let core = &evaluated.core;
         report.phase = Phase::Ct;
         artifacts.dump_lazy(report, options, "ct-core", |_| format!("{core:#?}"))?;
         check_entry_contract(
@@ -373,7 +434,7 @@ impl CompilationSession {
             report,
             observer,
             || {
-                zil_types::check_program(&core, &options.target, &options.limits)
+                zil_types::check_program(core, &options.target, &options.limits)
                     .map(|typed| RawSnapshot::ProjectTyped(Arc::new(typed)))
             },
         )?;
@@ -392,7 +453,7 @@ impl CompilationSession {
         if options.stop_after == Stage::Types {
             return Ok(());
         }
-        self.finish_typed(
+        let candidate = self.finish_typed(
             options,
             report,
             observer,
@@ -400,7 +461,18 @@ impl CompilationSession {
             typed_snapshot,
             artifacts,
             Some(&typed),
-        )
+        )?;
+        if let Some(cache) = checkpoint {
+            cache.store(
+                &typed,
+                &candidate,
+                evaluated.usage.as_deref(),
+                project,
+                options,
+                report,
+            );
+        }
+        Ok(())
     }
 }
 

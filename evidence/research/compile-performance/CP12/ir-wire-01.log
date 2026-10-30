@@ -1,0 +1,25 @@
+   Compiling zil-ir v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-ir)
+    Finished `test` profile [unoptimized] target(s) in 1.21s
+     Running unittests src/lib.rs (target/debug/deps/zil_ir-601477dc999eefd3)
+
+running 17 tests
+test wire::tests::byte_count_node_depth_and_execution_quotas_precede_allocation ... ok
+test wire::tests::borrowed_callable_operation_binds_requested_mode_and_real_address ... ok
+test wire::tests::bytes083_scalar_ct_current_wire_preserves_byte_conversion_and_all_prefixes_reject ... ok
+test wire::tests::ct_roundtrip_is_stable_and_preserves_raw_claims ... ok
+test wire::tests::concrete_helper_contract_roundtrips_and_binds_each_claim ... ok
+test wire::tests::every_truncated_ct_prefix_is_rejected_without_panicking ... ok
+test wire::tests::error_cleanup_raw_contract_roundtrips_and_binds_each_claim ... ok
+test wire::tests::forbidden_ops_and_dependencies_survive_as_untrusted_data ... ok
+test wire::tests::module_and_candidate_roundtrip_and_every_partial_record_rejects ... ok
+test wire::tests::package_capture_view_current_wire_preserves_indices_end_kind_and_fingerprints ... ok
+test wire::tests::raw_cache_keeps_resource_claims_without_endorsing_them ... ok
+test wire::tests::rejects_trailing_bytes_noncanonical_bool_and_unknown_type ... ok
+test wire::tests::rejects_unknown_opcode_version_and_missing_typed_claims ... ok
+test wire::tests::resource_closure_operations_bind_wire_and_fingerprint ... ok
+test wire::tests::resource_raw_fields_roundtrip_bind_fingerprint_and_reject_old_wire ... ok
+test wire::tests::shared_address_operations_and_raw_hold_claims_roundtrip ... ok
+test wire::tests::package_wire_preserves_untrusted_shape_and_binds_all_field_operations ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.02s
+

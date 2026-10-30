@@ -1,0 +1,102 @@
+{
+  "experiment": "CP12",
+  "author": "/root/benchmark_audit",
+  "baseline": "542d30676c42e1b691287bcab55874799ca910c1",
+  "scope": "Limited checks only; no whole workspace or formal performance samples.",
+  "environment": {
+    "setup": "source /workspace/scratch/ac5966c4c370/toolchains/env.sh",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_TARGET_DIR": "/workspace/scratch/ac5966c4c370/zil-cp12/target"
+  },
+  "runs": [
+    {
+      "log": "check-01.log",
+      "sha256": "02d654f564bef25aade27d063198a3661ee5f1f5f3eadc9b155e62cdb8de09f9",
+      "command": "cargo check --offline -p zil-driver -p zil-cli -j2",
+      "exit": 101,
+      "passed": null,
+      "note": "Initial TimingTrace::measure return-type mismatch; repaired before check-02."
+    },
+    {
+      "log": "check-02.log",
+      "sha256": "a2ff8684aa823cc6e5b1cdd7fe5f110adf425a4784ec46581821606522f8b2d0",
+      "command": "cargo check --offline -p zil-driver -p zil-cli -j2",
+      "exit": 0,
+      "passed": null,
+      "note": null
+    },
+    {
+      "log": "driver-native-01.log",
+      "sha256": "3e3db307aa3ae8193bc94005b3833d648684c234cc7c3dc3a2402a79b31ddd4d",
+      "command": "cargo test --offline -p zil-driver --test query_cache_cp12 -j2 -- --test-threads=2",
+      "exit": 0,
+      "passed": 11,
+      "note": "Initial controls; later seven corruption variants supersede this repetition."
+    },
+    {
+      "log": "driver-unit-01.log",
+      "sha256": "af20abd817cb34fddcbe843190afea0a9a49374144ec23cd0edfaea83ff0277b",
+      "command": "cargo test --offline -p zil-driver --lib query_cache::tests -j2 -- --test-threads=2",
+      "exit": 0,
+      "passed": 5,
+      "note": null
+    },
+    {
+      "log": "cli-native-01.log",
+      "sha256": "8db79823b8242bb47d3c8807bc9e28699b26eceb96a5e585aa05e843f43f1210",
+      "command": "cargo test --offline -p zil-cli --test query_cache_cp12 -j2 -- --test-threads=2",
+      "exit": 0,
+      "passed": 3,
+      "note": "Initial controls before explicit CLI run bypass; cli-native-02 is final."
+    },
+    {
+      "log": "driver-targeted-02.log",
+      "sha256": "d9a84ca56df4dc39c92e7e8f645e6593002049ea3b8d3773bcccdf90279bc457",
+      "command": "cargo test --offline -p zil-driver --test query_cache_cp12 --test projects --test impl158_filesystem_cache -j2 -- --test-threads=2",
+      "exit": 101,
+      "passed": null,
+      "note": "Sparse worktree omitted existing examples/numberlab include_str inputs. Materialized baseline examples without changing bytes."
+    },
+    {
+      "log": "driver-targeted-03.log",
+      "sha256": "6828fb60e43c04a9264d84addd4efd4384c5a8c45bbcc5370e904a75492ac70d",
+      "command": "cargo test --offline -p zil-driver --test query_cache_cp12 --test projects --test impl158_filesystem_cache -j2 -- --test-threads=2",
+      "exit": 0,
+      "passed": 39,
+      "note": null
+    },
+    {
+      "log": "cli-native-02.log",
+      "sha256": "150507e1bd12063b62f109260255652bcdf3663514cfdfb2cb96a3d52c5522db",
+      "command": "cargo test --offline -p zil-cli --test query_cache_cp12 -j2 -- --test-threads=2",
+      "exit": 0,
+      "passed": 3,
+      "note": null
+    },
+    {
+      "log": "ir-wire-01.log",
+      "sha256": "7e7108b09fdd69deac99303ed9d4de8932b581ee187bfe9ad2516ce0d201c6fe",
+      "command": "cargo test --offline -p zil-ir --lib wire::tests -j2 -- --test-threads=2",
+      "exit": 0,
+      "passed": 17,
+      "note": null
+    }
+  ],
+  "unique_final_tests": 64,
+  "new_cp12_tests": 19,
+  "existing_regression_tests": 45,
+  "final_log_set": [
+    "driver-unit-01.log",
+    "driver-targeted-03.log",
+    "cli-native-02.log",
+    "ir-wire-01.log"
+  ],
+  "performance": "NotRun; unchanged whole-input candidate only. Private/public edits deliberately miss.",
+  "negative_results_preserved": [
+    "check-01.log",
+    "driver-targeted-02.log"
+  ]
+}

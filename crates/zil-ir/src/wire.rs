@@ -217,6 +217,139 @@ pub fn decode_module_candidate(
     })())
 }
 
+/// Private compiler-checkpoint metadata, not a new public Wire27 payload kind.
+/// The existing module/candidate wire bytes are stored separately, unchanged.
+/// No verified interface relation is accepted or serialized by this codec.
+#[doc(hidden)]
+pub fn encode_query_cache_metadata(
+    program: &TypedProgram,
+    limits: &Limits,
+) -> CompileResult<Vec<u8>> {
+    fn function(writer: &mut Writer<'_>, f: &ScalarFunction) -> WireResult<()> {
+        writer.text(&f.name)?;
+        writer.u32(f.function.0)?;
+        writer.count(f.parameters.len(), writer.limits.max_locals)?;
+        for (mode, ty) in &f.parameters {
+            writer.u8(passing_mode_tag(*mode))?;
+            writer.ty(ty, 0)?;
+        }
+        writer.ty(&f.result, 0)?;
+        writer.u8(passing_mode_tag(f.result_mode))
+    }
+    public((|| {
+        let mut writer = Writer::new(limits);
+        writer.header(b"ZILQMD01")?;
+        writer.count(program.interfaces.len(), limits.max_nodes)?;
+        for interface in &program.interfaces {
+            if interface.result_origins.is_some()
+                || interface.callable_contracts.is_some()
+                || interface.callable_returns.is_some()
+                || interface.contract_fingerprint.is_some()
+            {
+                return Err(malformed(
+                    "E-QUERY-CACHE-METADATA",
+                    "verified interface relations cannot enter a raw checkpoint",
+                ));
+            }
+            writer.u32(interface.module.0)?;
+            writer.fingerprint(interface.signature_fingerprint)?;
+            writer.fingerprint(interface.implementation_fingerprint)?;
+            writer.count(interface.exports.len(), limits.max_functions)?;
+            for export in &interface.exports {
+                function(&mut writer, export)?;
+            }
+        }
+        writer.count(program.root_functions.len(), limits.max_functions)?;
+        for root in &program.root_functions {
+            function(&mut writer, root)?;
+        }
+        Ok(writer.output)
+    })())
+}
+
+/// Reconstitute only raw project metadata. Every verified relation starts None;
+/// the caller must obtain a new VerifiedModule and republish its interfaces.
+#[doc(hidden)]
+pub fn decode_query_cache_metadata(
+    bytes: &[u8],
+    module: TypedModule,
+    limits: &Limits,
+) -> CompileResult<TypedProgram> {
+    fn mode(reader: &mut Reader<'_>) -> WireResult<PassingMode> {
+        Ok(match reader.u8()? {
+            0 => PassingMode::Copy,
+            1 => PassingMode::Move,
+            2 => PassingMode::Describe,
+            3 => PassingMode::Create,
+            4 => PassingMode::Give,
+            5 => PassingMode::Borrow,
+            6 => PassingMode::BorrowMut,
+            7 => PassingMode::Infer,
+            _ => {
+                return Err(malformed(
+                    "E-QUERY-CACHE-METADATA",
+                    "unknown raw passing mode",
+                ));
+            }
+        })
+    }
+    fn function(reader: &mut Reader<'_>) -> WireResult<ScalarFunction> {
+        let name = reader.text()?;
+        let function = FunctionId(reader.u32()?);
+        let count = reader.count(reader.limits.max_locals, 2)?;
+        let mut parameters = Vec::with_capacity(count);
+        for _ in 0..count {
+            parameters.push((mode(reader)?, reader.ty(0)?));
+        }
+        let result = reader.ty(0)?;
+        let result_mode = mode(reader)?;
+        Ok(ScalarFunction {
+            name,
+            function,
+            parameters,
+            result,
+            result_mode,
+        })
+    }
+    public((|| {
+        let mut reader = Reader::new(bytes, limits)?;
+        reader.header(b"ZILQMD01")?;
+        let count = reader.count(limits.max_nodes, 72)?;
+        let mut interfaces = Vec::with_capacity(count);
+        for _ in 0..count {
+            let module = zil_base::ModuleId(reader.u32()?);
+            let signature_fingerprint = reader.fingerprint()?;
+            let implementation_fingerprint = reader.fingerprint()?;
+            let count = reader.count(limits.max_functions, 14)?;
+            let mut exports = Vec::with_capacity(count);
+            for _ in 0..count {
+                exports.push(function(&mut reader)?);
+            }
+            interfaces.push(ScalarInterface {
+                module,
+                exports,
+                signature_fingerprint,
+                implementation_fingerprint,
+                result_origins: None,
+                callable_contracts: None,
+                callable_returns: None,
+                contract_fingerprint: None,
+            });
+        }
+        let count = reader.count(limits.max_functions, 14)?;
+        let mut root_functions = Vec::with_capacity(count);
+        for _ in 0..count {
+            root_functions.push(function(&mut reader)?);
+        }
+        reader.finish()?;
+        Ok(TypedProgram {
+            module,
+            interfaces,
+            root_functions,
+        })
+    })())
+}
+
 /// Serialize the raw CFG form of CTIR; it carries no executable authority.
 pub fn encode_ct_program(program: &CtProgram, limits: &Limits) -> CompileResult<Vec<u8>> {
     public((|| {

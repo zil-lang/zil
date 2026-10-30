@@ -1,0 +1,56 @@
+    Checking zil-base v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-base)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-llvm-api)
+    Checking zil-ir v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-ir)
+    Checking zil-syntax v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-syntax)
+    Checking zil-verify v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-verify)
+    Checking zil-types v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-types)
+    Checking zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-backend-llvm)
+    Checking zil-lower v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-lower)
+    Checking zil-ct v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-ct)
+    Checking zil-analyze v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-analyze)
+    Checking zil-expand v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-expand)
+    Checking zil-db v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-db)
+    Checking zil-driver v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-driver)
+error[E0308]: mismatched types
+   --> crates/zil-driver/src/project.rs:280:17
+    |
+280 |                 cache.load(project, fingerprint, options, &mut report.query_cache)
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Result<_, _>`, found `Option<Checkpoint>`
+    |
+    = note: expected enum `Result<_, _>`
+               found enum `Option<Checkpoint>`
+help: try wrapping the expression in a variant of `Result`
+    |
+280 |                 Ok(cache.load(project, fingerprint, options, &mut report.query_cache))
+    |                 +++                                                                  +
+280 |                 Err(cache.load(project, fingerprint, options, &mut report.query_cache))
+    |                 ++++                                                                  +
+
+error[E0308]: mismatched types
+   --> crates/zil-driver/src/project.rs:282:20
+    |
+282 |             if let Some(loaded) = loaded {
+    |                    ^^^^^^^^^^^^   ------ this expression has type `Result<_, _>`
+    |                    |
+    |                    expected `Result<_, _>`, found `Option<_>`
+    |
+    = note: expected enum `Result<_, _>`
+               found enum `Option<_>`
+help: try wrapping the pattern in a variant of `Result`
+    |
+282 |             if let Ok(Some(loaded)) = loaded {
+    |                    +++            +
+282 |             if let Err(Some(loaded)) = loaded {
+    |                    ++++            +
+
+warning: unused import: `Hasher`
+ --> crates/zil-driver/src/query_cache.rs:5:23
+  |
+5 | use std::hash::{Hash, Hasher};
+  |                       ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+For more information about this error, try `rustc --explain E0308`.
+warning: `zil-driver` (lib) generated 1 warning
+error: could not compile `zil-driver` (lib) due to 2 previous errors; 1 warning emitted

@@ -28,6 +28,7 @@ mod emit;
 mod machine_cgu;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
 mod object_cache;
+pub use object_cache::installed_identity as trusted_installed_tool_identity;
 pub use object_cache::{ObjectCacheSummary, PendingObjectCache};
 pub use zil_llvm_api::timing::{TimingReport, TimingSpan, TimingTrace};
 

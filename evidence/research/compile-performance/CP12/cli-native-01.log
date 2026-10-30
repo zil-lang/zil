@@ -1,0 +1,14 @@
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-llvm-api)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-driver)
+   Compiling zil-cli v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp12/crates/zil-cli)
+    Finished `test` profile [unoptimized] target(s) in 2.71s
+     Running tests/query_cache_cp12.rs (target/debug/deps/query_cache_cp12-3a32b58831a1d07a)
+
+running 3 tests
+test llvm_api_objects_and_frontend_checkpoint_have_separate_hits_and_one_verify ... ok
+test help_default_disabled_missing_value_and_interposition_are_explicit ... ok
+test separate_cli_processes_hit_but_reinstalled_producer_misses ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
