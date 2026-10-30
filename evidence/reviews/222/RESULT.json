@@ -1,0 +1,210 @@
+{
+  "reviewer": "/root/product_store",
+  "implementation_author": "/root/ct_for",
+  "verdict": "Pass",
+  "implementation_commit": "566bda6a12ab9dbe9be5adbf5b870a411189dc37",
+  "tested_review_commit": "4ddd6a6354619366ac47c42311e925ee646c7898",
+  "review_fixture_commit": "ed77523f9f26082854c1a1034ced9c34351c0e2d",
+  "scope": "Slice 222 finite source #for; non-author independent review. No self-review of slice 223.",
+  "normative_authority": {
+    "spec_hash": "a9fbba01612959917c8ede69a5eeee7854d6ce8e0ff5f5a02d0ab362c6d9eebb",
+    "normative_hash": "1e9be8621c14b53ceaa4668ddb910ca80217907e916043e7fba322844d41c246",
+    "inputs": [
+      {
+        "path": "_zil_design.md",
+        "sha256": "a9fbba01612959917c8ede69a5eeee7854d6ce8e0ff5f5a02d0ab362c6d9eebb"
+      },
+      {
+        "path": "policy/dependencies.json",
+        "sha256": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7"
+      },
+      {
+        "path": "spec/attributes.json",
+        "sha256": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa"
+      },
+      {
+        "path": "spec/diagnostics.json",
+        "sha256": "76d7b0eda1addd47ad03d81fa083d2d016c2ec7eeb46297ee868ae3d59131cb8"
+      },
+      {
+        "path": "spec/grammar.ebnf",
+        "sha256": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b"
+      },
+      {
+        "path": "spec/interfaces.json",
+        "sha256": "138d32b57c1d7e0a154335f9321dabd2c47fd78511e322d097f1fcbd7647efcb"
+      },
+      {
+        "path": "validation/product-gates.json",
+        "sha256": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+      }
+    ]
+  },
+  "provenance": {
+    "cargo_manifest": "/workspace/scratch/d286b3aeeb6b/zil-review-222/Cargo.toml",
+    "cwd": "/workspace/scratch/d286b3aeeb6b/zil-review-222",
+    "target": "/workspace/scratch/d286b3aeeb6b/targets/review222",
+    "cli_sha256": "c421a15bdd0ab63577c231c8fbfea01026f9c75fb272a114d5d7fb06cb097217",
+    "clean_at_build": true,
+    "production_equal_to_implementation": true,
+    "only_review_tree_difference": [
+      "crates/zil-driver/tests/review222_independent.rs"
+    ],
+    "build_receipt": "raw-evidence.tar.gz:review222/final566/build.json",
+    "api_test_receipt": "raw-evidence.tar.gz:review222/final566/api-execution.json"
+  },
+  "findings": [
+    {
+      "id": "222-R1",
+      "status_at_original": "Fail",
+      "original_commit": "a54b7cd5ad8bad0f2022b15aeb58eb38a7429056",
+      "frozen_sources": [
+        "array-length-parameter",
+        "array-length-local",
+        "array-return-type",
+        "array-closure-parameter",
+        "array-generic-typearg"
+      ],
+      "repair_commit": "6a4123105fc8a02700a64c5a8e5ddcbb75bc4e48",
+      "verified_final_commit": "566bda6a12ab9dbe9be5adbf5b870a411189dc37",
+      "final_result": "Pass: five exact original byte strings reach Verify",
+      "reason": "Existing scalar expression slots inside TypeRef were not visited during source iteration materialization."
+    },
+    {
+      "id": "222-R2",
+      "status_at_previous": "Fail",
+      "previous_commit": "7265b8dbe24cae56925f983de1ccd08a4222c3ad",
+      "review_fixture_commit": "ed77523f9f26082854c1a1034ced9c34351c0e2d",
+      "frozen_sources": [
+        "namespace-plain",
+        "namespace-generated"
+      ],
+      "repair_commit": "566bda6a12ab9dbe9be5adbf5b870a411189dc37",
+      "final_result": "Pass: both equivalent compile_source API inputs reach Verify",
+      "reason": "Record constructor callee names were incorrectly treated as runtime value uses by iteration substitution/hygiene. Ordinary TypeRef/Const arguments, fields, and base expressions still receive normal traversal."
+    }
+  ],
+  "final_execution": {
+    "independent_tests": {
+      "selected": 2,
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "test_binary_sha256": "d7a09dd2f7ec4259ea537d61a8740d427b5a6aa35eff7d52ccab31fe96389a83"
+    },
+    "original_typeref_sources": {
+      "selected": 5,
+      "passed_to_verify": 5,
+      "source_hashes": [
+        {
+          "name": "array-length-parameter",
+          "sha256": "a86c08032c60ed945c60b1fd3fea0956276a753d71b5a6080f48208cc99d79d3"
+        },
+        {
+          "name": "array-length-local",
+          "sha256": "4f119c3ac107a200b3982aaf7fe0f1644c2165d0a9029842448780d4659f0440"
+        },
+        {
+          "name": "array-return-type",
+          "sha256": "d8872e2c019d4c9ad8473b17783e7d52673eba17ed47703a5b6ec4b3a571fd87"
+        },
+        {
+          "name": "array-closure-parameter",
+          "sha256": "0075e4257fbb726214b9f130c518029cea6ab559a38e16a4fe5991c9b7f50398"
+        },
+        {
+          "name": "array-generic-typearg",
+          "sha256": "4e68b045eb171b78026039f91ea0c4522c19f405d219e8b6239c1565dd2da0fb"
+        }
+      ]
+    },
+    "cumulative_budget": {
+      "core_ct_steps": 77,
+      "full_ct_steps": 96,
+      "full_nodes": 1084,
+      "unchanged_from_7265": true,
+      "fresh_warm_and_N_minus_1": true
+    },
+    "native": {
+      "backend": "llvm-api",
+      "input_kind": "builder",
+      "target": "x86_64-unknown-linux-gnu",
+      "llvm": "23.1.4",
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "programs": 1,
+      "actual_executions": 8,
+      "passed": 8,
+      "source_sha256": "8a3e0c9d0988519e2e0e9a710ae1220a6a67c49eae1fe951c4306315839bda58",
+      "source_fixture": "evidence/reviews/222/consumer/main.zil",
+      "oracles": [
+        {
+          "input": "0",
+          "exit": 0,
+          "stdout": "BAZ"
+        },
+        {
+          "input": "1",
+          "exit": 0,
+          "stdout": "CDCBAZ"
+        },
+        {
+          "input": "2",
+          "exit": 0,
+          "stdout": "DCBAZ"
+        },
+        {
+          "input": "3",
+          "exit": 1,
+          "stdout": "CBAZ"
+        }
+      ],
+      "allocation_measurement": "NotRun",
+      "receipt": "raw-evidence.tar.gz:review222/final566/consumer/RESULT.json"
+    }
+  },
+  "earlier_evidence": {
+    "original_cli_observations": 30,
+    "original_outcomes_consistent_with_expected_boundaries": 21,
+    "confirmed_type_slot_failures": 5,
+    "unproven_cli_success_expectations": 3,
+    "invalid_fixture": 1,
+    "earlier_7265_api_tests": "1 Pass / 1 Fail",
+    "initial_fail_receipts": [
+      "evidence/reviews/222/INITIAL-a54.json",
+      "evidence/reviews/222/INITIAL-7265.json"
+    ],
+    "historical_outcomes_not_relabelled_as_final_execution": true
+  },
+  "static_review": [
+    "Iteration scopes, local/closure/runtime parameter shadowing and later binding order; generated private function cross-references and record shorthand.",
+    "ConfigReady stays closed; generated declarations and callees with unmaterialized generation cannot feed CT queries.",
+    "Checked scalar arrays/ranges; equal/descending/empty iterations remain empty; syntax still parses before materialization.",
+    "TypeRef traversal visits existing scalar expression slots without replacing nominal type names or opening general Type/Syntax generation.",
+    "Record constructor callee Name/Member/Group/TypeApply preserve nominal identity; TypeApply arguments, ordinary values, base and field expressions keep normal traversal and budget charges.",
+    "Generated resource declarations inhabit the receiving scope; native return, continue, break and Unit error exits match independent Drop order."
+  ],
+  "limits": [
+    "Finite ordinary functions, same-type scalar arrays and ranges only; generated type declarations/general Type or Syntax generation remain outside this slice.",
+    "Defer machine execution is NotRun: ordinary Core lowering still maps this statement to its later-capability Unsupported fallback (zil-expand/src/lib.rs::stmt). Only materializer/hygiene traversal was statically inspected.",
+    "Allocation fault injection and live-allocation accounting are NotRun in this independent 222 native fixture.",
+    "The successful native source was compiled at the reviewed 566b production bytes, not at the combined 222-224 candidate.",
+    "Formal workspace tests, Windows, Rust runtime/memory comparison, compilation speed/product gates and complete language acceptance are NotRun here.",
+    "The author promoted reviewer source probes into impl222_review_regressions.rs; those author executions are not added to independent counts."
+  ],
+  "rust_goals": {
+    "safety": "Finite source transformation preserves ordinary rechecking; two independently found binding/traversal defects were repaired and replayed. Full-language safety not established.",
+    "runtime_memory": "Actual receiving-scope cleanup behavior verified; no Rust performance or memory parity claim.",
+    "maintenance": "Finite source generation now expresses repeated owned declarations and checked source shapes; no whole-product maintenance comparison.",
+    "compile_cost": "Independent cumulative logical budgets remain exact; no compile-speed comparison.",
+    "breakthrough": "Finite language capability and independent defect closure demonstrated; product-level net breakthrough not established."
+  },
+  "raw_archive": {
+    "path": "evidence/reviews/222/raw-evidence.tar.gz",
+    "sha256": "22a1f58883546e79c22323bab9e05012907611b24f4152a1adaed0080555749d",
+    "bytes": 376049,
+    "files": 423
+  }
+}

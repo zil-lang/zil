@@ -1,0 +1,130 @@
+{
+  "reviewer": "/root/product_store",
+  "implementation_author": "/root/ct_for (222 only)",
+  "verdict": "Pass",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "scope": "222 finite source #for at the common 222-224 candidate only. This reviewer authored 223 and does not review/approve 223 here.",
+  "reviewed_code_commit": "566bda6a12ab9dbe9be5adbf5b870a411189dc37",
+  "actual_test_source_commit": "4ddd6a6354619366ac47c42311e925ee646c7898",
+  "actual_cli_sha256": "c421a15bdd0ab63577c231c8fbfea01026f9c75fb272a114d5d7fb06cb097217",
+  "evidence": "evidence/reviews/222/RESULT.json",
+  "production_equality": "Every source file in the driver CT selection subtree and zil-expand/src/ct_selection.rs is byte-identical between the tested author code and common candidate. Exact file hashes in PROVENANCE.json.",
+  "normative_snapshot": {
+    "spec_hash": "a9fbba01612959917c8ede69a5eeee7854d6ce8e0ff5f5a02d0ab362c6d9eebb",
+    "normative_hash": "1e9be8621c14b53ceaa4668ddb910ca80217907e916043e7fba322844d41c246",
+    "inputs": [
+      {
+        "path": "_zil_design.md",
+        "sha256": "a9fbba01612959917c8ede69a5eeee7854d6ce8e0ff5f5a02d0ab362c6d9eebb"
+      },
+      {
+        "path": "policy/dependencies.json",
+        "sha256": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7"
+      },
+      {
+        "path": "spec/attributes.json",
+        "sha256": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa"
+      },
+      {
+        "path": "spec/diagnostics.json",
+        "sha256": "76d7b0eda1addd47ad03d81fa083d2d016c2ec7eeb46297ee868ae3d59131cb8"
+      },
+      {
+        "path": "spec/grammar.ebnf",
+        "sha256": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b"
+      },
+      {
+        "path": "spec/interfaces.json",
+        "sha256": "138d32b57c1d7e0a154335f9321dabd2c47fd78511e322d097f1fcbd7647efcb"
+      },
+      {
+        "path": "validation/product-gates.json",
+        "sha256": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+      }
+    ]
+  },
+  "shared_ct_paths": [
+    {
+      "path": "crates/zil-driver/src/ct_selection.rs",
+      "sha256": "defd6bb9bf2886c25742ebae75250b2b0d1979212f0f0d257be2487b466b4638",
+      "bytes": 10926
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/budget.rs",
+      "sha256": "8e08febffa66533a0688d8b23e81d7e718867f12e515c783287d7dc6b0e3bb38",
+      "bytes": 2129
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/context.rs",
+      "sha256": "b5de98949cea0a9faca85170d7813118bbd8c7314c12c9903eb52115d922244a",
+      "bytes": 20838
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/generation.rs",
+      "sha256": "52d2f5decb82cb84d5e7f78c9ffbc5f31215ef801bc79b2c0544fe8a87564761",
+      "bytes": 13881
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/hygiene.rs",
+      "sha256": "7f41f59ad411e0c94c60275e3d813392b0e04b37b0c5511acd7da970f90ffc50",
+      "bytes": 17940
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/materialize.rs",
+      "sha256": "74bae5737f8f82f9e2d03ffaae871b686134de98db5f9e6363fd02013a0f7f0b",
+      "bytes": 18975
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/type_values.rs",
+      "sha256": "5cb237fd13541be1f3c36261df006c9983d0c23ca7ca2f64ba11f5d3627fa519",
+      "bytes": 6559
+    },
+    {
+      "path": "crates/zil-expand/src/ct_selection.rs",
+      "sha256": "56b736c12f5348af4307cd85fc3da1ed621a08bee8e52649e28a89b812fa8478",
+      "bytes": 23171
+    }
+  ],
+  "other_production_changes_in_combination": [
+    "crates/zil-analyze/src/budget.rs",
+    "crates/zil-analyze/src/dynamic_store.rs",
+    "crates/zil-analyze/src/resources.rs",
+    "crates/zil-backend-llvm/src/emit/dynamic_store.rs",
+    "crates/zil-backend-llvm/src/emit/errors.rs",
+    "crates/zil-backend-llvm/src/emit/packages.rs",
+    "crates/zil-expand/src/generic_store.rs",
+    "crates/zil-lower/src/lib.rs",
+    "crates/zil-types/src/addresses.rs",
+    "crates/zil-types/src/aggregates.rs",
+    "crates/zil-types/src/dynamic_store.rs",
+    "crates/zil-types/src/errors.rs",
+    "crates/zil-types/src/lib.rs",
+    "crates/zil-verify/src/dynamic_store.rs",
+    "crates/zil-verify/src/errors.rs",
+    "crates/zil-verify/src/lib.rs",
+    "crates/zil-verify/src/packages.rs",
+    "crates/zil-verify/src/resources.rs"
+  ],
+  "combination_assessment": [
+    "The other production changes concern Product Store admission/protocols/layout/cleanup and shared Product addresses. They do not change the reviewed source materializer, hygiene walker, scalar query selection or re-expansion code.",
+    "Generated output continues through ordinary Types/Analyze/Verify; this statement does not substitute for independent 223/224 review or combined execution.",
+    "Per integrator scope, no second compiler was built for identical CT production bytes. Actual independent executions and their commits remain bound to 566b/4ddd, not relabelled as execution of the common candidate.",
+    "Full combined workspace/CI acceptance remains with the integrator."
+  ],
+  "original_failures_retained": [
+    "evidence/reviews/222/INITIAL-a54.json",
+    "evidence/reviews/222/INITIAL-7265.json"
+  ],
+  "independent_execution_summary": {
+    "tests": 2,
+    "typeref_replays": 5,
+    "native_executions": 8,
+    "budget": "77 Core steps / 96 full steps / 1084 full nodes"
+  },
+  "raw_archive": {
+    "path": "evidence/reviews/222/raw-evidence.tar.gz",
+    "sha256": "22a1f58883546e79c22323bab9e05012907611b24f4152a1adaed0080555749d",
+    "bytes": 376049,
+    "files": 423
+  }
+}
