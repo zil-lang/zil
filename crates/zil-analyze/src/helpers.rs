@@ -494,7 +494,10 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         if function.callable_contract.is_none()
             && function.callable_return_contract.is_some()
             && candidates.len() == 1
-            && matches!(function.locals[candidates[0].1.0 as usize].ty, Type::Closure(_))
+            && matches!(
+                function.locals[candidates[0].1.0 as usize].ty,
+                Type::Closure(_)
+            )
             && matches!(function.return_type, Type::Closure(_))
         {
             continue;
