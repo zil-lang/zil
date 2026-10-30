@@ -481,7 +481,11 @@ impl Builder<'_, '_> {
                 };
                 self.require_state_kind(argument, None, closure, bound.kind)?;
                 self.factory_require_value(value, bound.kind, argument.span)?;
-                self.validate_bound(closure, bound, owned_state || owned_factory, argument.span)?;
+                if owned_factory {
+                    self.closures
+                        .factory_self_contained(closure, argument.span)?;
+                }
+                self.validate_bound(closure, bound, owned_state, argument.span)?;
                 environments.bind(bound.generic_index, closure, argument.span)?;
                 (value, actual)
             } else {
