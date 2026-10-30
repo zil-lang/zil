@@ -1,0 +1,182 @@
+borrowed-empty:0:default:a408ec5fe833ad75b0edf599c42f00ef977e4d0bfa901ab29384826254de2b3d
+borrowed-empty:0:false:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 36 }), notes: [] }]
+borrowed-empty:0:false:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 11 }), notes: [] }]
+borrowed-empty:0:false:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 20 }), notes: [] }]
+borrowed-empty:0:false:64:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 11, end: 36 }), notes: [] }]
+borrowed-empty:0:false:128:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 27, end: 34 }), notes: [] }]
+borrowed-empty:0:false:256:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 39, end: 47 }), notes: [] }]
+borrowed-empty:0:false:512:a408ec5fe833ad75b0edf599c42f00ef977e4d0bfa901ab29384826254de2b3d
+borrowed-empty:0:false:1024:a408ec5fe833ad75b0edf599c42f00ef977e4d0bfa901ab29384826254de2b3d
+borrowed-empty:0:boundary:false:306:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 39, end: 45 }), notes: [] }]
+borrowed-empty:0:true:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 36 }), notes: [] }]
+borrowed-empty:0:true:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 11 }), notes: [] }]
+borrowed-empty:0:true:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 11, end: 36 }), notes: [] }]
+borrowed-empty:0:true:64:a408ec5fe833ad75b0edf599c42f00ef977e4d0bfa901ab29384826254de2b3d
+borrowed-empty:0:true:128:a408ec5fe833ad75b0edf599c42f00ef977e4d0bfa901ab29384826254de2b3d
+borrowed-empty:0:true:256:a408ec5fe833ad75b0edf599c42f00ef977e4d0bfa901ab29384826254de2b3d
+borrowed-empty:0:true:512:a408ec5fe833ad75b0edf599c42f00ef977e4d0bfa901ab29384826254de2b3d
+borrowed-empty:0:true:1024:a408ec5fe833ad75b0edf599c42f00ef977e4d0bfa901ab29384826254de2b3d
+borrowed-empty:0:boundary:true:56:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 39, end: 45 }), notes: [] }]
+borrowed-empty:1:default:4d64834e4c3e78f31c32a1d676ee9854658ecf366bbe653fb49fc4a6ab4eee09
+borrowed-empty:1:false:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 47 }), notes: [] }]
+borrowed-empty:1:false:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 20 }), notes: [] }]
+borrowed-empty:1:false:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(45), start: 0, end: 7 }), notes: [] }]
+borrowed-empty:1:false:64:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 20 }), notes: [] }]
+borrowed-empty:1:false:128:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 20, end: 47 }), notes: [] }]
+borrowed-empty:1:false:256:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 22, end: 25 }), notes: [] }]
+borrowed-empty:1:false:512:4d64834e4c3e78f31c32a1d676ee9854658ecf366bbe653fb49fc4a6ab4eee09
+borrowed-empty:1:false:1024:4d64834e4c3e78f31c32a1d676ee9854658ecf366bbe653fb49fc4a6ab4eee09
+borrowed-empty:1:boundary:false:306:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 27, end: 34 }), notes: [] }]
+borrowed-empty:1:true:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 47 }), notes: [] }]
+borrowed-empty:1:true:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 20 }), notes: [] }]
+borrowed-empty:1:true:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 20 }), notes: [] }]
+borrowed-empty:1:true:64:4d64834e4c3e78f31c32a1d676ee9854658ecf366bbe653fb49fc4a6ab4eee09
+borrowed-empty:1:true:128:4d64834e4c3e78f31c32a1d676ee9854658ecf366bbe653fb49fc4a6ab4eee09
+borrowed-empty:1:true:256:4d64834e4c3e78f31c32a1d676ee9854658ecf366bbe653fb49fc4a6ab4eee09
+borrowed-empty:1:true:512:4d64834e4c3e78f31c32a1d676ee9854658ecf366bbe653fb49fc4a6ab4eee09
+borrowed-empty:1:true:1024:4d64834e4c3e78f31c32a1d676ee9854658ecf366bbe653fb49fc4a6ab4eee09
+borrowed-empty:1:boundary:true:56:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 27, end: 34 }), notes: [] }]
+owned-generic:0:default:ad0bfd813a0538be59b2845ea72b2c2eb68c8e9151327087001420680a3eba44
+owned-generic:0:false:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 46 }), notes: [] }]
+owned-generic:0:false:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 11 }), notes: [] }]
+owned-generic:0:false:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 43, end: 45 }), notes: [] }]
+owned-generic:0:false:64:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 11, end: 46 }), notes: [] }]
+owned-generic:0:false:128:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 33 }), notes: [] }]
+owned-generic:0:false:256:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 21, end: 22 }), notes: [] }]
+owned-generic:0:false:512:ad0bfd813a0538be59b2845ea72b2c2eb68c8e9151327087001420680a3eba44
+owned-generic:0:false:1024:ad0bfd813a0538be59b2845ea72b2c2eb68c8e9151327087001420680a3eba44
+owned-generic:0:boundary:false:296:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 28, end: 33 }), notes: [] }]
+owned-generic:0:true:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 46 }), notes: [] }]
+owned-generic:0:true:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 11 }), notes: [] }]
+owned-generic:0:true:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 11, end: 46 }), notes: [] }]
+owned-generic:0:true:64:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 38, end: 41 }), notes: [] }]
+owned-generic:0:true:128:ad0bfd813a0538be59b2845ea72b2c2eb68c8e9151327087001420680a3eba44
+owned-generic:0:true:256:ad0bfd813a0538be59b2845ea72b2c2eb68c8e9151327087001420680a3eba44
+owned-generic:0:true:512:ad0bfd813a0538be59b2845ea72b2c2eb68c8e9151327087001420680a3eba44
+owned-generic:0:true:1024:ad0bfd813a0538be59b2845ea72b2c2eb68c8e9151327087001420680a3eba44
+owned-generic:0:boundary:true:81:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 21, end: 22 }), notes: [] }]
+owned-generic:1:default:836e86af0e8e6990982cc0a9b4f69a6be59cedbdf0e45b210cf14037afb3e1eb
+owned-generic:1:false:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 33 }), notes: [] }]
+owned-generic:1:false:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 33 }), notes: [] }]
+owned-generic:1:false:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 11, end: 46 }), notes: [] }]
+owned-generic:1:false:64:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 33 }), notes: [] }]
+owned-generic:1:false:128:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+owned-generic:1:false:256:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 21, end: 22 }), notes: [] }]
+owned-generic:1:false:512:836e86af0e8e6990982cc0a9b4f69a6be59cedbdf0e45b210cf14037afb3e1eb
+owned-generic:1:false:1024:836e86af0e8e6990982cc0a9b4f69a6be59cedbdf0e45b210cf14037afb3e1eb
+owned-generic:1:boundary:false:296:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 43, end: 45 }), notes: [] }]
+owned-generic:1:true:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 33 }), notes: [] }]
+owned-generic:1:true:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 33 }), notes: [] }]
+owned-generic:1:true:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 11, end: 46 }), notes: [] }]
+owned-generic:1:true:64:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 38, end: 41 }), notes: [] }]
+owned-generic:1:true:128:836e86af0e8e6990982cc0a9b4f69a6be59cedbdf0e45b210cf14037afb3e1eb
+owned-generic:1:true:256:836e86af0e8e6990982cc0a9b4f69a6be59cedbdf0e45b210cf14037afb3e1eb
+owned-generic:1:true:512:836e86af0e8e6990982cc0a9b4f69a6be59cedbdf0e45b210cf14037afb3e1eb
+owned-generic:1:true:1024:836e86af0e8e6990982cc0a9b4f69a6be59cedbdf0e45b210cf14037afb3e1eb
+owned-generic:1:boundary:true:81:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 21, end: 22 }), notes: [] }]
+owned-alias:0:default:66eee71c73e3502d6aa019c16e138897b21f1f670a75c8421552f8950b2250c2
+owned-alias:0:false:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 36 }), notes: [] }]
+owned-alias:0:false:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 11 }), notes: [] }]
+owned-alias:0:false:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 15 }), notes: [] }]
+owned-alias:0:false:64:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 55, end: 60 }), notes: [] }]
+owned-alias:0:false:128:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 41, end: 73 }), notes: [] }]
+owned-alias:0:false:256:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 62, end: 71 }), notes: [] }]
+owned-alias:0:false:512:66eee71c73e3502d6aa019c16e138897b21f1f670a75c8421552f8950b2250c2
+owned-alias:0:false:1024:66eee71c73e3502d6aa019c16e138897b21f1f670a75c8421552f8950b2250c2
+owned-alias:0:boundary:false:406:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 62, end: 71 }), notes: [] }]
+owned-alias:0:true:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 36 }), notes: [] }]
+owned-alias:0:true:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 11 }), notes: [] }]
+owned-alias:0:true:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 62, end: 73 }), notes: [] }]
+owned-alias:0:true:64:66eee71c73e3502d6aa019c16e138897b21f1f670a75c8421552f8950b2250c2
+owned-alias:0:true:128:66eee71c73e3502d6aa019c16e138897b21f1f670a75c8421552f8950b2250c2
+owned-alias:0:true:256:66eee71c73e3502d6aa019c16e138897b21f1f670a75c8421552f8950b2250c2
+owned-alias:0:true:512:66eee71c73e3502d6aa019c16e138897b21f1f670a75c8421552f8950b2250c2
+owned-alias:0:true:1024:66eee71c73e3502d6aa019c16e138897b21f1f670a75c8421552f8950b2250c2
+owned-alias:0:boundary:true:61:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 62, end: 71 }), notes: [] }]
+owned-alias:1:default:e9c923352224d3c52109b75942a7275ff2f9d36537b7bc86bb97da3e73c59582
+owned-alias:1:false:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 73 }), notes: [] }]
+owned-alias:1:false:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 15 }), notes: [] }]
+owned-alias:1:false:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 45, end: 73 }), notes: [] }]
+owned-alias:1:false:64:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 22, end: 25 }), notes: [] }]
+owned-alias:1:false:128:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 11, end: 36 }), notes: [] }]
+owned-alias:1:false:256:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 27, end: 34 }), notes: [] }]
+owned-alias:1:false:512:e9c923352224d3c52109b75942a7275ff2f9d36537b7bc86bb97da3e73c59582
+owned-alias:1:false:1024:e9c923352224d3c52109b75942a7275ff2f9d36537b7bc86bb97da3e73c59582
+owned-alias:1:boundary:false:406:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 27, end: 34 }), notes: [] }]
+owned-alias:1:true:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 73 }), notes: [] }]
+owned-alias:1:true:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 15 }), notes: [] }]
+owned-alias:1:true:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 27, end: 36 }), notes: [] }]
+owned-alias:1:true:64:e9c923352224d3c52109b75942a7275ff2f9d36537b7bc86bb97da3e73c59582
+owned-alias:1:true:128:e9c923352224d3c52109b75942a7275ff2f9d36537b7bc86bb97da3e73c59582
+owned-alias:1:true:256:e9c923352224d3c52109b75942a7275ff2f9d36537b7bc86bb97da3e73c59582
+owned-alias:1:true:512:e9c923352224d3c52109b75942a7275ff2f9d36537b7bc86bb97da3e73c59582
+owned-alias:1:true:1024:e9c923352224d3c52109b75942a7275ff2f9d36537b7bc86bb97da3e73c59582
+owned-alias:1:boundary:true:61:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 27, end: 34 }), notes: [] }]
+private-generic:0:default:393abe5139e8f79f995d51eda148574cc4ef5ffeefe2c8e59f896dd7e0344e05
+private-generic:0:false:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 46 }), notes: [] }]
+private-generic:0:false:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 11 }), notes: [] }]
+private-generic:0:false:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 43, end: 45 }), notes: [] }]
+private-generic:0:false:64:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 11, end: 46 }), notes: [] }]
+private-generic:0:false:128:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:0:false:256:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:0:false:512:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:0:false:1024:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:0:true:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 46 }), notes: [] }]
+private-generic:0:true:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 11 }), notes: [] }]
+private-generic:0:true:32:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:0:true:64:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:0:true:128:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:0:true:256:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:0:true:512:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:0:true:1024:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:1:default:393abe5139e8f79f995d51eda148574cc4ef5ffeefe2c8e59f896dd7e0344e05
+private-generic:1:false:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 29 }), notes: [] }]
+private-generic:1:false:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 29 }), notes: [] }]
+private-generic:1:false:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 11, end: 46 }), notes: [] }]
+private-generic:1:false:64:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 29 }), notes: [] }]
+private-generic:1:false:128:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:1:false:256:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:1:false:512:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:1:false:1024:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:1:true:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 29 }), notes: [] }]
+private-generic:1:true:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 29 }), notes: [] }]
+private-generic:1:true:32:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:1:true:64:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:1:true:128:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:1:true:256:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:1:true:512:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+private-generic:1:true:1024:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(101), start: 27, end: 35 }), notes: [] }]
+duplicate-before-cycle:0:default:71c361e21dad65aa1dab719d539811c37dd68dedc79ca7cec6be13e663d45325
+duplicate-before-cycle:0:false:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 35 }), notes: [] }]
+duplicate-before-cycle:0:false:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 18 }), notes: [] }]
+duplicate-before-cycle:0:false:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(8), start: 10, end: 14 }), notes: [] }]
+duplicate-before-cycle:0:false:64:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:0:false:128:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:0:false:256:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:0:false:512:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:0:false:1024:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:0:true:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 35 }), notes: [] }]
+duplicate-before-cycle:0:true:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(101), start: 0, end: 18 }), notes: [] }]
+duplicate-before-cycle:0:true:32:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:0:true:64:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:0:true:128:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:0:true:256:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:0:true:512:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:0:true:1024:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:1:default:71c361e21dad65aa1dab719d539811c37dd68dedc79ca7cec6be13e663d45325
+duplicate-before-cycle:1:false:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 14 }), notes: [] }]
+duplicate-before-cycle:1:false:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 14 }), notes: [] }]
+duplicate-before-cycle:1:false:32:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(101), start: 29, end: 32 }), notes: [] }]
+duplicate-before-cycle:1:false:64:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:1:false:128:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:1:false:256:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:1:false:512:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:1:false:1024:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:1:true:0:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 14 }), notes: [] }]
+duplicate-before-cycle:1:true:1:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(8), start: 0, end: 14 }), notes: [] }]
+duplicate-before-cycle:1:true:32:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:1:true:64:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:1:true:128:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:1:true:256:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:1:true:512:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]
+duplicate-before-cycle:1:true:1024:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(101), start: 18, end: 35 }), notes: [] }]

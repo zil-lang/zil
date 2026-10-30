@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "experiment": "CP11b",
+  "implementation_commit": "53f3c0ac64306a3730448123d13dbd9c88e7d7e1",
+  "baseline_commit": "0093420b178a75717c406c6fa54c0c9d0b99d243",
+  "implementation_author": "/root/toolchain_setup",
+  "reviewer": "/root/llvm_strategy",
+  "verdict": "Pass",
+  "scope": "Exact-source review and bounded normalization/output/limit differential; no global handoff or performance claim",
+  "reviewed_source_sha256": {
+    "crates/zil-expand/src/modules.rs": "5b7ee8089946029a506f5207adb7f93a2d1f1f0c3d67bc5e1aa89fc465e79a90"
+  },
+  "static_findings": [
+    "The sole top-level Borrowed return of generics::specialize is Cow::Borrowed(module), the exact combined input. Moving combined.items therefore consumes the same item sequence previously traversed.",
+    "Both generic specialization and alias normalization Owned results move their actual module.items; no into_owned or borrowed-vector clone is introduced.",
+    "budget.item still runs for every item before definition-file lookup, first-wins function registration and output insertion. All fallible calls and their span inputs preserve order.",
+    "The original source_item.clone keeps caller-owned syntax immutable; import cloning, symbol table construction and the complete Restore pass are unchanged.",
+    "AST item order, defining-module mapping and function/publicness identity are preserved; only owned container transfer changes."
+  ],
+  "independent_validation": {
+    "probe": "normalize-independent-probe.rs",
+    "probe_sha256": "b76e2cf121a99b36753e32aa8bf3ab2d42fe271bf6413b8a8e066e08a33eca90",
+    "rlib_identity_hashes_verified": true,
+    "source_cases": 5,
+    "module_orders_per_case": 2,
+    "records": 182,
+    "complete_result_and_error_records_equal": true,
+    "trace_sha256": "2b33c627edf2bba38c744b048cfeaed897ae59991af5efad939b3a208a6a9800",
+    "boundaries": 12,
+    "budget_method": "Independently locate work and node N for each accepted source/order, require exact full output at N, rejection at N-1 and fresh equality at N.",
+    "covered": [
+      "Borrowed normalization with an empty UTF-8 module",
+      "Owned generic and Owned alias normalization",
+      "Private generic and duplicate-before-cyclic-alias rejection",
+      "Non-monotonic FileId/ModuleId and rotated physical module order",
+      "Input AST unchanged across all calls, including failures",
+      "Node/work sweeps including zero and early/mid-stage failures"
+    ],
+    "author_controls_independently_compiled_and_run_on_both_sides": {
+      "tests_per_variant": 4,
+      "passed_total": 8,
+      "failed_total": 0,
+      "matching_control_records": 20,
+      "includes": "six original N/N-1/fresh controls, four full output goldens, two first errors and eight raw missing-definition-file limits"
+    }
+  },
+  "blocking_findings": [],
+  "observations": [
+    "Author preserved a failed initial generic fixture parse caused by missing token spacing, corrected the fixture on baseline, and did not change production acceptance to make it pass.",
+    "Raw Rust test stdout is preserved including trailing harness blank lines; those log-only EOF whitespace observations are not production-source defects."
+  ],
+  "limitations": [
+    "Finite source/control matrix; general equivalence also relies on the reviewed pure ownership transfer and actual Borrowed-return invariant.",
+    "Uses frozen read-only rlibs with verified hashes rather than rebuilding shared author targets.",
+    "No native/runtime test, full workspace test or performance score in this review."
+  ],
+  "checks": "normalize-review-checks.json"
+}

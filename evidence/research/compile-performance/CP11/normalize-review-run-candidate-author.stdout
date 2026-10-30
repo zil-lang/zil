@@ -1,0 +1,29 @@
+
+running 4 tests
+test borrowed_items_keep_defining_files_restore_order_and_imports ... CP11_NORMALIZE_SNAPSHOT:borrowed:421a64372cb38589d96a9ac39543ee5063df15ace48aebf8bd74b86f847b2dca
+CP11_NORMALIZE_BOUNDARY:borrowed:work:606:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(29), start: 42, end: 48 }), notes: [] }]
+CP11_NORMALIZE_BOUNDARY:borrowed:nodes:103:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(29), start: 42, end: 48 }), notes: [] }]
+CP11_NORMALIZE_SNAPSHOT:borrowed-rotated:2073275a1c915d0a99ef7327d0f725a3cf53434c5d6b22a3eca9763953be3a57
+ok
+test declaration_and_private_template_errors_keep_the_original_precedence ... CP11_NORMALIZE_ERROR:duplicate-before-alias:[Diagnostic { phase: Expand, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate declaration name", span: Some(Span { file: FileId(11), start: 22, end: 43 }), notes: [] }]
+CP11_NORMALIZE_ERROR:private-template:[Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-PRIVATE", message: "imported declaration is private", span: Some(Span { file: FileId(11), start: 31, end: 41 }), notes: [] }]
+ok
+test owned_generic_and_alias_items_keep_template_sources_and_exports ... CP11_NORMALIZE_SNAPSHOT:owned-generic:a608cd698353458f2b3c7c6d6113bf17a145c16ff95462ef196cca8f41b36813
+CP11_NORMALIZE_BOUNDARY:owned-generic:work:1238:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(5), start: 29, end: 30 }), notes: [] }]
+CP11_NORMALIZE_BOUNDARY:owned-generic:nodes:285:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(5), start: 29, end: 30 }), notes: [] }]
+CP11_NORMALIZE_SNAPSHOT:owned-alias:8a49b2e458c06bcd8be11e5941bc2ec00a37bc63ddd4c635ee9decfa367d6195
+CP11_NORMALIZE_BOUNDARY:owned-alias:work:275:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(5), start: 40, end: 42 }), notes: [] }]
+CP11_NORMALIZE_BOUNDARY:owned-alias:nodes:41:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(5), start: 40, end: 42 }), notes: [] }]
+ok
+test raw_item_with_lost_definition_file_retains_work_and_source_error_order ... CP11_NORMALIZE_RAW_FILE:0:Err([Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(11), start: 0, end: 18 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:1:Err([Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic expansion budget exceeded", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:16:Err([Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:64:Err([Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(11), start: 11, end: 14 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:256:Err([Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-ID", message: "instantiated declaration lost its definition source", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:512:Err([Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-ID", message: "instantiated declaration lost its definition source", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:1024:Err([Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-ID", message: "instantiated declaration lost its definition source", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])
+CP11_NORMALIZE_RAW_FILE:10000000:Err([Diagnostic { phase: Expand, category: SafeReject, code: "E-MODULE-ID", message: "instantiated declaration lost its definition source", span: Some(Span { file: FileId(999), start: 0, end: 18 }), notes: [] }])
+ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
