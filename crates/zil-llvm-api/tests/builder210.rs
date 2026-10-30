@@ -97,7 +97,7 @@ fn direct_target_not_host_and_optimization_modes() {
             assert!(out.bytes.starts_with(magic));
             assert_eq!(out.receipt.input_kind, "builder");
             assert_eq!(out.receipt.parse_ns, 0);
-            assert_eq!(out.receipt.llvm_version, "17.0.6");
+            assert_eq!(out.receipt.llvm_version, zil_llvm_api::LLVM_VERSION);
             assert!(
                 out.receipt
                     .data_layout

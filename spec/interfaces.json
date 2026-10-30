@@ -13,6 +13,21 @@
   ],
   "normative_hash_algorithm": "SHA256 of concatenated sorted path + NUL + SHA256(file bytes) + LF, UTF-8. spec_hash separately hashes _zil_design.md bytes.",
   "shared_change_owner": "integrator; consumers submit an interface-change request with affected producers/consumers and nearest counterexample; root Cargo, shared schema and registry files are single-writer",
+  "implementation_profiles": {
+    "owning_callable_factory_218": {
+      "authority": "_zil_design.md §9.4.1",
+      "state": "ContractToImplement",
+      "representation": "Existing concrete Closure input, fresh grounded Closure result and CallableReturnContract; no empty nonescaping helper contract; schema/Wire27 unchanged.",
+      "responsibility": "Input F may be retained, used, consumed or cleaned on exit. Same ClosureId does not establish same value provenance. Analyze and Verify reconstruct the ordinary owning boundary independently."
+    },
+    "source_selection_219": {
+      "authority": "_zil_design.md §16.3",
+      "state": "ContractToImplement",
+      "input": "Fully parsed source, immutable ConfigReady ordinary scalar-function/import snapshot, target and remaining request limits.",
+      "output": "Untrusted materialized source/Core plus original spans, selection trace and cumulative CT usage; ordinary semantic verification follows.",
+      "cache": "Target/limits/source/dependencies bound; cache hits retain selection charge and never skip current independent Verify."
+    }
+  },
   "schemas": [
     {
       "id": "SourceUnit",
@@ -690,7 +705,7 @@
     "hold_claims": "FunctionPlan.holds densely covers ValueId; roots are sorted unique Local/Capture/Parameter identities. Independent bounded fixed points reconstruct call-result origins, substitute caller roots and check storage/liveness. A separate loan graph reconstructs exclusive authority, reborrow parents and affine SSA/local transfer; Hold metadata alone does not grant permissions.",
     "shared_capture_scope": "One-level shared/exclusive references to finite Copy values, including parameters and borrowed returns. Projections keep conservative whole-object roots and checked bounds. Default mutable Value capture uses its real address; existing addresses reborrow by use, while move transfers mutable addresses. Local Desc capture observes current resource heads; Managed capture transfers ownership at creation. Explicit move of a complete finite Package creates an owned environment field. Self-contained Copy/Managed/Package and finite nested concrete Closure environments may escape through the restricted ordinary factory contract; borrowed/Desc/address environment escape, nested addresses and general disjoint-field permissions remain closed.",
     "core_additions": "Core Enum/Match/IfLet/WhileLet/Ascribed/Unsafe remain unverified syntax. CoreField.public retains field visibility. Project templates normalize to definition-module identities before finite specialization; private field access and source construction are checked while legitimate CT value copies remain possible. Aliases/generics re-enter ordinary checks; raw walks are bounded. Core Try remains unverified syntax and must be traversed by inference, CT source/materialization and raw walkers; ErrorUnion children are visited recursively. IntegerConvert { value, target } is an untrusted Core expression; all traversals charge and visit operand and target. Literal(Constant) carries untrusted static foreign constants; c_callback remains a Core Call until checked. Core Slice { object, start: Option<Box<CoreExpr>>, end: Option<Box<CoreExpr>> } is an unsized range place, with every present child traversed and charged; source Call(Member(len),[]) is recognized only for a slice-address receiver by Types.",
-    "compile_time_program": "Only explicitly serializable Unit/bool/u8/i32/i64 and nested tuple/record/array values enter the bounded CT VM. Calls, recursion, branches, loops and aggregate operations consume cumulative steps and expanded logical-cell budgets. Enum/function-pointer/address execution remains closed. CT values are materialized with fresh NodeIds into unverified Core; empty-array element types are retained through Ascribed and rechecked. ScopeEnter/ScopeExit are verified no-ops whose actual VM visits consume cumulative steps. ErrorUnion and runtime error instructions are not CT executable capabilities. Package values and operations remain non-executable in the CT VM; admission walks still charge their full raw type trees.",
+    "compile_time_program": "Only explicitly serializable Unit/bool/u8/u16/i32/i64 and nested tuple/record/array values enter the bounded CT VM. Calls, recursion, branches, loops and aggregate operations consume cumulative steps and expanded logical-cell budgets. Enum/function-pointer/address execution remains closed. CT values are materialized with fresh NodeIds into unverified Core; empty-array element types are retained through Ascribed and rechecked. ScopeEnter/ScopeExit are verified no-ops whose actual VM visits consume cumulative steps. ErrorUnion and runtime error instructions are not CT executable capabilities. Package values and operations remain non-executable in the CT VM; admission walks still charge their full raw type trees.",
     "wire_additions": {
       "type_tags": {
         "record": 13,

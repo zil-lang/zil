@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-10-30T05:29:52.208753+00:00",
+  "status": "Implementing",
+  "accepted_main_at_start": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
+  "milestone": "Factory source/native and source-selection native milestones passed; remaining boundary cases and independent review ongoing",
+  "tasks": [
+    {
+      "id": "218",
+      "state": "施工",
+      "owner": "/root/language218",
+      "branch": "task/218",
+      "latest_source_checkpoint": "14d90ce014600b26db4820b7262cacfa5cc7a8d4",
+      "observed_work": "Types 8/8、Expand 4/4；默认拥有捕获与定义期Store转交补漏中"
+    },
+    {
+      "id": "219",
+      "state": "施工",
+      "owner": "/root/language_parallel",
+      "branch": "task/219",
+      "latest_source_checkpoint": "35637591455eeaeffcb5ab9753fddb9cb33cfa51",
+      "observed_work": "#if真实CLI两配置O0/O2：100次执行、28个实际分配失败注入通过；回归与独审继续"
+    },
+    {
+      "id": "220",
+      "state": "施工",
+      "owner": "/root",
+      "branch": "task/220",
+      "latest_source_checkpoint": "eed58269f4cdeb25c9e71052a104d270aea6dcc4",
+      "observed_work": "源派生Analyze 5组通过；四组件回归558/0/0；三种旧源预算与IR完全一致"
+    },
+    {
+      "id": "221",
+      "state": "施工",
+      "owner": "/root/language_review_plan",
+      "branch": "task/221",
+      "latest_source_checkpoint": "0fc198ecfd9271094e08b19d89a1531eb4e27e5d",
+      "observed_work": "9组源/机器检查通过，36次执行含6个实际分配失败；同步地址与错误结果边界补验中"
+    }
+  ],
+  "proof": [
+    "evidence/planning/218-221/FREEZE.json",
+    "evidence/planning/218-221/DIAGNOSTIC-AMENDMENT.json"
+  ],
+  "stale_after_minutes": 20,
+  "stale_interpretation": "StatusUnknown; an old heartbeat does not prove execution or termination.",
+  "notification": {
+    "requested_minutes_approximately": 10,
+    "native_minimum_minutes": 60,
+    "automation_created": false,
+    "conversation_updates": true
+  },
+  "previous218_recovered": false,
+  "full_language": "NotSatisfied",
+  "full_zui": "NotSatisfied",
+  "last_main_ci": {
+    "source": "4153fbd0a2a0effd90da4bee4034247e1e822cc1",
+    "run_id": 41005715432,
+    "observed_status": "completed",
+    "url": "https://github.com/zil-lang/zil/actions/runs/41005715432",
+    "conclusion": "success"
+  },
+  "new_language_acceptance": false
+}

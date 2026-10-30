@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
-  "profile_id": "x86_64-llvm17-builder-cperf02",
+  "profile_id": "x86_64-llvm23-builder-cperf02",
   "rust_version": "1.99.1",
   "edition": "2024",
-  "llvm_version": "17.0.6",
+  "llvm_version": "23.1.4",
   "rustc_bundled_llvm": "23.1.1",
   "target": "x86_64-unknown-linux-gnu",
   "pointer_bits": 64,
   "endian": "little",
   "native_host": "linux-x86_64",
-  "linker": "clang-17 with system linker; explicit lld-link for Win64",
-  "configuration": "ZIL_CLANG for link driver; ZIL_LLVM_LIB_DIR at Cargo build; dynamic loader path for libLLVM-17.so.1",
+  "linker": "Clang 23.1.4 with system linker; LLD 23.1.4 lld-link for Win64",
+  "configuration": "tools/llvm/version.txt pin; ZIL_CLANG for link driver; ZIL_LLVM_LIB_DIR at Cargo build; dynamic loader path for pinned LLVM 23.1.4",
   "llvm_api": {
     "feature": "llvm-api",
-    "module_input": "direct Builder from verified machine IR; text parser retained as diagnostic adapter",
-    "version_exact": "17.0.6",
+    "module_input": "direct Builder from verified machine IR; text parser only under explicit text-reference test feature",
+    "version_exact": "23.1.4",
     "cpu": "x86-64",
     "features": "",
     "relocation": "PIC",
@@ -23,7 +23,8 @@
       "default<O0>",
       "default<O2>"
     ],
-    "verification": "before and after passes"
+    "verification": "before and after passes",
+    "library_origin": "X86 shared library locally relinked from SHA256-pinned official LLVM 23.1.4 PIC component archives; install-receipt.json records inputs and system runtime dependencies"
   },
-  "verification_scope": "compile-performance CP02 opt-in diagnostics and limited tests; CP04 mem2reg rejected and reverted; historical product receipts remain historical, not reaccepted for this metadata profile"
+  "verification_scope": "LLVM 23.1.4 mainline synchronized with CP02 opt-in diagnostics; historical LLVM17 results remain historical; new performance candidates require fresh evidence"
 }
