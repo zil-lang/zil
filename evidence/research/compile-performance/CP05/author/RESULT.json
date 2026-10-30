@@ -1,0 +1,49 @@
+{
+  "status": "Pass",
+  "implementation_commit": "124158826aab043882f4ee29e45ff379465874e8",
+  "author": "/root",
+  "scope": "Limited timing capability, failure and release build checks; no performance inference",
+  "checks": [
+    {
+      "command": "cargo test --locked --offline -p zil-llvm-api timing -j 2",
+      "log": "cp05-api-final-test.log",
+      "sha256": "6091af7e58b0048c813a1ff282e2b35371b2f7b09e397d14060858cc35f3a411",
+      "test_passes": 1
+    },
+    {
+      "command": "cargo test --locked --offline -p zil-driver -p zil-cli --test timing_feature -j 2",
+      "log": "cp05-default-final-test.log",
+      "sha256": "d58eca8add1857bab2f1f3f776947172cc834f64f54b05dcceaab9f50ce15cb9",
+      "test_passes": 2
+    },
+    {
+      "command": "cargo test --locked --offline -p zil-cli -p zil-driver --features timings --test stage_timings -j 2",
+      "log": "cp05-enabled-final-test.log",
+      "sha256": "16934135492758d1e397b4d71865e31c5c8e2992a7b602edeaef19348247a0ba",
+      "test_passes": 7
+    },
+    {
+      "command": "cargo test --locked --offline -p zil-llvm-api --features timings timing -j 2",
+      "log": "cp05-api-enabled-final-test.log",
+      "sha256": "6c31c35bb6d3e411487b1e6fe71e93285179523c626a57bc495cd7feeea09431",
+      "test_passes": 2
+    },
+    {
+      "command": "cargo clippy --locked --offline -p zil-llvm-api -p zil-backend-llvm -p zil-driver -p zil-cli --all-targets -j 2 -- -D warnings",
+      "log": "cp05-default-clippy.log",
+      "sha256": "735a8c547676b62a9c57272fd2ec8bb821e2b5328c3ff679eb8859c0705dd18a",
+      "test_passes": 0
+    },
+    {
+      "command": "cargo build --locked --offline --release -p zil-cli -j 2",
+      "log": "cp05-release-build.log",
+      "sha256": "159461c44f98269c316fea137aa6fb00fe0e37d396007204e71b80fee8801ffe",
+      "test_passes": 0
+    }
+  ],
+  "release_binary": {
+    "sha256": "88a9a959879457d29dc4327fc6a97712f3b955acb7fbc93ea75a0ef3c48df774",
+    "bytes": 6907928
+  },
+  "review": "../review-by-toolchain-setup.json"
+}

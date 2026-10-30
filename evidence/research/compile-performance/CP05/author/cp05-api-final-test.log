@@ -1,0 +1,45 @@
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-llvm-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.75s
+     Running unittests src/lib.rs (target/debug/deps/zil_llvm_api-b5feb2440c965ef9)
+
+running 1 test
+test timing::stripped_tests::propagation_is_zero_sized_without_drop_or_collection ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/allocation211.rs (target/debug/deps/allocation211-ae48ee80cc72d1b0)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests/builder210.rs (target/debug/deps/builder210-8bc678c033568108)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/disabled.rs (target/debug/deps/disabled-10769b11ec42013f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/machine210.rs (target/debug/deps/machine210-7e4bb3e9c21ff2bd)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+
+     Running tests/native.rs (target/debug/deps/native-b8ab93e3f8ffbab6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/native211.rs (target/debug/deps/native211-540e9314fbfaa76a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

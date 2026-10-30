@@ -1,0 +1,19 @@
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-llvm-api)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-driver)
+   Compiling zil-cli v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.58s
+     Running tests/timing_feature.rs (target/debug/deps/timing_feature-d953d1cfba0d0c35)
+
+running 1 test
+test requested_uncompiled_timings_is_an_explicit_argument_error ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/timing_feature.rs (target/debug/deps/timing_feature-cad63cb6f8aa5fa6)
+
+running 1 test
+test unavailable_requested_timings_reject_all_driver_entry_points ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

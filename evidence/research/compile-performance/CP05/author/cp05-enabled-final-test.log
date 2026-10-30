@@ -1,0 +1,24 @@
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-llvm-api)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-driver)
+   Compiling zil-cli v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.85s
+     Running tests/stage_timings.rs (target/debug/deps/stage_timings-6a8ce3ca6e81e7d2)
+
+running 2 tests
+test failed_source_keeps_diagnostics_and_completed_timing_scopes ... ok
+test optional_timings_are_structured_and_do_not_replace_cli_output ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/stage_timings.rs (target/debug/deps/stage_timings-944f8120dbf6f05f)
+
+running 5 tests
+test rejected_and_cancelled_requests_keep_only_actual_intervals ... ok
+test filesystem_discovery_failure_and_parse_stop_have_distinct_scopes ... ok
+test timing_switch_is_not_a_query_key_and_verify_still_runs ... ok
+test request_root_includes_real_session_capacity_eviction ... ok
+test native_cold_hit_and_link_failure_preserve_bytes_and_current_verification ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+

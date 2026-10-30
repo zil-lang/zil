@@ -1,0 +1,5 @@
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-llvm-api)
+    Checking zil-backend-llvm v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-backend-llvm)
+    Checking zil-driver v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-driver)
+    Checking zil-cli v0.1.0 (/workspace/scratch/ac5966c4c370/zil-cp05/crates/zil-cli)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 14.67s
