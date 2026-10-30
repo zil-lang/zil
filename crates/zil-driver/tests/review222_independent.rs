@@ -4,7 +4,10 @@ use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompilationSession, CompileOptions, Stage};
 
 fn out() -> PathBuf {
-    let p = PathBuf::from(std::env::var_os("ZIL_TEST_REPORT_DIR").unwrap()).join("review222-api");
+    let p = std::env::var_os("ZIL_TEST_REPORT_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join(format!("review222-api-{}", std::process::id()));
     fs::create_dir_all(&p).unwrap();
     p
 }
