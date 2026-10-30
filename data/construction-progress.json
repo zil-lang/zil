@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-10-30T04:35:10.795832+00:00",
+  "status": "Implementing",
+  "accepted_main_at_start": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
+  "milestone": "Toolchain restored; fresh218 and independent219 inputs frozen; baseline release compiler built",
+  "tasks": [
+    {
+      "id": "218",
+      "state": "施工",
+      "owner": "/root/language218",
+      "branch": "task/218",
+      "latest_source_checkpoint": null
+    },
+    {
+      "id": "219",
+      "state": "施工",
+      "owner": "/root/language_parallel",
+      "branch": "task/219",
+      "latest_source_checkpoint": null
+    },
+    {
+      "id": "220",
+      "state": "施工",
+      "owner": "/root",
+      "branch": "task/220",
+      "latest_source_checkpoint": null
+    },
+    {
+      "id": "221",
+      "state": "施工",
+      "owner": "/root/language_review_plan",
+      "branch": "task/221",
+      "latest_source_checkpoint": null
+    }
+  ],
+  "proof": [
+    "evidence/planning/218-221/FREEZE.json"
+  ],
+  "stale_after_minutes": 20,
+  "stale_interpretation": "StatusUnknown; an old heartbeat does not prove execution or termination.",
+  "notification": {
+    "requested_minutes_approximately": 10,
+    "native_minimum_minutes": 60,
+    "automation_created": false,
+    "conversation_updates": true
+  },
+  "previous218_recovered": false,
+  "full_language": "NotSatisfied",
+  "full_zui": "NotSatisfied"
+}
