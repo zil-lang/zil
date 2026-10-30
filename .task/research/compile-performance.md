@@ -310,7 +310,7 @@ Doing
       "run": "https://github.com/zil-lang/zil/actions/runs/41068328117"
     },
     "CP18": {
-      "status": "Review",
+      "status": "ReviewPass",
       "author": "/root/shape_opt",
       "baseline": "17d31322fdc12bb22ea17c7e1d3a64d7c378ce10",
       "purpose": "Preserve checks, diagnostic order and logical charges while sharing sparse project declaration views and borrowing unchanged shape resolution. Separate implementation commits and measurements.",
@@ -325,12 +325,17 @@ Doing
       ],
       "candidate": "8cd1a412e5ab260843469a3d9b25125a9bed5140",
       "validation": "78 passed default-feature affected targets",
-      "performance": "NotMeasured",
+      "performance": "Combined O0 bridge B/A 0.984244; separate local composite probes have mixed block directions and wall point ratios 1.090573/0.888787/1.101003. Individual contributions unisolated; adoption Hold.",
       "independent_source_review": "Pass by /root/industry_audit; CP18 Cow additionally checked by /root/ct_opt",
-      "evidence": "evidence/research/compile-performance/COMPILE5/local/MANIFEST.json"
+      "evidence": "evidence/research/compile-performance/COMPILE5/local/MANIFEST.json",
+      "published_candidate": "b27f5feaadc51d4e593ad31b3380f67fed128fdf",
+      "measured_source": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
+      "result": "docs/research/compile-performance/COMPILE5-RESULT.md",
+      "acceptance_scope": "Research correctness/targeted execution passed; performance adoption Hold; no mainline/product gate acceptance.",
+      "combined_validation": "CI 41086451087: 231 targeted Rust tests, 64 Python controls, 600 compile and 240 runtime rows independently verified."
     },
     "CP19": {
-      "status": "Review",
+      "status": "ReviewPass",
       "author": "/root/ct_opt",
       "baseline": "17d31322fdc12bb22ea17c7e1d3a64d7c378ce10",
       "purpose": "Investigate CT allocation/index reuse; do not skip walker checks or resolve/check stages. Implementation only after demonstrated concrete redundant work.",
@@ -345,12 +350,17 @@ Doing
       ],
       "candidate": "ce2d87e7ef93594e7461760fc184efc7f181d5f2",
       "validation": "26 CT lib plus 4 driver passed",
-      "performance": "NotMeasured",
-      "independent_source_review": "Pass by /root/industry_audit; CP18 Cow additionally checked by /root/ct_opt",
-      "evidence": "evidence/research/compile-performance/COMPILE5/local/MANIFEST.json"
+      "performance": "Combined O0 bridge B/A 0.984244; separate local composite probes have mixed block directions and wall point ratios 1.090573/0.888787/1.101003. Individual contributions unisolated; adoption Hold.",
+      "independent_source_review": "Pass by /root/industry_audit",
+      "evidence": "evidence/research/compile-performance/COMPILE5/local/MANIFEST.json",
+      "published_candidate": "f571fa8a063d9b304bfad92a26d3b624ef48bb16",
+      "measured_source": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
+      "result": "docs/research/compile-performance/COMPILE5-RESULT.md",
+      "acceptance_scope": "Research correctness/targeted execution passed; performance adoption Hold; no mainline/product gate acceptance.",
+      "combined_validation": "CI 41086451087: 231 targeted Rust tests, 64 Python controls, 600 compile and 240 runtime rows independently verified."
     },
     "CP20": {
-      "status": "Review",
+      "status": "ReviewPass",
       "author": "/root",
       "reviewer": "/root/industry_audit",
       "baseline": "c8bacf734",
@@ -365,18 +375,34 @@ Doing
       "plan": "docs/research/compile-performance/COMPILE5-PLAN.md",
       "candidate": "71d2c20c554ddfa36a0741be4aa1ed290de9ea5c",
       "validation": "64 Python controls passed",
-      "performance": "NotMeasured",
-      "independent_source_review": "Pass by /root/industry_audit; CP18 Cow additionally checked by /root/ct_opt",
-      "evidence": "evidence/research/compile-performance/COMPILE5/local/MANIFEST.json"
+      "performance": "Evidence validation tool, not a speedup; frozen estimators and all 8 measured summaries independently reproduced.",
+      "independent_source_review": "Pass by /root/industry_audit",
+      "evidence": "evidence/research/compile-performance/COMPILE5/local/MANIFEST.json",
+      "published_candidate": "3e58541c37f6e563809679b55706cd4b6756ccb1",
+      "measured_source": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
+      "result": "docs/research/compile-performance/COMPILE5-RESULT.md",
+      "acceptance_scope": "Research correctness/targeted execution passed; performance adoption Hold; no mainline/product gate acceptance.",
+      "combined_validation": "CI 41086451087: 231 targeted Rust tests, 64 Python controls, 600 compile and 240 runtime rows independently verified."
     }
   },
-  "mainline_acceptance": "Hold: this research is not merged into main; full workspace tests and product gates NotRun. CP14 small-program runtime quality recovered in this three-block window; overall compile superiority to Rust not reached.",
-  "next_priority": "Fine-grained frontend invalidation for edited incremental requests; O2 compile improvements that also pass per-case native runtime quality. Preserve all complete and failed historical windows.",
-  "latest_result": "docs/research/compile-performance/COMPILE4-RESULT.md",
-  "measured_source": "0393660f7dc8414b0ab8c77cd3d576395f4fe095",
-  "scope": "Same-host O0 bridge improves0.89%; Rust O0cold0.999300, incremental1.200135,O2closed1.096820. Earlier LLVM23 results retain their original host and source; no claim of universal Rust advantage.",
+  "mainline_acceptance": "Hold: main not changed by this research round; targeted correctness passed, composite-type performance risk signals unresolved; full workspace/product gates NotRun.",
+  "next_priority": "Isolate type_cow clone/compare and CT memo costs before adoption; then fine-grained frontend invalidation for private edits and O2 improvements preserving per-case runtime quality.",
+  "latest_result": "docs/research/compile-performance/COMPILE5-RESULT.md",
+  "measured_source": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
+  "scope": "Same-host combined O0 bridge reduces wall cost 1.576%; Rust O0cold0.818380, incremental1.312799,O2closed1.047511. Separate local composite probes mixed; no cross-host pooled score or universal Rust advantage.",
   "compile4_baseline": "64072793a0f41994f216a6207bf49ee1e2d224f8",
-  "compile4_status": "Complete_Exploratory_NotAProductGate:149 Cargo tests and52 Python controls pass;600 build+240 runtime rows independently checked."
+  "compile4_status": "Complete_Exploratory_NotAProductGate:149 Cargo tests and52 Python controls pass;600 build+240 runtime rows independently checked.",
+  "compile5_baseline": "a715f828261ff4b6ef9c8125623064360745aae4",
+  "compile5_status": "Complete_Exploratory_NotAProductGate: 231 Rust + 64 Python controls passed; 600 compile +240 runtime rows independently checked; 36 separate auxiliary compile samples retained; adoption Hold.",
+  "compile5_auxiliary": {
+    "author": "/root",
+    "source_generator_author": "/root/ct_opt",
+    "executor_reviewer": "/root/shape_opt",
+    "raw_results_reviewer": "/root/industry_audit",
+    "scope": "Separate local host, same A/B CPUs [0,1], fixed 3 cases and36 rows;6 unscored preflight; no pooled score.",
+    "evidence": "evidence/research/compile-performance/COMPILE5/auxiliary",
+    "source_scope": "No production compiler change after951471d5."
+  }
 }
 ```
 
@@ -388,3 +414,5 @@ Doing
 2026-10-30 CP17 由根协调者派工并审核上述写集。CP15 实际回归位于 driver，以真实解析/展开输入覆盖借用、改写及预算；合流保留 source #if 扣费，且独立复核发现并修正测试中 Option<CoreExpr> 解包遗漏。仍等待真实 Rust 执行。
 
 2026-10-30 zil编译4：候选0393660f完成远端执行和独立复算。CP14/15/16/17按研究范围ReviewPass；149项定向Cargo测试、52项工具控制通过，840条正式计时记录完整；总体超过Rust未达成，main合流Hold。详见COMPILE4-RESULT.md，历史负结果不改。
+
+2026-10-31 北京时间 zil编译5：候选951471d5完成独立同机CI和三份复核。O0旧新桥接降低1.576%；与Rust冷/增量/O2分别0.818380/1.312799/1.047511。辅助复合类型窗口正负混合，不以主矩阵收益覆盖风险；研究交付完成，主线采用Hold。完整证据见COMPILE5-RESULT.md。
