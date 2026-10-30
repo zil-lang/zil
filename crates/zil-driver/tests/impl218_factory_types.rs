@@ -209,3 +209,137 @@ fn copy_actual_argument_retains_the_callers_original_position() {
         "{BASE} fn wrap<F:Fn(i32)->i32>(f:F)->impl Fn(i32)->i32{{return move(x:i32)=>f(x)}} fn main()->i32{{let input=base(2);let output=wrap(input);return input(3)+output(4)}}"
     ));
 }
+
+#[test]
+fn ordinary_managed_package_product_and_leaf_store_companions() {
+    let declarations = "resource R{n:i32} package Leaf{manages owner:R;tag:i32} package Product{child:Leaf;tag:i32} fn base()->impl Fn()->i32{return move()=>3}";
+    for (parameter, body, prepare, argument) in [
+        ("give marker:R", "marker.n", "", "R{n:2}"),
+        ("value:Leaf", "value.tag", "", "Leaf{owner:R{n:2},tag:4}"),
+        (
+            "value:Product",
+            "value.tag",
+            "",
+            "Product{child:Leaf{owner:R{n:2},tag:4},tag:5}",
+        ),
+        (
+            "give items:Store<Leaf>",
+            "i32(store_len(items))",
+            "let items:Store<Leaf>=store_new();",
+            "give items",
+        ),
+    ] {
+        success(&format!(
+            "{declarations} fn wrap<F:Fn()->i32>(f:F,{parameter})->impl Fn()->i32{{return move()=>f()+{body}}} fn main()->i32{{{prepare}let output=wrap(base(),{argument});return output()}}"
+        ));
+    }
+}
+
+#[test]
+fn real_owned_uses_preserve_existing_default_capture_inference() {
+    for body in [
+        "return (x:i32)=>f(x)",
+        "return (x:i32)=>{let inner=move(y:i32)=>f(y);return inner(x)}",
+    ] {
+        success(&format!(
+            "{BASE} fn wrap<F:FnOnce(i32)->i32>(f:F)->impl FnOnce(i32)->i32{{{body}}} fn main()->i32{{let output=wrap(base(2));return output(4)}}"
+        ));
+    }
+    success(
+        "resource R{n:i32} fn base()->impl Fn()->i32{return move()=>3} fn wrap<F:Fn()->i32>(f:F,give marker:R)->impl FnOnce()->i32{return ()=>{let owned=give marker;return owned.n}} fn main()->i32{let output=wrap(base(),R{n:4});return output()}",
+    );
+}
+
+#[test]
+fn one_grounded_result_can_be_selected_on_both_paths() {
+    success(&format!(
+        "{BASE} fn wrap<F:FnOnce(i32)->i32>(f:F,flag:bool)->impl FnOnce(i32)->i32{{let output=move(x:i32)=>f(x);return if flag{{output}}else{{output}}}} fn main()->i32{{let output=wrap(base(2),true);return output(4)}}"
+    ));
+}
+
+#[test]
+fn public_factory_instances_keep_defining_module_context() {
+    for (kind, body) in [
+        ("Fn", "return move(x:i32)=>f(x)+bias"),
+        ("FnMut", "var inner=f;return move(x:i32)=>inner(x)+bias"),
+        ("FnOnce", "return (x:i32)=>f(x)"),
+    ] {
+        let main = format!(
+            "import api;{BASE} fn main()->i32{{var output=api.outer(base(2));return output(4)}}"
+        );
+        let api = format!(
+            "import leaf;pub fn outer<G:{kind}(i32)->i32>(g:G)->impl {kind}(i32)->i32{{return leaf.wrap(g,3)}}"
+        );
+        let leaf = format!(
+            "pub fn wrap<F:{kind}(i32)->i32>(f:F,bias:i32)->impl {kind}(i32)->i32{{{body}}}"
+        );
+        let project = zil_driver::ProjectSources {
+            root: ModuleId(0),
+            modules: [(&main, "main.zil"), (&api, "api.zil"), (&leaf, "leaf.zil")]
+                .into_iter()
+                .enumerate()
+                .map(|(index, (text, name))| {
+                    SourceUnit::new(
+                        FileId(index as u32),
+                        ModuleId(index as u32),
+                        name,
+                        text.as_str(),
+                    )
+                })
+                .collect(),
+            paths: std::collections::BTreeMap::from([
+                (vec!["api".into()], ModuleId(1)),
+                (vec!["leaf".into()], ModuleId(2)),
+            ]),
+        };
+        let report = zil_driver::compile_project(
+            &project,
+            &zil_driver::CompileOptions {
+                stop_after: zil_driver::Stage::Types,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            zil_base::ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
+#[test]
+fn bare_function_pointer_signatures_keep_the_existing_copy_rule() {
+    let text = "fn plus(x:i32)->i32{return x+1} fn base()->impl Fn(fn(i32)->i32)->fn(i32)->i32{return move(p:fn(i32)->i32)=>p} fn wrap<F:Fn(fn(i32)->i32)->fn(i32)->i32>(f:F)->impl Fn(fn(i32)->i32)->fn(i32)->i32{return move(p:fn(i32)->i32)=>f(p)} fn main()->i32{let output=wrap(base());let pointer=output(plus);return pointer(6)}";
+    success(text);
+    let bad = text.replace(
+        "let pointer=output(plus)",
+        "let seed=7;let pointer=output(move(x:i32)=>x+seed)",
+    );
+    let errors = typed(&bad)
+        .expect_err("concrete captured Closure cannot become the bare function pointer signature");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("captur")
+                || error.message.contains("function pointer")),
+        "{errors:#?}"
+    );
+}
+
+#[test]
+fn managed_capture_fields_distinguish_consumption_and_refill() {
+    let declarations = "resource R{n:i32} package P{manages owner:R;tag:i32} fn base()->impl Fn()->i32{return move()=>3}";
+    for (kind, body) in [
+        ("FnOnce", "let old=give owned.owner;return old.n+f()"),
+        (
+            "FnMut",
+            "let old=give owned.owner;owned.owner=R{n:7};return old.n+f()",
+        ),
+    ] {
+        success(&format!(
+            "{declarations} fn wrap<F:Fn()->i32>(f:F,value:P)->impl {kind}()->i32{{var owned=value;return move()=>{{{body}}}}} fn main()->i32{{var output=wrap(base(),P{{owner:R{{n:2}},tag:4}});return output()}}"
+        ));
+    }
+}
