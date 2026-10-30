@@ -1,0 +1,41 @@
+{
+  "original_harness_sha256": "41fc963fd67a601cdbf50c091fbad44a272dcf3112af11d2adb7f48c651e9754",
+  "distinct_source_sha256": "f942823679f4e0097bce9027e9d354dc76e8e62a8f73ec5a26c20874b8195def",
+  "adaptation": "Only input acquisition and output-directory defaults changed; attack/control logic unchanged; compare four resulting wire hashes after execution.",
+  "persistent_test_sha256": "0cf55d8312ec247a0501d5dbf0714ee4c6327e70a2678205a703c80802261a74",
+  "wire_comparisons": [
+    {
+      "case": "borrow-child-after-take",
+      "wire_sha256": "0ce95dced932cc83cfe9d9bd676424b980d56279befc267874e8525e45d27d07",
+      "identical_to_executed_review": true
+    },
+    {
+      "case": "child-before-take-control",
+      "wire_sha256": "2ce7ad5e0040f3c2136a34290e4237346739603235906526e363acab52e3edff",
+      "identical_to_executed_review": true
+    },
+    {
+      "case": "distinct-instances-control",
+      "wire_sha256": "a94c41bb7277756050216bf1c3a7c7981a9a6d3f844854ed749fad8269fe2f30",
+      "identical_to_executed_review": true
+    },
+    {
+      "case": "retarget-same-type-instance-with-coherent-hold",
+      "wire_sha256": "69f1da50038dcee683f44fbdc162ac2c33cf2f1eadd35f0101bcd406ba157287",
+      "identical_to_executed_review": true
+    }
+  ],
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "review224_independent"
+  ],
+  "passed": 1,
+  "failed": 0,
+  "stdout_sha256": "19d77828101ca335d04bc9fe34cf371f47630ae5b74a4c60c8fd6593e67fec19",
+  "stderr_sha256": "8880edb153e566acf86b0c84239f59eca120bba6c2b538f800bf463f872ef25a"
+}
