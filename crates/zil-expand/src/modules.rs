@@ -332,6 +332,10 @@ fn normalize(
         }
     }
     let specialized = generics::specialize(&combined, limits).map_err(|mut e| e.remove(0))?;
+    let items = match specialized {
+        Cow::Borrowed(_) => combined.items,
+        Cow::Owned(module) => module.items,
+    };
     let mut output = modules
         .iter()
         .zip(imports)
@@ -346,8 +350,8 @@ fn normalize(
             )
         })
         .collect::<Vec<_>>();
-    for item in &specialized.items {
-        budget.item(item)?;
+    for item in items {
+        budget.item(&item)?;
         let position = *files.get(&item.span.file).ok_or_else(|| {
             error(
                 "E-MODULE-ID",
@@ -362,7 +366,7 @@ fn normalize(
                 .entry(f.name.clone())
                 .or_insert((modules[position].id, f.name.clone()));
         }
-        output[position].0.items.push(item.clone());
+        output[position].0.items.push(item);
     }
     for (module, edges) in &mut output {
         let mut visitor = Visitor {
