@@ -1,0 +1,389 @@
+{
+  "schema_version": 1,
+  "task": "223",
+  "reviewer": "/root/scope_audit",
+  "implementation_author": "/root/product_store",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "implementation_tree": "6ec628b56387fb5437179986dfeef0e90d553c68",
+  "verdict": "Pass",
+  "review_kind": "Supplemental combined-candidate static and retained-evidence review",
+  "scope": "223 finite Product Store only: preserve independently reviewed element qualification, exact Unit result protocols, complete ownership and recursive machine cleanup when integrated with 222 and 224. This is not approval of all 222/224 behavior or whole-workspace/product acceptance.",
+  "reviewed_at_utc": "2026-10-30T15:17:57.647276+00:00",
+  "independence": {
+    "reviewer_is_not_223_author": true,
+    "reviewer_is_224_author": true,
+    "224_self_review_or_approval": false,
+    "related_224_review": {
+      "path": "evidence/reviews/224/by_ct_for/REVIEW.json",
+      "sha256": "a24d22a1054cdd4903bd291ccadfbab34b696f770783a853c521db13a927a14a",
+      "reviewer": "/root/ct_for",
+      "implementation_commit": "0614831ceffe5f6d8f973fa51cf9ef74b8c02e3e",
+      "verdict": "Pass",
+      "usage": "Attribution and preserved non-author review identity only; this supplement does not replace that review."
+    }
+  },
+  "prior_independent_review": {
+    "path": "evidence/impl/223/review-scope-audit/RESULT.json",
+    "evidence_commit": "f9e15e703de16ff6b1963a1d1578e10eb039b0d2",
+    "implementation_commit": "aefc031d83c92aaea0c6154fdfe9b94834a9b105",
+    "production_code_commit": "ab964e484ca96889ccb80c5b76385e706588cea1",
+    "verdict": "Pass",
+    "receipt_sha256": "741a2e49c171e0e5b4f38f14e33d91bd6ed8a8a878920af2fa89547b4a751442",
+    "entire_review_directory_byte_identical": true,
+    "archive_sha256_verified": "62169bb2815045833b45d746a3216a5d192e9fa003c415ecbc9557933fffbdac",
+    "frozen_inputs": [
+      {
+        "path": "crates/zil-driver/tests/review223_fixtures/ORACLE.json",
+        "sha256": "d4e9dcc8e54b2a3029e9d9820e0ccfe65885a7c19f22eef7193ff00a263ecb94",
+        "unchanged": true
+      },
+      {
+        "path": "crates/zil-driver/tests/review223_fixtures/mutable-product-original.wire",
+        "sha256": "5ba4b35d45093a324e31ab8971d92788a1e9c18b57cbdc17fdd317c7d2f59de9",
+        "unchanged": true
+      }
+    ],
+    "original_failure_retained": "Original 9ca5d5b0 raw and Wire acceptance failure remains in the unchanged prior receipt/archive. Repaired ab964e48 rejects the same frozen bytes; no original oracle or failure was relabeled."
+  },
+  "normative_identity": {
+    "source_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+    "spec_hash": "a9fbba01612959917c8ede69a5eeee7854d6ce8e0ff5f5a02d0ab362c6d9eebb",
+    "normative_hash": "1e9be8621c14b53ceaa4668ddb910ca80217907e916043e7fba322844d41c246",
+    "registry_path": "data/normative-inputs.json",
+    "registry_sha256": "8672e7af8ccf5958f131b68f7d0e81dc3f8a1a43992b09c97cc5cf69f589ab94",
+    "registered_file_hashes_verified": {
+      "_zil_design.md": "a9fbba01612959917c8ede69a5eeee7854d6ce8e0ff5f5a02d0ab362c6d9eebb",
+      "policy/dependencies.json": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "spec/diagnostics.json": "76d7b0eda1addd47ad03d81fa083d2d016c2ec7eeb46297ee868ae3d59131cb8",
+      "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "spec/interfaces.json": "138d32b57c1d7e0a154335f9321dabd2c47fd78511e322d097f1fcbd7647efcb",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    },
+    "required_set_matches_spec_interfaces": true,
+    "change_223_sha256": "ce5668ad49f34d72af6447725771bff56512f925d51278fde372708f93d9f4c3",
+    "same_223_authority_as_prior_independent_review": true,
+    "authority": "Main worktree .task/impl/223.md delegates this finite profile; _zil_design.md sections 8.1.1 and 8.2.4 are normative. Shared Product qualification is separately constrained by section 8.1.2."
+  },
+  "production_comparison": {
+    "base_223_delivery": "aefc031d83c92aaea0c6154fdfe9b94834a9b105",
+    "candidate": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+    "original_223_changed_files": [
+      {
+        "path": "crates/zil-analyze/src/budget.rs",
+        "author_sha256": "f5b71671c48796614da264d9351f16bee05f2f0d684ef54e1c89040f0708c557",
+        "candidate_sha256": "6c4ea5ff15088fa345790859a77013c8da29a6ec57772ada7cb5c13f62138b14",
+        "identical": false
+      },
+      {
+        "path": "crates/zil-analyze/src/dynamic_store.rs",
+        "author_sha256": "6d122a88f3557f5fab550564c596d97d409ecc8c5203ccab11feec5362d1839a",
+        "candidate_sha256": "6d122a88f3557f5fab550564c596d97d409ecc8c5203ccab11feec5362d1839a",
+        "identical": true
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/dynamic_store.rs",
+        "author_sha256": "8e04d48132161965827c019fd87743963ad3729f458d777a471b74f4c86085a2",
+        "candidate_sha256": "8e04d48132161965827c019fd87743963ad3729f458d777a471b74f4c86085a2",
+        "identical": true
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/errors.rs",
+        "author_sha256": "d82e12a811f54cccde1639014f7e8fa6009b540015753b3780af32784874ca24",
+        "candidate_sha256": "d82e12a811f54cccde1639014f7e8fa6009b540015753b3780af32784874ca24",
+        "identical": true
+      },
+      {
+        "path": "crates/zil-expand/src/generic_store.rs",
+        "author_sha256": "ab461d23bf92783b60a77134205e330726d6dedd426a13e8000971da2c1eccf6",
+        "candidate_sha256": "ab461d23bf92783b60a77134205e330726d6dedd426a13e8000971da2c1eccf6",
+        "identical": true
+      },
+      {
+        "path": "crates/zil-lower/src/lib.rs",
+        "author_sha256": "f35fd508afe868bcd5b37a158c2437ab2a6e15cf85526d705ec1edd641911ce8",
+        "candidate_sha256": "f35fd508afe868bcd5b37a158c2437ab2a6e15cf85526d705ec1edd641911ce8",
+        "identical": true
+      },
+      {
+        "path": "crates/zil-types/src/dynamic_store.rs",
+        "author_sha256": "6684b37cc9674e27fee89cfd9de78e382d10f32f7720f5bb0e99a31acb64d461",
+        "candidate_sha256": "6684b37cc9674e27fee89cfd9de78e382d10f32f7720f5bb0e99a31acb64d461",
+        "identical": true
+      },
+      {
+        "path": "crates/zil-types/src/errors.rs",
+        "author_sha256": "2684be03f18995475db6b0653a870f011a8494dd9403babcda2c6588a0b8af10",
+        "candidate_sha256": "2684be03f18995475db6b0653a870f011a8494dd9403babcda2c6588a0b8af10",
+        "identical": true
+      },
+      {
+        "path": "crates/zil-verify/src/dynamic_store.rs",
+        "author_sha256": "585d288fb5bf39ca81f5908623b1dc7e7f86345b7a3bab2d4d95e6336bce72d3",
+        "candidate_sha256": "585d288fb5bf39ca81f5908623b1dc7e7f86345b7a3bab2d4d95e6336bce72d3",
+        "identical": true
+      },
+      {
+        "path": "crates/zil-verify/src/errors.rs",
+        "author_sha256": "ab5c7eda584fc7f3784a8594515cf13a1ab02804f049f1f8d9cd3569be1aca49",
+        "candidate_sha256": "ab5c7eda584fc7f3784a8594515cf13a1ab02804f049f1f8d9cd3569be1aca49",
+        "identical": true
+      }
+    ],
+    "unchanged_files": 9,
+    "only_changed_shared_file": {
+      "path": "crates/zil-analyze/src/budget.rs",
+      "change": "Exactly one eight-line immutable Address<nested Product> local-value admission branch from 224; removing that branch gives the original aef bytes. Existing OwnedStore, canonical resource-head and exact Product/Unit protocol logic is unchanged.",
+      "exact_single_branch_comparison_passed": true
+    },
+    "other_candidate_changes": {
+      "222_source_materialization_files": [
+        "crates/zil-driver/src/ct_selection.rs",
+        "crates/zil-driver/src/ct_selection/generation.rs",
+        "crates/zil-driver/src/ct_selection/hygiene.rs",
+        "crates/zil-driver/src/ct_selection/materialize.rs",
+        "crates/zil-driver/src/ct_selection/type_values.rs",
+        "crates/zil-expand/src/ct_selection.rs"
+      ],
+      "224_shared_address_files_including_budget": [
+        "crates/zil-analyze/src/budget.rs",
+        "crates/zil-analyze/src/resources.rs",
+        "crates/zil-backend-llvm/src/emit/packages.rs",
+        "crates/zil-types/src/addresses.rs",
+        "crates/zil-types/src/aggregates.rs",
+        "crates/zil-types/src/lib.rs",
+        "crates/zil-verify/src/lib.rs",
+        "crates/zil-verify/src/packages.rs",
+        "crates/zil-verify/src/resources.rs"
+      ],
+      "eight_nonbudget_224_files_match_non_author_reviewed_0614831_bytes": true
+    },
+    "changes_since_132_test_integration": [
+      "crates/zil-driver/src/ct_selection/hygiene.rs",
+      "crates/zil-driver/src/ct_selection/materialize.rs",
+      "crates/zil-driver/src/ct_selection/type_values.rs"
+    ],
+    "evidence_commit_has_no_additional_production_changes": "3773cf0d2dee8ac3858bff725e9972aefcd7a24d",
+    "cargo_lock_toolchain_crate_manifests_schema_wire_default_limits_product_gates": "No changes relative to aef in Cargo manifests, Cargo.lock, rust-toolchain.toml, zil-ir/zil-base source or validation/product-gates.json."
+  },
+  "review_checks": [
+    "The repaired Verify Store checker and exact Unit protocol checker are byte-identical to aef: legacy check_element still denies nested Product, explicit check_store_element permits it only in Store/precise protocol contexts. OwnedStoreBorrowMut still rejects nested Product.",
+    "The 224 incoming-address branch explicitly rejects mutable nested Product before shared qualification. Shared projections retain the actual root; resource/Package read permissions are not inferred from Store eligibility. This cross-scope check does not approve 224 independently.",
+    "The unchanged 223 core still independently checks canonical element identity, nonzero actual Store layout, transitive owning leaves, unused definitions and exact active payload cleanup. No arbitrary owning Sum or hidden user-resource-head Store is admitted by the added shared Address branch.",
+    "Existing raw/Wire replay bytes and four non-Unit Sum oracle families are unchanged. The integrated replace_box edits preserve Type values and cloned operands; only reviewer harness Box allocation changes.",
+    "Machine reviewer tests are gated on unix plus llvm-api. Raw/replay and budget tests retain their prior feature availability. API function bodies and machine sources/oracles are unchanged.",
+    "Root composition assertions depend on field values and actual recursive destruction output: generated A/B produce read=14/16 and total=41, then pop B/drop A emits BA; ordinary child read=11 plus post-move read=14 returns zero and emits A."
+  ],
+  "legacy_migration_review": {
+    "baseline": "a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
+    "candidate": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+    "reviewed_files": [
+      "crates/zil-driver/tests/impl171_resource_heads.rs",
+      "crates/zil-driver/tests/impl175_store_views.rs",
+      "crates/zil-driver/tests/impl206_analyze.rs",
+      "crates/zil-driver/tests/impl206_independent.rs"
+    ],
+    "206_fixture_and_manifest_directories_byte_identical": [
+      "crates/zil-driver/tests/impl206_fixtures",
+      "crates/zil-driver/tests/impl206_independent_fixtures"
+    ],
+    "migration_tests_identical_to_132_test_commit": true,
+    "observations": [
+      "171 retains the exact live-head resource replacement source, now requiring Verify/SafeReject/E-BORROW-CONFLICT instead of Types Unsupported.",
+      "175 promotes only the original shared resource-head read and ordinary shared Package argument. Return/capture, shared writes, mutable upgrades and live Store conflict neighbors remain.",
+      "206 original unused Store<Root> source is promoted to Verify success. The original incoherent raw Store still rejects with its canonical element-definition mismatch; array/Sum/capture neighbors remain."
+    ],
+    "documentation": "The common candidate documentation distinguishes old Verify-only promotion, refreshed attack fingerprint, finite Copy resource heads, author versus reviewer counts, and pending full-workspace/product gates."
+  },
+  "root_integration_evidence": {
+    "execution_owner": "/root",
+    "reviewer_actions": "Read committed commands, logs and raw archive members; no new compiler/test/native execution by this supplement.",
+    "earlier_affected_round": {
+      "path": "evidence/integration/222-224/local/RESULT.json",
+      "sha256": "4b8ae8683bfd66d231e6e9868e8fb481eb47a065090c853e219398c8916350f9",
+      "implementation_commit": "a57516d138f85c8f352bec5d440c5c22af259b14",
+      "tests": {
+        "suites": 11,
+        "passed": 132,
+        "failed": 0,
+        "ignored": 0
+      },
+      "current_identity_limit": "This 132-test round predates three 222 source-materialization repairs; it is not relabeled as execution on 4d7bbb."
+    },
+    "final_generation_and_composition_round": {
+      "evidence_commit": "3773cf0d2dee8ac3858bff725e9972aefcd7a24d",
+      "result_path": "evidence/integration/222-224/final-generation/RESULT.json",
+      "result_sha256": "b0ef23083093086a500a78ff724c9e158f36f4bed7c06d02b0e28d2cb2f29070",
+      "command_path": "evidence/integration/222-224/final-generation/command.json",
+      "command_sha256": "20f539d290cd079e0a30c969b3d06559b7ed4e3b7fd3dfd6399de4781f607903",
+      "command_receipt": {
+        "commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+        "tree": "6ec628b56387fb5437179986dfeef0e90d553c68",
+        "status_before": "",
+        "command": [
+          "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh",
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "impl222_generation",
+          "--test",
+          "impl222_review_regressions",
+          "--test",
+          "impl219_selection",
+          "--test",
+          "impl219_budget",
+          "--test",
+          "impl222_224_composition"
+        ],
+        "started_utc": "2026-10-30T15:12:56Z",
+        "exit_code": 0,
+        "finished_utc": "2026-10-30T15:13:03Z"
+      },
+      "cargo_log_path": "evidence/integration/222-224/final-generation/cargo.log",
+      "cargo_log_sha256": "667cc996b63325e22aa731ef627cfcf291cb7f7f80dca18c854fe2982cf8383c",
+      "tests": {
+        "suites": 5,
+        "passed": 19,
+        "failed": 0,
+        "ignored": 0
+      },
+      "archive_path": "evidence/integration/222-224/final-generation/raw.tar.gz",
+      "archive_sha256_verified": "d9f60505d702d325d3997e2065bd9f638a3041c923a9685992b5519db48ca932",
+      "archive_bytes": 2478929,
+      "composition_actual_observations": [
+        {
+          "archive_directory": "final-generation/raw/composition222-224-consume-163-4",
+          "compile_report_sha256": "393d829a0ca4c32712377116b0f9de08d9af4ea20e265dc3cc41ccd4972d4b54",
+          "source_sha256": "51752b9d5981fdc7c5a3d187db3844447e656cb7388d196623f223a4f0a83853",
+          "status": "SafeReject",
+          "phase": "verify",
+          "verification_runs": 1,
+          "diagnostic_codes": [
+            "E-BORROW-CONFLICT"
+          ]
+        },
+        {
+          "archive_directory": "final-generation/raw/composition222-224-generated-prefix-163-0",
+          "compile_report_sha256": "4de676e38e3e82d3d4735574da0fae554bc67848a6b5c70a10bf3ce0bfd3e7bf",
+          "source_sha256": "c786586236f1bcf7fca6d956445baafd5492f00ebd3410997b7e7646771d1ac8",
+          "status": "Success",
+          "phase": "link",
+          "verification_runs": 1,
+          "backend": "llvm-api",
+          "pipeline": "default<O0>",
+          "input_kind": "builder",
+          "verify_before_after": true,
+          "fallback": null,
+          "exit": "Some(0)",
+          "stdout": "BA",
+          "stderr": ""
+        },
+        {
+          "archive_directory": "final-generation/raw/composition222-224-generated-prefix-163-5",
+          "compile_report_sha256": "f136d5820be523da64c9a51281bcab964836381559582f7db03e902f7babaed7",
+          "source_sha256": "c786586236f1bcf7fca6d956445baafd5492f00ebd3410997b7e7646771d1ac8",
+          "status": "Success",
+          "phase": "link",
+          "verification_runs": 1,
+          "backend": "llvm-api",
+          "pipeline": "default<O2>",
+          "input_kind": "builder",
+          "verify_before_after": true,
+          "fallback": null,
+          "exit": "Some(0)",
+          "stdout": "BA",
+          "stderr": ""
+        },
+        {
+          "archive_directory": "final-generation/raw/composition222-224-ordinary-child-163-6",
+          "compile_report_sha256": "8b0f08dbe7a30546e7665fb9a4083aaebf6d2dcdc831023ea0615dc75b81a100",
+          "source_sha256": "4fe51c0d62ad24bb3c1cc2b7af53a96a93b07ba2744ec1314591b6e79d7079c9",
+          "status": "Success",
+          "phase": "link",
+          "verification_runs": 1,
+          "backend": "llvm-api",
+          "pipeline": "default<O0>",
+          "input_kind": "builder",
+          "verify_before_after": true,
+          "fallback": null,
+          "exit": "Some(0)",
+          "stdout": "A",
+          "stderr": ""
+        },
+        {
+          "archive_directory": "final-generation/raw/composition222-224-ordinary-child-163-7",
+          "compile_report_sha256": "ca40e32eaf40c9d6b98047a518e39f89e89ed294b095997d22a8885a9a6f42ee",
+          "source_sha256": "4fe51c0d62ad24bb3c1cc2b7af53a96a93b07ba2744ec1314591b6e79d7079c9",
+          "status": "Success",
+          "phase": "link",
+          "verification_runs": 1,
+          "backend": "llvm-api",
+          "pipeline": "default<O2>",
+          "input_kind": "builder",
+          "verify_before_after": true,
+          "fallback": null,
+          "exit": "Some(0)",
+          "stdout": "A",
+          "stderr": ""
+        },
+        {
+          "archive_directory": "final-generation/raw/composition222-224-pop-163-3",
+          "compile_report_sha256": "f2c52127187dda9cb03530ad3d5030fe83b10086530f3f25cb959b6cf6d8f743",
+          "source_sha256": "4d32e52759e1c179a950ff8283041ef2166220cc36b59213c677144e2995bf0e",
+          "status": "SafeReject",
+          "phase": "verify",
+          "verification_runs": 1,
+          "diagnostic_codes": [
+            "E-BORROW-CONFLICT"
+          ]
+        },
+        {
+          "archive_directory": "final-generation/raw/composition222-224-push-163-2",
+          "compile_report_sha256": "2505723e67f06caeb504f2e9d5295c48253d054654a76c3184b76bb5a1fb6aca",
+          "source_sha256": "0ff8b22e8b2bbfbe9263fc7ea69bf45f8f5454e2ce7d3b458606af979a96dc01",
+          "status": "SafeReject",
+          "phase": "verify",
+          "verification_runs": 1,
+          "diagnostic_codes": [
+            "E-BORROW-CONFLICT"
+          ]
+        },
+        {
+          "archive_directory": "final-generation/raw/composition222-224-reserve-163-1",
+          "compile_report_sha256": "9f104174f73ae260963919b516629f9e0d47e149de3b09c16c303864141a11c8",
+          "source_sha256": "b7d1390fd0f79b7b660225c23e8caa4de5ce60a6ac4e76a701fc968750288153",
+          "status": "SafeReject",
+          "phase": "verify",
+          "verification_runs": 1,
+          "diagnostic_codes": [
+            "E-BORROW-CONFLICT"
+          ]
+        }
+      ]
+    },
+    "counting": "19 and 132 overlap and are never summed as new coverage. The prior independent 10 Rust tests / 60 machine executions / 34 real allocation failures remain bound to aef; this supplemental review does not claim rerunning them on 4d7bbb."
+  },
+  "execution_accounting": {
+    "new_compiler_invocations_by_this_supplement": 0,
+    "new_rust_test_runs_by_this_supplement": 0,
+    "new_native_runs_by_this_supplement": 0,
+    "static_checks_performed": [
+      "Committed-byte production comparisons",
+      "Normative per-file and aggregate digest reconstruction",
+      "Unchanged prior receipt/archive/frozen-input verification",
+      "Retained test migration and assertion review",
+      "Root exact-candidate command/log/archive inspection"
+    ]
+  },
+  "limitations": [
+    "Full GitHub workspace acceptance is pending and remains the integration owner’s gate.",
+    "This verdict is restricted to finite synchronous Product Store integration; it does not independently certify 222, 224, full language 1.4, B0/181, ZUI or product gates.",
+    "No new Windows, asynchronous/concurrent or Rust comparative runtime/memory/compile-cost evidence.",
+    "Source-materialization repair effects outside the retained Store composition are handled by 222 review and root full-workspace validation."
+  ]
+}
