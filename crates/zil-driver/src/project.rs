@@ -218,7 +218,11 @@ impl CompilationSession {
             return Ok(());
         }
         let imports = resolve_imports(project, &parsed, &options.limits)?;
-        let selection_needed = project.modules.iter().zip(&parsed).any(|(source, parsed)| super::ct_selection::needed(source, parsed));
+        let selection_needed = project
+            .modules
+            .iter()
+            .zip(&parsed)
+            .any(|(source, parsed)| super::ct_selection::needed(source, parsed));
         let (raw, expand_snapshot) = self.query(
             key(Phase::Expand, selection_needed),
             &dependencies,
@@ -230,9 +234,21 @@ impl CompilationSession {
                 let mut maps = Vec::new();
                 let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
                 let selected = if selection_needed {
-                    Some(super::ct_selection::select(&project.modules, &syntax, &imports, project.root, fingerprint, &options.target, &options.limits)?)
-                } else { None };
-                let materialized = selected.as_ref().map(|selected| selected.modules.iter().collect::<Vec<_>>());
+                    Some(super::ct_selection::select(
+                        &project.modules,
+                        &syntax,
+                        &imports,
+                        project.root,
+                        fingerprint,
+                        &options.target,
+                        &options.limits,
+                    )?)
+                } else {
+                    None
+                };
+                let materialized = selected
+                    .as_ref()
+                    .map(|selected| selected.modules.iter().collect::<Vec<_>>());
                 let syntax = materialized.as_deref().unwrap_or(&syntax);
                 for (module, map) in zil_expand::expand_program_with_limits(
                     &project.modules,
@@ -250,7 +266,10 @@ impl CompilationSession {
                         modules,
                     },
                     maps,
-                    selection: selected.map_or_else(super::ct_selection::Receipt::default, |selected| selected.receipt),
+                    selection: selected
+                        .map_or_else(super::ct_selection::Receipt::default, |selected| {
+                            selected.receipt
+                        }),
                 })))
             },
         )?;
@@ -266,7 +285,9 @@ impl CompilationSession {
             format!("{:#?}", expanded.maps)
         })?;
         if selection_needed {
-            artifacts.dump_lazy(report, options, "selection", |_| expanded.selection.to_json())?;
+            artifacts.dump_lazy(report, options, "selection", |_| {
+                expanded.selection.to_json()
+            })?;
         }
         if options.stop_after == Stage::Core {
             return Ok(());

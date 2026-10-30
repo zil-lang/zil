@@ -263,16 +263,30 @@ impl CompilationSession {
             || {
                 let selected = if selection_needed {
                     Some(super::ct_selection::select(
-                        std::slice::from_ref(source), &[&parsed.module], &[Vec::new()],
-                        source.module_id, source.fingerprint(), &options.target, &options.limits,
+                        std::slice::from_ref(source),
+                        &[&parsed.module],
+                        &[Vec::new()],
+                        source.module_id,
+                        source.fingerprint(),
+                        &options.target,
+                        &options.limits,
                     )?)
-                } else { None };
-                let syntax = selected.as_ref().map_or(&parsed.module, |selected| &selected.modules[0]);
+                } else {
+                    None
+                };
+                let syntax = selected
+                    .as_ref()
+                    .map_or(&parsed.module, |selected| &selected.modules[0]);
                 let expanded = zil_expand::expand_with_map_limits(source, syntax, &options.limits)?;
-                expanded.source_map.validate(std::slice::from_ref(source), &options.limits)?;
+                expanded
+                    .source_map
+                    .validate(std::slice::from_ref(source), &options.limits)?;
                 Ok(RawSnapshot::Expanded(Arc::new(ExpandedSource {
                     module: expanded,
-                    selection: selected.map_or_else(super::ct_selection::Receipt::default, |selected| selected.receipt),
+                    selection: selected
+                        .map_or_else(super::ct_selection::Receipt::default, |selected| {
+                            selected.receipt
+                        }),
                 })))
             },
         )?;
@@ -289,7 +303,9 @@ impl CompilationSession {
             format!("{:#?}", expanded.module.source_map)
         })?;
         if selection_needed {
-            artifacts.dump_lazy(report, options, "selection", |_| expanded.selection.to_json())?;
+            artifacts.dump_lazy(report, options, "selection", |_| {
+                expanded.selection.to_json()
+            })?;
         }
         if options.stop_after == Stage::Core {
             return Ok(());
