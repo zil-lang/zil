@@ -1,0 +1,11 @@
+{
+  "source_directory": "/workspace/scratch/4ab361722127/recovery/cp26-independent",
+  "archive": "cp26-independent.tar.xz",
+  "files": 35,
+  "source_bytes": 60216,
+  "archive_bytes": 12144,
+  "sha256": "e2c1d360f5a09ffea5d696a363916a1b82579054fa6dda603efc269b9b26813e",
+  "git_blob_sha": "d2f1fb79cc9921b9cb72521325c29cfa401ef69b",
+  "verification": "Every tar entry decoded and byte-compared with the source; all source files retained",
+  "retention": "Completed and incomplete windows remain distinguishable by their original receipts and logs"
+}

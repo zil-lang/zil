@@ -1,0 +1,40 @@
+{
+  "schema": "zil-compile-performance/2",
+  "plan_sha256": "e1814bf4251dd2f7a4fb60f2a633784cea3ea0cf458bbc27fd4b76f55b90e8a0",
+  "records_sha256": "5ec824cb1a83dd2c73608aa423496fdf020fa971f6b7026b8181f5a193f11c62",
+  "source_identity": {
+    "A": {
+      "commit": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+      "crates_tree": "b583bc62e4aa39b206afb27f76f2f8262120fe9d"
+    },
+    "B": {
+      "commit": "4496b1ab6c62ff1131dfbe4e09b33467f346099c",
+      "crates_tree": "96d1fd21ba1e1ccbd1b9418d7a62c555875445d6"
+    }
+  },
+  "selected_cases": [
+    "tree4x2",
+    "tree32x8",
+    "tree256x8",
+    "tree1024x8",
+    "retained"
+  ],
+  "selected_original_weight": 1.0,
+  "phases": [
+    "build"
+  ],
+  "rows": 240,
+  "coverage_complete": true,
+  "failures": [
+    57,
+    58
+  ],
+  "completion_receipt_matches": false,
+  "preflight_matches": true,
+  "native_checks": 762,
+  "scope": "Full CLI new process per request; source candidates reused within each four-request sequence; OS page cache not flushed; not a persistent-session benchmark",
+  "product_gates": "NotRun",
+  "independent_review": "NotRun",
+  "by_phase": {},
+  "verdict": "IncompleteOrFailed_NoScore"
+}

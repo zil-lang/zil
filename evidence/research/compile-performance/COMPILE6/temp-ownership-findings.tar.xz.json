@@ -1,0 +1,11 @@
+{
+  "source_directory": "/workspace/scratch/4ab361722127/recovery/collision-evidence",
+  "archive": "temp-ownership-findings.tar.xz",
+  "files": 48,
+  "source_bytes": 77072,
+  "archive_bytes": 12008,
+  "sha256": "cc5dbe31476dbbd99e6f1f534e05e919872b9125ba59cd0a397488d4b5c6dce4",
+  "git_blob_sha": "94cc13025151999b5f98b06a81a03078053b2d23",
+  "verification": "Every tar entry decoded and byte-compared with the source; all source files retained",
+  "retention": "Completed and incomplete windows remain distinguishable by their original receipts and logs"
+}

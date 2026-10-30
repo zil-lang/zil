@@ -1,0 +1,4308 @@
+{
+  "schema": "compile6-old-downloads-invalidation-v1",
+  "started_unix": 1793384519.0940495,
+  "finished_unix": 1793384519.2755325,
+  "time_utc": "2026-10-30T18:21:59Z",
+  "plan_path": "/tmp/zil-review/compile6-old-downloads-plan.json",
+  "plan_sha256": "d6c6516d54db115982ef9acd316bcbbbc3a4e8cb6aacf667bef05f22ef7f2ab3",
+  "reason": "Prior unlink succeeded within its exec but all 162 paths were re-materialized with new inode/ctime and original content. Authorized replacement is ftruncate(0), retaining paths, to invalidate reconstructible caches.",
+  "scope": "Exactly the same 5 official Rust installation archives and 157 duplicate extracted payload files; O_NOFOLLOW, regular files, no shared/protected inodes.",
+  "future_use": "These files are now intentionally empty invalid caches. A future installation must re-download archives and re-extract payloads before use. Official hash manifests, component manifests, installer metadata and installation receipts remain intact.",
+  "files": [
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu.tar.xz",
+      "before": {
+        "dev": 27,
+        "inode": 1360917,
+        "mode": 33188,
+        "size": 84098960,
+        "mtime_ns": 1793342793024738633,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 164264,
+        "symlink": false
+      },
+      "verified_original_sha256": "2ff05ff9c08a90861e7f6e4065b40a8b87463b4576186fd613871c3e37f2091f",
+      "after": {
+        "dev": 27,
+        "inode": 1360917,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519093441873,
+        "ctime_ns": 1793384519093441873,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu.tar.xz",
+      "before": {
+        "dev": 27,
+        "inode": 1360916,
+        "mode": 33188,
+        "size": 31563228,
+        "mtime_ns": 1793342792341573054,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 61648,
+        "symlink": false
+      },
+      "verified_original_sha256": "109b074225bf5b9ea3820890876bfdf4ed161adbfaf94b2b4b5984c85ee5d958",
+      "after": {
+        "dev": 27,
+        "inode": 1360916,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519093441873,
+        "ctime_ns": 1793384519093441873,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu.tar.xz",
+      "before": {
+        "dev": 27,
+        "inode": 1360913,
+        "mode": 33188,
+        "size": 10954816,
+        "mtime_ns": 1793342791748743719,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 21400,
+        "symlink": false
+      },
+      "verified_original_sha256": "53f3521949404d595efb06a55c12c5658d4ed1c75566f33d3d514eaebe70bd8a",
+      "after": {
+        "dev": 27,
+        "inode": 1360913,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519093441873,
+        "ctime_ns": 1793384519093441873,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustfmt-1.99.1-x86_64-unknown-linux-gnu.tar.xz",
+      "before": {
+        "dev": 27,
+        "inode": 1360918,
+        "mode": 33188,
+        "size": 2488800,
+        "mtime_ns": 1793342792420741040,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 4864,
+        "symlink": false
+      },
+      "verified_original_sha256": "e3b36c4c7ec3486c059d8067ff48787676612007123aad7a4e8ec12c48ee9ba2",
+      "after": {
+        "dev": 27,
+        "inode": 1360918,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519093441873,
+        "ctime_ns": 1793384519093441873,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/clippy-1.99.1-x86_64-unknown-linux-gnu.tar.xz",
+      "before": {
+        "dev": 27,
+        "inode": 1360915,
+        "mode": 33188,
+        "size": 5254436,
+        "mtime_ns": 1793342792728739813,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 10264,
+        "symlink": false
+      },
+      "verified_original_sha256": "458339712a058e52cc4522ff9ef8b59cd1ea1340312216cd94194c464a3f6dc5",
+      "after": {
+        "dev": 27,
+        "inode": 1360915,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519093441873,
+        "ctime_ns": 1793384519093441873,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/librustc_driver-7ed0375ae352bd75.so",
+      "before": {
+        "dev": 27,
+        "inode": 1557168,
+        "mode": 33188,
+        "size": 158240640,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 309072,
+        "symlink": false
+      },
+      "verified_original_sha256": "5a2cd52edba7d15f8d898b92a912638f5b73a089c7c1bfde5604ab45665602c7",
+      "after": {
+        "dev": 27,
+        "inode": 1557168,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519105441810,
+        "ctime_ns": 1793384519105441810,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/libLLVM.so.23.1-rust-1.99.1-stable",
+      "before": {
+        "dev": 27,
+        "inode": 1557169,
+        "mode": 33188,
+        "size": 208167760,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 406592,
+        "symlink": false
+      },
+      "verified_original_sha256": "1cfbe1392a767227b88b33ab6187283e281c63f80f9b1ca9010d9cee5fdf9131",
+      "after": {
+        "dev": 27,
+        "inode": 1557169,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519119785676,
+        "ctime_ns": 1793384519119785676,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/libLLVM-23-rust-1.99.1-stable.so",
+      "before": {
+        "dev": 27,
+        "inode": 1557171,
+        "mode": 33188,
+        "size": 42,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "ed06fbed8d297efa92979aeb227a4ce5b87b1a462d0aeac66d093300fad74824",
+      "after": {
+        "dev": 27,
+        "inode": 1557171,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519119785676,
+        "ctime_ns": 1793384519119785676,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/bin/rustdoc",
+      "before": {
+        "dev": 27,
+        "inode": 1557174,
+        "mode": 33261,
+        "size": 12570304,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 24552,
+        "symlink": false
+      },
+      "verified_original_sha256": "832e53ca262db3d3fcaca659dc6e71f0f5a924a48adc580ee4278acac75f3e80",
+      "after": {
+        "dev": 27,
+        "inode": 1557174,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519119785676,
+        "ctime_ns": 1793384519119785676,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/bin/rust-gdb",
+      "before": {
+        "dev": 27,
+        "inode": 1557179,
+        "mode": 33261,
+        "size": 1413,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "7054a508ece38b5bb81860e8ddbcd62021fab6432026789970ebbba8b84f6163",
+      "after": {
+        "dev": 27,
+        "inode": 1557179,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519119785676,
+        "ctime_ns": 1793384519119785676,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/bin/rustc",
+      "before": {
+        "dev": 27,
+        "inode": 1557175,
+        "mode": 33261,
+        "size": 648536,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 1272,
+        "symlink": false
+      },
+      "verified_original_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+      "after": {
+        "dev": 27,
+        "inode": 1557175,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519119785676,
+        "ctime_ns": 1793384519119785676,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/bin/rust-gdbgui",
+      "before": {
+        "dev": 27,
+        "inode": 1557177,
+        "mode": 33261,
+        "size": 2160,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "bc60613775a098e59b49fa4584cea73631697fe1456c44284c337d6700340315",
+      "after": {
+        "dev": 27,
+        "inode": 1557177,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519119785676,
+        "ctime_ns": 1793384519119785676,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/bin/rust-lldb",
+      "before": {
+        "dev": 27,
+        "inode": 1557176,
+        "mode": 33261,
+        "size": 961,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "a82c91ccb285aa4a1dbcf08cda68ba4e8c36082af0adfefdee514673113815da",
+      "after": {
+        "dev": 27,
+        "inode": 1557176,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519119785676,
+        "ctime_ns": 1793384519119785676,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/etc/target-spec-json-schema.json",
+      "before": {
+        "dev": 27,
+        "inode": 1557173,
+        "mode": 33188,
+        "size": 26052,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 56,
+        "symlink": false
+      },
+      "verified_original_sha256": "7ee855fe4db0f10ee4aa31e20aafa47f47c0a0e499022c7474d9d349d0b91fdd",
+      "after": {
+        "dev": 27,
+        "inode": 1557173,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519119785676,
+        "ctime_ns": 1793384519119785676,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/libexec/rust-analyzer-proc-macro-srv",
+      "before": {
+        "dev": 27,
+        "inode": 1557150,
+        "mode": 33261,
+        "size": 1576328,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 3080,
+        "symlink": false
+      },
+      "verified_original_sha256": "47fcf7b25469b952f94ce7db60488eba16e9fa93900a9b059f96d47d4efa5848",
+      "after": {
+        "dev": 27,
+        "inode": 1557150,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519119785676,
+        "ctime_ns": 1793384519119785676,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/etc/gdb_load_rust_pretty_printers.py",
+      "before": {
+        "dev": 27,
+        "inode": 1557167,
+        "mode": 33188,
+        "size": 504,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "a32e7857651bc7ed7c52dfc71131cbbea01a5cd1886399876032c4de60fa4886",
+      "after": {
+        "dev": 27,
+        "inode": 1557167,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519119785676,
+        "ctime_ns": 1793384519119785676,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/etc/lldb_lookup.py",
+      "before": {
+        "dev": 27,
+        "inode": 1557163,
+        "mode": 33188,
+        "size": 17524,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 40,
+        "symlink": false
+      },
+      "verified_original_sha256": "183b7ad0118b2f27e713dfaf4052908ddc6bd50544e724725112d1ae4291fa4b",
+      "after": {
+        "dev": 27,
+        "inode": 1557163,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519119785676,
+        "ctime_ns": 1793384519119785676,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/etc/lldb_providers.py",
+      "before": {
+        "dev": 27,
+        "inode": 1557162,
+        "mode": 33188,
+        "size": 54408,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 112,
+        "symlink": false
+      },
+      "verified_original_sha256": "79b6372863088b358db4a386655cedfad77c6d7af4abbc91d280fea7f6ecff20",
+      "after": {
+        "dev": 27,
+        "inode": 1557162,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/etc/rust_types.py",
+      "before": {
+        "dev": 27,
+        "inode": 1557161,
+        "mode": 33188,
+        "size": 4232,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "e1bb4a46461b943999c9e2346c71808168a982cbf812587622d9c807f32d5bb5",
+      "after": {
+        "dev": 27,
+        "inode": 1557161,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/etc/gdb_providers.py",
+      "before": {
+        "dev": 27,
+        "inode": 1557164,
+        "mode": 33188,
+        "size": 16984,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 40,
+        "symlink": false
+      },
+      "verified_original_sha256": "cb65879ac99f0b654035e3d8ba7504608c00f428db495dad517876a6f9b05034",
+      "after": {
+        "dev": 27,
+        "inode": 1557164,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/etc/gdb_lookup.py",
+      "before": {
+        "dev": 27,
+        "inode": 1557165,
+        "mode": 33188,
+        "size": 3833,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "e0b68235a6c2874ef24922e2cd903baf91b258b9590a60ab8779b989d84927ae",
+      "after": {
+        "dev": 27,
+        "inode": 1557165,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-objcopy",
+      "before": {
+        "dev": 27,
+        "inode": 1557158,
+        "mode": 33261,
+        "size": 296120,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 584,
+        "symlink": false
+      },
+      "verified_original_sha256": "973f626f5994c4983b23bbe68e8703d76635fa06679753f5f703f2bb829d4268",
+      "after": {
+        "dev": 27,
+        "inode": 1557158,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/x86_64-unknown-linux-gnu/bin/wasm-component-ld",
+      "before": {
+        "dev": 27,
+        "inode": 1557157,
+        "mode": 33261,
+        "size": 5221440,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 10200,
+        "symlink": false
+      },
+      "verified_original_sha256": "394fad5b002e16eac8cead786ce083049e569785e72d4bc8b2eddfd21b389d85",
+      "after": {
+        "dev": 27,
+        "inode": 1557157,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "before": {
+        "dev": 27,
+        "inode": 1557160,
+        "mode": 33261,
+        "size": 11879600,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 23216,
+        "symlink": false
+      },
+      "verified_original_sha256": "9b6f51f983a8184f5d47d224e336cdb35171ad5b138981bc62a22e6d65e7b214",
+      "after": {
+        "dev": 27,
+        "inode": 1557160,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/wasm-ld",
+      "before": {
+        "dev": 27,
+        "inode": 1557151,
+        "mode": 33261,
+        "size": 371248,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 728,
+        "symlink": false
+      },
+      "verified_original_sha256": "ce0c705ade118b0de51c877112f08b312341a0e4127c057b77302748c7ce424d",
+      "after": {
+        "dev": 27,
+        "inode": 1557151,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/lld-link",
+      "before": {
+        "dev": 27,
+        "inode": 1557152,
+        "mode": 33261,
+        "size": 371248,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 728,
+        "symlink": false
+      },
+      "verified_original_sha256": "ce0c705ade118b0de51c877112f08b312341a0e4127c057b77302748c7ce424d",
+      "after": {
+        "dev": 27,
+        "inode": 1557152,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/ld.lld",
+      "before": {
+        "dev": 27,
+        "inode": 1557156,
+        "mode": 33261,
+        "size": 371248,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 728,
+        "symlink": false
+      },
+      "verified_original_sha256": "ce0c705ade118b0de51c877112f08b312341a0e4127c057b77302748c7ce424d",
+      "after": {
+        "dev": 27,
+        "inode": 1557156,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/ld64.lld",
+      "before": {
+        "dev": 27,
+        "inode": 1557153,
+        "mode": 33261,
+        "size": 371248,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 728,
+        "symlink": false
+      },
+      "verified_original_sha256": "ce0c705ade118b0de51c877112f08b312341a0e4127c057b77302748c7ce424d",
+      "after": {
+        "dev": 27,
+        "inode": 1557153,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/COPYRIGHT-library.html",
+      "before": {
+        "dev": 27,
+        "inode": 1557146,
+        "mode": 33188,
+        "size": 1499465,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 2936,
+        "symlink": false
+      },
+      "verified_original_sha256": "5647be074c8edf7339fd863055923a8fc80bc5610a8d4661ec3b767b9d392c27",
+      "after": {
+        "dev": 27,
+        "inode": 1557146,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/README.md",
+      "before": {
+        "dev": 27,
+        "inode": 1556697,
+        "mode": 33188,
+        "size": 3304,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "b3f6ef2fef88b98cb9ec013a5c86213095e53e40eb228679574e4d06517f33c8",
+      "after": {
+        "dev": 27,
+        "inode": 1556697,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/COPYRIGHT.html",
+      "before": {
+        "dev": 27,
+        "inode": 1556724,
+        "mode": 33188,
+        "size": 14423589,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 28184,
+        "symlink": false
+      },
+      "verified_original_sha256": "d518ae2d76bc7a1f0cbf0069b8deafb56efc39c2614cab74a859ef0b467f8373",
+      "after": {
+        "dev": 27,
+        "inode": 1556724,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/licenses/CC-BY-SA-4.0.txt",
+      "before": {
+        "dev": 27,
+        "inode": 1964364,
+        "mode": 33188,
+        "size": 20137,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 40,
+        "symlink": false
+      },
+      "verified_original_sha256": "23ee78c8bae49cf08ea2f0c84945c66b987ebe4520881fb51b3dad4fb43d07c2",
+      "after": {
+        "dev": 27,
+        "inode": 1964364,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/licenses/Apache-2.0.txt",
+      "before": {
+        "dev": 27,
+        "inode": 1556673,
+        "mode": 33188,
+        "size": 10280,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 24,
+        "symlink": false
+      },
+      "verified_original_sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
+      "after": {
+        "dev": 27,
+        "inode": 1556673,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519121441726,
+        "ctime_ns": 1793384519121441726,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/licenses/GCC-exception-3.1.txt",
+      "before": {
+        "dev": 27,
+        "inode": 884691,
+        "mode": 33188,
+        "size": 3320,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "a3966c9410ef94a1efbfa9ec04e9c1994026a70623fbf0885ce36737bfba3b54",
+      "after": {
+        "dev": 27,
+        "inode": 884691,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/licenses/BSD-2-Clause.txt",
+      "before": {
+        "dev": 27,
+        "inode": 1556628,
+        "mode": 33188,
+        "size": 1267,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "f32fb3b417a194167cfad068223fc975ba96c5960513a10f66a3c28720aec1df",
+      "after": {
+        "dev": 27,
+        "inode": 1556628,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/licenses/GPL-2.0-only.txt",
+      "before": {
+        "dev": 27,
+        "inode": 884672,
+        "mode": 33188,
+        "size": 17642,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 40,
+        "symlink": false
+      },
+      "verified_original_sha256": "54b212ba1f97f6948fa5486239ab505dd820b02e50cbfd296b4062c8609a70af",
+      "after": {
+        "dev": 27,
+        "inode": 884672,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/licenses/NCSA.txt",
+      "before": {
+        "dev": 27,
+        "inode": 884654,
+        "mode": 33188,
+        "size": 1676,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "39cb0234065c92b9e6cee3830cbb52b1aa289aa8fe9ba2e66730fec5cf05c630",
+      "after": {
+        "dev": 27,
+        "inode": 884654,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/licenses/ISC.txt",
+      "before": {
+        "dev": 27,
+        "inode": 884659,
+        "mode": 33188,
+        "size": 730,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "0ff61769b238634e042ab759dddfd104a8e69d091e3600ae3410e401a6164381",
+      "after": {
+        "dev": 27,
+        "inode": 884659,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/licenses/MIT.txt",
+      "before": {
+        "dev": 27,
+        "inode": 884655,
+        "mode": 33188,
+        "size": 1078,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0",
+      "after": {
+        "dev": 27,
+        "inode": 884655,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/licenses/GPL-3.0-or-later.txt",
+      "before": {
+        "dev": 27,
+        "inode": 884660,
+        "mode": 33188,
+        "size": 34795,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 72,
+        "symlink": false
+      },
+      "verified_original_sha256": "05315fce6c35f79b8a35454828995fa26336f235895ac64557abc028f4ffcea2",
+      "after": {
+        "dev": 27,
+        "inode": 884660,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/licenses/Unicode-3.0.txt",
+      "before": {
+        "dev": 27,
+        "inode": 884652,
+        "mode": 33188,
+        "size": 1995,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "f5062c9a188d81dfe66b56db4182dcf9e4b17c0d9b0d311a8e20b3a1b075c443",
+      "after": {
+        "dev": 27,
+        "inode": 884652,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/licenses/OFL-1.1.txt",
+      "before": {
+        "dev": 27,
+        "inode": 884653,
+        "mode": 33188,
+        "size": 4016,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "8eea8287e5876b539670cadb82e99f9a7afddec6f6730811be1daf25d2e9bcfd",
+      "after": {
+        "dev": 27,
+        "inode": 884653,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/doc/rust/licenses/LLVM-exception.txt",
+      "before": {
+        "dev": 27,
+        "inode": 884656,
+        "mode": 33188,
+        "size": 919,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "e34c58338bd89d43e709e226610d8f32b3e3c47f4ad9a99a8dc1d4ac7842488e",
+      "after": {
+        "dev": 27,
+        "inode": 884656,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/man/man1/rustc.1",
+      "before": {
+        "dev": 27,
+        "inode": 884645,
+        "mode": 33188,
+        "size": 9177,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 24,
+        "symlink": false
+      },
+      "verified_original_sha256": "e7addf9322a2b6f309385d485b16240d6e0145040301ea2c7504c773355eeba8",
+      "after": {
+        "dev": 27,
+        "inode": 884645,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustc-1.99.1-x86_64-unknown-linux-gnu/rustc/share/man/man1/rustdoc.1",
+      "before": {
+        "dev": 27,
+        "inode": 884643,
+        "mode": 33188,
+        "size": 3609,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "6e4c831240fa837219e4d5716da670f8c962ae3139e433579edca3adfbc9dcd2",
+      "after": {
+        "dev": 27,
+        "inode": 884643,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libcompiler_builtins-2d9557d6e902a200.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557265,
+        "mode": 33188,
+        "size": 4612378,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 9016,
+        "symlink": false
+      },
+      "verified_original_sha256": "a98391e40d69b94b5d63d4c4dcfcfa76612688ba93e93acd8c9f5e23232dc2b6",
+      "after": {
+        "dev": 27,
+        "inode": 1557265,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libmemchr-e57d23b4cf2c7093.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557253,
+        "mode": 33188,
+        "size": 425658,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 832,
+        "symlink": false
+      },
+      "verified_original_sha256": "5fe7ac19bee9008929af78844623ba80aef51ff40c0144c50085dd0399b4c84f",
+      "after": {
+        "dev": 27,
+        "inode": 1557253,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd-7e719de9c4abc98f.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557189,
+        "mode": 33188,
+        "size": 7768332,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 15176,
+        "symlink": false
+      },
+      "verified_original_sha256": "46c7a0a3626c5ed88986058f8d9fb4d312526c441feaffed0ed375b2073b2466",
+      "after": {
+        "dev": 27,
+        "inode": 1557189,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libminiz_oxide-4ee1421476c1c513.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557250,
+        "mode": 33188,
+        "size": 140141,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 280,
+        "symlink": false
+      },
+      "verified_original_sha256": "62205ba0666ad889eff95ecacdab5b7214ef4358f16ca572bfe2a2678e801a7a",
+      "after": {
+        "dev": 27,
+        "inode": 1557250,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_alloc-e4d7e1d94de777fa.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557212,
+        "mode": 33188,
+        "size": 5544,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "c5d6935e127a89b363ea265e09c5559dd039676da6dec6aac0e81ac47d1e6248",
+      "after": {
+        "dev": 27,
+        "inode": 1557212,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/liballoc-3988244237fec6ee.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557268,
+        "mode": 33188,
+        "size": 8803290,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 17200,
+        "symlink": false
+      },
+      "verified_original_sha256": "92fa3a38f8b43981aeb810e6be09f9b0a66f38439272f8ee1b7ddb832a8aa065",
+      "after": {
+        "dev": 27,
+        "inode": 1557268,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libaddr2line-b2546485fb156a81.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557274,
+        "mode": 33188,
+        "size": 28810,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 64,
+        "symlink": false
+      },
+      "verified_original_sha256": "b92a365bcad231e218121951e4761a962cb3a47cdbdfda527dc2e6f337f564ec",
+      "after": {
+        "dev": 27,
+        "inode": 1557274,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.safestack.a",
+      "before": {
+        "dev": 27,
+        "inode": 1557234,
+        "mode": 33188,
+        "size": 28554,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 56,
+        "symlink": false
+      },
+      "verified_original_sha256": "4759b5ca604104d6909d3c0966edb783494c473db3ed0c67796644aa9b18c06e",
+      "after": {
+        "dev": 27,
+        "inode": 1557234,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libprofiler_builtins-1eed01feea74fabd.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557240,
+        "mode": 33188,
+        "size": 1354,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "3600990ea9b84a79941af31b212383004dacd656f6a6030c212c157ecd8af967",
+      "after": {
+        "dev": 27,
+        "inode": 1557240,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libhashbrown-bd00bf133bcf4229.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557256,
+        "mode": 33188,
+        "size": 1733007,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 3392,
+        "symlink": false
+      },
+      "verified_original_sha256": "ad0c77a408d20acc61c380aa60380d895759b0e6c8de69560986b38771f91198",
+      "after": {
+        "dev": 27,
+        "inode": 1557256,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libcompiler_builtins-2d9557d6e902a200.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557264,
+        "mode": 33188,
+        "size": 2059762,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 4024,
+        "symlink": false
+      },
+      "verified_original_sha256": "9462f23a8789d047933fc26cbdff2172961ee5c9bf994690b196ff9c3de5a5cf",
+      "after": {
+        "dev": 27,
+        "inode": 1557264,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libhashbrown-bd00bf133bcf4229.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557257,
+        "mode": 33188,
+        "size": 42400,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 88,
+        "symlink": false
+      },
+      "verified_original_sha256": "0851a5f28052a130ebb3a757e6de31c880bd493c47ad32a76d7a6ad57f6d427c",
+      "after": {
+        "dev": 27,
+        "inode": 1557257,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd-7e719de9c4abc98f.so",
+      "before": {
+        "dev": 27,
+        "inode": 1557188,
+        "mode": 33261,
+        "size": 2859784,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 5592,
+        "symlink": false
+      },
+      "verified_original_sha256": "a6542f0e553640385e5dbe14978e82547127e157a7d260d03d23189cf73c906c",
+      "after": {
+        "dev": 27,
+        "inode": 1557188,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libprofiler_builtins-1eed01feea74fabd.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557241,
+        "mode": 33188,
+        "size": 499856,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 984,
+        "symlink": false
+      },
+      "verified_original_sha256": "d0c0c0625e5ef7023bce42c37178b1d6959d8191ddbd08f95ecbbc7f963aa22f",
+      "after": {
+        "dev": 27,
+        "inode": 1557241,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libsysroot-22c4bd49b12831db.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557184,
+        "mode": 33188,
+        "size": 2250,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "7d10e6646430e6f18593a1428439079df8f05fa78e1450b5b360d809f5d11d38",
+      "after": {
+        "dev": 27,
+        "inode": 1557184,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libminiz_oxide-4ee1421476c1c513.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557251,
+        "mode": 33188,
+        "size": 114206,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 224,
+        "symlink": false
+      },
+      "verified_original_sha256": "1c2cac3d6b897ebabffd00bd8104020f77566932f40257f344258e1e6031814c",
+      "after": {
+        "dev": 27,
+        "inode": 1557251,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libunwind-87f8da15080ba246.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557180,
+        "mode": 33188,
+        "size": 20158,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 40,
+        "symlink": false
+      },
+      "verified_original_sha256": "a23dac32843307a2afb45bfb864817d596bd184a2a29d7aadc600f628401fe84",
+      "after": {
+        "dev": 27,
+        "inode": 1557180,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libsysroot-22c4bd49b12831db.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557185,
+        "mode": 33188,
+        "size": 5356,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "1e6ef82108df796bb91a414d42d9943cf0830e0e847ace39fbdc64f35f5e1643",
+      "after": {
+        "dev": 27,
+        "inode": 1557185,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libobject-9ab214bf508f4fb2.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557249,
+        "mode": 33188,
+        "size": 276552,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 544,
+        "symlink": false
+      },
+      "verified_original_sha256": "88eceffaef2d7006f2b47252107d2b257eacbb1fe8ad0c641200c21774bb1bb3",
+      "after": {
+        "dev": 27,
+        "inode": 1557249,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libgimli-a024a39c5ca178d0.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557258,
+        "mode": 33188,
+        "size": 5942440,
+        "mtime_ns": 1793342792556740498,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 11608,
+        "symlink": false
+      },
+      "verified_original_sha256": "fcb2f1c6f19201fd77e2ccc7857ebd6d3a46ab56c9939a8b27e0f67a9fb1ba44",
+      "after": {
+        "dev": 27,
+        "inode": 1557258,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_std-5437dec005526111.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557191,
+        "mode": 33188,
+        "size": 7186,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "475bebec064fcd80468d899be7362e31ff92072917beed19be7e142bd34a001c",
+      "after": {
+        "dev": 27,
+        "inode": 1557191,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_core-fb3f24e4abf4be88.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557208,
+        "mode": 33188,
+        "size": 6113,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "a25350da83feb41b7746e08a8dd337f1b8d44b2035067fe03c16f05d8b3d24a9",
+      "after": {
+        "dev": 27,
+        "inode": 1557208,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libcfg_if-77a19c181a6f6522.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557266,
+        "mode": 33188,
+        "size": 5530,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "47a8cc35d0e9288f5b737703a0ae5a143cfffa7bd09a53692e9d79073a1075dd",
+      "after": {
+        "dev": 27,
+        "inode": 1557266,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.asan.a",
+      "before": {
+        "dev": 27,
+        "inode": 1557239,
+        "mode": 33188,
+        "size": 3675706,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 7184,
+        "symlink": false
+      },
+      "verified_original_sha256": "b7cfb860c2bc7906d5db4b1258da3943a8d1bb6fa21a1df43af5d3c7292e0f16",
+      "after": {
+        "dev": 27,
+        "inode": 1557239,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_demangle-23edf219dcb73297.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557230,
+        "mode": 33188,
+        "size": 92745,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 184,
+        "symlink": false
+      },
+      "verified_original_sha256": "eb1566de09f4d2c5566f4cf4242e5d81516667483a2d89418cedfb112eb7d6a9",
+      "after": {
+        "dev": 27,
+        "inode": 1557230,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_std-5437dec005526111.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557206,
+        "mode": 33188,
+        "size": 5516,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "276cd7b63b156775ef64c994c450bceaaa0a18ddb0a7009d35c68ea72be127c6",
+      "after": {
+        "dev": 27,
+        "inode": 1557206,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libcore-1d288395a3394ed3.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557263,
+        "mode": 33188,
+        "size": 3142652,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 6144,
+        "symlink": false
+      },
+      "verified_original_sha256": "b346ce2305e13b1a5ec9ab6e093028caee38227c540cdaf78d7b253f59ae5913",
+      "after": {
+        "dev": 27,
+        "inode": 1557263,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.ubsan.a",
+      "before": {
+        "dev": 27,
+        "inode": 1557232,
+        "mode": 33188,
+        "size": 1079836,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 2112,
+        "symlink": false
+      },
+      "verified_original_sha256": "9697096312e9a6139102cd763e3f39789267240ac419cbe9de735030a9208fa3",
+      "after": {
+        "dev": 27,
+        "inode": 1557232,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.dfsan.a",
+      "before": {
+        "dev": 27,
+        "inode": 1557238,
+        "mode": 33188,
+        "size": 1190740,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 2328,
+        "symlink": false
+      },
+      "verified_original_sha256": "33b00d043c34388e49202e43294864adb3dcccd67b8f22fdd574220aada35a36",
+      "after": {
+        "dev": 27,
+        "inode": 1557238,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/liblibc-6cf0fcd942b0e793.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557255,
+        "mode": 33188,
+        "size": 32534,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 64,
+        "symlink": false
+      },
+      "verified_original_sha256": "08840e04dd64d4cf9985e659ebe553c8b8672544579588cca4d1999958beed59",
+      "after": {
+        "dev": 27,
+        "inode": 1557255,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libaddr2line-b2546485fb156a81.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557272,
+        "mode": 33188,
+        "size": 479983,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 944,
+        "symlink": false
+      },
+      "verified_original_sha256": "22f49702a2d9639b7e43bfee87f30e52abc47d5ed145a981a56b91aae1d9d056",
+      "after": {
+        "dev": 27,
+        "inode": 1557272,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519125441705,
+        "ctime_ns": 1793384519125441705,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd-7e719de9c4abc98f.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557190,
+        "mode": 33188,
+        "size": 12242318,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 23912,
+        "symlink": false
+      },
+      "verified_original_sha256": "ea104615e69d068c8a12c749135c7138b3ec28c7275ae163f91169a03561f75b",
+      "after": {
+        "dev": 27,
+        "inode": 1557190,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libunwind-87f8da15080ba246.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557181,
+        "mode": 33188,
+        "size": 5354,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "cb05e3b32dc9ee1cc6ec6a9cba01c2ea81eb44cb8c655760d5243a66d1179c5d",
+      "after": {
+        "dev": 27,
+        "inode": 1557181,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libpanic_unwind-4c962e8757b7fd52.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557244,
+        "mode": 33188,
+        "size": 7119,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "ee7fd8068a9fe4b3b05e167d94dd5bb17cefa60722da0f7ed14e1c2d400f6ccc",
+      "after": {
+        "dev": 27,
+        "inode": 1557244,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_core-fb3f24e4abf4be88.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557209,
+        "mode": 33188,
+        "size": 5542,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "d873f3613afe4256d60bcb722552d558f370e981431aca90b22d9df93f85b14a",
+      "after": {
+        "dev": 27,
+        "inode": 1557209,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.msan.a",
+      "before": {
+        "dev": 27,
+        "inode": 1557236,
+        "mode": 33188,
+        "size": 3023090,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 5912,
+        "symlink": false
+      },
+      "verified_original_sha256": "3ddff9f86d2c6de29b3331f0078c9e0accb1288f48bfab4e71bbe4ce9c57f5da",
+      "after": {
+        "dev": 27,
+        "inode": 1557236,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libpanic_abort-5cae43b27ff5f42e.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557246,
+        "mode": 33188,
+        "size": 2745,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "fffa196e3023ccb1ead5d99a9de1a0f2100de5a5a2ed8fc9a807d16e75ec5bf3",
+      "after": {
+        "dev": 27,
+        "inode": 1557246,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libgimli-a024a39c5ca178d0.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557259,
+        "mode": 33188,
+        "size": 1060062,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 2072,
+        "symlink": false
+      },
+      "verified_original_sha256": "62cf1d74bc75f84bf5829ca3d01aedd52d6ab9264e376235f6e813e47e15d9b9",
+      "after": {
+        "dev": 27,
+        "inode": 1557259,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.tsan.a",
+      "before": {
+        "dev": 27,
+        "inode": 1557233,
+        "mode": 33188,
+        "size": 3266760,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 6384,
+        "symlink": false
+      },
+      "verified_original_sha256": "a24426ac26d91e95d9d769ef60fb2708e6a2f4c3fd518bf0866ea2654706a9f6",
+      "after": {
+        "dev": 27,
+        "inode": 1557233,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/liblibc-6cf0fcd942b0e793.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557254,
+        "mode": 33188,
+        "size": 4455050,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 8704,
+        "symlink": false
+      },
+      "verified_original_sha256": "aa43a4c7ea0c31d3d8bc7a06e73c9337c087062889fd12844396e0b0883d2814",
+      "after": {
+        "dev": 27,
+        "inode": 1557254,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libadler2-e749a99f48dba5bc.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557270,
+        "mode": 33188,
+        "size": 20761,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 48,
+        "symlink": false
+      },
+      "verified_original_sha256": "1d99f767899aa7df2c8fbecfde416351882c8504982ea95d3fb2cdb5a1ee196a",
+      "after": {
+        "dev": 27,
+        "inode": 1557270,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libmemchr-e57d23b4cf2c7093.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557252,
+        "mode": 33188,
+        "size": 1408328,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 2752,
+        "symlink": false
+      },
+      "verified_original_sha256": "ab14125435c028eb23dc9959b4eaab4bf810ea9cc9971aa541964370ae06d5da",
+      "after": {
+        "dev": 27,
+        "inode": 1557252,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libtest-a1ccee9d65338c17.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557183,
+        "mode": 33188,
+        "size": 7392984,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 14440,
+        "symlink": false
+      },
+      "verified_original_sha256": "8ca3b6279ce3b436b6628c0f9a2eaea0283f46675474f1eaa819db7880971ca2",
+      "after": {
+        "dev": 27,
+        "inode": 1557183,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd_detect-ce90372c8b94015d.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557187,
+        "mode": 33188,
+        "size": 69418,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 136,
+        "symlink": false
+      },
+      "verified_original_sha256": "21fa7e8e6935292bd1a0071725492a967a99ea2b54129dc77297916f6570ca39",
+      "after": {
+        "dev": 27,
+        "inode": 1557187,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libgetopts-d370f30754c98ce9.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557260,
+        "mode": 33188,
+        "size": 219695,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 432,
+        "symlink": false
+      },
+      "verified_original_sha256": "92dbce19b02b5be1169ea9135b41c704c2c57a232039fd79c88efee0cd020854",
+      "after": {
+        "dev": 27,
+        "inode": 1557260,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libtest-a1ccee9d65338c17.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557182,
+        "mode": 33188,
+        "size": 1035543,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 2024,
+        "symlink": false
+      },
+      "verified_original_sha256": "49f9431953990a5fd380882e0c7b0a224db0a03abe0f92795211d0c08168d59c",
+      "after": {
+        "dev": 27,
+        "inode": 1557182,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_alloc-e4d7e1d94de777fa.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557211,
+        "mode": 33188,
+        "size": 2213,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "c1ef731629952508d01d0c00fbdc230ebb151bd1e1882215885cd673d59af3ce",
+      "after": {
+        "dev": 27,
+        "inode": 1557211,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.rtsan.a",
+      "before": {
+        "dev": 27,
+        "inode": 1557235,
+        "mode": 33188,
+        "size": 1174488,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 2296,
+        "symlink": false
+      },
+      "verified_original_sha256": "9930ebe77a314710392e3888fad648cb14840d93a4d1c04b6bc4a5997ecf82f9",
+      "after": {
+        "dev": 27,
+        "inode": 1557235,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/liballoc-3988244237fec6ee.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557269,
+        "mode": 33188,
+        "size": 1027344,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 2008,
+        "symlink": false
+      },
+      "verified_original_sha256": "1713afb7fc9da7a917293bafdede9562ceddd75700d5a5ff57d4eeb2e42ce9b1",
+      "after": {
+        "dev": 27,
+        "inode": 1557269,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_literal_escaper-0bcf9fe2451b4cf2.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557227,
+        "mode": 33188,
+        "size": 124048,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 248,
+        "symlink": false
+      },
+      "verified_original_sha256": "ba297569b07810719c41d192e8e2651fb6def309003419a641ee9e1ae76c4c2d",
+      "after": {
+        "dev": 27,
+        "inode": 1557227,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_demangle-23edf219dcb73297.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557231,
+        "mode": 33188,
+        "size": 241158,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 472,
+        "symlink": false
+      },
+      "verified_original_sha256": "abfa1e86e1aa11c927b76d8a250e80ef30679771ffdaedbae1e77c34f7a0e1bb",
+      "after": {
+        "dev": 27,
+        "inode": 1557231,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libproc_macro-012ffcc53aba0ce4.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557242,
+        "mode": 33188,
+        "size": 1168118,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 2288,
+        "symlink": false
+      },
+      "verified_original_sha256": "625c17bfcae472d1695795a92377e67715e9721480e52bcb1803f2734e1dc7c8",
+      "after": {
+        "dev": 27,
+        "inode": 1557242,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519129441684,
+        "ctime_ns": 1793384519129441684,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libcore-1d288395a3394ed3.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557262,
+        "mode": 33188,
+        "size": 67966594,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 132760,
+        "symlink": false
+      },
+      "verified_original_sha256": "f991bfdb98d878590ba8a11da984bc230a078ee8079e27fcfd65854803b436f5",
+      "after": {
+        "dev": 27,
+        "inode": 1557262,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519133441663,
+        "ctime_ns": 1793384519133441663,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd_detect-ce90372c8b94015d.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557186,
+        "mode": 33188,
+        "size": 581971,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 1144,
+        "symlink": false
+      },
+      "verified_original_sha256": "f13f7415af81f7a310c149b9575eaa8d387822776b2fdd646a73cea227318bd1",
+      "after": {
+        "dev": 27,
+        "inode": 1557186,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519133441663,
+        "ctime_ns": 1793384519133441663,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libpanic_unwind-4c962e8757b7fd52.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557245,
+        "mode": 33188,
+        "size": 36798,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 72,
+        "symlink": false
+      },
+      "verified_original_sha256": "4405757e011b71607b273854035143dfc13d5390eadc65f228c68fb30dde51fc",
+      "after": {
+        "dev": 27,
+        "inode": 1557245,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519137208638,
+        "ctime_ns": 1793384519137208638,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libproc_macro-012ffcc53aba0ce4.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557243,
+        "mode": 33188,
+        "size": 4514384,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 8824,
+        "symlink": false
+      },
+      "verified_original_sha256": "37d84ce6901277ee4582f1f147e17bb94b780cc3f409565cf005f8ee65049d4c",
+      "after": {
+        "dev": 27,
+        "inode": 1557243,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519137208638,
+        "ctime_ns": 1793384519137208638,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libadler2-e749a99f48dba5bc.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557271,
+        "mode": 33188,
+        "size": 10604,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 24,
+        "symlink": false
+      },
+      "verified_original_sha256": "018c9ad5584ac4821eb9dacaa30a0220e62360b71a09b6b8b709069f34d7c911",
+      "after": {
+        "dev": 27,
+        "inode": 1557271,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519137208638,
+        "ctime_ns": 1793384519137208638,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.lsan.a",
+      "before": {
+        "dev": 27,
+        "inode": 1557237,
+        "mode": 33188,
+        "size": 1249460,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 2448,
+        "symlink": false
+      },
+      "verified_original_sha256": "f1359a2732d47191816714a3a4dc47ce66f46aebd98518457ac611136f491470",
+      "after": {
+        "dev": 27,
+        "inode": 1557237,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519137208638,
+        "ctime_ns": 1793384519137208638,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libpanic_abort-5cae43b27ff5f42e.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557247,
+        "mode": 33188,
+        "size": 11476,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 24,
+        "symlink": false
+      },
+      "verified_original_sha256": "0dc1179cdff5a02105da8a58e5459eb8d50d5d7ff42fbcb184abc2168b7d4697",
+      "after": {
+        "dev": 27,
+        "inode": 1557247,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519137208638,
+        "ctime_ns": 1793384519137208638,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libgetopts-d370f30754c98ce9.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557261,
+        "mode": 33188,
+        "size": 751220,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 1472,
+        "symlink": false
+      },
+      "verified_original_sha256": "452b6eaed2774c50e3f635d0bd30801b501269abaf049281bb814ed04ce1ba7f",
+      "after": {
+        "dev": 27,
+        "inode": 1557261,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519137208638,
+        "ctime_ns": 1793384519137208638,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libcfg_if-77a19c181a6f6522.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557267,
+        "mode": 33188,
+        "size": 5282,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "b931e7312afe263b8993a35e9d9937e8dfccd4a556afadcf8f9a7427b6855075",
+      "after": {
+        "dev": 27,
+        "inode": 1557267,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519137208638,
+        "ctime_ns": 1793384519137208638,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/libobject-9ab214bf508f4fb2.rmeta",
+      "before": {
+        "dev": 27,
+        "inode": 1557248,
+        "mode": 33188,
+        "size": 8930634,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 17448,
+        "symlink": false
+      },
+      "verified_original_sha256": "8e1b829cb0e637f49a695216ce178bef299c0956be8ab7c55bb5816dd0e33eba",
+      "after": {
+        "dev": 27,
+        "inode": 1557248,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519137208638,
+        "ctime_ns": 1793384519137208638,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-std-1.99.1-x86_64-unknown-linux-gnu/rust-std-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_literal_escaper-0bcf9fe2451b4cf2.rlib",
+      "before": {
+        "dev": 27,
+        "inode": 1557229,
+        "mode": 33188,
+        "size": 5448,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "3c0f6112624eed607f4e2a2be43fcdb3adf7b3c74c1d7e86b7a73bcd044fc9f4",
+      "after": {
+        "dev": 27,
+        "inode": 1557229,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519137208638,
+        "ctime_ns": 1793384519137208638,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/bin/cargo",
+      "before": {
+        "dev": 27,
+        "inode": 1557368,
+        "mode": 33261,
+        "size": 36148320,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 70616,
+        "symlink": false
+      },
+      "verified_original_sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+      "after": {
+        "dev": 27,
+        "inode": 1557368,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519138707155,
+        "ctime_ns": 1793384519138707155,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/etc/bash_completion.d/cargo",
+      "before": {
+        "dev": 27,
+        "inode": 1557365,
+        "mode": 33188,
+        "size": 11443,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 24,
+        "symlink": false
+      },
+      "verified_original_sha256": "5f88be4aa33639147f33999125db6f625a84d70788dffe4adc2b80b7158bc4b4",
+      "after": {
+        "dev": 27,
+        "inode": 1557365,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519138707155,
+        "ctime_ns": 1793384519138707155,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/zsh/site-functions/_cargo",
+      "before": {
+        "dev": 27,
+        "inode": 1557283,
+        "mode": 33188,
+        "size": 24571,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 48,
+        "symlink": false
+      },
+      "verified_original_sha256": "f2028837def4b25c8b22ef17ce88973805be697b9b7cc948bcc7cb5944981e78",
+      "after": {
+        "dev": 27,
+        "inode": 1557283,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/doc/cargo/LICENSE-APACHE",
+      "before": {
+        "dev": 27,
+        "inode": 1557362,
+        "mode": 33188,
+        "size": 10860,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 24,
+        "symlink": false
+      },
+      "verified_original_sha256": "8ada45cd9f843acf64e4722ae262c622a2b3b3007c7310ef36ac1061a30f6adb",
+      "after": {
+        "dev": 27,
+        "inode": 1557362,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/doc/cargo/LICENSE-THIRD-PARTY",
+      "before": {
+        "dev": 27,
+        "inode": 1557345,
+        "mode": 33188,
+        "size": 68430,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 136,
+        "symlink": false
+      },
+      "verified_original_sha256": "cbc759b1f17a2ac38fe3eb9e9563b1a08ba0f900611c49faaf68b46907b6d898",
+      "after": {
+        "dev": 27,
+        "inode": 1557345,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/doc/cargo/LICENSE-MIT",
+      "before": {
+        "dev": 27,
+        "inode": 1557346,
+        "mode": 33188,
+        "size": 1023,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "after": {
+        "dev": 27,
+        "inode": 1557346,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/doc/cargo/README.md",
+      "before": {
+        "dev": 27,
+        "inode": 1557344,
+        "mode": 33188,
+        "size": 4855,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "d9b7b448fdd1bcdff86dc4034733602b8bcb60bdc1a14c37148525b67a157054",
+      "after": {
+        "dev": 27,
+        "inode": 1557344,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-tree.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557290,
+        "mode": 33188,
+        "size": 17052,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 40,
+        "symlink": false
+      },
+      "verified_original_sha256": "9b0213fbb4e50ccaffc3bf1ab5bd3f7a50204059262f3b194dc99c12535f0ebb",
+      "after": {
+        "dev": 27,
+        "inode": 1557290,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-info.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557331,
+        "mode": 33188,
+        "size": 6117,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "5e0b554a0d87716c2c3314289d225d8dfeaf2baad9ddc2b1666aed190b2761e4",
+      "after": {
+        "dev": 27,
+        "inode": 1557331,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-test.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557305,
+        "mode": 33188,
+        "size": 22407,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 48,
+        "symlink": false
+      },
+      "verified_original_sha256": "76453131dbcc0f2bbc98d554dbda232b6ce5ebd6b9017276e542958e3b231329",
+      "after": {
+        "dev": 27,
+        "inode": 1557305,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-publish.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557316,
+        "mode": 33188,
+        "size": 12669,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 32,
+        "symlink": false
+      },
+      "verified_original_sha256": "6d4859d5a12d4a8c814cc50b389d2f3d286bc6baae59d5c70e4cebb40058216c",
+      "after": {
+        "dev": 27,
+        "inode": 1557316,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-doc.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557337,
+        "mode": 33188,
+        "size": 15319,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 32,
+        "symlink": false
+      },
+      "verified_original_sha256": "f43d4c37fbf4aaacd50fd65a5e3527c4b06c16ece8e48cda1055b5a4f4ed171a",
+      "after": {
+        "dev": 27,
+        "inode": 1557337,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-add.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557343,
+        "mode": 33188,
+        "size": 10793,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 24,
+        "symlink": false
+      },
+      "verified_original_sha256": "e37eb5889856fcb19ff43dd2a7952aef092d8a5fc1f808b200a3c99d18c7dd79",
+      "after": {
+        "dev": 27,
+        "inode": 1557343,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-report-future-incompatibilities.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557313,
+        "mode": 33188,
+        "size": 5917,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "a7642c840631e5659ef653271035760b1dc6c3fcf998b8d347fb49965a3ad35a",
+      "after": {
+        "dev": 27,
+        "inode": 1557313,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-install.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557327,
+        "mode": 33188,
+        "size": 18312,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 40,
+        "symlink": false
+      },
+      "verified_original_sha256": "f6e08bbcf49ece3d16866c122b6fc4102bf812c4e8adafa363a2cadeefba068e",
+      "after": {
+        "dev": 27,
+        "inode": 1557327,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-uninstall.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557289,
+        "mode": 33188,
+        "size": 4467,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "145d9580dc8a5e5a73cc4a8dd27827e0413e2bad589b2e62fa4dff8798ffc980",
+      "after": {
+        "dev": 27,
+        "inode": 1557289,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-new.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557321,
+        "mode": 33188,
+        "size": 5136,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "920fa6698c28a2f5c2b2cfe69d1e4599e2698a0bceb3d514f19d891ec23b446b",
+      "after": {
+        "dev": 27,
+        "inode": 1557321,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-generate-lockfile.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557333,
+        "mode": 33188,
+        "size": 5940,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "9d673faf1b7c2bb645e1711592440da8d681c8a99744a8f8a927d6144446bc48",
+      "after": {
+        "dev": 27,
+        "inode": 1557333,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-run.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557310,
+        "mode": 33188,
+        "size": 12398,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 32,
+        "symlink": false
+      },
+      "verified_original_sha256": "85650a39631df37c75e2d894e723710c39f65b86096c4330ede6a99c3b4fd0be",
+      "after": {
+        "dev": 27,
+        "inode": 1557310,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-rustc.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557309,
+        "mode": 33188,
+        "size": 17558,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 40,
+        "symlink": false
+      },
+      "verified_original_sha256": "b7fba799920da5bb8c510e8c9e3c91bde56abb6feb705efeca9a3a42d15cccf2",
+      "after": {
+        "dev": 27,
+        "inode": 1557309,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-fix.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557335,
+        "mode": 33188,
+        "size": 19437,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 40,
+        "symlink": false
+      },
+      "verified_original_sha256": "5c7c676229879e262a3135298c22800c5c1afb57710ec19cc6dd2c8d23224ea6",
+      "after": {
+        "dev": 27,
+        "inode": 1557335,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-bench.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557341,
+        "mode": 33188,
+        "size": 20462,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 40,
+        "symlink": false
+      },
+      "verified_original_sha256": "0fe20c50e1252b7786ac4dce6ad38a5d3843f1dd24a740c0516514758d55c324",
+      "after": {
+        "dev": 27,
+        "inode": 1557341,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-package.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557318,
+        "mode": 33188,
+        "size": 15808,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 32,
+        "symlink": false
+      },
+      "verified_original_sha256": "7c2c62f0aa11d7fbb4a5095377316b9a691deb594168ae886cd0a7aa9ea157ff",
+      "after": {
+        "dev": 27,
+        "inode": 1557318,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139329837,
+        "ctime_ns": 1793384519139329837,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-metadata.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557322,
+        "mode": 33188,
+        "size": 21988,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 48,
+        "symlink": false
+      },
+      "verified_original_sha256": "572a3e2f8d7753855d6dab6941961deb5ac9b99c9ad7d4d3423d8e5f6bc61196",
+      "after": {
+        "dev": 27,
+        "inode": 1557322,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-locate-project.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557326,
+        "mode": 33188,
+        "size": 4665,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "021abaf05ac72ac32bb7373ed9805bba19e204db25675895d2d41c013646f8d4",
+      "after": {
+        "dev": 27,
+        "inode": 1557326,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-report.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557311,
+        "mode": 33188,
+        "size": 4918,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "be9d8fe4a569a90e7e5d48c35c5daa74d1728133dc0f43240121654045b6f815",
+      "after": {
+        "dev": 27,
+        "inode": 1557311,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-version.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557286,
+        "mode": 33188,
+        "size": 664,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "1dc8ad353b33ef871660f7d5af5e977b07a32bf718adce2deb85efdd5568e44b",
+      "after": {
+        "dev": 27,
+        "inode": 1557286,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-help.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557332,
+        "mode": 33188,
+        "size": 5769,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "86b2088f8914fd887f14d3a691110bcd4fa3727ba77d5ace13de2c7cc2860df7",
+      "after": {
+        "dev": 27,
+        "inode": 1557332,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-yank.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557285,
+        "mode": 33188,
+        "size": 8274,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 24,
+        "symlink": false
+      },
+      "verified_original_sha256": "a324983332e33580330c0902af4ee7713940bf219c44a1e3a12fc9b8b0d58309",
+      "after": {
+        "dev": 27,
+        "inode": 1557285,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-rustdoc.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557308,
+        "mode": 33188,
+        "size": 16140,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 32,
+        "symlink": false
+      },
+      "verified_original_sha256": "9c558ed0899cf8e966d417dc2fea86d837c88b854bcdb0c62c30656fc41949d0",
+      "after": {
+        "dev": 27,
+        "inode": 1557308,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-search.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557307,
+        "mode": 33188,
+        "size": 4200,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "4761782dd91b5c471bf1b3fc5a3c7912c3c6935706383f3b2b44efb3a1893bea",
+      "after": {
+        "dev": 27,
+        "inode": 1557307,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-vendor.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557287,
+        "mode": 33188,
+        "size": 7441,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "a8c4742f6b0b6d46da8b9cdc69766412efa72e02bf307753242c51394815bce4",
+      "after": {
+        "dev": 27,
+        "inode": 1557287,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-owner.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557320,
+        "mode": 33188,
+        "size": 5750,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "23e71b0c6b5f2701f978b818420835db0e74a938dccdc251ddb2f1c163f20d3d",
+      "after": {
+        "dev": 27,
+        "inode": 1557320,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-build.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557340,
+        "mode": 33188,
+        "size": 16636,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 40,
+        "symlink": false
+      },
+      "verified_original_sha256": "ea0cb3adad4278bb427abb8fd7d2a96eff295d5b13a3f1d5c4b0933d5b3da9b0",
+      "after": {
+        "dev": 27,
+        "inode": 1557340,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-check.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557339,
+        "mode": 33188,
+        "size": 16316,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 32,
+        "symlink": false
+      },
+      "verified_original_sha256": "006c2a65dc3a8a5c56e351511678748c3bbdd3c3eeb5bfcf95b9e20828b04505",
+      "after": {
+        "dev": 27,
+        "inode": 1557339,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-remove.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557315,
+        "mode": 33188,
+        "size": 6289,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "ba248f85986b141882454f3313eafb5a64a8f244b6abcbb1f9e7114c56fbfbf2",
+      "after": {
+        "dev": 27,
+        "inode": 1557315,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-init.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557329,
+        "mode": 33188,
+        "size": 5324,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "574759d2269dff096b1c04bc1ae906c3a80389830966e6b5b2130410181f3a9d",
+      "after": {
+        "dev": 27,
+        "inode": 1557329,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-pkgid.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557317,
+        "mode": 33188,
+        "size": 7457,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "f9353443ca1c342f95845579e56dd69410e7517116dd76efda9ab3845c074058",
+      "after": {
+        "dev": 27,
+        "inode": 1557317,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-login.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557325,
+        "mode": 33188,
+        "size": 4791,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "53a957a73cfcac30b751a5c6277f94b5a8511ce3cc2af144678a285a598c417a",
+      "after": {
+        "dev": 27,
+        "inode": 1557325,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-clean.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557338,
+        "mode": 33188,
+        "size": 7810,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "ac1056f03dccba5d6a082f4491e83498507e0984a34551d7be7d4c1b4dfc7273",
+      "after": {
+        "dev": 27,
+        "inode": 1557338,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519139981431,
+        "ctime_ns": 1793384519139981431,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-update.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557288,
+        "mode": 33188,
+        "size": 8129,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "5aa228e8695b9491ebb5e06ce6dc34a250b42be9be8254122eef8f9203ca8459",
+      "after": {
+        "dev": 27,
+        "inode": 1557288,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519140686815,
+        "ctime_ns": 1793384519140686815,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-fetch.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557336,
+        "mode": 33188,
+        "size": 6707,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691291860520,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "d77bbb69048b7d1fc193b3644ac7ad96c5f000be98ad55e3e4ec896a1cf821c8",
+      "after": {
+        "dev": 27,
+        "inode": 1557336,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519140686815,
+        "ctime_ns": 1793384519140686815,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo-logout.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557324,
+        "mode": 33188,
+        "size": 4843,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 16,
+        "symlink": false
+      },
+      "verified_original_sha256": "0f98f10235921e4fd2dd82e76c7fbf551121bef88cf8ef28027072c5d3ff5857",
+      "after": {
+        "dev": 27,
+        "inode": 1557324,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519140686815,
+        "ctime_ns": 1793384519140686815,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/cargo-1.99.1-x86_64-unknown-linux-gnu/cargo/share/man/man1/cargo.1",
+      "before": {
+        "dev": 27,
+        "inode": 1557284,
+        "mode": 33188,
+        "size": 11180,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 24,
+        "symlink": false
+      },
+      "verified_original_sha256": "c483b800c9aceb307fb15ea4138783838cb379b6f4e306a8dabe84af8fd4b01d",
+      "after": {
+        "dev": 27,
+        "inode": 1557284,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519140686815,
+        "ctime_ns": 1793384519140686815,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustfmt-1.99.1-x86_64-unknown-linux-gnu/rustfmt-preview/bin/rustfmt",
+      "before": {
+        "dev": 27,
+        "inode": 884640,
+        "mode": 33261,
+        "size": 5256344,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 10280,
+        "symlink": false
+      },
+      "verified_original_sha256": "68cb47a2a38daa8ff2ec6d623a2374b0a165d77ec74f1f654216665018c04598",
+      "after": {
+        "dev": 27,
+        "inode": 884640,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519140686815,
+        "ctime_ns": 1793384519140686815,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustfmt-1.99.1-x86_64-unknown-linux-gnu/rustfmt-preview/bin/cargo-fmt",
+      "before": {
+        "dev": 27,
+        "inode": 884642,
+        "mode": 33261,
+        "size": 2082352,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 4072,
+        "symlink": false
+      },
+      "verified_original_sha256": "6b42f43e4523abba428eb42b3a106727843428b096ef7ed8a9497bddcc50448a",
+      "after": {
+        "dev": 27,
+        "inode": 884642,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519140686815,
+        "ctime_ns": 1793384519140686815,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustfmt-1.99.1-x86_64-unknown-linux-gnu/rustfmt-preview/share/doc/rustfmt/LICENSE-APACHE",
+      "before": {
+        "dev": 27,
+        "inode": 884637,
+        "mode": 33188,
+        "size": 10852,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 24,
+        "symlink": false
+      },
+      "verified_original_sha256": "092c8e82c47fb859d7385253c1b04052dbd65a8bcf0bbd8b6f7dba58a9e8753d",
+      "after": {
+        "dev": 27,
+        "inode": 884637,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519140686815,
+        "ctime_ns": 1793384519140686815,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustfmt-1.99.1-x86_64-unknown-linux-gnu/rustfmt-preview/share/doc/rustfmt/LICENSE-MIT",
+      "before": {
+        "dev": 27,
+        "inode": 884635,
+        "mode": 33188,
+        "size": 1076,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "ae0f1f791e3b4faccf981c0b530199235a8b8a021c7ef0c3c85c6c676ea4d27f",
+      "after": {
+        "dev": 27,
+        "inode": 884635,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519140686815,
+        "ctime_ns": 1793384519140686815,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/rustfmt-1.99.1-x86_64-unknown-linux-gnu/rustfmt-preview/share/doc/rustfmt/README.md",
+      "before": {
+        "dev": 27,
+        "inode": 884634,
+        "mode": 33188,
+        "size": 10651,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691297145594,
+        "nlink": 1,
+        "blocks": 24,
+        "symlink": false
+      },
+      "verified_original_sha256": "851c5128590f0c9e63263a9afe534a6a27df9e1a065334534a1e0e77fa4dcb7d",
+      "after": {
+        "dev": 27,
+        "inode": 884634,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519140686815,
+        "ctime_ns": 1793384519140686815,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/clippy-1.99.1-x86_64-unknown-linux-gnu/clippy-preview/bin/cargo-clippy",
+      "before": {
+        "dev": 27,
+        "inode": 1557281,
+        "mode": 33261,
+        "size": 1223088,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 2392,
+        "symlink": false
+      },
+      "verified_original_sha256": "4255f7671a17fba900ffd84a20f1dd0c986d52a2404496d3b7518f5044de5663",
+      "after": {
+        "dev": 27,
+        "inode": 1557281,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519140686815,
+        "ctime_ns": 1793384519140686815,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/clippy-1.99.1-x86_64-unknown-linux-gnu/clippy-preview/bin/clippy-driver",
+      "before": {
+        "dev": 27,
+        "inode": 1557279,
+        "mode": 33261,
+        "size": 16295440,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 31832,
+        "symlink": false
+      },
+      "verified_original_sha256": "89b6cc8d0d988b00a3f65bc90c76fedbaedb6bcb442b34563aefe3621f26544b",
+      "after": {
+        "dev": 27,
+        "inode": 1557279,
+        "mode": 33261,
+        "size": 0,
+        "mtime_ns": 1793384519141611714,
+        "ctime_ns": 1793384519141611714,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/clippy-1.99.1-x86_64-unknown-linux-gnu/clippy-preview/share/doc/clippy/LICENSE-APACHE",
+      "before": {
+        "dev": 27,
+        "inode": 1557278,
+        "mode": 33188,
+        "size": 10848,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 24,
+        "symlink": false
+      },
+      "verified_original_sha256": "d8b56cd45661bfc7ccf4ce5722388cab275f9dabb9e471c922cc80e36bbf9caa",
+      "after": {
+        "dev": 27,
+        "inode": 1557278,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519141611714,
+        "ctime_ns": 1793384519141611714,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/clippy-1.99.1-x86_64-unknown-linux-gnu/clippy-preview/share/doc/clippy/LICENSE-MIT",
+      "before": {
+        "dev": 27,
+        "inode": 1557276,
+        "mode": 33188,
+        "size": 1081,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 8,
+        "symlink": false
+      },
+      "verified_original_sha256": "8d07f0c9c9966be0aaec4196d7863b56ade114e9714dbc31ebba576c0446d2fc",
+      "after": {
+        "dev": 27,
+        "inode": 1557276,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519141611714,
+        "ctime_ns": 1793384519141611714,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/downloads/clippy-1.99.1-x86_64-unknown-linux-gnu/clippy-preview/share/doc/clippy/README.md",
+      "before": {
+        "dev": 27,
+        "inode": 1557275,
+        "mode": 33188,
+        "size": 11191,
+        "mtime_ns": 1791856129000000000,
+        "ctime_ns": 1793383691293145610,
+        "nlink": 1,
+        "blocks": 24,
+        "symlink": false
+      },
+      "verified_original_sha256": "42098ac0c944a6f0bc9557a4332af7b340de1a5be5a22b7126ea7553f83dcfc0",
+      "after": {
+        "dev": 27,
+        "inode": 1557275,
+        "mode": 33188,
+        "size": 0,
+        "mtime_ns": 1793384519141611714,
+        "ctime_ns": 1793384519141611714,
+        "nlink": 1,
+        "blocks": 0,
+        "symlink": false
+      }
+    }
+  ],
+  "invalidated_file_count": 162,
+  "apparent_bytes_invalidated": 779272962,
+  "allocated_bytes_before": 779640832,
+  "allocated_bytes_after": 0,
+  "filesystem_before": {
+    "available_bytes": 0,
+    "free_bytes": 990445568
+  },
+  "filesystem_after": {
+    "available_bytes": 35237888,
+    "free_bytes": 1770000384
+  },
+  "net_filesystem_free_delta": 779554816,
+  "protected_entries_checked": 1524,
+  "protected_metadata_changes": [],
+  "manifest_sha256_before": {
+    "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-stable.toml": "fb152be80975c194aa5fc684b2aec3a6e14e2b855efe2faa4e5f8ae6e590f463",
+    "/workspace/scratch/ac5966c4c370/toolchains/downloads/llvm-release.json": "d127c3b37a998516724a487a91c1707965f94e5cd01ecdae97b5ab5182af59e3",
+    "/workspace/scratch/ac5966c4c370/toolchains/rust-install-receipt.json": "d6d9f9ea24a3e5350c903bfa355bce6c09c32a30aad7e4df372cf503f1a555ce"
+  },
+  "manifest_sha256_after": {
+    "/workspace/scratch/ac5966c4c370/toolchains/downloads/rust-stable.toml": "fb152be80975c194aa5fc684b2aec3a6e14e2b855efe2faa4e5f8ae6e590f463",
+    "/workspace/scratch/ac5966c4c370/toolchains/downloads/llvm-release.json": "d127c3b37a998516724a487a91c1707965f94e5cd01ecdae97b5ab5182af59e3",
+    "/workspace/scratch/ac5966c4c370/toolchains/rust-install-receipt.json": "d6d9f9ea24a3e5350c903bfa355bce6c09c32a30aad7e4df372cf503f1a555ce"
+  },
+  "installed_tool_hash_checks": [
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/rust-1.99.1/bin/rustc",
+      "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+      "expected": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/rust-1.99.1/bin/cargo",
+      "sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+      "expected": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af"
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/rust-1.99.1/bin/rustfmt",
+      "sha256": "68cb47a2a38daa8ff2ec6d623a2374b0a165d77ec74f1f654216665018c04598",
+      "expected": "68cb47a2a38daa8ff2ec6d623a2374b0a165d77ec74f1f654216665018c04598"
+    },
+    {
+      "path": "/workspace/scratch/ac5966c4c370/toolchains/rust-1.99.1/bin/cargo-clippy",
+      "sha256": "4255f7671a17fba900ffd84a20f1dd0c986d52a2404496d3b7518f5044de5663",
+      "expected": "4255f7671a17fba900ffd84a20f1dd0c986d52a2404496d3b7518f5044de5663"
+    }
+  ],
+  "preservation_pass": true,
+  "persistence_status": "Pass: two independent subsequent exec reads; 162 empty caches retain inode/mtime/ctime; installed tools and manifests unchanged",
+  "cross_exec_checks": [
+    {
+      "number": 1,
+      "time_utc": "2026-10-30T18:22:44Z",
+      "elapsed_since_finish_seconds": 45.6441969871521,
+      "scope": "separate normal exec after escalated truncation",
+      "mount_namespace": "mnt:[4026532275]",
+      "files_checked": 162,
+      "all_zero_same_inode_mtime_ctime": true,
+      "file_problems": [],
+      "protected_entries_checked": 1519,
+      "protected_metadata_matches_original_plan": true,
+      "protected_changes": [],
+      "free_bytes": 1759203328,
+      "available_bytes": 24440832
+    },
+    {
+      "number": 2,
+      "time_utc": "2026-10-30T18:23:09Z",
+      "elapsed_since_finish_seconds": 69.73836541175842,
+      "scope": "second separate normal exec; post previous separate verification exec",
+      "mount_namespace": "mnt:[4026532207]",
+      "files_checked": 162,
+      "all_zero_same_inode_mtime_ctime": true,
+      "file_problems": [],
+      "protected_entries_checked": 1519,
+      "protected_metadata_matches_original_plan": true,
+      "protected_changes": [],
+      "official_manifests_and_receipt_hashes_match": true,
+      "manifest_changes": [],
+      "free_bytes": 1759186944,
+      "available_bytes": 24424448
+    }
+  ]
+}

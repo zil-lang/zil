@@ -1,0 +1,11 @@
+{
+  "source_directory": "/workspace/scratch/4ab361722127/measurements/cp23-o0",
+  "archive": "cp23-o0-failed.tar.xz",
+  "files": 11449,
+  "source_bytes": 65318493,
+  "archive_bytes": 586424,
+  "sha256": "9b5b4834e0ba46f64a7f27283c650121cc4f9ebcba00f5e772b29c4529f6b5f4",
+  "git_blob_sha": "b5f5bd430ba68e1fe55e72a1c47787ed10a88699",
+  "verification": "Every tar entry decoded and byte-compared with the source; all source files retained",
+  "retention": "Completed and incomplete windows remain distinguishable by their original receipts and logs"
+}

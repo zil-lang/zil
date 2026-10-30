@@ -1,0 +1,76 @@
+{
+  "reviewer": "/root/incremental_review",
+  "verdict": "ChangesRequested",
+  "scope": "Independently reproduced preexisting CP12 publication failure, also present in CP22. This is separate from parse-cache changes and does not invalidate preserved timing observations.",
+  "finding": {
+    "id": "CP12-TEMP-OWNERSHIP",
+    "severity": "blocking for publication correctness",
+    "file": "crates/zil-driver/src/query_cache.rs",
+    "mechanism": "Temporary is created before OpenOptions(create_new).open. If the temporary path already exists, create_new returns AlreadyExists without ownership, but Temporary::drop removes that preexisting path.",
+    "observable_effect": "A requested executable at frontend-cp12-v1/.pending-<compiler PID>-0 is removed after native publication even though the request reports Success and fresh Verify=1. The .ll sidecar remains.",
+    "minimal_fix": "Construct the temporary path first, open with create_new, then arm the guard only after success. Keep cleanup armed for every later error/cancellation and disarm only after successful rename.",
+    "required_controls": [
+      "Preexisting temporary-path sentinel and native executable survive AlreadyExists unchanged.",
+      "Owned temporary files are cleaned on post-create write/flush/rename/cancellation failures; the original final entry survives.",
+      "Successful publication leaves a readable reusable cache entry and no owned temporary file."
+    ]
+  },
+  "reproduction": {
+    "reproduced": true,
+    "baseline_commit": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+    "binary_sha256": "0f8325ebd29ed14afc159f2def11998ac829043c8900ed7b799fb06ce69cd553",
+    "observations": [
+      {
+        "query_cache_enabled": false,
+        "status": "Success",
+        "output": "/tmp/zil-review/CP12-temp-collision/cache/frontend-cp12-v1/.pending-6-0",
+        "output_exists": true,
+        "sidecar_exists": true,
+        "query_cache": {
+          "requested": false,
+          "state": "disabled",
+          "key": null,
+          "reason": null,
+          "stored": false,
+          "write_reason": null,
+          "ct_steps": 0,
+          "ct_nodes": 0,
+          "ct_functions": 0
+        },
+        "native_exit": 0
+      },
+      {
+        "query_cache_enabled": true,
+        "status": "Success",
+        "output": "/tmp/zil-review/CP12-temp-collision/cache/frontend-cp12-v1/.pending-20-0",
+        "output_exists": false,
+        "sidecar_exists": true,
+        "query_cache": {
+          "requested": true,
+          "state": "miss",
+          "key": "d3db0c03d8d15cab36819e9f6b56fa6b32418517a0a81d2ff10caae6b53084e1",
+          "reason": null,
+          "stored": false,
+          "write_reason": "File exists (os error 17)",
+          "ct_steps": 0,
+          "ct_nodes": 5,
+          "ct_functions": 1
+        }
+      }
+    ],
+    "mechanism": "CP12 Temporary is armed before create_new succeeds. Existing published output causes AlreadyExists and Drop removes the unowned existing path."
+  },
+  "evidence_sha256": {
+    "cp12-temp-collision.py": "7c2b7b9acf6e77983fd87490ffc7b1bc1bf68f39619999f3ccbb3e32dfb2a98d",
+    "CP12-temp-collision.log": "fa2aa389e6a3c2c9d37fd591eb0cd58d19db34f6d81ce28f455d954e03203a19",
+    "CP12-temp-collision/result.json": "e5a1e803d28dee62fbe677b44ee474ac48cfcc03b2692c48231cc4b8e030cd12",
+    "CP12-temp-collision/no.json": "09c029fc1e2104118049777b4bf58853a59dd2fbc85532125b45241dd4f19348",
+    "CP12-temp-collision/yes.json": "2e8d5e739cabcd6356c755b67670cf85c07ebb4fbbdaff22e05364afec63dace",
+    "CP12-temp-collision/exec-same-pid.py": "c400915abcd61e0f86a8b5004023dd6986227e562308e396ae520c0c1d379228"
+  },
+  "limits": [
+    "Release binary source identity is the existing frozen baseline build record plus rechecked exact binary SHA256, not a new independent release rebuild.",
+    "This probe is an intentional deterministic output/temp collision in a reviewer-created directory; it does not model an adversarial cache writer.",
+    "CP26 initially authorizes only parse_cache.rs. CP12 needs its own authorized write scope and exact-commit review."
+  ]
+}

@@ -80,3 +80,5 @@ node evidence/research/compile-performance/COMPILE6/mechanisms/zit-mechanisms.mj
 ```
 
 结果包含原始文件SHA256与Node版本；临时模块在加载后清理，输出文件禁止覆盖。
+
+本轮也逐字归档了原始 `mechanisms/zit.ts`，其SHA256与机制结果中的source_sha256一致；脚本可直接以该文件复跑。原始上传文件未修改。

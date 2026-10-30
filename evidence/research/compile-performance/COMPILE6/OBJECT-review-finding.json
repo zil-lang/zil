@@ -1,0 +1,71 @@
+{
+  "reviewer": "/root/incremental_review",
+  "verdict": "ChangesRequested",
+  "scope": "Independent reproduction of baseline LLVM object-cache publication failure; neither CP22 nor CP26 introduced this code.",
+  "finding": {
+    "id": "OBJECT-TEMP-OWNERSHIP",
+    "severity": "blocking for publication correctness",
+    "file": "crates/zil-backend-llvm/src/object_cache.rs",
+    "mechanism": "The store closure includes create_new.open, and its error cleanup removes the temporary path for every Err, even AlreadyExists before ownership.",
+    "observable_effect": "Post-publication object-cache commit removes a successfully published executable whose path equals objects-v1/<namespace>/.pending-<compiler PID>-0. CLI still reports Success and Verify=1, with one object-cache write_failure.",
+    "minimal_fix": "Acquire/create the temporary file before installing cleanup or ensure cleanup is conditioned on successful acquisition. Disarm only after successful rename.",
+    "required_controls": [
+      "Preexisting temporary-path sentinel and native executable survive AlreadyExists unchanged.",
+      "Owned temporary files are cleaned on post-create I/O/rename failure; existing final entry survives.",
+      "Success still yields a reusable cache entry and fresh request Verify."
+    ]
+  },
+  "reproduction": {
+    "reproduced": true,
+    "baseline_commit": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+    "binary_sha256": "0f8325ebd29ed14afc159f2def11998ac829043c8900ed7b799fb06ce69cd553",
+    "observations": [
+      {
+        "object_cache_enabled": false,
+        "status": "Success",
+        "output": "/tmp/zil-review/OBJECT-temp-collision/cache/objects-v1/3fff609f3c404224415bde55394313c49c415f3c7dc20c54b6bfa344863495a9/.pending-19-0",
+        "output_exists": true,
+        "sidecar_exists": true,
+        "object_cache": null,
+        "native_exit": 0
+      },
+      {
+        "object_cache_enabled": true,
+        "status": "Success",
+        "output": "/tmp/zil-review/OBJECT-temp-collision/cache/objects-v1/3fff609f3c404224415bde55394313c49c415f3c7dc20c54b6bfa344863495a9/.pending-33-0",
+        "output_exists": false,
+        "sidecar_exists": true,
+        "object_cache": null
+      }
+    ],
+    "mechanism": "object_cache::store cleanup runs for every error, including create_new AlreadyExists before ownership. Post-publication cache commit deletes the requested native output."
+  },
+  "actual_object_cache_summary_from_raw": {
+    "requested": true,
+    "enabled": true,
+    "hits": 0,
+    "misses": 1,
+    "corrupt": 1,
+    "stored": 0,
+    "write_failures": 1,
+    "key_ns": 15513,
+    "lookup_ns": 23785,
+    "current_preflight_ns": 0,
+    "disabled_reason": null
+  },
+  "summary_extraction_note": "The original reproduction result used report.get(object_cache) at the top level and emitted null for that convenience field. The authoritative original raw report carries native_codegen.object_cache; this review extracts and checks the real nested status without rewriting the original log. Native output deletion and Success/Verify assertions were unaffected.",
+  "evidence_sha256": {
+    "object-temp-collision.py": "8c30451430cc0f1b990974742937c600efd2c6c69cbb875b95ef986be9da227d",
+    "OBJECT-temp-collision.log": "6819893afe7f86ff2d4b44e6b1739e8b71be43313f070d2fd99b5942e77c3697",
+    "OBJECT-temp-collision/result.json": "f01aa643d59046ba0f4d0b610cfee528a2b46c127ea58296e08ebc8246236845",
+    "OBJECT-temp-collision/seed.json": "863451a8add9d7fa377eb41ffdef6533bb7130509edd3f5a89ec3c2b8376e91e",
+    "OBJECT-temp-collision/no.json": "2eb63e091d766aa0e680d94825bdcfc880fdc62e010717b2722dae878615def7",
+    "OBJECT-temp-collision/yes.json": "335bb83bff0c980d033cc6c0f1085c88b6119427fad1dcb2e01cb29ae2e6d484",
+    "OBJECT-temp-collision/exec-same-pid.py": "ca5c06c2cf8e025e7aaf23620213aa7614371468b9ac59244865d0c70b6b486b"
+  },
+  "limits": [
+    "Frozen baseline binary hash independently rechecked; no independent release rebuild.",
+    "Deliberate deterministic collision in reviewer-created private directory, no hostile writer modeled.",
+    "Current CP26 write scope is parse cache only; separate authorized correction required."
+  ]
+}

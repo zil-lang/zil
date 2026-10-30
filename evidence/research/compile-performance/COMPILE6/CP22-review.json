@@ -62,7 +62,7 @@
     "Insufficient receipts select the original budget-specific parse key or return a disk quota miss, then invoke the original parser. No synthetic cache diagnostic replaces the original first error or span.",
     "The codec is exhaustive over AST/token enums and struct fields, checks recursive depth, payload, vector lengths and total declared allocation before construction, and validates spans, root module identity and contiguous EOF token tape.",
     "Disk identities additionally bind the trusted installed producer. Magic/key/checksum/length mismatches, decoding failures and cache-specific bounds fall back. This is trusted-local memoization, not authentication or a serialized verifier permit.",
-    "Prepare and source discovery do not create cache directories. Stores occur only after successful requested pipeline completion and artifact guards. Filesystem imports, ambiguity, escape, current source bytes and sequential quotas are rechecked on every request.",
+    "The new parse-cache preparation and source discovery do not create cache directories. Stores occur only after successful requested pipeline completion and artifact guards. Filesystem imports, ambiguity, escape, current source bytes and sequential quotas are rechecked on every request.",
     "Fresh Verify stays on the original full compilation path. Only successful unverified ParseResult components are serialized; no Verified value or semantic-cache shortcut was introduced."
   ],
   "distinct_independent_risks_exercised": [
@@ -85,7 +85,8 @@
     "The CLI exposes no token/node/byte/depth limit flags. Budget evidence is explicitly API-level; new-process CLI evidence covers default budgets and real filesystem/producer/cache behavior.",
     "Cache depth/payload/allocation limits can bypass valid sources; they do not widen parser limits. Unsupported cache shapes are not a source acceptance failure.",
     "Semantic incremental typing, equality barriers across function interfaces and SCC scheduling remain outside CP22. No compilation speed claim follows from these correctness controls.",
-    "Raw preserved logs contain original whitespace and earlier ENOSPC/fixture failures; diff --check findings in those raw logs were not repaired by rewriting evidence."
+    "Raw preserved logs contain original whitespace and earlier ENOSPC/fixture failures; diff --check findings in those raw logs were not repaired by rewriting evidence.",
+    "The existing CP12 layer may create its own checkpoint directories after artifact guards but before a later Build-stage failure. CP22 does not change that behavior; its new parse-cp22-v1 publication is Success-only."
   ],
   "blocking_findings": []
 }

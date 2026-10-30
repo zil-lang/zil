@@ -1,0 +1,79 @@
+{
+  "reviewer": "/root/incremental_review",
+  "candidate": "7ca57fb61aa6fe4f7cac963a531a6cf2851792e4",
+  "verdict": "ChangesRequested",
+  "supersedes_unqualified_publication_pass": true,
+  "prior_review": "CP22-review.json",
+  "prior_review_sha256_at_addendum": "3872ea8a0594b7a9709e5465129c7df353b8ad1c3b89a1c326662fe06a997c4b",
+  "scope": "Newly reproduced temporary-file ownership failure. Earlier targeted/API/CLI checks and frozen performance observations remain recorded accurately; they did not cover this collision.",
+  "finding": {
+    "id": "CP22-TEMP-OWNERSHIP",
+    "severity": "blocking for publication correctness",
+    "file": "crates/zil-driver/src/parse_cache.rs",
+    "mechanism": "Temporary is armed before OpenOptions(create_new).open succeeds. AlreadyExists leaves the preexisting path unowned, but guard Drop removes it.",
+    "observable_effect": "A legitimate requested executable whose output path matches the deterministic cache temporary path can be deleted after it has been published, while the CLI still reports Success and fresh Verify=1. The .ll sidecar remains.",
+    "overlap_gap": "The existing final .psyn destination overlap check does not cover the temporary filename.",
+    "minimal_fix": "Create/arm the cleanup guard only after create_new succeeds; keep it armed on every later error/cancel and disarm only after successful rename.",
+    "required_controls": [
+      "Preexisting temporary-path sentinel survives AlreadyExists unchanged.",
+      "A real requested executable at the temporary path survives cache write failure and remains runnable.",
+      "Owned staged file is removed on failed flush/write, rename failure and cancellation; previous final entry remains intact."
+    ]
+  },
+  "reproduction": {
+    "reproduced": true,
+    "candidate_commit": "7ca57fb61aa6fe4f7cac963a531a6cf2851792e4",
+    "binary_sha256": "650e8cd97c0fae262ae8c2a28e3ea6b31532978b9e419c0d2854babfea69373a",
+    "observations": [
+      {
+        "query_cache_enabled": false,
+        "status": "Success",
+        "output": "/tmp/zil-review/CP22-temp-collision/cache/parse-cp22-v1/.8f5a5520fffc39b50544a833212ee75dc9e103a9cd542cd87d949dc8b05e867f.7.0.tmp",
+        "output_exists": true,
+        "sidecar_exists": true,
+        "parse_cache": {
+          "requested": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "quota_misses": 0,
+          "stored": 0,
+          "session_hits": 0,
+          "parsed": 1,
+          "reason": null,
+          "write_reason": null
+        },
+        "native_exit": 0
+      },
+      {
+        "query_cache_enabled": true,
+        "status": "Success",
+        "output": "/tmp/zil-review/CP22-temp-collision/cache/parse-cp22-v1/.8f5a5520fffc39b50544a833212ee75dc9e103a9cd542cd87d949dc8b05e867f.21.0.tmp",
+        "output_exists": false,
+        "sidecar_exists": true,
+        "parse_cache": {
+          "requested": true,
+          "hits": 0,
+          "misses": 1,
+          "corrupt": 1,
+          "quota_misses": 0,
+          "stored": 0,
+          "session_hits": 0,
+          "parsed": 1,
+          "reason": null,
+          "write_reason": "File exists (os error 17)"
+        }
+      }
+    ],
+    "mechanism": "Temporary guard is armed before create_new succeeds. Existing published output causes AlreadyExists and Drop removes the unowned existing file."
+  },
+  "evidence_sha256": {
+    "cp22-temp-collision.py": "7e5479c161cf5c521c02dd19f688cd23b9be81c9e1496492266c86dcbf77d26f",
+    "CP22-temp-collision.log": "1ad6014391767d40e60e139c6c3511ef8b6cf2853d60352567c2ee0fc15948b1",
+    "CP22-temp-collision/result.json": "1d36635320dca2f78fedfffd9786d2b0e876e3b5652aca9a5814044d6e038e31",
+    "CP22-temp-collision/seed.json": "359ba9dacc009aaed0943991b4993f5b0c9420aa8dfd4241635a789ff9eb214a",
+    "CP22-temp-collision/no.json": "44bfedcac2e68ef5aa2f1ecd2c7b086a2184feb6e3b52cf5126302135ebd456c",
+    "CP22-temp-collision/yes.json": "6048ca7d621a07784ee4d32684762b526398fe98467a6d90236f5708c66ad8d8"
+  },
+  "followup": "CP26 is the separately authorized publication-I/O successor and must include this ownership correction before receiving a new independent Pass. Do not amend or relabel CP22 timing observations."
+}

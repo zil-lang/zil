@@ -10,6 +10,18 @@
       "local": "474e0d84a0e2a941e318533f8558441731d738fe",
       "remote": "8b5c57cbe51a8836019b1568648b620e129f6a8d",
       "tree": "717d8d23180cd8e2ff3bbac0e562952c5c4cce5d"
+    },
+    {
+      "local": "5056bbd9acfe0aa08f5335fa6945f3c56ed514cd",
+      "remote": "bb8ec6a0e66ac0cb868d39777794ca7b80e97313",
+      "tree": "39ee00a8fa4ef5309a0d10fa7318997d49b9d32b"
+    },
+    {
+      "local": "7ca57fb61aa6fe4f7cac963a531a6cf2851792e4",
+      "remote": "74142bc822c57b1246c9bf328c019fd364ee150a",
+      "tree": "e0004eb56b60b70e63e6ccc8cdd40b69b75f6db5",
+      "branch": "research/cp22-parse-cache",
+      "status": "Historical candidate; late publication collision ChangesRequested; not adopted"
     }
   ]
 }

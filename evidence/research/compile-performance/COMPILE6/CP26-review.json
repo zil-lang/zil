@@ -1,0 +1,92 @@
+{
+  "reviewer": "/root/incremental_review",
+  "verdict": "Pass",
+  "scope": "CP26 parse publication change only; preexisting CP12/query and LLVM/object findings remain open for separately assigned CP27. This is a correctness review, not an overall adoption or performance Pass.",
+  "source_commit": "d8872b52f5a215c2efd33aaadba5083f471e0bc2",
+  "base_commit": "7ca57fb61aa6fe4f7cac963a531a6cf2851792e4",
+  "crates_tree": "7e5def64ddddb7def8637bb96d8ab69f6f3813e6",
+  "binary": "/workspace/scratch/4ab361722127/build-cp26/release/zil",
+  "binary_sha256": "c9f10a9840fd8bdbb884e4981c7dbb5895ebfe653ecb7b486b1979c16441278f",
+  "production_diff": {
+    "files": [
+      "crates/zil-driver/src/parse_cache.rs"
+    ],
+    "confirmed": [
+      "BufWriter combines header writes; explicit flush errors propagate before drop/rename.",
+      "Guard is created only after create_new succeeds, and disarmed only after successful same-directory rename.",
+      "Every post-create write/flush/cancellation/rename error retains owned-file cleanup.",
+      "Magic/key/length/checksum/codec, successful-request gate, source/output final-path checks and Verify pipeline unchanged."
+    ]
+  },
+  "contract": {
+    "source_commit": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+    "document": "docs/research/compile-performance/CP12-QUERY-CACHE.md",
+    "existing_contract": "\u6ca1\u6709 fsync \u6301\u4e45\u6027\u627f\u8bfa\uff1b\u4e22\u5931\u7f13\u5b58\u53ef\u4ee5\u91cd\u5efa\u3002",
+    "reasoning": "Removing per-module sync_all changes no promised durability contract. Same-directory complete-file rename preserves publication atomicity; reads still validate identity, length, checksum and codec, and invalid or missing entries use the cold path. No physical power-loss simulation was performed."
+  },
+  "independent_execution": {
+    "cargo_command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--test",
+      "parse_publication_cp26",
+      "--test",
+      "parse_cache_cp22",
+      "--test",
+      "query_cache_cp12",
+      "-j",
+      "2"
+    ],
+    "environment": {
+      "CARGO_TARGET_DIR": "/workspace/scratch/4ab361722127/target-cp26",
+      "CARGO_PROFILE_DEV_DEBUG": "0",
+      "CARGO_PROFILE_TEST_DEBUG": "0",
+      "CARGO_INCREMENTAL": "0",
+      "CARGO_BUILD_JOBS": "2",
+      "toolchain_env": "/workspace/scratch/4ab361722127/.toolchain/env.sh"
+    },
+    "cargo_exit_code": 0,
+    "passed_tests": 22,
+    "targets": {
+      "parse_publication_cp26": 4,
+      "parse_cache_cp22": 6,
+      "query_cache_cp12": 12
+    },
+    "test_log": "CP26-targeted-test.log",
+    "build_scope": "Reused author-prebuilt target-cp26 dependencies; no new independent clean release rebuild claimed.",
+    "cli_requests": 5,
+    "native_controls": 4,
+    "cli_result": "CP26-collision-regression/result.json",
+    "cli_observation": "Real output at .<parse key>.<same compiler PID>.0.tmp survives AlreadyExists and executes successfully; later repair and warm reuse pass. All four ELF and LLVM hashes match, and all five requests have fresh Verify=1."
+  },
+  "author_evidence_checked": {
+    "release_json_sha256": "468b024ec711b63391f38aaa64bb5cc59cffeaec8355311afc6b3d5f2ebe36b6",
+    "tests_json_sha256": "f09c79315c403ab41d9759d2e2bf6eaccac5e61cb93da21dbb554ca43c652361",
+    "cli_manifest_sha256": "3b939f9a308acf0ca58aeef7860a09f9c8a24d0f1baa01f5df8e8836455f5ff9",
+    "all_manifest_log_and_source_hashes_match": true,
+    "handoff_gate": {
+      "exit_code": 1,
+      "status": "Fail",
+      "reason": "Restored research-only checkout lacks main authority checkout and normative registry; explicit root delegation remains authoritative."
+    }
+  },
+  "remaining_limits": [
+    "Original CP22 publication Pass remains superseded by its ChangesRequested addendum; CP26 fixes that parse-specific finding without rewriting old evidence or timings.",
+    "CP12 and object-cache same-class bugs are real baseline issues and are not fixed by this parse-only commit.",
+    "Cancellation cleanup is supported by unchanged guarded control flow and existing cancellation controls; no deterministic mid-flush cancellation injection is claimed.",
+    "No performance conclusion follows from reduced sync calls, test counts, or cache hit counts."
+  ],
+  "evidence_sha256": {
+    "CP26-targeted-test.log": "174c57e5f0e5e94214a1d8d3b253f5262e45783a0970c0fe1bfc761734d9d35b",
+    "cache-temp-collision-regression.py": "d02dd9c8d96cb7a36a66cb590320bba2ac09fb39f083cb6a7e83c2b3fe7aa2b6",
+    "CP26-collision-regression.log": "326976b109b421f4e3959a94cec3b51cf83d9177585b22cfb84428432b418cb0",
+    "CP26-collision-regression/result.json": "4cf68803df18825c982f1ab0d343ccfe32b2e1440a93f7ea98a6104992308a15",
+    "TEMP-OWNERSHIP-AUDIT.json": "a2de94bb68928e600889db30aa8cdfff33780381a4ebc2118a75e272b808f483"
+  },
+  "delivery_commit": "e6bf523eee3c83510505d74838fdfd298cbff502",
+  "delivery_changes_only_evidence_and_documentation": true
+}

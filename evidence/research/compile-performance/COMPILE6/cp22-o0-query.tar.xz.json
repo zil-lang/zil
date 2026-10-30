@@ -1,0 +1,11 @@
+{
+  "source_directory": "/workspace/scratch/4ab361722127/measurements/cp22-o0-query",
+  "archive": "cp22-o0-query.tar.xz",
+  "files": 10414,
+  "source_bytes": 63363022,
+  "archive_bytes": 564808,
+  "sha256": "2416a94a0133dfaa26dc1fa6fd23aca25f91bb52f0544896814cd99c34c7d36d",
+  "git_blob_sha": "07bf5a941a628425f81019b5dbe80175e03e7022",
+  "verification": "Every tar entry decoded and byte-compared with the source; all source files retained",
+  "retention": "Completed and incomplete windows remain distinguishable by their original receipts and logs"
+}

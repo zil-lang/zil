@@ -1,0 +1,213 @@
+{
+  "reviewer": "/root/incremental_review",
+  "verdict": "Pass",
+  "scope": "Retained full-CLI raw evidence, frozen identity, complete matrix, oracle and arithmetic audit; no compiler re-execution",
+  "window": "/workspace/scratch/4ab361722127/measurements/cp22-o0-query",
+  "preflight_directory": "/workspace/scratch/4ab361722127/measurements/cp22-o0-query/preflight",
+  "audit_script_sha256": "0316d11c0667759e873fe3eb9bf95023fedfc75bf3d4d6e143b3ac2a932eecb9",
+  "source_identity": {
+    "A": {
+      "commit": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+      "crates_tree": "b583bc62e4aa39b206afb27f76f2f8262120fe9d"
+    },
+    "B": {
+      "commit": "f660aeb68e4cf86eab0bc7c9e219d5bcf8bdb5ea",
+      "crates_tree": "a598b9f6b04feff21fc2eed24566726a1a79ef12"
+    }
+  },
+  "files_sha256": {
+    "plan.json": "8af8f8dd1ca37f105b213257b1e7573ff350c05c0771f2e99c93f1a7826fa64a",
+    "preflight/result.json": "2676f3212381db71d7adf25e7590e6acefb835fdbba8009e224f40dc74182205",
+    "preflight/records.jsonl": "b9ad02d8f4bff56962b124357f89a5ec3c40b628b59239d9702403a3e2fb6504",
+    "measure/complete.json": "94d8feaa7e37f2ec2d53939731daf61c2ac96c7cd5ec251922c51b2fa3da19b7",
+    "measure/records.jsonl": "3b0c8ba294807925b70ad403ccfb0588d8e8a29435ea7b6624e346dab58bf724",
+    "summary.json": "82c3d77970062dbf21774438ed72b3dfad5931e24cd920f947d3602bded36a05"
+  },
+  "rows": 240,
+  "preflight_rows": 40,
+  "native_checks": 768,
+  "all_row_contracts_and_raw_oracles_pass": true,
+  "matrix_recreated_from_seed": true,
+  "binary_and_helper_hashes_rechecked": true,
+  "fixtures_rechecked": 8056,
+  "independently_recomputed_estimator": {
+    "build": {
+      "wall": {
+        "A": 0.8997208743499999,
+        "B": 0.9181770272225,
+        "B_over_A": 1.0205131984803995,
+        "by_case": {
+          "tree4x2": {
+            "A": 0.393565634275,
+            "B": 0.37127366624999997,
+            "B_over_A": 0.9433589569727936
+          },
+          "tree32x8": {
+            "A": 0.392369747275,
+            "B": 0.39111653875,
+            "B_over_A": 0.9968060521135905
+          },
+          "tree256x8": {
+            "A": 0.6696759663,
+            "B": 0.683149103125,
+            "B_over_A": 1.0201188895869144
+          },
+          "tree1024x8": {
+            "A": 1.8096117903,
+            "B": 1.8606020649500001,
+            "B_over_A": 1.028177465975477
+          },
+          "retained": {
+            "A": 0.38700401782499994,
+            "B": 0.38910256337500004,
+            "B_over_A": 1.0054225420237086
+          }
+        },
+        "by_request": {
+          "cold_process": {
+            "A": 1.326700391275,
+            "B": 1.764387369575,
+            "B_over_A": 1.3299064213581557
+          },
+          "unchanged": {
+            "A": 0.703930280875,
+            "B": 0.695629540475,
+            "B_over_A": 0.988208007773608
+          },
+          "private_edit": {
+            "A": 0.9583398779,
+            "B": 0.8940807929750001,
+            "B_over_A": 0.9329474997264956
+          },
+          "public_edit": {
+            "A": 0.9155952383749999,
+            "B": 0.937570892725,
+            "B_over_A": 1.024001494796983
+          }
+        }
+      },
+      "slower_case_requests": {
+        "tree4x2/public_edit": {
+          "A": 0.3632714215,
+          "B": 0.3823083185,
+          "B_over_A": 1.0524040589854107
+        },
+        "tree32x8/cold_process": {
+          "A": 0.4339624275,
+          "B": 0.4896967525,
+          "B_over_A": 1.1284312223089865
+        },
+        "tree32x8/public_edit": {
+          "A": 0.396543907,
+          "B": 0.404403112,
+          "B_over_A": 1.0198192554752834
+        },
+        "tree256x8/cold_process": {
+          "A": 0.9645829335,
+          "B": 1.0886213625,
+          "B_over_A": 1.1285928090702633
+        },
+        "tree256x8/unchanged": {
+          "A": 0.552223089,
+          "B": 0.593971225,
+          "B_over_A": 1.0756001276143672
+        },
+        "tree1024x8/cold_process": {
+          "A": 2.9026694429999997,
+          "B": 4.2144128875,
+          "B_over_A": 1.451909344229108
+        },
+        "tree1024x8/public_edit": {
+          "A": 1.8129376055,
+          "B": 1.9104144935,
+          "B_over_A": 1.0537673705395485
+        },
+        "retained/unchanged": {
+          "A": 0.3801549325,
+          "B": 0.387665484,
+          "B_over_A": 1.0197565541254683
+        },
+        "retained/public_edit": {
+          "A": 0.41392495799999995,
+          "B": 0.4220286345,
+          "B_over_A": 1.0195776464873134
+        }
+      },
+      "cpu": {
+        "A": 0.9389737499999999,
+        "B": 0.93122593125,
+        "B_over_A": 0.9917486311518293,
+        "by_case": {
+          "tree4x2": {
+            "A": 0.370112225,
+            "B": 0.3679185,
+            "B_over_A": 0.9940728112939257
+          },
+          "tree32x8": {
+            "A": 0.386163325,
+            "B": 0.384835575,
+            "B_over_A": 0.9965616879852586
+          },
+          "tree256x8": {
+            "A": 0.6885644000000001,
+            "B": 0.6927544499999999,
+            "B_over_A": 1.0060851969692302
+          },
+          "tree1024x8": {
+            "A": 1.93114845,
+            "B": 1.90206135,
+            "B_over_A": 0.9849379264447536
+          },
+          "retained": {
+            "A": 0.383148925,
+            "B": 0.38329965,
+            "B_over_A": 1.0003933848959645
+          }
+        },
+        "by_request": {
+          "cold_process": {
+            "A": 1.273861325,
+            "B": 1.45129165,
+            "B_over_A": 1.1392854320308374
+          },
+          "unchanged": {
+            "A": 0.7475168,
+            "B": 0.737305775,
+            "B_over_A": 0.9863400728920073
+          },
+          "private_edit": {
+            "A": 1.003095975,
+            "B": 0.9415659249999999,
+            "B_over_A": 0.9386598575475292
+          },
+          "public_edit": {
+            "A": 0.9914556499999999,
+            "B": 1.0094225,
+            "B_over_A": 1.0181216880452495
+          }
+        }
+      },
+      "exploratory_paired_block_bootstrap95": [
+        0.9641953695400682,
+        1.0811590684857109
+      ]
+    }
+  },
+  "raw_report_counts": {
+    "verification_runs": {
+      "1": 240
+    },
+    "query_state": {
+      "miss": 180,
+      "hit": 60
+    },
+    "parse_report_present": 120
+  },
+  "same_binary_by_case_snapshot": true,
+  "limits": [
+    "Caller-declared commit-to-binary mapping is frozen and hashes match; this audit does not independently reproduce the full compiler build.",
+    "The original timing processes were not re-executed; observed wall/CPU times are retained measurements.",
+    "Only the frozen phases/profile/options/cases are covered. Three paired blocks on a shared host provide descriptive evidence, not a universal or Rust comparison.",
+    "An arithmetic/data Pass does not mean a performance adoption Pass. Slower cells and intervals spanning 1 remain material."
+  ]
+}

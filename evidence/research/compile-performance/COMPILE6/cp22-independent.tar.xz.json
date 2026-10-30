@@ -1,0 +1,11 @@
+{
+  "source_directory": "/workspace/scratch/4ab361722127/recovery/cp22-independent",
+  "archive": "cp22-independent.tar.xz",
+  "files": 346,
+  "source_bytes": 478341,
+  "archive_bytes": 39216,
+  "sha256": "a6e288c8b247e6f83562a50d50b521b4b88c47f2295e70901fcb1616049d8a7e",
+  "git_blob_sha": "9f69d2159a764aef1dc35735fe2d580f0da42754",
+  "verification": "Every tar entry decoded and byte-compared with the source; all source files retained",
+  "retention": "Completed and incomplete windows remain distinguishable by their original receipts and logs"
+}
