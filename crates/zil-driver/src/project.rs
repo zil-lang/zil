@@ -350,7 +350,8 @@ impl CompilationSession {
             report,
             observer,
             || {
-                let inferred = zil_types::infer_program_closures(&expanded.core, &options.limits)?;
+                let inferred =
+                    zil_types::infer_program_closures_borrowed(&expanded.core, &options.limits)?;
                 let context = zil_ct::SourceProgramContext::new(&inferred, &options.limits)?;
                 let mut modules = Vec::new();
                 let mut remaining = options.limits.clone();
