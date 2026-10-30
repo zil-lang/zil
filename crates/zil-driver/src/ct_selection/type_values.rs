@@ -71,6 +71,28 @@ impl materialize::Materializer<'_, '_> {
         }
     }
 
+    pub(super) fn generation_record_type(
+        &mut self,
+        ty: &mut s::Expr,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.budget.node(ty.span, depth)?;
+        match &mut ty.kind {
+            s::ExprKind::Name(_) => {}
+            s::ExprKind::Member { object, .. } | s::ExprKind::Group(object) => {
+                self.generation_record_type(object, depth + 1)?;
+            }
+            s::ExprKind::TypeApply { callee, arguments } => {
+                self.generation_record_type(callee, depth + 1)?;
+                for argument in arguments {
+                    self.generation_argument(argument, depth + 1)?;
+                }
+            }
+            _ => self.expression(ty, depth + 1)?,
+        }
+        Ok(())
+    }
+
     pub(super) fn generation_attributes(
         &mut self,
         attributes: &mut [s::Attribute],
