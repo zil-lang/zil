@@ -100,7 +100,7 @@
     "zil-llvm-api": {
       "module": "src/native.rs",
       "feature": "native",
-      "upstream": "LLVM 17.0.6 C API",
+      "upstream": "LLVM 23.1.4 C API",
       "scope": "owned context/module/builder/target machine/pass options/object buffer; native.rs and its private native/builder.rs; no frontend/verify dependency; machine preflight before LLVMBuilder"
     }
   }
