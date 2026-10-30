@@ -1,0 +1,25 @@
+{
+  "status": "Pass",
+  "scope": "Limited synthetic TypedIR and Wire Analyze controls; not source/native acceptance",
+  "observed_at_utc": "2026-10-30T05:11:26.579483+00:00",
+  "production_commit": "0fba9fed65c1c460bc51bd851d7d9e7317e0570f",
+  "test_path": "crates/zil-analyze/tests/impl220_factory.rs",
+  "test_sha256": "11edf5b7670cb745e2f866b58dc194374d4f78f3a201fbad542825f7494db62c",
+  "command": "cargo test -p zil-analyze --test impl220_factory --offline -- --nocapture",
+  "tests": {
+    "passed": 11,
+    "failed": 0,
+    "ignored": 0
+  },
+  "raw_wire_exact_budget": {
+    "N": 878,
+    "N_minus_1": "ResourceLimit",
+    "fresh_N": "Success"
+  },
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm": "23.1.4"
+  },
+  "log_sha256": "0a083eeb340e0876fc207ad79349c25378eb6292a6c8c679748b4d156dcc3823",
+  "full_language_acceptance": false
+}
