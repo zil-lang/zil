@@ -1,0 +1,7 @@
+
+running 1 test
+CP11_PROJECT_MAP_BOUNDARY:352:365776dbbbcb572d38267cbbf6435a73d826aee62cc9bb9a66300b4771aae55d:[Diagnostic { phase: Expand, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "generic metadata budget exceeded", span: Some(Span { file: FileId(1), start: 45, end: 49 }), notes: [] }]
+test project_maps_keep_local_targets_utf8_and_exact_fresh_work ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

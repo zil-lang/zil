@@ -1,0 +1,20 @@
+
+running 5 tests
+test incomplete_source_scans_never_supply_a_later_index ... ok
+test source_identity_errors_are_charged_in_source_order ... ok
+test each_map_has_fresh_nodes_targets_and_validation ... ok
+CP11_SOURCE_MAP_MATRIX:[]:5120ad48ab73d9a9519224f7a56e13b519361f3815b390cc31cdc0a073b6e5a2
+CP11_SHARED_SOURCE_MAP_MATRIX:[]:5120ad48ab73d9a9519224f7a56e13b519361f3815b390cc31cdc0a073b6e5a2
+CP11_SOURCE_MAP_MATRIX:[7]:23cf175a11d1d031b36eabda5002ed0845dcafb27a428f834065a774b042109c
+CP11_SHARED_SOURCE_MAP_MATRIX:[7]:23cf175a11d1d031b36eabda5002ed0845dcafb27a428f834065a774b042109c
+CP11_SOURCE_MAP_MATRIX:[7, 8, 9, 10]:546195ec05bff62a197e5413942d3440869f24c450459c545a24d96bd09aed9b
+CP11_SHARED_SOURCE_MAP_MATRIX:[7, 8, 9, 10]:546195ec05bff62a197e5413942d3440869f24c450459c545a24d96bd09aed9b
+CP11_SOURCE_MAP_MATRIX:[7, 7, 8, 9]:1058bf98784278426a9314938de523ea581a7066c3aad3a9cba965ed83196864
+CP11_SHARED_SOURCE_MAP_MATRIX:[7, 7, 8, 9]:1058bf98784278426a9314938de523ea581a7066c3aad3a9cba965ed83196864
+CP11_SOURCE_MAP_MATRIX:[7, 8, 7, 9]:35412e8136077c8b75bfd5e37b2f613ef7f857728d66807340a7c84fbf0ff2b7
+test standalone_validation_matrix_preserves_complete_diagnostics ... ok
+CP11_SHARED_SOURCE_MAP_MATRIX:[7, 8, 7, 9]:35412e8136077c8b75bfd5e37b2f613ef7f857728d66807340a7c84fbf0ff2b7
+test shared_validation_matrix_matches_the_original_standalone_results ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
