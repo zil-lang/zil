@@ -1360,7 +1360,9 @@ impl Builder<'_, '_> {
         field: Option<u32>,
         id: ClosureId,
     ) -> R<Option<CallableKind>> {
-        if field.is_none() && let Some(kind) = self.factory_declared_kind(expression)? {
+        if field.is_none()
+            && let Some(kind) = self.factory_declared_kind(expression)?
+        {
             return Ok(Some(kind));
         }
         let Some(uses) = &self.state_uses else {

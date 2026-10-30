@@ -524,7 +524,9 @@ impl<'a, 'c> Builder<'a, 'c> {
         if let Some(modes) = &mut b.factory_modes {
             b.closures.snapshot(f.callable_parameters.len(), f.span)?;
             for bound in &f.callable_parameters {
-                modes.locals.insert(b.function.parameters[bound.index as usize], bound.kind);
+                modes
+                    .locals
+                    .insert(b.function.parameters[bound.index as usize], bound.kind);
             }
         }
         Ok(b)
@@ -1620,6 +1622,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         .call_inferred_type_template(signature, arguments, expected, e.span);
                 }
                 if signature.callable_return.is_some()
+                    && signature.callable.is_empty()
                     && matches!(signature.result, Type::Opaque { .. })
                 {
                     return Err(unsupported(
@@ -1969,10 +1972,14 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
         }
         let span = input.span;
-        let id = self
-            .closures
-            .create(input, &outer, self.signatures, self.imports, self.enums,
-                self.factory_modes.as_ref().map(|modes| &modes.locals))?;
+        let id = self.closures.create(
+            input,
+            &outer,
+            self.signatures,
+            self.imports,
+            self.enums,
+            self.factory_modes.as_ref().map(|modes| &modes.locals),
+        )?;
         if let Some(Type::FunctionPointer { parameters, result }) = expected {
             let pending = &mut self.closures.pending[id.0 as usize];
             if parameters.len() != pending.parameters.len() {
@@ -2213,12 +2220,16 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             if let Type::Closure(child) = &stored {
                 let mutable = capture.written
-                    && capture.declared_kind.unwrap_or_else(|| builder.closures.pending[child.0 as usize].callable_kind())
-                        != CallableKind::FnOnce;
+                    && capture.declared_kind.unwrap_or_else(|| {
+                        builder.closures.pending[child.0 as usize].callable_kind()
+                    }) != CallableKind::FnOnce;
                 if let Some(kind) = capture.declared_kind {
                     builder.closures.snapshot(1, capture.span)?;
-                    builder.factory_modes.get_or_insert_with(owning_factory::Modes::default)
-                        .captures.insert(index as u32, kind);
+                    builder
+                        .factory_modes
+                        .get_or_insert_with(owning_factory::Modes::default)
+                        .captures
+                        .insert(index as u32, kind);
                 }
                 let address = Type::Address {
                     mutable,
@@ -2368,7 +2379,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             ));
         };
         let mut declared_kind = self.declared_state_kind(callee, None, id)?;
-        if declared_kind.is_none() && let Some(value) = callee_value {
+        if declared_kind.is_none()
+            && let Some(value) = callee_value
+        {
             declared_kind = self.factory_value_kind(value, span)?;
         }
         let kind = declared_kind.unwrap_or_else(|| {

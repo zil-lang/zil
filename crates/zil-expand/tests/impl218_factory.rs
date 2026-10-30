@@ -11,13 +11,27 @@ fn expand(text: &str) -> Result<CoreModule, Vec<Diagnostic>> {
 fn unused_public_factory_definitions_keep_their_real_bound_and_result() {
     for (kind, body, wanted) in [
         ("Fn", "return move (x:i32)=>f(x)+bias", CallableKind::Fn),
-        ("FnMut", "var inner=f; return move (x:i32)=>inner(x)+bias", CallableKind::FnMut),
-        ("FnOnce", "let inner=f; return move (x:i32)=>inner(x)+bias", CallableKind::FnOnce),
+        (
+            "FnMut",
+            "var inner=f; return move (x:i32)=>inner(x)+bias",
+            CallableKind::FnMut,
+        ),
+        (
+            "FnOnce",
+            "let inner=f; return move (x:i32)=>inner(x)+bias",
+            CallableKind::FnOnce,
+        ),
     ] {
-        let text = format!("pub fn wrap<F:{kind}(i32)->i32>(bias:i32,f:F)->impl {kind}(i32)->i32{{{body}}} fn main(){{}}");
+        let text = format!(
+            "pub fn wrap<F:{kind}(i32)->i32>(bias:i32,f:F)->impl {kind}(i32)->i32{{{body}}} fn main(){{}}"
+        );
         let core = expand(&text).unwrap_or_else(|error| panic!("{text}\n{error:#?}"));
         assert!(core.unsupported.is_empty(), "{:#?}", core.unsupported);
-        let factory = core.functions.iter().find(|function| function.name == "wrap").unwrap();
+        let factory = core
+            .functions
+            .iter()
+            .find(|function| function.name == "wrap")
+            .unwrap();
         assert_eq!(factory.callable_parameters.len(), 1);
         assert_eq!(factory.callable_parameters[0].index, 1);
         assert_eq!(factory.callable_parameters[0].kind, wanted);
@@ -28,17 +42,37 @@ fn unused_public_factory_definitions_keep_their_real_bound_and_result() {
 #[test]
 fn unused_factory_checks_capture_consumption_and_hidden_identity() {
     let bodies = [
-        "return move (x:i32)=>f(x)+f(x)",
-        "let a=f; return move (x:i32)=>f(x)",
-        "let c=move (x:i32)=>f(x); let d=move (x:i32)=>f(x); return c",
-        "return move (x:i32)=>{while x>0 {f(x)} return 0}",
-        "return f",
-        "if true {return move (x:i32)=>f(x)} else {return move (x:i32)=>f(x)}",
+        (
+            "return move (x:i32)=>f(x)+f(x)",
+            "used after its environment was consumed",
+        ),
+        (
+            "let a=f; return move (x:i32)=>f(x)",
+            "used after its environment was consumed",
+        ),
+        (
+            "let c=move (x:i32)=>f(x); let d=move (x:i32)=>f(x); return c",
+            "used after its environment was consumed",
+        ),
+        (
+            "return move (x:i32)=>{while x>0 {f(x)} return 0}",
+            "loop must preserve",
+        ),
+        ("return f", "fresh grounded environment"),
+        (
+            "if true {return move (x:i32)=>f(x)} else {return move (x:i32)=>f(x)}",
+            "distinct closure definitions",
+        ),
     ];
-    for body in bodies {
-        let text = format!("fn bad<F:FnOnce(i32)->i32>(f:F)->impl FnOnce(i32)->i32{{{body}}} fn main(){{}}");
+    for (body, diagnostic) in bodies {
+        let text = format!(
+            "fn bad<F:FnOnce(i32)->i32>(f:F)->impl FnOnce(i32)->i32{{{body}}} fn main(){{}}"
+        );
         let error = expand(&text).expect_err(&text);
-        assert!(!error.is_empty());
+        assert!(
+            error.iter().any(|error| error.message.contains(diagnostic)),
+            "{text}\n{error:#?}"
+        );
     }
 }
 
@@ -63,8 +97,14 @@ fn input_can_be_settled_without_being_retained_in_the_result() {
         "let value=f(4); return move (x:i32)=>x+value",
         "let c=move (x:i32)=>f(x); return c",
     ] {
-        let result = if body.contains("=>f(x)") { "FnOnce" } else { "Fn" };
-        let text = format!("fn wrap<F:FnOnce(i32)->i32>(f:F)->impl {result}(i32)->i32{{{body}}} fn main(){{}}");
+        let result = if body.contains("=>f(x)") {
+            "FnOnce"
+        } else {
+            "Fn"
+        };
+        let text = format!(
+            "fn wrap<F:FnOnce(i32)->i32>(f:F)->impl {result}(i32)->i32{{{body}}} fn main(){{}}"
+        );
         let core = expand(&text).unwrap_or_else(|error| panic!("{text}\n{error:#?}"));
         assert!(core.unsupported.is_empty(), "{:#?}", core.unsupported);
     }

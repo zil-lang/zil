@@ -842,13 +842,18 @@ impl Walk<'_, '_> {
                     .snapshot(a.work().saturating_add(b.work()), expression.span)?;
                 if a == b { a } else { Shape::Unknown }
             }
-            CoreExprKind::Closure { parameters, body, .. } if self.owned_factory => {
-                self.state.snapshot(parameters.len().saturating_add(1), expression.span)?;
+            CoreExprKind::Closure {
+                parameters, body, ..
+            } if self.owned_factory => {
+                self.state
+                    .snapshot(parameters.len().saturating_add(1), expression.span)?;
                 self.scopes.push(BTreeMap::new());
                 for parameter in parameters {
                     let shape = if let Some(ty) = &parameter.ty {
                         self.shape(ty, &[], Bindings::default(), parameter.span, depth + 1)?
-                    } else { Shape::Unknown };
+                    } else {
+                        Shape::Unknown
+                    };
                     self.bind(&parameter.name, shape, parameter.span)?;
                 }
                 self.block(body, depth + 1)?;
