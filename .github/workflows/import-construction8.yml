@@ -1,4 +1,4 @@
-name: Import exact construction 8 checkpoints
+name: Import native construction 8 stdin repair history
 on:
   push:
     branches: [sync/construction8-history]
@@ -6,7 +6,7 @@ on:
 permissions:
   contents: write
 jobs:
-  import:
+  import-history:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -14,31 +14,71 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
-      - name: Verify final implementation and review history before publishing
+      - name: Verify native bundle and create only the absent repair branch
         shell: bash
         run: |
           set -euo pipefail
-          cat .construction8-history/round2/part-*.bin > "$RUNNER_TEMP/round2.bundle"
-          echo "4d7cc7ce49c4b23ce6401fa6d7112f081beb8d5c029fdc83d92dca2b25ae9627  $RUNNER_TEMP/round2.bundle" | sha256sum --check
-          git bundle verify "$RUNNER_TEMP/round2.bundle"
-          git fetch "$RUNNER_TEMP/round2.bundle" refs/heads/impl/222-ct-for:refs/import/construction8/round2/0
-          test "$(git rev-parse refs/import/construction8/round2/0)" = "566bda6a12ab9dbe9be5adbf5b870a411189dc37"
-          git fetch "$RUNNER_TEMP/round2.bundle" refs/heads/impl/223-product-store:refs/import/construction8/round2/1
-          test "$(git rev-parse refs/import/construction8/round2/1)" = "aefc031d83c92aaea0c6154fdfe9b94834a9b105"
-          git fetch "$RUNNER_TEMP/round2.bundle" refs/heads/impl/224-readonly-product:refs/import/construction8/round2/2
-          test "$(git rev-parse refs/import/construction8/round2/2)" = "2b98ac8b99c3a4f7dcdc29bb1b6e62d0a4da4ba0"
-          git fetch "$RUNNER_TEMP/round2.bundle" refs/heads/integration/222-224:refs/import/construction8/round2/3
-          test "$(git rev-parse refs/import/construction8/round2/3)" = "6b0d974bedfb40c93eb36e491ceb18a138718dac"
-          cat .construction8-history/round2-extra/part-*.bin > "$RUNNER_TEMP/round2-extra.bundle"
-          echo "179ba07b76f0e442c38fa86ae1a26cb20129a8c2ac051f2d97fa939c45183032  $RUNNER_TEMP/round2-extra.bundle" | sha256sum --check
-          git bundle verify "$RUNNER_TEMP/round2-extra.bundle"
-          git fetch "$RUNNER_TEMP/round2-extra.bundle" refs/heads/impl/222-ct-for:refs/import/construction8/round2-extra/0
-          test "$(git rev-parse refs/import/construction8/round2-extra/0)" = "a9aa46a8c32fbd52463c3de3b848984321a20c99"
-          git fetch "$RUNNER_TEMP/round2-extra.bundle" refs/heads/integration/222-224:refs/import/construction8/round2-extra/1
-          test "$(git rev-parse refs/import/construction8/round2-extra/1)" = "616c562ed6363df437c2d48358da624d86e6960d"
-          git merge-base --is-ancestor a8e8831a9e28ac2ec83be6eac740a8f04a00af7d a9aa46a8c32fbd52463c3de3b848984321a20c99
-          git merge-base --is-ancestor a8e8831a9e28ac2ec83be6eac740a8f04a00af7d aefc031d83c92aaea0c6154fdfe9b94834a9b105
-          git merge-base --is-ancestor a8e8831a9e28ac2ec83be6eac740a8f04a00af7d 2b98ac8b99c3a4f7dcdc29bb1b6e62d0a4da4ba0
-          git merge-base --is-ancestor a8e8831a9e28ac2ec83be6eac740a8f04a00af7d 616c562ed6363df437c2d48358da624d86e6960d
-          git push --atomic origin a9aa46a8c32fbd52463c3de3b848984321a20c99:refs/heads/impl/222-ct-for aefc031d83c92aaea0c6154fdfe9b94834a9b105:refs/heads/impl/223-product-store 2b98ac8b99c3a4f7dcdc29bb1b6e62d0a4da4ba0:refs/heads/impl/224-readonly-product 616c562ed6363df437c2d48358da624d86e6960d:refs/heads/integration/222-224
-          git ls-remote origin refs/heads/impl/222-ct-for refs/heads/impl/223-product-store refs/heads/impl/224-readonly-product refs/heads/integration/222-224
+          test "$GITHUB_REF" = 'refs/heads/sync/construction8-history'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          expected_main='39e52ef784d41f5744b909a9e6702ab16c1b1227'
+          expected_repair='ccae8c60c96a2c174b137b2fab084e9e8a97a02f'
+          expected_tree='a7509a9fea1ed2f5818bcb454af4e9b6e6568e7f'
+          import_ref='refs/zil-import/construction8-stdin'
+          repair_ref='refs/heads/repair/construction8-stdin'
+          test "$(git ls-remote --heads origin refs/heads/main | cut -f1)" = "$expected_main"
+          test -z "$(git ls-remote --heads origin "$repair_ref")"
+          python3 - <<'RESTORE'
+          import hashlib, json, os
+          from pathlib import Path
+          base = Path('evidence/integration/222-224/postmerge-stdin-repair/transport')
+          raw = (base / 'MANIFEST.json').read_bytes()
+          assert hashlib.sha256(raw).hexdigest() == '65dfafcc3958c86fbc96071e623814c4c03e9866540f98114d98e1521e1b43e1', 'Manifest digest mismatch'
+          m = json.loads(raw)
+          assert (m['expected_main'], m['R'], m['tree'], m['review_commit']) == ('39e52ef784d41f5744b909a9e6702ab16c1b1227', 'ccae8c60c96a2c174b137b2fab084e9e8a97a02f', 'a7509a9fea1ed2f5818bcb454af4e9b6e6568e7f', '2276a6dcd41e6e8828fb7908cddf1fc4ff37b0a8')
+          assert (m['author_code'], m['author_delivery']) == ('e38ce27fda432e7a55b4a203f4fd047756d9512e', 'bcce4ca58cbd7edb1692c9140a0babb314491ddc')
+          assert m['bundle_sha256'] == '0ea16373e8b65572f70da98a8503df6b9da75eea33e2e826952a40b9b98da34d'
+          parts = m['parts']
+          assert parts and [p['ordinal'] for p in parts] == list(range(len(parts)))
+          chunks = []
+          for part in parts:
+              assert part['file'] == f"stdin-repair.bundle.part-{part['ordinal']:03d}"
+              path = base / part['file']
+              assert not path.is_symlink() and path.is_file()
+              data = path.read_bytes()
+              assert 0 < len(data) <= 512 * 1024 and len(data) == part['bytes']
+              assert hashlib.sha256(data).hexdigest() == part['sha256']
+              assert hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == part['sha']
+              chunks.append(data)
+          bundle = b''.join(chunks)
+          assert len(bundle) == m['bundle_bytes'] and hashlib.sha256(bundle).hexdigest() == '0ea16373e8b65572f70da98a8503df6b9da75eea33e2e826952a40b9b98da34d'
+          output = Path(os.environ['RUNNER_TEMP']) / 'construction8-stdin.bundle'
+          with output.open('xb') as f:
+              f.write(bundle)
+          RESTORE
+          bundle="$RUNNER_TEMP/construction8-stdin.bundle"
+          printf '%s  %s\n' '0ea16373e8b65572f70da98a8503df6b9da75eea33e2e826952a40b9b98da34d' "$bundle" | sha256sum --check -
+          git bundle verify "$bundle"
+          test -z "$(git for-each-ref --format='%(objectname)' "$import_ref")"
+          git fetch --no-tags "$bundle" "refs/heads/main:$import_ref"
+          test "$(git rev-parse "$import_ref")" = "$expected_repair"
+          test "$(git rev-parse "$import_ref^{tree}")" = "$expected_tree"
+          read -r -a parents <<< "$(git show -s --format=%P "$expected_repair")"
+          test "${#parents[@]}" -eq 2
+          for ancestor in '39e52ef784d41f5744b909a9e6702ab16c1b1227' 'e38ce27fda432e7a55b4a203f4fd047756d9512e' 'bcce4ca58cbd7edb1692c9140a0babb314491ddc' '2276a6dcd41e6e8828fb7908cddf1fc4ff37b0a8'; do
+            git merge-base --is-ancestor "$ancestor" "$expected_repair"
+          done
+          python3 - <<'SCOPE'
+          import subprocess
+          raw = subprocess.check_output(['git', 'diff', '--name-only', '--no-renames', '-z', '39e52ef784d41f5744b909a9e6702ab16c1b1227', 'ccae8c60c96a2c174b137b2fab084e9e8a97a02f'])
+          paths = [p.decode() for p in raw.split(b'\0') if p]
+          exact = {'crates/zil-driver/tests/review223_machine.rs', '.task/impl/223.md'}
+          assert exact <= set(paths)
+          assert all(p in exact or p.startswith('evidence/integration/222-224/postmerge-stdin-repair/') for p in paths)
+          assert not subprocess.check_output(['git', 'diff', '--name-only', '--diff-filter=D', '39e52ef784d41f5744b909a9e6702ab16c1b1227', 'ccae8c60c96a2c174b137b2fab084e9e8a97a02f'])
+          SCOPE
+          test "$(git ls-remote --heads origin refs/heads/main | cut -f1)" = "$expected_main"
+          test -z "$(git ls-remote --heads origin "$repair_ref")"
+          git push --atomic --force-with-lease="$repair_ref:" origin "$expected_repair:$repair_ref"
+          test "$(git ls-remote --heads origin "$repair_ref" | cut -f1)" = "$expected_repair"
+          test "$(git ls-remote --heads origin refs/heads/main | cut -f1)" = "$expected_main"
+          printf 'Imported native history at %s to %s; main remains %s.\n' "$expected_repair" "$repair_ref" "$expected_main"
