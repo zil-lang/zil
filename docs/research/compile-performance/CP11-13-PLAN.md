@@ -30,3 +30,13 @@
 ## 验收与保留
 
 所有候选须保留旧拒绝、预算、源位置和每次独立 Verify；不复用旧验证资格。CP11 完整模型/诊断差分，CP12 可信缓存边界及预算对照，CP13 完整构建与运行质量分别核对。正式测量前停止全部编译/测试；五语料和固定权重不变，O0/O2、无缓存/增量、CGU配置分别报告。初筛与确认、冷编译缓存与暖 OS 页缓存必须明确。任何失败、漂移、缺行禁止评分；有限研究不升级产品门。保留所有负结果，未证实候选不进入 main。
+
+CP12 具体适配追加：授权 backend-llvm/src/lib.rs、object_cache.rs 仅导出/复用已有 trusted-installed-tool 只读身份 helper，不改原对象键、工具校验或 fallback。ELF build-id+元数据的可信安装前提必须明确，不能把它当作任意可替换生产者的字节证明；payload 仍单独校验。
+
+### CP13 具体实现授权
+
+显式 `closed_executable` 研究模式默认关闭，CLI 为 `--closed-executable`。只支持 Linux 的完整可执行 build、非 None 入口；emit/emit_with_options（包括外部 C harness）、原始机器 API、未启用的 build 及 Win64 原行为保持。显式模式不承诺对外导出生成的 ZIL 函数身份符号，但保留 main、外部声明、运行时 helper、全局对象和真实函数地址使用。
+
+在原 partition 之后，根据本次 LIR 非 foreign FunctionId 生成精确候选白名单；扫描所有实际 CGU 的语义引用（包括函数地址及 global initializer），被其他单元引用的定义保持 External，其余有 body 的候选改 Internal。不依赖字符串前缀猜身份，不改变现有 partition 的 local-edge 共址。全套原机器预检和 default<O2> 管线保持。Clang 单 CGU 快路也必须实际消费同一变换后的 unit；不得只让 API 后端生效。原 sidecar 的 prepartition 性质和命中报告须明确；实际单元模型 hash 包含 linkage，旧对象不能误命中。
+
+CP13 作者写集追加 backend-llvm/src/build.rs、machine_cgu.rs、对应测试/evidence/docs。CompileOptions 默认关闭字段、session 向 BuildOptions 的传递和 CLI 无值 flag/HELP，由 CP12 作者在其既有写集内作单独提交适配；两项提交保持独立审核。此字段只影响本次 Verify 后的 codegen，不是前端检查点可复用资格。运行质量须直接和未启用模式配对核对，不能仅凭正确输出通过便判定性能胜利。
