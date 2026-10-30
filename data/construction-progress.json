@@ -1,41 +1,41 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-30T05:29:52.208753+00:00",
-  "status": "Implementing",
+  "observed_at_utc": "2026-10-30T12:27:56.539560+00:00",
+  "status": "ReviewRepair",
   "accepted_main_at_start": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
-  "milestone": "Factory source/native and source-selection native milestones passed; remaining boundary cases and independent review ongoing",
+  "milestone": "Independent reviews found grouped module dependency and captured FnOnce conditional-transfer gaps; first fix published, second under repair",
   "tasks": [
     {
       "id": "218",
-      "state": "施工",
+      "state": "退回",
       "owner": "/root/language218",
       "branch": "task/218",
-      "latest_source_checkpoint": "14d90ce014600b26db4820b7262cacfa5cc7a8d4",
-      "observed_work": "Types 8/8、Expand 4/4；默认拥有捕获与定义期Store转交补漏中"
+      "latest_source_checkpoint": "dfaecfb0fd92f093f74857136af6baca9d17144b",
+      "observed_work": "前端限定检查与旧精确预算通过；非作者发现捕获F经if转交后合法源误拒，正在精确返修"
     },
     {
       "id": "219",
       "state": "施工",
       "owner": "/root/language_parallel",
       "branch": "task/219",
-      "latest_source_checkpoint": "35637591455eeaeffcb5ab9753fddb9cb33cfa51",
-      "observed_work": "#if真实CLI两配置O0/O2：100次执行、28个实际分配失败注入通过；回归与独审继续"
+      "latest_source_checkpoint": "deb5824c4f9aa1eefd729420aa967c08632ffe34",
+      "observed_work": "原两配置100次机器执行/28次实际分配失败通过；括号模块alias依赖遗漏已修复并推送，正在同SHA构建和原反例复验"
     },
     {
       "id": "220",
       "state": "施工",
       "owner": "/root",
       "branch": "task/220",
-      "latest_source_checkpoint": "eed58269f4cdeb25c9e71052a104d270aea6dcc4",
-      "observed_work": "源派生Analyze 5组通过；四组件回归558/0/0；三种旧源预算与IR完全一致"
+      "latest_source_checkpoint": "2212505a667508dc9c7565cbab674c8e59700457",
+      "observed_work": "Analyze源派生5组、raw/Wire11组和四组件558回归通过；新组合全量验收待两项返修闭合"
     },
     {
       "id": "221",
       "state": "施工",
       "owner": "/root/language_review_plan",
       "branch": "task/221",
-      "latest_source_checkpoint": "0fc198ecfd9271094e08b19d89a1531eb4e27e5d",
-      "observed_work": "9组源/机器检查通过，36次执行含6个实际分配失败；同步地址与错误结果边界补验中"
+      "latest_source_checkpoint": "d61264ba57af08ddb7e0b8dafe2fc584632c6833",
+      "observed_work": "10组源/机器检查、42次执行含6次实际分配失败通过；独审实测同ClosureId不同ValueId责任，重复值拒绝、独立值交换接受"
     }
   ],
   "proof": [
@@ -48,7 +48,10 @@
     "requested_minutes_approximately": 10,
     "native_minimum_minutes": 60,
     "automation_created": false,
-    "conversation_updates": true
+    "conversation_updates": true,
+    "page": "https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab",
+    "row": "zil施工7",
+    "page_updates_during_active_construction": true
   },
   "previous218_recovered": false,
   "full_language": "NotSatisfied",
@@ -60,5 +63,17 @@
     "url": "https://github.com/zil-lang/zil/actions/runs/41005715432",
     "conclusion": "success"
   },
-  "new_language_acceptance": false
+  "new_language_acceptance": false,
+  "readiness_recheck": {
+    "source_commit": "2212505a667508dc9c7565cbab674c8e59700457",
+    "unchanged_original_sources": 29,
+    "success": 13,
+    "unsupported": 14,
+    "malformed_excluded": 2,
+    "promoted": [
+      "ct-item-if",
+      "ct-statement-if"
+    ],
+    "full_readiness": false
+  }
 }
