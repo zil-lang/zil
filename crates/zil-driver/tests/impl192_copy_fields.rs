@@ -417,15 +417,20 @@ fn finite_field_loans_follow_branch_and_loop_last_use() {
 }
 
 #[test]
-fn ordinary_package_and_noncopy_field_addresses_remain_closed() {
-    for source in [
-        format!("{SIMPLE}fn main(){{var state=make();let p=&state;}}"),
-        format!("{SIMPLE}fn main(){{var state=make();let p=&state.r;}}"),
-        "package P{manages bytes:ByteBuffer;n:i32}fn main(){var state=P{bytes:bytes_new(),n:1};let p=&state.bytes;}".to_string(),
+fn ordinary_shared_heads_are_admitted_while_bytebuffer_heads_remain_closed() {
+    // Preserve all three original sources. 224 admits the ordinary complete
+    // Package and its finite Copy resource head, but not a ByteBuffer head.
+    for (source, category, phase) in [
+        (format!("{SIMPLE}fn main(){{var state=make();let p=&state;}}"), ResultCategory::Success, Phase::Verify),
+        (format!("{SIMPLE}fn main(){{var state=make();let p=&state.r;}}"), ResultCategory::Success, Phase::Verify),
+        ("package P{manages bytes:ByteBuffer;n:i32}fn main(){var state=P{bytes:bytes_new(),n:1};let p=&state.bytes;}".to_string(), ResultCategory::Unsupported, Phase::Types),
     ] {
         let report = check(&source);
-        assert_eq!(report.status, ResultCategory::Unsupported, "{source}: {}", report.to_json());
-        assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+        assert_eq!(report.status, category, "{source}: {}", report.to_json());
+        assert_eq!(report.phase, phase, "{}", report.to_json());
+        if category == ResultCategory::Success {
+            assert_eq!(report.verification_runs, 1, "{}", report.to_json());
+        }
     }
 }
 

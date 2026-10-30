@@ -1,0 +1,228 @@
+{
+  "reviewer": "/root/product_store",
+  "verdict": "Fail",
+  "implementation_commit": "a54b7cd5ad8bad0f2022b15aeb58eb38a7429056",
+  "findings": [
+    "Iterator scalar substitution omitted five existing TypeRef expression slots."
+  ],
+  "observations": [
+    {
+      "name": "type-value-control",
+      "classification": "unproven_success_expectation_at_cli_entry",
+      "status": "SafeReject",
+      "phase": "types",
+      "source_sha256": "1011b57fe13029e423bc178d62b9f67a1a916a97ee36d4cdebfd941cb3eb1ae9"
+    },
+    {
+      "name": "type-value-hygiene",
+      "classification": "unproven_success_expectation_at_cli_entry",
+      "status": "SafeReject",
+      "phase": "types",
+      "source_sha256": "74e553ef7225ccf18e18b40510ae52ac5a451bce18d921253faf1111b67637ed"
+    },
+    {
+      "name": "type-iterator-hygiene",
+      "classification": "unproven_success_expectation_at_cli_entry",
+      "status": "SafeReject",
+      "phase": "types",
+      "source_sha256": "1f66f58e0efad47d082f8ec50cbbbd8223cfe2262a90ed36220ded49b79c983e"
+    },
+    {
+      "name": "array-length-control",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "Success",
+      "phase": "verify",
+      "source_sha256": "752f775bd91585854e724d836b4812760a0bff5a2c1eb7d9d4464d2fbedd75d0"
+    },
+    {
+      "name": "array-length-parameter",
+      "classification": "confirmed_type_slot_defect",
+      "status": "Unsupported",
+      "phase": "types",
+      "source_sha256": "a86c08032c60ed945c60b1fd3fea0956276a753d71b5a6080f48208cc99d79d3"
+    },
+    {
+      "name": "array-length-local",
+      "classification": "confirmed_type_slot_defect",
+      "status": "SafeReject",
+      "phase": "types",
+      "source_sha256": "4f119c3ac107a200b3982aaf7fe0f1644c2165d0a9029842448780d4659f0440"
+    },
+    {
+      "name": "runtime-param-shadow",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "Success",
+      "phase": "verify",
+      "source_sha256": "0a237d916392bf4bc46f22f4773d6911fe0b2fd44bfdcdb7471735ef5c54dc05"
+    },
+    {
+      "name": "private-forward-cross-reference",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "Success",
+      "phase": "verify",
+      "source_sha256": "e0ca3c896b236c9c7d42fc7bb70dd711fb677148e565db6ab02183ab2f341987"
+    },
+    {
+      "name": "nested-closure-record",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "Success",
+      "phase": "verify",
+      "source_sha256": "334126334af0433785bebd13d32ffc086e6c3af5bf14ffd9e6df4bc7a6295693"
+    },
+    {
+      "name": "before-after-binding",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "Success",
+      "phase": "verify",
+      "source_sha256": "e81308781e571c3b637bcde5974c6819e0c4be4d76181f144b218047e666b065"
+    },
+    {
+      "name": "decreasing-range",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "Success",
+      "phase": "verify",
+      "source_sha256": "51ea2d477ca7bc73fa9d2a36e9b520ef4eb3b74f5a1fa648bec9844c5a313a96"
+    },
+    {
+      "name": "zero-types",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "Success",
+      "phase": "verify",
+      "source_sha256": "e03f8b2b20b8e9348becb4433a1b63a7ac74f21ed5501defe3db42a755c01da9"
+    },
+    {
+      "name": "generated-configready",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "SafeReject",
+      "phase": "ct",
+      "source_sha256": "2c78c42b8d7da6d8cdb89304c6ba3d99788577666bbed0f9ace98638705cf21a"
+    },
+    {
+      "name": "callee-generates",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "SafeReject",
+      "phase": "ct",
+      "source_sha256": "c34be9660552ee67fcac719697cc00ee325a65da4f9d4f1635076c1be414e64f"
+    },
+    {
+      "name": "runtime-parameter-bound",
+      "classification": "invalid_fixture_reserved_word_use",
+      "status": "SafeReject",
+      "phase": "parse",
+      "source_sha256": "b9858a706f004bcd71d736f97c51bf92b35c195da254c6da7d2b765407242975"
+    },
+    {
+      "name": "iterator-shadowed-runtime-bound",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "SafeReject",
+      "phase": "ct",
+      "source_sha256": "7480ae724d29d3b89df571b9c4903b81986ed9ef67001fa9b8c3f39249002cce"
+    },
+    {
+      "name": "private-cross-iteration-invisible",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "SafeReject",
+      "phase": "types",
+      "source_sha256": "a008d2d14cac7350d4bdf8b27131238ad8578333458fee26fa7de3267aeaafaf"
+    },
+    {
+      "name": "overflow-endpoint",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "SafeReject",
+      "phase": "ct",
+      "source_sha256": "13f8af999eca6cae3c4efdeb74334c29b694b7643f16412239ed688ea0c52042"
+    },
+    {
+      "name": "array-overflow",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "SafeReject",
+      "phase": "ct",
+      "source_sha256": "a5318a0d08a9ff3415d157d8bd640b0d6caf2f21eb803cf895eff3cd566978ea"
+    },
+    {
+      "name": "full-width-budget",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "ResourceLimit",
+      "phase": "ct",
+      "source_sha256": "5d344f024128372c800883ab8105e369eb48b48cf3a59bc0d3e5981d0c20d3e9"
+    },
+    {
+      "name": "malformed-zero",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "SafeReject",
+      "phase": "parse",
+      "source_sha256": "ba6bdf153d0cf1f0db0a6fbef43155299dfbe2e5a92800da9a2d0fae0c2b34ea"
+    },
+    {
+      "name": "unit-array-neighbour",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "Success",
+      "phase": "verify",
+      "source_sha256": "c31c90ac0c125066e257c316f26d89c806ed584b461c957cf075ff6fc1c11c85"
+    },
+    {
+      "name": "array-return-type",
+      "classification": "confirmed_type_slot_defect",
+      "status": "Unsupported",
+      "phase": "types",
+      "source_sha256": "d8872e2c019d4c9ad8473b17783e7d52673eba17ed47703a5b6ec4b3a571fd87"
+    },
+    {
+      "name": "array-closure-parameter",
+      "classification": "confirmed_type_slot_defect",
+      "status": "Unsupported",
+      "phase": "types",
+      "source_sha256": "0075e4257fbb726214b9f130c518029cea6ab559a38e16a4fe5991c9b7f50398"
+    },
+    {
+      "name": "array-generic-typearg",
+      "classification": "confirmed_type_slot_defect",
+      "status": "Unsupported",
+      "phase": "expand",
+      "source_sha256": "4e68b045eb171b78026039f91ea0c4522c19f405d219e8b6239c1565dd2da0fb"
+    },
+    {
+      "name": "runtime-parameter-bound-fixed",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "SafeReject",
+      "phase": "ct",
+      "source_sha256": "e4d2f3993ce3803e76cdb0c8e0c0d0aa1966222012a532e3d8f00b4d016e9e9f"
+    },
+    {
+      "name": "nested-same-iterator",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "Success",
+      "phase": "verify",
+      "source_sha256": "327fb86bde3f3fcd8c312c822d4de9dd342b5b7f278f20b84ec16a7e5f3bf569"
+    },
+    {
+      "name": "runtime-for-shadow",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "Success",
+      "phase": "verify",
+      "source_sha256": "64bd34505f0dc7dae51f3ac3ed65fa8c704a20225d989e8c51d31b9a14828afe"
+    },
+    {
+      "name": "later-binding-closure",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "Success",
+      "phase": "verify",
+      "source_sha256": "19f14cb18bfa4b0fbc931a09ba65f27e5033c0588a9d4c6604a62b56d2bfaeb8"
+    },
+    {
+      "name": "nested-private-functions",
+      "classification": "outcome_consistent_with_expected_boundary",
+      "status": "Success",
+      "phase": "verify",
+      "source_sha256": "15b5bfaa4e4f72bf11409dd85d23cec18216328e1d90f31e3eba3171a416b637"
+    }
+  ],
+  "fixture_corrections": [
+    "The three initial CLI nominal-constructor expectations were not proven because the handwritten CLI control also rejected. These are not counted as three defects.",
+    "runtime-parameter-bound used reserved word use; its Parse rejection is not CT rejection evidence. A separate corrected source runtime-parameter-bound-fixed rejected in Ct.",
+    "The nested-closure-record arithmetic expectation was corrected before execution; both original frozen manifests and observed source are preserved."
+  ],
+  "build_provenance": "Historical initial build used targets/223 after creating a fresh review worktree. The build log identifies this checkout; that target was later retired after a different checkout exposed cache contamination. No final Pass or native result relies on this shared target.",
+  "source_manifest": "raw-evidence.tar.gz:review222/frozen-cases.json and frozen-followups.json",
+  "raw_observations": "raw-evidence.tar.gz:review222/observations.json and followup-observations.json"
+}

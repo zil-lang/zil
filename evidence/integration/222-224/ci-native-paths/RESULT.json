@@ -1,0 +1,42 @@
+{
+  "status": "Pass",
+  "scope": "Archival helper local path collision controls; no compiler change or new compiler test claim",
+  "base_commit": "e3e231b493c4d64f04d01beaf0c394a1f148dbb5",
+  "helper_sha256": "59fb8377e0245f199cdf05c562db46acf0f93be64976c1cb1264184bd9fb684d",
+  "patch_sha256": "387e7ae3b55d330d762fa2086c8e4ab15b6f962071638e5fbad04751251f831a",
+  "reviewer_finding": "/root/scope_audit: file A vs directory a/b bypassed file-only casefold check",
+  "repair": "Directories now participate in collision detection before being excluded from regular-file manifest",
+  "controls": [
+    {
+      "kind": "file-file",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Native artifact paths must not collide when case-folded: Case and case\n"
+    },
+    {
+      "kind": "file-directory",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Native artifact paths must not collide when case-folded: A and a\n"
+    },
+    {
+      "kind": "directory-directory",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Native artifact paths must not collide when case-folded: A and a\n"
+    },
+    {
+      "kind": "valid-neighbors",
+      "exit_code": 0,
+      "stdout": "native_file_count=2\n",
+      "stderr": ""
+    },
+    {
+      "kind": "valid-neighbors-release",
+      "exit_code": 0,
+      "stdout": "Released 2 inventoried native files after archival\nFree bytes after cleanup: 340008960\n",
+      "stderr": ""
+    }
+  ],
+  "created_at_utc": "2026-10-30T16:16:10.591338+00:00"
+}

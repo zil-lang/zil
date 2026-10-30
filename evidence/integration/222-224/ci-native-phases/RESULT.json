@@ -1,0 +1,28 @@
+{
+  "status": "Pass",
+  "scope": "Local archival safety controls and independent phase separation; not full CI",
+  "base_commit": "91609072b0687d944fc25489b5536e8f7a7e2106",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "production_compiler_change": false,
+  "new_compiler_test_execution": false,
+  "helper_sha256": "c980e6c4229a4ddf8b13aaff82635c0f5b4f9203364b496be88079fe6e6a0510",
+  "workflow_sha256": "444f002027da6c6616029728415618bf90ad60154eeaa03dee1f45c38a48d836",
+  "patch_sha256": "b1f72b65c231d0535f5c1cd6f277abb5711b50e5e0a59be830d8009ce1d56d99",
+  "controls_sha256": "e6067e804d9a30dbda574fd0cba0caea66002f147053eba98ad1e60240b827cb",
+  "review_history": [
+    {
+      "reviewer": "/root/scope_audit",
+      "stage": "Initial unseparated implementation",
+      "result": "No blocking issue identified; later acknowledged it missed cross-phase overwrite after upload failure"
+    },
+    {
+      "reviewer": "/root/product_store",
+      "stage": "Second independent review",
+      "result": "Found shared-root overwrite risk and missing file-mode/case-fold controls; both repaired here"
+    }
+  ],
+  "superseded_candidate": "91609072b0687d944fc25489b5536e8f7a7e2106",
+  "created_at_utc": "2026-10-30T16:12:58.965821+00:00",
+  "patch_file": "repair.patch.gz",
+  "patch_compressed_sha256": "0b38c34b1b529407011219baba36ad502afee70a553875f7df792161592f01be"
+}

@@ -1,0 +1,53 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-base)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-llvm-api)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-types)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-lower)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 16.57s
+     Running tests/impl224_shared_product.rs (/workspace/scratch/d286b3aeeb6b/targets/224/debug/deps/impl224_shared_product-af245a120ab6d27c)
+
+running 5 tests
+
+thread 'real_source_has_independent_raw_and_wire_checks' (275) panicked at crates/zil-driver/tests/impl224_shared_product.rs:79:87:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "package field transfer or assignment requires a named local shell", span: Some(Span { file: FileId(0), start: 118, end: 131 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test real_source_has_independent_raw_and_wire_checks ... FAILED
+
+thread 'nested_shared_projection_executes_with_real_drop_order_at_o0_and_o2' (274) panicked at crates/zil-driver/tests/impl224_shared_product.rs:167:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"lex","diagnostics":[{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":706,"end":712},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-IDENTIFIER","message":"expected an identifier","span":{"file":0,"start":698,"end":701},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-IDENTIFIER","message":"expected an identifier","span":{"file":0,"start":717,"end":720},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-IDENTIFIER","message":"expected an identifier","span":{"file":0,"start":906,"end":908},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-EXPRESSION","message":"expected an expression","span":{"file":0,"start":926,"end":927},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-EXPECTED","message":"expected FatArrow","span":{"file":0,"start":985,"end":987},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-EXPECTED","message":"expected Lt","span":{"file":0,"start":1037,"end":1050},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-TERMINATOR","message":"expected a semicolon, logical newline, or closing brace after the complete statement","span":{"file":0,"start":1148,"end":1149},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-MODULE-STATEMENT","message":"module scope requires a declaration; executable statements belong inside a function","span":{"file":0,"start":1164,"end":1165},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-MODULE-STATEMENT","message":"module scope requires a declaration; executable statements belong inside a function","span":{"file":0,"start":1170,"end":1176},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-MODULE-STATEMENT","message":"module scope requires a declaration; executable statements belong inside a function","span":{"file":0,"start":1191,"end":1194},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-MODULE-STATEMENT","message":"module scope requires a declaration; executable statements belong inside a function","span":{"file":0,"start":1529,"end":1532},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-MODULE-STATEMENT","message":"module scope requires a declaration; executable statements belong inside a function","span":{"file":0,"start":1571,"end":1573},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-MODULE-STATEMENT","message":"module scope requires a declaration; executable statements belong inside a function","span":{"file":0,"start":1741,"end":1742},"notes":[]}],"artifacts":{},"input_fingerprint":"57bcad915f9afe9149573271b61cd9a2f39910af70660fa94dd633de6881bebd","seconds":0.001877954,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"native224.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+test nested_shared_projection_executes_with_real_drop_order_at_o0_and_o2 ... FAILED
+
+thread 'shared_parameter_local_alias_nested_fields_and_nll_are_usable' (276) panicked at crates/zil-driver/tests/impl224_shared_product.rs:35:9:
+assertion `left == right` failed: parameter: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"package field transfer or assignment requires a named local shell","span":{"file":0,"start":118,"end":131},"notes":[]}],"artifacts":{"core":"/workspace/scratch/d286b3aeeb6b/recovery/224-initial/shared224-parameter-272-1/phases/core.txt","ct-core":"/workspace/scratch/d286b3aeeb6b/recovery/224-initial/shared224-parameter-272-1/phases/ct-core.txt","source-map":"/workspace/scratch/d286b3aeeb6b/recovery/224-initial/shared224-parameter-272-1/phases/source-map.txt","syntax":"/workspace/scratch/d286b3aeeb6b/recovery/224-initial/shared224-parameter-272-1/phases/syntax.txt"},"input_fingerprint":"2288cfd9d9a69eb61e6761de0c4fdcb531c32a5d710f18e5cedd5afd0b5907d7","seconds":0.009332488,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"shared224.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+
+thread 'live_shared_borrows_prevent_consumption_replacement_and_mutation' (273) panicked at crates/zil-driver/tests/impl224_shared_product.rs:52:9:
+assertion `left == right` failed: whole-move: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"package field transfer or assignment requires a named local shell","span":{"file":0,"start":118,"end":131},"notes":[]}],"artifacts":{"core":"/workspace/scratch/d286b3aeeb6b/recovery/224-initial/shared224-whole-move-272-0/phases/core.txt","ct-core":"/workspace/scratch/d286b3aeeb6b/recovery/224-initial/shared224-whole-move-272-0/phases/ct-core.txt","source-map":"/workspace/scratch/d286b3aeeb6b/recovery/224-initial/shared224-whole-move-272-0/phases/source-map.txt","syntax":"/workspace/scratch/d286b3aeeb6b/recovery/224-initial/shared224-whole-move-272-0/phases/syntax.txt"},"input_fingerprint":"ddd9bedc3a8a8514608d404945083e72c8d53b1eb4d07ecee8fc43db428c4314","seconds":0.009453793,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"shared224.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: SafeReject
+test shared_parameter_local_alias_nested_fields_and_nll_are_usable ... FAILED
+test live_shared_borrows_prevent_consumption_replacement_and_mutation ... FAILED
+test sharing_does_not_add_mutable_owned_reads_retention_or_escape ... ok
+
+failures:
+
+failures:
+    live_shared_borrows_prevent_consumption_replacement_and_mutation
+    nested_shared_projection_executes_with_real_drop_order_at_o0_and_o2
+    real_source_has_independent_raw_and_wire_checks
+    shared_parameter_local_alias_nested_fields_and_nll_are_usable
+
+test result: FAILED. 1 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p zil-driver --test impl224_shared_product`

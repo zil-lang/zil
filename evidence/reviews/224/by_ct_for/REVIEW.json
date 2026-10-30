@@ -1,0 +1,386 @@
+{
+  "task": "224",
+  "reviewer": "/root/ct_for",
+  "implementation_author": "/root/scope_audit",
+  "implementation_commit": "0614831ceffe5f6d8f973fa51cf9ef74b8c02e3e",
+  "tested_code_commit": "3f0f5ee43cf650297a6be18c93dd52c097768ecb",
+  "original_delivery": "2b799ed7f405c89c7725b86978286c144070e87f",
+  "verdict": "Pass",
+  "scope": "Finite complete ordinary Product shared borrows; ordinary existing coarse nested-child footprints retained. No full-language or product verdict.",
+  "normative": {
+    "spec_hash": "a9fbba01612959917c8ede69a5eeee7854d6ce8e0ff5f5a02d0ab362c6d9eebb",
+    "normative_hash": "1e9be8621c14b53ceaa4668ddb910ca80217907e916043e7fba322844d41c246",
+    "commit": "5b7c6dbeb882743ba3e27a247ae570a032f9e775"
+  },
+  "production_tree_modified_by_reviewer": false,
+  "review_method": [
+    "Read Types, Analyze, independent Verify and repaired actual inline field GEP emission.",
+    "Own frozen source/cleanup oracles and same-type different-instance controls.",
+    "Independent raw/Wire attacks with refreshed actual module fingerprint and coherent forged Hold.",
+    "Exact original failure bytes rerun at O0/O2, plus nearest direct Managed Record field.",
+    "Recompute both original and repaired author source/artifact archive manifests against Git and actual compressed bytes."
+  ],
+  "findings": [
+    {
+      "id": "224-DIRECT-FIELD-CODEGEN",
+      "original_severity": "Blocking",
+      "original_result": "Verify succeeded; O0 and O2 codegen rejected with E-CODEGEN-CFG: field address requires a finite Copy field or concrete environment.",
+      "source": "original/sources/child-nll-control.zil",
+      "source_sha256": "ee559334aea2155013e494d19c7704d553570cc3cb0503d971b5994cfdd150b1",
+      "resolution": "3f0f5ee43 permits only actual shared finite Product or nominal resource heads and emits the actual parent inline field address; no value load or ownership transfer.",
+      "repair_result": "Same exact bytes execute at O0/O2 with stdout XAB, exit 0. Independent direct-resource-head executes at O0/O2 with stdout XA, exit 0.",
+      "closed": true
+    }
+  ],
+  "independent_final_native": {
+    "source_cases": 2,
+    "llvm_api_builds": 4,
+    "executions": 4,
+    "pass": 4,
+    "builder_input": true,
+    "verify_before_after": true,
+    "observations": [
+      {
+        "case": "child-nll-control",
+        "opt": "O0",
+        "command": [
+          "/workspace/scratch/d286b3aeeb6b/targets/review224-ct-for/debug/zil",
+          "build",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/sources/child-nll-control.zil",
+          "--json",
+          "--emit-dir",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/repair/child-nll-control/O0/phases",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O0",
+          "-o",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/repair/child-nll-control/O0/program"
+        ],
+        "exit_code": 0,
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "native": {
+          "exit_code": 0,
+          "stdout": "XAB",
+          "stderr": "",
+          "executable_sha256": "e8f2b3f86fd47b8f1f7a37ce72bd86eb8d6d50292d1f437b49e3397e65a1e83d"
+        },
+        "matched": true
+      },
+      {
+        "case": "child-nll-control",
+        "opt": "O2",
+        "command": [
+          "/workspace/scratch/d286b3aeeb6b/targets/review224-ct-for/debug/zil",
+          "build",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/sources/child-nll-control.zil",
+          "--json",
+          "--emit-dir",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/repair/child-nll-control/O2/phases",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O2",
+          "-o",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/repair/child-nll-control/O2/program"
+        ],
+        "exit_code": 0,
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "native": {
+          "exit_code": 0,
+          "stdout": "XAB",
+          "stderr": "",
+          "executable_sha256": "220275536d9871721f1c0e40f8d783f9d8003b0c9f8424368219ed3abe0839ad"
+        },
+        "matched": true
+      },
+      {
+        "case": "direct-resource-head",
+        "opt": "O0",
+        "command": [
+          "/workspace/scratch/d286b3aeeb6b/targets/review224-ct-for/debug/zil",
+          "build",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/repair/direct-resource-head.zil",
+          "--json",
+          "--emit-dir",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/repair/direct-resource-head/O0/phases",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O0",
+          "-o",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/repair/direct-resource-head/O0/program"
+        ],
+        "exit_code": 0,
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "native": {
+          "exit_code": 0,
+          "stdout": "XA",
+          "stderr": "",
+          "executable_sha256": "f896bd1ddc9ec18a28a5371a479f5e27a02338d9dbd9fedf613d676e55c324bf"
+        },
+        "matched": true
+      },
+      {
+        "case": "direct-resource-head",
+        "opt": "O2",
+        "command": [
+          "/workspace/scratch/d286b3aeeb6b/targets/review224-ct-for/debug/zil",
+          "build",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/repair/direct-resource-head.zil",
+          "--json",
+          "--emit-dir",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/repair/direct-resource-head/O2/phases",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O2",
+          "-o",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/repair/direct-resource-head/O2/program"
+        ],
+        "exit_code": 0,
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "native": {
+          "exit_code": 0,
+          "stdout": "XA",
+          "stderr": "",
+          "executable_sha256": "a5b82e8e2d269c593428427d33ec6e7cf0f4deea01ab2d676d99165e0dd4f69e"
+        },
+        "matched": true
+      },
+      {
+        "case": "shared-write",
+        "opt": "check",
+        "command": [
+          "/workspace/scratch/d286b3aeeb6b/targets/review224-ct-for/debug/zil",
+          "check",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/sources/shared-write.zil",
+          "--json",
+          "--emit-dir",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/repair/shared-write/check/phases"
+        ],
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "package field transfer or assignment requires a named local shell",
+            "span": {
+              "file": 0,
+              "start": 592,
+              "end": 605
+            },
+            "notes": []
+          }
+        ],
+        "matched": true
+      },
+      {
+        "case": "incomplete-whole-head",
+        "opt": "check",
+        "command": [
+          "/workspace/scratch/d286b3aeeb6b/targets/review224-ct-for/debug/zil",
+          "check",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/sources/incomplete-whole-head.zil",
+          "--json",
+          "--emit-dir",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/repair/incomplete-whole-head/check/phases"
+        ],
+        "exit_code": 1,
+        "status": "SafeReject",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: shared Product borrow requires every owned child live",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "matched": true
+      },
+      {
+        "case": "projected-escape",
+        "opt": "check",
+        "command": [
+          "/workspace/scratch/d286b3aeeb6b/targets/review224-ct-for/debug/zil",
+          "check",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/sources/projected-escape.zil",
+          "--json",
+          "--emit-dir",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review224-by-ct-for/repair/projected-escape/check/phases"
+        ],
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "Store element windows are synchronous inputs; address results derived from element windows are not implemented",
+            "span": {
+              "file": 0,
+              "start": 442,
+              "end": 483
+            },
+            "notes": []
+          }
+        ],
+        "matched": true
+      }
+    ]
+  },
+  "independent_final_raw_wire": {
+    "families": 2,
+    "positive_controls": 2,
+    "verify_invocations": 8,
+    "expected_semantic_rejections": 4,
+    "actual_results": [
+      {
+        "case": "borrow-child-after-take",
+        "wire_sha256": "0ce95dced932cc83cfe9d9bd676424b980d56279befc267874e8525e45d27d07",
+        "routes": {
+          "raw": "Reject",
+          "wire": "Reject"
+        }
+      },
+      {
+        "case": "child-before-take-control",
+        "wire_sha256": "2ce7ad5e0040f3c2136a34290e4237346739603235906526e363acab52e3edff",
+        "routes": {
+          "raw": "Accept",
+          "wire": "Accept"
+        }
+      },
+      {
+        "case": "distinct-instances-control",
+        "wire_sha256": "a94c41bb7277756050216bf1c3a7c7981a9a6d3f844854ed749fad8269fe2f30",
+        "routes": {
+          "raw": "Accept",
+          "wire": "Accept"
+        }
+      },
+      {
+        "case": "retarget-same-type-instance-with-coherent-hold",
+        "wire_sha256": "69f1da50038dcee683f44fbdc162ac2c33cf2f1eadd35f0101bcd406ba157287",
+        "routes": {
+          "raw": "Reject",
+          "wire": "Reject"
+        }
+      }
+    ],
+    "attacks": [
+      {
+        "case": "retarget-same-type-instance-with-coherent-hold",
+        "mutation": "Borrow first becomes Borrow second of the same exact Product type; all matching public main Hold roots also retarget; second is moved before the later pointer read.",
+        "expected_diagnostic": "E-BORROW-CONFLICT"
+      },
+      {
+        "case": "borrow-child-after-take",
+        "mutation": "Move TakePackageField before the actual shared BorrowPackageField to that child.",
+        "expected_diagnostic": "E-VERIFY-RESOURCE"
+      }
+    ],
+    "not_stale_or_budget_rejections": true
+  },
+  "limited_test_rerun": {
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--test",
+      "review224_raw",
+      "--test",
+      "impl224_shared_product",
+      "--features",
+      "llvm-api"
+    ],
+    "production_commit": "0614831ceffe5f6d8f973fa51cf9ef74b8c02e3e",
+    "temporary_test_only": "crates/zil-driver/tests/review224_raw.rs, exact bytes retained in archive; no production edits",
+    "passed": 12,
+    "failed": 0,
+    "ignored": 0,
+    "author_tests": 11,
+    "independent_test_groups": 1,
+    "stdout_sha256": "4404cbec78f1930571da3425ef764b2367456432cea34099847dfde434f70cdf",
+    "stderr_sha256": "fb7e7063c686b5f5c3b8110ded7daa3bdbed9e6776bee10d46908fd20b4c1cdb"
+  },
+  "author_evidence_checks": [
+    {
+      "folder": "author",
+      "tested_revision": "1cb2bf36049ffa1b30102586be7a63d07f385233",
+      "author_result": "Pass",
+      "author_tests": {
+        "passed": 10,
+        "failed": 0,
+        "ignored": 0
+      },
+      "artifact_files_verified": 569,
+      "source_files_matched_git": 588,
+      "raw_archive_sha256": "33cc0cf155a1c686a283e5636f105c3b922fe3f93f631941254da6b92d973ea1",
+      "raw_archive_bytes": 1015363,
+      "source_worktree_status": "",
+      "raw_wire_pairs": 19,
+      "native_builds": 4,
+      "allocator_runs": 6,
+      "actual_allocation_failures": 4
+    },
+    {
+      "folder": "author-repair1",
+      "tested_revision": "3f0f5ee43cf650297a6be18c93dd52c097768ecb",
+      "author_result": "Pass",
+      "author_tests": {
+        "passed": 11,
+        "failed": 0,
+        "ignored": 0
+      },
+      "artifact_files_verified": 633,
+      "source_files_matched_git": 589,
+      "raw_archive_sha256": "36a0ff503e124da380d832646bfa42395bf0430c421ae2a840e53d5ee9ba1c61",
+      "raw_archive_bytes": 1175366,
+      "source_worktree_status": "",
+      "raw_wire_pairs": 19,
+      "native_builds": 8,
+      "allocator_runs": 6,
+      "actual_allocation_failures": 4
+    }
+  ],
+  "non_blocking_observations": [
+    {
+      "case": "disjoint-sibling",
+      "result": "SafeReject/E-BORROW-CONFLICT in original delivery, retained unchanged.",
+      "interpretation": "The initial positive oracle assumed finer nested-Product child separation than existing field_root provides. Existing nested Package fields remain whole-local roots. The current contract preserves existing footprint precision; this review does not certify new disjoint-child precision."
+    },
+    {
+      "case": "review harness initial compile",
+      "result": "Reviewer initially omitted the wire encoder Limits argument; compiler error retained, fixed before any raw semantic observation. This is not an implementation failure."
+    }
+  ],
+  "limits": [
+    "No mutable Product, borrowed return/escape, long-lived capture or ByteBuffer mutable Desc capability granted.",
+    "No entire-workspace or product acceptance by this reviewer.",
+    "No native Windows or Rust comparative performance conclusion."
+  ],
+  "artifact": {
+    "file": "raw.tar.gz",
+    "sha256": "bb9ee626826d319facb0017c1d2d93dc9f585099907806231b80fa68b0a49d9c",
+    "bytes": 944039,
+    "files": 316
+  }
+}

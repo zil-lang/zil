@@ -1,0 +1,42 @@
+{
+  "status": "Pass",
+  "scope": "Review test output-directory default only; no source/oracle changes",
+  "production_changed": false,
+  "commands": [
+    {
+      "command": [
+        "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh",
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review222_independent"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh",
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review222_independent",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "environment": "ZIL_TEST_REPORT_DIR deliberately unset",
+  "counts": {
+    "tests": 2,
+    "additional_unique_cases": 0
+  },
+  "original_review_commit": "c6a040271171848871cc2fb3c56b01536e4f1953"
+}

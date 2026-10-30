@@ -278,21 +278,18 @@ fn source_declared_fn_cannot_hide_child_consumption() {
 }
 
 #[test]
-fn new_capture_does_not_make_product_a_store_element() {
+fn complete_product_store_elements_are_admitted_since_223() {
     let source = format!("{TYPES}fn main(){{let items:Store<Root>=store_new()}}");
     let unit = SourceUnit::new(FileId(0), ModuleId(0), "closed214.zil", source);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
-    let rejected = match zil_expand::expand(&unit, &syntax) {
-        Err(errors) => errors,
-        Ok(core) => {
-            zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap_err()
-        }
-    };
-    assert!(
-        rejected
-            .iter()
-            .any(|error| error.category == ResultCategory::Unsupported)
-    );
+    // The exact old source and source identity remain a Types-level control;
+    // 223 now admits this complete Product as a Store element.
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
+    assert!(module.resources.iter().any(
+        |resource| matches!(&resource.payload, Type::OwnedStore { element }
+                if matches!(element.as_ref(), Type::Package { name, .. } if name == "@module0:Root"))
+    ));
 }
 
 #[test]

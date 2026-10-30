@@ -1,0 +1,46 @@
+{
+  "base_commit": "616c562ed6363df437c2d48358da624d86e6960d",
+  "patch": "Only impl201 nested callback diagnostic expectation and CI no-fail-fast flags",
+  "commands": [
+    {
+      "command": [
+        "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh",
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl201_store"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh",
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl201_store",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh",
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0
+    }
+  ]
+}

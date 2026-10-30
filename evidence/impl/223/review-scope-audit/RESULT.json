@@ -1,0 +1,1592 @@
+{
+  "task": "223",
+  "reviewer": "/root/scope_audit",
+  "implementation_author": "/root/product_store",
+  "verdict": "Pass",
+  "implementation_commit": "aefc031d83c92aaea0c6154fdfe9b94834a9b105",
+  "production_code_commit": "ab964e484ca96889ccb80c5b76385e706588cea1",
+  "review_checkout_commit": "9c8fbb50ab88984bec76ef054104b58e98e75166",
+  "scope": "Independent limited Store<Product> implementation review after context-admission repair; not 224 self-review or whole-workspace integration acceptance.",
+  "authority": {
+    "main_planning_commit": "f6df0924876e58f716f74898186912239a1bd142",
+    "design_sha256": "a9fbba01612959917c8ede69a5eeee7854d6ce8e0ff5f5a02d0ab362c6d9eebb",
+    "change_223_sha256": "ce5668ad49f34d72af6447725771bff56512f925d51278fde372708f93d9f4c3"
+  },
+  "identity": {
+    "production_difference_from_implementation": "",
+    "production_manifest_sha256": "883c2376202722a50236b94936862eeab6daef1c471b8e216046b5895a3dc8f8",
+    "production_tree_digest": "1c40dd603b62a32afbd5be2659d66ff9a76710d81ea87a43b2fc0db4f94e8ae4",
+    "final_production_worktree_clean_before_tests": true,
+    "target": "/workspace/scratch/d286b3aeeb6b/targets/review223",
+    "target_policy": "Fresh separate target initialized for original 223 replay; thereafter used only by the same review worktree, with repair changed files recompiled. Shared-target preliminary runs are not used as final evidence."
+  },
+  "toolchain": {
+    "rust": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "llvm": "23.1.4",
+    "target": "x86_64-unknown-linux-gnu",
+    "features": [
+      "llvm-api"
+    ],
+    "CARGO_BUILD_JOBS": 2,
+    "CARGO_PROFILE_DEV_DEBUG": 0,
+    "CARGO_PROFILE_TEST_DEBUG": 0,
+    "CARGO_INCREMENTAL": 0
+  },
+  "findings": [
+    {
+      "id": "223-review-01",
+      "kind": "Unsupported mutable Product address capability accidentally admitted in unused raw function",
+      "original_implementation_commit": "9ca5d5b0ecc6ad531d497217df3b90b77616f5ef",
+      "original_verdict": "Fail",
+      "original_fresh_replay_exit_code": 101,
+      "original_raw": "UnexpectedAccept",
+      "original_wire": "UnexpectedAccept",
+      "frozen_input_sha256": "5ba4b35d45093a324e31ab8971d92788a1e9c18b57cbdc17fdd317c7d2f59de9",
+      "oracle_changed": false,
+      "repair_commit": "ab964e484ca96889ccb80c5b76385e706588cea1",
+      "repair": "Legacy address check_element and explicit Store/Unit check_store_element now use distinct admission contexts. No reliance on 224 to close this raw boundary.",
+      "final_raw": "Reject",
+      "final_wire": "Reject",
+      "final_codes": {
+        "raw": [
+          "E-UNSUPPORTED"
+        ],
+        "wire": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "status": "Closed"
+    }
+  ],
+  "frozen_oracles": {
+    "boundary_commit": "0d435fa22",
+    "machine_commit": "a34226e50",
+    "exact_wire_commit": "805b2d222",
+    "file": "crates/zil-driver/tests/review223_fixtures/ORACLE.json",
+    "sha256": "d4e9dcc8e54b2a3029e9d9820e0ccfe65885a7c19f22eef7193ff00a263ecb94"
+  },
+  "tests": {
+    "passed": 10,
+    "failed": 0,
+    "ignored": 0,
+    "new_reviewer_test_functions": 5,
+    "existing_budget_reexecuted": 1,
+    "existing_raw_qualification_test_functions_reexecuted": 4,
+    "rust_test_suites": {
+      "review223_boundaries": 2,
+      "review223_replay": 1,
+      "review223_machine": 2,
+      "impl223_budget": 1,
+      "impl223_product_store_selected": 4
+    },
+    "counts_note": "These are reviewer executions only. Raw variants, native samples, repeated frozen mutant, author 49/14 tests and author 74-run consumer are not added to this count."
+  },
+  "specific_boundaries": {
+    "exact_Product_Unit_shells": "Accepted from unchanged source",
+    "Product_i32": "Rejected raw and Wire",
+    "Product_Product": "Rejected raw and Wire",
+    "nested_owning_sum": "Rejected raw and Wire",
+    "Bool_Product": "Rejected raw and Wire",
+    "unused_mutable_Product_parameter": "Rejected raw and Wire after repair",
+    "wrong_canonical_definition": "Rejected",
+    "missing_owning_child_duplicate_names_zero_layout_nested_Store": "Rejected",
+    "unused_user_resource_head_hiding_Store": "Rejected",
+    "duplicate_push_same_SSA": "Rejected"
+  },
+  "budget": {
+    "types": 731,
+    "analyze": 11820,
+    "verify": 17398,
+    "n_pass": true,
+    "n_minus_one_resource_limit": true,
+    "fresh_n_pass": true
+  },
+  "native": {
+    "api_compiles": 4,
+    "executions": 60,
+    "ordinary_executions": 10,
+    "actual_API_object_observer_executions": 50,
+    "actual_allocation_failures": 34,
+    "all_final_live_zero": true,
+    "exact_successful_allocation_free_balance": true,
+    "layout_oracle": {
+      "Leaf": 48,
+      "Branch": 104,
+      "Root": 128
+    },
+    "complete_failed_push_two_return_edges": {
+      "stdout": "ABCDEF",
+      "exit": 1,
+      "optimizations": [
+        "O0",
+        "O2"
+      ]
+    },
+    "maximum_requested_payload_bytes": 312,
+    "machine_artifact_note": "Observer links retained actual LLVM API object, never recompiles LLVM text as the machine proof. Payload peak is not RSS or a Rust performance comparison."
+  },
+  "native_compiles": [
+    {
+      "case": "review223-entry-error-O0",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 13672,
+            "input_kind": "builder",
+            "preflight_ns": 4090095,
+            "builder_ns": 1345154,
+            "parse_ns": 0,
+            "optimize_ns": 236761,
+            "emit_ns": 20980581,
+            "total_ns": 28961605
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "commands": [
+        [
+          "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O0",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review223-final2/raw/review223-entry-error-O0/.zil-driver-37-14/.zil-build-37-0/unit-0.o",
+          "-o",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review223-final2/raw/review223-entry-error-O0/.zil-driver-37-14/.zil-build-37-0/program"
+        ]
+      ],
+      "source_sha256": "d5b5a131da2d9293cbbf511b4d34ea2a5eb4c906728857afa41585afff303920"
+    },
+    {
+      "case": "review223-entry-error-O2",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 3440,
+            "input_kind": "builder",
+            "preflight_ns": 2059624,
+            "builder_ns": 1235593,
+            "parse_ns": 0,
+            "optimize_ns": 20689329,
+            "emit_ns": 34848758,
+            "total_ns": 59645338
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "commands": [
+        [
+          "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O2",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review223-final2/raw/review223-entry-error-O2/.zil-driver-37-28/.zil-build-37-2/unit-0.o",
+          "-o",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review223-final2/raw/review223-entry-error-O2/.zil-driver-37-28/.zil-build-37-2/program"
+        ]
+      ],
+      "source_sha256": "d5b5a131da2d9293cbbf511b4d34ea2a5eb4c906728857afa41585afff303920"
+    },
+    {
+      "case": "review223-heterogeneous-O0",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 21496,
+            "input_kind": "builder",
+            "preflight_ns": 8658233,
+            "builder_ns": 3815297,
+            "parse_ns": 0,
+            "optimize_ns": 101511,
+            "emit_ns": 20065448,
+            "total_ns": 33112900
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "commands": [
+        [
+          "/workspace/scratch/d286b3aeeb6b/recovery/review223-final2/raw/review223-heterogeneous-O0/retain-object.sh",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O0",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review223-final2/raw/review223-heterogeneous-O0/.zil-driver-37-17/.zil-build-37-1/unit-0.o",
+          "-o",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review223-final2/raw/review223-heterogeneous-O0/.zil-driver-37-17/.zil-build-37-1/program"
+        ]
+      ],
+      "source_sha256": "f058c51314ff5d2b14250d3081712eb5a4c697667dced191bf5b7c072b9aa80f"
+    },
+    {
+      "case": "review223-heterogeneous-O2",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 4168,
+            "input_kind": "builder",
+            "preflight_ns": 3605426,
+            "builder_ns": 2481650,
+            "parse_ns": 0,
+            "optimize_ns": 11682153,
+            "emit_ns": 13522901,
+            "total_ns": 31871368
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "commands": [
+        [
+          "/workspace/scratch/d286b3aeeb6b/recovery/review223-final2/raw/review223-heterogeneous-O2/retain-object.sh",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O2",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review223-final2/raw/review223-heterogeneous-O2/.zil-driver-37-38/.zil-build-37-3/unit-0.o",
+          "-o",
+          "/workspace/scratch/d286b3aeeb6b/recovery/review223-final2/raw/review223-heterogeneous-O2/.zil-driver-37-38/.zil-build-37-3/program"
+        ]
+      ],
+      "source_sha256": "f058c51314ff5d2b14250d3081712eb5a4c697667dced191bf5b7c072b9aa80f"
+    }
+  ],
+  "native_observations": [
+    {
+      "input": 48,
+      "exit": 1,
+      "fail_at": null,
+      "case": "review223-entry-error-O0",
+      "run": "run",
+      "stdout": "ABCDEF"
+    },
+    {
+      "input": 48,
+      "exit": 1,
+      "fail_at": null,
+      "case": "review223-entry-error-O2",
+      "run": "run",
+      "stdout": "ABCDEF"
+    },
+    {
+      "input": 49,
+      "exit": 0,
+      "fail_at": 0,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-49-failure-0",
+      "stdout": "AZBC",
+      "allocator": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "input": 49,
+      "exit": 1,
+      "fail_at": 1,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-49-failure-1",
+      "stdout": "",
+      "allocator": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 49,
+      "exit": 1,
+      "fail_at": 2,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-49-failure-2",
+      "stdout": "A",
+      "allocator": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 128
+      }
+    },
+    {
+      "input": 49,
+      "exit": 1,
+      "fail_at": 3,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-49-failure-3",
+      "stdout": "BA",
+      "allocator": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 135
+      }
+    },
+    {
+      "input": 49,
+      "exit": 0,
+      "fail_at": 4,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-49-failure-4",
+      "stdout": "AZBC",
+      "allocator": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "input": 49,
+      "exit": 0,
+      "fail_at": null,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-49-ordinary",
+      "stdout": "AZBC"
+    },
+    {
+      "input": 50,
+      "exit": 0,
+      "fail_at": 0,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-50-failure-0",
+      "stdout": "DZEFAZBC",
+      "allocator": {
+        "alloc_calls": 5,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 312
+      }
+    },
+    {
+      "input": 50,
+      "exit": 1,
+      "fail_at": 1,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-50-failure-1",
+      "stdout": "",
+      "allocator": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 50,
+      "exit": 1,
+      "fail_at": 2,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-50-failure-2",
+      "stdout": "A",
+      "allocator": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 256
+      }
+    },
+    {
+      "input": 50,
+      "exit": 1,
+      "fail_at": 3,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-50-failure-3",
+      "stdout": "BA",
+      "allocator": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 263
+      }
+    },
+    {
+      "input": 50,
+      "exit": 1,
+      "fail_at": 4,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-50-failure-4",
+      "stdout": "DAZBC",
+      "allocator": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 274
+      }
+    },
+    {
+      "input": 50,
+      "exit": 1,
+      "fail_at": 5,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-50-failure-5",
+      "stdout": "EDAZBC",
+      "allocator": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 291
+      }
+    },
+    {
+      "input": 50,
+      "exit": 0,
+      "fail_at": 6,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-50-failure-6",
+      "stdout": "DZEFAZBC",
+      "allocator": {
+        "alloc_calls": 5,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 312
+      }
+    },
+    {
+      "input": 50,
+      "exit": 0,
+      "fail_at": null,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-50-ordinary",
+      "stdout": "DZEFAZBC"
+    },
+    {
+      "input": 51,
+      "exit": 0,
+      "fail_at": 0,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-51-failure-0",
+      "stdout": "DZEFAZBC",
+      "allocator": {
+        "alloc_calls": 5,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 184
+      }
+    },
+    {
+      "input": 51,
+      "exit": 1,
+      "fail_at": 1,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-51-failure-1",
+      "stdout": "",
+      "allocator": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 51,
+      "exit": 1,
+      "fail_at": 2,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-51-failure-2",
+      "stdout": "A",
+      "allocator": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 128
+      }
+    },
+    {
+      "input": 51,
+      "exit": 1,
+      "fail_at": 3,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-51-failure-3",
+      "stdout": "BA",
+      "allocator": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 135
+      }
+    },
+    {
+      "input": 51,
+      "exit": 1,
+      "fail_at": 4,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-51-failure-4",
+      "stdout": "DAZBC",
+      "allocator": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "input": 51,
+      "exit": 1,
+      "fail_at": 5,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-51-failure-5",
+      "stdout": "EDAZBC",
+      "allocator": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 163
+      }
+    },
+    {
+      "input": 51,
+      "exit": 0,
+      "fail_at": 6,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-51-failure-6",
+      "stdout": "DZEFAZBC",
+      "allocator": {
+        "alloc_calls": 5,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 184
+      }
+    },
+    {
+      "input": 51,
+      "exit": 0,
+      "fail_at": null,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-51-ordinary",
+      "stdout": "DZEFAZBC"
+    },
+    {
+      "input": 52,
+      "exit": 0,
+      "fail_at": 0,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-52-failure-0",
+      "stdout": "AZBC",
+      "allocator": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 274
+      }
+    },
+    {
+      "input": 52,
+      "exit": 1,
+      "fail_at": 1,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-52-failure-1",
+      "stdout": "",
+      "allocator": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 52,
+      "exit": 1,
+      "fail_at": 2,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-52-failure-2",
+      "stdout": "A",
+      "allocator": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 128
+      }
+    },
+    {
+      "input": 52,
+      "exit": 1,
+      "fail_at": 3,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-52-failure-3",
+      "stdout": "BA",
+      "allocator": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 135
+      }
+    },
+    {
+      "input": 52,
+      "exit": 1,
+      "fail_at": 4,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-52-failure-4",
+      "stdout": "AZBC",
+      "allocator": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "input": 52,
+      "exit": 0,
+      "fail_at": 5,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-52-failure-5",
+      "stdout": "AZBC",
+      "allocator": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 274
+      }
+    },
+    {
+      "input": 52,
+      "exit": 0,
+      "fail_at": null,
+      "case": "review223-heterogeneous-O0",
+      "run": "mode-52-ordinary",
+      "stdout": "AZBC"
+    },
+    {
+      "input": 49,
+      "exit": 0,
+      "fail_at": 0,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-49-failure-0",
+      "stdout": "AZBC",
+      "allocator": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "input": 49,
+      "exit": 1,
+      "fail_at": 1,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-49-failure-1",
+      "stdout": "",
+      "allocator": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 49,
+      "exit": 1,
+      "fail_at": 2,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-49-failure-2",
+      "stdout": "A",
+      "allocator": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 128
+      }
+    },
+    {
+      "input": 49,
+      "exit": 1,
+      "fail_at": 3,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-49-failure-3",
+      "stdout": "BA",
+      "allocator": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 135
+      }
+    },
+    {
+      "input": 49,
+      "exit": 0,
+      "fail_at": 4,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-49-failure-4",
+      "stdout": "AZBC",
+      "allocator": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "input": 49,
+      "exit": 0,
+      "fail_at": null,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-49-ordinary",
+      "stdout": "AZBC"
+    },
+    {
+      "input": 50,
+      "exit": 0,
+      "fail_at": 0,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-50-failure-0",
+      "stdout": "DZEFAZBC",
+      "allocator": {
+        "alloc_calls": 5,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 312
+      }
+    },
+    {
+      "input": 50,
+      "exit": 1,
+      "fail_at": 1,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-50-failure-1",
+      "stdout": "",
+      "allocator": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 50,
+      "exit": 1,
+      "fail_at": 2,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-50-failure-2",
+      "stdout": "A",
+      "allocator": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 256
+      }
+    },
+    {
+      "input": 50,
+      "exit": 1,
+      "fail_at": 3,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-50-failure-3",
+      "stdout": "BA",
+      "allocator": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 263
+      }
+    },
+    {
+      "input": 50,
+      "exit": 1,
+      "fail_at": 4,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-50-failure-4",
+      "stdout": "DAZBC",
+      "allocator": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 274
+      }
+    },
+    {
+      "input": 50,
+      "exit": 1,
+      "fail_at": 5,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-50-failure-5",
+      "stdout": "EDAZBC",
+      "allocator": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 291
+      }
+    },
+    {
+      "input": 50,
+      "exit": 0,
+      "fail_at": 6,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-50-failure-6",
+      "stdout": "DZEFAZBC",
+      "allocator": {
+        "alloc_calls": 5,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 312
+      }
+    },
+    {
+      "input": 50,
+      "exit": 0,
+      "fail_at": null,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-50-ordinary",
+      "stdout": "DZEFAZBC"
+    },
+    {
+      "input": 51,
+      "exit": 0,
+      "fail_at": 0,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-51-failure-0",
+      "stdout": "DZEFAZBC",
+      "allocator": {
+        "alloc_calls": 5,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 184
+      }
+    },
+    {
+      "input": 51,
+      "exit": 1,
+      "fail_at": 1,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-51-failure-1",
+      "stdout": "",
+      "allocator": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 51,
+      "exit": 1,
+      "fail_at": 2,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-51-failure-2",
+      "stdout": "A",
+      "allocator": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 128
+      }
+    },
+    {
+      "input": 51,
+      "exit": 1,
+      "fail_at": 3,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-51-failure-3",
+      "stdout": "BA",
+      "allocator": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 135
+      }
+    },
+    {
+      "input": 51,
+      "exit": 1,
+      "fail_at": 4,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-51-failure-4",
+      "stdout": "DAZBC",
+      "allocator": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "input": 51,
+      "exit": 1,
+      "fail_at": 5,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-51-failure-5",
+      "stdout": "EDAZBC",
+      "allocator": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 163
+      }
+    },
+    {
+      "input": 51,
+      "exit": 0,
+      "fail_at": 6,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-51-failure-6",
+      "stdout": "DZEFAZBC",
+      "allocator": {
+        "alloc_calls": 5,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 184
+      }
+    },
+    {
+      "input": 51,
+      "exit": 0,
+      "fail_at": null,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-51-ordinary",
+      "stdout": "DZEFAZBC"
+    },
+    {
+      "input": 52,
+      "exit": 0,
+      "fail_at": 0,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-52-failure-0",
+      "stdout": "AZBC",
+      "allocator": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 274
+      }
+    },
+    {
+      "input": 52,
+      "exit": 1,
+      "fail_at": 1,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-52-failure-1",
+      "stdout": "",
+      "allocator": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 52,
+      "exit": 1,
+      "fail_at": 2,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-52-failure-2",
+      "stdout": "A",
+      "allocator": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 128
+      }
+    },
+    {
+      "input": 52,
+      "exit": 1,
+      "fail_at": 3,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-52-failure-3",
+      "stdout": "BA",
+      "allocator": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 135
+      }
+    },
+    {
+      "input": 52,
+      "exit": 1,
+      "fail_at": 4,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-52-failure-4",
+      "stdout": "AZBC",
+      "allocator": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "input": 52,
+      "exit": 0,
+      "fail_at": 5,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-52-failure-5",
+      "stdout": "AZBC",
+      "allocator": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 274
+      }
+    },
+    {
+      "input": 52,
+      "exit": 0,
+      "fail_at": null,
+      "case": "review223-heterogeneous-O2",
+      "run": "mode-52-ordinary",
+      "stdout": "AZBC"
+    }
+  ],
+  "raw_wire_observations": [
+    {
+      "case": "frozen-mutable-replay",
+      "input_archive_root": "review223-final2",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "ordinary Product addresses require independent shared qualification"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "ordinary Product addresses require independent shared qualification"
+        ]
+      }
+    },
+    {
+      "case": "review223-mutable-product-parameter",
+      "input_archive_root": "review223-final2",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "ordinary Product addresses require independent shared qualification"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "ordinary Product addresses require independent shared qualification"
+        ]
+      }
+    },
+    {
+      "case": "review223-non-unit-sum-0",
+      "input_archive_root": "review223-final2",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "non-Copy type requires another checker"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "non-Copy type requires another checker"
+        ]
+      }
+    },
+    {
+      "case": "review223-non-unit-sum-1",
+      "input_archive_root": "review223-final2",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "non-Copy type requires another checker"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "non-Copy type requires another checker"
+        ]
+      }
+    },
+    {
+      "case": "review223-non-unit-sum-2",
+      "input_archive_root": "review223-final2",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "non-Copy type requires another checker"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "non-Copy type requires another checker"
+        ]
+      }
+    },
+    {
+      "case": "review223-non-unit-sum-3",
+      "input_archive_root": "review223-final2",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "non-Copy type requires another checker"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "non-Copy type requires another checker"
+        ]
+      }
+    },
+    {
+      "case": "product-store223-canonical-definition-29-1",
+      "input_archive_root": "review223-qualification",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-OWNED-STORE"
+        ],
+        "messages": [
+          "Store definition must have its canonical element identity and no user teardown"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-OWNED-STORE"
+        ],
+        "messages": [
+          "Store definition must have its canonical element identity and no user teardown"
+        ]
+      }
+    },
+    {
+      "case": "product-store223-double-push-29-5",
+      "input_archive_root": "review223-qualification",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-RESOURCE"
+        ],
+        "messages": [
+          "managed SSA value was not available exactly once"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-RESOURCE"
+        ],
+        "messages": [
+          "managed SSA value was not available exactly once"
+        ]
+      }
+    },
+    {
+      "case": "product-store223-forbidden-profile-0-29-0",
+      "input_archive_root": "review223-qualification",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "each Product Package requires a transitive explicit manages leaf"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "each Product Package requires a transitive explicit manages leaf"
+        ]
+      }
+    },
+    {
+      "case": "product-store223-forbidden-profile-1-29-2",
+      "input_archive_root": "review223-qualification",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-PACKAGE"
+        ],
+        "messages": [
+          "package fields must have unique nonempty names"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-VERIFY-PACKAGE"
+        ],
+        "messages": [
+          "package fields must have unique nonempty names"
+        ]
+      }
+    },
+    {
+      "case": "product-store223-forbidden-profile-2-29-3",
+      "input_archive_root": "review223-qualification",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "non-Copy type requires another checker"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "non-Copy type requires another checker"
+        ]
+      }
+    },
+    {
+      "case": "product-store223-hidden-resource-head-36-0",
+      "input_archive_root": "review223-qualification",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "non-Copy type requires another checker"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "non-Copy type requires another checker"
+        ]
+      }
+    },
+    {
+      "case": "product-store223-zero-actual-layout-29-4",
+      "input_archive_root": "review223-qualification",
+      "raw": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "Product Store element requires nonzero actual inline layout"
+        ]
+      },
+      "wire": {
+        "result": "Reject",
+        "codes": [
+          "E-UNSUPPORTED"
+        ],
+        "messages": [
+          "Product Store element requires nonzero actual inline layout"
+        ]
+      }
+    }
+  ],
+  "archive": {
+    "path": "raw-evidence.tar.gz",
+    "sha256": "62169bb2815045833b45d746a3216a5d192e9fa003c415ecbc9557933fffbdac",
+    "bytes": 504452
+  },
+  "review_checks": [
+    "Full patch audit across Types/Expand/Analyze/Verify/Lower/backend; no Verify calls Types or Analyze admission proof functions.",
+    "Unit protocol only admits two exact outer shells; independent raw variants retain unsupported neighboring Sum shapes.",
+    "Actual recursive teardown path preserves declaration order, zero-byte owned leaf, Copy alignment and unique prefix responsibility.",
+    "Complete failure payload crosses two ? return edges to native-entry cleanup, with original stored prefix cleaned first.",
+    "No schema/Wire/default-limit/RC/lock/Box/global-table changes."
+  ],
+  "limitations": [
+    "Only finite synchronous Product Store profile on Linux x86-64; Windows and asynchronous/concurrent use not tested.",
+    "Shared Product address composition with 224 belongs to root combined validation; this review closes the isolated 223 mutable-parameter leak independently.",
+    "No full-workspace acceptance, product-gate conclusion or comparative Rust cost claim.",
+    "Reviewer is author of 224, but does not review or approve 224 here."
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "reviewer": "/root/product_store",
+  "verdict": "Fail",
+  "implementation_commit": "7265b8dbe24cae56925f983de1ccd08a4222c3ad",
+  "review_fixture_commit": "ed77523f9f26082854c1a1034ced9c34351c0e2d",
+  "production_equal_in_review_tree": true,
+  "api_tests": {
+    "passed": 1,
+    "failed": 1,
+    "ignored": 0
+  },
+  "finding": {
+    "name": "nominal_constructor_namespace",
+    "handwritten": {
+      "status": "Success",
+      "phase": "verify"
+    },
+    "generated": {
+      "status": "SafeReject",
+      "phase": "types",
+      "code": "E-RECORD-TYPE"
+    },
+    "meaning": "One generated iteration changed a constructor binding that the fresh compile_source API accepts in equivalent ordinary source."
+  },
+  "budget_control": {
+    "status": "Pass",
+    "core_ct_steps": 77,
+    "full_ct_steps": 96,
+    "full_nodes": 1084,
+    "checks": [
+      "fresh minimum search",
+      "N success",
+      "warm N success",
+      "N-1 ResourceLimit",
+      "warm N success",
+      "active queries empty",
+      "one verification per successful request"
+    ]
+  },
+  "provenance": "Fresh dedicated targets/review222; production differs from author only by reviewer test fixture. API/CLI entry-point behavior is kept separate.",
+  "receipt": "raw-evidence.tar.gz:review222/repaired/api-execution.json",
+  "source_bytes": "raw-evidence.tar.gz:review222/repaired/review222-api/namespace-plain.zil and namespace-generated.zil"
+}

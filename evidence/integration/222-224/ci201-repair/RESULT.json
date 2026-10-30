@@ -1,0 +1,45 @@
+{
+  "status": "Pass",
+  "scope": "Limited migration of an existing malformed raw input diagnostic; not full workspace",
+  "base_commit": "616c562ed6363df437c2d48358da624d86e6960d",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "production_unchanged": true,
+  "original_ci": {
+    "run_id": 41082643919,
+    "conclusion": "failure",
+    "actual_checkout": "9d97bdd4066c84b3c1e085c49bba39b98f333698",
+    "tree": "d795d34319c4e85417f7aacfc338a95403d3ea02",
+    "default": {
+      "passed": 64,
+      "failed": 1,
+      "ignored": 0,
+      "completed_workspace": false
+    },
+    "reference": {
+      "passed": 64,
+      "failed": 1,
+      "ignored": 0,
+      "completed_workspace": false
+    },
+    "same_failure": "impl201_store::fields_require_direct_finite_shape_and_complete_resources",
+    "successful_other_gates": [
+      "fmt",
+      "native208:16build/128execution/56allocation-failure",
+      "all-target Clippy",
+      "text-reference:36",
+      "migration runner:9"
+    ]
+  },
+  "repair": "Only Nested+Closure branch now expects Analyze SafeReject actual Product child diagnostic; original raw forms and other hidden neighbors unchanged",
+  "tests": {
+    "passed": 10,
+    "failed": 0,
+    "ignored": 0
+  },
+  "clippy": "Pass",
+  "format": "Pass",
+  "test_patch_sha256": "4becebbefea37e4356eef0705f12da06472b3064b11c2650aa9555ba54071d3c",
+  "archive_sha256": "5dcfefcab358fca55bc20f68a813b8eb94bf14d02a7868acda21d8171443012d",
+  "archive_bytes": 36616,
+  "next": "Full default/reference CI with no-fail-fast; any failed executable retains a nonzero gate outcome"
+}

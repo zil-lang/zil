@@ -1,0 +1,1538 @@
+{
+  "kind": "unchanged_217_readiness_observations_not_29_language_successes",
+  "status": "Completed",
+  "reviewer": "/root/product_store",
+  "compiler_build_commit": "6b0d974bedfb40c93eb36e491ceb18a138718dac",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "source_checkout_commit": "6b0d974bedfb40c93eb36e491ceb18a138718dac",
+  "cli_sha256": "593da735017a4bf5db773d38ef7c5f3c139c19d75ef6d9a2785d94017b4f1d71",
+  "compiler_build_receipt_sha256": "f321c01eb4697170d32cf32854405146df6fcfb4df450b350593db52f6b33b1a",
+  "freeze_sha256": "8c0a71e82896b22cb3bea38a95b231f99141f04a1cae133eeb1ecd60b9c16166",
+  "replay_script_sha256": "910eeaec8e77fdffc47bd4031b39db624984e87a589ec375a444d22c57eeb8e3",
+  "original_probe_oracle_sha256": "1f25af9895df1f0bf0f5ae8000b8e262f3462634c41e40300561ece97017868b",
+  "previous_RESULT_sha256": "907f96f3f676ab6bd5c5fb7cf390155d1e1783b6c53be56670c49f7794131a9f",
+  "environment": {
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "ZIL_CLANG": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+    "LD_LIBRARY_PATH": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib"
+  },
+  "actual_replay_command": [
+    "/workspace/scratch/d286b3aeeb6b/recovery/readiness222-224-6b0d974b/integration-env.sh",
+    "python3",
+    "/workspace/scratch/d286b3aeeb6b/recovery/readiness222-224-6b0d974b/replay.py"
+  ],
+  "previous_counts": {
+    "Success": 13,
+    "Unsupported": 14,
+    "SafeReject": 2
+  },
+  "observations": [
+    {
+      "name": "bytebuffer-local-desc",
+      "original_path": "tools/language/217/probes/bytebuffer-local-desc/main.zil",
+      "source_sha256": "0ebd29951c056d578e79d2125b9e990eb44f0f9715b15a7ea4bc3a8e07aca909",
+      "original_expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "previous_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "bytebuffer-slice-capture",
+      "original_path": "tools/language/217/probes/bytebuffer-slice-capture/main.zil",
+      "source_sha256": "7f416be39c13293f5e5e9e7dbd1d8d25ff5e7b880b59274e27fccd5ef527feb5",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "slice capture or use in a closure is not implemented",
+          "span": {
+            "file": 0,
+            "start": 119,
+            "end": 123
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-nested-helper",
+      "original_path": "tools/language/217/probes/callback-nested-helper/main.zil",
+      "source_sha256": "2cc51c8f3288a857ee23f18db75933a0ec94e0207f8ade032f57d5c0f420af3e",
+      "original_expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "previous_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-loop-control",
+      "original_path": "tools/language/217/probes/callback-loop-control/main.zil",
+      "source_sha256": "8b1f10c98d3795fc9e37f3e5362dc7cb9407a9312814dff8de757298da2ee4d7",
+      "original_expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "previous_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-two-parameters",
+      "original_path": "tools/language/217/probes/callback-two-parameters/main.zil",
+      "source_sha256": "a910b30e3f3b6717e81e699ec9e4b4e414c24416c353c4adf09891e830d19d96",
+      "original_expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "previous_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-generic-value-param",
+      "original_path": "tools/language/217/probes/callback-generic-value-param/main.zil",
+      "source_sha256": "61babdb5a7e7a9a7dbc2bd0a26fbc132e0845fc87a23ff6d5e465069229d9bb3",
+      "original_expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "previous_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "closure-address-param",
+      "original_path": "tools/language/217/probes/closure-address-param/main.zil",
+      "source_sha256": "7acd0974b3d1a58494cdaa044683252f2e97ed50ed3689fa0b047a71f85eab76",
+      "original_expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "previous_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "closure-mut-address-param",
+      "original_path": "tools/language/217/probes/closure-mut-address-param/main.zil",
+      "source_sha256": "abfd18fe99def528944467d141be862b77e7bf07606541d89e5fb0b1e070fed7",
+      "original_expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "previous_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-return-generic",
+      "original_path": "tools/language/217/probes/callback-return-generic/main.zil",
+      "source_sha256": "4c0f77fdab969e509f8299bedf6e7904ceb9c72af78b6a49d8f199b69d4d6539",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 32
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "closure-owned-error-result",
+      "original_path": "tools/language/217/probes/closure-owned-error-result/main.zil",
+      "source_sha256": "fa103e9bd11f1a7768513095d0ac0995e70b605ab85ed276b83be55fb1eb50aa",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "higher-order scalar conversion is not implemented",
+          "span": {
+            "file": 0,
+            "start": 49,
+            "end": 55
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "closure-package-param",
+      "original_path": "tools/language/217/probes/closure-package-param/main.zil",
+      "source_sha256": "65383728a4f8c571e5fc7bc38ea234b554a7240e06162e7dfdde93ec3d0e35a4",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy/slice address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 63
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "optional-parameter",
+      "original_path": "tools/language/217/probes/optional-parameter/main.zil",
+      "source_sha256": "7d26bfea2820bd3c9eaf2d2c3c80921029a5c31b51ac8d2a24059bb64df3e656",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "parameter type Unsupported(\"type form is not yet lowered\")",
+          "span": {
+            "file": 0,
+            "start": 11,
+            "end": 21
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "ct-item-if",
+      "original_path": "tools/language/217/probes/ct-item-if/main.zil",
+      "source_sha256": "f16c9205744b609bdea1ea3e24ce8bbe854bb74a1a583757951f6b0ed6e44f93",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": false,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "ct-statement-if",
+      "original_path": "tools/language/217/probes/ct-statement-if/main.zil",
+      "source_sha256": "fed41828771802bdb61326a4abe762fd3f4e6f577d1eff54478dae9018661944",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": false,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "ct-constant-control",
+      "original_path": "tools/language/217/probes/ct-constant-control/main.zil",
+      "source_sha256": "af1d68a0f0a1a2e49b445f90a821a781f294c3f23b6bdd123c55c075bbab8235",
+      "original_expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "previous_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "dyn-parameter",
+      "original_path": "tools/language/217/probes/dyn-parameter/main.zil",
+      "source_sha256": "33b6eb967a57c8fcc7bf5054d87ec0b83aeeb26645e5322967338542a9c7e28c",
+      "original_expected": {
+        "status": "SafeReject",
+        "phase": "parse",
+        "verification_runs": 0,
+        "exit": 1,
+        "codes": [
+          "E-PARSE-FUNCTION-BODY"
+        ]
+      },
+      "previous_actual": {
+        "status": "SafeReject",
+        "phase": "parse",
+        "verification_runs": 0,
+        "exit": 1,
+        "codes": [
+          "E-PARSE-FUNCTION-BODY"
+        ]
+      },
+      "actual": {
+        "status": "SafeReject",
+        "phase": "parse",
+        "verification_runs": 0,
+        "exit": 1,
+        "codes": [
+          "E-PARSE-FUNCTION-BODY"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "preserved_malformed_probe_excluded_from_capability_conclusions",
+      "capability_evidence": false,
+      "diagnostics": [
+        {
+          "phase": "parse",
+          "category": "SafeReject",
+          "code": "E-PARSE-FUNCTION-BODY",
+          "message": "function requires a block, arrow expression, or declaration semicolon",
+          "span": {
+            "file": 0,
+            "start": 40,
+            "end": 41
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "preserved malformed first probe; excluded from capability conclusions"
+    },
+    {
+      "name": "generic-lifetime",
+      "original_path": "tools/language/217/probes/generic-lifetime/main.zil",
+      "source_sha256": "13fa00651f148a8e3150ff37dc9afe142e5a547a4615948a9199805291aefd16",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic bound, lifetime or const parameter requires its semantic solver",
+          "span": {
+            "file": 0,
+            "start": 12,
+            "end": 18
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "package-direct-nested",
+      "original_path": "tools/language/217/probes/package-direct-nested/main.zil",
+      "source_sha256": "8f82dcba19831acf7417ee2fd4c852b8086d2dc377c8fc470131f87a603d2dba",
+      "original_expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "previous_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "product-store-element",
+      "original_path": "tools/language/217/probes/product-store-element/main.zil",
+      "source_sha256": "ec2fe34c2c8a9b52cd66015160b7cbf4caa4fb1cfc66e4a38c8b516a66ff6376",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": false,
+      "matches_previous_observation": false,
+      "classification": "promoted_to_verified_since_221",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "product-owning-store",
+      "original_path": "tools/language/217/probes/product-owning-store/main.zil",
+      "source_sha256": "da50bdad3a6e2d8e03e1aa23350555e2b6509b84ed7e818f497686b62f6c6dd5",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "aggregate field requires finite Copy, an explicit package manages resource, or a complete fixed Package array",
+          "span": {
+            "file": 0,
+            "start": 101,
+            "end": 112
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "nested-store-element",
+      "original_path": "tools/language/217/probes/nested-store-element/main.zil",
+      "source_sha256": "1de8510c71af92d06fbb17268295e779c337b1c00d84ded1ee68f27265a25be1",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store elements require nonzero complete direct-Managed Packages",
+          "span": {
+            "file": 0,
+            "start": 104,
+            "end": 139
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "owning-enum-option",
+      "original_path": "tools/language/217/probes/owning-enum-option/main.zil",
+      "source_sha256": "a94020ac6d5e995ffd8017494d81eebc13f5fbd38f631b99821a4b655a7ab3ec",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "enum payload requires a finite Copy value",
+          "span": {
+            "file": 0,
+            "start": 48,
+            "end": 76
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "associated-type",
+      "original_path": "tools/language/217/probes/associated-type/main.zil",
+      "source_sha256": "ffb2b17ac27e4bba9addc479ae5261ff0acc77f7f83ceee14b8f702ffc500b49",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED",
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED",
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED",
+          "E-UNSUPPORTED"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "associated trait items are not in the static local trait slice",
+          "span": {
+            "file": 0,
+            "start": 11,
+            "end": 22
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait declarations outside the finite local subset",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 48
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "syntax-extension",
+      "original_path": "tools/language/217/probes/syntax-extension/main.zil",
+      "source_sha256": "ec178d9d59e8acc5aa1fa4e36911cc9783420ae308542708ee77d8277f514cbd",
+      "original_expected": {
+        "status": "SafeReject",
+        "phase": "parse",
+        "verification_runs": 0,
+        "exit": 1,
+        "codes": [
+          "E-PARSE-IDENTIFIER"
+        ]
+      },
+      "previous_actual": {
+        "status": "SafeReject",
+        "phase": "parse",
+        "verification_runs": 0,
+        "exit": 1,
+        "codes": [
+          "E-PARSE-IDENTIFIER"
+        ]
+      },
+      "actual": {
+        "status": "SafeReject",
+        "phase": "parse",
+        "verification_runs": 0,
+        "exit": 1,
+        "codes": [
+          "E-PARSE-IDENTIFIER"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "preserved_malformed_probe_excluded_from_capability_conclusions",
+      "capability_evidence": false,
+      "diagnostics": [
+        {
+          "phase": "parse",
+          "category": "SafeReject",
+          "code": "E-PARSE-IDENTIFIER",
+          "message": "expected an identifier",
+          "span": {
+            "file": 0,
+            "start": 15,
+            "end": 21
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "preserved malformed first probe; excluded from capability conclusions"
+    },
+    {
+      "name": "product-error-union",
+      "original_path": "tools/language/217/probes/product-error-union/main.zil",
+      "source_sha256": "1dbfaccd1c2ef7f2632aa4f6fb9ee50ced554232f9f4184486162b04cd230f67",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": false,
+      "matches_previous_observation": false,
+      "classification": "promoted_to_verified_since_221",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "dyn-valid-parameter",
+      "original_path": "tools/language/217/probes/dyn-valid-parameter/main.zil",
+      "source_sha256": "68acda16d5a8f8fdf87bfef7cf881c268ab4b005562d4f263380a997c0b0e50e",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED",
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED",
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED",
+          "E-UNSUPPORTED"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "parameter type Address { mutable: false, inner: Unsupported(\"type form is not yet lowered\") }",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 73
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "resource/address parameter mode",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 73
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "corrected shape or actual alternate representation control"
+    },
+    {
+      "name": "syntax-valid-alias",
+      "original_path": "tools/language/217/probes/syntax-valid-alias/main.zil",
+      "source_sha256": "b5221cbe2152e01a45252f1504ebab05f47d28a46baffecf73d8de3d16a56476",
+      "original_expected": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "previous_actual": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "actual": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "public reexports and syntax imports require a later module interface",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 30
+          },
+          "notes": []
+        }
+      ],
+      "purpose": "corrected shape or actual alternate representation control"
+    },
+    {
+      "name": "copy-option-library-control",
+      "original_path": "tools/language/217/probes/copy-option-library-control/main.zil",
+      "source_sha256": "bcc699519008ec07b45d424c9b74a12f0b71cdd4f43f3498fa45dc5133c94c60",
+      "original_expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "previous_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "corrected shape or actual alternate representation control"
+    },
+    {
+      "name": "indexed-callback-delete",
+      "original_path": "tools/language/217/probes/indexed-callback-delete/main.zil",
+      "source_sha256": "48b9761e1c00dc0d16a365e3e8a7c6f20b018bf3a3c3b0033bca93925a0e19a4",
+      "original_expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "codes": [],
+        "exit": 0
+      },
+      "previous_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "matches_original_observation": true,
+      "matches_previous_observation": true,
+      "classification": "unchanged_from_221_observation",
+      "capability_evidence": true,
+      "diagnostics": [],
+      "purpose": "corrected shape or actual alternate representation control"
+    }
+  ],
+  "scope": "Exactly 29 unchanged source-to-Verify observations; no additional tests, native executions or framework/whole-language/product conclusion.",
+  "native_executions": 0,
+  "cargo_invocations": 0,
+  "phase_artifacts_requested": false,
+  "selected": 29,
+  "actual_check_invocations": 29,
+  "input_bytes_unchanged": true,
+  "original_expectations_unchanged": true,
+  "previous_result_bytes_unchanged": true,
+  "counts": {
+    "Success": 15,
+    "Unsupported": 12,
+    "SafeReject": 2
+  },
+  "transitions": {
+    "unchanged_from_221_observation": 25,
+    "preserved_malformed_probe_excluded_from_capability_conclusions": 2,
+    "promoted_to_verified_since_221": 2
+  },
+  "original_counts": {
+    "Success": 11,
+    "Unsupported": 16,
+    "SafeReject": 2
+  },
+  "regressions": [],
+  "promotions_since_221": [
+    "product-store-element",
+    "product-error-union"
+  ],
+  "remaining_unsupported": [
+    {
+      "name": "bytebuffer-slice-capture",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "slice capture or use in a closure is not implemented",
+          "span": {
+            "file": 0,
+            "start": 119,
+            "end": 123
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "callback-return-generic",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 32
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "closure-owned-error-result",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "higher-order scalar conversion is not implemented",
+          "span": {
+            "file": 0,
+            "start": 49,
+            "end": 55
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "closure-package-param",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy/slice address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 63
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "optional-parameter",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "parameter type Unsupported(\"type form is not yet lowered\")",
+          "span": {
+            "file": 0,
+            "start": 11,
+            "end": 21
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "generic-lifetime",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic bound, lifetime or const parameter requires its semantic solver",
+          "span": {
+            "file": 0,
+            "start": 12,
+            "end": 18
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "product-owning-store",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "aggregate field requires finite Copy, an explicit package manages resource, or a complete fixed Package array",
+          "span": {
+            "file": 0,
+            "start": 101,
+            "end": 112
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "nested-store-element",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store elements require nonzero complete direct-Managed Packages",
+          "span": {
+            "file": 0,
+            "start": 104,
+            "end": 139
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "owning-enum-option",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "enum payload requires a finite Copy value",
+          "span": {
+            "file": 0,
+            "start": 48,
+            "end": 76
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "associated-type",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "associated trait items are not in the static local trait slice",
+          "span": {
+            "file": 0,
+            "start": 11,
+            "end": 22
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait declarations outside the finite local subset",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 48
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "dyn-valid-parameter",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "parameter type Address { mutable: false, inner: Unsupported(\"type form is not yet lowered\") }",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 73
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "resource/address parameter mode",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 73
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "syntax-valid-alias",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "public reexports and syntax imports require a later module interface",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 30
+          },
+          "notes": []
+        }
+      ]
+    }
+  ]
+}

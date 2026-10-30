@@ -1,0 +1,18 @@
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-integration/crates/zil-analyze)
+    Finished `test` profile [unoptimized] target(s) in 0.55s
+     Running tests/impl201_store.rs (/workspace/scratch/d286b3aeeb6b/targets/integration/debug/deps/impl201_store-c515b92fa21ce968)
+
+running 10 tests
+test direct_and_package_store_captures_stay_closed ... ok
+test fields_require_direct_finite_shape_and_complete_resources ... ok
+test borrowed_call_cannot_consume_or_upgrade_shared_permissions ... ok
+test callback_windows_and_lending_results_retain_the_parent_store_hold ... ok
+test finite_one_and_two_callback_elements_accept_each_owned_call_mode ... ok
+test two_distinct_self_contained_copy_result_callbacks_are_accepted_since_203 ... ok
+test unused_parameter_and_resource_only_callback_elements_are_checked ... ok
+test old_noncallback_store_budget_is_unchanged ... ok
+test store_return_error_payload_and_raw_new_metadata_are_independently_walked ... ok
+test callback_store_work_has_exact_replayable_bounds_and_capture_width_cost ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

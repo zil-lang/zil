@@ -1,22 +1,17 @@
-# 当前语言施工进度
+# 当前语言施工进度：zil施工8
 
-2026-10-30 21:25 北京时间：**218–221 本批有限语言能力已验收并合入 main**，受验联合源码 [`69931f83`](https://github.com/zil-lang/zil/commit/69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf)。外层主线合并为 [`66d4954`](https://github.com/zil-lang/zil/commit/66d4954f0dfbbf074e19435e5e507f1cef795c82)，PR #8 已为 merged。完整语言 1.4、全部 ZUI 前置、B0/181 和 Rust 产品目标仍未完成。
+2026-10-30：222–224 已完成有限实现、原失败返修及本地组合检查，已通过共同候选的三份非作者范围审查，正在提交 GitHub 正式验收。当前不能标为整批已合入。
 
-[PR #8](https://github.com/zil-lang/zil/pull/8) 的 [GitHub 完整验收](https://github.com/zil-lang/zil/actions/runs/41057841800) 全部通过：默认2817/0/0，参考2785/0/0，格式、all-target Clippy、text-reference36、迁移运行器9、208消费者16构建/128执行/56实际分配失败。CI实际合并提交的完整tree与受验源码相同，身份分别记录。
+| 切片 | 本批工作 |
+| --- | --- |
+| 222 | 源级有限 `#for`、普通函数/语句生成、既有类型标量槽替换、卫生和累计预算 |
+| 223 | 完整 Product 作为 Store 元素、真实递归布局和清理、Store与普通地址资格分离 |
+| 224 | 同步共享 `&Product`、直接子包/资源字段地址、完整责任及NLL |
 
-|本批成果|实际状态|
-|---|---|
-|公共拥有F工厂与新的闭包结果|前端、独立Analyze和独立Verify联合完成；声明模式、真实值责任与失败清理均有源码和机器证据。|
-|声明级和语句级 #if|纯标量函数条件、不可变配置快照、累计预算和缓存接入；选中源继续经过普通安全核。|
-|独立审查返修|括号模块调用依赖遗漏、捕获F条件转交误拒均按原输入关闭。|
-|当前ZUI缺口重查|29原输入为13成功、14 Unsupported、2原语法无效；额外 #if 生成公共工厂组合通过O0/O2。|
+root的clean组合受影响回归132/0/0已通过；最终共同4d7bbb76的19项受影响回归通过，构造器绑定近邻已按原字节闭合。正式整仓尚待GitHub，不把旧2817/2785计为本轮结果。完整事实与有限边界见 [LANGUAGE-222-224.md](LANGUAGE-222-224.md)，机器入口为 [construction-progress.json](../data/construction-progress.json)。
 
-完整结果、边界、原始失败与下一语言责任见 [LANGUAGE-218-221.md](LANGUAGE-218-221.md)。两次本地容量失败未计完整Pass；正式整仓采用GitHub结果。历史217的有限容量/O(n)删除和其余未开放能力保持原结论。
+本轮只在 [zil-log](https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab) 更新 **zil施工8** 一行，使用北京时间。一次发布调用长时间未返回造成心跳超出10分钟；恢复后由活跃审查代理独立更新。时间戳只表示实际施工，阶段结束会明确标记，不作为会话结束后后台继续工作的承诺。
 
-机器入口：[construction-progress.json](../data/construction-progress.json)。施工期间约每10分钟更新 [zil-log](https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab) 的“zil施工7”一行，使用北京时间。记录只随实际施工更新；超过20分钟未更新为“待检查”，不能据此断言后台仍在运行或已经停止。阶段收尾会明确写明已完成，避免把结束施工误判成卡住。
+原29份readiness探针现15成功/12Unsupported/2原语法无效，旧成功零回退；完整Product Store与精确Unit协议两份原输入晋升。旧矩阵未包含#for与普通Product共享借入，另有本片独立实证。
 
-远端 `task/218`、`task/219`、`task/220`、`task/221` 已核对全部提交均为主线祖先后删除；当前保留 `main` 和独立的 `research/compile-performance`。旧研究分支继续单独推进，历史标签保留。
-
-收尾审计识别的四处规划/验收引用和六处在途规范迁移记录已补正；历史交接缺项保留，修复前的完整结果归档在 `evidence/integration/221/closeout/initial/`。这类记录核对不替代语言验收，也不改变旧产品状态。
-
-2026-10-30 21:33 北京时间收尾：本轮开发、独审、合入和分支清理已完成。主线合并提交66d4954的自动复跑 [run41061704505](https://github.com/zil-lang/zil/actions/runs/41061704505) 全部通过，默认2817/0/0、参考2785/0/0及其他门与合前结果一致，计数分开保存，不合计成新覆盖量。主线接续快照已生成；历史handoff仍为Fail/1138，本轮新增错误0、218–221错误0、warnings0。
+完整语言1.4、全部ZUI前置、B0/181及Rust产品门仍未完成；编译性能研究分支独立保留。

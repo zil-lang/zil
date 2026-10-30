@@ -1,0 +1,22 @@
+{
+  "source_sha256": "8a3e0c9d0988519e2e0e9a710ae1220a6a67c49eae1fe951c4306315839bda58",
+  "oracles": {
+    "0": [
+      0,
+      "BAZ"
+    ],
+    "1": [
+      0,
+      "CDCBAZ"
+    ],
+    "2": [
+      0,
+      "DCBAZ"
+    ],
+    "3": [
+      1,
+      "CBAZ"
+    ]
+  },
+  "allocation_measurement": "NotRun"
+}

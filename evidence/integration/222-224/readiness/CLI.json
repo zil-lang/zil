@@ -1,0 +1,17 @@
+{
+  "build_commit": "6b0d974bedfb40c93eb36e491ceb18a138718dac",
+  "build_tree": "44cab5da8260ed37024a4bff3c303b69da98229b",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "status": "",
+  "command": [
+    "/workspace/scratch/d286b3aeeb6b/recovery/integration-env.sh",
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "zil-cli"
+  ],
+  "exit_code": 0,
+  "cli": "/workspace/scratch/d286b3aeeb6b/targets/integration/debug/zil",
+  "cli_sha256": "593da735017a4bf5db773d38ef7c5f3c139c19d75ef6d9a2785d94017b4f1d71"
+}

@@ -1,0 +1,96 @@
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+     Running tests/impl175_store_views.rs (/workspace/scratch/d286b3aeeb6b/targets/224/debug/deps/impl175_store_views-06b709daf883ed77)
+
+running 19 tests
+test element_read_respects_actual_package_field_visibility ... ok
+test old_field_descriptions_cannot_reanimate_element_windows ... ok
+test every_intersecting_container_mutation_is_rejected_while_view_is_live ... ok
+test raw_and_wire_rebuild_element_type_index_and_hold_origins ... ok
+test raw_and_wire_reject_container_drop_during_an_active_element_window ... ok
+test raw_and_wire_reject_write_retargeted_behind_an_active_window ... ok
+test raw_and_wire_rebuild_field_separation_and_parent_invalidation ... ok
+test failed_argument_preparation_ends_element_window_and_cleans_prefix_once ... ok
+test direct_projection_and_last_use_allow_later_reserve_and_pop ... ok
+test copy_child_address_keeps_a_live_window_through_local_callback ... ok
+test indirect_alias_contract_is_instantiated_from_real_store_roots ... ok
+test actual_field_windows_block_mutation_take_replace_and_whole_parent_move ... ok
+test verify_window_budget_has_an_exact_n_and_n_minus_one_boundary ... ok
+test shared_element_windows_cross_functions_and_keep_one_owner ... ok
+test shared_views_allow_len_capacity_and_unrelated_address_return ... ok
+test view_and_descriptor_input_aliasing_cannot_hide_a_write_inside_helper ... ok
+test actual_store_fields_preserve_separation_and_last_use_before_parent_move ... ok
+test runtime_negative_empty_and_end_indices_trap_before_element_access ... ok
+test runtime_index_reads_real_metadata_through_four_source_modules ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 2.56s
+
+     Running tests/impl180_store_mut.rs (/workspace/scratch/d286b3aeeb6b/targets/224/debug/deps/impl180_store_mut-2795f00192bfe981)
+
+running 19 tests
+test raw_and_wire_cannot_write_after_consistently_downgrading_the_window ... ok
+test index_evaluation_cannot_consume_the_previously_evaluated_store ... ok
+test raw_and_wire_rebuild_mutability_index_shape_and_actual_holds ... ok
+test raw_and_wire_reject_resource_projection_and_early_owner_drop ... ok
+test raw_and_wire_retargeted_structure_write_cannot_cross_exclusive_window ... ok
+test cross_function_aliases_cannot_hide_mutation_or_second_window ... ok
+test managed_fields_whole_packages_and_escaping_windows_remain_closed ... ok
+test actual_copy_scalar_array_and_record_fields_update_in_place ... ok
+test live_exclusive_window_blocks_structure_metadata_and_responsibility_changes ... ok
+test receiver_index_and_rhs_are_evaluated_once_and_in_source_order ... ok
+test projected_copy_slice_keeps_then_releases_exclusive_permission ... ok
+test shared_windows_cannot_be_upgraded_or_written ... ok
+test runtime_index_traps_before_address_even_when_capacity_has_spare_slots ... ok
+test rhs_and_child_capture_cannot_hide_a_live_window ... ok
+test index_effect_runs_before_window_and_error_rhs_cleans_store ... ok
+test separate_store_fields_and_parameter_apart_checks_preserve_updates ... ok
+test whole_store_exclusive_loan_blocks_shared_and_other_exclusive_views ... ok
+test synchronous_helper_reborrows_then_last_use_allows_reserve_and_pop ... ok
+test runtime_updates_cross_four_modules_without_moving_element_resources ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.22s
+
+     Running tests/shared_addresses.rs (/workspace/scratch/d286b3aeeb6b/targets/224/debug/deps/shared_addresses-88fc92469249fd9e)
+
+running 9 tests
+test mixed_environment_and_capture_hold_cannot_be_erased_or_forged ... ok
+test storage_end_cannot_leave_an_address_or_captured_address_live ... ok
+test every_live_address_and_mixed_closure_alias_keeps_its_source ... ok
+
+thread 'branch_shadow_loop_and_scalar_parameter_storage' (315) panicked at crates/zil-driver/tests/shared_addresses.rs:84:10:
+called `Result::unwrap()` on an `Err` value: Os { code: 2, kind: NotFound, message: "No such file or directory" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test branch_shadow_loop_and_scalar_parameter_storage ... FAILED
+
+thread 'address_constraints_apply_before_ct_and_inside_closure_body' (313) panicked at crates/zil-driver/tests/shared_addresses.rs:84:10:
+called `Result::unwrap()` on an `Err` value: Os { code: 2, kind: NotFound, message: "No such file or directory" }
+test address_constraints_apply_before_ct_and_inside_closure_body ... FAILED
+
+thread 'mixed_move_environment_keeps_pointer_and_snapshot_distinct' (318) panicked at crates/zil-driver/tests/shared_addresses.rs:84:10:
+called `Result::unwrap()` on an `Err` value: Os { code: 2, kind: NotFound, message: "No such file or directory" }
+test mixed_move_environment_keeps_pointer_and_snapshot_distinct ... FAILED
+
+thread 'bool_unit_and_i64_reference_types_preserve_operand_inference' (314) panicked at crates/zil-driver/tests/shared_addresses.rs:84:10:
+called `Result::unwrap()` on an `Err` value: Os { code: 2, kind: NotFound, message: "No such file or directory" }
+test bool_unit_and_i64_reference_types_preserve_operand_inference ... FAILED
+
+thread 'scalar_address_copies_overwrites_and_rhs_last_use' (319) panicked at crates/zil-driver/tests/shared_addresses.rs:84:10:
+called `Result::unwrap()` on an `Err` value: Os { code: 2, kind: NotFound, message: "No such file or directory" }
+test scalar_address_copies_overwrites_and_rhs_last_use ... FAILED
+
+thread 'unsupported_reference_contracts_and_authority_remain_explicit' (325) panicked at crates/zil-driver/tests/shared_addresses.rs:84:10:
+called `Result::unwrap()` on an `Err` value: Os { code: 2, kind: NotFound, message: "No such file or directory" }
+test unsupported_reference_contracts_and_authority_remain_explicit ... FAILED
+
+failures:
+
+failures:
+    address_constraints_apply_before_ct_and_inside_closure_body
+    bool_unit_and_i64_reference_types_preserve_operand_inference
+    branch_shadow_loop_and_scalar_parameter_storage
+    mixed_move_environment_keeps_pointer_and_snapshot_distinct
+    scalar_address_copies_overwrites_and_rhs_last_use
+    unsupported_reference_contracts_and_authority_remain_explicit
+
+test result: FAILED. 3 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+error: test failed, to rerun pass `-p zil-driver --test shared_addresses`

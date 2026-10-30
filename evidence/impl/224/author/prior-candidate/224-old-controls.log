@@ -1,0 +1,25 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-224/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.56s
+     Running tests/impl206_analyze.rs (/workspace/scratch/d286b3aeeb6b/targets/224/debug/deps/impl206_analyze-4696368e40da3134)
+
+running 7 tests
+
+thread 'ordinary_product_admission_does_not_widen_other_raw_parent_contexts' (112) panicked at crates/zil-driver/tests/impl206_analyze.rs:272:29:
+address: CandidatePlan { schema_version: 27, module_fingerprint: Fingerprint([235, 31, 168, 81, 215, 103, 97, 174, 123, 165, 226, 10, 70, 111, 188, 106, 143, 186, 154, 202, 204, 212, 0, 159, 187, 67, 234, 26, 44, 230, 13, 179]), target_fingerprint: Fingerprint([205, 49, 11, 211, 61, 158, 160, 206, 0, 177, 155, 124, 142, 36, 127, 255, 149, 121, 131, 121, 165, 196, 116, 61, 206, 130, 190, 234, 40, 5, 28, 15]), functions: [FunctionPlan { function: FunctionId(0), blocks: [BlockPlan { block: BlockId(0), initialized_in: [LocalId(0)], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [] }] }, FunctionPlan { function: FunctionId(1), blocks: [BlockPlan { block: BlockId(0), initialized_in: [LocalId(0)], initialized_out: [] }], holds: [] }, FunctionPlan { function: FunctionId(2), blocks: [BlockPlan { block: BlockId(0), initialized_in: [], initialized_out: [] }], holds: [] }], origins: [], responsibilities: [], unsupported: [] }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test ordinary_product_admission_does_not_widen_other_raw_parent_contexts ... FAILED
+test unused_resource_payload_does_not_admit_an_ordinary_product ... ok
+test typed_operand_and_leaf_index_mutations_cannot_forge_created_origins ... ok
+test same_typed_children_keep_their_own_actual_leaf_origins ... ok
+test child_refill_preserves_actual_leaf_origins_and_partial_shapes_stay_local ... ok
+test cfg_joins_preserve_incoming_on_each_reachable_product_path ... ok
+test frozen_created_and_incoming_leaves_remain_distinct_through_each_wrapper ... ok
+
+failures:
+
+failures:
+    ordinary_product_admission_does_not_widen_other_raw_parent_contexts
+
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+error: test failed, to rerun pass `-p zil-driver --test impl206_analyze`

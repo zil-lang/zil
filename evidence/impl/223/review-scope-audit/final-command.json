@@ -1,0 +1,28 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "review223_boundaries",
+    "--test",
+    "review223_replay",
+    "--test",
+    "review223_machine",
+    "--test",
+    "impl223_budget",
+    "--",
+    "--nocapture"
+  ],
+  "implementation_commit": "ab964e484ca96889ccb80c5b76385e706588cea1",
+  "review_checkout_commit": "9c8fbb50ab88984bec76ef054104b58e98e75166",
+  "git_status_before": "",
+  "production_difference": "",
+  "target": "/workspace/scratch/d286b3aeeb6b/targets/review223",
+  "scope": "Independent limited review; original implementation author is /root/product_store; reviewer /root/scope_audit",
+  "exit_code": 0
+}

@@ -1,0 +1,51 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-integration/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 2.61s
+     Running tests/impl219_budget.rs (/workspace/scratch/d286b3aeeb6b/targets/integration/debug/deps/impl219_budget-1b9833b98696d47e)
+
+running 3 tests
+test target_and_limits_invalidate_selection_but_original_no_selection_paths_keep_their_identity ... ok
+test selection_and_later_constants_share_steps_nodes_and_fresh_request_recovery ... ok
+test project_source_dependency_edits_reselect_with_fresh_independent_verification ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/impl219_selection.rs (/workspace/scratch/d286b3aeeb6b/targets/integration/debug/deps/impl219_selection-29446bd0aee8b40b)
+
+running 6 tests
+test ordinary_cross_module_visibility_and_generated_exports_are_preserved ... ok
+test config_snapshot_is_closed_and_runtime_shadowing_is_not_a_global_fallback ... ok
+test actual_scalar_function_dependencies_loops_recursion_and_short_circuit_execute ... ok
+test grouped_import_objects_keep_the_same_closed_dependencies_and_lexical_shadowing ... ok
+test original_probes_and_selected_lists_reach_the_independent_gate ... ok
+test the_frozen_native_consumer_checks_both_source_configurations ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/impl222_224_composition.rs (/workspace/scratch/d286b3aeeb6b/targets/integration/debug/deps/impl222_224_composition-b5886248a610ca89)
+
+running 2 tests
+test shared_store_child_keeps_the_actual_container_loan_until_last_use ... ok
+test generated_product_elements_keep_shared_child_lifetimes_and_recursive_cleanup ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+     Running tests/impl222_generation.rs (/workspace/scratch/d286b3aeeb6b/targets/integration/debug/deps/impl222_generation-f2d92dbbcff70cfb)
+
+running 6 tests
+test cross_module_closed_dependencies_and_visibility_are_preserved ... ok
+test generated_operations_still_enter_the_ordinary_safety_gate ... ok
+test generation_boundaries_and_runtime_shadowing_fail_closed ... ok
+test all_generations_conditions_and_later_queries_share_limits_and_cache_charges ... ok
+test ordered_ranges_arrays_nested_selection_and_hygiene_reach_verify ... ok
+test generated_values_hygiene_and_receiving_control_flow_execute_at_o0_and_o2 ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.82s
+
+     Running tests/impl222_review_regressions.rs (/workspace/scratch/d286b3aeeb6b/targets/integration/debug/deps/impl222_review_regressions-10903965f6530179)
+
+running 2 tests
+test nominal_constructor_uses_the_same_namespace_after_single_generation ... ok
+test nested_generations_conditions_and_later_query_share_fresh_and_warm_limits ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+

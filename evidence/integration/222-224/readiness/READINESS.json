@@ -1,0 +1,433 @@
+{
+  "status": "Completed",
+  "kind": "29_frozen_readiness_observations_not_29_successes",
+  "observer": "/root/product_store",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "compiler_build_commit": "6b0d974bedfb40c93eb36e491ceb18a138718dac",
+  "source_checkout_commit": "6b0d974bedfb40c93eb36e491ceb18a138718dac",
+  "cli_sha256": "593da735017a4bf5db773d38ef7c5f3c139c19d75ef6d9a2785d94017b4f1d71",
+  "compiler_build_receipt_sha256": "f321c01eb4697170d32cf32854405146df6fcfb4df450b350593db52f6b33b1a",
+  "actual_check_invocations": 29,
+  "counts": {
+    "Success": 15,
+    "Unsupported": 12,
+    "SafeReject": 2
+  },
+  "previous_counts": {
+    "Success": 13,
+    "Unsupported": 14,
+    "SafeReject": 2
+  },
+  "original_217_counts": {
+    "Success": 11,
+    "Unsupported": 16,
+    "SafeReject": 2
+  },
+  "transitions": {
+    "unchanged_from_221_observation": 25,
+    "preserved_malformed_probe_excluded_from_capability_conclusions": 2,
+    "promoted_to_verified_since_221": 2
+  },
+  "regressions": [],
+  "promotions_since_221": [
+    {
+      "name": "product-store-element",
+      "source_sha256": "ec2fe34c2c8a9b52cd66015160b7cbf4caa4fb1cfc66e4a38c8b516a66ff6376",
+      "previous": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "current": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "meaning": "完整有限Product进入Store的原始源到达Verify"
+    },
+    {
+      "name": "product-error-union",
+      "source_sha256": "1dbfaccd1c2ef7f2632aa4f6fb9ee50ced554232f9f4184486162b04cd230f67",
+      "previous": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "current": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "meaning": "原始void!Root（Unit!Product）签名到达Verify；并非任意拥有错误联合"
+    }
+  ],
+  "remaining_unsupported": [
+    {
+      "name": "bytebuffer-slice-capture",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "slice capture or use in a closure is not implemented",
+          "span": {
+            "file": 0,
+            "start": 119,
+            "end": 123
+          },
+          "notes": []
+        }
+      ],
+      "interpretation": "直接将借入 slice 捕获到闭包仍未实现。"
+    },
+    {
+      "name": "callback-return-generic",
+      "phase": "expand",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 32
+          },
+          "notes": []
+        }
+      ],
+      "interpretation": "该源要求把原 F 原样返回；有限公共拥有包装工厂的既有能力不能与本签名等同。"
+    },
+    {
+      "name": "closure-owned-error-result",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "higher-order scalar conversion is not implemented",
+          "span": {
+            "file": 0,
+            "start": 49,
+            "end": 55
+          },
+          "notes": []
+        }
+      ],
+      "interpretation": "文件名含 error，但原始源实际让闭包返回直接资源 R，没有 ErrorUnion；仅按真实源记录拒绝。"
+    },
+    {
+      "name": "closure-package-param",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy/slice address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 63
+          },
+          "notes": []
+        }
+      ],
+      "interpretation": "拥有 Package 作为普通闭包参数并返回的该签名仍被 Types 拒绝。"
+    },
+    {
+      "name": "optional-parameter",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "parameter type Unsupported(\"type form is not yet lowered\")",
+          "span": {
+            "file": 0,
+            "start": 11,
+            "end": 21
+          },
+          "notes": []
+        }
+      ],
+      "interpretation": "i32? 表面类型仍未 lowered；原 Copy Option<T> 库控制继续成功。"
+    },
+    {
+      "name": "generic-lifetime",
+      "phase": "expand",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic bound, lifetime or const parameter requires its semantic solver",
+          "span": {
+            "file": 0,
+            "start": 12,
+            "end": 18
+          },
+          "notes": []
+        }
+      ],
+      "interpretation": "具名 life 参数及其来源签名仍需要相应语义求解。"
+    },
+    {
+      "name": "product-owning-store",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "aggregate field requires finite Copy, an explicit package manages resource, or a complete fixed Package array",
+          "span": {
+            "file": 0,
+            "start": 101,
+            "end": 112
+          },
+          "notes": []
+        }
+      ],
+      "interpretation": "普通嵌套 Product 拥有 Store 的该形状仍未开放。"
+    },
+    {
+      "name": "nested-store-element",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store elements require nonzero complete direct-Managed Packages",
+          "span": {
+            "file": 0,
+            "start": 104,
+            "end": 139
+          },
+          "notes": []
+        }
+      ],
+      "interpretation": "含 Store 的拥有 Package 再作为 Store 元素仍未开放。"
+    },
+    {
+      "name": "owning-enum-option",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "enum payload requires a finite Copy value",
+          "span": {
+            "file": 0,
+            "start": 48,
+            "end": 76
+          },
+          "notes": []
+        }
+      ],
+      "interpretation": "含拥有 Leaf 的 enum variant 仍被有限 Copy payload 门拒绝。"
+    },
+    {
+      "name": "associated-type",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED",
+        "E-UNSUPPORTED"
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "associated trait items are not in the static local trait slice",
+          "span": {
+            "file": 0,
+            "start": 11,
+            "end": 22
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait declarations outside the finite local subset",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 48
+          },
+          "notes": []
+        }
+      ],
+      "interpretation": "该 trait 的关联类型仍不在有限本地 trait 范围。"
+    },
+    {
+      "name": "dyn-valid-parameter",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED",
+        "E-UNSUPPORTED"
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "parameter type Address { mutable: false, inner: Unsupported(\"type form is not yet lowered\") }",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 73
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "resource/address parameter mode",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 73
+          },
+          "notes": []
+        }
+      ],
+      "interpretation": "合法 dyn 参数源仍在 Types 拒绝；不是由原 malformed dyn-parameter 推断。"
+    },
+    {
+      "name": "syntax-valid-alias",
+      "phase": "expand",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "public reexports and syntax imports require a later module interface",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 30
+          },
+          "notes": []
+        }
+      ],
+      "interpretation": "合法 syntax use 源仍在 Expand 拒绝；不是由原 malformed syntax-extension 推断。"
+    }
+  ],
+  "malformed_excluded": [
+    {
+      "name": "dyn-parameter",
+      "current": {
+        "status": "SafeReject",
+        "phase": "parse",
+        "verification_runs": 0,
+        "exit": 1,
+        "codes": [
+          "E-PARSE-FUNCTION-BODY"
+        ]
+      },
+      "unchanged_from_prior": true,
+      "source_sha256": "33b6eb967a57c8fcc7bf5054d87ec0b83aeeb26645e5322967338542a9c7e28c",
+      "capability_evidence": false
+    },
+    {
+      "name": "syntax-extension",
+      "current": {
+        "status": "SafeReject",
+        "phase": "parse",
+        "verification_runs": 0,
+        "exit": 1,
+        "codes": [
+          "E-PARSE-IDENTIFIER"
+        ]
+      },
+      "unchanged_from_prior": true,
+      "source_sha256": "ec178d9d59e8acc5aa1fa4e36911cc9783420ae308542708ee77d8277f514cbd",
+      "capability_evidence": false
+    }
+  ],
+  "input_integrity": {
+    "all_42_manifest_entries_match_before_and_after": true,
+    "all_29_source_bytes_match_original_manifest_and_prior_results": true,
+    "original_probe_oracle_unchanged": true,
+    "previous_RESULT_unchanged": true,
+    "cli_unchanged": true,
+    "source_checkout_clean_before_and_after": true,
+    "original_probe_oracle_sha256": "1f25af9895df1f0bf0f5ae8000b8e262f3462634c41e40300561ece97017868b",
+    "source_manifest_sha256": "09f51d1f3d73818de60384ef6de2eee4fdf062c2abe88dbabb1c525e1ce74d22",
+    "previous_RESULT_sha256": "907f96f3f676ab6bd5c5fb7cf390155d1e1783b6c53be56670c49f7794131a9f"
+  },
+  "execution_scope": {
+    "cargo_invocations": 0,
+    "native_executions": 0,
+    "phase_artifacts_requested": false,
+    "extra_cases": 0
+  },
+  "runner_provenance": {
+    "original217": "tools/language/217/run.py",
+    "previous221": "evidence/integration/221/readiness-final/raw.tar.gz:replay.py",
+    "current": "raw.tar.gz:replay.py",
+    "adjustment": "Same 29 CLI check source --json commands; adapt fixed paths and provided CLI receipt, compare to original expected tuple and previous actual tuple. Original files and expectations unchanged. Separate native consumers omitted as instructed.",
+    "original_runners_preserved_in_archive": true
+  },
+  "limits": [
+    "The unchanged old matrix has no #for or shared ordinary Product input; it cannot measure the full 222/224 increment.",
+    "The product-error-union source declares an unused fn make()->void!Root. Success here establishes source-to-Verify admission of that exact Unit/Product form only; no native execution or arbitrary owning Sum conclusion.",
+    "Source-to-Verify observations do not replace independent raw/Wire or machine cleanup review.",
+    "No whole-language, full-ZUI, platform or product acceptance conclusion."
+  ],
+  "full_language": "NotSatisfied",
+  "full_zui": "NotClaimed",
+  "product": "NotRun"
+}

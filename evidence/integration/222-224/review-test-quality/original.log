@@ -1,0 +1,32 @@
+    Checking zil-driver v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil-integration/crates/zil-driver)
+error: creating a new box
+   --> crates/zil-driver/tests/review223_boundaries.rs:120:25
+    |
+120 | /                         *error = Box::new(Type::ErrorUnion {
+121 | |                             error: error.clone(),
+122 | |                             result: Box::new(Type::Unit),
+123 | |                         })
+    | |__________________________^
+    |
+    = note: this creates a needless allocation
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#replace_box
+    = note: `-D clippy::replace-box` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::replace_box)]`
+help: replace existing content with inner value instead
+    |
+120 ~                         **error = Type::ErrorUnion {
+121 +                             error: error.clone(),
+122 +                             result: Box::new(Type::Unit),
+123 +                         }
+    |
+
+error: creating a new box
+   --> crates/zil-driver/tests/review223_boundaries.rs:127:25
+    |
+127 |                         *error = Box::new(Type::Bool);
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace existing content with inner value instead: `**error = Type::Bool`
+    |
+    = note: this creates a needless allocation
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#replace_box
+
+error: could not compile `zil-driver` (test "review223_boundaries") due to 2 previous errors

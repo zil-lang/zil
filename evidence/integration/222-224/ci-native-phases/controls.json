@@ -1,0 +1,91 @@
+{
+  "status": "Pass",
+  "checks": [
+    "hidden files and executable mode inventoried",
+    "mode change blocks release",
+    "content change blocks release",
+    "independent phase preservation in both directions",
+    "empty phase",
+    "case-fold collision rejected",
+    "symlink rejected"
+  ],
+  "results": [
+    {
+      "action": "capture",
+      "phase": "workspace",
+      "exit_code": 0,
+      "stdout": "native_file_count=1\n",
+      "stderr": ""
+    },
+    {
+      "action": "release",
+      "phase": "workspace",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Native evidence changed after the archived inventory\n"
+    },
+    {
+      "action": "release",
+      "phase": "workspace",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Native evidence changed after the archived inventory\n"
+    },
+    {
+      "action": "capture",
+      "phase": "workspace",
+      "exit_code": 0,
+      "stdout": "native_file_count=1\n",
+      "stderr": ""
+    },
+    {
+      "action": "release",
+      "phase": "workspace",
+      "exit_code": 0,
+      "stdout": "Released 1 inventoried native files after archival\nFree bytes after cleanup: 340353024\n",
+      "stderr": ""
+    },
+    {
+      "action": "capture",
+      "phase": "workspace",
+      "exit_code": 0,
+      "stdout": "native_file_count=0\n",
+      "stderr": ""
+    },
+    {
+      "action": "release",
+      "phase": "workspace",
+      "exit_code": 0,
+      "stdout": "Released 0 inventoried native files after archival\nFree bytes after cleanup: 340353024\n",
+      "stderr": ""
+    },
+    {
+      "action": "capture",
+      "phase": "workspace",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Native artifact paths must not collide when case-folded: Case and case\n"
+    },
+    {
+      "action": "capture",
+      "phase": "workspace",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Native evidence must not contain symlinks\n"
+    },
+    {
+      "action": "capture",
+      "phase": "reference",
+      "exit_code": 0,
+      "stdout": "native_file_count=1\n",
+      "stderr": ""
+    },
+    {
+      "action": "release",
+      "phase": "reference",
+      "exit_code": 0,
+      "stdout": "Released 1 inventoried native files after archival\nFree bytes after cleanup: 340353024\n",
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil/crates/zil-base)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil/crates/zil-llvm-api)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil/crates/zil-verify)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil/crates/zil-syntax)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/d286b3aeeb6b/zil/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 15.29s
+     Running tests/impl171_resource_heads.rs (/workspace/scratch/d286b3aeeb6b/targets/224-baseline/debug/deps/impl171_resource_heads-7a7a66298f4ff828)
+
+running 1 test
+test heads_are_not_descriptors_mutable_windows_returns_or_captures ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.07s
+

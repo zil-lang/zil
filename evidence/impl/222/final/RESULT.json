@@ -1,0 +1,182 @@
+{
+  "status": "AuthorPass",
+  "independent_review": "Pending",
+  "integration": "NotRun",
+  "github_publication": "RootResponsible",
+  "source_commit": "d1f8d695f1770c7f95a4914fc2b61ac9bd8837ce",
+  "source_tree": "eb060b80030e5e35c439da456c353061850ec5f7",
+  "baseline": "a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
+  "executed_design_sha256": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+  "dispatch_snapshot_sha256": "af55d19a3f1dd77e81a0f84bc4ba9e068440d9dccd14000aa640d21d4801bb27",
+  "cli_sha256": "086951c42718192e41a5b2598b38dcc86dfc83d9cda0fef8a89019f745588e6c",
+  "checks": {
+    "fmt": {
+      "source_commit": "d1f8d695f1770c7f95a4914fc2b61ac9bd8837ce",
+      "source_tree": "eb060b80030e5e35c439da456c353061850ec5f7",
+      "git_status": "",
+      "design_sha256": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+      "interfaces_sha256": "f8a3448739fdf5100c684113b2a17bc9f7664c0aadb91791caf98a47b0543dfe",
+      "test_report_dir": "/workspace/scratch/d286b3aeeb6b/recovery/222-clean-d1f8d695f/tests",
+      "environment_sha256": "5582a9c81cb003f6d941357e11f537a2629849f4ed3f6350a95fa35fdc783655",
+      "command": [
+        "sh",
+        "/workspace/scratch/d286b3aeeb6b/recovery/222-env.sh",
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "start": 1793369959.2150593,
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793369961.6922355,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "cli-build": {
+      "source_commit": "d1f8d695f1770c7f95a4914fc2b61ac9bd8837ce",
+      "source_tree": "eb060b80030e5e35c439da456c353061850ec5f7",
+      "git_status": "",
+      "design_sha256": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+      "interfaces_sha256": "f8a3448739fdf5100c684113b2a17bc9f7664c0aadb91791caf98a47b0543dfe",
+      "test_report_dir": "/workspace/scratch/d286b3aeeb6b/recovery/222-clean-d1f8d695f/tests",
+      "environment_sha256": "5582a9c81cb003f6d941357e11f537a2629849f4ed3f6350a95fa35fdc783655",
+      "command": [
+        "sh",
+        "/workspace/scratch/d286b3aeeb6b/recovery/222-env.sh",
+        "cargo",
+        "build",
+        "--locked",
+        "-p",
+        "zil-cli"
+      ],
+      "start": 1793369961.7537787,
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793369962.3327208,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "914487b96d6f1d7df0c26d713b19b9573863587336597fbc83c5cb7ff71cb686",
+      "cli_sha256": "086951c42718192e41a5b2598b38dcc86dfc83d9cda0fef8a89019f745588e6c"
+    },
+    "tests": {
+      "source_commit": "d1f8d695f1770c7f95a4914fc2b61ac9bd8837ce",
+      "source_tree": "eb060b80030e5e35c439da456c353061850ec5f7",
+      "git_status": "",
+      "design_sha256": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+      "interfaces_sha256": "f8a3448739fdf5100c684113b2a17bc9f7664c0aadb91791caf98a47b0543dfe",
+      "test_report_dir": "/workspace/scratch/d286b3aeeb6b/recovery/222-clean-d1f8d695f/tests",
+      "environment_sha256": "5582a9c81cb003f6d941357e11f537a2629849f4ed3f6350a95fa35fdc783655",
+      "command": [
+        "sh",
+        "/workspace/scratch/d286b3aeeb6b/recovery/222-env.sh",
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl222_generation",
+        "--test",
+        "impl219_selection",
+        "--test",
+        "impl219_budget",
+        "--features",
+        "llvm-api"
+      ],
+      "start": 1793369962.4254842,
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793369965.326869,
+      "stdout_sha256": "f61542d544eab5f30146e24bc623af2d9d26490583f6e2eedeb8f50fb220b6fe",
+      "stderr_sha256": "5589edff26fe2ef225b278354a7e0a511f2c8b33f67ab94dc9347efd57f786e6"
+    },
+    "clippy": {
+      "source_commit": "d1f8d695f1770c7f95a4914fc2b61ac9bd8837ce",
+      "source_tree": "eb060b80030e5e35c439da456c353061850ec5f7",
+      "git_status": "",
+      "design_sha256": "de431dc8632119e6bca306bd8c48b5497024f2c1330d37a600af9d52c6b16702",
+      "interfaces_sha256": "f8a3448739fdf5100c684113b2a17bc9f7664c0aadb91791caf98a47b0543dfe",
+      "test_report_dir": "/workspace/scratch/d286b3aeeb6b/recovery/222-clean-d1f8d695f/tests",
+      "environment_sha256": "5582a9c81cb003f6d941357e11f537a2629849f4ed3f6350a95fa35fdc783655",
+      "command": [
+        "sh",
+        "/workspace/scratch/d286b3aeeb6b/recovery/222-env.sh",
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "--test",
+        "impl222_generation",
+        "--features",
+        "llvm-api",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "start": 1793369965.3889196,
+      "status": "Pass",
+      "exit_code": 0,
+      "end": 1793369966.2619324,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "650f3eb73172c4a7feb5d3351ef4f10cd16e9b25805c14b6085974cd746fb29a"
+    }
+  },
+  "rust_tests": {
+    "total_pass": 15,
+    "new_impl222": 6,
+    "existing_impl219": 9,
+    "failed": 0,
+    "ignored": 0
+  },
+  "functional_native": {
+    "source_cases": 19,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "llvm_api_builds": 38,
+    "native_executions": 38
+  },
+  "resource_consumer": {
+    "status": "Pass",
+    "summary_sha256": "06b622125044002b5831991afee51d060a5d9200546cad6f4d2fb06447bcafbc",
+    "llvm_api_builds": 2,
+    "native_executions": 54,
+    "actual_allocation_failures": 18,
+    "ordinary_executions": 12,
+    "probe_executions": 42,
+    "all_final_live_zero": true,
+    "maximum_requested_payload_bytes": 6
+  },
+  "limits": {
+    "impl222": {
+      "core_steps": 71,
+      "full_steps": 138,
+      "full_nodes": 751,
+      "source_sha256": "30697085ee3d9f616423c37a2d6401904dd9da0de2a73e373708a17dc6cea7d4"
+    },
+    "impl219_unchanged": {
+      "core_steps": 127,
+      "full_steps": 205,
+      "full_nodes": 645
+    }
+  },
+  "boundaries": [
+    "Only ordinary function item generation in this slice; other declaration kinds remain Unsupported.",
+    "Iteration substitution covers ordinary expression positions; Type/Syntax and iterator-driven generic/type shape are not accepted as completed.",
+    "Existing ordinary safety, schema/Wire27, default limits and product gates unchanged.",
+    "Development failures retain dirty-source identity and are not counted as final evidence."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "rust_four_goals": "Limited safety/cleanup and bounded-generation evidence only; no comparative speed/RSS/compile-cost win claimed.",
+  "archive": {
+    "file": "raw-evidence.tar.gz",
+    "sha256": "d52eb539739d040c55ee18a453eed4e98829cc25ef4948b0b29070fbed27131e",
+    "bytes": 4081275,
+    "file_count": 1650
+  }
+}

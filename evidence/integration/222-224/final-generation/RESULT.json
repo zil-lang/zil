@@ -1,0 +1,18 @@
+{
+  "status": "Pass",
+  "scope": "Final generation repair and composition affected regression, not full workspace",
+  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
+  "tree": "6ec628b56387fb5437179986dfeef0e90d553c68",
+  "clean": true,
+  "tests": {
+    "suites": 5,
+    "passed": 19,
+    "failed": 0,
+    "ignored": 0
+  },
+  "commands": "command.json",
+  "all_target_gate": "Pending GitHub full workflow",
+  "archive_sha256": "d9f60505d702d325d3997e2065bd9f638a3041c923a9685992b5519db48ca932",
+  "archive_bytes": 2478929,
+  "counting": "Do not add the overlapping 132-test prior round to this run as new coverage."
+}
