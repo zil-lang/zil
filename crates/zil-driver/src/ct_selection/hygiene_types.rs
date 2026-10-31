@@ -229,7 +229,9 @@ impl Renamer<'_> {
                     "duplicate declaration name in one generated iteration",
                 )]);
             }
-            if !matches!(item.kind, s::ItemKind::Function(_)) {
+            if matches!(item.kind, s::ItemKind::Function(_)) {
+                zil_expand::check_generated_function_name(name, item.span)?;
+            } else {
                 zil_expand::check_generated_type_name(name, item.span)?;
             }
         }
