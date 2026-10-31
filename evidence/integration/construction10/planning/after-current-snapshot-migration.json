@@ -1,0 +1,22 @@
+{
+  "exit_code": 0,
+  "stdout": "{\n  \"scope\": \"Construction plan consistency only; not compiler, language-safety or product acceptance.\",\n  \"ok\": true,\n  \"tasks\": 14,\n  \"protocol_case_requirements\": 63,\n  \"conformance_sources\": 93,\n  \"registered_artifacts\": 23,\n  \"unordered_task_pairs_checked\": 21,\n  \"ready_tasks\": [],\n  \"errors\": [],\n  \"warnings\": [],\n  \"self_tests\": [\n    {\n      \"name\": \"dependency cycle\",\n      \"rejected\": true\n    },\n    {\n      \"name\": \"missing artifact owner\",\n      \"rejected\": true\n    },\n    {\n      \"name\": \"parallel write conflict\",\n      \"rejected\": true\n    },\n    {\n      \"name\": \"Ready without baseline\",\n      \"rejected\": true\n    },\n    {\n      \"name\": \"zero execution minimum\",\n      \"rejected\": true\n    },\n    {\n      \"name\": \"unmapped protocol case\",\n      \"rejected\": true\n    },\n    {\n      \"name\": \"Done without actual results\",\n      \"rejected\": true\n    }\n  ]\n}\n",
+  "stderr": "",
+  "scope": "Construction plan consistency only; not compiler or product acceptance",
+  "migrated_tasks": [
+    "B0",
+    "T01",
+    "T02",
+    "T03",
+    "T04",
+    "T05",
+    "T06",
+    "T07",
+    "T08",
+    "T09",
+    "W1",
+    "W2",
+    "W3",
+    "W4"
+  ]
+}
