@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "run_id": 41186163758,
+  "run_attempt": 1,
+  "job_id": 124493408210,
+  "head_candidate": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+  "actual_checkout": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+  "compared_candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
+  "metadata_only_tree_difference": [],
+  "compiler_test_tool_and_normative_inputs_identical": true,
+  "workspace": {
+    "groups": 326,
+    "passed": 2976,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "reference": {
+    "groups": 326,
+    "passed": 2933,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "text_reference": {
+    "groups": 8,
+    "passed": 36,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "migration_runner": {
+    "status": "Pass",
+    "passed": 9
+  },
+  "all_required_steps_success": true,
+  "successful_step_count": 25,
+  "consumer209": {
+    "status": "Pass",
+    "builds": 16,
+    "objects": 40,
+    "observations": 128,
+    "allocation_observations": 88,
+    "actual_failure_injections": 56,
+    "all_observed_live_zero": true,
+    "backend": "llvm-api",
+    "llvm_version": "23.1.4",
+    "fallback": null
+  },
+  "receipt_hashes": {
+    "bundle-verify.log": {
+      "bytes": 2346,
+      "sha256": "991000fe4ac78b9cdb21f46c1184b9998d63a434616fddc3c1434ab8ffd68461"
+    },
+    "clippy.log": {
+      "bytes": 1190,
+      "sha256": "85c2bed986b6066b00a387a35d449686757d11368a9da74fa008c9be71cca864"
+    },
+    "commit.txt": {
+      "bytes": 41,
+      "sha256": "aade5c19ddcc5e20be26c3e662d8bf66768984e5c5e8b0d344b5e66e713b40a4"
+    },
+    "consumer209.json": {
+      "bytes": 76476,
+      "sha256": "3b9d3cbd4869ad478064be4d84cb119e64939aaace6cfb1d55923a919f125cd4"
+    },
+    "fmt.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "llvm-api-toolchain.json": {
+      "bytes": 1397,
+      "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+    },
+    "llvm-install.json": {
+      "bytes": 35125,
+      "sha256": "42b12d119cfe93c3a7e34f1cf81bb251efdd8643d7f94457faeb325fdf86543b"
+    },
+    "migration-runner.log": {
+      "bytes": 107,
+      "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
+    },
+    "reference-native-manifest.json": {
+      "bytes": 12745560,
+      "sha256": "0b6a816edabb9f5e999394d68899e61a4753c23ab96d3d676c93593fa428f902"
+    },
+    "reference-resources-after.log": {
+      "bytes": 388,
+      "sha256": "070c472afa4cf7cb567383510e4f00ccfc56e134064481f2c6e4e9c1880339ab"
+    },
+    "reference-resources-before.log": {
+      "bytes": 220,
+      "sha256": "6470505b2ae83857d0c037ebd227280daa837e891e7b4db2af68ab0be6aeda85"
+    },
+    "reference.log": {
+      "bytes": 306151,
+      "sha256": "328d875ed9b5603c6775b2a3aad911d1875a688594bb113e27ec50768880bb6e"
+    },
+    "source-tree.txt": {
+      "bytes": 11554382,
+      "sha256": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5"
+    },
+    "text-reference.log": {
+      "bytes": 3931,
+      "sha256": "b8d11f1c778ce05b1ae75472189d087b2000956a9ae8d1b14f05d352de334382"
+    },
+    "toolchain.txt": {
+      "bytes": 404,
+      "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+    },
+    "workspace-native-manifest.json": {
+      "bytes": 13265092,
+      "sha256": "9ebd7c7572a3e32bb8babf4b078c5b98249fdc4be23c875c4ba42671194146d1"
+    },
+    "workspace-resources-after.log": {
+      "bytes": 344,
+      "sha256": "95b424e39f55cae48f89cb251ef3d9be943f88c52c34d4f1649d6222469a3501"
+    },
+    "workspace-resources-before.log": {
+      "bytes": 144,
+      "sha256": "7dcbed1138f52e08257d3e432b59864aed4bcf17fd1667c50a95f20636598d87"
+    },
+    "workspace.log": {
+      "bytes": 304148,
+      "sha256": "8d8e0e090b1480cc33b65c6ba1322393e67963358326596d3b54ec6350c92484"
+    }
+  },
+  "boundaries": {
+    "complete_language": "NotSatisfied",
+    "product_gates": "NotRun",
+    "native_Windows": "NotRun",
+    "default_and_reference_counts_not_added": true
+  },
+  "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+  "run_url": "https://github.com/zil-lang/zil/actions/runs/41186163758",
+  "main_tree_exactly_equals_pr_candidate": true
+}

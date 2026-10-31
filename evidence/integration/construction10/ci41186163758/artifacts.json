@@ -1,0 +1,105 @@
+{
+  "total_count": 5,
+  "artifacts": [
+    {
+      "id": 13037930262,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzNzkzMDI2Mg==",
+      "name": "zil-main-41186163758-1-reference-native",
+      "size_in_bytes": 191578832,
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13037930262",
+      "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13037930262/zip",
+      "expired": false,
+      "digest": "sha256:8b0ae5c620c3209e61296a10f742c7e35947324e4fd6b00eb98dce62b312cbfe",
+      "created_at": "2026-10-31T09:03:53Z",
+      "updated_at": "2026-10-31T09:03:53Z",
+      "expires_at": "2026-11-30T09:03:07Z",
+      "workflow_run": {
+        "id": 41186163758,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "main",
+        "head_sha": "9e7072b1ebdc6900c7370863c27c7432953bd830"
+      }
+    },
+    {
+      "id": 13037486130,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzNzQ4NjEzMA==",
+      "name": "zil-main-41186163758-1-reference",
+      "size_in_bytes": 3445874,
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13037486130",
+      "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13037486130/zip",
+      "expired": false,
+      "digest": "sha256:62d14924e22f1dd22d7cf57aa44a4951810cdadeee8508767d22959a7b8c0ff1",
+      "created_at": "2026-10-31T09:03:02Z",
+      "updated_at": "2026-10-31T09:03:02Z",
+      "expires_at": "2026-11-30T09:03:01Z",
+      "workflow_run": {
+        "id": 41186163758,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "main",
+        "head_sha": "9e7072b1ebdc6900c7370863c27c7432953bd830"
+      }
+    },
+    {
+      "id": 13037137092,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzNzEzNzA5Mg==",
+      "name": "zil-main-41186163758-1-final",
+      "size_in_bytes": 320448149,
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13037137092",
+      "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13037137092/zip",
+      "expired": false,
+      "digest": "sha256:d3a8a1685a20cc0bcebb55e6a52610088560174f813132ce36338e8ef1025680",
+      "created_at": "2026-10-31T09:05:35Z",
+      "updated_at": "2026-10-31T09:05:35Z",
+      "expires_at": "2026-11-30T09:05:27Z",
+      "workflow_run": {
+        "id": 41186163758,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "main",
+        "head_sha": "9e7072b1ebdc6900c7370863c27c7432953bd830"
+      }
+    },
+    {
+      "id": 13036949211,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzNjk0OTIxMQ==",
+      "name": "zil-main-41186163758-1-workspace",
+      "size_in_bytes": 3510057,
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036949211",
+      "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036949211/zip",
+      "expired": false,
+      "digest": "sha256:b6f29edd4c021728bb8ee6232186f9735f5578bdce1f868c0d4029437afb40e2",
+      "created_at": "2026-10-31T08:56:28Z",
+      "updated_at": "2026-10-31T08:56:28Z",
+      "expires_at": "2026-11-30T08:56:27Z",
+      "workflow_run": {
+        "id": 41186163758,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "main",
+        "head_sha": "9e7072b1ebdc6900c7370863c27c7432953bd830"
+      }
+    },
+    {
+      "id": 13036929389,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzNjkyOTM4OQ==",
+      "name": "zil-main-41186163758-1-workspace-native",
+      "size_in_bytes": 195176278,
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036929389",
+      "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036929389/zip",
+      "expired": false,
+      "digest": "sha256:9cc0793732318e762b17b0f8bd1eebdd84a652ea575fafb8c0e6ed66d63b2ba2",
+      "created_at": "2026-10-31T08:57:32Z",
+      "updated_at": "2026-10-31T08:57:32Z",
+      "expires_at": "2026-11-30T08:56:33Z",
+      "workflow_run": {
+        "id": 41186163758,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "main",
+        "head_sha": "9e7072b1ebdc6900c7370863c27c7432953bd830"
+      }
+    }
+  ]
+}

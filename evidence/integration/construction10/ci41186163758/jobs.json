@@ -1,0 +1,233 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 124493408210,
+      "run_id": 41186163758,
+      "workflow_name": "Main source verification",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/41186163758",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOVXdqJM8AAAAc_GKn0g",
+      "head_sha": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/jobs/124493408210",
+      "html_url": "https://github.com/zil-lang/zil/actions/runs/41186163758/job/124493408210",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-31T08:49:35Z",
+      "started_at": "2026-10-31T08:49:37Z",
+      "completed_at": "2026-10-31T09:05:37Z",
+      "name": "workspace",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-31T08:49:38Z",
+          "completed_at": "2026-10-31T08:49:39Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-31T08:49:39Z",
+          "completed_at": "2026-10-31T08:49:57Z"
+        },
+        {
+          "name": "Install the supported LLVM API toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-31T08:49:57Z",
+          "completed_at": "2026-10-31T08:50:33Z"
+        },
+        {
+          "name": "Record exact checkout and restorable source history",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-31T08:50:33Z",
+          "completed_at": "2026-10-31T08:50:46Z"
+        },
+        {
+          "name": "Formatting",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-31T08:50:46Z",
+          "completed_at": "2026-10-31T08:50:47Z"
+        },
+        {
+          "name": "Record workspace resources before tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-31T08:50:47Z",
+          "completed_at": "2026-10-31T08:50:47Z"
+        },
+        {
+          "name": "Complete workspace tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-31T08:50:47Z",
+          "completed_at": "2026-10-31T08:56:17Z"
+        },
+        {
+          "name": "Record workspace resources after tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-31T08:56:17Z",
+          "completed_at": "2026-10-31T08:56:27Z"
+        },
+        {
+          "name": "Preserve workspace receipts before releasing its cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-31T08:56:27Z",
+          "completed_at": "2026-10-31T08:56:28Z"
+        },
+        {
+          "name": "Preserve all workspace native evidence before releasing it",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-31T08:56:28Z",
+          "completed_at": "2026-10-31T08:57:33Z"
+        },
+        {
+          "name": "Release only the archived workspace native evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-31T08:57:33Z",
+          "completed_at": "2026-10-31T08:57:57Z"
+        },
+        {
+          "name": "Release only the archived workspace compiler cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-31T08:57:57Z",
+          "completed_at": "2026-10-31T08:57:58Z"
+        },
+        {
+          "name": "Record reference resources before tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-31T08:57:58Z",
+          "completed_at": "2026-10-31T08:57:58Z"
+        },
+        {
+          "name": "Reference-only build and explicit unavailable control",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-31T08:57:58Z",
+          "completed_at": "2026-10-31T09:02:55Z"
+        },
+        {
+          "name": "Record reference resources after tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-31T09:02:55Z",
+          "completed_at": "2026-10-31T09:03:01Z"
+        },
+        {
+          "name": "Preserve reference receipts before releasing its cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-31T09:03:01Z",
+          "completed_at": "2026-10-31T09:03:02Z"
+        },
+        {
+          "name": "Preserve all reference native evidence before releasing it",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-31T09:03:02Z",
+          "completed_at": "2026-10-31T09:03:54Z"
+        },
+        {
+          "name": "Release only the archived reference native evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-31T09:03:54Z",
+          "completed_at": "2026-10-31T09:04:08Z"
+        },
+        {
+          "name": "Release only the archived reference compiler cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-31T09:04:08Z",
+          "completed_at": "2026-10-31T09:04:08Z"
+        },
+        {
+          "name": "Native API State and allocation-failure controls",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-31T09:04:08Z",
+          "completed_at": "2026-10-31T09:05:07Z"
+        },
+        {
+          "name": "All-target Clippy",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-31T09:05:07Z",
+          "completed_at": "2026-10-31T09:05:25Z"
+        },
+        {
+          "name": "Explicit LLVM text-reference boundary",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-31T09:05:25Z",
+          "completed_at": "2026-10-31T09:05:27Z"
+        },
+        {
+          "name": "Small recovery artifact, never target caches",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-31T09:05:27Z",
+          "completed_at": "2026-10-31T09:05:35Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 46,
+          "started_at": "2026-10-31T09:05:35Z",
+          "completed_at": "2026-10-31T09:05:35Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 47,
+          "started_at": "2026-10-31T09:05:35Z",
+          "completed_at": "2026-10-31T09:05:35Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/zil-lang/zil/check-runs/124493408210",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000000088,
+      "runner_name": "GitHub Actions 1000000088",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}
