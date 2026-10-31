@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "evidence_level": "AuthorNativeExecution",
+  "source_commit": "5f47ffa58f5e8cb7bb03ac94675e9bc6bed3b9a0",
+  "scope": "Complete Product Store-owning callback retained in outer generic State callback Store",
+  "source": "extern \"C\" fn putchar(n: i32) -> i32;\nresource Ticket { code: i32 }\nimpl Drop for Ticket { fn drop(self: Self) { unsafe { putchar(.code) } } }\npackage Leaf { manages ticket: Ticket; value: i32 }\npackage Item { first: Leaf; second: Leaf; tag: i32 }\nfn make() -> impl Fn() -> i32 {\n    let items: Store<Item> = store_new()\n    store_reserve(items, 2)\n    store_push(items, Item { first: Leaf { ticket: Ticket { code: 65 }, value: 7 }, second: Leaf { ticket: Ticket { code: 66 }, value: 9 }, tag: 3 })\n    return move () => { return i32(store_len(items)) }\n}\npackage State<F> { manages tag: Ticket; callback: F }\nfn pack<F: Fn() -> i32>(callback: F) -> State<F> {\n    return State::<F> { tag: Ticket { code: 90 }, callback: callback }\n}\nfn run<F: Fn() -> i32>(state: State<F>) -> i32 {\n    let outer: Store<State<F>> = store_new()\n    if !store_reserve(outer, 1) { return 1 }\n    store_push(outer, state)\n    return store_at(outer, 0).callback() - 1\n}\nfn main() -> i32 { return run(pack(make())) }\n",
+  "builds": 2,
+  "executions": 2,
+  "rows": [
+    {"optimization": "O0", "command": ["/mnt/data/target225/debug/zil", "build", "/mnt/data/evidence225-outer-cli/source.zil", "--opt", "O0", "--backend", "llvm-api", "--emit-dir", "/mnt/data/evidence225-outer-cli/O0/phases", "-o", "/mnt/data/evidence225-outer-cli/O0/program", "--json"], "build_exit": 0, "native_exit": 0, "stdout": "ZAB", "stderr": "", "source_sha256": "b2fe9d1d6c9bbde262720427a977a7cac82ef53b758f076ac728b319ef19e319", "build_report_sha256": "b5bc5cbdd620f6844c1bb62745488e51d556d873607441d3ff590d04aa1f6697", "native_backend": "llvm-api", "input_kind": "builder", "fallback": null, "verify_before_after": true, "llvm_version": "23.1.4"},
+    {"optimization": "O2", "command": ["/mnt/data/target225/debug/zil", "build", "/mnt/data/evidence225-outer-cli/source.zil", "--opt", "O2", "--backend", "llvm-api", "--emit-dir", "/mnt/data/evidence225-outer-cli/O2/phases", "-o", "/mnt/data/evidence225-outer-cli/O2/program", "--json"], "build_exit": 0, "native_exit": 0, "stdout": "ZAB", "stderr": "", "source_sha256": "b2fe9d1d6c9bbde262720427a977a7cac82ef53b758f076ac728b319ef19e319", "build_report_sha256": "30c59d0335a8d0164d47e0d59dddb33b6ae1b7561c52992daa9bef4b2e0df31b", "native_backend": "llvm-api", "input_kind": "builder", "fallback": null, "verify_before_after": true, "llvm_version": "23.1.4"}
+  ],
+  "overlap": "These two executions are separate from the 107 Rust tests and 34 allocation-fault executions; no combined coverage claim. This is not independent review or full product acceptance."
+}
