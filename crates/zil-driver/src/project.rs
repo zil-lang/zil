@@ -227,7 +227,7 @@ impl CompilationSession {
             // conservative project quota, including trivia and EOF tokens.
             parse_options.limits.max_tokens = remaining.max_tokens.min(remaining.max_nodes);
             let (raw, snapshot) = self.query(
-                query_key(source, &parse_options, Phase::Parse, false),
+                self.parse_key(source, &parse_options),
                 &[],
                 options,
                 report,
@@ -903,7 +903,7 @@ fn load_sources(
         let mut query_options = options.clone();
         query_options.limits.max_tokens = parse_limits.max_tokens;
         query_options.limits.max_nodes = remaining.max_nodes;
-        let key = query_key(&project.modules[index], &query_options, Phase::Parse, false);
+        let key = session.parse_key(&project.modules[index], &query_options);
         let cached = if trace
             .measure("discovery_query", "stage", |_| {
                 session.database.read(&key).map_err(|e| vec![e])

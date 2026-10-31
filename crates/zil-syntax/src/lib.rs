@@ -25,9 +25,26 @@ pub struct ParseResult {
     /// source tools can preserve their spelling; later phases must materialize
     /// configuration before using declarations.
     pub cfg_removed: Vec<Span>,
+    /// Actual parser/attribute work needed by successful immutable syntax.
+    /// This receipt carries no verification authority.
+    pub usage: ParseUsage,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ParseUsage {
+    pub nodes_required: usize,
 }
 
 impl ParseResult {
+    /// Sufficient for reusing a successful parse under new token/node quotas.
+    /// EOF is included conservatively to preserve project charging. The caller
+    /// must still bind source/position identity, source bytes, depth and context.
+    pub fn fits_limits(&self, limits: &Limits) -> bool {
+        self.diagnostics.is_empty()
+            && self.tokens.len() <= limits.max_tokens
+            && self.usage.nodes_required <= limits.max_nodes
+    }
+
     pub fn is_ok(&self) -> bool {
         self.diagnostics.is_empty()
     }
@@ -59,13 +76,13 @@ pub fn parse_with_attribute_context(
     context: &attributes::AttributeContext,
 ) -> ParseResult {
     let lexed = lexer::lex_with_limits(source, limits);
-    let (module, mut diagnostics) = parser::module(source, &lexed.tokens, limits);
+    let (module, mut diagnostics, parser_nodes) = parser::module(source, &lexed.tokens, limits);
     let mut all = lexed.diagnostics;
     all.append(&mut diagnostics);
-    let validation = if all.is_empty() {
-        attributes::validate(&module, context, limits)
+    let (validation, attribute_work) = if all.is_empty() {
+        attributes::validate_with_usage(&module, context, limits)
     } else {
-        attributes::AttributeValidation::default()
+        (attributes::AttributeValidation::default(), 0)
     };
     all.extend(validation.diagnostics);
     ParseResult {
@@ -74,5 +91,8 @@ pub fn parse_with_attribute_context(
         diagnostics: all,
         deferred_attributes: validation.deferred,
         cfg_removed: validation.removed,
+        usage: ParseUsage {
+            nodes_required: parser_nodes.max(attribute_work),
+        },
     }
 }
