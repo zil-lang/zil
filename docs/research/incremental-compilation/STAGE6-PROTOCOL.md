@@ -49,9 +49,12 @@ EE 初筛以 `ee786e7fd` 为候选，使用 `--incremental-o2`，每窗 2 区组
 | 窗口 | 两臂 | 可归因范围 |
 |---|---|---|
 | `session-db-isolation` | EE 对 EE 精确快照、仅将 `zil-db/src/lib.rs` 恢复到 3d6 的版本 | 隔离反向依赖/等值屏障的 DB 成本；两臂都保留 EE 初始化投影复用 |
-| `session-final-vs-3d6` | 529 生产对 3d6 交付生产 | 新生产整体的内存 Session 效果，不能全部归给 DB 或持久化缓存 |
+| `session-final-vs-3d6` | 529 生产对 3d6 交付生产，仅完成准备及 126 控制，`SupersededPrepared`，没有正式性能行 | 不能当作完成窗口 |
+| `session-scalar-vs-3d6` | ca79 生产对 3d6，已完成六区组 | 组合生产效果，不能全部归给 DB |
+| `session-syntax-isolation` | ccf1 已撤回反向 DB 的生产对 ffe4 AST 保留实现 | 隔离真实 AST 复用的时间和常驻内存成本 |
+| `session-syntax-vs-3d6` | 3d6 对 ffe4 | 当前组合生产的完整 Session 效果 |
 
-两窗均预定 check/O0、6 区组，各 840 请求、70 个比较单元及 420 次原生检查。probe 的 semantic_cache 默认 None，不启用 `--incremental-o2`；这两个窗口都不测试跨 CLI 持久化命中，也不证明 MergeFunctions 的 O2 效果。Session 查询缓存最多 32 个原始槽位；逐请求保存完整报告、执行/命中事件、当前 Verify 和完整原生十进制输出。源码写入、快照、fresh 控制和原生执行在 `compile_project` 计时外。VmRSS 是请求后进程驻留量，不是单请求峰值，不与 CLI wait4 峰值 RSS 混用。
+每个正式窗口均为 check/O0、6 区组，各 840 请求、70 个比较单元及 420 次原生检查。probe 的 semantic_cache 默认 None，不启用 `--incremental-o2`；这些窗口都不测试跨 CLI 持久化命中，也不证明 MergeFunctions 的 O2 效果。Session 查询缓存最多 32 个原始槽位；逐请求保存完整报告、执行/命中事件、当前 Verify 和完整原生十进制输出。源码写入、快照、fresh 控制和原生执行在 `compile_project` 计时外。VmRSS 是请求后进程驻留量，不是单请求峰值，不与 CLI wait4 峰值 RSS 混用。
 
 每臂、每形状另做 fresh 编辑/错误/恢复、取消后恢复及逻辑预算 N、N−1、fresh-N 控制，完整报告与 fresh 路径相符才进入性能窗口。函数初始化投影只缓存初始化子分析；其他 Analyze 工作与当前 Verify 的费用不据子查询命中数省略。失败、取消和恢复控制不是正常性能样本。
 
@@ -59,7 +62,7 @@ EE 初筛以 `ee786e7fd` 为候选，使用 `--incremental-o2`，每窗 2 区组
 
 `stage6_merge_runtime.py` 保留原 opaque 生成器：512/2048/8192 算术、512/2048 分支、512 长函数体，共 6 族；getchar 提供运行时输入，循环调用全部 helper，固定 20000 轮及 seed 0/1/7/42/255。每次完整 4 字节结果与独立 Python 算术 oracle 核对，并要求退出 0、空 stderr。6 个正反交错区组测量同一产物的运行，不重新编译。
 
-预定当前 7 臂为 off、off_closed、after、after_closed、before_and_after、before_and_after_closed、rust；脚本默认只有当前 6 臂，加入 rust 时必须显式列出全部选择。旧 baseline/default 或 baseline/closed 是可选额外臂，需独立绑定旧二进制，不隐式纳入新 7 臂。每族每臂只构建一次：若全跑为 42 次构建和 1260 次运行观察。一次构建耗时只作诊断，不能称为六区组编译性能。
+初筛前原计划含 before_and_after 两臂；发现其灾难性退化后撤回，运行质量确认改为显式 7 臂：43037 baseline、baseline_closed，ffe4 after、after_closed、incremental_after、incremental_after_closed，以及 Rust。新导入臂用于检查缩小优化单元是否牺牲运行质量。脚本仍保留历史默认臂，最终命令必须显式列出七臂；baseline 独立绑定 43037 二进制。每族每臂只构建一次：若全跑为 42 次构建和 1260 次运行观察。一次构建耗时只作诊断，不能称为六区组编译性能。
 
 ZIL 构建需当前 Verify=1，保留源码、工具和编译器身份、产物 SHA/大小及 `nm --extern-only --defined-only` 的完整全局定义符号记录。该 nm 表不是动态导出表，也不能单独证明所有 ABI/地址合同。默认导出与显式 closed 的优化权限不同，分别报告；不能将减少可见函数的收益归到默认合同。编译、运行、超时、错误输出和因失败构建而跳过的观察都保留。候选即使编译更快，若运行退化也必须同时展示，不能直接晋升默认。
 
@@ -80,3 +83,9 @@ ZIL 构建需当前 Verify=1，保留源码、工具和编译器身份、产物 
 主统计单位是固定形状/模式/请求/导出合同的同窗两臂中位时间之比；CLI 记 ZIL/Rust，隔离与 Session 记候选/基线，均越小越快。它不是逐对比例中位数，也不是所有请求混合的一个中位数。若另给配对 bootstrap 区间，须绑定完整区组、方法与重采样参数，并标为探索性；2 区组筛选无正式置信或产品门结论。保留 RSS、全部失效单元和不利点；失败单元不静默进入几何均值或消失。不同窗口、不同合同和不同优化策略各自报告，不能跨窗拼接速度。
 
 本阶段只对冻结源码、输入分布、选项和这台机器的编译及运行效果负责。六区组和扩大分布提高可复核性，仍不能推出全工业样本的普遍优势；Rust 对照也不能替代安全、语法或全部运行性能的产品验证。四目标未测部分与产品门保持原定义。最终报告应引用本协议、精确冻结身份和完整原始表，并清楚区分完成的结果、筛选观察与仍待测项。
+
+## ffe4 最终生产确认窗口
+
+在 Session 和 LLVM 插件功能审查完成后，先运行上述七臂运行质量窗口。CLI 确认选用 ffe4（scalar promotion、当前项目 AST 复用、原始语义候选缓存；反向 DB 已在 ccf1 撤回），显式 `--function-merging after --semantic-cache`。默认导出与 closed 各运行全 23 形状、6 个 AB/BA 区组；另对默认导出加 `--incremental-o2` 运行全分布，以检验优化分区对编辑的影响。每个窗口独立 1380 请求，不能跨窗拼接比例。若运行质量否决导入候选，记录理由并保留其功能/初筛观察，正式窗口不会默默换成别的选项。14 真实配对在默认导出、after、语义缓存下另做 6 区组 O2 冷暖请求。
+
+这些策略仍为显式选项；after/语义缓存的最终结果不得宣传为无参数默认行为。生产 CLI 与隔离 LLVM 修正插件是不同身份；插件只比较同一完整研究路径的原版 clone 与修正版，不能将 API→opt 迁移或工具检查差异归于算法收益。最终报告同时保留代码运行质量、预算拒绝及全部不利单元。

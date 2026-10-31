@@ -1,0 +1,22 @@
+{
+  "kind": "session",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 1584,
+      "bytes": 112582560
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 176,
+      "bytes": 158000496
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 547991,
+      "bytes": 1624471041
+    }
+  ],
+  "selected_paths": 549751,
+  "unique_blobs": 1021
+}

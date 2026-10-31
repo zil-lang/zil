@@ -1,0 +1,27 @@
+{
+  "kind": "diagnostics",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 5,
+      "bytes": 49480
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 54,
+      "bytes": 6783120
+    },
+    {
+      "class": "generated-python-bytecode",
+      "files": 4,
+      "bytes": 37484
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 1187,
+      "bytes": 303753438
+    }
+  ],
+  "selected_paths": 1250,
+  "unique_blobs": 1043
+}

@@ -1,0 +1,9 @@
+{
+  "kind": "scalar-correctness",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 51,
+  "omitted_paths": 8,
+  "unique_blobs": 37,
+  "identity_sha256": "d15d3c761aa173fb1b542b6f82b1280ad20086d80f6d42c5c69e8f8b07d2c98d",
+  "verified_utc": "2026-10-31T13:08:15.625622+00:00"
+}

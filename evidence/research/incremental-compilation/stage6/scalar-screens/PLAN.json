@@ -1,0 +1,22 @@
+{
+  "kind": "scalar-screens",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 448,
+      "bytes": 16402496
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 64,
+      "bytes": 6206688
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 1422,
+      "bytes": 248046294
+    }
+  ],
+  "selected_paths": 1934,
+  "unique_blobs": 431
+}

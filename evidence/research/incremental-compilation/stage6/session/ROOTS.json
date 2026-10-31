@@ -1,0 +1,86 @@
+[
+  {
+    "prefix": "research/stage6/session-db-isolation",
+    "source_path": "/workspace/.zil-env/research/stage6/session-db-isolation"
+  },
+  {
+    "prefix": "research/stage6/session-db-isolation.log",
+    "source_path": "/workspace/.zil-env/research/stage6/session-db-isolation.log"
+  },
+  {
+    "prefix": "research/stage6/session-db-window.json",
+    "source_path": "/workspace/.zil-env/research/stage6/session-db-window.json"
+  },
+  {
+    "prefix": "research/stage6/session-final-vs-3d6",
+    "source_path": "/workspace/.zil-env/research/stage6/session-final-vs-3d6"
+  },
+  {
+    "prefix": "research/stage6/session-preparation-complete.json",
+    "source_path": "/workspace/.zil-env/research/stage6/session-preparation-complete.json"
+  },
+  {
+    "prefix": "research/stage6/session-preparation-paused.json",
+    "source_path": "/workspace/.zil-env/research/stage6/session-preparation-paused.json"
+  },
+  {
+    "prefix": "research/stage6/session-preparation-resumed.json",
+    "source_path": "/workspace/.zil-env/research/stage6/session-preparation-resumed.json"
+  },
+  {
+    "prefix": "research/stage6/session-preparation.json",
+    "source_path": "/workspace/.zil-env/research/stage6/session-preparation.json"
+  },
+  {
+    "prefix": "research/stage6/session-prepared-protocol-controls",
+    "source_path": "/workspace/.zil-env/research/stage6/session-prepared-protocol-controls"
+  },
+  {
+    "prefix": "research/stage6/session-scalar-preparation-complete.json",
+    "source_path": "/workspace/.zil-env/research/stage6/session-scalar-preparation-complete.json"
+  },
+  {
+    "prefix": "research/stage6/session-scalar-preparation.json",
+    "source_path": "/workspace/.zil-env/research/stage6/session-scalar-preparation.json"
+  },
+  {
+    "prefix": "research/stage6/session-scalar-prepare.log",
+    "source_path": "/workspace/.zil-env/research/stage6/session-scalar-prepare.log"
+  },
+  {
+    "prefix": "research/stage6/session-scalar-vs-3d6",
+    "source_path": "/workspace/.zil-env/research/stage6/session-scalar-vs-3d6"
+  },
+  {
+    "prefix": "research/stage6/session-scalar-vs-3d6.log",
+    "source_path": "/workspace/.zil-env/research/stage6/session-scalar-vs-3d6.log"
+  },
+  {
+    "prefix": "research/stage6/session-scalar-window.json",
+    "source_path": "/workspace/.zil-env/research/stage6/session-scalar-window.json"
+  },
+  {
+    "prefix": "research/stage6/final_vs_3d6-prepare.log",
+    "source_path": "/workspace/.zil-env/research/stage6/final_vs_3d6-prepare.log"
+  },
+  {
+    "prefix": "research/stage6/ee_vs_old_db-prepare.log",
+    "source_path": "/workspace/.zil-env/research/stage6/ee_vs_old_db-prepare.log"
+  },
+  {
+    "prefix": "research/stage6/reactive-key-attribution",
+    "source_path": "/workspace/.zil-env/research/stage6/reactive-key-attribution"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_session_bench.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_session_bench.py"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_session_probe.rs",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_session_probe.rs"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

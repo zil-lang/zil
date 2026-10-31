@@ -1,0 +1,97 @@
+{
+  "schema": 2,
+  "kind": "scalar-screens",
+  "collected_utc": "2026-10-31T13:08:01.954449+00:00",
+  "head_at_collection": "ffe4b814e22d8db79985fdd6fe397fbf77e6a243",
+  "collector_sha256": "d0be4a31e376d1619a9c5f602c24a3f867d7a01533454eb8fa4943673b37a3eb",
+  "archive": {
+    "logical_path": "raw.tar.gz",
+    "bytes": 8638878,
+    "sha256": "5e909d63d57e9bfd71c5832147a8e54ad03dc964d029b5963ddf5b3f38059bb4",
+    "parts": [
+      {
+        "path": "raw.tar.gz",
+        "bytes": 8638878,
+        "sha256": "5e909d63d57e9bfd71c5832147a8e54ad03dc964d029b5963ddf5b3f38059bb4"
+      }
+    ]
+  },
+  "manifests": {
+    "FILES": {
+      "encoding": "gzip-jsonl",
+      "rows": 1422,
+      "logical_bytes": 629427,
+      "logical_sha256": "d218a9060ac1b25b0c5db66b7ade78c83708036ed966986d52d3c65c6f970abd",
+      "storage": {
+        "logical_path": "FILES.jsonl.gz",
+        "bytes": 45917,
+        "sha256": "07a8c490f4bbae367a6916218483bddb40ef7016c6eddcbc5048c9c9c3e772f9",
+        "parts": [
+          {
+            "path": "FILES.jsonl.gz",
+            "bytes": 45917,
+            "sha256": "07a8c490f4bbae367a6916218483bddb40ef7016c6eddcbc5048c9c9c3e772f9"
+          }
+        ]
+      }
+    },
+    "OMITTED": {
+      "encoding": "gzip-jsonl",
+      "rows": 512,
+      "logical_bytes": 327064,
+      "logical_sha256": "09dd551a62ef7ebc6b26ee9fdb6b1f649f769b274bd69249a38e40784582bbf7",
+      "storage": {
+        "logical_path": "OMITTED.jsonl.gz",
+        "bytes": 29848,
+        "sha256": "a4ee2e22eef852598f71b5421de68e6a75b5fbdb7dc707d47d0464293a48514e",
+        "parts": [
+          {
+            "path": "OMITTED.jsonl.gz",
+            "bytes": 29848,
+            "sha256": "a4ee2e22eef852598f71b5421de68e6a75b5fbdb7dc707d47d0464293a48514e"
+          }
+        ]
+      }
+    }
+  },
+  "metadata": {
+    "FILES.jsonl.gz": {
+      "bytes": 45917,
+      "sha256": "07a8c490f4bbae367a6916218483bddb40ef7016c6eddcbc5048c9c9c3e772f9"
+    },
+    "OMITTED.jsonl.gz": {
+      "bytes": 29848,
+      "sha256": "a4ee2e22eef852598f71b5421de68e6a75b5fbdb7dc707d47d0464293a48514e"
+    },
+    "ROOTS.json": {
+      "bytes": 1277,
+      "sha256": "4be2245a822834c52d8d79a08d23c34fc21130a093d70d96a76c6c8c1362f3eb"
+    },
+    "PLAN.json": {
+      "bytes": 405,
+      "sha256": "a0308a704010c2534a6a0d30e46eb7ac241965fdfa9f050dd0f5563aa5992331"
+    }
+  },
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 448,
+      "bytes": 16402496
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 64,
+      "bytes": 6206688
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 1422,
+      "bytes": 248046294
+    }
+  ],
+  "retained_paths": 1422,
+  "omitted_paths": 512,
+  "unique_blobs": 431,
+  "boundary": "Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.",
+  "scope": "Two complete scalar screening windows, 160 requests each; two-block screening only."
+}

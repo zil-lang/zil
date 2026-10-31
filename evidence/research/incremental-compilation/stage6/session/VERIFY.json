@@ -1,0 +1,9 @@
+{
+  "kind": "session",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 547991,
+  "omitted_paths": 1760,
+  "unique_blobs": 1021,
+  "identity_sha256": "0f17d0bbbb38c25fdec5cd26c20b9445d424a82368312ef433bf986353f37f9c",
+  "verified_utc": "2026-10-31T13:09:31.058270+00:00"
+}

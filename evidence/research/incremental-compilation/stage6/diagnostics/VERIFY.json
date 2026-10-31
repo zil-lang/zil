@@ -1,0 +1,9 @@
+{
+  "kind": "diagnostics",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 1187,
+  "omitted_paths": 63,
+  "unique_blobs": 1043,
+  "identity_sha256": "1277a93439f35d5d4bc17c731f65202207d76e1a2b806a9b5fc14da83a30c0d3",
+  "verified_utc": "2026-10-31T13:26:04.922494+00:00"
+}

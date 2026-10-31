@@ -1,0 +1,242 @@
+[
+  {
+    "prefix": "research/stage6/api-pass-timing-probe",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-probe"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-control",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-control"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-probe-flush",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-probe-flush"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-control-flush",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-control-flush"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-8192",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-8192"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-slp-effective-probe",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-slp-effective-probe"
+  },
+  {
+    "prefix": "research/stage6/slp-off-snapshot",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-off-snapshot"
+  },
+  {
+    "prefix": "research/stage6/slp-off-controls",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-off-controls"
+  },
+  {
+    "prefix": "research/stage6/slp-static-plan",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-static-plan"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque"
+  },
+  {
+    "prefix": "research/stage6/slp-vector-control-on",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-vector-control-on"
+  },
+  {
+    "prefix": "research/stage6/slp-vector-control-off",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-vector-control-off"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-source",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-source"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-perf-default-after",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-perf-default-after"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-perf-default-after-attempt2",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-perf-default-after-attempt2"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-perf-default-after-attempt3",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-perf-default-after-attempt3"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-perf-default-after-attempt4",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-perf-default-after-attempt4"
+  },
+  {
+    "prefix": "research/stage6/rust-source",
+    "source_path": "/workspace/.zil-env/research/stage6/rust-source"
+  },
+  {
+    "prefix": "research/stage6/perf-tool/dependencies.json",
+    "source_path": "/workspace/.zil-env/research/stage6/perf-tool/dependencies.json"
+  },
+  {
+    "prefix": "research/stage6/merge-screen-default-after/source-large-8192/main.zil",
+    "source_path": "/workspace/.zil-env/research/stage6/merge-screen-default-after/source-large-8192/main.zil"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-control.zil",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-control.zil"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-summary.json",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-summary.json"
+  },
+  {
+    "prefix": "research/stage6/slp-ablation-outcome.json",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-ablation-outcome.json"
+  },
+  {
+    "prefix": "research/stage6/slp-and-pass-author.md",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-and-pass-author.md"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-author.md",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-author.md"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque.log",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque.log"
+  },
+  {
+    "prefix": "research/stage6/slp-static-plan.log",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-static-plan.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-perf-receipt.md",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-perf-receipt.md"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-static.md",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-static.md"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-symbols.md",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-symbols.md"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-tag.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-tag.json"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-tag-object.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-tag-object.json"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-build.log",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-build.log"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-build-flush.log",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-build-flush.log"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-control.log",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-control.log"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-control-flush.log",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-control-flush.log"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-8192.log",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-8192.log"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-8192-closed-early.log",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-8192-closed-early.log"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-slp-effective-build.log",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-slp-effective-build.log"
+  },
+  {
+    "prefix": "research/stage6/slp-off-api-tests.log",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-off-api-tests.log"
+  },
+  {
+    "prefix": "research/stage6/slp-off-controls.log",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-off-controls.log"
+  },
+  {
+    "prefix": "research/stage6/slp-off-prepare.log",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-off-prepare.log"
+  },
+  {
+    "prefix": "research/stage6/slp-off-release.log",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-off-release.log"
+  },
+  {
+    "prefix": "research/stage6/slp-vector-control-on.stdout",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-vector-control-on.stdout"
+  },
+  {
+    "prefix": "research/stage6/slp-vector-control-on.stderr",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-vector-control-on.stderr"
+  },
+  {
+    "prefix": "research/stage6/slp-vector-control-off.stdout",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-vector-control-off.stdout"
+  },
+  {
+    "prefix": "research/stage6/slp-vector-control-off.stderr",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-vector-control-off.stderr"
+  },
+  {
+    "prefix": "research/stage6/ca79-pass-profile",
+    "source_path": "/workspace/.zil-env/research/stage6/ca79-pass-profile"
+  },
+  {
+    "prefix": "research/stage6/run-ca79-pass-profile.py",
+    "source_path": "/workspace/.zil-env/research/stage6/run-ca79-pass-profile.py"
+  },
+  {
+    "prefix": "research/stage6/ca79-pass-profile.log",
+    "source_path": "/workspace/.zil-env/research/stage6/ca79-pass-profile.log"
+  },
+  {
+    "prefix": "research/stage6/ca79-opaque8192-default-early",
+    "source_path": "/workspace/.zil-env/research/stage6/ca79-opaque8192-default-early"
+  },
+  {
+    "prefix": "research/stage6/ca79-opaque8192-default-early.stdout",
+    "source_path": "/workspace/.zil-env/research/stage6/ca79-opaque8192-default-early.stdout"
+  },
+  {
+    "prefix": "research/stage6/ca79-opaque8192-default-early.stderr",
+    "source_path": "/workspace/.zil-env/research/stage6/ca79-opaque8192-default-early.stderr"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/pass_timing",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/pass_timing"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/slp_ablation",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/slp_ablation"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/diagnostics-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/diagnostics-plan.json"
+  },
+  {
+    "prefix": "collection-source/changes/research-api-pass-timing.md",
+    "source_path": "/workspace/zil/changes/research-api-pass-timing.md"
+  },
+  {
+    "prefix": "collection-source/changes/research-o2-slp-ablation.md",
+    "source_path": "/workspace/zil/changes/research-o2-slp-ablation.md"
+  },
+  {
+    "prefix": "collection-source/changes/research-effective-slp-control.md",
+    "source_path": "/workspace/zil/changes/research-effective-slp-control.md"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

@@ -1,0 +1,98 @@
+[
+  {
+    "prefix": "research/stage6-scalar-review/backend-tests.log",
+    "source_path": "/workspace/.zil-env/research/stage6-scalar-review/backend-tests.log"
+  },
+  {
+    "prefix": "research/stage6-scalar-review/commit.txt",
+    "source_path": "/workspace/.zil-env/research/stage6-scalar-review/commit.txt"
+  },
+  {
+    "prefix": "research/stage6-scalar-review/differential.log",
+    "source_path": "/workspace/.zil-env/research/stage6-scalar-review/differential.log"
+  },
+  {
+    "prefix": "research/stage6-scalar-review/differential.py",
+    "source_path": "/workspace/.zil-env/research/stage6-scalar-review/differential.py"
+  },
+  {
+    "prefix": "research/stage6-scalar-review/driver-tests.log",
+    "source_path": "/workspace/.zil-env/research/stage6-scalar-review/driver-tests.log"
+  },
+  {
+    "prefix": "research/stage6-scalar-review/inventory.json",
+    "source_path": "/workspace/.zil-env/research/stage6-scalar-review/inventory.json"
+  },
+  {
+    "prefix": "research/stage6-scalar-review/review.json",
+    "source_path": "/workspace/.zil-env/research/stage6-scalar-review/review.json"
+  },
+  {
+    "prefix": "research/stage6-scalar-review/review.md",
+    "source_path": "/workspace/.zil-env/research/stage6-scalar-review/review.md"
+  },
+  {
+    "prefix": "research/stage6-scalar-review/differential",
+    "source_path": "/workspace/.zil-env/research/stage6-scalar-review/differential"
+  },
+  {
+    "prefix": "research/stage6/scalar-build-identity.json",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-build-identity.json"
+  },
+  {
+    "prefix": "research/stage6/scalar-clippy-final.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-clippy-final.log"
+  },
+  {
+    "prefix": "research/stage6/scalar-fmt-final.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-fmt-final.log"
+  },
+  {
+    "prefix": "research/stage6/scalar-promotion-author.md",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-promotion-author.md"
+  },
+  {
+    "prefix": "research/stage6/scalar-promotion-clippy-backend-final.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-promotion-clippy-backend-final.log"
+  },
+  {
+    "prefix": "research/stage6/scalar-promotion-clippy-backend.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-promotion-clippy-backend.log"
+  },
+  {
+    "prefix": "research/stage6/scalar-promotion-clippy-driver.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-promotion-clippy-driver.log"
+  },
+  {
+    "prefix": "research/stage6/scalar-promotion-internal-final.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-promotion-internal-final.log"
+  },
+  {
+    "prefix": "research/stage6/scalar-promotion-internal.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-promotion-internal.log"
+  },
+  {
+    "prefix": "research/stage6/scalar-promotion-regressions.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-promotion-regressions.log"
+  },
+  {
+    "prefix": "research/stage6/scalar-promotion-source-initial.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-promotion-source-initial.log"
+  },
+  {
+    "prefix": "research/stage6/scalar-release-final.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-release-final.log"
+  },
+  {
+    "prefix": "research/stage6/scalar-release.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-release.log"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_bench.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_bench.py"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

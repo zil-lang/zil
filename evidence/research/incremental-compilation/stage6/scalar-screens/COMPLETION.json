@@ -1,0 +1,16 @@
+{
+  "scope": "Saved observation accounting only; no rerun.",
+  "completed_valid": 320,
+  "windows": [
+    {
+      "window": "scalar-screen-default",
+      "valid_requests": 160,
+      "rows_sha256": "0c09a9015386d1a21ef3a300b327ba9647bf468f6642513a9e0ec8a7dbb2cd00"
+    },
+    {
+      "window": "scalar-screen-closed",
+      "valid_requests": 160,
+      "rows_sha256": "21ae674cc0daf8ba9dcc890e793e23656a7fa9345754209882e6dc2364d522e8"
+    }
+  ]
+}
