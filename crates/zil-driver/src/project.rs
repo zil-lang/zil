@@ -162,6 +162,7 @@ impl CompilationSession {
             .collect();
         let identity = project_key(root, options, fingerprint, Phase::Parse, false);
         let target = options.target.fingerprint();
+        self.prepare_project(&identity, target, project.modules.len());
         let key = |phase, depends_on_target| phase_key(&identity, phase, depends_on_target, target);
         let mut parsed = Vec::new();
         let mut dependencies: Vec<Arc<QuerySnapshot>> = Vec::new();

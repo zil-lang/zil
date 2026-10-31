@@ -188,6 +188,40 @@ impl CompilationSession {
         self.recency.insert(key.clone(), self.clock);
     }
 
+    /// A project larger than the raw capacity cannot retain both complete
+    /// epochs. Release obsolete whole-project owners before constructing the
+    /// next epoch, while retaining unchanged Parse inputs and exact-current
+    /// semantic results. This avoids doubling the live IR on every private edit.
+    pub(super) fn prepare_project(
+        &mut self,
+        identity: &QueryKey,
+        target: Fingerprint,
+        modules: usize,
+    ) {
+        if modules.saturating_add(4) <= self.capacity {
+            return;
+        }
+        let before = self.raw.len();
+        self.raw.retain(|key, raw| {
+            let project_stage = matches!(
+                raw,
+                RawSnapshot::Project(_)
+                    | RawSnapshot::ProjectCore(_)
+                    | RawSnapshot::ProjectTyped(_)
+                    | RawSnapshot::Candidate(_)
+            );
+            !project_stage
+                || key.module != identity.module
+                || (key.input == identity.input
+                    && key.rules == identity.rules
+                    && (key.target == Fingerprint::ZERO || key.target == target))
+        });
+        if before != self.raw.len() {
+            self.recency.retain(|key, _| self.raw.contains_key(key));
+            self.database.retain_reachable(self.raw.keys());
+        }
+    }
+
     /// Bound retained raw snapshots without deleting the current query graph.
     /// Dependency metadata is retained only while reachable from a raw root.
     /// Eviction occurs between requests, never while borrowed inputs execute.
@@ -991,6 +1025,44 @@ mod bounded_history_tests {
             }
         }
     }
+    #[test]
+    fn large_edits_release_obsolete_owners_before_constructing_the_new_epoch() {
+        let mut project = project(128);
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::default();
+        success(&session.compile_project(&project, &options));
+        let old = session
+            .raw
+            .values()
+            .find_map(|raw| match raw {
+                RawSnapshot::ProjectTyped(program) => Some(Arc::downgrade(program)),
+                _ => None,
+            })
+            .unwrap();
+        success(&session.compile_project(&project, &options));
+        assert!(
+            old.upgrade().is_some(),
+            "unchanged input retains the current epoch"
+        );
+        project.modules[0].text = "fn f0()->i32 { return 123 + 0; }".into();
+        let mut observed = false;
+        let edited = session.compile_project_with_observer(&project, &options, &mut |event| {
+            if event.phase == Phase::Parse {
+                assert!(
+                    old.upgrade().is_none(),
+                    "obsolete semantic owners were retained"
+                );
+                observed = true;
+            }
+        });
+        assert!(observed);
+        success(&edited);
+        equivalent(
+            &edited,
+            &CompilationSession::default().compile_project(&project, &options),
+        );
+    }
+
     #[test]
     fn edits_errors_cancellation_and_eviction_match_fresh_without_growing_history() {
         let mut p = project(40);
