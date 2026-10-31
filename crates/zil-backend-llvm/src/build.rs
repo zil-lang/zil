@@ -194,8 +194,13 @@ pub fn build_view_with_cancellation(
     // Diagnostic/reference output only. API preflight runs once per owned unit,
     // immediately before its LLVMBuilder calls; it cannot be bypassed.
     let llvm = machine.to_text();
-    let plan =
-        crate::machine_cgu::partition_view(machine, lir, options.emit.entry, options.codegen.units);
+    let plan = crate::machine_cgu::partition_view(
+        machine,
+        lir,
+        options.emit.entry,
+        options.codegen.units,
+        options.optimization == Optimization::O0,
+    );
     if options.backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
         return Err(vec![Diagnostic::new(
             Phase::Codegen,

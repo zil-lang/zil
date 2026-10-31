@@ -423,3 +423,109 @@ fn current_checked_overflow_still_traps_on_cache_hits() {
         }
     }
 }
+
+#[test]
+fn large_file_o0_chunks_reuse_unchanged_objects_and_keep_current_verification() {
+    fn source(count: usize, delta: i32, extra: bool) -> String {
+        let mut s = if extra {
+            "fn inserted()->i32{return 7;}\n".to_owned()
+        } else {
+            String::new()
+        };
+        for i in 0..count {
+            let n = (i % 3) as i32 + if i == 0 { delta } else { 0 };
+            s += &format!("fn f{i}(x:i32)->i32{{return x+{n};}}\n");
+        }
+        s += "fn main()->i32{var total:i32=0;\n";
+        for i in 0..count {
+            s += &format!("total=total+f{i}(0);\n");
+        }
+        s += &format!(
+            "return total-{};}}\n",
+            (0..count).map(|i| i % 3).sum::<usize>()
+        );
+        s
+    }
+    let d = Dir::new();
+    let original = source(600, 0, false);
+    d.write("main.zil", &original);
+    let o = d.options(8, Optimization::O0);
+    let cold = d.build(&o);
+    success(&cold, 0);
+    let n = cold.native_codegen.as_ref().unwrap();
+    assert_eq!(n.actual_units, 3, "{}", cold.to_json());
+    assert_eq!(n.object_cache.misses, 3);
+    let warm = d.build(&o);
+    success(&warm, 0);
+    assert_eq!(warm.native_codegen.as_ref().unwrap().object_cache.hits, 3);
+    d.write("main.zil", &source(600, 1, false));
+    let edit = d.build(&o);
+    success(&edit, 1);
+    let n = edit.native_codegen.as_ref().unwrap();
+    assert_eq!(n.object_cache.misses, 1, "{}", edit.to_json());
+    assert_eq!(n.object_cache.hits, 2);
+    // Declaration insertion/deletion can move IDs; they must remain current,
+    // even when their cache reuse is conservatively worse than a body edit.
+    for (count, inserted) in [(600, true), (599, false)] {
+        d.write("main.zil", &source(count, 2, inserted));
+        success(&d.build(&o), 2);
+    }
+    d.write("main.zil", &original);
+    let restored = d.build(&o);
+    success(&restored, 0);
+    assert_eq!(
+        restored.native_codegen.as_ref().unwrap().object_cache.hits,
+        3
+    );
+    let executable = fs::read(o.output.as_ref().unwrap()).unwrap();
+    d.write("main.zil", &original.replace("f300(0)", "f300(0,1)"));
+    let bad = d.build(&o);
+    assert_eq!(bad.status, ResultCategory::SafeReject);
+    assert_eq!(bad.phase, Phase::Types);
+    assert!(bad.native_codegen.is_none());
+    assert_eq!(fs::read(o.output.as_ref().unwrap()).unwrap(), executable);
+    d.write("main.zil", &original);
+    // A single requested unit and O2 preserve the original file grouping.
+    for (units, optimization) in [(1, Optimization::O0), (8, Optimization::O2)] {
+        let r = d.build(&d.options(units, optimization));
+        success(&r, 0);
+        assert_eq!(r.native_codegen.as_ref().unwrap().actual_units, 1);
+    }
+}
+
+#[test]
+fn large_file_chunks_preserve_owned_closures_drop_and_function_addresses() {
+    let d = Dir::new();
+    let mut source = String::from(
+        "extern \"C\" fn putchar(n:i32)->i32;\nresource Token{code:i32}\nimpl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}\nfn make(n:i32)->Token contract{result(create)}{return Token{code:n}}\nfn early()->i32{let t=make(65);let f=move()=>t.code;return f()-65;}\n",
+    );
+    for i in 0..600 {
+        source += &format!("fn padding{i}(x:i32)->i32{{return x+1;}}\n");
+    }
+    source += "fn late()->i32{let t=make(66);let f=move()=>t.code;let p:fn(i32)->i32=padding0;return f()+p(0)-67;}\nfn main()->i32{return early()+late();}\n";
+    d.write("main.zil", &source);
+    let mut o = d.options(8, Optimization::O0);
+    for backend in [NativeBackend::LlvmApi, NativeBackend::Clang] {
+        o.backend = backend;
+        if backend == NativeBackend::Clang {
+            o.object_cache = None;
+        }
+        let report = d.build(&o);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        if backend == NativeBackend::LlvmApi {
+            assert_eq!(report.commands.len(), 1);
+        }
+        assert!(report.native_codegen.as_ref().unwrap().actual_units > 1);
+        let native = Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert_eq!(native.status.code(), Some(0));
+        assert_eq!(native.stdout, b"AB");
+    }
+}

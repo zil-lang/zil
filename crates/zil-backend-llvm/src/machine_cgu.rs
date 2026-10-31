@@ -21,13 +21,14 @@ struct Definition {
 
 #[cfg(test)]
 pub(crate) fn partition(module: Module, lir: &LirModule, entry: EntryPoint, count: usize) -> Plan {
-    partition_view(module, &lir.as_view(), entry, count)
+    partition_view(module, &lir.as_view(), entry, count, false)
 }
 pub(crate) fn partition_view(
     module: Module,
     lir: &LirView<'_>,
     entry: EntryPoint,
     count: usize,
+    split_large_files: bool,
 ) -> Plan {
     let fallback = |module, reason| Plan {
         units: vec![module],
@@ -84,7 +85,12 @@ pub(crate) fn partition_view(
         }
     }
     let mut sets = Sets((0..defs.len()).collect());
-    let mut files = BTreeMap::<FileId, usize>::new();
+    // File boundaries are not linkage boundaries. Fixed-size O0 chunks make
+    // body-only edits local without moving unaffected chunks as the body grows.
+    // O2 retains file grouping so this does not remove within-file inlining.
+    const FUNCTIONS_PER_CHUNK: usize = 256;
+    let mut files = BTreeMap::<(FileId, usize), usize>::new();
+    let mut ordinals = BTreeMap::<FileId, usize>::new();
     let mut source_ids = Vec::new();
     for function in lir.functions {
         if function.foreign.is_some() {
@@ -94,12 +100,20 @@ pub(crate) fn partition_view(
         let Some(&id) = names.get(name.as_str()) else {
             return fallback(module, "source grouping missing machine definition");
         };
-        if let Some(&first) = files.get(&function.span.file) {
+        let ordinal = ordinals.entry(function.span.file).or_default();
+        let chunk = if split_large_files {
+            *ordinal / FUNCTIONS_PER_CHUNK
+        } else {
+            0
+        };
+        *ordinal += 1;
+        let group = (function.span.file, chunk);
+        if let Some(&first) = files.get(&group) {
             sets.join(first, id);
         } else {
-            files.insert(function.span.file, id);
+            files.insert(group, id);
         }
-        source_ids.push((function.span.file.0, id));
+        source_ids.push(((function.span.file.0, chunk), id));
         let selected = match entry {
             EntryPoint::Main => function.name == "main",
             EntryPoint::ReturnValue(wanted) => function.id == wanted,
@@ -122,7 +136,7 @@ pub(crate) fn partition_view(
         }
     }
     let roots = (0..defs.len()).map(|id| sets.root(id)).collect::<Vec<_>>();
-    let mut source_keys = BTreeMap::<usize, u32>::new();
+    let mut source_keys = BTreeMap::<usize, (u32, usize)>::new();
     for (file, id) in source_ids {
         source_keys
             .entry(roots[id])
@@ -137,7 +151,7 @@ pub(crate) fn partition_view(
                     let hash = Fingerprint::of(d.name.as_bytes()).0;
                     u64::from_le_bytes(hash[..8].try_into().expect("eight bytes")) as usize % count
                 },
-                |file| *file as usize % count,
+                |(file, chunk)| (*file as usize % count + chunk % count) % count,
             )
         });
     }
@@ -298,6 +312,64 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+    #[test]
+    fn large_file_chunks_still_union_shared_local_addresses() {
+        // LIR identities are grouping inputs only in this machine-model test.
+        let mut source = lir();
+        for id in 0..600 {
+            source.functions.push(zil_ir::TypedFunction {
+                callable_return_contract: None,
+                callable_contract: None,
+                id: zil_ir::FunctionId(id),
+                name: format!("f{id}"),
+                foreign: None,
+                environment: None,
+                parameters: vec![],
+                return_type: zil_ir::Type::I32,
+                result_mode: zil_ir::PassingMode::Infer,
+                locals: vec![],
+                values: vec![],
+                blocks: vec![],
+                entry: zil_ir::BlockId(0),
+                span: zil_base::Span::default(),
+            });
+        }
+        let mut items = (0..600)
+            .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(0)))
+            .collect::<Vec<_>>();
+        for id in [0, 256] {
+            items[id] = f(
+                &format!("zil.fn.{id}"),
+                Ty::Ptr,
+                Val::Global("shared".into()),
+            );
+        }
+        items.push(Item::Global(Global {
+            name: "shared".into(),
+            linkage: Linkage::Private,
+            ty: Ty::Int(32),
+            initializer: Some(Val::Int(7)),
+            constant: false,
+            unnamed_addr: false,
+            alignment: 4,
+        }));
+        let module = m(items);
+        let split = partition_view(module.clone(), &source.as_view(), EntryPoint::None, 8, true);
+        assert_eq!(split.units.len(), 2);
+        let shared = split
+            .units
+            .iter()
+            .find(|m| definitions(m).contains("shared"))
+            .unwrap();
+        assert!(definitions(shared).contains("zil.fn.0"));
+        assert!(definitions(shared).contains("zil.fn.256"));
+        assert!(!definitions(shared).contains("zil.fn.512"));
+        for unit in &split.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+        }
+        let original = partition_view(module, &source.as_view(), EntryPoint::None, 8, false);
+        assert_eq!(original.units.len(), 1);
     }
     #[test]
     fn local_identity_and_global_initializers_are_colocated_once() {
