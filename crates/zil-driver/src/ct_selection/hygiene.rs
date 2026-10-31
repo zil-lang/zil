@@ -2,12 +2,15 @@
 //! operation is inserted, and duplicate bindings keep their ordinary meaning.
 use super::*;
 use std::collections::BTreeMap;
+#[path = "hygiene_types.rs"]
+mod types;
 
 struct Renamer<'a> {
     budget: &'a mut Budget,
     prefix: String,
     next: usize,
     scopes: Vec<BTreeMap<String, String>>,
+    types: Option<types::TypeNames>,
 }
 
 impl<'a> Renamer<'a> {
@@ -23,6 +26,7 @@ impl<'a> Renamer<'a> {
             prefix: format!("$ctfor222${}${serial}$", module.0),
             next: 0,
             scopes: vec![BTreeMap::new()],
+            types: None,
         })
     }
     fn bind(&mut self, name: &mut String, rename: bool, span: Span) -> CompileResult<()> {
@@ -83,9 +87,10 @@ impl<'a> Renamer<'a> {
     fn ty(&mut self, ty: &mut s::TypeRef, depth: usize) -> CompileResult<()> {
         self.budget.node(ty.span, depth)?;
         match &mut ty.kind {
-            // This profile emits ordinary functions, not named type bindings.
-            // Value binders cannot capture identifiers in the type namespace.
-            s::TypeKind::Named { args, .. } | s::TypeKind::Dyn { args, .. } => {
+            s::TypeKind::Named { path, args } | s::TypeKind::Dyn { path, args } => {
+                if path.len() == 1 {
+                    self.type_reference(&mut path[0], ty.span)?;
+                }
                 for argument in args {
                     self.argument(argument, depth + 1)?;
                 }
@@ -130,7 +135,7 @@ impl<'a> Renamer<'a> {
     fn unsupported(&self, span: Span) -> Vec<Diagnostic> {
         vec![Diagnostic::unsupported(
             Phase::Expand,
-            "#for currently generates ordinary functions and statements, not Type/Syntax or declaration-kind extensions",
+            "#for generates ordinary functions, non-generic method-free structs and plain type aliases; other Type/Syntax declarations are unsupported",
             Some(span),
         )]
     }
@@ -146,12 +151,16 @@ impl<'a> Renamer<'a> {
             s::PatternKind::Reference { pattern, .. } => {
                 self.pattern(pattern, rename, depth + 1)?
             }
-            s::PatternKind::Tuple(patterns)
-            | s::PatternKind::Constructor {
-                arguments: patterns,
-                ..
-            } => {
+            s::PatternKind::Tuple(patterns) => {
                 for pattern in patterns {
+                    self.pattern(pattern, rename, depth + 1)?;
+                }
+            }
+            s::PatternKind::Constructor { path, arguments } => {
+                if path.len() == 2 {
+                    self.type_reference(&mut path[0], pattern.span)?;
+                }
+                for pattern in arguments {
                     self.pattern(pattern, rename, depth + 1)?;
                 }
             }
@@ -286,8 +295,14 @@ impl<'a> Renamer<'a> {
     fn record_type(&mut self, ty: &mut s::Expr, depth: usize) -> CompileResult<()> {
         self.budget.node(ty.span, depth)?;
         match &mut ty.kind {
-            s::ExprKind::Name(_) => {}
-            s::ExprKind::Member { object, .. } | s::ExprKind::Group(object) => {
+            s::ExprKind::Name(name) => self.type_reference(name, ty.span)?,
+            // A qualified constructor names its defining module. A local
+            // generated type must never capture that qualifier.
+            s::ExprKind::Member { object, .. } if self.types.is_none() => {
+                self.record_type(object, depth + 1)?;
+            }
+            s::ExprKind::Member { .. } => {}
+            s::ExprKind::Group(object) => {
                 self.record_type(object, depth + 1)?;
             }
             s::ExprKind::TypeApply { callee, arguments } => {
@@ -323,7 +338,11 @@ impl<'a> Renamer<'a> {
                 self.expression(left, depth + 1)?;
                 self.expression(right, depth + 1)?;
             }
-            s::ExprKind::Member { object, .. } => self.expression(object, depth + 1)?,
+            s::ExprKind::Member { object, .. } => {
+                if !self.type_namespace(object, depth + 1)? {
+                    self.expression(object, depth + 1)?;
+                }
+            }
             s::ExprKind::TypeApply { callee, arguments } => {
                 self.expression(callee, depth + 1)?;
                 for argument in arguments {
@@ -405,6 +424,7 @@ impl<'a> Renamer<'a> {
     fn function(&mut self, function: &mut s::Function, depth: usize) -> CompileResult<()> {
         self.budget.node(function.span, depth)?;
         self.scope(function.span)?;
+        self.function_type_scope(function, depth + 1)?;
         for parameter in &mut function.generics {
             if matches!(parameter.kind, s::GenericParamKind::Const(_)) {
                 self.bind(&mut parameter.name, false, parameter.span)?;
@@ -423,6 +443,9 @@ impl<'a> Renamer<'a> {
             s::FunctionBody::Declaration => {}
         }
         self.scopes.pop();
+        if let Some(types) = &mut self.types {
+            types.parameters.clear();
+        }
         Ok(())
     }
 }
@@ -445,11 +468,26 @@ pub(super) fn items(
     module: ModuleId,
     serial: u64,
     budget: &mut Budget,
+    program: &CoreProgram,
+    has_types: bool,
 ) -> CompileResult<()> {
     let Some(first) = items.first() else {
         return Ok(());
     };
     let mut renamer = Renamer::new(module, serial, budget, first.span)?;
+    if has_types {
+        // Only type declarations need module qualifiers. Charge each actual
+        // lookup before inspecting it; the old function-only path does neither.
+        let mut imports = &[][..];
+        for candidate in &program.modules {
+            renamer.budget.node(first.span, 0)?;
+            if candidate.core.module_id == module {
+                imports = candidate.imports.as_slice();
+                break;
+            }
+        }
+        return renamer.type_items(items, imports);
+    }
     for item in &mut *items {
         let s::ItemKind::Function(function) = &mut item.kind else {
             return Err(renamer.unsupported(item.span));
@@ -471,6 +509,8 @@ pub(super) fn items(
                 "duplicate function name in one generated iteration",
             )]);
         }
+        // The original spelling has already paid its name traversal above.
+        zil_expand::check_generated_function_name(&function.name, item.span)?;
         renamer.bind(&mut function.name, !item.public, item.span)?;
     }
     for item in items {
