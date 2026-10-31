@@ -509,6 +509,8 @@ pub(super) fn items(
                 "duplicate function name in one generated iteration",
             )]);
         }
+        // The original spelling has already paid its name traversal above.
+        zil_expand::check_generated_function_name(&function.name, item.span)?;
         renamer.bind(&mut function.name, !item.public, item.span)?;
     }
     for item in items {

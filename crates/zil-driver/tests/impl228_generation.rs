@@ -201,6 +201,65 @@ fn declaration_reserved_names_cannot_escape_through_alpha_renaming() {
 }
 
 #[test]
+fn generated_function_names_follow_the_ordinary_function_rule() {
+    for name in [
+        "i32",
+        "c_null",
+        "bytes_len",
+        "store_at",
+        "ByteBuffer",
+        "Store",
+        "Copy",
+        "bool",
+    ] {
+        let plain = check(
+            &format!("function-name-plain-{name}"),
+            &format!("struct S{{x:i32}}fn {name}()->i32=>1;fn main()->i32=>0"),
+        );
+        let allowed = matches!(name, "Copy" | "bool");
+        assert_eq!(
+            plain.status == ResultCategory::Success,
+            allowed,
+            "{name}: {}",
+            plain.to_json()
+        );
+        for (kind, types) in [("pure", ""), ("mixed", "struct S{x:i32}")] {
+            let generated = check(
+                &format!("function-name-{kind}-{name}"),
+                &format!(
+                    "#for(n in [1]){{{types}fn {name}()->i32=>n;pub fn run()->i32=>{name}()}}fn main()->i32=>run()-1"
+                ),
+            );
+            assert_eq!(
+                generated.status,
+                plain.status,
+                "{kind}/{name}: {}",
+                generated.to_json()
+            );
+            assert_eq!(
+                generated.phase,
+                plain.phase,
+                "{kind}/{name}: {}",
+                generated.to_json()
+            );
+            if allowed {
+                assert_eq!(generated.verification_runs, 1);
+            } else {
+                assert_eq!(generated.verification_runs, 0);
+                assert!(
+                    generated
+                        .diagnostics
+                        .iter()
+                        .any(|d| plain.diagnostics.iter().any(|p| p.code == d.code)),
+                    "{kind}/{name}: {}",
+                    generated.to_json()
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn unsupported_declaration_kinds_and_configready_remain_closed() {
     for (label, declaration) in [
         ("generic-struct", "struct S<T>{x:T}"),
