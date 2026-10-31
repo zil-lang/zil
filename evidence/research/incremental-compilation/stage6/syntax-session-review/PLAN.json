@@ -1,0 +1,12 @@
+{
+  "kind": "syntax-session-review",
+  "summary": [
+    {
+      "class": "retained-raw-evidence",
+      "files": 15,
+      "bytes": 102633773
+    }
+  ],
+  "selected_paths": 15,
+  "unique_blobs": 13
+}

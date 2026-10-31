@@ -55,6 +55,14 @@ def roots_for(kind, repo, research):
     elif kind == 'session-review':
         roots = [research / 'stage6-session-review']
         tools = ['stage6_session_bench.py', 'stage6_session_probe.rs']
+    elif kind == 'syntax-session':
+        roots = sorted(p for p in stage.iterdir() if p.name.startswith('session-syntax-'))
+        roots += [stage / 'project-syntax-baseline' / name for name in ['SOURCE.json', 'release.log']]
+        roots += [research / 'stage6-project-syntax' / name for name in ['root-identity.json', 'release.log']]
+        tools = ['stage6_session_bench.py', 'stage6_session_probe.rs']
+    elif kind == 'syntax-session-review':
+        roots = [research / 'stage6-syntax-session-review']
+        tools = ['stage6_session_bench.py', 'stage6_session_probe.rs']
     elif kind == 'scalar-screens':
         roots = sorted(p for p in stage.iterdir() if p.name.startswith('scalar-screen-'))
         roots.append(stage / 'scalar-screens.log')
@@ -326,6 +334,8 @@ def collect(args):
         'boundary': 'Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.',
         'scope': ('Two completed formal Session roots plus preparation/control evidence. session-final-vs-3d6 is SupersededPrepared only and contributes no measured requests.' if args.kind == 'session' else
                   'Independent Session review, including its full large inventory and recomputation.' if args.kind == 'session-review' else
+                  'Two completed six-block AST Session windows: ccf1 versus ffe4 isolation and 3d6 versus ffe4 combination. Frozen raw controls, requests, exclusive-window receipts and original build/source identities. Collection HEAD is a later compiler and does not relabel these measurements.' if args.kind == 'syntax-session' else
+                  'Independent audit of both frozen AST Session windows, complete source/request inventory, fixed paired bootstrap, Parse/Verify/object/native controls and preserved reviewer schema-error attempt.' if args.kind == 'syntax-session-review' else
                   'Two complete scalar screening windows, 160 requests each; two-block screening only.' if args.kind == 'scalar-screens' else
                   'Frozen pass/SLP/perf diagnostics and ca79 profiles. Initial instrumentation failures, invalid SLP setter ablation, adaptive NotRun cases and perf permission failures remain distinct; no formal exclusive timing claim. Active jump-threading plugin candidates and SDK/build targets are outside scope.' if args.kind == 'diagnostics' else
                   'Syntax author/reviewer correctness, failed initial fixtures, fixed controls and root build identities. Exact source checkouts/shared targets are outside scope; commit/source receipts retain their identities. Formal syntax Session windows are separate.' if args.kind == 'syntax-correctness' else
@@ -412,7 +422,7 @@ def verify(root, destination=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--kind', choices=['session', 'session-review', 'scalar-screens', 'scalar-correctness', 'diagnostics', 'syntax-correctness'])
+    parser.add_argument('--kind', choices=['session', 'session-review', 'syntax-session', 'syntax-session-review', 'scalar-screens', 'scalar-correctness', 'diagnostics', 'syntax-correctness'])
     parser.add_argument('--repo', type=Path, default=Path.cwd())
     parser.add_argument('--research', type=Path, default=Path('/workspace/.zil-env/research'))
     parser.add_argument('--out', type=Path)
