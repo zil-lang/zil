@@ -16,14 +16,20 @@ pub(super) fn reserved_declaration_name(name: &str) -> bool {
 }
 
 pub(super) fn normalize(module: &Module, limits: &Limits) -> R<Option<Normalized>> {
+    normalize_with_budget(module, Budget::new(limits)).map(|(normalized, _)| normalized)
+}
+
+pub(super) fn normalize_with_budget<'a>(
+    module: &Module,
+    mut budget: Budget<'a>,
+) -> R<(Option<Normalized>, Budget<'a>)> {
     if !module
         .items
         .iter()
         .any(|i| matches!(i.kind, ItemKind::TypeAlias(_)))
     {
-        return Ok(None);
+        return Ok((None, budget));
     }
-    let mut budget = Budget::new(limits);
     let mut names = BTreeSet::new();
     for item in &module.items {
         // Bound the borrowed input before cloning any subtree or name table.
@@ -37,8 +43,7 @@ pub(super) fn normalize(module: &Module, limits: &Limits) -> R<Option<Normalized
             _ => name(item),
         };
         if let Some(name) = declaration
-            && (!names.insert(name)
-                || reserved_declaration_name(name))
+            && (!names.insert(name) || reserved_declaration_name(name))
         {
             return Err(Diagnostic::error(
                 Phase::Expand,
@@ -120,10 +125,14 @@ pub(super) fn normalize(module: &Module, limits: &Limits) -> R<Option<Normalized
     for item in &output.items {
         visitor.resolver.budget.item(item)?;
     }
-    Ok(Some(Normalized {
-        module: output,
-        pattern_types: visitor.pattern_types,
-    }))
+    let pattern_types = visitor.pattern_types;
+    Ok((
+        Some(Normalized {
+            module: output,
+            pattern_types,
+        }),
+        resolver.budget,
+    ))
 }
 
 struct Alias {
