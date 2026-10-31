@@ -1,0 +1,749 @@
+{
+  "source_commit": "426bbd2066e70acdb5b635ea90694c050c78f764",
+  "executions": [
+    {
+      "report_dir": "out/native/capture232-alias-610-28",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "3c2f9356a4a035489026e35193e529c38caf0ec36623f03dbf1dadf29f0f18b8"
+    },
+    {
+      "report_dir": "out/native/capture232-alias-610-32",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "3c2f9356a4a035489026e35193e529c38caf0ec36623f03dbf1dadf29f0f18b8"
+    },
+    {
+      "report_dir": "out/native/capture232-error-610-35",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "SAEA",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "788527c7c899ee61f9fa8d1116b4d2563e19e22f10bdaf9d64ab26657dee1a05"
+    },
+    {
+      "report_dir": "out/native/capture232-error-610-36",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "SAEA",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "788527c7c899ee61f9fa8d1116b4d2563e19e22f10bdaf9d64ab26657dee1a05"
+    },
+    {
+      "report_dir": "out/native/capture232-flat-610-17",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "a40e44d6bbb7e6e82c05d3338ef430ac1834c288beeb8300595a38711c6a12dd"
+    },
+    {
+      "report_dir": "out/native/capture232-flat-610-7",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "a40e44d6bbb7e6e82c05d3338ef430ac1834c288beeb8300595a38711c6a12dd"
+    },
+    {
+      "report_dir": "out/native/capture232-head-610-15",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "f3961101539e53bbd31692d9034b7b782d9b1304afb6cb93be8164e0d18a3af2"
+    },
+    {
+      "report_dir": "out/native/capture232-head-610-24",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "f3961101539e53bbd31692d9034b7b782d9b1304afb6cb93be8164e0d18a3af2"
+    },
+    {
+      "report_dir": "out/native/capture232-move-610-18",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "2165219c6c65488840f1272a0fe7fdf1d51d3027b51ca08721ee8230ac26db8f"
+    },
+    {
+      "report_dir": "out/native/capture232-move-610-6",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "2165219c6c65488840f1272a0fe7fdf1d51d3027b51ca08721ee8230ac26db8f"
+    },
+    {
+      "report_dir": "out/native/capture232-nested-flat-take-610-30",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "54313b75aaa199b2a8249176730e42318d02006353a69d3085b2940239451031"
+    },
+    {
+      "report_dir": "out/native/capture232-nested-flat-take-610-33",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "54313b75aaa199b2a8249176730e42318d02006353a69d3085b2940239451031"
+    },
+    {
+      "report_dir": "out/native/capture232-nested-take-610-10",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "4d7daf269bc935dee38895d897c6bd7e43c0fea11ea74f548bb3dcced0799f81"
+    },
+    {
+      "report_dir": "out/native/capture232-nested-take-610-23",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "4d7daf269bc935dee38895d897c6bd7e43c0fea11ea74f548bb3dcced0799f81"
+    },
+    {
+      "report_dir": "out/native/capture232-read-take-610-13",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "1c7999df4694223718e05db378150ef9eb91c5a82448d4dab5f2251bf05c2c0f"
+    },
+    {
+      "report_dir": "out/native/capture232-read-take-610-19",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "1c7999df4694223718e05db378150ef9eb91c5a82448d4dab5f2251bf05c2c0f"
+    },
+    {
+      "report_dir": "out/native/capture232-recursive-610-20",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "be7b8f47880e4543160c37052cee55a44468bf927b75917a034bce435e0aaf2c"
+    },
+    {
+      "report_dir": "out/native/capture232-recursive-610-9",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "be7b8f47880e4543160c37052cee55a44468bf927b75917a034bce435e0aaf2c"
+    },
+    {
+      "report_dir": "out/native/capture232-two-roots-610-11",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "AB",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "b76c48e36bbec26af7a4d69e5957c94ef524874761e34422a83151d2797c1103"
+    },
+    {
+      "report_dir": "out/native/capture232-two-roots-610-22",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "AB",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "b76c48e36bbec26af7a4d69e5957c94ef524874761e34422a83151d2797c1103"
+    },
+    {
+      "report_dir": "out/native/capture232-uncalled-owned-610-26",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "62201db00914b4c490463c1d58d4ff045a67e3012990df9d7f57eaf5148372ad"
+    },
+    {
+      "report_dir": "out/native/capture232-uncalled-owned-610-31",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "62201db00914b4c490463c1d58d4ff045a67e3012990df9d7f57eaf5148372ad"
+    },
+    {
+      "report_dir": "out/native/capture232-uncalled-shared-610-16",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "c847e76e6757479465ae18f5bf6127c463278c791728463d1adcd5e9dfeefb1a"
+    },
+    {
+      "report_dir": "out/native/capture232-uncalled-shared-610-21",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "stdout": "A",
+      "stderr": "",
+      "exit": "Some(0)",
+      "source_sha256": "c847e76e6757479465ae18f5bf6127c463278c791728463d1adcd5e9dfeefb1a"
+    }
+  ]
+}
