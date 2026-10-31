@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "task": "231",
+  "reviewer": "/root/continuity_audit",
+  "implementation_author": "/root/defer_design",
+  "verdict": "Pass",
+  "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+  "reviewed_at_utc": "2026-10-31T08:46:30.499576+00:00",
+  "scope": "Finite ordinary free-function where normalization for existing nominal trait bounds under the frozen 231 contract, including the named reserved module-trait repair. This is independent of the 231 implementation author; this reviewer authored slice 230, not slice 231.",
+  "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+  "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
+  "identity": {
+    "ci_candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
+    "actual_ci_checkout": "045dc75cec6eaa4de52951e075c52fd809fb6b3c",
+    "ci_run": 41184530698,
+    "ci_job": 124488604160,
+    "ci_url": "https://github.com/zil-lang/zil/actions/runs/41184530698",
+    "test_blob": "33b9c08e1fe2eefc12e0d6ce101ba14276674532",
+    "test_definition_count": 8,
+    "P2_and_I2_crates_tree": "cc67ae136dce0c6d8ad17ffdbaa25ae574c6c9ca",
+    "source_tree_sha256": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5",
+    "source_tree_comparison": "All 87,508 ls-tree lines byte-identical to I2 for workspace, reference and final receipts. P2 to I2 changes only four task records and two evidence files.",
+    "production_unchanged_from_previous_candidate": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+    "production_comparison": "Only four independent test files changed within crates from the previous candidate to P2; production sources, frozen specification and toolchain/workflow inputs are unchanged.",
+    "normative_registry_files_rehashed": 7,
+    "freeze_path": "evidence/integration/construction10/attempt-2/FREEZE.json",
+    "freeze_blob": "f7934f66d9951d4210b110f82220612f2dab0c98"
+  },
+  "static_review": [
+    "Module rewriting visits where subjects and bounds with the current function type binders before flattening, retaining qualified module identity and privacy checks.",
+    "Nominal-bound normalization uses the existing declaration index and ordinary bound checker; pure parenthesized nominal bounds match inline syntax, Copy alone retains its existing deduplication, and repeated nominal bounds still reject.",
+    "The new lazy Index is preceded by clone/entry/name/type accounting; the complete module clone is prepaid. The measured N/N-1 and cached replay probes do not skip verification or retain active query entries.",
+    "Only exact internal $module plus nonempty decimal index plus underscore prefixes are removed for reserved capability exclusion. Canonical full names remain in declaration and implementation matching, and fake prefixes are not granted module identity."
+  ],
+  "executed_independent_tests": [
+    "independent_grouped_bounds_and_cross_subject_clause_order",
+    "independent_cross_module_impl_matches_existing_inline_boundary",
+    "independent_module_identity_alias_privacy_and_binder_boundaries",
+    "independent_reserved_capabilities_and_similar_ordinary_trait_names",
+    "independent_raw_ast_prefixes_only_apply_the_reserved_name_exclusion",
+    "independent_enum_payload_inference_keeps_inline_equivalence",
+    "independent_native_grouped_module_and_generated_enum_consumers",
+    "independent_module_where_budget_boundary_survives_cache_replay"
+  ],
+  "results": {
+    "default_workspace": {
+      "groups": 326,
+      "passed": 2976,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "reference_workspace": {
+      "groups": 326,
+      "passed": 2933,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "review231_default": {
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "review231_reference": {
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "native_default": {
+      "builds_and_executions": 8,
+      "backend": "LLVM API 23.1.4",
+      "source_families": 4,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "all_builder_input": true,
+      "all_verify_before_after": true,
+      "all_no_fallback": true,
+      "all_verify_one": true,
+      "all_exit_zero_empty_output": true
+    },
+    "native_reference": {
+      "builds_and_executions": 8,
+      "backend": "Clang 23.1.4 explicit no-default reference",
+      "same_source_families": 4,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "all_no_fallback": true,
+      "all_verify_one": true,
+      "all_exit_zero_empty_output": true,
+      "not_counted_as_additional_api_coverage": true
+    },
+    "module_budget": {
+      "work": 2169,
+      "nodes": 394,
+      "both_configurations": "cold N, warm N, N-1 rejection with Verify 0, recovered warm N and fresh N all match; successful runs execute Verify once"
+    },
+    "full_ci_steps": {
+      "success": 25,
+      "total": 25
+    },
+    "format": "Pass",
+    "all_target_clippy_deny_warnings": "Pass",
+    "text_reference": {
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "migration": {
+      "passed": 9,
+      "failed": 0
+    },
+    "native_state_allocation_controls": "Pass; original receipt identity and observed values verified as detailed in OBSERVATIONS.json"
+  },
+  "evidence": {
+    "observations_path": "evidence/reviews/231/attempt2/OBSERVATIONS.json",
+    "observations_sha256": "be51c9ea96f559ccc3dedd650ac1b72d8648a89fb5cb0923b46c71b4f3e57f05",
+    "raw_receipts_path": "evidence/reviews/231/attempt2/raw-receipts.tar.gz",
+    "raw_receipts_sha256": "5c805a2f4ada5fc353c2342bc04a6f8a4d2c2f889896e16f56b5f772341d8eea",
+    "raw_receipts_bytes": 100141,
+    "raw_receipts_members": 429,
+    "inventory_records": 428,
+    "archive_roundtrip_all_member_bytes_verified": true,
+    "native_payload_member_checks": {
+      "workspace": {
+        "prefix": "review231-35239",
+        "verified_members": 461,
+        "verified_bytes": 9735393,
+        "source_manifest_sha256": "b609fe51936811f31f6832461754cdd7bca0f8a014ff6a0943917192727693c7",
+        "full_manifest_members": 65796,
+        "selected_raw_members": 206,
+        "no_missing_or_extra_files": true
+      },
+      "reference": {
+        "prefix": "review231-67083",
+        "verified_members": 461,
+        "verified_bytes": 9731806,
+        "source_manifest_sha256": "c8e0117b1687e0fa630b883ba3578de32501029a234064ef677df3ba2f13e418",
+        "full_manifest_members": 63318,
+        "selected_raw_members": 206,
+        "no_missing_or_extra_files": true
+      }
+    },
+    "full_archives": {
+      "provenance": "Integrator download checksums; reviewer independently checked all 231 extracted members against the corresponding original CI manifests. Full IR/binaries are retained by the integration archive, not duplicated here.",
+      "workspace_native_zip_sha256": "5b132234673e85e43f39572e649c60e268ea26b5e4d64918bb4e90a785b37ba8",
+      "reference_native_zip_sha256": "8fe61b9c4f2fc2a5841af94f0bc500bfd7a45b3557df9462b164dced25c6d16e",
+      "final_zip_sha256": "d6c12c02575572ea673c9554119580a12f2588243ee5fd137d0cd9439c3991f3"
+    }
+  },
+  "history": {
+    "original_failed_test_blob": "130080594ed458632de761fec4c32bd6c7399d69",
+    "first_complete_ci_run": 41182685056,
+    "first_complete_ci_checkout": "015cb5d4e6c7794de616e0a933520cd3dfa886f7",
+    "retained_records": [
+      "evidence/reviews/231/attempt1/ATTEMPT1.json",
+      "evidence/reviews/231/repair-local/REPAIR.json",
+      "evidence/recovery/construction10/RECOVERY.json"
+    ],
+    "failures_retained": [
+      "Original 3/3 failure at leading-dot receiver.",
+      "Explicit-self fixture still 3/3 at the existing cross-module trait implementation boundary.",
+      "Rearranged real three-module fixture 6/1 at existing unannotated enum-payload inference."
+    ],
+    "repair_scope": "Only independent fixtures and controls changed. Original failing sources remain, with actual inline/plain boundary comparisons. No production or contract relaxation was made for the fixture fixes.",
+    "local_reference": "Final 8/0 under no-default/Clang 17 was diagnostic only and is not substituted for this LLVM 23 complete CI.",
+    "recovery": "Original source/test blobs were recovered by hash into new complete commit identities; missing historical evidence is not reclassified as recovered or passed. Old 4410/922 module budgets are not reused."
+  },
+  "boundaries": {
+    "accepted": "Existing finite ordinary nominal bounds on direct function type binders, qualified name/visibility handling, grouping and ordinary inline equivalence.",
+    "cross_module_trait_implementation": "Still Unsupported when trait declaration and implementation are in different source modules; the passing three-module consumer keeps the declaration and impl together and preserves qualified where lookup and real calls through a third module.",
+    "enum_payload_inference": "Unannotated generic method-call payload inference remains at its existing boundary; explicitly typed payload controls pass in generated and ordinary forms.",
+    "no_new_capabilities": [
+      "generic trait declarations",
+      "associated types or constants",
+      "supertrait or projected subject support",
+      "resource/package generic privileges",
+      "reserved Send/Sync/Transfer/Share/Drop/Fn-family capabilities",
+      "StoreElement or callable capability synthesis",
+      "defer implementation"
+    ],
+    "full_language_1_4": "NotSatisfied",
+    "full_zui": "NotSatisfied",
+    "rust_product_gate": "NotRun",
+    "native_windows": "NotRun",
+    "four_goal_conjunction": "NotEstablished",
+    "performance_or_product_superiority": "NotMeasured",
+    "main_ci": "NotRun at this PR review; a later main run must retain its own actual checkout and receipts. Metadata/doc commits are not claimed as tested."
+  }
+}
