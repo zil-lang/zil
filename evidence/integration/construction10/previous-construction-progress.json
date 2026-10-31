@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-10-31T01:57:13.352140+00:00",
+  "status": "Integrated",
+  "conversation": "zil施工9",
+  "accepted_main_at_start": "6ba0b04ee8b9cac3ead187b2aa9f03c91c217e49",
+  "latest_main_observed": "21058d0e331de764e3a1b9123c3e1edf5e55a1aa",
+  "implementation_commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "milestone": "228 finite generated types and 229 free-function where Copy",
+  "active_development_agents": 0,
+  "tasks": [
+    {
+      "id": "228",
+      "state": "已合入",
+      "branch": "task/228",
+      "owner": "/root/scope_audit",
+      "review": "evidence/reviews/228/joint/RESULT.json",
+      "branch_role": "Historical task branch; source and review commits retained in main history."
+    },
+    {
+      "id": "229",
+      "state": "已合入",
+      "branch": "task/229",
+      "owner": "/root/mainline_recovery",
+      "review": "evidence/reviews/229/joint-P/RESULT.json",
+      "branch_role": "Historical task branch; source and review commits retained in main history."
+    }
+  ],
+  "local_affected_regression": {
+    "commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+    "passed": 26,
+    "failed": 0,
+    "ignored": 0,
+    "receipt": "evidence/integration/228-229/local/RESULT.json"
+  },
+  "candidate_ci": {
+    "status": "Pass",
+    "run_id": 41154458005,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41154458005",
+    "actual_checkout": "ee5333028cb0c959dc6b73e43de000c66e4ace3f",
+    "tree": "a72cfaa984e4f4720c0a047084fa24d159646ad9",
+    "workspace": {
+      "passed": 2905,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "reference": {
+      "passed": 2863,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "all_required_steps_success": true,
+    "successful_step_count": 25,
+    "audit_sha256": "d841771bf649b1a9fff53fd769142f83022509d24ffddc991e0053db8b40aa0e",
+    "evidence": "evidence/integration/228-229/ci41154458005/RESULT.json"
+  },
+  "last_acceptance_ci": {
+    "status": "Pass",
+    "run_id": 41156023933,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41156023933",
+    "actual_checkout": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+    "tree": "bdcc3ce343ff5c1ca495f864c85ff672a5401ac5",
+    "workspace": {
+      "passed": 2905,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "reference": {
+      "passed": 2863,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "all_required_steps_success": true,
+    "successful_step_count": 25,
+    "audit_sha256": "596a253d8ec451d840657bcf7d8b5cb17688ec1ee107f431818748fdec398f14",
+    "evidence": "evidence/integration/228-229/ci41156023933/RESULT.json"
+  },
+  "concurrent_work": {
+    "225": "Separate construction 8 task; not part of this delivery",
+    "226": "Separate construction 8 task; not part of this delivery",
+    "227": "Separate construction 8 contract task; not part of this delivery",
+    "research/compile-performance": "Separate authorized research line; not performance evidence for this delivery"
+  },
+  "notification": {
+    "requested_minutes_approximately": 10,
+    "automation_created": false,
+    "page": "https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab",
+    "row": "zil施工9",
+    "page_updates_during_active_construction": true,
+    "after_turn_background_activity_promised": false
+  },
+  "limits": {
+    "B0": "Doing",
+    "181": "施工",
+    "complete_1_4": "NotSatisfied",
+    "complete_ZUI": "NotSatisfied",
+    "Rust_product_gates": "NotRun",
+    "native_Windows": "NotRun"
+  },
+  "main_merge_commit": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+  "integration_commit": "faf7c8e2c713d81cedaf2b2a74a738045f093cd0",
+  "last_main_ci": {
+    "status": "Pass",
+    "run_id": 41156023933,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41156023933",
+    "actual_checkout": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+    "tree": "bdcc3ce343ff5c1ca495f864c85ff672a5401ac5",
+    "workspace": {
+      "passed": 2905,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "reference": {
+      "passed": 2863,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "all_required_steps_success": true,
+    "successful_step_count": 25,
+    "audit_sha256": "596a253d8ec451d840657bcf7d8b5cb17688ec1ee107f431818748fdec398f14",
+    "evidence": "evidence/integration/228-229/ci41156023933/RESULT.json"
+  },
+  "accepted_capabilities": [
+    "Finite generation of non-generic method-free structs and ordinary non-generic aliases",
+    "Ordinary free-function where T: Copy normalization"
+  ],
+  "metadata_scope": "This closeout preserves acceptance at M; subsequent metadata does not claim another compiler run.",
+  "next_candidates": [
+    "Finite non-generic enum generation with Unit/Tuple variants",
+    "Where normalization for already-supported nominal trait bounds; module identity handling is a prerequisite"
+  ],
+  "handoff_record_integrity": {
+    "status": "Fail",
+    "checked_commit": "3a1aca37a53c310da961c0a54d9c59f7aa35f50b",
+    "errors": 1379,
+    "warnings": 0,
+    "task_228_229_errors": 0,
+    "evidence": "evidence/integration/228-229/closeout/handoff-final-D2/RESULT.json"
+  }
+}
