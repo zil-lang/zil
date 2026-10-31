@@ -1,0 +1,22 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.29s
+     Running tests/review232_independent.rs (target/debug/deps/review232_independent-fc9e01a38ecd2418)
+
+running 1 test
+test default_flat_and_recursive_capture_keep_owner_and_clean_once ... FAILED
+
+failures:
+
+---- default_flat_and_recursive_capture_keep_owner_and_clean_once stdout ----
+
+thread 'default_flat_and_recursive_capture_keep_owner_and_clean_once' (29) panicked at crates/zil-driver/tests/review232_independent.rs:43:66:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Analyze, category: SafeReject, code: "E-UNINITIALIZED", message: "local 7 is not initialized on every incoming path", span: Some(Span { file: FileId(0), start: 362, end: 367 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    default_flat_and_recursive_capture_keep_owner_and_clean_once
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p zil-driver --test review232_independent`

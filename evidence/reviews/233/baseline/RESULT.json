@@ -1,0 +1,46 @@
+{
+  "status": "BaselineGapObserved",
+  "reviewer": "/root/handoff_integrity",
+  "tested_commit": "387d4e77a4e2123201d998d20ba980ea04ccbdc6",
+  "compiler_tree": "cc67ae136dce0c6d8ad17ffdbaa25ae574c6c9ca",
+  "test_file": "crates/zil-driver/tests/review233_independent.rs",
+  "native_execution": 0,
+  "observed": "Types Unsupported / trait implementation resolution and missing receiver declaration in impl module",
+  "baseline_input_files": [
+    {
+      "path": "evidence/reviews/233/baseline/split-where-compile.json",
+      "sha256": "182f4e22b9fa5494fd68dfd1d7e79435fbb03972956048d995a5c5a77aa0ce56"
+    },
+    {
+      "path": "evidence/reviews/233/baseline/split-where-rules.zil",
+      "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440"
+    },
+    {
+      "path": "evidence/reviews/233/baseline/split-where-data.zil",
+      "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+    },
+    {
+      "path": "evidence/reviews/233/baseline/split-where-main.zil",
+      "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9"
+    }
+  ],
+  "note": "Independent final-acceptance assertion intentionally fails on baseline. Initial 232 Rust fixture Type::Address compile error is retained separately and is not a compiler defect.",
+  "reserved_declaration": {
+    "observed": "Success/Verify with one verification run for pub trait Transfer{} in imported module, without any impl or bound",
+    "expected": "SafeReject or Unsupported; reserved language names cannot become ordinary nominal declarations",
+    "files": [
+      {
+        "path": "evidence/reviews/233/baseline/reserved-compile.json",
+        "sha256": "385c08a449ee8adfd9bb9d77790e3d0c24cf70e873c7e4955d4e37af40c24d03"
+      },
+      {
+        "path": "evidence/reviews/233/baseline/reserved-rules.zil",
+        "sha256": "011be6c8d3244d24ab329b329244eeb1550b7b8c5293dc0ff63b33b959cb8532"
+      },
+      {
+        "path": "evidence/reviews/233/baseline/reserved-main.zil",
+        "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+      }
+    ]
+  }
+}

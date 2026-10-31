@@ -1,0 +1,16 @@
+{
+  "status": "BaselineGapObserved",
+  "reviewer": "/root/handoff_integrity",
+  "tested_commit": "387d4e77a4e2123201d998d20ba980ea04ccbdc6",
+  "compiler_tree": "cc67ae136dce0c6d8ad17ffdbaa25ae574c6c9ca",
+  "test_file": "crates/zil-driver/tests/review232_independent.rs",
+  "native_execution": 0,
+  "observed": "Analyze SafeReject / E-UNINITIALIZED after default recursive readonly capture and subsequent owner move",
+  "baseline_input_files": [
+    {
+      "path": "evidence/reviews/232/baseline/recursive-source.zil",
+      "sha256": "6e581bb982726139b49cf09b068a2b1171e9c2d5c04390ce812dd3af4263ff2b"
+    }
+  ],
+  "note": "Independent final-acceptance assertion intentionally fails on baseline. Initial 232 Rust fixture Type::Address compile error is retained separately and is not a compiler defect."
+}
