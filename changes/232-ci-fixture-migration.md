@@ -10,3 +10,5 @@ PR15首轮run41194080948，候选77b30b4e13187ca9e5ddf8b830f11675fcaffa5c，实�
 4. 同077的whole view disguised as Managed description篡改：首先保留旧0a与新77b同一原输入的Typed/Wire前后身份与指令命中数。若新投影导致旧mutation零命中，必须使用可证明仍生成真实描述子的控制源，要求精确非零命中、IR实际改变以及Analyze/raw Verify/Wire的对应拒绝；原共享写/未恢复FnMut攻击不放宽。此项仍待独立核对，不能以推测结案。
 
 作者只做具名限定回归，非作者审查精确新提交；root合并后重新执行正式LLVM23全门。第一轮全部执行身份与失败保留，不取消原运行以遮蔽其结果。
+
+独立核对已完成：077旧mutation在0a命中1，在77b命中0且Typed/Wire前后逐字不变。显式描述子控制两基线命中恰1并真实改变，Analyze/raw Verify/Wire均拒绝；证据提交e2053a0ed2a48dec7d534816fc916ef14f9ec867。作者仅具名测试迁移提交507e650d526653ccc79146366e4bb7c30b55ac84，编译器生产树不变，所有其余旧拒绝保留；仍需非作者新候选复验及全量CI。
