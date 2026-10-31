@@ -132,5 +132,8 @@
       "sha256": "918ad121c3b491ee81f5bdb3c0189734b1d665d28b77a9aaf494c6ffd917fc23"
     }
   },
-  "note": "Counts are separate gate replays, never summed into new source coverage. Default workspace contains some legacy Clang controls; explicit reviewed natives checked per report."
+  "note": "Counts are separate gate replays, never summed into new source coverage. Default workspace contains some legacy Clang controls; explicit reviewed natives checked per report.",
+  "archived_raw_paths": {
+    "text-reference.log": "text-reference.log.gz"
+  }
 }
