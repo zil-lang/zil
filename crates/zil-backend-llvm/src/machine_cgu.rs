@@ -6,7 +6,7 @@ use zil_base::{FileId, Fingerprint};
 #[cfg(test)]
 use zil_ir::LirModule;
 use zil_ir::LirView;
-use zil_llvm_api::model::{Item, Module};
+use zil_llvm_api::model::{Function, Item, Module, Op, Val};
 
 pub(crate) struct Plan {
     pub units: Vec<Module>,
@@ -17,6 +17,7 @@ struct Definition {
     index: usize,
     local: bool,
     refs: BTreeSet<String>,
+    calls: BTreeSet<String>,
 }
 
 #[cfg(test)]
@@ -29,7 +30,7 @@ pub(crate) fn partition_view(
     entry: EntryPoint,
     count: usize,
     split_large_files: bool,
-    import_small_functions: bool,
+    import_complete_call_closures: bool,
 ) -> Plan {
     let fallback = |module, reason| Plan {
         units: vec![module],
@@ -43,7 +44,7 @@ pub(crate) fn partition_view(
     }
     let mut defs = Vec::new();
     let mut prelude = Vec::new();
-    let mut symbols = BTreeSet::new();
+    let mut symbols = BTreeSet::<&str>::new();
     for (index, item) in module.items.iter().enumerate() {
         // Removing declarations must not hide a collision with a definition in
         // a different unit. Leave the original module to the ordinary validator.
@@ -53,7 +54,7 @@ pub(crate) fn partition_view(
             Item::NamedType(..) => None,
         };
         if let Some(symbol) = symbol
-            && !symbols.insert(symbol)
+            && !symbols.insert(symbol.as_str())
         {
             return fallback(module, "duplicate machine definition or declaration");
         }
@@ -63,6 +64,11 @@ pub(crate) fn partition_view(
                 index,
                 local: f.linkage.is_local(),
                 refs: f.references(),
+                calls: if import_complete_call_closures {
+                    direct_calls(f)
+                } else {
+                    BTreeSet::new()
+                },
             }),
             Item::Global(g) if g.initializer.is_some() => {
                 let mut refs = BTreeSet::new();
@@ -74,6 +80,7 @@ pub(crate) fn partition_view(
                     index,
                     local: g.linkage.is_local(),
                     refs,
+                    calls: BTreeSet::new(),
                 });
             }
             _ => prelude.push(index),
@@ -88,7 +95,7 @@ pub(crate) fn partition_view(
     let mut sets = Sets((0..defs.len()).collect());
     // File boundaries are not linkage boundaries. Fixed-size O0 chunks make
     // body-only edits local without moving unaffected chunks as the body grows.
-    // The explicit O2 strategy also imports optimizer-only bodies below.
+    // The explicit O2 strategy also copies complete call implementations below.
     const FUNCTIONS_PER_CHUNK: usize = 256;
     let mut files = BTreeMap::<(FileId, usize), usize>::new();
     let mut ordinals = BTreeMap::<FileId, usize>::new();
@@ -185,54 +192,76 @@ pub(crate) fn partition_view(
             return fallback(module, "invalid machine declaration prelude");
         }
     }
-    // Bodies imported for optimization never acquire ownership. Their original
-    // symbols keep a unique emitted definition and their complete dependency
-    // closure becomes part of this unit's normal validation and cache identity.
-    const IMPORT_FUNCTION_COST: usize = 64;
-    const IMPORT_UNIT_COST: usize = 65_536;
+    // Import a complete direct-call closure, not a definition-ID prefix. Mere
+    // function addresses retain canonical declarations without copying a body.
+    // Every copy becomes a real private implementation below: its exact body
+    // may participate in non-inlining IPO and must be emitted if not inlined.
+    // Extra copies may consume at most one source graph's instruction/block
+    // cost; exceeding that whole-plan guard falls back without truncation.
     let mut imports = BTreeMap::<usize, BTreeSet<usize>>::new();
-    if import_small_functions {
+    if import_complete_call_closures {
         let source_functions = lir
             .functions
             .iter()
             .filter(|f| f.foreign.is_none())
             .map(|f| format!("zil.fn.{}", f.id.0))
             .collect::<BTreeSet<_>>();
+        let original_cost = source_functions
+            .iter()
+            .filter_map(|name| names.get(name.as_str()))
+            .filter_map(|&id| match &module.items[defs[id].index] {
+                Item::Function(function) => Some(function.cost()),
+                _ => None,
+            })
+            .sum::<usize>();
+        let mut copied_cost = 0usize;
         for (&owner, definitions) in &members {
             let mut pending = definitions
                 .iter()
-                .flat_map(|&id| defs[id].refs.iter())
+                .flat_map(|&id| defs[id].calls.iter())
                 .filter_map(|name| names.get(name.as_str()).copied())
                 .collect::<BTreeSet<_>>();
             let mut seen = BTreeSet::new();
             let mut imported = BTreeSet::new();
-            let mut remaining = IMPORT_UNIT_COST;
             while let Some(id) = pending.pop_first() {
-                if owners[id] == owner
-                    || !seen.insert(id)
-                    || !source_functions.contains(&defs[id].name)
-                {
+                if owners[id] == owner || !seen.insert(id) {
                     continue;
+                }
+                if !source_functions.contains(&defs[id].name) {
+                    return fallback(
+                        module,
+                        "complete O2 call closure includes a compiler-owned definition",
+                    );
                 }
                 let Item::Function(function) = &module.items[defs[id].index] else {
                     continue;
                 };
-                let cost = function.cost();
                 if function.linkage != zil_llvm_api::model::Linkage::External
-                    || cost > IMPORT_FUNCTION_COST
-                    || cost > remaining
                     || defs[id]
                         .refs
                         .iter()
                         .any(|name| names.get(name.as_str()).is_some_and(|&id| defs[id].local))
                 {
-                    continue;
+                    // Copying a local global would duplicate observable state;
+                    // referencing it from another unit would lose its identity.
+                    // Preserve the original complete module until a grouping
+                    // policy can represent this closure without either change.
+                    return fallback(
+                        module,
+                        "complete O2 call closure requires a local definition",
+                    );
                 }
-                remaining -= cost;
+                let Some(total) = copied_cost.checked_add(function.cost()) else {
+                    return fallback(module, "complete O2 call closure exceeds total copy cost");
+                };
+                if total > original_cost {
+                    return fallback(module, "complete O2 call closure exceeds total copy cost");
+                }
+                copied_cost = total;
                 imported.insert(id);
                 pending.extend(
                     defs[id]
-                        .refs
+                        .calls
                         .iter()
                         .filter_map(|name| names.get(name.as_str()).copied()),
                 );
@@ -241,7 +270,7 @@ pub(crate) fn partition_view(
         }
     }
     let mut prototypes = BTreeMap::new();
-    let mut imported_bodies = BTreeMap::new();
+    let mut uses_left = vec![1usize; defs.len()];
     for (&owner, definitions) in &members {
         let imported = imports.entry(owner).or_default();
         for &id in definitions.iter().chain(imported.iter()) {
@@ -261,12 +290,16 @@ pub(crate) fn partition_view(
             }
         }
         for &id in imported.iter() {
-            imported_bodies.entry(id).or_insert_with(|| {
-                let Item::Function(mut function) = module.items[defs[id].index].clone() else {
+            uses_left[id] += 1;
+            let clone_name = format!("zil.import.{owner}.{}", defs[id].name);
+            if symbols.contains(clone_name.as_str()) {
+                return fallback(module, "O2 implementation clone symbol collision");
+            }
+            prototypes.entry(id).or_insert_with(|| {
+                let Item::Function(function) = &module.items[defs[id].index] else {
                     unreachable!()
                 };
-                function.linkage = zil_llvm_api::model::Linkage::AvailableExternally;
-                Item::Function(function)
+                Item::Function(function.declaration())
             });
         }
     }
@@ -278,6 +311,15 @@ pub(crate) fn partition_view(
     let mut units = Vec::with_capacity(members.len());
     for (owner, definitions) in members {
         let imported = &imports[&owner];
+        let clone_names = imported
+            .iter()
+            .map(|&id| {
+                (
+                    defs[id].name.clone(),
+                    format!("zil.import.{owner}.{}", defs[id].name),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
         let referenced = definitions
             .iter()
             .chain(imported.iter())
@@ -307,11 +349,26 @@ pub(crate) fn partition_view(
                 items.push(prototypes[&id].clone());
             }
         }
-        items.extend(imported.iter().map(|id| imported_bodies[id].clone()));
+        for &id in imported {
+            // Address operands and callback arguments must still resolve to
+            // the canonical owner even when the direct callee is a clone.
+            items.push(prototypes[&id].clone());
+            let Item::Function(mut function) =
+                distribute_item(&mut original[defs[id].index], &mut uses_left[id])
+            else {
+                unreachable!()
+            };
+            function.linkage = zil_llvm_api::model::Linkage::Internal;
+            function.name = clone_names[&defs[id].name].clone();
+            rewrite_direct_calls(&mut function, &clone_names);
+            items.push(Item::Function(function));
+        }
         items.extend(definitions.iter().map(|&id| {
-            original[defs[id].index]
-                .take()
-                .expect("definition has one owner")
+            let mut item = distribute_item(&mut original[defs[id].index], &mut uses_left[id]);
+            if let Item::Function(function) = &mut item {
+                rewrite_direct_calls(function, &clone_names);
+            }
+            item
         }));
         units.push(Module {
             triple: module.triple.clone(),
@@ -322,6 +379,59 @@ pub(crate) fn partition_view(
     Plan {
         units,
         fallback: None,
+    }
+}
+
+fn distribute_item(original: &mut Option<Item>, remaining: &mut usize) -> Item {
+    assert!(
+        *remaining > 0,
+        "definition distribution has a remaining consumer"
+    );
+    *remaining -= 1;
+    if *remaining == 0 {
+        original.take().expect("definition has one canonical owner")
+    } else {
+        original
+            .as_ref()
+            .expect("definition has future consumers")
+            .clone()
+    }
+}
+
+fn direct_calls(function: &Function) -> BTreeSet<String> {
+    function
+        .blocks
+        .iter()
+        .flatten()
+        .flat_map(|block| &block.instructions)
+        .filter_map(|instruction| match &instruction.op {
+            Op::Call {
+                callee: Val::Global(name),
+                ..
+            } => Some(name.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn rewrite_direct_calls(function: &mut Function, names: &BTreeMap<String, String>) {
+    if names.is_empty() {
+        return;
+    }
+    for instruction in function
+        .blocks
+        .iter_mut()
+        .flatten()
+        .flat_map(|block| &mut block.instructions)
+    {
+        if let Op::Call {
+            callee: Val::Global(name),
+            ..
+        } = &mut instruction.op
+            && let Some(clone) = names.get(name)
+        {
+            *name = clone.clone();
+        }
     }
 }
 
@@ -408,6 +518,15 @@ impl Sets {
     }
 }
 
+#[cfg(all(
+    test,
+    feature = "llvm-api",
+    target_os = "linux",
+    target_arch = "x86_64"
+))]
+#[path = "machine_cgu_clone_controls.rs"]
+mod clone_controls;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -442,6 +561,33 @@ mod tests {
             fingerprint: "test".into(),
             items,
         }
+    }
+    fn call_function(name: &str, result: Ty, target: &str) -> Item {
+        Item::Function(Function {
+            name: name.into(),
+            linkage: Linkage::External,
+            signature: Signature::new(result.clone(), vec![]),
+            attrs: vec![],
+            blocks: Some(vec![Block {
+                name: "entry".into(),
+                instructions: vec![
+                    Inst::new(
+                        Some("value".into()),
+                        Op::Call {
+                            result: result.clone(),
+                            result_attrs: vec![],
+                            callee: Val::Global(target.into()),
+                            args: vec![],
+                            vararg: None,
+                        },
+                    ),
+                    Inst::new(
+                        None,
+                        Op::Return(Some(Arg::new(result, Val::Local("value".into())))),
+                    ),
+                ],
+            }]),
+        })
     }
     fn definitions(m: &Module) -> BTreeSet<&str> {
         m.items
@@ -520,12 +666,12 @@ mod tests {
     }
     #[test]
     fn o2_imports_follow_transitive_bodies_and_keep_unique_emitted_owners() {
-        let source = candidate_lir(&(0..600).collect::<Vec<_>>());
-        let mut items = (0..600)
+        let source = candidate_lir(&(0..900).collect::<Vec<_>>());
+        let mut items = (0..900)
             .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
             .collect::<Vec<_>>();
-        items[0] = f("zil.fn.0", Ty::Ptr, Val::Global("zil.fn.256".into()));
-        items[256] = f("zil.fn.256", Ty::Ptr, Val::Global("zil.fn.512".into()));
+        items[0] = call_function("zil.fn.0", Ty::Int(32), "zil.fn.256");
+        items[256] = call_function("zil.fn.256", Ty::Int(32), "zil.fn.512");
         let plan = partition_view(
             m(items.clone()),
             &source.as_view(),
@@ -534,21 +680,21 @@ mod tests {
             true,
             true,
         );
-        assert_eq!(plan.units.len(), 3);
+        assert_eq!(plan.units.len(), 4);
         for unit in &plan.units {
             zil_llvm_api::validate_module(unit).unwrap();
         }
         let first = &plan.units[0];
         assert_eq!(function_linkage(first, "zil.fn.0"), Linkage::External);
         assert_eq!(
-            function_linkage(first, "zil.fn.256"),
-            Linkage::AvailableExternally
+            function_linkage(first, "zil.import.0.zil.fn.256"),
+            Linkage::Internal
         );
         assert_eq!(
-            function_linkage(first, "zil.fn.512"),
-            Linkage::AvailableExternally
+            function_linkage(first, "zil.import.0.zil.fn.512"),
+            Linkage::Internal
         );
-        for id in 0..600 {
+        for id in 0..900 {
             assert_eq!(plan.units.iter().flat_map(|u| &u.items).filter(|item| matches!(item, Item::Function(f) if f.name == format!("zil.fn.{id}") && f.blocks.is_some() && f.linkage != Linkage::AvailableExternally)).count(), 1);
         }
         // Imported bodies affect exactly the units which consume them; unrelated
@@ -558,16 +704,17 @@ mod tests {
         assert_ne!(plan.units[0].items, edited.units[0].items);
         assert_ne!(plan.units[1].items, edited.units[1].items);
         assert_ne!(plan.units[2].items, edited.units[2].items);
+        assert_eq!(plan.units[3].items, edited.units[3].items);
         let mut closed = plan.units;
         let changed = internalize_closed_executable(&mut closed, &source.as_view());
         assert!(changed > 0);
         assert_eq!(
-            function_linkage(&closed[0], "zil.fn.256"),
-            Linkage::AvailableExternally
+            function_linkage(&closed[0], "zil.import.0.zil.fn.256"),
+            Linkage::Internal
         );
         assert_eq!(
             function_linkage(&closed[1], "zil.fn.256"),
-            Linkage::External
+            Linkage::Internal
         );
         for unit in &closed {
             zil_llvm_api::validate_module(unit).unwrap();
@@ -580,7 +727,7 @@ mod tests {
         let mut items = (0..600)
             .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
             .collect::<Vec<_>>();
-        items[0] = f("zil.fn.0", Ty::Ptr, Val::Global("zil.fn.256".into()));
+        items[0] = call_function("zil.fn.0", Ty::Ptr, "zil.fn.256");
         items[256] = f("zil.fn.256", Ty::Ptr, Val::Global("hidden".into()));
         items.push(Item::Global(Global {
             name: "hidden".into(),
@@ -599,19 +746,20 @@ mod tests {
             true,
             true,
         );
+        assert_eq!(plan.units.len(), 1);
         assert_eq!(
-            function_linkage(&plan.units[0], "zil.fn.256"),
-            Linkage::External
+            plan.fallback,
+            Some("complete O2 call closure requires a local definition")
         );
-        assert!(!definitions(&plan.units[0]).contains("zil.fn.256"));
+        assert_eq!(plan.units[0].items, items);
         let Item::Global(global) = items.last_mut().unwrap() else {
             panic!()
         };
         global.linkage = Linkage::External;
         let plan = partition_view(m(items), &source.as_view(), EntryPoint::None, 8, true, true);
         assert_eq!(
-            function_linkage(&plan.units[0], "zil.fn.256"),
-            Linkage::AvailableExternally
+            function_linkage(&plan.units[0], "zil.import.0.zil.fn.256"),
+            Linkage::Internal
         );
         assert!(
             plan.units[0]
@@ -621,6 +769,183 @@ mod tests {
         );
         for unit in &plan.units {
             zil_llvm_api::validate_module(unit).unwrap();
+        }
+    }
+
+    #[test]
+    fn address_only_references_never_copy_implementations() {
+        let source = candidate_lir(&(0..600).collect::<Vec<_>>());
+        let mut items = (0..600)
+            .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
+            .collect::<Vec<_>>();
+        items[0] = f("zil.fn.0", Ty::Ptr, Val::Global("zil.fn.256".into()));
+        let plan = partition_view(m(items), &source.as_view(), EntryPoint::None, 8, true, true);
+        assert_eq!(plan.units.len(), 3);
+        for unit in &plan.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+            assert!(unit.items.iter().all(
+                |item| !matches!(item, Item::Function(f) if f.name.starts_with("zil.import."))
+            ));
+        }
+        assert_eq!(
+            function_linkage(&plan.units[0], "zil.fn.256"),
+            Linkage::External
+        );
+        assert!(!definitions(&plan.units[0]).contains("zil.fn.256"));
+    }
+
+    #[test]
+    fn large_transitive_closure_is_complete_and_keeps_canonical_arguments() {
+        let source = candidate_lir(&(0..512).collect::<Vec<_>>());
+        let mut items = (0..512)
+            .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
+            .collect::<Vec<_>>();
+        items[0] = call_function("zil.fn.0", Ty::Int(32), "zil.fn.256");
+        for (id, item) in items.iter_mut().enumerate().take(511).skip(256) {
+            *item = call_function(
+                &format!("zil.fn.{id}"),
+                Ty::Int(32),
+                &format!("zil.fn.{}", id + 1),
+            );
+            let Item::Function(function) = item else {
+                unreachable!()
+            };
+            let body = &mut function.blocks.as_mut().unwrap()[0].instructions;
+            let mut prefix = (0..300)
+                .map(|number| {
+                    Inst::new(
+                        Some(format!("unused.{number}")),
+                        Op::Binary {
+                            opcode: "add".into(),
+                            ty: Ty::Int(32),
+                            left: Val::Int(1),
+                            right: Val::Int(2),
+                        },
+                    )
+                })
+                .collect::<Vec<_>>();
+            prefix.append(body);
+            *body = prefix;
+        }
+        let plan = partition_view(m(items), &source.as_view(), EntryPoint::None, 8, true, true);
+        assert_eq!(plan.units.len(), 2);
+        assert!(plan.fallback.is_none());
+        let first = &plan.units[0];
+        assert_eq!(first.items.iter().filter(|item| matches!(item, Item::Function(f) if f.name.starts_with("zil.import.0.") && f.blocks.is_some())).count(), 256);
+        for unit in &plan.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+        }
+        // Only the direct callee operand is rewritten, even when the same
+        // function symbol also appears as an argument or a returned address.
+        let mut function = Function {
+            name: "caller".into(),
+            linkage: Linkage::External,
+            signature: Signature::new(Ty::Ptr, vec![]),
+            attrs: vec![],
+            blocks: Some(vec![Block {
+                name: "entry".into(),
+                instructions: vec![
+                    Inst::new(
+                        Some("result".into()),
+                        Op::Call {
+                            result: Ty::Ptr,
+                            result_attrs: vec![],
+                            callee: Val::Global("f".into()),
+                            args: vec![Arg::new(Ty::Ptr, Val::Global("f".into()))],
+                            vararg: None,
+                        },
+                    ),
+                    Inst::new(
+                        None,
+                        Op::Return(Some(Arg::new(Ty::Ptr, Val::Global("f".into())))),
+                    ),
+                ],
+            }]),
+        };
+        rewrite_direct_calls(
+            &mut function,
+            &BTreeMap::from([("f".into(), "private.f".into())]),
+        );
+        let instructions = &function.blocks.as_ref().unwrap()[0].instructions;
+        let Op::Call { callee, args, .. } = &instructions[0].op else {
+            unreachable!()
+        };
+        assert_eq!(callee, &Val::Global("private.f".into()));
+        assert_eq!(args[0].value, Val::Global("f".into()));
+        assert_eq!(
+            instructions[1].op,
+            Op::Return(Some(Arg::new(Ty::Ptr, Val::Global("f".into()))))
+        );
+    }
+
+    #[test]
+    fn multiply_shared_closure_falls_back_before_copying_any_body() {
+        let source = candidate_lir(&(0..600).collect::<Vec<_>>());
+        let module = m((0..600)
+            .map(|id| {
+                call_function(
+                    &format!("zil.fn.{id}"),
+                    Ty::Int(32),
+                    &format!("zil.fn.{}", (id + 1) % 600),
+                )
+            })
+            .collect());
+        let plan = partition_view(
+            module.clone(),
+            &source.as_view(),
+            EntryPoint::None,
+            8,
+            true,
+            true,
+        );
+        assert_eq!(
+            plan.fallback,
+            Some("complete O2 call closure exceeds total copy cost")
+        );
+        assert_eq!(plan.units, vec![module]);
+        zil_llvm_api::validate_module(&plan.units[0]).unwrap();
+    }
+
+    #[test]
+    fn canonical_owner_can_be_first_middle_or_last_consumer() {
+        for target in [0, 256, 512] {
+            let source = candidate_lir(&(0..768).collect::<Vec<_>>());
+            let mut items = (0..768)
+                .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
+                .collect::<Vec<_>>();
+            let target_name = format!("zil.fn.{target}");
+            items[target] = f(&target_name, Ty::Ptr, Val::Global(target_name.clone()));
+            let canonical = items[target].clone();
+            for caller in [0, 256, 512] {
+                if caller != target {
+                    items[caller] =
+                        call_function(&format!("zil.fn.{caller}"), Ty::Ptr, &target_name);
+                }
+            }
+            let plan = partition_view(m(items), &source.as_view(), EntryPoint::None, 8, true, true);
+            assert_eq!(plan.units.len(), 3);
+            assert!(plan.fallback.is_none());
+            for (owner, unit) in plan.units.iter().enumerate() {
+                zil_llvm_api::validate_module(unit).unwrap();
+                if owner == target / 256 {
+                    assert!(unit.items.contains(&canonical));
+                } else {
+                    let name = format!("zil.import.{owner}.{target_name}");
+                    let Item::Function(clone) = unit
+                        .items
+                        .iter()
+                        .find(|item| matches!(item, Item::Function(f) if f.name == name))
+                        .unwrap()
+                    else {
+                        unreachable!()
+                    };
+                    assert_eq!(clone.linkage, Linkage::Internal);
+                    assert!(clone.references().contains(&target_name));
+                    assert!(
+                        matches!(&clone.blocks.as_ref().unwrap()[0].instructions[0].op, Op::Return(Some(arg)) if arg.value == Val::Global(target_name.clone()))
+                    );
+                }
+            }
         }
     }
 

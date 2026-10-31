@@ -18,6 +18,10 @@ use zil_llvm_api::model::Module;
 const MAGIC: &[u8; 8] = b"ZILOBJ01";
 const HEADER: usize = 8 + 32 + 32 + 8;
 const MAX_OBJECT: u64 = 128 * 1024 * 1024;
+// Isolate the complete-call-closure machine-input policy, including builds
+// which leave that policy disabled. Object format and current verification do
+// not change; every selected implementation body is hashed by machine_key.
+const ACTION_PROTOCOL: &str = "ZIL-OBJECT-ACTION-212-v2-complete-direct-call-closures";
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -145,7 +149,7 @@ impl PreparedCache {
         // Versioned exact protocol. Compiler-specific derived Hash cannot cross
         // a compiler identity boundary. Generic CPU/features/pipeline/relocation
         // and layout derivation are fixed in that very compiler's native adapter.
-        "ZIL-OBJECT-ACTION-212-v1".hash(&mut state);
+        ACTION_PROTOCOL.hash(&mut state);
         installed_identity(&compiler)
             .map_err(|e| e.to_string())?
             .hash(&mut state);

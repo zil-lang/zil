@@ -72,7 +72,7 @@ pub struct CompileOptions {
     pub optimization: zil_backend_llvm::Optimization,
     /// Explicit Linux build without generated ZIL symbol exports; default false.
     pub closed_executable: bool,
-    /// Explicit O2 partitioning with bounded cross-unit body imports.
+    /// Explicit O2 partitioning with complete direct-call implementation copies.
     pub incremental_o2: bool,
     /// O2 function-merging policy, with address-preserving reference controls.
     pub function_merging: FunctionMerging,
