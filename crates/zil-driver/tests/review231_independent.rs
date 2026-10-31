@@ -322,7 +322,7 @@ fn independent_raw_ast_prefixes_only_apply_the_reserved_name_exclusion() {
 }
 
 const ORIGINAL_GENERATED: &str = "trait Read{fn value(self:&Self)->i32;}struct Cell{n:i32}impl Read for Cell{fn value()->i32=>.n}#for(offset in [3]){enum Tag{Value(i32)}pub fn get<T>(x:&T)->i32 where T:((Read)){let tag=Tag.Value(x.value()+offset);match tag{Tag.Value(v)=>{return v}}}}fn main()->i32{let x=Cell{n:7};return get(&x)-10}";
-const GENERATED: &str = ORIGINAL_GENERATED;
+const GENERATED: &str = "trait Read{fn value(self:&Self)->i32;}struct Cell{n:i32}impl Read for Cell{fn value()->i32=>.n}#for(offset in [3]){enum Tag{Value(i32)}pub fn get<T>(x:&T)->i32 where T:((Read)){let payload:i32=x.value()+offset;let tag=Tag.Value(payload);match tag{Tag.Value(v)=>{return v}}}}fn main()->i32{let x=Cell{n:7};return get(&x)-10}";
 
 #[test]
 fn independent_enum_payload_inference_keeps_inline_equivalence() {
