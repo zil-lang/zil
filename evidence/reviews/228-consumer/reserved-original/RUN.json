@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "utc": "2026-10-31T01:06:33.283055+00:00",
+  "checkout": "05bb51561670c343b9b28c44442cdae45ba4d0fb",
+  "production_candidate_228": "2122c2258c2ebca0eb1c28d33bbf536a92e1e48c",
+  "production_candidate_229": "d8c71880928c2e0497ffe078834382503960256b",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "review228_consumer_reserved",
+    "--",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "environment": {
+    "CARGO_HOME": "/workspace/scratch/e9af9764d083/cargo-consumer",
+    "CARGO_TARGET_DIR": "/workspace/scratch/e9af9764d083/targets/consumer",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_INCREMENTAL": "0",
+    "ZIL_CLANG": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "LD_LIBRARY_PATH": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/reserved-original/native"
+  },
+  "exit_code": 101,
+  "reports": [
+    {
+      "path": "evidence/reviews/228-consumer/reserved-original/native/reserved228-mixed-29/compile.json",
+      "source_sha256": "a69d61a6b82a695edc9094926c5f0399218c254fb29f41f2cfc6590a10c2e798",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "path": "evidence/reviews/228-consumer/reserved-original/native/reserved228-plain-29/compile.json",
+      "source_sha256": "5ff05ce63b5c809092fbe1cce874da929f9b8498d9f334afcaf547aa823a4b43",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-BYTE-BUFFER-NAME",
+          "message": "ByteBuffer and bare byte storage primitives cannot be rebound",
+          "span": {
+            "file": 0,
+            "start": 15,
+            "end": 38
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "path": "evidence/reviews/228-consumer/reserved-original/native/reserved228-pure-29/compile.json",
+      "source_sha256": "ba5ed5a8422068966281b711646caf8ea6c040c93b6c077c7fb610eccd981ce5",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    }
+  ],
+  "native_executions": 0,
+  "source_provenance": "Three exact byte strings from root independent review228 reserved function inputs, saved without an added trailing newline."
+}
