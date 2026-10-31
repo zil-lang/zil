@@ -1,6 +1,6 @@
 # 施工11：Product默认只读捕获、跨模块trait与整数常量正确性
 
-当前联合候选为 `c0418f532e750e7df2b00d9b7d76da82baa5086c`，PR15第二次正式CI为 [41195906918](https://github.com/zil-lang/zil/actions/runs/41195906918)。本页目前记录候选和已完成的独立检查；正式重跑与实际main验收仍待完成，不把首轮的局部门通过升级为整轮通过。
+当前联合候选为 `c0418f532e750e7df2b00d9b7d76da82baa5086c`，PR15第二次正式CI [41195906918](https://github.com/zil-lang/zil/actions/runs/41195906918) 已完成25/25步骤：默认3027/0/0、reference2983/0/0，均336组、零过滤。实际PR checkout为 `db07200ba221bdb67f3f1b7bef7f8e9851592a1a`，完整树与候选逐字相同。非作者最终裁决和真实main验收仍待完成；首轮Fail保持独立身份。[第二轮原始回执](../evidence/integration/construction11/ci41195906918/RESULT.json)已归档。
 
 ## 实施身份与有限范围
 
