@@ -1,0 +1,25 @@
+{
+  "implementation_commit": "8fb69d61b41a241806e7021de93a27ce7e213f7b",
+  "production_source_commit": "665a0a06dc36a94f19e9ee8bbcd87fab321c6423",
+  "baseline_commit": "21058d0e331de764e3a1b9123c3e1edf5e55a1aa",
+  "scope": "64 scoped tests; independently reviewed functionality; 200 full CLI O0 screen builds and native executions; not product acceptance",
+  "command": "python3 tools/research/incremental-compilation/slice1_bench.py --baseline /workspace/.zil-env/research/target-slice1-baseline/release/zil --candidate /workspace/.zil-env/research/target-slice1-candidate/release/zil --out /workspace/.zil-env/research/slice1-screen",
+  "exit_code": 0,
+  "archive_files": 639,
+  "archive_sha256": "18935375d569d92062a833369ebf85328e294c580f2d2e76e630a1ce4bcf73ba",
+  "source_sha256": {
+    "crates/zil-backend-llvm/src/machine_cgu.rs": "4dbf5d33a582c2c65159b002aa0540f10079b7b05abd1f1ad68ebcc5100a5085",
+    "crates/zil-driver/tests/object_cache212.rs": "ac1f47bfacb5574dc02a26b4e3ee6455ecc4aef2135be697da55031e602f81b1",
+    "tools/research/incremental-compilation/slice1_bench.py": "3a68b9c37ab0fb6cc153fffb49ba8f4cfb5cc0dd97eb9d28bb96132286019557"
+  },
+  "limitations": [
+    "Wall-only screen on a shared host; CPU/RSS not measured",
+    "Not a Rust comparison or full product gate",
+    "Native stdout and per-build ELF hashes retained; archive excludes object caches and native binaries",
+    "NamedType closure and precise frontend incrementality remain pending"
+  ],
+  "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
+  "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1",
+  "functional_review": "slice1-review.json",
+  "statistical_review": "screen-review.json"
+}

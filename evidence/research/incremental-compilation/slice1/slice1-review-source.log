@@ -1,0 +1,19 @@
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+     Running tests/object_cache212.rs (/workspace/.zil-env/target/debug/deps/object_cache212-8eb14ab05887cf5f)
+
+running 12 tests
+test cache_directory_failure_is_a_visible_bypass_not_a_build_failure ... ok
+test cancellation_after_backend_success_does_not_commit_object_cache ... ok
+test concurrent_requests_share_only_complete_native_objects ... ok
+test cold_warm_private_public_edits_preserve_current_verify_and_output ... ok
+test corrupt_and_truncated_entries_rebuild_without_changed_native_bytes ... ok
+test diagnostic_fingerprint_change_does_not_pollute_machine_keys ... ok
+test linker_failure_discards_pending_objects_and_preserves_previous_output ... ok
+test unsafe_or_invalid_current_source_never_reuses_a_success_capability ... ok
+test current_checked_overflow_still_traps_on_cache_hits ... ok
+test optimization_and_units_invalidate_but_job_count_does_not ... ok
+test unused_foreign_declarations_do_not_invalidate_independent_objects ... ok
+test owned_state_store_and_callbacks_match_on_cold_and_warm_o0_o2 ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.73s
+
