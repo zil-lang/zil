@@ -1,0 +1,1 @@
+pub trait Code{fn code(self:&mut Self)->i32;}

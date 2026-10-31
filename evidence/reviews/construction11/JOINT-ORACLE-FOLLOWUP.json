@@ -1,0 +1,31 @@
+{
+  "status": "StaticPass_OracleNotesResolved_ApiPending",
+  "reviewer": "/root/next_language_slices",
+  "reviewed_commit": "0ba1662c82072476ac4e722c8fc645a921b75eb8",
+  "previous_review": "JOINT-STATIC.json",
+  "previous_test_commit": "e52e192bf396b235f57430900fad7d5196b00f02",
+  "files_sha256": {
+    "crates/zil-driver/tests/construction11_integration.rs": "626d47866a7c34caf2f583dbe1d1cbc49cb210be19de1584ebac4022446303cf",
+    "examples/mainline/construction11/main.zil": "b97c252e9b23fb9f1ca424237b482a81cf7664f2ebac6500a7f77e0aabf232eb"
+  },
+  "resolved_notes": [
+    {
+      "item": "full integer result oracle",
+      "resolution": "source compares the complete i32 value with 14, then returns a boolean 0/1 outcome; no exit-low-byte numeric comparison remains"
+    },
+    {
+      "item": "actual backend oracle",
+      "resolution": "asserts native_codegen.backend matches requested backend, fallback absent, and all nonempty API object receipts have input_kind builder"
+    }
+  ],
+  "unchanged_checks": [
+    "three-module source/trait/impl arrangement",
+    "two shared callback calls then owner move",
+    "exact single A Drop output",
+    "O0/O2 and conditional API/reference coverage",
+    "nearest early-move rejection remains Verify/E-BORROW-CONFLICT, verification_runs=1, no executable"
+  ],
+  "validation_kind": "read-only exact Git source and diff inspection; no new execution claimed",
+  "formal_llvm23": "Pending",
+  "history": "original e52 reference results and initial counter assertion failure remain in prior evidence; this receipt does not relabel them"
+}

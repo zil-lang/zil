@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.22s
+     Running tests/construction11_integration.rs (target/debug/deps/construction11_integration-492b333d8e9669e2)
+
+running 2 tests
+test cross_module_trait_use_keeps_the_product_capture_loan_active ... ok
+test shared_product_callback_calls_trait_library_then_releases_owner ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+

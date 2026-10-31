@@ -1,0 +1,1 @@
+import rules;pub fn read<T>(x:&T)->i32 where T:rules.Read=>x.value()

@@ -1,0 +1,1 @@
+pub trait Send{}pub struct Payload{n:i32}impl Send for Payload{}

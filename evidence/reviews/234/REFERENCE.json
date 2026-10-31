@@ -1,0 +1,46 @@
+{
+  "status": "StaticAndReferencePass_ApiPending",
+  "reviewer": "/root/next_language_slices",
+  "implementation_author": "/root",
+  "implementation_commit": "32f218d419cc162f8f51e5a24a5e2fb24d50e3b0",
+  "author_evidence_head": "47a327b1282b68209ce5327677de6a1fbbeeb209",
+  "review_test_commit": "b7d14fbbd750cda415fad3fb2c25b9cb11c9c972",
+  "static_checks": [
+    "only native/builder.rs integer constant canonicalization changes production; no performance branch merge",
+    "preflight valid signed/unsigned integer ranges and type widths unchanged",
+    "64-bits is one of 63/56/48/32/0; no shifting by 64",
+    "mask computes n modulo 2^bits for every preflight-admitted i128 literal, including unsigned u64 maximum",
+    "global/aggregate/operand constants all use the same value constructor; no ABI/schema/optimization gate change",
+    "object cache namespace includes installed compiler and LLVM library identity plus target and optimization"
+  ],
+  "independent_oracle": {
+    "file": "crates/zil-driver/tests/review234_full_width.rs",
+    "source": "dynamic getchar branch selection; i32/i64 minimum, maximum, -1, -2 and multiple distinct same-low-byte negatives",
+    "expected": "host Rust to_le_bytes for all 4+8 output bytes",
+    "exit": "always zero; never used as numeric oracle",
+    "modes": [
+      "O0",
+      "O2",
+      "cold",
+      "warm"
+    ],
+    "local_native_executions": 28,
+    "local_backend": "Clang17 reference",
+    "api_modes": "test automatically includes LLVM API when feature enabled; cold actual builder and warm object-cache hits asserted"
+  },
+  "reference_tests": {
+    "passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "independent_tests": 1,
+    "author_tests_reproduced": 2,
+    "log": "reference-final.log"
+  },
+  "initial_fixture_failure": {
+    "log": "reference-attempt-1.log",
+    "cause": "review-only source used unsupported i64 literal suffix; replaced with expected-return-type-directed literals; no production change"
+  },
+  "review_boundary": "LLVM23 native API tests not executable locally; final Pass requires exact candidate CI including builder210 and review234",
+  "formal_api": "Pending",
+  "rust_goals": "this is a finite correctness repair, not a full language safety or compilation/runtime performance claim"
+}

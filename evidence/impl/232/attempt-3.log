@@ -1,0 +1,127 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.34s
+     Running tests/impl232_readonly_product_capture.rs (target/debug/deps/impl232_readonly_product_capture-a50a52c4bbb60982)
+
+running 10 tests
+
+thread 'explicit_move_keeps_owning_repeatable_environment' (31) panicked at crates/zil-driver/tests/impl232_readonly_product_capture.rs:25:54:
+extern "C" fn putchar(code: i32) -> i32;
+resource Ticket { code: i32 }
+impl Drop for Ticket { fn drop(self: Self) { unsafe { putchar(.code) } } }
+package Leaf { manages ticket: Ticket; value: i32 }
+package Item { child: Leaf; tag: i32 }
+fn main() -> i32 {
+    let item = Item { child: Leaf { ticket: Ticket { code: 65 }, value: 7 }, tag: 3 }
+    let callback = move () => { return item.child.value + item.tag }
+    let value = callback() + callback()
+    return value - 20
+}
+
+[
+    Diagnostic {
+        phase: Types,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "package field transfer or assignment requires a named local shell",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 381,
+                end: 397,
+            },
+        ),
+        notes: [],
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'nested_real_ownership_use_is_not_hidden_by_outer_reads' (35) panicked at crates/zil-driver/tests/impl232_readonly_product_capture.rs:25:54:
+extern "C" fn putchar(code: i32) -> i32;
+resource Ticket { code: i32 }
+impl Drop for Ticket { fn drop(self: Self) { unsafe { putchar(.code) } } }
+package Leaf { manages ticket: Ticket; value: i32 }
+package Item { child: Leaf; tag: i32 }
+fn main() -> i32 {
+    let item = Item { child: Leaf { ticket: Ticket { code: 65 }, value: 7 }, tag: 3 }
+    let callback = () => { let before = item.child.value + item.tag; let inner = () => { let taken = item.child; return taken.value }; return before + inner() }
+    let value = callback()
+    return value - 17
+}
+
+[
+    Diagnostic {
+        phase: Types,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "package field transfer or assignment requires a named local shell",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 382,
+                end: 398,
+            },
+        ),
+        notes: [],
+    },
+]
+
+thread 'mutable_product_capture_and_unknown_incoming_roots_remain_closed' (34) panicked at crates/zil-driver/tests/impl232_readonly_product_capture.rs:150:72:
+called `Result::unwrap_err()` on an `Ok` value: CandidatePlan { schema_version: 27, module_fingerprint: Fingerprint([206, 35, 123, 119, 25, 134, 244, 192, 226, 127, 215, 23, 134, 161, 184, 75, 106, 21, 60, 61, 86, 120, 135, 163, 245, 10, 145, 252, 198, 132, 214, 107]), target_fingerprint: Fingerprint([205, 49, 11, 211, 61, 158, 160, 206, 0, 177, 155, 124, 142, 36, 127, 255, 149, 121, 131, 121, 165, 196, 116, 61, 206, 130, 190, 234, 40, 5, 28, 15]), functions: [FunctionPlan { function: FunctionId(0), blocks: [], holds: [] }, FunctionPlan { function: FunctionId(1), blocks: [BlockPlan { block: BlockId(0), initialized_in: [LocalId(0)], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [] }, ValueHold { value: ValueId(1), roots: [] }, ValueHold { value: ValueId(2), roots: [] }] }, FunctionPlan { function: FunctionId(2), blocks: [BlockPlan { block: BlockId(0), initialized_in: [LocalId(0)], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [Local(LocalId(0))] }, ValueHold { value: ValueId(1), roots: [Local(LocalId(0))] }, ValueHold { value: ValueId(2), roots: [Local(LocalId(0))] }, ValueHold { value: ValueId(3), roots: [Local(LocalId(0))] }, ValueHold { value: ValueId(4), roots: [] }] }, FunctionPlan { function: FunctionId(3), blocks: [BlockPlan { block: BlockId(0), initialized_in: [], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [] }, ValueHold { value: ValueId(1), roots: [] }, ValueHold { value: ValueId(2), roots: [] }, ValueHold { value: ValueId(3), roots: [] }, ValueHold { value: ValueId(4), roots: [] }, ValueHold { value: ValueId(5), roots: [] }, ValueHold { value: ValueId(6), roots: [] }, ValueHold { value: ValueId(7), roots: [] }, ValueHold { value: ValueId(8), roots: [] }, ValueHold { value: ValueId(9), roots: [] }, ValueHold { value: ValueId(10), roots: [] }, ValueHold { value: ValueId(11), roots: [] }, ValueHold { value: ValueId(12), roots: [] }, ValueHold { value: ValueId(13), roots: [Local(LocalId(7))] }, ValueHold { value: ValueId(14), roots: [Local(LocalId(7))] }, ValueHold { value: ValueId(15), roots: [Local(LocalId(7))] }, ValueHold { value: ValueId(16), roots: [Local(LocalId(7))] }, ValueHold { value: ValueId(17), roots: [] }, ValueHold { value: ValueId(18), roots: [Local(LocalId(7))] }, ValueHold { value: ValueId(19), roots: [] }, ValueHold { value: ValueId(20), roots: [] }, ValueHold { value: ValueId(21), roots: [] }, ValueHold { value: ValueId(22), roots: [] }, ValueHold { value: ValueId(23), roots: [] }, ValueHold { value: ValueId(24), roots: [] }] }, FunctionPlan { function: FunctionId(4), blocks: [BlockPlan { block: BlockId(0), initialized_in: [], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [Capture(0)] }, ValueHold { value: ValueId(1), roots: [Capture(0)] }, ValueHold { value: ValueId(2), roots: [Capture(0)] }, ValueHold { value: ValueId(3), roots: [Capture(0)] }, ValueHold { value: ValueId(4), roots: [] }] }, FunctionPlan { function: FunctionId(5), blocks: [BlockPlan { block: BlockId(0), initialized_in: [], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [Capture(0)] }, ValueHold { value: ValueId(1), roots: [Capture(0)] }, ValueHold { value: ValueId(2), roots: [Capture(0)] }, ValueHold { value: ValueId(3), roots: [Capture(0)] }, ValueHold { value: ValueId(4), roots: [Capture(0)] }, ValueHold { value: ValueId(5), roots: [] }, ValueHold { value: ValueId(6), roots: [Capture(0)] }, ValueHold { value: ValueId(7), roots: [Capture(0)] }, ValueHold { value: ValueId(8), roots: [Capture(0)] }, ValueHold { value: ValueId(9), roots: [] }, ValueHold { value: ValueId(10), roots: [] }] }], origins: [], responsibilities: [], unsupported: [] }
+test explicit_move_keeps_owning_repeatable_environment ... FAILED
+test nested_real_ownership_use_is_not_hidden_by_outer_reads ... FAILED
+test mutable_product_capture_and_unknown_incoming_roots_remain_closed ... FAILED
+
+thread 'read_then_real_child_take_infers_owning_fnonce' (37) panicked at crates/zil-driver/tests/impl232_readonly_product_capture.rs:25:54:
+extern "C" fn putchar(code: i32) -> i32;
+resource Ticket { code: i32 }
+impl Drop for Ticket { fn drop(self: Self) { unsafe { putchar(.code) } } }
+package Leaf { manages ticket: Ticket; value: i32 }
+package Item { child: Leaf; tag: i32 }
+fn main() -> i32 {
+    let item = Item { child: Leaf { ticket: Ticket { code: 65 }, value: 7 }, tag: 3 }
+    let callback = () => { let before = item.child.value; let taken = item.child; return before + taken.value + item.tag }
+    let value = callback()
+    return value - 17
+}
+
+[
+    Diagnostic {
+        phase: Types,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "package field transfer or assignment requires a named local shell",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 382,
+                end: 398,
+            },
+        ),
+        notes: [],
+    },
+]
+test read_then_real_child_take_infers_owning_fnonce ... FAILED
+test live_shared_capture_rejects_owner_move_and_child_replacement ... ok
+test raw_store_window_cannot_replace_ordinary_default_capture ... ok
+test default_flat_product_read_is_a_repeatable_borrow ... ok
+test default_recursive_product_read_is_a_repeatable_borrow ... ok
+test identical_product_types_keep_distinct_capture_roots ... ok
+test shared_resource_head_and_explicit_local_reborrow_do_not_take_children ... ok
+
+failures:
+
+failures:
+    explicit_move_keeps_owning_repeatable_environment
+    mutable_product_capture_and_unknown_incoming_roots_remain_closed
+    nested_real_ownership_use_is_not_hidden_by_outer_reads
+    read_then_real_child_take_infers_owning_fnonce
+
+test result: FAILED. 6 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+
+error: test failed, to rerun pass `-p zil-driver --test impl232_readonly_product_capture`
