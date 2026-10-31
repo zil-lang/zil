@@ -1,0 +1,54 @@
+{
+  "implementation_commit": "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+  "commands": [
+    {
+      "name": "impl228",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl228_generation",
+        "--",
+        "--test-threads=2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.2834970951080322
+    },
+    {
+      "name": "affected",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl219_budget",
+        "--test",
+        "impl219_ct_boundary",
+        "--test",
+        "impl219_selection",
+        "--test",
+        "impl222_review_regressions",
+        "--test",
+        "impl222_generation",
+        "--",
+        "--test-threads=2",
+        "--skip",
+        "generation_boundaries_and_runtime_shadowing_fail_closed"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.758087635040283
+    }
+  ],
+  "scope": "author limited; impl222 generated-type expected migration belongs to root"
+}

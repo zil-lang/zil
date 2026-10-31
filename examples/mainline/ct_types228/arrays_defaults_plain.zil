@@ -1,0 +1,9 @@
+type Payload1 = [i32; 1]
+type Payload2 = [i32; 2]
+struct Frame1 { data: Payload1, tag: i32 = 1 }
+struct Frame2 { data: Payload2, tag: i32 = 2 }
+fn score1(value: Frame1) -> i32 => value.data[0] + value.tag
+fn score2(value: Frame2) -> i32 => value.data[0] + value.tag
+pub fn first() -> i32 => score1(Frame1 { data: [10] })
+pub fn second() -> i32 => score2(Frame2 { data: [20, 30] })
+fn main() -> i32 => first() + second() - 33

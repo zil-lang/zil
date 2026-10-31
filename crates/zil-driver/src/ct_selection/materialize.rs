@@ -97,11 +97,20 @@ impl Materializer<'_, '_> {
             }
             s::ItemKind::Aggregate(a) => {
                 for field in &mut a.fields {
+                    if !self.iterations.is_empty() {
+                        self.generation_type(&mut field.ty, depth + 1)?;
+                        self.generation_attributes(&mut field.attributes, depth + 1)?;
+                    }
                     if let Some(value) = &mut field.default {
                         self.expression(value, depth + 1)?;
                     }
                 }
                 self.items(&mut a.methods, depth + 1, false)?;
+            }
+            s::ItemKind::TypeAlias(alias) if !self.iterations.is_empty() => {
+                if let Some(value) = &mut alias.value {
+                    self.generation_type(value, depth + 1)?;
+                }
             }
             s::ItemKind::Enum(e) => {
                 for variant in &mut e.variants {

@@ -8,6 +8,13 @@ pub(super) struct Normalized {
     pub(super) pattern_types: BTreeMap<String, TypeRef>,
 }
 
+pub(super) fn reserved_declaration_name(name: &str) -> bool {
+    matches!(
+        name,
+        "u8" | "u16" | "i32" | "i64" | "bool" | "void" | "c_handle" | "c_wstr"
+    )
+}
+
 pub(super) fn normalize(module: &Module, limits: &Limits) -> R<Option<Normalized>> {
     if !module
         .items
@@ -31,10 +38,7 @@ pub(super) fn normalize(module: &Module, limits: &Limits) -> R<Option<Normalized
         };
         if let Some(name) = declaration
             && (!names.insert(name)
-                || matches!(
-                    name,
-                    "u8" | "u16" | "i32" | "i64" | "bool" | "void" | "c_handle" | "c_wstr"
-                ))
+                || reserved_declaration_name(name))
         {
             return Err(Diagnostic::error(
                 Phase::Expand,
