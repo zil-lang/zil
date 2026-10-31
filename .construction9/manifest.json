@@ -1,172 +1,271 @@
 {
-  "bundle_sha256": "6c15db812d6d7e5debe61d28b28787bd2272a5c37f836e55727979a38b7c9e6b",
-  "bundle_size": 10505682,
+  "schema_version": 2,
+  "bundle_sha256": "8c81e007f31d5323e1b065e32357b7158c492621f2bcdba619cf9a1f8dc546a8",
+  "bundle_size": 22329041,
   "targets": [
     {
-      "branch": "task/228",
-      "sha": "1082b50ec3221ccf0550255fb1a6675500266055"
-    },
-    {
-      "branch": "task/229",
-      "sha": "026ea29beb8d83c382ad04bd417606679769afa3"
-    },
-    {
-      "branch": "task/228-consumer",
-      "sha": "2890f226fdc2328248b341de4cdcaeb49871b0a0"
-    },
-    {
       "branch": "task/228-229",
-      "sha": "faf7c8e2c713d81cedaf2b2a74a738045f093cd0"
+      "sha": "aaeb67f12b5638677332132e28df86fa23cde3d8"
     }
   ],
   "bundle_files": [
     {
-      "path": ".construction9/bundle-parts/part-000.bin",
-      "size": 524288,
-      "sha256": "cd1e827b2ccf80e020588a8bb628bbf8d55eb75d280617fbea55958bec3365f4",
+      "path": ".construction9/closeout-parts/part-000.bin",
       "encoding": "raw",
-      "git_blob_sha": "f14becace0dcbe44b4c25eedc31c5856bf54f66b"
+      "size": 524288,
+      "sha256": "1497d2fad9e0992314ea2ecacec82e001db9e40623e2808604b073bb80b5a8d3"
     },
     {
-      "path": ".construction9/bundle-parts/part-001.bin",
-      "size": 524288,
-      "sha256": "f69da89f5c2ccc19c511134aeb723b9b57be8bde8fbffa994f3d8bfb45e4de61",
+      "path": ".construction9/closeout-parts/part-001.bin",
       "encoding": "raw",
-      "git_blob_sha": "a580e7801eed34662dfd732165dcf21696d2aa08"
+      "size": 524288,
+      "sha256": "407d81a63664cef6ee59d4465cc2f22b89a889d82a1aa70d3e8a66ca715613db"
     },
     {
-      "path": ".construction9/bundle-parts/part-002.bin",
-      "size": 524288,
-      "sha256": "3f0cdb0cfeb1927a848dff6882f510c99183395c5c6fd75a6cb72f9a08383c94",
+      "path": ".construction9/closeout-parts/part-002.bin",
       "encoding": "raw",
-      "git_blob_sha": "2a5c4eed7b9a1087d5ac47d6a08eba8914fe1a23"
+      "size": 524288,
+      "sha256": "104af06fac332e652f15d11b3fc2734490402774deae791e3bc5d9ea0008bf21"
     },
     {
-      "path": ".construction9/bundle-parts/part-003.bin",
-      "size": 524288,
-      "sha256": "6dddadf840c798693f8b5790f56ebeb43bd7874529c744822e7cfff376a76f8f",
+      "path": ".construction9/closeout-parts/part-003.bin",
       "encoding": "raw",
-      "git_blob_sha": "817abeeacaa01f6345eda3c39763ed8263d814e2"
+      "size": 524288,
+      "sha256": "6de545782dda1324386b4078f07aea7fd293700aa05b2117ae5ff8f116ae4792"
     },
     {
-      "path": ".construction9/bundle-parts/part-004.bin",
-      "size": 524288,
-      "sha256": "22755ed678b18b2bfd2a10f6b557b5f4ea1e9488ae42c8f03e6ea8a583bebe76",
+      "path": ".construction9/closeout-parts/part-004.bin",
       "encoding": "raw",
-      "git_blob_sha": "a615e5687f9c4d23b848a98dbb206dd073378bb8"
+      "size": 524288,
+      "sha256": "d08c417d220ad7a600236feccde1a0006e6af38e73164b940a5df0b01913ec85"
     },
     {
-      "path": ".construction9/bundle-parts/part-005.bin",
-      "size": 524288,
-      "sha256": "e565b12ab1c25c7fde695b9cf7211345ac012bfd926ffb194eba9025173fb3db",
+      "path": ".construction9/closeout-parts/part-005.bin",
       "encoding": "raw",
-      "git_blob_sha": "a3a2da608cd75bf01d9d5387e3ce9a6e174aed25"
+      "size": 524288,
+      "sha256": "4c92a199f7d82db6016c9f383acfad077e11f5a17e192d3b8c2c87e091647658"
     },
     {
-      "path": ".construction9/bundle-parts/part-006.bin",
-      "size": 524288,
-      "sha256": "cfd469352f05154a3665d67855cd2c9f9b03aecd57be5a074dff5218ef3f50f9",
+      "path": ".construction9/closeout-parts/part-006.bin",
       "encoding": "raw",
-      "git_blob_sha": "4dc6b0fe43db2d58bd4104c2a4172d497af9f0cb"
+      "size": 524288,
+      "sha256": "cbcc31eefb24081f80e461fdb26dd71414d760a810e588aa079c4e4e9a214cc0"
     },
     {
-      "path": ".construction9/bundle-parts/part-007.bin",
-      "size": 524288,
-      "sha256": "5a272bf5a30c6d288fb31702711b1671d1206a8ebf9713148c83d397ef1ca67d",
+      "path": ".construction9/closeout-parts/part-007.bin",
       "encoding": "raw",
-      "git_blob_sha": "50c636d7e1d1f61411eeeb58895cb397876e52ec"
+      "size": 524288,
+      "sha256": "1c684a3c111699acc9636ea01aa5ab28a2ff694f555673c20dc516e6acb7cb22"
     },
     {
-      "path": ".construction9/bundle-parts/part-008.bin",
-      "size": 524288,
-      "sha256": "0f01c2af4be1948bec5eace86a4ce562c514ae0a9ace81d3f6873b16fc438d97",
+      "path": ".construction9/closeout-parts/part-008.bin",
       "encoding": "raw",
-      "git_blob_sha": "817ec8120c06f7ead8857241fb05f5c3c4993e25"
+      "size": 524288,
+      "sha256": "23ddc3234d86f88b62686a11f098a66bedb4692c6c6780eb631a52d167125b44"
     },
     {
-      "path": ".construction9/bundle-parts/part-009.bin",
-      "size": 524288,
-      "sha256": "3229551f5a169023d71df1b096777b518aa0fdf1b49690ebacea0d530dd766a3",
+      "path": ".construction9/closeout-parts/part-009.bin",
       "encoding": "raw",
-      "git_blob_sha": "101a784d927f00746c65244ee81b816a98452742"
+      "size": 524288,
+      "sha256": "dafe27f845d8d4d18047dbfdb4736121c2213bca4c711b3b5d3037d55cc7d7df"
     },
     {
-      "path": ".construction9/bundle-parts/part-010.bin",
-      "size": 524288,
-      "sha256": "0824d3dc24c4b02f531307112e262379147bec67d8ff8fdeea9e8110fe0ee6ae",
+      "path": ".construction9/closeout-parts/part-010.bin",
       "encoding": "raw",
-      "git_blob_sha": "23a198e25a24de417bee6a1bcb55b9fe11cc3df7"
+      "size": 524288,
+      "sha256": "1ca41cb49e236812d9c027c5e15160eb668af340b8ddd44332b29421f41437aa"
     },
     {
-      "path": ".construction9/bundle-parts/part-011.bin",
-      "size": 524288,
-      "sha256": "dd39029386965e5653c4ef17c43aa4563c2c38677e257b44d3a931c33b1f4d0f",
+      "path": ".construction9/closeout-parts/part-011.bin",
       "encoding": "raw",
-      "git_blob_sha": "9335a6dd967522419e7d1e7cdb8c8fda8963e68d"
+      "size": 524288,
+      "sha256": "25f9ae3717899c36bd1123dc7523fc0cbe0804aaced1200260beba3c4cafa9ec"
     },
     {
-      "path": ".construction9/bundle-parts/part-012.bin",
-      "size": 524288,
-      "sha256": "efe47c624ef8cd0110afa9b07edac715bbccfc19bccdab86f2cf820b92863921",
+      "path": ".construction9/closeout-parts/part-012.bin",
       "encoding": "raw",
-      "git_blob_sha": "2ecefa8f297e6ff05db5791a7a3045c7600670a0"
+      "size": 524288,
+      "sha256": "9d3fc949417b7ff9fb5b4d9df1d83c7595760965cfe93483005c03d550aefd08"
     },
     {
-      "path": ".construction9/bundle-parts/part-013.bin",
-      "size": 524288,
-      "sha256": "da7ebad33275201465a045ad2e69fc10a8ea6a19bf26dd7ac5db15a179d7faa7",
+      "path": ".construction9/closeout-parts/part-013.bin",
       "encoding": "raw",
-      "git_blob_sha": "832abe276b893a9cf84c8f4be6ab5205bb9bf414"
+      "size": 524288,
+      "sha256": "631e728c7a0cedc40e6cad8d776b1414a26b6a35ee6fae3372526126abb30dac"
     },
     {
-      "path": ".construction9/bundle-parts/part-014.bin",
-      "size": 524288,
-      "sha256": "8dd3e5bb7a0cb8970d04e05047c8f44c7e5a412d9884b6f873358adc1b733a8b",
+      "path": ".construction9/closeout-parts/part-014.bin",
       "encoding": "raw",
-      "git_blob_sha": "b3fc5f87aafb0b74be6b36b13e7f03b81241cfb8"
+      "size": 524288,
+      "sha256": "0836f39dad3024368ff35edc1e462cb85780e4037f812a3909ae3cfefe58ac84"
     },
     {
-      "path": ".construction9/bundle-parts/part-015.bin",
-      "size": 524288,
-      "sha256": "1819d07075c27b4f3c84b38483a892e9f8584a726a532f5be91f1394936ea202",
+      "path": ".construction9/closeout-parts/part-015.bin",
       "encoding": "raw",
-      "git_blob_sha": "25bb04aa3d71106187a621856fd272bb575a069f"
+      "size": 524288,
+      "sha256": "d222755207d65a7b6f2280c1a92d1bccea27a506b7354f5305b9a0b5f58c9be9"
     },
     {
-      "path": ".construction9/bundle-parts/part-016.bin",
-      "size": 524288,
-      "sha256": "f7238bc285e0035f2f3d49305f7462b5225d9b544f00b4c24fe1d6c4a2837386",
+      "path": ".construction9/closeout-parts/part-016.bin",
       "encoding": "raw",
-      "git_blob_sha": "183f78e66dbd34e0041122724b5615bf1275dbca"
+      "size": 524288,
+      "sha256": "d2cead32b4d5b88b0a2cf7d1cbd9a48fa0c028f294d65c24636ddf0f9b44dd04"
     },
     {
-      "path": ".construction9/bundle-parts/part-017.bin",
-      "size": 524288,
-      "sha256": "9744055c5268b9847af6298a8e1a3e3bfda0ac28708d98780da958b31acc1ab0",
+      "path": ".construction9/closeout-parts/part-017.bin",
       "encoding": "raw",
-      "git_blob_sha": "63805a500afa712414cb81483f62a8e14096bb14"
+      "size": 524288,
+      "sha256": "bb8fd2b19e58652342bad0e2c411fa43ea6628868c1887b109a3c1c0cce30bd2"
     },
     {
-      "path": ".construction9/bundle-parts/part-018.bin",
-      "size": 524288,
-      "sha256": "8c20e618a4271a4debda5aa675a74b4270ae12bd6559bedf256d30f754d3dffe",
+      "path": ".construction9/closeout-parts/part-018.bin",
       "encoding": "raw",
-      "git_blob_sha": "a1e46385d49893d3ae792dc02ad6758be5bd6dbe"
+      "size": 524288,
+      "sha256": "2bcfddb2425f6b545520f6b89ad962ee87f6781e2a15233c955a2efd86006e02"
     },
     {
-      "path": ".construction9/bundle-parts/part-019.bin",
-      "size": 524288,
-      "sha256": "37f4e3477772545704e8a3f1d10cb5e03b1a7e849875098da70015959456bf3e",
+      "path": ".construction9/closeout-parts/part-019.bin",
       "encoding": "raw",
-      "git_blob_sha": "44498cd8f252ce9c1e62c5ee93ff88e8242f9205"
+      "size": 524288,
+      "sha256": "da17b106f50ff03b44c7ee2637a8acd3fd4e17aa58d9770ea12c7a3d4bcee7e3"
     },
     {
-      "path": ".construction9/bundle-parts/part-020.bin",
-      "size": 19922,
-      "sha256": "7075a2152bff02d5057753f740e6b00674dde224789d3b0a66c90e678fa0b4ef",
+      "path": ".construction9/closeout-parts/part-020.bin",
       "encoding": "raw",
-      "git_blob_sha": "213c02a5fd21f6a1de709523ec1fde468b7fbfc4"
+      "size": 524288,
+      "sha256": "9ef3b060baabba098d37d5c1a514f0575e0021869b78eee4b47080585e2d8dd6"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-021.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "cd596d960abd09d70bfd2149ded80eae560945d1a10d064d5aae557cd5b35f64"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-022.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "d2a71edd0299cbb451f442256aa3690f8dfccb65b174ff6ba3ae7375246c5830"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-023.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "a44c272a7b4f757c2e60ff7ffa9d68f209d905062c71e7b1101d40e2eb25f38c"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-024.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "76988945de29ccaaddee322a2bae3c686303963b8f259759aa656a5e5c55f0b1"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-025.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "2c2c40107f8800e17cd9ea894dc87d9d047d48acdf925c53925be87657e22330"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-026.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "ce1c6a004c282921ac1c9592d3df83b43884298e2f26b72a300861e465db4685"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-027.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "cdcae52d0e52c0833e51f74c7ffde8ab628cbf1832bcf36b7c4182041f9adc24"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-028.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "fded50d96b478c3d9e4c766f94284186e58b126d55ffef6c7a902acbb7262601"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-029.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "5b9c2db6bb0292825d3a2fe56de8a85e5f2949321ae94adafc78c67fcb4a6b06"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-030.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "446754ad04acb85db9b752121988c91434289823230e8bc07aaab2788016f66b"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-031.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "308a7701202d161aa8d8fa4a78ac2f4e87d4f1f72a55c486c06850b918ee0ae8"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-032.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "d12c5346444fb58cff2ee6e66e0a3566622ef1a78731f2b2e4d11e2a032e7d6b"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-033.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "434d469d5f1853b0c486ccfd2cb0e2e1c31c10cd3cf0c488b93beee621aef75a"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-034.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "6c61329e5dfbeeeca1a6aceeed6be56ea666d4e68233056f30d587def6abb965"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-035.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "7c6a73674a81fd09cb0c4cf371dd7621b43103a09b0f3ba1c277a03bd2f54a94"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-036.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "4cd9e3c49be687482cd44daab490518f115275af89da311537009aa3b5b4f44e"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-037.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "c9b75da805730f11902726eab7202eb82a706d6d431dc54c6b5b961151852ab2"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-038.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "aff44cdf6d8b42e4307e7435838d7aef3a1e0d9bf480d5f53aa220d0fe28c6a1"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-039.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "f1cbefb4e6f540dcfa46f6ab358b19107366c80cd2f02ba0b553b05efbd94a7e"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-040.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "c7fc8d35d181394dcdddada8c28f979526d4c44ebe3f7cb0d772653bd4fc2bce"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-041.bin",
+      "encoding": "raw",
+      "size": 524288,
+      "sha256": "d1559e5c501ee3ab91b1c7d5577c80739e2452cf4868848012047f3dc866e477"
+    },
+    {
+      "path": ".construction9/closeout-parts/part-042.bin",
+      "encoding": "raw",
+      "size": 308945,
+      "sha256": "abcee04eed527e20a873b887696ed4340cb2cbdf00ca48738c55ed6db84f1847"
     }
-  ],
-  "schema_version": 2
+  ]
 }
