@@ -1,0 +1,1 @@
+import implementation;fn main()->i32=>0

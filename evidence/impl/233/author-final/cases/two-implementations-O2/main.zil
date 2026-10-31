@@ -1,0 +1,1 @@
+import rules;import data;import other;import helpers;fn main()->i32{let a=data.make(17);let b=other.make(24);return helpers.read(&a)+helpers.read(&b)-42}

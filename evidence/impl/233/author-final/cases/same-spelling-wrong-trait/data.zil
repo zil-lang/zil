@@ -1,0 +1,1 @@
+pub trait Code{fn code(self:&Self)->i32;}pub struct Payload{n:i32}impl Code for Payload{fn code()->i32=>.n}pub fn make()->Payload=>Payload{n:13}
