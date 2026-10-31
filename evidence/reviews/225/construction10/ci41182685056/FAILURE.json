@@ -1,0 +1,57 @@
+{
+  "run_id": 41182685056,
+  "job_id": 124483160069,
+  "checkout": "015cb5d4e6c7794de616e0a933520cd3dfa886f7",
+  "ci_candidate": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+  "implementation_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+  "original_test_commit": "7877b92e47b43bf9a1118f27796282ccc9346495",
+  "original_test_blob": "9479b3e5a914b4ce75b2b84ac05447d08896696b",
+  "review_suite": {
+    "passed": 6,
+    "failed": 2,
+    "ignored": 0
+  },
+  "failures": [
+    {
+      "test": "one_environment_keeps_owned_store_and_shared_product_responsibilities_separate",
+      "stage": "Analyze inside positive control",
+      "actual": "Unsupported/E-UNSUPPORTED: callback State requires a self-contained environment with supported owned captures",
+      "native_attempts_from_this_test": 0
+    },
+    {
+      "test": "raw_one_branch_store_injection_cannot_reuse_ordinary_origin_plan",
+      "stage": "test injection locator",
+      "actual": "changed=0, expected=1; attack verification was not reached",
+      "analyze_raw_wire_attack_executions_from_this_test": 0
+    }
+  ],
+  "files": [
+    {
+      "path": "original-review225226_capture.rs",
+      "sha256": "29b217864f1103683cbffb3b2b383604ec00283dce21feba2e06c11369387a13",
+      "bytes": 13437
+    },
+    {
+      "path": "workspace.log",
+      "sha256": "2b5844d01a6c4559e931a29e410ae560851de1495c34b03ef324f21c42eaf93b",
+      "bytes": 311612
+    },
+    {
+      "path": "mixed-original.zil",
+      "sha256": "32c69b4e3b42efb0b12d3116b36b8916b5b8fe5e787d664f6f4e7b88fef007f0",
+      "bytes": 631
+    },
+    {
+      "path": "raw-branch-control-original.zil",
+      "sha256": "945bea3bc4f439337b5da68d48cb4928738f5e9d61ab9c81f4138c8bcb874d6e",
+      "bytes": 689
+    },
+    {
+      "path": "raw-branch-control-original.wire",
+      "sha256": "41f8d62ab185b635af7a40a4300f0f2c953fab2bae832721a18e6d4cf5711a1d",
+      "bytes": 14587
+    }
+  ],
+  "verdict": "Fail",
+  "native_receipts_independent_inspection": "Pending shared artifact delivery; no final native evidence claim"
+}

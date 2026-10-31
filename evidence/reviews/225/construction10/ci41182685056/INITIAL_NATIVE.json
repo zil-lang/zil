@@ -1,0 +1,265 @@
+{
+  "scope": "Partial evidence only; first suite remains Fail",
+  "run_id": 41182685056,
+  "review_test_blob": "9479b3e5a914b4ce75b2b84ac05447d08896696b",
+  "actual_native_receipts": 8,
+  "rows": [
+    {
+      "case": "replace",
+      "pipeline": "default<O0>",
+      "backend": "llvm-api",
+      "llvm_version": "23.1.4",
+      "fallback": null,
+      "stdout": "AB",
+      "stderr_bytes": 0,
+      "exit_zero_basis": "Exact original helper asserts status.code()==Some(0), and the named Rust test passed in preserved workspace.log",
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-replace-35248-13/source.zil",
+          "sha256": "04ccbf074849f58a54e3bbfbf63c7aa4c83a63ac9f5ddaadc3887064dd203aee",
+          "bytes": 422
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-replace-35248-13/compile.json",
+          "sha256": "6b1c43650dcf316f796602012cea88ebc2507c5bd72c926c8e70fc095b808490",
+          "bytes": 2881
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-replace-35248-13/stdout",
+          "sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153",
+          "bytes": 2
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-replace-35248-13/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "case": "replace",
+      "pipeline": "default<O2>",
+      "backend": "llvm-api",
+      "llvm_version": "23.1.4",
+      "fallback": null,
+      "stdout": "AB",
+      "stderr_bytes": 0,
+      "exit_zero_basis": "Exact original helper asserts status.code()==Some(0), and the named Rust test passed in preserved workspace.log",
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-replace-35248-15/source.zil",
+          "sha256": "04ccbf074849f58a54e3bbfbf63c7aa4c83a63ac9f5ddaadc3887064dd203aee",
+          "bytes": 422
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-replace-35248-15/compile.json",
+          "sha256": "f9caa7902f0531da65e04ab9512d2b3e5888464f56e6399cbf097e3f8f9aa6cc",
+          "bytes": 2882
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-replace-35248-15/stdout",
+          "sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153",
+          "bytes": 2
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-replace-35248-15/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "case": "take",
+      "pipeline": "default<O2>",
+      "backend": "llvm-api",
+      "llvm_version": "23.1.4",
+      "fallback": null,
+      "stdout": "A",
+      "stderr_bytes": 0,
+      "exit_zero_basis": "Exact original helper asserts status.code()==Some(0), and the named Rust test passed in preserved workspace.log",
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-take-35248-10/source.zil",
+          "sha256": "f48dbb0ef7ef978b0ae1127384baab43f54fa1130c132dcfef1ffef48d382ff2",
+          "bytes": 395
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-take-35248-10/compile.json",
+          "sha256": "88b106f31a77ca777ebe73b5c6ce5735a625bc2c2f705a8b613c43985bde81b6",
+          "bytes": 2846
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-take-35248-10/stdout",
+          "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+          "bytes": 1
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-take-35248-10/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "case": "take",
+      "pipeline": "default<O0>",
+      "backend": "llvm-api",
+      "llvm_version": "23.1.4",
+      "fallback": null,
+      "stdout": "A",
+      "stderr_bytes": 0,
+      "exit_zero_basis": "Exact original helper asserts status.code()==Some(0), and the named Rust test passed in preserved workspace.log",
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-take-35248-3/source.zil",
+          "sha256": "f48dbb0ef7ef978b0ae1127384baab43f54fa1130c132dcfef1ffef48d382ff2",
+          "bytes": 395
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-take-35248-3/compile.json",
+          "sha256": "593d7916b26dc27ec461caafda3b5282b54e7bd96b4365563d884d11f130418e",
+          "bytes": 2835
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-take-35248-3/stdout",
+          "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+          "bytes": 1
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-take-35248-3/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "case": "two-nonempty",
+      "pipeline": "default<O0>",
+      "backend": "llvm-api",
+      "llvm_version": "23.1.4",
+      "fallback": null,
+      "stdout": "AB",
+      "stderr_bytes": 0,
+      "exit_zero_basis": "Exact original helper asserts status.code()==Some(0), and the named Rust test passed in preserved workspace.log",
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-two-nonempty-35248-11/source.zil",
+          "sha256": "fc2d2cd29ef87069642041fcfcf88278238b5129e6351d11bf4f5551f412d1d5",
+          "bytes": 696
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-two-nonempty-35248-11/compile.json",
+          "sha256": "3ca22f78c9c33b942c56f04b2b5860ecf4664095d4b97a06afc2fcc221127fa7",
+          "bytes": 2942
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-two-nonempty-35248-11/stdout",
+          "sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153",
+          "bytes": 2
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-two-nonempty-35248-11/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "case": "two-nonempty",
+      "pipeline": "default<O2>",
+      "backend": "llvm-api",
+      "llvm_version": "23.1.4",
+      "fallback": null,
+      "stdout": "AB",
+      "stderr_bytes": 0,
+      "exit_zero_basis": "Exact original helper asserts status.code()==Some(0), and the named Rust test passed in preserved workspace.log",
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-two-nonempty-35248-14/source.zil",
+          "sha256": "fc2d2cd29ef87069642041fcfcf88278238b5129e6351d11bf4f5551f412d1d5",
+          "bytes": 696
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-two-nonempty-35248-14/compile.json",
+          "sha256": "7d466f9571c6b7915da2b9d17ca0bb8c57ec48b2d539d8dfb9889743d03a1893",
+          "bytes": 2945
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-two-nonempty-35248-14/stdout",
+          "sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153",
+          "bytes": 2
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-two-nonempty-35248-14/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "case": "zero-storage-shared",
+      "pipeline": "default<O0>",
+      "backend": "llvm-api",
+      "llvm_version": "23.1.4",
+      "fallback": null,
+      "stdout": "",
+      "stderr_bytes": 0,
+      "exit_zero_basis": "Exact original helper asserts status.code()==Some(0), and the named Rust test passed in preserved workspace.log",
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-zero-storage-shared-35248-17/source.zil",
+          "sha256": "60f6f3b8bcfc013858c9d00632cf1d145d01e319efdd1d7c2e61997d7f7b6563",
+          "bytes": 252
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-zero-storage-shared-35248-17/compile.json",
+          "sha256": "d944d6ae1ec030e70787f5fa3833e07d6dc332b6b790e0f7a94c2382818385b5",
+          "bytes": 3024
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-zero-storage-shared-35248-17/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-zero-storage-shared-35248-17/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "case": "zero-storage-shared",
+      "pipeline": "default<O2>",
+      "backend": "llvm-api",
+      "llvm_version": "23.1.4",
+      "fallback": null,
+      "stdout": "",
+      "stderr_bytes": 0,
+      "exit_zero_basis": "Exact original helper asserts status.code()==Some(0), and the named Rust test passed in preserved workspace.log",
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-zero-storage-shared-35248-18/source.zil",
+          "sha256": "60f6f3b8bcfc013858c9d00632cf1d145d01e319efdd1d7c2e61997d7f7b6563",
+          "bytes": 252
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-zero-storage-shared-35248-18/compile.json",
+          "sha256": "88edd906fe8b9b8d87645bb96d51aa04ff120ed5a1870199f2c7e609eed99f7b",
+          "bytes": 3025
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-zero-storage-shared-35248-18/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "evidence/reviews/225/construction10/ci41182685056/native/review225226-zero-storage-shared-35248-18/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    }
+  ],
+  "replayed_locally": false
+}

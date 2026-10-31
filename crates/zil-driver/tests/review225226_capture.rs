@@ -200,6 +200,8 @@ fn mixed_ordinary_and_dynamic_branch_origins_are_rejected() {
 #[test]
 fn raw_one_branch_store_injection_cannot_reuse_ordinary_origin_plan() {
     let (mut module, plan) = control("branch-injection-control", &branches(false));
+    let selection = directory("branch-injection-selection");
+    fs::write(selection.join("control-typed.txt"), format!("{module:#?}")).unwrap();
     let function = module
         .functions
         .iter_mut()
@@ -215,30 +217,39 @@ fn raw_one_branch_store_injection_cannot_reuse_ordinary_origin_plan() {
                 .flatten()
         })
         .unwrap();
-    let borrowed: Vec<_> = function
-        .blocks
+    let item = function
+        .locals
         .iter()
-        .flat_map(|b| &b.instructions)
-        .filter_map(|i| {
-            matches!(i.kind, I::BorrowLocal { .. })
-                .then_some(i.result)
-                .flatten()
-        })
-        .collect();
-    let mut changed = 0;
-    for block in &mut function.blocks {
-        for instruction in &mut block.instructions {
-            if let I::Store { value, .. } = &mut instruction.kind
-                && borrowed.contains(value)
-                && function.values[value.0 as usize] == function.values[window.0 as usize]
-                && changed == 0
-            {
-                *value = window;
-                changed += 1;
+        .find(|local| local.name == "item")
+        .unwrap()
+        .id;
+    let mut sites = Vec::new();
+    for (block_index, block) in function.blocks.iter().enumerate() {
+        for (instruction_index, instruction) in block.instructions.iter().enumerate() {
+            if matches!(instruction.kind, I::BorrowLocal { local } if local == item) {
+                sites.push((block_index, instruction_index, instruction.result.unwrap()));
             }
         }
     }
-    assert_eq!(changed, 1);
+    assert_eq!(sites.len(), 1, "{function:#?}");
+    let (block, instruction, result) = sites[0];
+    assert_ne!(function.blocks[block].id, function.entry);
+    assert_eq!(
+        function.values[result.0 as usize],
+        function.values[window.0 as usize]
+    );
+    // Replace only the actual ordinary-owner producer on one conditional arm.
+    // Preserve its SSA result and all existing join/closure consumers. Do not
+    // assume a BorrowLocal result is consumed directly by a Store instruction.
+    function.blocks[block].instructions[instruction].kind = I::ReborrowAddress {
+        address: window,
+        mutable: false,
+    };
+    fs::write(
+        selection.join("selected.txt"),
+        format!("owner={item:?}; block={block}; instruction={instruction}; result={result:?}; window={window:?}\n"),
+    )
+    .unwrap();
     attack(
         "mixed-branch-attack",
         module,
@@ -327,20 +338,53 @@ fn zero_storage_ordinary_product_capture_does_not_need_store_layout() {
 }
 
 #[test]
-fn one_environment_keeps_owned_store_and_shared_product_responsibilities_separate() {
+fn owned_store_environment_does_not_acquire_external_shared_product_hold() {
     let good = format!(
         "{MODEL} fn consume(item:Item){{}} fn main()->i32{{
         let item={ITEM};let items:Store<Item>=store_new();store_reserve(items,1);store_push(items,{OTHER});
         let view=&item;let callback=move()=>{{let stored=store_at(items,0);return stored.child.value+view.child.value}};
         let value=callback();consume(item);return value-15}}"
     );
-    control("mixed-owned-and-shared", &good);
-    // consume destroys A immediately after the final call. The still-live
-    // environment later drops its owned Store's B without using view again.
-    native("mixed-owned-and-shared", &good, "AB");
+    // Preserve the original rejected source byte-for-byte. Sections 9.1.1 and
+    // 9.1.3 require owning-Store environments to be self-contained; 9.1.4 does
+    // not open a mixed owning-Store environment with an external shared Hold.
+    let dir = directory("mixed-owned-and-shared-unsupported");
+    fs::write(dir.join("source.zil"), &good).unwrap();
+    let module = typed(&good);
+    unsupported(
+        zil_analyze::analyze(&module, &Limits::default()),
+        "callback State requires a self-contained environment",
+    );
+    let report = compile_source(
+        &SourceUnit::new(FileId(0), ModuleId(0), "mixed225226.zil", &good),
+        &CompileOptions::default(),
+    );
+    fs::write(dir.join("compile.json"), report.to_json()).unwrap();
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(!report.artifacts.contains_key("executable"));
+}
+
+#[test]
+fn separate_local_environments_preserve_owned_store_and_shared_product_responsibilities() {
+    let good = format!(
+        "{MODEL} fn consume(item:Item){{}} fn main()->i32{{
+        let item={ITEM};let items:Store<Item>=store_new();store_reserve(items,1);store_push(items,{OTHER});
+        let view=&item;let shared_callback=()=>view.child.value;
+        let owned_callback=move()=>{{let stored=store_at(items,0);return stored.child.value}};
+        let value=owned_callback()+shared_callback();consume(item);return value-15}}"
+    );
+    control("separate-owned-and-shared", &good);
+    // Both environments coexist. consume destroys A after the last shared
+    // call; later cleanup of the distinct owning environment destroys only B.
+    native("separate-owned-and-shared", &good, "AB");
     let bad = good.replace(
-        "let value=callback();consume(item)",
-        "consume(item);let value=callback()",
+        "let value=owned_callback()+shared_callback();consume(item)",
+        "consume(item);let value=owned_callback()+shared_callback()",
     );
     let report = compile_source(
         &SourceUnit::new(FileId(0), ModuleId(0), "mixed225226.zil", &bad),

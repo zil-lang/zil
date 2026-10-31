@@ -4,7 +4,7 @@
   "reviewer": "zil施工10/branch_audit",
   "implementation_author": "zil施工8/current-assistant",
   "verdict": "NotRun",
-  "status": "PendingIndependentCIInspection",
+  "status": "CorrectedFixturesAwaitRetest",
   "implementation_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
   "original_remote_tip": "c8dd71a4b75ed7731fca8372a3a055f017991eb3",
   "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
@@ -17,11 +17,16 @@
     "pull_request": 14,
     "run_id": 41182685056,
     "job_id": 124483160069,
-    "actual_checkout_commit": null,
-    "independent_log_inspection": "Pending",
+    "actual_checkout_commit": "015cb5d4e6c7794de616e0a933520cd3dfa886f7",
+    "independent_log_inspection": "First review suite inspected:6 passed,2 failed; preserved original failure, corrected source awaits retest",
     "artifact_download_owner": "root",
-    "verified_suite_results": null,
-    "verified_native_executions": null
+    "verified_suite_results": {
+      "passed": 6,
+      "failed": 2,
+      "ignored": 0,
+      "test_blob": "9479b3e5a914b4ce75b2b84ac05447d08896696b"
+    },
+    "verified_native_executions": 8
   },
   "independent_tests": {
     "path": "crates/zil-driver/tests/review225226_capture.rs",
@@ -139,7 +144,10 @@
     "planned_rust_tests": 8,
     "planned_positive_source_raw_wire_controls": 10,
     "planned_native_executions_per_backend_suite": 10,
-    "invalid_inputs_reach_native": false
+    "invalid_inputs_reach_native": false,
+    "corrected_test_blob": "96a696f917dac46010ad3e107163d3f2ce13e261",
+    "corrected_planned_rust_tests": 9,
+    "original_cases_snapshot_only": true
   },
   "static_review": {
     "result": "No confirmed blocking finding in reviewed scope; executable evidence remains pending",
@@ -236,5 +244,6 @@
   "limitations": [
     "No claim of full language 1.4, ZUI, general async/escape support or Rust product-gate completion",
     "Review scope is only the 225/226 delivered contracts; formal parent-task and integration status remain root-owned"
-  ]
+  ],
+  "correction": "evidence/reviews/225/construction10/CORRECTION.json"
 }
