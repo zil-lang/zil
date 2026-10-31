@@ -2,7 +2,7 @@
   "schema_version": 1,
   "reviewer": "zil施工10/branch_audit",
   "implementation_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
-  "status": "CorrectedFixturesAwaitRetest",
+  "status": "ReferenceScopedPassAwaitFreshFormalCI",
   "original_ci_run": 41182685056,
   "original_ci_checkout": "015cb5d4e6c7794de616e0a933520cd3dfa886f7",
   "original_test_blob": "9479b3e5a914b4ce75b2b84ac05447d08896696b",
@@ -23,7 +23,8 @@
       "Independent raw Verify and Wire Verify reject the same origin violation",
       "E-VERIFY-PLAN mismatches are not accepted as target rejection"
     ],
-    "runtime_confirmation": "Pending root scoped retest; source control IR and selection are now saved for diagnosis"
+    "runtime_confirmation": "9/0/0 scoped reference run; actual selected producer item Local8, block1 instruction0 result Value49, dominating Store window Value47",
+    "confirmed_original_reason": "The original ordinary branch produces BorrowLocal Value49 -> ReborrowAddress Value50 -> Store. The old selector required Store.value to be an immediate BorrowLocal result, so it found zero. The other arm likewise has Value51 -> ReborrowAddress Value52."
   },
   "composition_scope_correction": {
     "frozen_contract": [
@@ -48,11 +49,12 @@
   "validation_performed": [
     "Official Rust1.99.1 rustfmt --edition2024 succeeded",
     "Original mixed source format literal compared byte-for-byte against preserved original source",
-    "First CI workspace log and8 actual LLVM API23.1.4 O0/O2 native receipts independently inspected"
+    "First CI workspace log and8 actual LLVM API23.1.4 O0/O2 native receipts independently inspected",
+    "Exact corrected beba0e4 source:9/0/0 scoped no-default reference run with10 actual O0/O2 native receipts; both original mixed source bytes and raw control wire match first CI exactly"
   ],
   "validation_not_performed": [
-    "No cargo invocation or new native execution by this reviewer after fixture correction",
-    "No corrected-suite Pass claim"
+    "No corrected formal LLVM23 CI result yet; no final review Pass"
   ],
-  "failure_evidence": "evidence/reviews/225/construction10/ci41182685056/FAILURE.json"
+  "failure_evidence": "evidence/reviews/225/construction10/ci41182685056/FAILURE.json",
+  "reference_result": "evidence/reviews/225/construction10/reference-correction/RESULT.json"
 }
