@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Prepare an exact, never-built SLP-off ablation of the frozen Merge candidate."""
+"""Reproduce the ineffective SLP setter experiment on the frozen Merge candidate.
+
+LLVM 23.1.4's default<O2> alias resets this requested setting to true. This is
+retained as a failed-control reproduction, not an effective SLP-off pipeline.
+"""
 import argparse
 import difflib
 import hashlib
@@ -105,10 +109,10 @@ def main():
         "modified_files": edits, "original_git_entries": tree_entries,
         "source_manifest_sha256": sha((args.out / "SOURCE-ORIGINALS.json").read_bytes())
             if source_manifest is not None else None,
-        "behavior_delta": "SLP vectorization disabled; loop vectorization/interleaving and all MergeFunctions policies unchanged",
+        "behavior_delta": "Requests SLP=false through the C API; LLVM 23.1.4 default<O2> subsequently resets it to true. This is NOT an effective SLP-off ablation.",
         "cache_boundary": "Distinct compiler executable identity plus explicit SLP-off pipeline_identity; use separate private caches per binary",
         "build_command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=<independent-target> cargo build --offline --locked --release -p zil-cli --manifest-path <out>/source/Cargo.toml",
-        "boundary": "Static proposal/source preparation only. Correctness, runtime quality and performance remain unmeasured.",
+        "boundary": "Historical failed-control reproduction. Original frozen receipts retain their initial wording; slp-ablation-outcome.json records the actual alias override. Effective SLP controls use the separately recorded execution-level vectorize-slp option.",
     }
     (args.out / "RESEARCH.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print(json.dumps({k: v for k, v in receipt.items() if k != "original_git_entries"}, indent=2))
