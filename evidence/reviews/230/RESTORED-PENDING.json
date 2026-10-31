@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "task": "230",
+  "status": "PendingFreshCI",
+  "implementation_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+  "ci_candidate": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+  "test_commit": "69fa1d5ca24eb9424d7d8c6f67b9d8f44f0f47de",
+  "reviewer": "/root/defer_design",
+  "implementation_author": "/root/continuity_audit",
+  "independent_of_implementation_author": true,
+  "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+  "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
+  "authority": "/workspace/scratch/b2d4304a481d/z10-restored-main/.task/impl/230.md",
+  "scope": "Non-author review of the finite generated Unit/Tuple enum slice. Source identity and static examination are complete; no fresh execution conclusion is made here.",
+  "execution": {
+    "local_cargo": "NotRun by root instruction",
+    "fresh_remote_evidence": "NotYetInspected",
+    "reported_remote_run": 41182685056,
+    "reported_remote_job": 124483160069,
+    "actual_checkout": "Awaiting original runner log",
+    "independent_tests_expected": 9,
+    "native_builds_and_runs_expected": 8,
+    "old_author_pass_reused": false,
+    "final_verdict": null
+  },
+  "identity_checks": {
+    "production_crates_tree": "ba5930e9b42315e08b6b10050d8e18efa7be2301",
+    "ci_candidate_crates_tree": "a5b4a535053b6bf6478b95a975eed848a0846ffd",
+    "old_candidate_crates_tree": "a5b4a535053b6bf6478b95a975eed848a0846ffd",
+    "production_to_candidate_crates_changes": [
+      "crates/zil-driver/tests/review225226_capture.rs",
+      "crates/zil-driver/tests/review230_independent.rs",
+      "crates/zil-driver/tests/review231_independent.rs"
+    ],
+    "production_files": [
+      {
+        "path": "crates/zil-driver/src/ct_selection/materialize.rs",
+        "git_blob": "fba1fcf218a89778fadd007b10cb524ec5f37d01",
+        "sha256": "43086af25c2f51101daaeeae511084a4de4fbf97cee57f047d23c2d56f904b39",
+        "bytes": 20552
+      },
+      {
+        "path": "crates/zil-driver/src/ct_selection/hygiene_types.rs",
+        "git_blob": "89a2eed87b78937e0f1f73979ec734b99a0e3ed0",
+        "sha256": "a2c0d9d66d2b1ce3df60fb6ff81e3305cf813439e0f5561e8af2b7e2d4601894",
+        "bytes": 12044
+      },
+      {
+        "path": "crates/zil-driver/src/ct_selection/hygiene.rs",
+        "git_blob": "f1becf839873b99f7f359e634fde4b397e83cd6e",
+        "sha256": "e867d390af163e3b259f525db1cda2f47e1294dc40d2934cda190152fd1faf2e",
+        "bytes": 23952
+      }
+    ],
+    "independent_test": {
+      "path": "crates/zil-driver/tests/review230_independent.rs",
+      "git_blob": "b7775a3cea5623c4d81cfc2b98a785d10e691d55",
+      "sha256": "f2b24b94c42acddac6417bce1633c2aa2ba46f87c96ba82aa42e60a08f2046b3",
+      "bytes": 16950,
+      "unchanged_original_blob": true,
+      "historical_source_comment": "The file's old 2c8acce8f comment records its original construction. This review binds execution to the new implementation and CI candidate above."
+    }
+  },
+  "example_provenance": {
+    "archive_git_blob": "fac2bb7813efe389a7b179194eca608ad40ed651",
+    "archive_format": "gzip-compressed tar",
+    "archive_git_hash_independently_verified": true,
+    "original_tree_membership": "Unproven because the old examples tree was in the lost bundle tail",
+    "examples": [
+      {
+        "path": "examples/mainline/ct_enums230/events.zil",
+        "archive_member": "run2/enums230-28/events/source.zil",
+        "git_blob": "95e09dd399fccfd20f20ef8954da25bb3a496c78",
+        "sha256": "7a15bb9bbdc0ea8db4b8e0da5a9a6299df36b7ea393a99c98dea9a9ca922708d",
+        "member_bytes_equal_to_new_production": true
+      },
+      {
+        "path": "examples/mainline/ct_enums230/events_plain.zil",
+        "archive_member": "run2/enums230-28/events-plain/source.zil",
+        "git_blob": "2b976990c515641aa267d91a0b2ec45309f014c7",
+        "sha256": "bdd03f5f0b492c3c173d4da832639aaa5fb6a046979cea94b5ba0aa6abfca7bb",
+        "member_bytes_equal_to_new_production": true
+      }
+    ],
+    "reader_probe_failure": "The first inspection used zipfile and returned BadZipFile. file identified the original gzip tar; the correct tar reader then verified the original Git hash and exact two member byte comparisons. This was an archive-reader mistake, not a compiler execution."
+  },
+  "static_findings": [
+    {
+      "area": "Materialization and scope",
+      "observation": "The already-paid item dispatch includes enums in the type-hygiene path. Only an active generation iteration adds tuple-payload type substitution and variant-attribute traversal. Existing lexical bindings govern runtime shadowing, and variant member spelling is not rewritten as an iteration value."
+    },
+    {
+      "area": "Nominal identity and forward references",
+      "observation": "The complete selected batch is validated and source names reserved before binding. All nominal bindings precede reference rewriting. Nongeneric enum declarations share the existing private fresh-name allocator; variants keep their original names. Duplicate declaration names cannot be separated into legal fresh identities."
+    },
+    {
+      "area": "Namespace separation",
+      "observation": "Single-name types use the generated type map; qualified types preserve actual module paths. Constructor namespace handling considers value scopes and imported module aliases. Generic type binders are registered before their bounds/signatures and cleared after each function. Patterns rewrite their nominal qualifier while keeping their own value binders."
+    },
+    {
+      "area": "Permission and phase boundary",
+      "observation": "The generator still emits unverified syntax. Ordinary enum typing owns finite Copy payload eligibility, recursion and variant validity. Generated record variants and generic enums remain outside this profile. No resource/package/trait/impl or Type/Syntax/#emit capability is added. The three-file production diff contains no Wire, verifier authority or runtime-layout extension."
+    },
+    {
+      "area": "Request budget",
+      "observation": "Added variant validation and rewrite scans charge nodes before inspection, and use the existing charged type/name traversal. The new materialization traversal is guarded by the active iteration stack. The ordinary no-enum path does not acquire these additional scans. Numeric cold/warm thresholds still require fresh execution."
+    },
+    {
+      "area": "Raw/Wire test boundary",
+      "observation": "The added author unit test reads a generated source through selection, expansion, type checking and analysis, verifies and serializes it, then rejects forged variant indices, payload arity and ReadVariant indices after updating the stale fingerprint. This source was inspected; its fresh execution is still required."
+    }
+  ],
+  "fresh_review_obligations": [
+    "Inspect the original runner checkout SHA and compare tested production/test blob identities with this record; the reported job status alone is insufficient.",
+    "Confirm all nine review230 tests were selected and completed. Review the verbatim saved source and actual report for forward aliases, same-spelled variant/iteration/pattern binders, real module qualifiers and the transparent public alias.",
+    "Confirm same-layout enums in distinct rounds and modules remain incompatible, the generic type binder gains no enum-pattern authority, and address/recursive payloads reject semantically without executable artifacts.",
+    "Inspect the same-SourceUnit warm edit sequence, including E-ARRAY-LENGTH for the changed payload and successful cached restoration.",
+    "Independently read measured node/work N, cached N, N-1 ResourceLimit, recovered N and fresh N reports, cache-hit fields and active-query assertions.",
+    "Inspect all eight positive native receipts for generated/ordinary single-module and three-module inputs at O0/O2: explicit expected backend, no fallback, exit zero, empty stdout and stderr.",
+    "Confirm the scoped author raw/Wire and legacy profile regressions in the fresh complete run; retain any first failure and do not rewrite tests merely to suppress it.",
+    "Keep unavailable old evidence and unproven original examples tree membership explicit. Fresh execution binds this candidate, not the missing old complete history."
+  ],
+  "handoff_integrity_probe": {
+    "command": "node tools/handoff.mjs --check",
+    "exit_code": 1,
+    "status": "Fail",
+    "main_tree_now": "/workspace/scratch/b2d4304a481d/z10-restored-main",
+    "snapshot_only": true,
+    "observations": [
+      "The current sparse checkout excludes evidence, so many historical evidence paths are not visible to the handoff checker.",
+      "The checker separately reports task 227 specification snapshot stale.",
+      "No checker was changed, and this handoff failure is not represented as a compiler test result or a successful integrity gate."
+    ]
+  },
+  "rust_goal_assessment": {
+    "safety": "The finite generator continues to require ordinary typing and independent Verify. Fresh execution remains pending; no whole-language safety claim.",
+    "runtime_and_memory": "No runtime mechanism or layout is added by this slice. Native behavior comparison remains pending and would not establish runtime/RSS parity with Rust.",
+    "expression_and_maintenance": "The intended capability lets finite declaration generation express ordinary enums with constructors and patterns. This is a bounded language capability, not a measured maintenance-cost win.",
+    "compile_cost": "Cumulative work/node boundaries are test obligations. No compilation-speed benefit or Rust comparison is claimed.",
+    "net_breakthrough": "Finite generated enums are a concrete capability increment if the exact candidate passes; product-level four-goal conjunction and a reproducible net breakthrough remain unestablished."
+  },
+  "edits_in_this_review_step": ["evidence/reviews/230/RESTORED-PENDING.json"],
+  "production_or_test_edits": false
+}
