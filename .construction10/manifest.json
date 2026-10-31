@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "base": "aaeb67f12b5638677332132e28df86fa23cde3d8",
+  "bundle_size": 86172,
+  "bundle_sha256": "54b7953b2819ec06a8cd197f4098193cfa0c3af34437776acb610e4c1ed6c904",
+  "targets": [
+    {
+      "branch": "integration/construction10",
+      "sha": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+      "expected_remote_sha": null
+    }
+  ],
+  "parts": [
+    {
+      "path": ".construction10/parts/part-000.bin",
+      "size": 65536,
+      "sha256": "fd09423dd4551bde874705c77343f3d50ea2bdca96392f8a548e5bc7afc24369",
+      "git_blob": "5fe541f614e9fa68c5f6a33608c65997fee1351a"
+    },
+    {
+      "path": ".construction10/parts/part-001.bin",
+      "size": 20636,
+      "sha256": "b7e10be144141d47bfdba4f88a56fb694173c8be73e501e2ea41343052e83d9a",
+      "git_blob": "d6cc23b475c7b77470562ef5bccc1ec12db594fe"
+    }
+  ]
+}
