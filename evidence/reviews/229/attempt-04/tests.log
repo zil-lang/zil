@@ -1,0 +1,31 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/e9af9764d083/zil-review229/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.32s
+     Running tests/review229_independent.rs (/workspace/scratch/e9af9764d083/targets/review229/debug/deps/review229_independent-36770b3184b595c9)
+
+running 8 tests
+test bounds_do_not_leak_between_parameters_or_hide_unexecuted_errors ... ok
+test independent_alias_chain_shares_one_budget_through_specialization ... ok
+test nominal_protection_rechecks_later_binders_and_unused_bodies ... ok
+test real_nominals_and_generic_wrappers_keep_scoped_native_identity ... FAILED
+test record_shadowing_has_a_preserved_inline_control ... ok
+test uncalled_imported_helpers_keep_symbolic_scope ... ok
+test unrelated_where_function_does_not_open_methods_impls_or_foreign_templates ... ok
+test independent_inline_where_and_repetition_have_identical_machine_semantics ... ok
+
+failures:
+
+---- real_nominals_and_generic_wrappers_keep_scoped_native_identity stdout ----
+
+thread 'real_nominals_and_generic_wrappers_keep_scoped_native_identity' (43) panicked at crates/zil-driver/tests/review229_independent.rs:400:13:
+assertion `left == right` failed: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-FIELD-PRIVATE","message":"record field is private to its declaring module","span":{"file":0,"start":115,"end":120},"notes":[]}],"artifacts":{"core":"/workspace/scratch/e9af9764d083/zil-review229/evidence/reviews/229/attempt-04/raw/review229-30/nominal-native-O0-true/phases/core.txt","ct-core":"/workspace/scratch/e9af9764d083/zil-review229/evidence/reviews/229/attempt-04/raw/review229-30/nominal-native-O0-true/phases/ct-core.txt","source-map":"/workspace/scratch/e9af9764d083/zil-review229/evidence/reviews/229/attempt-04/raw/review229-30/nominal-native-O0-true/phases/source-map.txt","syntax":"/workspace/scratch/e9af9764d083/zil-review229/evidence/reviews/229/attempt-04/raw/review229-30/nominal-native-O0-true/phases/syntax.txt"},"input_fingerprint":"c33b4db6ecb204e9e920e89c91ca865d444f78d326c70aab2ecc755674c12c85","seconds":0.015073599,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"review229.zil","1":"helper.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    real_nominals_and_generic_wrappers_keep_scoped_native_identity
+
+test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+error: test failed, to rerun pass `-p zil-driver --test review229_independent`

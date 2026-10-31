@@ -51,6 +51,11 @@ fn reject(label: &str, text: &str) -> CompileReport {
 }
 
 const CASES: &[(&str, &str)] = &[
+    // Original 222 source bytes: the finite struct declaration is admitted by 228.
+    (
+        "generated-type",
+        "#for(i in 0..1){struct S{x:i32}}fn main()->i32=>0",
+    ),
     (
         "namespace-plain-api-control",
         include_str!("../../../examples/mainline/ct_for222/review_repair/namespace-plain.zil"),
@@ -250,10 +255,6 @@ fn generation_boundaries_and_runtime_shadowing_fail_closed() {
         (
             "unimplemented-emit",
             "fn main()->i32{#for(i in 0..1){#emit i}return 0}",
-        ),
-        (
-            "generated-type",
-            "#for(i in 0..1){struct S{x:i32}}fn main()->i32=>0",
         ),
         (
             "conditional-import",

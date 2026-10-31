@@ -1,0 +1,130 @@
+{
+  "implementation_commit": "d8c71880928c2e0497ffe078834382503960256b",
+  "status": "AuthorPassPendingIndependentReReview",
+  "supersedes_for_acceptance": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+  "reviewer_found": "/root/scope_audit",
+  "recorded_at": "2026-10-31T00:57:13.455480+00:00",
+  "production_changed": [
+    "crates/zil-expand/src/generics.rs"
+  ],
+  "original_source": "struct T{x:i32}fn bad<T>(x:T)->i32 where T:Copy=>x.x;fn main()->i32=>0",
+  "classification": "Inherited ordinary binder versus nominal collision, also present on the unchanged inline Copy path. Definition checking incorrectly resolved T against the nominal table.",
+  "repair": "A fully prepaid ordinary type binder collision returns for scoped nominal protection before symbolic body validation; then the complete protected module is checked. Existing callable route and noncolliding budgets remain.",
+  "before": {
+    "production_commit": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+    "new_test_uncommitted": true,
+    "passed_groups": 2,
+    "failed_groups": 1,
+    "incorrectly_accepted": [
+      "inline field",
+      "where field",
+      "unbounded field",
+      "address field",
+      "record construction",
+      "enum construction"
+    ],
+    "logs_preserved": true
+  },
+  "final": {
+    "exact_commit": "d8c71880928c2e0497ffe078834382503960256b",
+    "tree_clean_before_run": true,
+    "driver_passed": 56,
+    "expand_passed": 16,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "clippy_exit": 0,
+    "new_native_executions": 4,
+    "new_rejections": 6,
+    "combined_new_suites_native_executions": 14
+  },
+  "commands": [
+    "cargo test --locked -p zil-driver --features llvm-api --test impl229_nominal_shadow --test impl229_where_copy --test generics --test generic_regressions --test impl103_generic_aliases --test impl194_copy_callable -- --nocapture",
+    "cargo test --locked -p zil-expand --test generics --test normalization",
+    "cargo clippy --locked -p zil-driver --features llvm-api --test impl229_nominal_shadow --test impl229_where_copy -- -D warnings"
+  ],
+  "environment": "Identical to ../RESULT.json; ZIL_TEST_REPORT_DIR=/workspace/scratch/e9af9764d083/receipts/229-repair-final for exact driver run",
+  "collision_costs": {
+    "inline_core": {
+      "before": [
+        281,
+        131
+      ],
+      "after": [
+        837,
+        188
+      ]
+    },
+    "where_core": {
+      "before": [
+        380,
+        173
+      ],
+      "after": [
+        936,
+        230
+      ]
+    },
+    "unit_order": [
+      "max_analysis_steps",
+      "max_nodes"
+    ],
+    "old_noncollision_plain": [
+      589,
+      220
+    ],
+    "old_noncollision_alias": [
+      952,
+      233
+    ],
+    "where_alias_noncollision": [
+      1651,
+      488
+    ],
+    "controls": "fresh N/warm N/N-1 Expand ResourceLimit/warm N on both actual collision sources"
+  },
+  "archives": [
+    {
+      "path": "before-raw.tar.gz",
+      "sha256": "c55abfbc2e546f79d1d2e892130515ff6624f2a04bf2c5d941b8d9307adc578f",
+      "bytes": 70977
+    },
+    {
+      "path": "after-candidate-raw.tar.gz",
+      "sha256": "6f4200d59502ad39042e3d52e9cff3a2346334687d1b54c5d349d3047aec0f3c",
+      "bytes": 321762
+    },
+    {
+      "path": "exact-final-raw.tar.gz",
+      "sha256": "824e3ee1d5c128207f84b6d01c6f716e9af1373c749389082d0814f3cea5756e",
+      "bytes": 2445858
+    }
+  ],
+  "logs": [
+    {
+      "path": "before.log.gz",
+      "raw_sha256": "700484dccbe598d86517e461b26618812072f2702df819f36a8261c045a7f286"
+    },
+    {
+      "path": "after-candidate.log.gz",
+      "raw_sha256": "42a265a7dc49d1a5c0f0c380f07bbaa04fcf6f41ccc08cd3de98ab4a345d3bcc"
+    },
+    {
+      "path": "exact-driver.log.gz",
+      "raw_sha256": "302ba64cfb3fdfc5ecfa3fd83cfdfd526732bb768045911d0361cdce67de4562"
+    },
+    {
+      "path": "exact-expand.log.gz",
+      "raw_sha256": "a9bad71b707c6e882e0db05fb0435b2ea5a29b0f762a0f623d56fde34769e3a3"
+    },
+    {
+      "path": "clippy.log.gz",
+      "raw_sha256": "ce99a2febd292c66e631a80b83a5974974050edaea4b015c0bc92cfafb12cc4a"
+    }
+  ],
+  "product_state": {
+    "B0": "Doing",
+    "full_language": "NotSatisfied",
+    "product": "NotRun"
+  }
+}
