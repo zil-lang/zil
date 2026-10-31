@@ -1484,7 +1484,10 @@ fn borrowed_lir_aliases_bind_length_and_the_current_capability() {
         crate::emit::lower_with_options(&verified, &original, &options).unwrap()
     );
     view.functions = &verified.module().functions[..0];
-    assert_eq!(view.functions.as_ptr(), verified.module().functions.as_ptr());
+    assert_eq!(
+        view.functions.as_ptr(),
+        verified.module().functions.as_ptr()
+    );
     assert_eq!(
         crate::emit::lower_view_with_options(&verified, &view, &options).unwrap_err()[0].code,
         "E-CODEGEN-UNBOUND-LIR"

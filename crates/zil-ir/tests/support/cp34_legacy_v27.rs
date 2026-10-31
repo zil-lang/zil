@@ -4,7 +4,9 @@
 #![allow(dead_code)]
 use zil_base::{Fingerprint, Span};
 use zil_ir::*;
-pub fn bytes(module: &TypedModule) -> Vec<u8> { encode_module(module) }
+pub fn bytes(module: &TypedModule) -> Vec<u8> {
+    encode_module(module)
+}
 fn passing_mode_tag(mode: PassingMode) -> u8 {
     match mode {
         PassingMode::Copy => 0,

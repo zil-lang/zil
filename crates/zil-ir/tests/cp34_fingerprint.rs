@@ -372,7 +372,7 @@ fn frozen_oracle_is_the_original_encoder_not_the_new_sink() {
         let begin = source.find(&format!("fn {name}(")).unwrap();
         let end = begin + source[begin..].find("\n}\n").unwrap() + 3;
         assert_eq!(
-            Fingerprint::of(source[begin..end].as_bytes()).to_hex(),
+            Fingerprint::of(&source.as_bytes()[begin..end]).to_hex(),
             expected
         );
     }
