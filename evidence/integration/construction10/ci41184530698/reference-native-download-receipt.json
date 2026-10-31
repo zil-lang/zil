@@ -1,0 +1,8 @@
+{
+  "artifact_id": 13036252804,
+  "file": "reference-native.zip",
+  "bytes": 191579453,
+  "sha256": "8fe61b9c4f2fc2a5841af94f0bc500bfd7a45b3557df9462b164dced25c6d16e",
+  "members": 63318,
+  "extracted_to": "z10-ci/41184530698/reference-native"
+}

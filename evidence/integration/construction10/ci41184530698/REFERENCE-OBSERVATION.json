@@ -1,0 +1,18 @@
+{
+  "actual_checkout": "045dc75cec6eaa4de52951e075c52fd809fb6b3c",
+  "groups": 326,
+  "counts": {
+    "passed": 2933,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "suites": {
+    "review225226_capture": "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s",
+    "review230_independent": "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s",
+    "review231_independent": "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s"
+  },
+  "source_tree_matches_workspace": true,
+  "log_sha256": "f5c2236d7c5db39fd8950c0f241938d67d294516d497cb1490dca211a13562d9"
+}

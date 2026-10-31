@@ -1,0 +1,105 @@
+{
+  "total_count": 5,
+  "artifacts": [
+    {
+      "id": 13036509091,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzNjUwOTA5MQ==",
+      "name": "zil-main-41184530698-1-final",
+      "size_in_bytes": 320445539,
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036509091",
+      "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036509091/zip",
+      "expired": false,
+      "digest": "sha256:d6c12c02575572ea673c9554119580a12f2588243ee5fd137d0cd9439c3991f3",
+      "created_at": "2026-10-31T08:41:34Z",
+      "updated_at": "2026-10-31T08:41:34Z",
+      "expires_at": "2026-11-30T08:41:27Z",
+      "workflow_run": {
+        "id": 41184530698,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "integration/construction10",
+        "head_sha": "f1492652cb6497a33f39e615fd398456ce09253a"
+      }
+    },
+    {
+      "id": 13036373023,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzNjM3MzAyMw==",
+      "name": "zil-main-41184530698-1-workspace",
+      "size_in_bytes": 3510289,
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036373023",
+      "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036373023/zip",
+      "expired": false,
+      "digest": "sha256:4099efe71c66c0bac62b04bd8d7d65cb1a2a256d605415e72696d8de00805d10",
+      "created_at": "2026-10-31T08:32:07Z",
+      "updated_at": "2026-10-31T08:32:07Z",
+      "expires_at": "2026-11-30T08:32:06Z",
+      "workflow_run": {
+        "id": 41184530698,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "integration/construction10",
+        "head_sha": "f1492652cb6497a33f39e615fd398456ce09253a"
+      }
+    },
+    {
+      "id": 13036362564,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzNjM2MjU2NA==",
+      "name": "zil-main-41184530698-1-reference",
+      "size_in_bytes": 3443231,
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036362564",
+      "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036362564/zip",
+      "expired": false,
+      "digest": "sha256:68be46c3c9ed61e05f3f782c24b83cef4564c2f77b20ab5b324844c5767f2d8c",
+      "created_at": "2026-10-31T08:39:04Z",
+      "updated_at": "2026-10-31T08:39:04Z",
+      "expires_at": "2026-11-30T08:39:03Z",
+      "workflow_run": {
+        "id": 41184530698,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "integration/construction10",
+        "head_sha": "f1492652cb6497a33f39e615fd398456ce09253a"
+      }
+    },
+    {
+      "id": 13036353195,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzNjM1MzE5NQ==",
+      "name": "zil-main-41184530698-1-workspace-native",
+      "size_in_bytes": 195176654,
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036353195",
+      "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036353195/zip",
+      "expired": false,
+      "digest": "sha256:5b132234673e85e43f39572e649c60e268ea26b5e4d64918bb4e90a785b37ba8",
+      "created_at": "2026-10-31T08:33:13Z",
+      "updated_at": "2026-10-31T08:33:13Z",
+      "expires_at": "2026-11-30T08:32:12Z",
+      "workflow_run": {
+        "id": 41184530698,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "integration/construction10",
+        "head_sha": "f1492652cb6497a33f39e615fd398456ce09253a"
+      }
+    },
+    {
+      "id": 13036252804,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzNjI1MjgwNA==",
+      "name": "zil-main-41184530698-1-reference-native",
+      "size_in_bytes": 191579453,
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036252804",
+      "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13036252804/zip",
+      "expired": false,
+      "digest": "sha256:8fe61b9c4f2fc2a5841af94f0bc500bfd7a45b3557df9462b164dced25c6d16e",
+      "created_at": "2026-10-31T08:39:56Z",
+      "updated_at": "2026-10-31T08:39:56Z",
+      "expires_at": "2026-11-30T08:39:09Z",
+      "workflow_run": {
+        "id": 41184530698,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "integration/construction10",
+        "head_sha": "f1492652cb6497a33f39e615fd398456ce09253a"
+      }
+    }
+  ]
+}

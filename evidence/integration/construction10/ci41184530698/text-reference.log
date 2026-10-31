@@ -1,0 +1,86 @@
+   Compiling zil-llvm-api v0.1.0 (/home/runner/work/zil/zil/crates/zil-llvm-api)
+    Finished `test` profile [unoptimized] target(s) in 1.08s
+     Running unittests src/lib.rs (/home/runner/work/_temp/target/debug/deps/zil_llvm_api-76b67a663b2ad701)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/allocation211.rs (/home/runner/work/_temp/target/debug/deps/allocation211-5415c789d22ab8ec)
+
+running 4 tests
+test bounded_fragments_match_one_event_stream_and_manual_items ... ok
+test dense_schedule_deduplicates_operand_and_sequence_edges_without_missing_errors ... ok
+test fragments_do_not_hide_missing_or_nested_function_boundaries ... ok
+test operand_iterator_keeps_order_multiplicity_and_nested_values ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/builder210.rs (/home/runner/work/_temp/target/debug/deps/builder210-6c9df252fff68620)
+
+running 9 tests
+test cancellation_at_each_native_boundary ... ok
+test direct_backend_rejects_disabled_text_adapter ... ok
+test direct_loop_forward_block_phi_executes_o0_o2 ... ok
+test direct_aggregates_global_function_table_and_indirect_call_execute ... ok
+test invalid_module_never_reaches_assert_prone_builder ... ok
+test direct_target_not_host_and_optimization_modes ... ok
+test rendered_and_direct_modes_have_same_behavior ... ok
+test target_mismatch_is_explicit ... ok
+test separate_contexts_have_deterministic_objects ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/disabled.rs (/home/runner/work/_temp/target/debug/deps/disabled-bb436874de979bf9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/machine210.rs (/home/runner/work/_temp/target/debug/deps/machine210-22ad1607687bd0a1)
+
+running 12 tests
+test bad_global_initializers_rejected ... ok
+test direct_call_signature_and_narrow_abi_checked ... ok
+test duplicate_predecessor_phi_requires_same_values ... ok
+test malformed_cfg_and_duplicate_names_rejected ... ok
+test missing_definition_and_forward_local_use_rejected ... ok
+test non_dominating_branch_value_rejected ... ok
+test phi_type_mismatch_rejected ... ok
+test phi_wrong_predecessor_rejected ... ok
+test structure_assembly_cannot_silently_drop_events ... ok
+test type_indices_alignment_and_constants_checked_before_ffi ... ok
+test valid_phi_and_forward_block_order ... ok
+test void_and_duplicate_global_and_recursive_type_rejected ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/native.rs (/home/runner/work/_temp/target/debug/deps/native-734ff2461e6bb9f1)
+
+running 9 tests
+test contradictory_layout_cannot_be_overwritten ... ok
+test cancellation_at_each_boundary_never_returns_an_object ... ok
+test parse_error_returns_no_object ... ok
+test real_elf_object_in_both_modes ... ok
+test target_mismatch_rejected_before_optimization ... ok
+test unimplemented_target_does_not_fall_back_to_host ... ok
+test verifier_error_is_not_print_and_continue ... ok
+test win64_object_uses_target_not_host_layout ... ok
+test independent_contexts_parallel_objects_are_deterministic ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/native211.rs (/home/runner/work/_temp/target/debug/deps/native211-1ae6651c12c61f13)
+
+running 2 tests
+test reused_direct_call_type_keeps_narrow_attributes_and_function_local_scopes ... ok
+test cached_variadic_function_type_preserves_fixed_and_extra_arguments ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+   Doc-tests zil_llvm_api
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

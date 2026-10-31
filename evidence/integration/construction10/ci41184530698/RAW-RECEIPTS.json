@@ -1,0 +1,57 @@
+{
+  "workspace.log": {
+    "path": "workspace.log.gz",
+    "bytes": 304147,
+    "sha256": "82c0bb4b1d1dc1d8c8ae4779a88f3dbfe6fb00f6cf1c706ee9c5d891de34c981"
+  },
+  "reference.log": {
+    "path": "reference.log.gz",
+    "bytes": 306150,
+    "sha256": "f5c2236d7c5db39fd8950c0f241938d67d294516d497cb1490dca211a13562d9"
+  },
+  "consumer209.json": {
+    "path": "consumer209.json.gz",
+    "bytes": 76471,
+    "sha256": "160b2917e9f8e38b527ea634f1ad5def31ced840929f839edde684b33ac148ce"
+  },
+  "text-reference.log": {
+    "path": "text-reference.log",
+    "bytes": 3931,
+    "sha256": "be8557552d99c7976339b917a2332cb65129ac1a64a0aaac2e48b398bfe7fe9e"
+  },
+  "migration-runner.log": {
+    "path": "migration-runner.log",
+    "bytes": 107,
+    "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
+  },
+  "fmt.log": {
+    "path": "fmt.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "clippy.log": {
+    "path": "clippy.log",
+    "bytes": 1190,
+    "sha256": "b3682e9132994629cfab3cdff1ebb374d85f925eeb5dd28f10efef31c0efd8ca"
+  },
+  "commit.txt": {
+    "path": "commit.txt",
+    "bytes": 41,
+    "sha256": "de746ec58883b77a9a7afd37c71eb06008db5ece3bb144cdb7c8139a10e2cc32"
+  },
+  "toolchain.txt": {
+    "path": "toolchain.txt",
+    "bytes": 404,
+    "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+  },
+  "llvm-api-toolchain.json": {
+    "path": "llvm-api-toolchain.json",
+    "bytes": 1397,
+    "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+  },
+  "job.log": {
+    "path": "job.log.gz",
+    "bytes": 986802,
+    "sha256": "75dc8447059e30985c1c3747bf0e66a4694a05b831d8f31c280c3004b598b4a8"
+  }
+}
