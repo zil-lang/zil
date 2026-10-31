@@ -31,6 +31,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/receipts"
           sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_TEMP,GITHUB_WORKSPACE python3 tools/ci/research_disk_space.py --apply
       - name: Preserve pre-build disk recovery receipt
+        id: disk_checkpoint
+        continue-on-error: true
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -51,7 +53,7 @@ jobs:
           echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/llvm-research/candidate/lib" >> "$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$RUNNER_TEMP/llvm-research/candidate/lib" >> "$GITHUB_ENV"
           echo "$RUNNER_TEMP/llvm-23.1.4/bin" >> "$GITHUB_PATH"
-      - name: Record exact checkout and restorable source history
+      - name: Record exact checkout and current CI input snapshot
         id: research_toolchain_identity
         shell: bash
         run: |
@@ -59,10 +61,7 @@ jobs:
           echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target" >> "$GITHUB_ENV"
           echo "ZIL_TEST_REPORT_DIR=$RUNNER_TEMP/native-evidence" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/receipts"
-          git rev-parse HEAD > "$RUNNER_TEMP/receipts/commit.txt"
-          git ls-tree -r HEAD > "$RUNNER_TEMP/receipts/source-tree.txt"
-          git bundle create "$RUNNER_TEMP/receipts/repository.bundle" HEAD --branches --remotes
-          git bundle verify "$RUNNER_TEMP/receipts/repository.bundle" 2>&1 | tee "$RUNNER_TEMP/receipts/bundle-verify.log"
+          python3 tools/ci/source_snapshot.py --repo "$PWD" --out "$RUNNER_TEMP/receipts"
           rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
           rustc -vV > "$RUNNER_TEMP/receipts/toolchain.txt"
           "$ZIL_CLANG" --version >> "$RUNNER_TEMP/receipts/toolchain.txt"
@@ -76,6 +75,8 @@ jobs:
           set -euo pipefail
           python3 tools/ci/research_llvm_manifest.py collect --runner-temp "$RUNNER_TEMP"
       - name: Preserve research LLVM preparation before tests
+        id: toolchain_checkpoint
+        continue-on-error: true
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -128,6 +129,7 @@ jobs:
           python3 tools/ci/native_evidence.py capture "$RUNNER_TEMP" workspace >> "$GITHUB_OUTPUT"
       - name: Preserve workspace receipts before releasing its cache
         id: workspace_receipts
+        continue-on-error: true
         if: ${{ always() && (steps.workspace_tests.outcome == 'success' || steps.workspace_tests.outcome == 'failure' || steps.workspace_tests.outcome == 'cancelled') }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -144,6 +146,7 @@ jobs:
           if-no-files-found: error
       - name: Preserve all workspace native evidence before releasing it
         id: workspace_native
+        continue-on-error: true
         if: ${{ always() && steps.workspace_resources_after.outcome == 'success' && steps.workspace_resources_after.outputs.native_file_count != '0' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -215,6 +218,7 @@ jobs:
           python3 tools/ci/native_evidence.py capture "$RUNNER_TEMP" reference >> "$GITHUB_OUTPUT"
       - name: Preserve reference receipts before releasing its cache
         id: reference_receipts
+        continue-on-error: true
         if: ${{ always() && (steps.reference_tests.outcome == 'success' || steps.reference_tests.outcome == 'failure' || steps.reference_tests.outcome == 'cancelled') }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -231,6 +235,7 @@ jobs:
           if-no-files-found: error
       - name: Preserve all reference native evidence before releasing it
         id: reference_native
+        continue-on-error: true
         if: ${{ always() && steps.reference_resources_after.outcome == 'success' && steps.reference_resources_after.outputs.native_file_count != '0' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -300,6 +305,7 @@ jobs:
           cargo test --locked -p zil-llvm-api --features text-reference 2>&1 | tee "$RUNNER_TEMP/receipts/text-reference.log"
           python3 tools/llvm/test_validate_migration.py 2>&1 | tee "$RUNNER_TEMP/receipts/migration-runner.log"
       - name: Small recovery artifact, never target caches
+        id: recovery_final
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -310,3 +316,28 @@ jobs:
             ${{ runner.temp }}/llvm-23.1.4/installation-logs/
           retention-days: 30
           if-no-files-found: error
+      - name: Report every evidence upload outcome
+        if: ${{ always() }}
+        shell: bash
+        env:
+          UPLOAD_DISK_CHECKPOINT: ${{ steps.disk_checkpoint.outcome }}
+          UPLOAD_TOOLCHAIN_CHECKPOINT: ${{ steps.toolchain_checkpoint.outcome }}
+          UPLOAD_WORKSPACE_RECEIPTS: ${{ steps.workspace_receipts.outcome }}
+          UPLOAD_WORKSPACE_NATIVE: ${{ steps.workspace_native.outcome }}
+          UPLOAD_REFERENCE_RECEIPTS: ${{ steps.reference_receipts.outcome }}
+          UPLOAD_REFERENCE_NATIVE: ${{ steps.reference_native.outcome }}
+          UPLOAD_RECOVERY_FINAL: ${{ steps.recovery_final.outcome }}
+        run: |
+          python3 - <<'PY_UPLOADS'
+          import os
+          from pathlib import Path
+          outcomes = {key[7:].lower(): value for key, value in os.environ.items() if key.startswith('UPLOAD_')}
+          lines = ['Evidence upload outcomes:'] + [f'- {key}: {value or "not run"}' for key, value in sorted(outcomes.items())]
+          print('\n'.join(lines))
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a') as stream:
+              stream.write('\n'.join(lines) + '\n')
+          failed = any(value in ('failure', 'cancelled') for value in outcomes.values())
+          if failed or outcomes.get('recovery_final') != 'success':
+              print('::error::Evidence upload incomplete; inspect the recorded outcomes. Test results do not imply artifact preservation.')
+              raise SystemExit(1)
+          PY_UPLOADS
