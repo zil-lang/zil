@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/environment_recovery",
+  "candidate_228": "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+  "test_commit": "dd23ab5ce306b456893130c8124948b49e451485",
+  "status": "Pass",
+  "hypothesis": "A generated enum alias constructor pattern may retain its source type name after hygiene.",
+  "observation": "Both the ordinary and generated source reached Verify Success. The candidate already invokes type_reference on the first component of two-component constructor patterns.",
+  "source_files": [
+    "examples/mainline/generated_events228/review/enum_alias_plain.zil",
+    "examples/mainline/generated_events228/review/enum_alias_generated.zil"
+  ],
+  "native_executions": 0,
+  "production_edits_by_reviewer": 0,
+  "scope": "Only the tested finite enum-alias pattern forms; not general pattern or language acceptance."
+}
