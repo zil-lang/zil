@@ -11,7 +11,7 @@ use zil_verify::VerifiedModule;
 use crate::object_cache::{
     Access, ObjectCacheSummary, PendingObject, PendingObjectCache, PreparedCache,
 };
-use crate::{EmitOptions, EntryPoint};
+use crate::{EmitOptions, EntryPoint, FunctionMerging};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Optimization {
@@ -101,6 +101,8 @@ pub struct BuildOptions {
     pub closed_executable: bool,
     /// Explicit stable O2 chunks with optimizer-only cross-unit body imports.
     pub incremental_o2: bool,
+    /// Explicit O2 pass policy; default preserves the reference pipeline.
+    pub function_merging: FunctionMerging,
     pub codegen: CodegenOptions,
     pub emit: EmitOptions,
     pub windows: Option<WindowsLinkOptions>,
@@ -117,6 +119,7 @@ impl BuildOptions {
             optimization: Optimization::O0,
             closed_executable: false,
             incremental_o2: false,
+            function_merging: FunctionMerging::Disabled,
             codegen: CodegenOptions::default(),
             windows: None,
             object_cache: None,
@@ -196,6 +199,25 @@ pub fn build_view_with_cancellation(
             "codegen units and jobs must be in 1..=64",
         ));
     }
+    if options.function_merging != FunctionMerging::Disabled
+        && options.optimization != Optimization::O2
+    {
+        return Err(infra(
+            "E-CODEGEN-MERGING-OPTIONS",
+            "function merging requires O2",
+        ));
+    }
+    if options.backend == NativeBackend::Clang
+        && options.function_merging == FunctionMerging::BeforeAndAfter
+    {
+        return Err(vec![Diagnostic::new(
+            Phase::Codegen,
+            ResultCategory::Unsupported,
+            "E-CODEGEN-MERGING-BACKEND",
+            "before-and-after function merging requires the LLVM API backend",
+            None,
+        )]);
+    }
     let machine = crate::emit::lower_view_with_options(verified, lir, &options.emit)?;
     // Diagnostic/reference output only. API preflight runs once per owned unit,
     // immediately before its LLVMBuilder calls; it cannot be bypassed.
@@ -240,7 +262,12 @@ pub fn build_view_with_cancellation(
         ..ObjectCacheSummary::default()
     };
     let cache = options.object_cache.as_ref().and_then(|path| {
-        match PreparedCache::new(path, lir.target, options.optimization) {
+        match PreparedCache::new(
+            path,
+            lir.target,
+            options.optimization,
+            options.function_merging,
+        ) {
             Ok(cache) => {
                 cache_summary.enabled = true;
                 Some(cache)
@@ -335,6 +362,7 @@ pub fn build_view_with_cancellation(
             .arg("-x")
             .arg("ir")
             .arg(optimization);
+        clang_function_merging(&mut command, options.function_merging);
         if windows {
             command.arg("-c");
         }
@@ -505,6 +533,7 @@ fn compile_units(
                                         .arg(&unit.input)
                                         .arg("-o")
                                         .arg(&unit.object);
+                                    clang_function_merging(&mut command, options.function_merging);
                                     let command = run_command(&mut command, "E-LLVM-COMPILE")?;
                                     if !unit.object.is_file() {
                                         return Err(infra(
@@ -523,6 +552,7 @@ fn compile_units(
                                     unit,
                                     target,
                                     options.optimization,
+                                    options.function_merging,
                                     cache,
                                     cancelled,
                                 ),
@@ -594,6 +624,7 @@ fn compile_api_unit(
     unit: &UnitInput,
     target: &str,
     opt: Optimization,
+    function_merging: FunctionMerging,
     cache: Option<&PreparedCache>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<UnitResult> {
@@ -620,9 +651,13 @@ fn compile_api_unit(
                 .map_err(|e| io_error("write reused object", &unit.object, e))?;
             let q = zil_base::json_string;
             let receipt = format!(
-                "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-cache\",\"llvm_version\":{},\"triple\":{},\"object_bytes\":{},\"cache\":{},\"llvm_verification_this_request\":false,\"producer_verified_before_after\":true,\"preflight_ns\":{},\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":{}}}",
+                "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-cache\",\"llvm_version\":{},\"triple\":{},\"pipeline\":{},\"object_bytes\":{},\"cache\":{},\"llvm_verification_this_request\":false,\"producer_verified_before_after\":true,\"preflight_ns\":{},\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":{}}}",
                 q(&cache.llvm_version),
                 q(target),
+                q(zil_llvm_api::pipeline_identity(
+                    config.optimization,
+                    function_merging
+                )),
                 bytes.len(),
                 lookup.to_json(),
                 lookup.preflight_ns,
@@ -637,8 +672,13 @@ fn compile_api_unit(
         }
         access = Some(lookup);
     }
-    let object =
-        zil_llvm_api::compile_module(&unit.module, &config, cancelled).map_err(api_error)?;
+    let object = zil_llvm_api::compile_module_with_function_merging(
+        &unit.module,
+        &config,
+        function_merging,
+        cancelled,
+    )
+    .map_err(api_error)?;
     check_cancelled(cancelled)?;
     fs::write(&unit.object, &object.bytes)
         .map_err(|e| io_error("write LLVM API object", &unit.object, e))?;
@@ -687,6 +727,7 @@ fn compile_api_unit(
     _unit: &UnitInput,
     _target: &str,
     _opt: Optimization,
+    _function_merging: FunctionMerging,
     _cache: Option<&PreparedCache>,
     _cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<UnitResult> {
@@ -694,6 +735,17 @@ fn compile_api_unit(
         "E-LLVM-API-UNAVAILABLE",
         "LLVM API support was not compiled in",
     ))
+}
+
+fn clang_function_merging(command: &mut Command, policy: FunctionMerging) {
+    if policy == FunctionMerging::AfterOptimization {
+        command.args([
+            "-mllvm",
+            "-enable-merge-functions=true",
+            "-mllvm",
+            "-mergefunc-use-aliases=false",
+        ]);
+    }
 }
 
 fn run_command(command: &mut Command, code: &str) -> CompileResult<Vec<String>> {

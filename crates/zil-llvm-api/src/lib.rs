@@ -18,6 +18,34 @@ pub enum Optimization {
     O2,
 }
 
+/// Machine optimization policy, independent of language verification and ABI.
+/// Neither enabled policy grants permission to alias distinct function addresses.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FunctionMerging {
+    #[default]
+    Disabled,
+    AfterOptimization,
+    BeforeAndAfter,
+}
+
+/// Exact pass policy used by both native receipts and object-cache namespaces.
+pub const fn pipeline_identity(
+    optimization: Optimization,
+    function_merging: FunctionMerging,
+) -> &'static str {
+    match (optimization, function_merging) {
+        (Optimization::O0, FunctionMerging::Disabled) => "default<O0>",
+        (Optimization::O0, _) => "unsupported<O0,function-merging>",
+        (Optimization::O2, FunctionMerging::Disabled) => "default<O2>",
+        (Optimization::O2, FunctionMerging::AfterOptimization) => {
+            "default<O2>|merge-functions=after|aliases=false"
+        }
+        (Optimization::O2, FunctionMerging::BeforeAndAfter) => {
+            "mergefunc,default<O2>|merge-functions=after|aliases=false"
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config<'a> {
     pub triple: &'a str,
@@ -87,13 +115,23 @@ pub fn compile(
     config: &Config<'_>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
+    compile_with_function_merging(ir, config, FunctionMerging::Disabled, cancelled)
+}
+
+/// Text-reference differential entry with an explicit, fully identified policy.
+pub fn compile_with_function_merging(
+    ir: &str,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<Object, Error> {
     #[cfg(feature = "text-reference")]
     {
-        native::compile(ir, config, cancelled)
+        native::compile(ir, config, function_merging, cancelled)
     }
     #[cfg(not(feature = "text-reference"))]
     {
-        let _ = (ir, config, cancelled);
+        let _ = (ir, config, function_merging, cancelled);
         Err(Error {
             kind: ErrorKind::Unavailable,
             message: "text parsing is reference-only; use compile_module or enable text-reference"
@@ -121,13 +159,24 @@ pub fn compile_module(
     config: &Config<'_>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
+    compile_module_with_function_merging(module, config, FunctionMerging::Disabled, cancelled)
+}
+
+/// Structured machine entry with an explicit pass policy. Current preflight and
+/// LLVM verification before/after optimization are identical to compile_module.
+pub fn compile_module_with_function_merging(
+    module: &model::Module,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<Object, Error> {
     #[cfg(feature = "native")]
     {
-        native::compile_module(module, config, cancelled)
+        native::compile_module(module, config, function_merging, cancelled)
     }
     #[cfg(not(feature = "native"))]
     {
-        let _ = (module, config, cancelled);
+        let _ = (module, config, function_merging, cancelled);
         Err(Error {
             kind: ErrorKind::Unavailable,
             message: format!("rebuild with llvm-api feature and LLVM {LLVM_VERSION}"),

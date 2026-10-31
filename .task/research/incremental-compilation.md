@@ -88,3 +88,5 @@
 每个候选先提案与真实正反例，限定测试与独审绑定源码；最终资源独占交错计量，记录完整请求、运行行为/质量、RSS、缓存失效及不利结果。handoff历史完整性检查仍因精简恢复历史/旧记录缺失为Fail，不重标全库历史验收状态；已审核现行生产与专项Doing记录继续授权当前研究。
 
 第六阶段初筛后追加：与实际Rust1.99.1源码/工作产品比对确认ThinLocal和持久语义查询是具体差距，继续制作实际CGU ThinLTO隔离对照及显式可信语义候选缓存。ThinLTO独立工具写集tools/research/incremental-compilation/thin_local/**及提案，当前EE生产不改；semantic_incremental继续持有driver/project、lib、artifacts、新semantic_cache及相应测试/session协调接入，root负责CLI。新增trusted缓存为显式选项，既有source缓存不改，完整源/规则/limits/target/compiler身份绑定，每次当前Verify保持；不以内容hash证明不可信来源。先控制/独审，最终另固定实现与性能身份；EE初筛仍只测保留的EE二进制。
+
+Rust精确源码又确认O2默认MergeFunctions与当前LLVM默认管线的具体差异。追加backend/API MergeFunctions可选择候选（off/after/before-and-after），由backend作者持有pass/缓存key与控制，root接driver/CLI；先保持默认off，函数地址/导出/FFI/资源语义不改，Clang无法支持的early模式显式Unsupported。不得把原ThinLTO初筛或原529语义缓存性能重绑到新生产；新release与消融另冻结。

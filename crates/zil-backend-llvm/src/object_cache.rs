@@ -5,7 +5,7 @@
 //! current machine preflight. New entries are committed after final publication.
 //! ELF build IDs identify trusted installed tools, not hostile replacements;
 //! SHA-256 detects accidental cache damage, not an attacker replacing both fields.
-use crate::Optimization;
+use crate::{FunctionMerging, Optimization};
 use std::fs::{self, File, OpenOptions};
 use std::hash::{Hash, Hasher};
 use std::io::{self, Read, Seek, SeekFrom, Write};
@@ -122,6 +122,7 @@ impl PreparedCache {
         directory: &Path,
         target: &TargetProfile,
         opt: Optimization,
+        function_merging: FunctionMerging,
     ) -> Result<Self, String> {
         // Interposed LLVM functions may come from another DSO. Do not reuse
         // objects under an incomplete tool identity in that environment.
@@ -158,6 +159,7 @@ impl PreparedCache {
             Optimization::O2 => "O2",
         }
         .hash(&mut state);
+        zil_llvm_api::pipeline_identity(config.optimization, function_merging).hash(&mut state);
         "x86-64|features=|reloc=PIC|model=default|debug=none|lto=none|llvm-pre-post-verify"
             .hash(&mut state);
         let namespace = state.digest();

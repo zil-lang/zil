@@ -743,6 +743,7 @@ impl CompilationSession {
         build.optimization = options.optimization;
         build.closed_executable = options.closed_executable;
         build.incremental_o2 = options.incremental_o2;
+        build.function_merging = options.function_merging;
         build.codegen = options.codegen;
         build.object_cache = options.object_cache.clone();
         build.windows = options.windows.clone();
