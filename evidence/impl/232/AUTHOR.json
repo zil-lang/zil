@@ -1,0 +1,130 @@
+{
+  "task": "232",
+  "status": "AuthorLimitedPass",
+  "independent_review": "Pending",
+  "source_commit": "426bbd2066e70acdb5b635ea90694c050c78f764",
+  "baseline_production": "0a3d0021fa788a27c87df20454c34c338039f1c5",
+  "planning_commit": "387d4e77a4e2123201d998d20ba980ea04ccbdc6",
+  "scope": "ordinary local flat and recursive Product default readonly captures; existing owning capture deep Copy reads preserve intermediate children",
+  "source_sha256": {
+    "crates/zil-driver/tests/impl214_source.rs": "d0b85f69098bad779cd3c70dcc5c3628ed559be35ae0f02e8e6735571d995b74",
+    "crates/zil-driver/tests/impl232_budget.rs": "37fe6152a525ce7def22b9774ae513d621d379fcd683b5dbc62564c88245a79f",
+    "crates/zil-driver/tests/impl232_readonly_product_capture.rs": "dc3045757ceae625fd8f542c9d6a3a797e72b14dcbf1e7105b75425bb7883104",
+    "crates/zil-types/src/closures.rs": "fe2d882cead600fa0abd4c9d616cf10b1e97078fc936844dc0209d43fb3a5bce",
+    "crates/zil-types/src/closures/package_effects.rs": "0d3b9a53456a8684aa1248c8e39fb26ac872b7a5c5cab238c5f1e9a93bc8ee57",
+    "crates/zil-types/src/lib.rs": "62255b7e15320ef274ee46a247e045c38f2d3168cab09e533ef8eac353e31e2e",
+    "examples/mainline/readonly_product232/local.zil": "be7b8f47880e4543160c37052cee55a44468bf927b75917a034bce435e0aaf2c"
+  },
+  "environment": {
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "native_backend": "Clang reference",
+    "clang": "17.0.6",
+    "llvm_api_23": "NotRun locally; integration CI required"
+  },
+  "command": "source /workspace/scratch/994319f2ba02/z11-env.sh; cargo test --offline --locked -p zil-driver --no-default-features --test impl232_readonly_product_capture --test impl232_budget --test impl214_source --test impl215_capture --test impl216_machine --test impl216_raw --test impl224_shared_product --test impl226_shared_product_capture --test impl225_budget --test impl226_budget -- --nocapture",
+  "tests": {
+    "passed": 79,
+    "failed": 0,
+    "ignored": 0,
+    "files": 10,
+    "new_tests": 14,
+    "new_native_executions": 24,
+    "new_native_optimizations": [
+      "O0",
+      "O2"
+    ],
+    "raw_and_wire": "new ordinary and mutated same-type Store origins explicitly checked"
+  },
+  "logs": {
+    "final": "targeted-regression-final.log",
+    "initial_baseline_failure": "baseline-probes.log",
+    "compiler_attempts": [
+      "attempt-1.log",
+      "attempt-2.log",
+      "attempt-3.log",
+      "attempt-4.log",
+      "attempt-5.log"
+    ],
+    "previous_targeted_run": "targeted-regression-attempt-1.log"
+  },
+  "new_minimum_budgets": {
+    "flat": {
+      "types": 1226,
+      "analyze": 7896,
+      "verify": 16608,
+      "n": true,
+      "n_minus_one_resource_limit": true,
+      "fresh_n": true
+    },
+    "recursive": {
+      "types": 1788,
+      "analyze": 14756,
+      "verify": 29096,
+      "n": true,
+      "n_minus_one_resource_limit": true,
+      "fresh_n": true
+    },
+    "owned": {
+      "types": 1762,
+      "analyze": 12234,
+      "verify": 17419,
+      "n": true,
+      "n_minus_one_resource_limit": true,
+      "fresh_n": true
+    }
+  },
+  "legacy_budget_comparison": {
+    "baseline_reviewer_commit": "7cb1474d",
+    "baseline_production_unchanged": true,
+    "legacy": [
+      835,
+      7129,
+      12161
+    ],
+    "225_nested": [
+      3889,
+      36339,
+      56097
+    ],
+    "226_explicit_shared": [
+      1787,
+      15791,
+      30761
+    ],
+    "candidate_same": true,
+    "columns": [
+      "Types",
+      "Analyze",
+      "Verify"
+    ],
+    "baseline_receipt": "evidence/reviews/232/baseline/legacy-budget.log"
+  },
+  "migration": {
+    "file": "crates/zil-driver/tests/impl214_source.rs",
+    "original_test": "old_flat_and_new_product_readonly_defaults_remain_closed",
+    "source_strings": "both unchanged; assertions now verify Fn and shared Address<Package> capture",
+    "other_old_assertions_changed": false
+  },
+  "format": "rustfmt --check passed on all six changed Rust files",
+  "clippy": {
+    "status": "NotRun",
+    "reason": "local toolchain does not include cargo-clippy",
+    "log": "clippy-types.log"
+  },
+  "preserved_boundaries": [
+    "unverified incoming address and new implicit parameter/outer capture origins",
+    "dynamic Store address capture",
+    "mutable Product shared capture",
+    "escape/retained/suspend",
+    "schema/Wire27",
+    "default quotas",
+    "product gates"
+  ],
+  "rust_goals": {
+    "safety": "source/raw/Wire and relevant rejection tests passed in this finite profile; full-language safety not established",
+    "runtime_performance": "no timing claim; native pointer reads and original owning cleanup observed",
+    "syntax_maintenance": "ordinary readonly closures now borrow Product without explicit alias; quantified maintenance product gate not run",
+    "compilation": "old 225/226 quota boundaries unchanged; no Rust comparison timing",
+    "four_goals_conjunction": "NotSatisfied; no breakthrough product claim"
+  }
+}

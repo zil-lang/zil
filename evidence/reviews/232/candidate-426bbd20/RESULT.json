@@ -1,0 +1,364 @@
+{
+  "slice": "232",
+  "reviewer": "/root/handoff_integrity",
+  "implementation_author": "/root/next_language_slices",
+  "implementation_commit": "426bbd2066e70acdb5b635ea90694c050c78f764",
+  "execution_commit": "3e5af294d45491b7134c4a2f6ea13147daf63ed6",
+  "reviewer_test_sha256": "84bc21af8431f0c36dadd37253ef4c46b9e4dc713082caa8c37ec456dbd37214",
+  "source_equivalence": {
+    "scope": [
+      "crates/zil-types/src/closures.rs",
+      "crates/zil-types/src/closures/package_effects.rs",
+      "crates/zil-types/src/lib.rs"
+    ],
+    "different_paths": [],
+    "note": "Execution also includes unrelated initial233 Expand candidate41d136fa. No production source edits by reviewer."
+  },
+  "status": "Pass",
+  "scope": "Bounded independent source/raw/Wire and reference Clang17 review only; official LLVM23 CI remains required.",
+  "command": "source /workspace/scratch/994319f2ba02/z11-env.sh; CARGO_BUILD_JOBS=1 CARGO_TARGET_DIR=\"$PWD/target-review232-426bbd20\" cargo test --offline --locked -p zil-driver --no-default-features --test review232_independent --test impl232_budget --test impl225_budget --test impl226_budget -- --nocapture",
+  "result": {
+    "independent_groups": 8,
+    "independent_passed": 8,
+    "failed": 0,
+    "ignored": 0,
+    "budget_replay_groups": 7,
+    "native_unique_programs": 7,
+    "native_executions_final_run": 14,
+    "native_optimizations": [
+      "O0",
+      "O2"
+    ],
+    "native_backend": "Clang 17.0.6",
+    "whole_workspace_run": false,
+    "llvm23_run": false
+  },
+  "coverage": [
+    "default flat and recursive real Address<Package> captures",
+    "post-last-use whole move with one Drop",
+    "distinct roots and legal nested lexical same-name storage",
+    "live capture blocks whole move, child take and child replacement",
+    "actual owning whole use and read-then-child-take",
+    "uncalled shared environment Drop",
+    "parameter, outer-capture, escaping source boundaries",
+    "dynamic Store same-type substitution rejected by Analyze/raw Verify/Wire",
+    "ordinary same-type local retarget: exact reconstructed Hold plan then E-BORROW-CONFLICT by raw/Wire"
+  ],
+  "budget_minima": {
+    "225_226_legacy": [
+      835,
+      7129,
+      12161
+    ],
+    "225_nested": [
+      3889,
+      36339,
+      56097
+    ],
+    "226_shared": [
+      1787,
+      15791,
+      30761
+    ],
+    "232_flat": [
+      1226,
+      7896,
+      16608
+    ],
+    "232_owning": [
+      1762,
+      12234,
+      17419
+    ],
+    "232_recursive": [
+      1788,
+      14756,
+      29096
+    ]
+  },
+  "budget_order": [
+    "Types",
+    "Analyze",
+    "Verify"
+  ],
+  "budget_boundary": "Each N success / N-1 ResourceLimit / fresh N success. Old four tests identical to separately recorded 7cb1474d baseline.",
+  "stage_expectation_correction": {
+    "initial_failure": "Reviewer incorrectly required Analyze to reject ordinary-local→ordinary-local retarget and used an illegal same-scope duplicate let. Original failing logs and inputs remain.",
+    "baseline_commit": "387d4e77a4e2123201d998d20ba980ea04ccbdc6",
+    "baseline_worktree": "/workspace/scratch/994319f2ba02/zil-review226-control",
+    "same_byte_explicit226_source_sha256": "b83a2dc02e741ce48c90e48c0b59e9ebfcd27de0c1352c4805b9de276d59b36f",
+    "mutation": "BorrowLocal(first)→BorrowLocal(second), update all matching HoldRoot::Local and module fingerprint; later actual TakeLocal(second) remains.",
+    "baseline_and_candidate_outcome": "Analyze Ok with full CandidatePlan == precisely retargeted plan; raw Verify and Wire SafeReject E-BORROW-CONFLICT at TakeLocal(second). Dynamic Store is a separate origin-qualification attack and still Unsupported in all three routes.",
+    "rationale": "Both roots are ordinary locals. Analyze independently reconstructs the new true Hold roots; Verify borrows.rs checks future-live overlap at TakeLocal. No candidate fact grants loan permission. No forged IR lowered.",
+    "source_authority": [
+      "spec/interfaces.json hold_claims",
+      "crates/zil-analyze/src/lib.rs candidate initialization / Hold contract",
+      "crates/zil-verify/src/borrows.rs invalidated TakeLocal and E-BORROW-CONFLICT check"
+    ],
+    "final_assertions": "Complete plan equality for Analyze; exact SafeReject E-BORROW-CONFLICT for both raw and Wire; no ResourceLimit or E-VERIFY-PLAN accepted; Store route requires Unsupported."
+  },
+  "attempt_history": [
+    "independent.log: Rust StableCrateId collision; no tests executed; isolated fresh target used thereafter",
+    "independent-fresh-target.log: 5 pass / 2 reviewer-fixture expectation failures",
+    "independent-fixture-corrected.log: legal nested shadow passes, Analyze overassertion remains",
+    "baseline226-retarget-original-expectation.log: same original overassertion fails on unchanged226 base",
+    "independent-final.log:8/0 before final diagnostic-code strengthening",
+    "independent-final-bound.log:exact committed3e5af294d tests plus7 budget replays pass"
+  ],
+  "limitations": [
+    "No formal LLVM23 acceptance",
+    "No native lowering of invalid source or forged IR",
+    "No whole-language or product-gate status change"
+  ],
+  "reports": [
+    {
+      "case": "address-parameter",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "child-replace",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "child-take",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "escaping-local",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "flat-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "A",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "flat-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "A",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "outer-capture",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "owning-parameter",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "read-then-take-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "A",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "read-then-take-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "A",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "recursive-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "A",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "recursive-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "A",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "same-type-explicit226-source-retarget",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "same-type-source-retarget",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "shadow-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "BA",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "shadow-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "BA",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "two-roots-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "BA",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "two-roots-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "BA",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "uncalled-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "A",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "uncalled-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "A",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "whole-consume-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "A",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "whole-consume-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "A",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "whole-move",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    }
+  ],
+  "artifact_manifest": "MANIFEST.json"
+}

@@ -1,0 +1,1 @@
+pub trait FnOnce_Extra{}pub struct Payload{n:i32}impl FnOnce_Extra for Payload{}

@@ -1,0 +1,22 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.27s
+     Running tests/review233_independent.rs (target/debug/deps/review233_independent-d319a612cef6f2d4)
+
+running 1 test
+test renamed_reserved_traits_are_rejected_without_a_generic_bound ... FAILED
+
+failures:
+
+---- renamed_reserved_traits_are_rejected_without_a_generic_bound stdout ----
+
+thread 'renamed_reserved_traits_are_rejected_without_a_generic_bound' (32) panicked at crates/zil-driver/tests/review233_independent.rs:94:5:
+reserved-declaration-Transfer: {"status":"Success","phase":"verify","diagnostics":[],"artifacts":{"candidate":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-31-1793442177753452550/reserved-declaration-Transfer/phases/candidate.txt","core":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-31-1793442177753452550/reserved-declaration-Transfer/phases/core.txt","ct-core":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-31-1793442177753452550/reserved-declaration-Transfer/phases/ct-core.txt","interfaces":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-31-1793442177753452550/reserved-declaration-Transfer/phases/interfaces.txt","source-map":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-31-1793442177753452550/reserved-declaration-Transfer/phases/source-map.txt","syntax":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-31-1793442177753452550/reserved-declaration-Transfer/phases/syntax.txt","typed":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-31-1793442177753452550/reserved-declaration-Transfer/phases/typed.txt","verified":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-31-1793442177753452550/reserved-declaration-Transfer/phases/verified.txt","verified-interfaces":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-31-1793442177753452550/reserved-declaration-Transfer/phases/verified-interfaces.txt"},"input_fingerprint":"c18dd4546b17e65e251f0414f89c94e2f31b3f461b091cb2941af79c6001402e","seconds":0.008966773,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"main.zil","1":"rules.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19","implementation_fingerprint":"78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182","contract_fingerprint":"636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229","result_origins":[],"callable_contracts":[],"callable_returns":[],"exports":[]},{"module":1,"signature_fingerprint":"d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19","implementation_fingerprint":"011be6c8d3244d24ab329b329244eeb1550b7b8c5293dc0ff63b33b959cb8532","contract_fingerprint":"636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229","result_origins":[],"callable_contracts":[],"callable_returns":[],"exports":[]}]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    renamed_reserved_traits_are_rejected_without_a_generic_bound
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p zil-driver --test review233_independent`

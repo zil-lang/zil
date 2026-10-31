@@ -1,0 +1,1 @@
+import rules;import data;fn main()->i32{let value=data.make(42);return rules.read(&value)-42}

@@ -1,0 +1,33 @@
+{
+  "status": "ReferencePassed_ApiPending",
+  "source_test_commit": "0ba1662c82072476ac4e722c8fc645a921b75eb8",
+  "supersedes_test_oracles_only": "e52e192bf396b235f57430900fad7d5196b00f02",
+  "previous_receipt": "../JOINT.json",
+  "tests": {
+    "passed": 2,
+    "failed": 0,
+    "ignored": 0
+  },
+  "native_backend": "Clang 17.0.6 reference",
+  "native_executions": 2,
+  "oracle": "complete i32 comparison to 14; stdout exactly one A; actual requested backend and no fallback; LLVM API builder assertions await CI",
+  "negative": "Verify / E-BORROW-CONFLICT; verification_runs 1; no executable",
+  "native": [
+    {
+      "path": "construction11-30-Clang-O2",
+      "report_sha256": "fd72e88353e4fe2e460b9946228f190b3101c8908db617adedff68d93fa043c1",
+      "backend": "clang",
+      "fallback": null,
+      "exit": "Some(0)",
+      "stdout_hex": "41"
+    },
+    {
+      "path": "construction11-30-Clang-O0",
+      "report_sha256": "48be694ca283b82556b04eeec9a8f71eaf8e00535e4c28d76795b3a3b169621d",
+      "backend": "clang",
+      "fallback": null,
+      "exit": "Some(0)",
+      "stdout_hex": "41"
+    }
+  ]
+}

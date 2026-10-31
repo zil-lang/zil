@@ -1,0 +1,1 @@
+import rules;import data;impl rules.Code for data.Payload{fn code()->i32=>.n}

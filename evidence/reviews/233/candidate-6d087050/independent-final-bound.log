@@ -1,0 +1,17 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.28s
+     Running tests/review233_independent.rs (.work/target-review233-6d087050/debug/deps/review233_independent-d319a612cef6f2d4)
+
+running 9 tests
+test private_missing_unimported_traits_and_foreign_self_stay_closed ... ok
+test generated_dependency_cannot_authorize_an_unimported_source_trait ... ok
+test uncalled_bad_impls_cannot_escape_signature_method_set_or_collision_checks ... ok
+test renamed_reserved_traits_are_rejected_without_a_generic_bound ... ok
+test shared_resource_receiver_runs_real_drop_and_rejects_owned_receiver ... ok
+test imported_signature_types_preserve_their_real_nominal_owner ... ok
+test two_local_self_types_and_same_spelling_traits_keep_nominal_identity ... ok
+test separate_generic_library_uses_each_actual_method_body ... ok
+test split_trait_impl_uses_definition_module_and_both_bound_spellings ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+

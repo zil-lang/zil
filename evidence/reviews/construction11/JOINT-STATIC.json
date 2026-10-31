@@ -1,0 +1,48 @@
+{
+  "status": "StaticPass_OracleNotes_ApiPending",
+  "reviewer": "/root/next_language_slices",
+  "author": "/root",
+  "reviewed_test_commit": "e52e192bf396b235f57430900fad7d5196b00f02",
+  "author_evidence_commit": "6e0554d15e28462e947a8df03bb0a7cd5d0daa9c",
+  "mode": "read-only source and evidence review; no independent re-execution or production edit",
+  "files_sha256": {
+    "crates/zil-driver/tests/construction11_integration.rs": "9bc6722785b2d123245377bc8858b1da778d86a8cadd5ce66ec927d094725373",
+    "examples/mainline/construction11/main.zil": "3c2d4a1fb80d6283361e0fc9e67e773d4f5f60293219e9dd3876589431da936b",
+    "examples/mainline/construction11/rules.zil": "5f4a1eefcc6766ac9cf44c3b5800221747951dee01f088349b8337a1a36c481f",
+    "examples/mainline/construction11/data.zil": "91e1a4e72857e7c8570be91bb783f0548e1c5535e39d45298ee643fb86ed27bd"
+  },
+  "production_continuity": "git diff e52e192bf..6e0554d15 -- crates examples is empty",
+  "checks": [
+    "three explicit ProjectSources modules with stable IDs and distinct rules/data paths; generic body defined in trait library, concrete Counter and impl in data module",
+    "shared default Product capture is used twice via generic trait call before final owner move; the nearest counterexample changes only move/call order and asserts replacement actually matched",
+    "counterexample strictly requires SafeReject, Phase::Verify, E-BORROW-CONFLICT, one actual verification invocation and no executable",
+    "native output A exactly once detects missing/duplicated Ticket teardown; exit and stderr checked for both O0 and O2",
+    "llvm-api cfg runs both Clang and LlvmApi while reference cfg runs only Clang; workspace default CLI enables driver llvm-api in official workflow",
+    "initial verification_runs=0 expectation failure is preserved separately; final +1 matches independent Verify rejection, not a production relaxation"
+  ],
+  "observed_author_reference": {
+    "tests_passed": 2,
+    "failed": 0,
+    "ignored": 0,
+    "native_executions": 2,
+    "compiler": "Clang17 reference",
+    "receipt": "evidence/integration/construction11/preflight/JOINT.json"
+  },
+  "oracle_notes": [
+    {
+      "severity": "nonblocking test-strengthening",
+      "observation": "return value - 14 followed by native exit 0 observes only low eight result bits on this host",
+      "suggestion": "if value != 14 { return 1 }; return 0 makes the comparison full i32 before encoding boolean exit"
+    },
+    {
+      "severity": "nonblocking test-strengthening",
+      "observation": "test requests each backend but does not assert native_codegen.backend or API builder receipt",
+      "suggestion": "assert requested backend, no fallback, and nonempty builder input_kind receipts for API runs"
+    }
+  ],
+  "limitations": [
+    "review does not claim complete generic/trait or Product language acceptance",
+    "formal LLVM23 and full integrated CI still pending",
+    "232 production was not edited"
+  ]
+}

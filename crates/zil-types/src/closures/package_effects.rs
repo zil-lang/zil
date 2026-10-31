@@ -67,7 +67,9 @@ pub(super) fn classify(
             .ok_or_else(|| limit("Package slot overflow", item.span))?;
         let mut owned = BTreeMap::new();
         let mut copy_fields = BTreeSet::new();
-        let mut automatic_owned_use = false;
+        // Newly admitted ordinary flat defaults must also see a nested
+        // closure's actual whole/give use at the outer creation point.
+        let mut automatic_owned_use = !item.moved;
         let mut has_child = false;
         for (name, ty) in fields {
             *work = work
@@ -99,6 +101,7 @@ pub(super) fn classify(
         has_automatic_owned_use |= automatic_owned_use;
     }
     let mut scan = Scan {
+        captures,
         writes: vec![false; packages.len()],
         partial_exit: vec![false; packages.len()],
         packages,
@@ -117,15 +120,22 @@ pub(super) fn classify(
     if let Some(state) = flow.normal {
         scan.exit(&state, body.span)?;
     }
-    for (index, package) in scan.packages.iter().enumerate() {
-        captures[package.capture].written |= scan.writes[index];
-        captures[package.capture].consumed |= scan.partial_exit[index];
+    let Scan {
+        packages,
+        writes,
+        partial_exit,
+        ..
+    } = scan;
+    for (index, package) in packages.iter().enumerate() {
+        captures[package.capture].written |= writes[index];
+        captures[package.capture].consumed |= partial_exit[index];
         captures[package.capture].moved |= package.owned_use;
     }
     Ok(())
 }
 
 struct Scan<'a> {
+    captures: &'a [Capture],
     packages: Vec<Package>,
     writes: Vec<bool>,
     partial_exit: Vec<bool>,
@@ -288,16 +298,94 @@ impl Scan<'_> {
         }
         Ok(())
     }
+    fn copy_projection(&mut self, expression: &CoreExpr, depth: usize) -> R<bool> {
+        // Resolve the final field without evaluating any prefix as an owning
+        // value. Names are borrowed from the bounded source tree; all path and
+        // type scans are charged before allocation/traversal.
+        let mut path = Vec::new();
+        let mut root = expression;
+        while let CoreExprKind::Member { object, member } = &root.kind {
+            self.visit(depth.saturating_add(path.len()), root.span)?;
+            self.spend(member.len().saturating_add(1), root.span)?;
+            path.push(member.as_str());
+            root = object;
+        }
+        let CoreExprKind::Name(name) = &root.kind else {
+            return Ok(false);
+        };
+        let Some(package) = self.package(name, root.span)? else {
+            return Ok(false);
+        };
+        let mut ty = &self.captures[self.packages[package].capture].ty;
+        for member in path.into_iter().rev() {
+            if let Type::Managed(inner) | Type::Desc(inner) = ty {
+                ty = inner;
+            }
+            match ty {
+                Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                    *self.work = self
+                        .work
+                        .checked_sub(fields.len().saturating_add(member.len()))
+                        .ok_or_else(|| {
+                            limit(
+                                "Product capture projection budget exceeded",
+                                expression.span,
+                            )
+                        })?;
+                    let Some((_, field)) = fields.iter().find(|(name, _)| name == member) else {
+                        return Ok(false);
+                    };
+                    ty = field;
+                }
+                Type::Tuple(fields) => {
+                    *self.work = self
+                        .work
+                        .checked_sub(member.len().saturating_add(1))
+                        .ok_or_else(|| {
+                            limit(
+                                "Product capture projection budget exceeded",
+                                expression.span,
+                            )
+                        })?;
+                    let Some(field) = member
+                        .parse::<usize>()
+                        .ok()
+                        .and_then(|index| fields.get(index))
+                    else {
+                        return Ok(false);
+                    };
+                    ty = field;
+                }
+                _ => return Ok(false),
+            }
+        }
+        let work = inference::type_snapshot_work(ty, expression.span, self.limits)?;
+        *self.work = self.work.checked_sub(work).ok_or_else(|| {
+            limit(
+                "Product capture projection budget exceeded",
+                expression.span,
+            )
+        })?;
+        Ok(ty.is_copy_value())
+    }
     fn expr(&mut self, state: &mut State, expression: &CoreExpr, depth: usize) -> R<()> {
         self.visit(depth, expression.span)?;
         let span = expression.span;
         match &expression.kind {
             CoreExprKind::Name(name) => {
-                if let Some(package) = self.package(name, span)? {
+                if let Some(package) = self.package(name, span)?
+                    && self.borrow_depth == 0
+                {
                     self.whole(state, package, EMPTY, span)?;
                 }
             }
             CoreExprKind::Member { object, member } => {
+                if self.borrow_depth == 0
+                    && matches!(object.kind, CoreExprKind::Member { .. })
+                    && self.copy_projection(expression, depth + 1)?
+                {
+                    return Ok(());
+                }
                 // Direct Package projections name its inline slot. More
                 // complex Package expressions already produce whole values.
                 if let Some(package) = self.named(object)? {

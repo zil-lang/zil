@@ -1,0 +1,22 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.26s
+     Running tests/review232_independent.rs (target/debug/deps/review232_independent-fc9e01a38ecd2418)
+
+running 1 test
+test whole_consumption_and_uncalled_shared_environment_keep_cleanup ... FAILED
+
+failures:
+
+---- whole_consumption_and_uncalled_shared_environment_keep_cleanup stdout ----
+
+thread 'whole_consumption_and_uncalled_shared_environment_keep_cleanup' (29) panicked at crates/zil-driver/tests/review232_independent.rs:60:66:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "resource closure: package field take requires that field live on every path", span: None, notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    whole_consumption_and_uncalled_shared_environment_keep_cleanup
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.24s
+
+error: test failed, to rerun pass `-p zil-driver --test review232_independent`

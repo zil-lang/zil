@@ -1,0 +1,110 @@
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+     Running tests/impl147_static_traits.rs (target/debug/deps/impl147_static_traits-d0b0c474f4041e4d)
+
+running 11 tests
+test empty_impl_cannot_manufacture_builtin_capabilities ... ok
+test missing_extra_duplicate_methods_and_overlapping_impls_reject ... ok
+test attributes_and_ambiguous_method_names_are_not_silently_erased ... ok
+test trait_signature_cannot_silently_change_modes_types_or_results ... ok
+test ordinary_ownership_checks_still_reject_trait_method_escape ... ok
+test finite_nominal_generic_bounds_are_now_checked_before_instantiation ... ok
+test unsupported_solver_features_are_not_invented_by_lowering_to_functions ... ok
+test value_receiver_and_ordinary_closure_composition_are_native ... ok
+test mutable_and_static_trait_methods_use_existing_borrow_and_return_paths ... ok
+test nominal_impls_inherit_read_receiver_and_dispatch_by_concrete_type ... ok
+test headless_layout_traits_write_512_rectangles_through_owned_buffer ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests/impl162_trait_bounds.rs (target/debug/deps/impl162_trait_bounds-559eeb0607cc6293)
+
+running 12 tests
+test forwarding_requires_a_prior_bound_even_when_unused ... ok
+test borrowed_receivers_do_not_gain_mutation_or_move_permissions ... ok
+test same_named_inherent_method_does_not_satisfy_nominal_bound ... ok
+test private_and_same_spelling_foreign_traits_cannot_satisfy_bound ... ok
+test missing_trait_wrong_arguments_and_ambiguous_bounds_reject_before_specialization ... ok
+test unused_definitions_cannot_gain_members_types_or_copy_from_instances ... ok
+test actual_impl_signatures_and_independent_loan_checks_still_run ... ok
+test trait_bound_scans_obey_actual_work_budget ... ok
+test bound_method_named_len_and_self_parameters_are_symbolic ... ok
+test imported_public_bounds_keep_definition_and_nominal_module_identity ... ok
+test shared_bounds_dispatch_for_multiple_nominal_types_and_forward_symbolically ... ok
+test mutable_multiple_bounds_and_value_receiver_keep_passing_modes ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running tests/impl231_where_traits.rs (target/debug/deps/impl231_where_traits-a3b00277a65a23e9)
+
+running 14 tests
+test direct_expand_api_checks_nominal_where_without_driver_normalization ... ok
+test alias_in_trait_signature_retains_the_existing_inline_boundary ... ok
+test actual_implementation_and_method_signature_are_not_inferred_from_names ... ok
+test private_missing_and_wrong_module_traits_cannot_satisfy_where_bounds ... ok
+test raw_ast_respects_the_exact_module_prefix_boundary ... ok
+test copy_repetition_and_distinct_nominal_bounds_keep_existing_rules ... ok
+test unsupported_subjects_and_non_nominal_bounds_are_not_erased ... ok
+test unused_definitions_still_require_declared_capabilities ... ok
+test reserved_capability_names_do_not_become_nominal_bounds_after_module_resolution ... ok
+test nominal_grouping_matches_inline_at_source_and_project_entries ... ok
+test nominal_where_and_alias_work_is_bounded_on_fresh_and_cached_requests ... ok
+test module_bound_resolution_obeys_exact_fresh_and_cached_limits ... ok
+test nominal_where_matches_inline_dispatch_at_o0_and_o2 ... ok
+test qualified_public_where_bounds_keep_module_identity_and_native_behavior ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+
+     Running tests/impl233_modules.rs (target/debug/deps/impl233_modules-8f0286d80acc0af6)
+
+running 8 tests
+test original_single_module_and_drop_work_budgets_remain_exact ... ok
+test privacy_local_self_and_nominal_identity_remain_required ... ok
+test imported_impls_check_uncalled_method_sets_signatures_and_collisions ... ok
+test original_three_module_where_and_inline_inputs_reach_independent_verify ... ok
+test static_trait_declarations_cannot_hide_reserved_capabilities_after_module_renaming ... ok
+test new_imported_trait_work_has_exact_cold_warm_and_fresh_boundaries ... ok
+test resource_implementations_keep_shared_heads_and_original_drop_responsibility ... ok
+test public_imported_traits_export_checked_shared_mutable_static_and_value_methods ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+
+     Running tests/review231_independent.rs (target/debug/deps/review231_independent-2a1c19fdccc5946f)
+
+running 8 tests
+test independent_raw_ast_prefixes_only_apply_the_reserved_name_exclusion ... ok
+test independent_cross_module_impl_matches_existing_inline_boundary ... ok
+test independent_module_identity_alias_privacy_and_binder_boundaries ... ok
+test independent_enum_payload_inference_keeps_inline_equivalence ... ok
+test independent_reserved_capabilities_and_similar_ordinary_trait_names ... ok
+test independent_grouped_bounds_and_cross_subject_clause_order ... ok
+test independent_module_where_budget_boundary_survives_cache_replay ... ok
+test independent_native_grouped_module_and_generated_enum_consumers ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.87s
+
+     Running tests/impl233_project_traits.rs (target/debug/deps/impl233_project_traits-d906c1bbd485b2f7)
+
+running 2 tests
+test static_reserved_exclusion_uses_the_exact_module_prefix_without_weakening_identity ... ok
+test raw_hygienic_trait_spelling_cannot_replace_an_actual_import ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/normalization.rs (target/debug/deps/normalization-3dc32594a3ab4455)
+
+running 12 tests
+test explicit_compile_time_marker_survives_until_the_ct_stage ... ok
+test context_records_do_not_infer_nominal_types_from_fields_or_outer_closure_return ... ok
+test plan_t01_004_failed_override_does_not_commit_or_run_later_fields ... ok
+test plan_t01_002_explicit_group_default_and_static_are_fixed_before_body ... ok
+test plan_t01_002_trait_receiver_comes_from_signature_not_body_or_order ... ok
+test plan_t01_004_pipeline_order_single_input_and_callable_factory ... ok
+test plan_t01_004_record_update_prepares_base_then_source_order_overrides ... ok
+test range_name_and_ordered_endpoints_survive_source_expansion ... ok
+test plan_t01_002_implicit_parameter_and_shorthand_map_to_real_sources ... ok
+test record_defaults_keep_declaration_scope_and_declared_order ... ok
+test source_map_covers_unique_core_node_ids_and_is_deterministic ... ok
+test plan_t01_002_nested_closures_inherit_lexical_receiver_only ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

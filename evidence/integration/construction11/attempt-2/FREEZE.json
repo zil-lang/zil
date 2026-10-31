@@ -1,0 +1,44 @@
+{
+  "status": "ReadyForFormalCI",
+  "integration_before_receipt": "7bbdced53004c0887c7d79feeb1485acd84db85b",
+  "previous_candidate": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+  "fixture_migration_commit": "507e650d526653ccc79146366e4bb7c30b55ac84",
+  "author_evidence_commit": "35bf842a1afd942f30361d2cb28f5c1fe913fd0e",
+  "independent_evidence_commit": "1c53fe05936aaa71905a7ad29b0389c46174992c",
+  "changed_test_paths": [
+    "crates/zil-driver/tests/impl072_packages.rs",
+    "crates/zil-driver/tests/impl077_package_captures.rs",
+    "crates/zil-driver/tests/impl192_copy_fields.rs",
+    "crates/zil-driver/tests/impl232_fixture_support/mod.rs",
+    "crates/zil-driver/tests/review232_ci077.rs"
+  ],
+  "production_toolchain_normative_inputs_unchanged": true,
+  "author_reference": {
+    "passed": 111,
+    "failed": 0,
+    "ignored": 0,
+    "zero_test_feature_disabled_file_excluded": "impl225_machine"
+  },
+  "independent_reference": {
+    "passed": 52,
+    "failed": 0,
+    "ignored": 0
+  },
+  "new_migration_native_each_review": {
+    "backend": "Clang 17.0.6",
+    "sources": 3,
+    "runs": 6,
+    "expected_exit": 20
+  },
+  "root_preflight": {
+    "format": "Pass",
+    "plan": "14 tasks and 7 negative self-tests passed"
+  },
+  "original_formal_ci": {
+    "run_id": 41194080948,
+    "workspace": "3020/4/0",
+    "reference": "2976/4/0",
+    "status": "Fail"
+  },
+  "formal_revalidation": "Pending; local reference counts remain separate"
+}

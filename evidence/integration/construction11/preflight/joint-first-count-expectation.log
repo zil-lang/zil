@@ -1,0 +1,37 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-base)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-llvm-api)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-types)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-lower)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-integrate11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 12.59s
+     Running tests/construction11_integration.rs (target/debug/deps/construction11_integration-492b333d8e9669e2)
+
+running 2 tests
+test cross_module_trait_use_keeps_the_product_capture_loan_active ... FAILED
+test shared_product_callback_calls_trait_library_then_releases_owner ... ok
+
+failures:
+
+---- cross_module_trait_use_keeps_the_product_capture_loan_active stdout ----
+
+thread 'cross_module_trait_use_keeps_the_product_capture_loan_active' (275) panicked at crates/zil-driver/tests/construction11_integration.rs:109:5:
+assertion `left == right` failed
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    cross_module_trait_use_keeps_the_product_capture_loan_active
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+error: test failed, to rerun pass `-p zil-driver --test construction11_integration`

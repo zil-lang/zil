@@ -1,0 +1,7 @@
+     Running tests/impl234_narrow_constants.rs (/home/runner/work/_temp/target/debug/deps/impl234_narrow_constants-e4d8e193791b6d0c)
+
+running 2 tests
+test byte_stream_preserves_success_exit_and_all_bytes_at_o0_o2 ... ok
+test negative_return_paths_survive_o2_and_warm_machine_cache ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s

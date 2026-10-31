@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.26s
+     Running tests/impl233_modules.rs (.work/target-review233-6d087050/debug/deps/impl233_modules-8f0286d80acc0af6)
+
+running 2 tests
+test original_single_module_and_drop_work_budgets_remain_exact ... ok
+test new_imported_trait_work_has_exact_cold_warm_and_fresh_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.17s
+

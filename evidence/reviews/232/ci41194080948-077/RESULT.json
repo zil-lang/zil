@@ -1,0 +1,146 @@
+{
+  "reviewer": "/root/handoff_integrity",
+  "slice": "232",
+  "finding": "Original077 mutation selector is a no-op after legitimate232 Copy-projection lowering; no loss of the tested whole-Package-view description boundary.",
+  "verdict": "FixtureNoOpConfirmed",
+  "formal_acceptance": "NotAcceptedByThisFailingRun",
+  "implementation_commit": "426bbd2066e70acdb5b635ea90694c050c78f764",
+  "baseline_commit": "0a3d0021fa788a27c87df20454c34c338039f1c5",
+  "candidate_commit": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+  "execution_commit": "0ab18d4e3a5608dedb40df89e5aac90860490bfd",
+  "ci": {
+    "run_id": 41194080948,
+    "checkout_commit": "89406b33b43fc17fe967b5bb9f629a16cb44b763",
+    "source_tree_equals_candidate": true,
+    "source_tree_sha256": "7f4bf3e6e02f4d3f9935c86cd6d18089fc892683f67abe942dc9311ca17746d4",
+    "workspace_log_sha256": "ad4ea2b5fdb0d9ad9595fe8ce4a28a777d1a0af9eb5ea129b28eb1f39f99c2ce",
+    "workspace_counts": {
+      "passed": 3020,
+      "failed": 4,
+      "ignored": 0
+    },
+    "workspace_status": "Fail",
+    "toolchain": "LLVM23.1.4/Rust1.99.1 according to original toolchain receipt"
+  },
+  "exact_original_input_proof": {
+    "source_from": "original077 DEFINITIONS + one space + READER",
+    "source_sha256": "3b5af3a5ec45339fe7ad20655e9202042ac31bb6af77c60beb24ed2c6ca0f9c1",
+    "077_test_file_same_between_baseline_and_candidate": true,
+    "077_test_file_sha256": "7d0fdec2775bebde2869c2359109560296f1dc1079ee6d3995c4e28ea24a83f4",
+    "analyze_verify_production_diff": []
+  },
+  "observations": {
+    "baseline0a": {
+      "original077-selector": {
+        "describe_package_field_hits": 1,
+        "borrow_package_field_count": 0,
+        "address_field_count": 0,
+        "read_address_count": 0,
+        "typed_unchanged": false,
+        "wire_unchanged": false,
+        "analyze_accepted": false,
+        "raw_accepted": false,
+        "wire_accepted": false,
+        "source_sha256": "3b5af3a5ec45339fe7ad20655e9202042ac31bb6af77c60beb24ed2c6ca0f9c1",
+        "original_wire_sha256": "52843e05c5ca6fdd2ed86a20a4ddfd1ff081d52c85c5ef89695051f40bfd8680",
+        "mutated_wire_sha256": "49709b17304bd947adf39baf838b6233f1e1d4a07e581c77c4af3feb1353307d"
+      },
+      "explicit-descriptor-attack": {
+        "describe_package_field_hits": 1,
+        "borrow_package_field_count": 0,
+        "address_field_count": 0,
+        "read_address_count": 0,
+        "typed_unchanged": false,
+        "wire_unchanged": false,
+        "analyze_accepted": false,
+        "raw_accepted": false,
+        "wire_accepted": false,
+        "source_sha256": "8b0596e50d577e4bb50a94644b7cdd21c3880c65aba1050b2f18eff7d37cd701",
+        "original_wire_sha256": "77d397e9442b42b4c5d32a065ad9624700fa86b643dc349ff4d30fa4ab00bcf6",
+        "mutated_wire_sha256": "6f3023c8ac0d2e031466841581ed2fa4df1039ed5babdf7e945fe88622602da2"
+      }
+    },
+    "candidate77b": {
+      "original077-selector": {
+        "describe_package_field_hits": 0,
+        "borrow_package_field_count": 1,
+        "address_field_count": 1,
+        "read_address_count": 1,
+        "typed_unchanged": true,
+        "wire_unchanged": true,
+        "analyze_accepted": true,
+        "raw_accepted": true,
+        "wire_accepted": true,
+        "source_sha256": "3b5af3a5ec45339fe7ad20655e9202042ac31bb6af77c60beb24ed2c6ca0f9c1",
+        "original_wire_sha256": "9051906e0e7fc4908d3261177a35faada154d0dbfb981c81a1773ea8f9cd421f",
+        "mutated_wire_sha256": "9051906e0e7fc4908d3261177a35faada154d0dbfb981c81a1773ea8f9cd421f"
+      },
+      "explicit-descriptor-attack": {
+        "describe_package_field_hits": 1,
+        "borrow_package_field_count": 0,
+        "address_field_count": 0,
+        "read_address_count": 0,
+        "typed_unchanged": false,
+        "wire_unchanged": false,
+        "analyze_accepted": false,
+        "raw_accepted": false,
+        "wire_accepted": false,
+        "source_sha256": "8b0596e50d577e4bb50a94644b7cdd21c3880c65aba1050b2f18eff7d37cd701",
+        "original_wire_sha256": "77d397e9442b42b4c5d32a065ad9624700fa86b643dc349ff4d30fa4ab00bcf6",
+        "mutated_wire_sha256": "6f3023c8ac0d2e031466841581ed2fa4df1039ed5babdf7e945fe88622602da2"
+      }
+    }
+  },
+  "semantic_rejection": {
+    "analyze": {
+      "category": "SafeReject",
+      "code": "E-ANALYZE-IR",
+      "message": "resource closure: Package view requires a precise field description"
+    },
+    "raw_and_wire": {
+      "category": "SafeReject",
+      "code": "E-VERIFY-RESOURCE",
+      "message": "DescribeLocal requires an actual managed position"
+    }
+  },
+  "root_cause": "Original raw_rejected helper never proved its mutator changed IR. READER p.a.n is now a Copy-leaf projection using BorrowPackageField/AddressField/ReadAddress, so the old DescribePackageField-only loop matches zero instructions. It then asks Analyze to reject the original legal candidate.",
+  "repair_recommendation": {
+    "scope": "Only this077 raw fixture; retain rejection and all other raw negatives.",
+    "source_body": "fn factory(p:P)->impl Fn()->i32{return move ()=>{let d=p.a;return d.n+p.n}}fn main()->i32{let f=factory(make());let moved=f;return moved()+moved()-42}",
+    "definitions": "Preserve original DEFINITIONS byte-for-byte.",
+    "guards": [
+      "control must pass Analyze, raw Verify and Wire",
+      "DescribePackageField mutation hits exactly1",
+      "mutated TypedModule differs from control",
+      "encoded mutated candidate differs from control",
+      "same original semantic rejection remains, not ResourceLimit or plan mismatch"
+    ],
+    "equivalence": "Explicit-description source and its original/mutated Wire bytes are individually identical on0a and77b."
+  },
+  "local_runs": {
+    "reference_feature_set": "--offline --locked --no-default-features",
+    "independent_tests_on_baseline": {
+      "passed": 2,
+      "failed": 0
+    },
+    "independent_tests_on_candidate": {
+      "passed": 2,
+      "failed": 0
+    },
+    "original077_test_on_baseline": {
+      "passed": 1,
+      "failed": 0
+    },
+    "original077_test_on_candidate": {
+      "passed": 0,
+      "failed": 1,
+      "same_failure_as_ci": true
+    },
+    "native_executions": 0,
+    "whole_workspace_runs": 0
+  },
+  "test_sha256": "f93c57f645821d32926ac06709686608c6347ae9b0e8ab4b54c031179076507a",
+  "source_write_scope": "Only review232_ci077.rs and evidence/reviews/232/ci41194080948-077; no production or077 migration edits by reviewer.",
+  "manifest": "MANIFEST.json",
+  "note": "This diagnostic does not erase original CI3020/4/0 or promote local earlier Pass into formal acceptance. Author will prepare exact3-file migration for separate review."
+}

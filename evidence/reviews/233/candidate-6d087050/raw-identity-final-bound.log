@@ -1,0 +1,10 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-expand)
+    Finished `test` profile [unoptimized] target(s) in 0.16s
+     Running tests/impl233_project_traits.rs (.work/target-review233-6d087050/debug/deps/impl233_project_traits-d906c1bbd485b2f7)
+
+running 2 tests
+test raw_hygienic_trait_spelling_cannot_replace_an_actual_import ... ok
+test static_reserved_exclusion_uses_the_exact_module_prefix_without_weakening_identity ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

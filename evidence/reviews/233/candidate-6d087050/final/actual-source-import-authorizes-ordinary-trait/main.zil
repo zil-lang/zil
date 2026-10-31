@@ -1,0 +1,1 @@
+import facade;import data;fn main()->i32{let value=data.make(42);return facade.read(&value)-42}

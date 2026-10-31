@@ -1,0 +1,1 @@
+import rules;extern "C" fn putchar(n:i32)->i32;resource Ticket{n:i32}impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.n)}}}impl rules.Code for Ticket{fn code()->i32=>.n}pub fn probe()->i32{let ticket=Ticket{n:65};return ticket.code()-65}

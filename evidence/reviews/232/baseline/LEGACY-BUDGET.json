@@ -1,0 +1,28 @@
+{
+  "status": "Pass",
+  "reviewer": "/root/handoff_integrity",
+  "tested_commit": "7cb1474d4637008ac14e7fe295c3762da8caee0d",
+  "production_source_commit": "0a3d0021fa788a27c87df20454c34c338039f1c5",
+  "command": "cargo test --offline --locked -p zil-driver --no-default-features --test impl226_budget --test impl225_budget -- --nocapture",
+  "passed": 4,
+  "failed": 0,
+  "ignored": 0,
+  "boundaries": {
+    "legacy_types_analyze_verify": [
+      835,
+      7129,
+      12161
+    ],
+    "nested_store225": [
+      3889,
+      36339,
+      56097
+    ],
+    "shared_product226": [
+      1787,
+      15791,
+      30761
+    ]
+  },
+  "checks": "Each test verifies N success, N-1 ResourceLimit, fresh N success. These are logical quotas, not timings."
+}

@@ -1,0 +1,348 @@
+{
+  "review_test_commit": "b7d14fbbd750cda415fad3fb2c25b9cb11c9c972",
+  "production_commit": "32f218d419cc162f8f51e5a24a5e2fb24d50e3b0",
+  "executions": 28,
+  "native_backend": "Clang17 reference",
+  "receipts": [
+    {
+      "directory": "out/native/review234-Clang-O0-177-0",
+      "source_sha256": "ce06e803c781c967c228974dd1a37278cc83694660d1ce51f18c451abb8a6cc0",
+      "builds": [
+        {
+          "status": "Success",
+          "verification_runs": 1,
+          "native_codegen": {
+            "backend": "clang",
+            "object_reports": [],
+            "object_cache": {
+              "requested": false,
+              "enabled": false,
+              "hits": 0,
+              "misses": 0,
+              "corrupt": 0,
+              "stored": 0,
+              "write_failures": 0,
+              "key_ns": 0,
+              "lookup_ns": 0,
+              "current_preflight_ns": 0,
+              "disabled_reason": null
+            },
+            "requested_units": 1,
+            "actual_units": 1,
+            "jobs": 1,
+            "fallback": null
+          }
+        },
+        {
+          "status": "Success",
+          "verification_runs": 1,
+          "native_codegen": {
+            "backend": "clang",
+            "object_reports": [],
+            "object_cache": {
+              "requested": false,
+              "enabled": false,
+              "hits": 0,
+              "misses": 0,
+              "corrupt": 0,
+              "stored": 0,
+              "write_failures": 0,
+              "key_ns": 0,
+              "lookup_ns": 0,
+              "current_preflight_ns": 0,
+              "disabled_reason": null
+            },
+            "requested_units": 1,
+            "actual_units": 1,
+            "jobs": 1,
+            "fallback": null
+          }
+        }
+      ],
+      "runs": [
+        {
+          "case": "false-0",
+          "input_hex": "",
+          "expected_hex": "000000800000000000000080",
+          "stdout_hex": "000000800000000000000080",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "false-1",
+          "input_hex": "00",
+          "expected_hex": "fffefffffffffffffeffffff",
+          "stdout_hex": "fffefffffffffffffeffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "false-2",
+          "input_hex": "01",
+          "expected_hex": "00ffffff00000000ffffffff",
+          "stdout_hex": "00ffffff00000000ffffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "false-3",
+          "input_hex": "02",
+          "expected_hex": "ffffffffffffffffffffffff",
+          "stdout_hex": "ffffffffffffffffffffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "false-4",
+          "input_hex": "03",
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "stdout_hex": "ffffff7fffffffffffffff7f",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "false-5",
+          "input_hex": "04",
+          "expected_hex": "000100800001000000000080",
+          "stdout_hex": "000100800001000000000080",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "false-6",
+          "input_hex": "ff",
+          "expected_hex": "fefffffffeffffffffffffff",
+          "stdout_hex": "fefffffffeffffffffffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-0",
+          "input_hex": "",
+          "expected_hex": "000000800000000000000080",
+          "stdout_hex": "000000800000000000000080",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-1",
+          "input_hex": "00",
+          "expected_hex": "fffefffffffffffffeffffff",
+          "stdout_hex": "fffefffffffffffffeffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-2",
+          "input_hex": "01",
+          "expected_hex": "00ffffff00000000ffffffff",
+          "stdout_hex": "00ffffff00000000ffffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-3",
+          "input_hex": "02",
+          "expected_hex": "ffffffffffffffffffffffff",
+          "stdout_hex": "ffffffffffffffffffffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-4",
+          "input_hex": "03",
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "stdout_hex": "ffffff7fffffffffffffff7f",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-5",
+          "input_hex": "04",
+          "expected_hex": "000100800001000000000080",
+          "stdout_hex": "000100800001000000000080",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-6",
+          "input_hex": "ff",
+          "expected_hex": "fefffffffeffffffffffffff",
+          "stdout_hex": "fefffffffeffffffffffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        }
+      ]
+    },
+    {
+      "directory": "out/native/review234-Clang-O2-177-1",
+      "source_sha256": "ce06e803c781c967c228974dd1a37278cc83694660d1ce51f18c451abb8a6cc0",
+      "builds": [
+        {
+          "status": "Success",
+          "verification_runs": 1,
+          "native_codegen": {
+            "backend": "clang",
+            "object_reports": [],
+            "object_cache": {
+              "requested": false,
+              "enabled": false,
+              "hits": 0,
+              "misses": 0,
+              "corrupt": 0,
+              "stored": 0,
+              "write_failures": 0,
+              "key_ns": 0,
+              "lookup_ns": 0,
+              "current_preflight_ns": 0,
+              "disabled_reason": null
+            },
+            "requested_units": 1,
+            "actual_units": 1,
+            "jobs": 1,
+            "fallback": null
+          }
+        },
+        {
+          "status": "Success",
+          "verification_runs": 1,
+          "native_codegen": {
+            "backend": "clang",
+            "object_reports": [],
+            "object_cache": {
+              "requested": false,
+              "enabled": false,
+              "hits": 0,
+              "misses": 0,
+              "corrupt": 0,
+              "stored": 0,
+              "write_failures": 0,
+              "key_ns": 0,
+              "lookup_ns": 0,
+              "current_preflight_ns": 0,
+              "disabled_reason": null
+            },
+            "requested_units": 1,
+            "actual_units": 1,
+            "jobs": 1,
+            "fallback": null
+          }
+        }
+      ],
+      "runs": [
+        {
+          "case": "false-0",
+          "input_hex": "",
+          "expected_hex": "000000800000000000000080",
+          "stdout_hex": "000000800000000000000080",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "false-1",
+          "input_hex": "00",
+          "expected_hex": "fffefffffffffffffeffffff",
+          "stdout_hex": "fffefffffffffffffeffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "false-2",
+          "input_hex": "01",
+          "expected_hex": "00ffffff00000000ffffffff",
+          "stdout_hex": "00ffffff00000000ffffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "false-3",
+          "input_hex": "02",
+          "expected_hex": "ffffffffffffffffffffffff",
+          "stdout_hex": "ffffffffffffffffffffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "false-4",
+          "input_hex": "03",
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "stdout_hex": "ffffff7fffffffffffffff7f",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "false-5",
+          "input_hex": "04",
+          "expected_hex": "000100800001000000000080",
+          "stdout_hex": "000100800001000000000080",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "false-6",
+          "input_hex": "ff",
+          "expected_hex": "fefffffffeffffffffffffff",
+          "stdout_hex": "fefffffffeffffffffffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-0",
+          "input_hex": "",
+          "expected_hex": "000000800000000000000080",
+          "stdout_hex": "000000800000000000000080",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-1",
+          "input_hex": "00",
+          "expected_hex": "fffefffffffffffffeffffff",
+          "stdout_hex": "fffefffffffffffffeffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-2",
+          "input_hex": "01",
+          "expected_hex": "00ffffff00000000ffffffff",
+          "stdout_hex": "00ffffff00000000ffffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-3",
+          "input_hex": "02",
+          "expected_hex": "ffffffffffffffffffffffff",
+          "stdout_hex": "ffffffffffffffffffffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-4",
+          "input_hex": "03",
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "stdout_hex": "ffffff7fffffffffffffff7f",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-5",
+          "input_hex": "04",
+          "expected_hex": "000100800001000000000080",
+          "stdout_hex": "000100800001000000000080",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        },
+        {
+          "case": "true-6",
+          "input_hex": "ff",
+          "expected_hex": "fefffffffeffffffffffffff",
+          "stdout_hex": "fefffffffeffffffffffffff",
+          "stderr_hex": "",
+          "exit": "Some(0)"
+        }
+      ]
+    }
+  ]
+}

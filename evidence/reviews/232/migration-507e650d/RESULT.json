@@ -1,0 +1,285 @@
+{
+  "reviewer": "/root/handoff_integrity",
+  "verdict": "Pass",
+  "scope": "Only the exact frozen fixture migration and bounded replay; full formal acceptance still requires freshLLVM23CI.",
+  "implementation_commit": "426bbd2066e70acdb5b635ea90694c050c78f764",
+  "fixture_migration_commit": "507e650d526653ccc79146366e4bb7c30b55ac84",
+  "baseline_commit": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+  "review_execution_commit": "a90bf00011c38fac68c647d781172acb56d2a5c1",
+  "formal_ci_prior_run": {
+    "run_id": 41194080948,
+    "status": "Fail",
+    "workspace_counts": [
+      3020,
+      4,
+      0
+    ],
+    "receipt": "evidence/reviews/232/ci41194080948-077/RESULT.json"
+  },
+  "production_diff": [],
+  "static_proof": "STATIC.json",
+  "original_inputs": {
+    "072": {
+      "source_sha256": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1",
+      "exit": 20,
+      "classification": "Complete owningP/FnOnce; actual MakeClosure capture producer is TakeLocal(owner) in same predecessor instruction prefix."
+    },
+    "077": {
+      "source_sha256": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7",
+      "exit": 20,
+      "classification": "Actual sharedAddress<P>/Fn; MakeClosure operand traces through ReborrowAddress to BorrowLocal(actual owner)."
+    }
+  },
+  "preserved_boundaries": [
+    "072 owner-after-creation and second-call SafeReject/Analyze/E-UNINITIALIZED",
+    "077 live owner move, givefield and replacement SafeReject/Verify/E-BORROW-CONFLICT",
+    "077 defaultmutable Types/Unsupported/E-UNSUPPORTED; last-use owner move accepted",
+    "077 exact real descriptor attack remains Analyze/raw/Wire rejected with nonzero mutation and changed bytes, per independent review232_ci077",
+    "26 untouched original072/077 test blocks byte-identical, remaining4 source negatives and shared-write/unrestoredFnMut tail byte-identical",
+    "192 only exact obsolete diagnostic expression replaced; source, native owning control, readonly and overlap controls remain byte-identical"
+  ],
+  "local_replay": {
+    "command": "source /workspace/scratch/994319f2ba02/z11-env.sh; CARGO_BUILD_JOBS=1 CARGO_TARGET_DIR=\"$PWD/.work/target-review077-77b\" ZIL_TEST_REPORT_DIR=\"$PWD/out/native/review232-migration-507e650d\" cargo test --offline --locked -p zil-driver --no-default-features --test impl072_packages --test impl077_package_captures --test impl192_copy_fields --test review232_ci077 -- --nocapture",
+    "passed": 52,
+    "failed": 0,
+    "ignored": 0,
+    "by_file": {
+      "impl072_packages": 18,
+      "impl077_package_captures": 12,
+      "impl192_copy_fields": 20,
+      "review232_ci077": 2
+    },
+    "native_migration_sources": 3,
+    "native_migration_executions": 6,
+    "native_migration_exit_oracle": 20,
+    "native_backend": "Clang17 reference",
+    "192_unchanged_owned_native_replays": 2,
+    "other_existing_native_replays": "Part of bounded old-test replay; not counted as newly added migration coverage.",
+    "whole_workspace": false,
+    "llvm23_local": false
+  },
+  "migration_reports": [
+    {
+      "case": "migration232-072-owned-original-145-0",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [],
+      "native": false,
+      "exit": null,
+      "source_sha256": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1"
+    },
+    {
+      "case": "migration232-072-owned-original-145-1",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "exit": "Some(20)",
+      "source_sha256": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1"
+    },
+    {
+      "case": "migration232-072-owned-original-145-2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "exit": "Some(20)",
+      "source_sha256": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1"
+    },
+    {
+      "case": "migration232-072-owner-after-creation-145-3",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNINITIALIZED"
+      ],
+      "native": false,
+      "exit": null,
+      "source_sha256": "165ed7cbb543275cda271be1d8c7535dd53bb26349e061ed5db19aaec2ee342b"
+    },
+    {
+      "case": "migration232-072-second-call-145-4",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNINITIALIZED"
+      ],
+      "native": false,
+      "exit": null,
+      "source_sha256": "ed2e039e5c58a2f8a79210fde4fb3ca17a983d9bae21d83440be271351a2179e"
+    },
+    {
+      "case": "migration232-077-default-mutable-172-9",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "native": false,
+      "exit": null,
+      "source_sha256": "b973f70b1b8a23a18c9264f90218fb3991e798c3c7781b3a755b3afacae3c05d"
+    },
+    {
+      "case": "migration232-077-live-field-replace-172-5",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "native": false,
+      "exit": null,
+      "source_sha256": "22f2deb9dcb82d34b35073c99bfad121b55025296865549eced7d6554843004a"
+    },
+    {
+      "case": "migration232-077-live-field-take-172-4",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "native": false,
+      "exit": null,
+      "source_sha256": "02a019fc5ebdb17e6fb6cb9b27b7e82a6989edd1122da4c628675805ba99c67c"
+    },
+    {
+      "case": "migration232-077-live-owner-move-172-3",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "native": false,
+      "exit": null,
+      "source_sha256": "0a519ca50dfe1f0edd22ee1d8d5cb92ce72e2c1f6e7f40e5a819e1b90b2192ef"
+    },
+    {
+      "case": "migration232-077-move-after-last-use-172-6",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [],
+      "native": false,
+      "exit": null,
+      "source_sha256": "1cf106087b0dd2ced94ae55aa0894dd9d50549d50da0a354e356801a8d80b601"
+    },
+    {
+      "case": "migration232-077-move-after-last-use-172-7",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "exit": "Some(20)",
+      "source_sha256": "1cf106087b0dd2ced94ae55aa0894dd9d50549d50da0a354e356801a8d80b601"
+    },
+    {
+      "case": "migration232-077-move-after-last-use-172-8",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "exit": "Some(20)",
+      "source_sha256": "1cf106087b0dd2ced94ae55aa0894dd9d50549d50da0a354e356801a8d80b601"
+    },
+    {
+      "case": "migration232-077-shared-original-172-0",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [],
+      "native": false,
+      "exit": null,
+      "source_sha256": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7"
+    },
+    {
+      "case": "migration232-077-shared-original-172-1",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "exit": "Some(20)",
+      "source_sha256": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7"
+    },
+    {
+      "case": "migration232-077-shared-original-172-2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "exit": "Some(20)",
+      "source_sha256": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7"
+    }
+  ],
+  "192_original_controls": [
+    {
+      "case": "fields192-201-30",
+      "variant": "owned",
+      "status": "Success",
+      "phase": "link",
+      "codes": [],
+      "exit": "Some(0)",
+      "source_sha256": "c086c7267551b26167a57eec166a2bdfa1951f8f9b307110a0954d41672f48e9"
+    },
+    {
+      "case": "fields192-201-47",
+      "variant": "owned",
+      "status": "Success",
+      "phase": "link",
+      "codes": [],
+      "exit": "Some(0)",
+      "source_sha256": "c086c7267551b26167a57eec166a2bdfa1951f8f9b307110a0954d41672f48e9"
+    },
+    {
+      "case": "fields192-201-51",
+      "variant": "ordinary",
+      "status": "Unsupported",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "exit": null,
+      "source_sha256": "26dc5c16f8c00e7032c048a84a5b9c9e64b81141c7aac47687a740d1f787b2f0"
+    },
+    {
+      "case": "fields192-201-54",
+      "variant": "readonly",
+      "status": "SafeReject",
+      "phase": "types",
+      "codes": [
+        "E-CLOSURE-MUTABILITY"
+      ],
+      "exit": null,
+      "source_sha256": "901c268f469fcdd1ade9b72bbfaaf3d20e6a4ea6f7483f25814f2c3b907d00fb"
+    },
+    {
+      "case": "fields192-201-56",
+      "variant": "overlap",
+      "status": "SafeReject",
+      "phase": "verify",
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "exit": null,
+      "source_sha256": "6d1fa6d70aa4f9ce145051e365d5b9ef6374828009079151d7b3b967a9237baa"
+    }
+  ],
+  "manifest": "MANIFEST.json",
+  "limitations": [
+    "Original CI failure remains Fail",
+    "No production source change authorized or made",
+    "No count addition across author, independent reviewer and CI replays",
+    "No full-language/product gate status promotion"
+  ]
+}

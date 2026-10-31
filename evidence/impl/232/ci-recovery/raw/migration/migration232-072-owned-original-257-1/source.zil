@@ -1,0 +1,1 @@
+resource R{n:i32} package P{manages a:R,manages b:R,n:i32} fn make()->P{return P{a:R{n:20},b:R{n:21},n:1}} fn relay(p:P)->P{return p} fn consume(give r:R)->i32{return r.n} fn keep(give r:R,n:i32)->R contract{result(give)}{return give r} fn step(ok:bool)->bool!i32{if ok{return 0}return true} fn main()->i32{var p=make();let f=()=>consume(give p.a);return f()}

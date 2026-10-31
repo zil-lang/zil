@@ -1,0 +1,27 @@
+{
+  "status": "Fail",
+  "run_id": 41194080948,
+  "actual_checkout": "89406b33b43fc17fe967b5bb9f629a16cb44b763",
+  "workspace": {
+    "passed": 3020,
+    "failed": 4,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "reference": {
+    "passed": 2976,
+    "failed": 4,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "failed_tests_each_configuration": [
+    "packages072_outer_package_owned_capture_remains_unsupported",
+    "captures077_analyze_rejects_shared_alias_write_and_unrestored_fnmut",
+    "captures077_nearest_source_rejections_do_not_weaken_other_modes",
+    "owning_package_captures_borrow_the_actual_environment_field"
+  ],
+  "source_tree_exact_match": true,
+  "note": "Same four failed fixtures in both configurations; other job gates still running. No aggregation of overlapping counts."
+}

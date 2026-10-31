@@ -1,0 +1,19 @@
+{
+  "run_id": 41194080948,
+  "candidate": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+  "actual_checkout": "89406b33b43fc17fe967b5bb9f629a16cb44b763",
+  "source_tree_sha256": "7f4bf3e6e02f4d3f9935c86cd6d18089fc892683f67abe942dc9311ca17746d4",
+  "exact_source_tree_match": true,
+  "workspace_log_sha256": "ad4ea2b5fdb0d9ad9595fe8ce4a28a777d1a0af9eb5ea129b28eb1f39f99c2ce",
+  "native_manifest_sha256": "aa3458adac01b811ac3fd0f04c691ca65a8fa53498df0c4befbbd7d959278ba8",
+  "original_manifest_files": 68300,
+  "llvm_version": "23.1.4",
+  "whole_workspace": {
+    "passed": 3020,
+    "failed": 4,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "whole_run_acceptance": "Fail; these selected stages do not override workspace failure",
+  "new_test_or_binary_execution": false
+}
