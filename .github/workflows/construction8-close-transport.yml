@@ -1,0 +1,50 @@
+name: Close completed construction 8 transport
+on:
+  push:
+    branches: [chore/construction8-resume]
+    paths: [.github/workflows/construction8-close-transport.yml]
+permissions:
+  contents: write
+jobs:
+  close:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Check exact published candidates and preserve transport history before deletion
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/closeout"
+          python3 - <<'PY'
+          import datetime,json,os,pathlib,subprocess
+          def git(*args):return subprocess.check_output(['git',*args],text=True).strip()
+          head=git('rev-parse','HEAD');branch='refs/heads/chore/construction8-resume'
+          assert head==os.environ['GITHUB_SHA']
+          assert git('ls-remote','origin',branch).split()[0]==head,'Transport branch changed'
+          for name,expected in [('impl/225-product-store-capture','8ea37c2de56cf65f1448e4fa647671f4459ad148'),('impl/226-shared-product-capture','c8dd71a4b75ed7731fca8372a3a055f017991eb3')]:
+              actual=git('ls-remote','origin','refs/heads/'+name).split()[0]
+              assert actual==expected,'Candidate changed; re-audit before closing transport'
+          paths=git('diff','--name-only','42ce8081a2aa5722a14fea53f23f819f46685a60',head).splitlines()
+          assert paths and all(p.startswith('.github/workflows/construction8-') or p=='docs/log/zil施工8.md' for p in paths),'Unexpected non-transport changes'
+          tag='refs/tags/archive/construction8-resume-20261031'
+          prior=git('ls-remote','origin',tag)
+          if prior: assert prior.split()[0]==head,'Archive tag collision'
+          else: git('push','origin',head+':'+tag)
+          assert git('ls-remote','origin',tag).split()[0]==head
+          git('push','--force-with-lease='+branch+':'+head,'origin',':'+branch)
+          assert not git('ls-remote','origin',branch)
+          result=dict(schema_version=1,status='Pass',utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),deleted_branch=branch,deleted_sha=head,archive_tag=tag,transport_paths=paths,scope='Transport-only cleanup; no candidate implementation or research branch deleted or merged')
+          pathlib.Path(os.environ['RUNNER_TEMP'],'closeout','TRANSPORT-CLEANUP.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(result,ensure_ascii=False))
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: construction8-transport-closeout
+          path: ${{ runner.temp }}/closeout/
+          if-no-files-found: error
+          retention-days: 30
