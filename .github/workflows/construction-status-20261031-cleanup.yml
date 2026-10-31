@@ -1,0 +1,54 @@
+name: Construction status audited branch retirement
+on:
+  push:
+    branches: ['task/construction-status-20261031-cleanup']
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: construction-status-20261031-cleanup
+  cancel-in-progress: false
+jobs:
+  retire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact reviewed files and bounded safety controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum --check ops-audit/SHA256SUMS
+          python3 -m unittest discover -s ops-audit -p 'test_cleanup.py' -v
+      - name: Use the existing workflow Git credential
+        run: gh auth setup-git --hostname github.com
+      - name: Check live refs and compare actual baseline and current main records
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ops-audit/cleanup.py --manifest ops-audit/manifest.json --out "$RUNNER_TEMP/status-audit-dry"
+      - name: Archive exact tips and atomically retire only the reviewed branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ops-audit/cleanup.py --manifest ops-audit/manifest.json --out "$RUNNER_TEMP/status-audit-execute" --execute --validated-dry-run "$RUNNER_TEMP/status-audit-dry/receipt.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: construction-status-cleanup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/status-audit-dry/
+            ${{ runner.temp }}/status-audit-execute/
+            ops-audit/cleanup.py
+            ops-audit/manifest.json
+            ops-audit/test_cleanup.py
+            ops-audit/SHA256SUMS
+            .github/workflows/construction-status-20261031-cleanup.yml
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30

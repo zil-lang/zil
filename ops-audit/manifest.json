@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "repository": "zil-lang/zil",
+  "accepted_head": "f2572502beb76eb86e9254dea855404e4998a64d",
+  "main_ci": {"run_id": 41198113948, "run_attempt": 1},
+  "required_main_ancestors": ["61203584c01ede0e3bd25c5d4d694198d0b2aa52"],
+  "branches": [
+    {
+      "ref": "refs/heads/chore/construction8-resume",
+      "expected_sha": "6f7b7679a4fd54df0e0460a7b61c425710ad0953",
+      "kind": "transport",
+      "base": "42ce8081a2aa5722a14fea53f23f819f46685a60",
+      "archive_tag": "refs/tags/archive/20261031/construction8-resume-6f7b7679a4fd",
+      "allowed_files": [
+        ".github/workflows/construction8-close-transport.yml",
+        ".github/workflows/construction8-dispatch.yml",
+        ".github/workflows/construction8-publish225.yml",
+        ".github/workflows/construction8-publish226.yml",
+        ".github/workflows/construction8-repair226.yml",
+        ".github/workflows/construction8-resume.yml",
+        ".github/workflows/construction8-rust-recovery.yml",
+        ".github/workflows/construction8-strengthen225.yml",
+        "docs/log/zil施工8.md"
+      ],
+      "published_commits": ["8ea37c2de56cf65f1448e4fa647671f4459ad148", "c8dd71a4b75ed7731fca8372a3a055f017991eb3"]
+    },
+    {
+      "ref": "refs/heads/chore/construction10-cleanup",
+      "expected_sha": "acccc78fe1b4719fe7598f8ea5d64812e1e9ff5c",
+      "kind": "transport",
+      "base": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
+      "archive_tag": "refs/tags/archive/20261031/construction10-cleanup-acccc78fe1b4",
+      "allowed_files": [".construction10-cleanup/cleanup.py", ".construction10-cleanup/manifest.json", ".construction10-cleanup/script.sha256", ".github/workflows/construction10-cleanup.yml"],
+      "published_commits": ["9e7072b1ebdc6900c7370863c27c7432953bd830"]
+    },
+    {
+      "ref": "refs/heads/chore/construction10-exact-transport",
+      "expected_sha": "d6218fe763f13cac89f52f0c6663344bb916b371",
+      "kind": "transport",
+      "base": "aaeb67f12b5638677332132e28df86fa23cde3d8",
+      "archive_tag": "refs/tags/archive/20261031/construction10-exact-transport-d6218fe763f1",
+      "allowed_files": [".construction10/manifest.json", ".github/workflows/construction10-exact-transport.yml"],
+      "allowed_prefixes": [".construction10/parts/"],
+      "transport_manifest": ".construction10/manifest.json",
+      "published_commits": ["b4094d45e6fa3018363d17599af3aae642d37f67"]
+    },
+    {
+      "ref": "refs/heads/chore/construction10-recovery",
+      "expected_sha": "88d3e426af67e48d0fbc041ec406f35b54b17b60",
+      "kind": "transport",
+      "base": "aaeb67f12b5638677332132e28df86fa23cde3d8",
+      "archive_tag": "refs/tags/archive/20261031/construction10-recovery-88d3e426af67",
+      "allowed_files": [".construction10/manifest.json", ".github/workflows/construction10-recovery.yml"],
+      "allowed_prefixes": [".construction10/parts/"],
+      "published_commits": [],
+      "scope": "Unpublished partial recovery: only three original chunks and their text copies exist. Archive preserves this failed attempt; no claim that manifest target 2dcb7bc3 was published or accepted."
+    },
+    {
+      "ref": "refs/heads/chore/construction11-exact-transport",
+      "expected_sha": "a40d12be3767c198d80e8928fac84fe8fb5a5522",
+      "kind": "transport",
+      "base": "0a3d0021fa788a27c87df20454c34c338039f1c5",
+      "archive_tag": "refs/tags/archive/20261031/construction11-exact-transport-a40d12be3767",
+      "allowed_files": [".construction11/manifest.json", ".github/workflows/construction11-exact-transport.yml"],
+      "allowed_prefixes": [".construction11/parts/"],
+      "transport_manifest": ".construction11/manifest.json",
+      "published_commits": ["61203584c01ede0e3bd25c5d4d694198d0b2aa52"]
+    },
+    {
+      "ref": "refs/heads/integration/construction11",
+      "expected_sha": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+      "kind": "merged",
+      "archive_tag": "refs/tags/archive/20261031/construction11-integration-c0418f532e75"
+    },
+    {
+      "ref": "refs/heads/review/construction11",
+      "expected_sha": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+      "kind": "merged",
+      "archive_tag": "refs/tags/archive/20261031/construction11-review-61203584c01e"
+    }
+  ]
+}

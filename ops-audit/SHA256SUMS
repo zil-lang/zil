@@ -1,0 +1,5 @@
+5cbb553f2b5ffc0f24d3933bf1cf2f9cce4e5cc688df734dc13b660020c2aee8  ops-audit/cleanup.py
+ff29e8e242407e3d17a1133989c70a1c6c73e9f12940c36b157b73ab3462ba70  ops-audit/manifest.json
+85d6d72fa572bdc1a2ee4f4b943ebe74c4327654382fbd000edd6e84275db8c6  ops-audit/test_cleanup.py
+74d067f05d64f7d816804aa07d0efa5826625416bcd1b5d87d37c62eedac774f  ops-audit/README.md
+a175cea6ca1de955af31d913764f4797e68caaacbd0ddd9b47007c71a17c45eb  .github/workflows/construction-status-20261031-cleanup.yml
