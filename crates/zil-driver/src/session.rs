@@ -36,6 +36,10 @@ pub(super) enum TypedInput {
     Module(Arc<TypedModule>),
     Program(Arc<TypedProgram>),
 }
+pub(super) struct ProjectFrontend {
+    pub typed: Arc<TypedProgram>,
+    pub snapshot: Arc<QuerySnapshot>,
+}
 impl TypedInput {
     fn module(&self) -> &TypedModule {
         match self {
@@ -318,6 +322,87 @@ impl CompilationSession {
         self.touch(&key);
         self.raw.insert(key, raw.clone());
         Ok((raw, snapshot))
+    }
+
+    /// Reuse an exact, successfully constructed project frontend without
+    /// materializing evicted Parse values. This is raw computation reuse, never
+    /// verification authority. The caller has checked all current source and
+    /// artifact guards and excluded requests requiring intermediate artifacts.
+    pub(super) fn reuse_project_frontend(
+        &mut self,
+        key: &QueryKey,
+        sources: &[SourceUnit],
+        options: &CompileOptions,
+        report: &mut CompileReport,
+        observer: &mut dyn FnMut(&QueryEvent),
+    ) -> CompileResult<Option<ProjectFrontend>> {
+        let Some(RawSnapshot::ProjectTyped(typed)) = self.raw.get(key).cloned() else {
+            return Ok(None);
+        };
+        // Any incomplete/incompatible metadata falls through to the original
+        // ordered pipeline, which retains its original first-error behavior.
+        let trace = (|| {
+            let types = self.database.read(key).ok()??;
+            let [ct_dependency] = types.dependencies.as_slice() else {
+                return None;
+            };
+            if ct_dependency.key != phase_key(key, Phase::Ct, true, key.target) {
+                return None;
+            }
+            let ct = self.database.read(&ct_dependency.key).ok()??;
+            let [expand_dependency] = ct.dependencies.as_slice() else {
+                return None;
+            };
+            let expand_key = &expand_dependency.key;
+            if expand_key != &phase_key(key, Phase::Expand, false, key.target)
+                && expand_key != &phase_key(key, Phase::Expand, true, key.target)
+            {
+                return None;
+            }
+            let expand = self.database.read(expand_key).ok()??;
+            if [types.status, ct.status, expand.status]
+                .iter()
+                .any(|status| *status != ResultCategory::Success)
+                || expand.dependencies.len() != sources.len()
+                || expand
+                    .dependencies
+                    .iter()
+                    .zip(sources)
+                    .any(|(dep, source)| {
+                        dep.key.phase != Phase::Parse || dep.key.module != source.module_id
+                    })
+            {
+                return None;
+            }
+            let mut replay = expand
+                .dependencies
+                .iter()
+                .map(|dep| dep.key.clone())
+                .collect::<Vec<_>>();
+            replay.extend([expand.key.clone(), ct.key.clone(), types.key.clone()]);
+            Some((types, replay))
+        })();
+        let Some((snapshot, replay)) = trace else {
+            return Ok(None);
+        };
+        for completed in replay {
+            options
+                .cancellation
+                .check(completed.phase)
+                .map_err(|e| vec![e])?;
+            event(completed.phase, QueryDisposition::Reused, report, observer);
+            options
+                .cancellation
+                .check(completed.phase)
+                .map_err(|e| vec![e])?;
+            report.cache_hit = true;
+            // A dependency receipt does not own a raw value. Do not invent
+            // recency entries for evicted values or change the capacity bound.
+            if self.raw.contains_key(&completed) {
+                self.touch(&completed);
+            }
+        }
+        Ok(Some(ProjectFrontend { typed, snapshot }))
     }
 
     fn pipeline(
@@ -1100,5 +1185,47 @@ mod bounded_history_tests {
         assert!(session.raw.is_empty());
         assert!(session.recency.is_empty());
         success(&session.compile_project(&p, &CompileOptions::default()));
+    }
+
+    #[test]
+    fn frontend_reuse_requires_reachable_receipts_and_never_supplies_authority() {
+        let p = project(40);
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::with_capacity(8);
+        success(&session.compile_project(&p, &options));
+        session.database.clear();
+        let repaired = session.compile_project(&p, &options);
+        success(&repaired);
+        assert!(
+            repaired.query_events.iter().any(|e| {
+                e.phase == Phase::Parse && e.disposition == QueryDisposition::Executed
+            })
+        );
+        equivalent(
+            &repaired,
+            &CompilationSession::default().compile_project(&p, &options),
+        );
+
+        // Fault-inject only private raw input. An exact-source checkpoint must
+        // still obtain current independent Verify, which rejects this change.
+        for raw in session.raw.values_mut() {
+            if let RawSnapshot::ProjectTyped(typed) = raw {
+                Arc::make_mut(typed).module.schema_version = 0;
+            }
+        }
+        let rejected = session.compile_project(&p, &options);
+        assert_eq!(rejected.verification_runs, 1);
+        assert_eq!(rejected.phase, Phase::Verify);
+        assert_eq!(rejected.status, ResultCategory::SafeReject);
+        assert_eq!(rejected.diagnostics[0].code, "E-VERIFY-SCHEMA");
+        assert!(
+            rejected
+                .query_events
+                .iter()
+                .filter(|e| e.phase == Phase::Parse)
+                .all(|e| e.disposition == QueryDisposition::Reused)
+        );
+        assert_eq!(session.raw.len(), session.recency.len());
+        assert!(session.raw.len() <= 8);
     }
 }

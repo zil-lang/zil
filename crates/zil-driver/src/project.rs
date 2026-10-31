@@ -164,6 +164,32 @@ impl CompilationSession {
         let target = options.target.fingerprint();
         self.prepare_project(&identity, target, project.modules.len());
         let key = |phase, depends_on_target| phase_key(&identity, phase, depends_on_target, target);
+        if loaded_syntax.is_none()
+            && options.stop_after >= Stage::Types
+            && options.emit_dir.is_none()
+            && options.cache_dir.is_none()
+            && let Some(frontend) = self.reuse_project_frontend(
+                &key(Phase::Types, true),
+                &project.modules,
+                options,
+                report,
+                observer,
+            )?
+        {
+            report.phase = Phase::Types;
+            report.scalar_interfaces = frontend.typed.interfaces.clone();
+            if options.stop_after == Stage::Types {
+                return Ok(());
+            }
+            return self.finish_typed(
+                options,
+                report,
+                observer,
+                TypedInput::Program(frontend.typed),
+                frontend.snapshot,
+                artifacts,
+            );
+        }
         let mut parsed = Vec::new();
         let mut dependencies: Vec<Arc<QuerySnapshot>> = Vec::new();
         let mut remaining = options.limits.clone();
