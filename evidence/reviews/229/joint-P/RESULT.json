@@ -1,0 +1,119 @@
+{
+  "task": "229",
+  "reviewer": "/root/scope_audit",
+  "verdict": "Pass",
+  "status": "Pass",
+  "implementation_commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
+  "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1",
+  "review_scope": "229 exact production and normative binding on joint 228/229 candidate; non-author of 229. Separate reviewer owns 228 verdict.",
+  "production_binding": {
+    "implementation_commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+    "single_229_commit": "d8c71880928c2e0497ffe078834382503960256b",
+    "single_229_review": "b5ec03108df2e158fb3aff965d667229aaf1cf60",
+    "author_228_commit": "c1578e319d606d745835a7c3c609a3bb738b3c15",
+    "review_checkout": "a864f3a0d8c102ec167506533ca35d74da51f44e",
+    "source_trees": {
+      "crates/zil-driver/src": "5cad5e35d03c16291e4cd45adbef8c769b5cab54",
+      "crates/zil-expand/src": "01c3690f47779962a87665e725353cffd361eb33"
+    },
+    "production_worktree_diff_from_P": "empty",
+    "229_blobs": {
+      "crates/zil-expand/src/generics.rs": {
+        "single_229": "0efc5aa423cdc5e8fbedd4a5673c163f329a6940",
+        "joint_P": "0efc5aa423cdc5e8fbedd4a5673c163f329a6940",
+        "review": "0efc5aa423cdc5e8fbedd4a5673c163f329a6940",
+        "worktree_sha256": "a7a997c7ca9e90a44eb130deaaee8eff210e271339cd88723717ab9d460b8477"
+      },
+      "crates/zil-expand/src/generic_alias.rs": {
+        "single_229": "ab3bb5bf49e4f5b25fbb449581a23d69190e259a",
+        "joint_P": "ab3bb5bf49e4f5b25fbb449581a23d69190e259a",
+        "review": "ab3bb5bf49e4f5b25fbb449581a23d69190e259a",
+        "worktree_sha256": "005c44998e8714c8799f43344442aa7678128e5136808d6f5753b57f3de0b9b2"
+      },
+      "crates/zil-expand/src/generic_budget.rs": {
+        "single_229": "9d3db5ad9d1fe042075ec0ae9918245874cec1cf",
+        "joint_P": "9d3db5ad9d1fe042075ec0ae9918245874cec1cf",
+        "review": "9d3db5ad9d1fe042075ec0ae9918245874cec1cf",
+        "worktree_sha256": "32b6dc12e0857a34b6b22da401a869964b5c2ac055f036984d36a079b8e83203"
+      },
+      "crates/zil-expand/src/generic_where.rs": {
+        "single_229": "7693cc031c3b7bad0b9016970d9635f0c412e45f",
+        "joint_P": "7693cc031c3b7bad0b9016970d9635f0c412e45f",
+        "review": "7693cc031c3b7bad0b9016970d9635f0c412e45f",
+        "worktree_sha256": "b0b56e70e08dc75a3aa5cc43f31eacdbe4b5ca3e6a653955d1389e108dff9af4"
+      }
+    },
+    "expand_lib_equals_author_228": true,
+    "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
+    "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1",
+    "normative_files_verified": {
+      "_zil_design.md": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
+      "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "spec/diagnostics.json": "76d7b0eda1addd47ad03d81fa083d2d016c2ec7eeb46297ee868ae3d59131cb8",
+      "spec/interfaces.json": "228e5d4174a2ed04d94b17b4d64cb7f34f1210cd7a952be938d0f6dc4200afee",
+      "policy/dependencies.json": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    }
+  },
+  "prior_single_review": {
+    "implementation_commit": "d8c71880928c2e0497ffe078834382503960256b",
+    "review_commit": "b5ec03108df2e158fb3aff965d667229aaf1cf60",
+    "result_path": "evidence/reviews/229/RESULT.json",
+    "preserved": true
+  },
+  "executed": 3,
+  "tests": {
+    "passed": 3,
+    "failed": 0,
+    "filtered": 7,
+    "filtered_reason": "Replayed only the exact original-defect control from the already-passed 8-test single-slice suite. Did not repeat unrelated native matrix; new composition test file ran all 2 tests."
+  },
+  "original_source_replays": [
+    {
+      "label": "inline-shadowed-nominal",
+      "source_sha256": "ebc0b639c27afb1963c44f54a11b073efe87f3ddf16607c0744737fc8af18342",
+      "original_archive": "attempt-02/raw.tar.xz",
+      "original_member": "raw/review229-30/inline-shadowed-nominal/source.zil",
+      "same_source_bytes": true,
+      "current_status": "Unsupported",
+      "current_phase": "expand"
+    },
+    {
+      "label": "where-shadowed-nominal",
+      "source_sha256": "c102041da2015d516748c97026ddca59f32e4395c835bd5c4e982c8c3a24574d",
+      "original_archive": "attempt-01/raw.tar.xz",
+      "original_member": "raw/review229-275/shadowed-nominal/source.zil",
+      "same_source_bytes": true,
+      "current_status": "Unsupported",
+      "current_phase": "expand"
+    }
+  ],
+  "joint_rejections": [
+    "generated alias T cannot grant numeric permission to current T:Copy",
+    "generated struct T cannot grant a field to current T:Copy",
+    "unsupported non-Copy bound is not erased inside generation"
+  ],
+  "joint_native": {
+    "builds": 2,
+    "executions": 2,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "backend": "llvm-api",
+    "llvm_version": "23.1.4",
+    "input_kind": "builder",
+    "parse_ns": 0,
+    "exit_code": 0,
+    "stdout": "empty",
+    "stderr": "empty",
+    "reports": [
+      "raw/review229-joint-137/native-O0/report.json",
+      "raw/review229-joint-137/native-O2/report.json"
+    ]
+  },
+  "source_changes_by_reviewer": "review229_joint.rs only; zero production edit",
+  "scope_limits": "No full-workspace, product, native Windows or Rust-performance conclusion; original failures and single-slice Pass remain immutable."
+}

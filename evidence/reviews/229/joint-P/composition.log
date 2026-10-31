@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/e9af9764d083/zil-review229/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.26s
+     Running tests/review229_joint.rs (/workspace/scratch/e9af9764d083/targets/review229/debug/deps/review229_joint-eb47b573178028db)
+
+running 2 tests
+test generated_types_do_not_grant_where_binders_members_or_numeric_rights ... ok
+test generated_array_alias_and_shadowing_where_helper_execute_at_o0_and_o2 ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
