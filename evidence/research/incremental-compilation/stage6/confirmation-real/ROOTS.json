@@ -1,0 +1,30 @@
+[
+  {
+    "prefix": "research/stage6/confirmation-real",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-real"
+  },
+  {
+    "prefix": "research/stage6/confirmation-real-execution.json",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-real-execution.json"
+  },
+  {
+    "prefix": "research/stage6/confirmation-real-exclusive-lease.json",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-real-exclusive-lease.json"
+  },
+  {
+    "prefix": "research/stage6/confirmation-real.log",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-real.log"
+  },
+  {
+    "prefix": "research/stage6/confirmation-real-analysis-v1",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-real-analysis-v1"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/confirmation-real-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/confirmation-real-plan.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

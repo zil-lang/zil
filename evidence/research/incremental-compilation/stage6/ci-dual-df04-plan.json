@@ -1,0 +1,21 @@
+{
+  "tools": [],
+  "repo_extra_sources": [],
+  "external_sources": [],
+  "tool_source_inventory": [],
+  "omission_paths": {},
+  "preserve_paths": [],
+  "research_roots": [
+    "stage6/archive-df04-ci-sources",
+    "stage6/github-41212317882-run.json",
+    "stage6/github-41212317882-jobs.json",
+    "stage6/github-41212317882-artifacts.json",
+    "stage6/github-41212317882-logs.zip",
+    "stage6/github-41212324365-run.json",
+    "stage6/github-41212324365-jobs.json",
+    "stage6/github-41212324365-artifacts.json",
+    "stage6/github-41212324365-logs.zip",
+    "stage6/df04-dual-ci-log-audit.json"
+  ],
+  "archive_scope": "Two complete successful GitHub runs on exactdf04: research LLVM verification41212317882 and official verification41212324365. Preserve original run/jobs/artifact-list metadata, complete log ZIPs with member SHA/CRC audit, and immutable df04 workflow/producer/C++/license/SDK recipes. Artifact-list metadata is not the downloadable artifact payload. Later quality-closure candidates and current HEAD are not accepted by these runs; original2e8 CI packages remain separate."
+}

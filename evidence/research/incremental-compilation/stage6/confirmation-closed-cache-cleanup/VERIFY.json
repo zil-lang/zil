@@ -1,0 +1,9 @@
+{
+  "kind": "confirmation-closed-cache-cleanup",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 7,
+  "omitted_paths": 0,
+  "unique_blobs": 6,
+  "identity_sha256": "87028868aad8917ece5dad061bf91bc2de8759308e9936dee7350931953c6c96",
+  "verified_utc": "2026-10-31T15:46:54.789526+00:00"
+}

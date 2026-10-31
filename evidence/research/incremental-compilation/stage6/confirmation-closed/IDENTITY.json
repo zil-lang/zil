@@ -1,0 +1,107 @@
+{
+  "schema": 2,
+  "kind": "confirmation-closed",
+  "collected_utc": "2026-10-31T15:46:13.988153+00:00",
+  "head_at_collection": "c589f2a6b7fe8c2e66a2ebbaaa246a71ebb69df2",
+  "collector_sha256": "d1dc2632b022aa67460109a46ea18e2f87489f17df4ff2593298de09fc3b9f1b",
+  "archive": {
+    "logical_path": "raw.tar.gz",
+    "bytes": 7072190,
+    "sha256": "c2b51d853178ee900f912c8daac7aa0be8bbff922d5e40efad7515f4c5801faf",
+    "parts": [
+      {
+        "path": "raw.tar.gz",
+        "bytes": 7072190,
+        "sha256": "c2b51d853178ee900f912c8daac7aa0be8bbff922d5e40efad7515f4c5801faf"
+      }
+    ]
+  },
+  "manifests": {
+    "FILES": {
+      "encoding": "gzip-jsonl",
+      "rows": 7519,
+      "logical_bytes": 3237101,
+      "logical_sha256": "b48ea1b2ea8111d752e462cdff32e4608bee1d54e4184c0ebd219b7a8134bd48",
+      "storage": {
+        "logical_path": "FILES.jsonl.gz",
+        "bytes": 139961,
+        "sha256": "780e5a404bf10d74303eb5a4b2b45ac9b35faa212c737bb214f827821668d2b2",
+        "parts": [
+          {
+            "path": "FILES.jsonl.gz",
+            "bytes": 139961,
+            "sha256": "780e5a404bf10d74303eb5a4b2b45ac9b35faa212c737bb214f827821668d2b2"
+          }
+        ]
+      }
+    },
+    "OMITTED": {
+      "encoding": "gzip-jsonl",
+      "rows": 6828,
+      "logical_bytes": 4114368,
+      "logical_sha256": "d160d262628fcd01a3db96e746728482f38b367c4a7ca23ba63497a75faae1e8",
+      "storage": {
+        "logical_path": "OMITTED.jsonl.gz",
+        "bytes": 284676,
+        "sha256": "a4fd7e05c35dad7991f01697424e7f4340a7885a73eba3b03cba142c455e0475",
+        "parts": [
+          {
+            "path": "OMITTED.jsonl.gz",
+            "bytes": 284676,
+            "sha256": "a4fd7e05c35dad7991f01697424e7f4340a7885a73eba3b03cba142c455e0475"
+          }
+        ]
+      }
+    }
+  },
+  "metadata": {
+    "FILES.jsonl.gz": {
+      "bytes": 139961,
+      "sha256": "780e5a404bf10d74303eb5a4b2b45ac9b35faa212c737bb214f827821668d2b2"
+    },
+    "OMITTED.jsonl.gz": {
+      "bytes": 284676,
+      "sha256": "a4fd7e05c35dad7991f01697424e7f4340a7885a73eba3b03cba142c455e0475"
+    },
+    "ROOTS.json": {
+      "bytes": 1443,
+      "sha256": "84208eec345ea4f26fc9a1955c557f50b8ded8686bd577b802ace1a5f5abadea"
+    },
+    "PLAN.json": {
+      "bytes": 669,
+      "sha256": "6c6c35027369c74b6628026f26c3c31e536a29268ddf2d7773aba20a8084adcb"
+    }
+  },
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 1032,
+      "bytes": 2836896
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 264,
+      "bytes": 627053712
+    },
+    {
+      "class": "large-semantic-cache-candidate",
+      "files": 360,
+      "bytes": 704881242
+    },
+    {
+      "class": "reproducible-rust-incremental-final-cache-only-not-per-request-state",
+      "files": 5172,
+      "bytes": 4593942570
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 7519,
+      "bytes": 379766295
+    }
+  ],
+  "retained_paths": 7519,
+  "omitted_paths": 6828,
+  "unique_blobs": 1082,
+  "boundary": "Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.",
+  "scope": "Complete frozen exclusive closed-executable O2 matrix:1380 requests,1320valid and60 budget refusals; raw source identities, rows,stdout/stderr,native output, commands, released exclusive lease and AuditComplete independent analysisv1 using no-bytecode adapter. Exactdf04 measurement tool/source and actual744/888 combination identities remain separate. Rust incremental final-cache bytes fully path/size/SHA inventoried and omitted; no original per-request intermediate cache snapshots existed, and review does not read cache internals. Replay may regenerate caches but byte identity is not promised. Final program/object/semantic-cache identities remain recorded. Cleanup is restricted to the verifiedRustincremental subset; source/program/object/semantic paths remain. Edited source reproduction is not an original snapshot, final artifact SHA is not historical per-request ELF SHA, and loader binding is prior pair probe rather than per-request LD_DEBUG."
+}

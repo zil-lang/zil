@@ -1,0 +1,9 @@
+{
+  "kind": "confirmation-closed",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 7519,
+  "omitted_paths": 6828,
+  "unique_blobs": 1082,
+  "identity_sha256": "78888afb83245209d3b68773fe9e6075db86a233ff41071b191c991f528a25dc",
+  "verified_utc": "2026-10-31T15:46:14.429048+00:00"
+}

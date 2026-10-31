@@ -1,0 +1,12 @@
+{
+  "kind": "ci-dual-df04",
+  "summary": [
+    {
+      "class": "retained-raw-evidence",
+      "files": 86,
+      "bytes": 2118023
+    }
+  ],
+  "selected_paths": 86,
+  "unique_blobs": 83
+}

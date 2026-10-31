@@ -1,0 +1,102 @@
+{
+  "schema": 2,
+  "kind": "confirmation-real",
+  "collected_utc": "2026-10-31T15:53:39.436512+00:00",
+  "head_at_collection": "c589f2a6b7fe8c2e66a2ebbaaa246a71ebb69df2",
+  "collector_sha256": "bc1fc2e70a7fefc341d864363c6d2c26ea3bf1c6dd2591103dfc67de44d7dab0",
+  "archive": {
+    "logical_path": "raw.tar.gz",
+    "bytes": 894248,
+    "sha256": "d5503bafbfc5dc7b36ee8ec8d8249ff8998344be35b3be2ba6dd66231c32660c",
+    "parts": [
+      {
+        "path": "raw.tar.gz",
+        "bytes": 894248,
+        "sha256": "d5503bafbfc5dc7b36ee8ec8d8249ff8998344be35b3be2ba6dd66231c32660c"
+      }
+    ]
+  },
+  "manifests": {
+    "FILES": {
+      "encoding": "gzip-jsonl",
+      "rows": 1029,
+      "logical_bytes": 458296,
+      "logical_sha256": "c84c7b4a22756167c1638ab40ad9592c97abc123c87a7a813d5ce349e49709bd",
+      "storage": {
+        "logical_path": "FILES.jsonl.gz",
+        "bytes": 34383,
+        "sha256": "e582fef00e488b488b51184f73dcb7c608eca7e855e2ce4af6d9c10605b96dbf",
+        "parts": [
+          {
+            "path": "FILES.jsonl.gz",
+            "bytes": 34383,
+            "sha256": "e582fef00e488b488b51184f73dcb7c608eca7e855e2ce4af6d9c10605b96dbf"
+          }
+        ]
+      }
+    },
+    "OMITTED": {
+      "encoding": "gzip-jsonl",
+      "rows": 3332,
+      "logical_bytes": 1873400,
+      "logical_sha256": "332bc1ce63248bb6335cce1b7716e17fecb6bc1d5c74053c87807ec974e71612",
+      "storage": {
+        "logical_path": "OMITTED.jsonl.gz",
+        "bytes": 120916,
+        "sha256": "45e9330ce20d5146d1fd7de8c6e3267cbea12a8fc5bedf42e87e220a1416fd50",
+        "parts": [
+          {
+            "path": "OMITTED.jsonl.gz",
+            "bytes": 120916,
+            "sha256": "45e9330ce20d5146d1fd7de8c6e3267cbea12a8fc5bedf42e87e220a1416fd50"
+          }
+        ]
+      }
+    }
+  },
+  "metadata": {
+    "FILES.jsonl.gz": {
+      "bytes": 34383,
+      "sha256": "e582fef00e488b488b51184f73dcb7c608eca7e855e2ce4af6d9c10605b96dbf"
+    },
+    "OMITTED.jsonl.gz": {
+      "bytes": 120916,
+      "sha256": "45e9330ce20d5146d1fd7de8c6e3267cbea12a8fc5bedf42e87e220a1416fd50"
+    },
+    "ROOTS.json": {
+      "bytes": 1222,
+      "sha256": "23b009481a0fcbe03df66300a6e68691691fc25db181376ed544f18b8aa33fb7"
+    },
+    "PLAN.json": {
+      "bytes": 510,
+      "sha256": "99c73b0fb19d02d9682b23f9304ea2c76ca9410b3b00eabe21f2b318defc8ebb"
+    }
+  },
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 2982,
+      "bytes": 85813114
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 182,
+      "bytes": 446329256
+    },
+    {
+      "class": "ephemeral-rust-incremental-lock",
+      "files": 168,
+      "bytes": 0
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 1029,
+      "bytes": 8772697
+    }
+  ],
+  "retained_paths": 1029,
+  "omitted_paths": 3332,
+  "unique_blobs": 347,
+  "boundary": "Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.",
+  "scope": "Complete frozen14-real-program default-export O2 CLI matrix:336 requests from14cases x6blocks x2arms x2cold/unchanged requests, all valid. Original df04 runner/distribution/timing helpers are retained with their own measured SHA, separate from common888 compiler/744 LLVM and later analysis producer. Full source/native oracles/reports/commands/lease/execution and independent AuditComplete analysis retained. Fixed small repository programs do not represent industrial-workload sampling or equal internal compiler work; no edited-request benchmark was run. Generated binaries/objects/caches are SHA-inventoried where omitted and are not deleted by collection. No later quality candidate or default-only pyc correction is included."
+}
