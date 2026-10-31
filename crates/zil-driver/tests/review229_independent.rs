@@ -31,6 +31,21 @@ fn check(label: &str, text: &str) -> CompileReport {
 const TRIGGER: &str = "fn trigger<T>(x:T)->T where T:Copy=>x;";
 
 #[test]
+fn original_separate_marker_clause_is_accepted_by_231() {
+    let report = check(
+        "separate-marker-promoted-231",
+        "trait Marker{}fn bad<T>(x:T)->T where T:Copy,T:Marker=>x;fn main()->i32=>0",
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
 fn bounds_do_not_leak_between_parameters_or_hide_unexecuted_errors() {
     let mut unexpected = Vec::new();
     for (label, text) in [
@@ -52,7 +67,7 @@ fn bounds_do_not_leak_between_parameters_or_hide_unexecuted_errors() {
         ),
         (
             "separate-invalid-clause",
-            "trait Marker{}fn bad<T>(x:T)->T where T:Copy,T:Marker=>x;fn main()->i32=>0",
+            "trait Marker{}fn bad<T>(x:T)->T where T:Copy,T:Missing=>x;fn main()->i32=>0",
         ),
         (
             "separate-invalid-subject",

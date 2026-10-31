@@ -98,6 +98,12 @@ fn old_source_budget_controls() {
 }
 
 const ACCEPTED: &[(&str, &str)] = &[
+    // 231: the exact former unknown-bound source now has an ordinary nominal
+    // obligation. The declaration remains unused, so no actual impl is needed.
+    (
+        "marker-bound-promoted-231",
+        "trait Marker{}fn keep<T>(x:T)->T where T:Copy+Marker=>x;fn main()->i32=>0",
+    ),
     ("alias-and-record", WHERE),
     (
         "tuple-copy",
@@ -187,7 +193,7 @@ fn unsupported_clauses_are_not_erased_and_unused_bodies_are_checked() {
         ),
         (
             "unknown-bound",
-            "trait Marker{}fn keep<T>(x:T)->T where T:Copy+Marker=>x;fn main()->i32=>0",
+            "trait Marker{}fn keep<T>(x:T)->T where T:Copy+Missing=>x;fn main()->i32=>0",
             "direct built-in Copy",
         ),
         (

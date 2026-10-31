@@ -85,7 +85,9 @@ impl Materializer<'_, '_> {
                     // lists just to choose the type-hygiene path.
                     has_types |= matches!(
                         item.kind,
-                        s::ItemKind::Aggregate(_) | s::ItemKind::TypeAlias(_)
+                        s::ItemKind::Aggregate(_)
+                            | s::ItemKind::TypeAlias(_)
+                            | s::ItemKind::Enum(_)
                     );
                     self.item(&mut item, depth + 1)?;
                     self.budget.node(item.span, depth + 1)?;
@@ -125,6 +127,14 @@ impl Materializer<'_, '_> {
             s::ItemKind::Enum(e) => {
                 for variant in &mut e.variants {
                     self.budget.node(variant.span, depth + 1)?;
+                    if !self.iterations.is_empty() {
+                        self.generation_attributes(&mut variant.attributes, depth + 2)?;
+                        if let s::VariantFields::Tuple(types) = &mut variant.fields {
+                            for ty in types {
+                                self.generation_type(ty, depth + 2)?;
+                            }
+                        }
+                    }
                     if let s::VariantFields::Record(fields) = &mut variant.fields {
                         for field in fields {
                             if let Some(e) = &mut field.default {

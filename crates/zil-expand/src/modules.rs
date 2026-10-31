@@ -634,6 +634,22 @@ impl Visitor<'_, '_, '_> {
                         }
                     }
                 }
+                // A where bound has the same lexical/module identity as an
+                // inline bound. Resolve it before combining modules; leaving
+                // source spellings here would lose privacy and nominal identity.
+                for clause in &mut f.where_clause {
+                    self.budget.node(clause.span, depth + 1)?;
+                    match &mut clause.subject {
+                        BoundSubject::Type(subject) => self.ty(subject, &types, depth + 1)?,
+                        BoundSubject::Lifetime(name) => self.budget.text(name, clause.span)?,
+                    }
+                    for bound in &mut clause.bounds {
+                        self.ty(bound, &types, depth + 1)?;
+                    }
+                    if let Some(name) = &clause.lifetime_bound {
+                        self.budget.text(name, clause.span)?;
+                    }
+                }
                 for p in &mut f.params {
                     self.ty(&mut p.ty, &types, depth + 1)?;
                     values.insert(p.name.clone());
