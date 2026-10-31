@@ -291,6 +291,73 @@ fn leaf_element(element: &Type, budget: &mut Budget) -> CompileResult<()> {
     Ok(())
 }
 
+/// The flat route keeps its exact historical charging. A nested capture first
+/// bounds and charges every queued node, including hidden Copy/resource heads,
+/// then independently admits the complete Product shape and nonzero layout.
+fn capture_element(element: &Type, budget: &mut Budget) -> CompileResult<()> {
+    if !super::resources::product::nested(element) {
+        return leaf_element(element, budget);
+    }
+    const WORK: &str = "owned Product Store capture qualification";
+    budget.spend(1, WORK)?;
+    let mut pending = vec![(element, 0usize)];
+    while let Some((ty, depth)) = pending.pop() {
+        budget.spend(1, WORK)?;
+        if depth > budget.helper_depth {
+            return Err(vec![Diagnostic::limit(
+                Phase::Analyze,
+                "owned Product Store capture type depth exceeded",
+                None,
+            )]);
+        }
+        let mut push = |child| -> CompileResult<()> {
+            budget.spend(pending.len().saturating_add(1), WORK)?;
+            pending.push((child, depth + 1));
+            Ok(())
+        };
+        match ty {
+            Type::Closure(_)
+            | Type::FunctionPointer { .. }
+            | Type::ForeignCallback { .. }
+            | Type::Address { .. }
+            | Type::Desc(_)
+            | Type::OwnedStore { .. }
+            | Type::Opaque { .. }
+            | Type::Named(_)
+            | Type::Unsupported(_)
+            | Type::Slice { .. } => {
+                return Err(capture_error(
+                    "captured Product Store cannot hide callbacks, nested Store, borrowed or unresolved fields",
+                ));
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                for (_, child) in fields {
+                    push(child)?;
+                }
+            }
+            Type::Managed(child) | Type::Array { element: child, .. } => push(child)?,
+            Type::Tuple(fields) => {
+                for child in fields {
+                    push(child)?;
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    for child in fields {
+                        push(child)?;
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                push(error)?;
+                push(result)?;
+            }
+            _ => {}
+        }
+    }
+    product_element(element, budget)
+}
+
 pub(super) fn owned_capture(
     module: &TypedModule,
     ty: &Type,
@@ -307,7 +374,7 @@ pub(super) fn owned_capture(
             "owned Store capture requires the actual Store payload",
         ));
     };
-    leaf_element(element, budget)?;
+    capture_element(element, budget)?;
     let Type::Package { name, .. } = element.as_ref() else {
         unreachable!("qualified leaf")
     };
@@ -335,7 +402,7 @@ pub(super) fn owned_capture(
                 "owned Store capture canonical name has a different payload",
             ));
         };
-        leaf_element(actual, budget)?;
+        capture_element(actual, budget)?;
         budget.type_work(&resource.payload, false, WORK)?;
         if resource.name != canonical
             || resource.payload != **payload
