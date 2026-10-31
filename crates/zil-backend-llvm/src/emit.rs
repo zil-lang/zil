@@ -7,6 +7,7 @@ mod foreign;
 mod packages;
 mod resource_closures;
 mod resources;
+mod scalar_locals;
 mod slices;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_llvm_api::model as m;
@@ -85,23 +86,27 @@ pub(crate) fn lower_view_with_options(
             );
             continue;
         }
-        body.extend(
-            FunctionEmitter {
-                function,
-                target: lir.target,
-                functions: &functions,
-                closures: &closures,
-                resources: lir.resources,
-                intrinsics: &mut intrinsics,
-                text: m::Code::new(),
-                temporary: 0,
-                continuation: 0,
-                partial_packages: BTreeSet::new(),
+        let emitted = FunctionEmitter {
+            function,
+            target: lir.target,
+            functions: &functions,
+            closures: &closures,
+            resources: lir.resources,
+            intrinsics: &mut intrinsics,
+            text: m::Code::new(),
+            temporary: 0,
+            continuation: 0,
+            partial_packages: BTreeSet::new(),
+        }
+        .emit()?
+        .into_items()
+        .map_err(machine_error)?;
+        for mut item in emitted {
+            if let m::Item::Function(machine) = &mut item {
+                scalar_locals::promote(function, machine);
             }
-            .emit()?
-            .into_items()
-            .map_err(machine_error)?,
-        );
+            body.push(item);
+        }
     }
     let mut text = m::Code::new();
     for closure in lir.closures {
