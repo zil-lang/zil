@@ -1,0 +1,31 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/994319f2ba02/zil-233/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-233/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 4.18s
+     Running tests/impl233_modules.rs (target/debug/deps/impl233_modules-8f0286d80acc0af6)
+
+running 8 tests
+test original_single_module_and_drop_work_budgets_remain_exact ... ok
+
+thread 'imported_impls_check_uncalled_method_sets_signatures_and_collisions' (73) panicked at crates/zil-driver/tests/impl233_modules.rs:52:5:
+{"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-RECEIVER-MEMBER-CONFLICT","message":"field and inherent method share a name","span":{"file":2,"start":32,"end":40},"notes":[]}],"artifacts":{"core":"/workspace/scratch/994319f2ba02/zil-233/out/native/impl233-72/field-collision/phases/core.txt","ct-core":"/workspace/scratch/994319f2ba02/zil-233/out/native/impl233-72/field-collision/phases/ct-core.txt","source-map":"/workspace/scratch/994319f2ba02/zil-233/out/native/impl233-72/field-collision/phases/source-map.txt","syntax":"/workspace/scratch/994319f2ba02/zil-233/out/native/impl233-72/field-collision/phases/syntax.txt"},"input_fingerprint":"d3abf40d62f00ba08e009f0f1a6e5da0912241873d90ae3a7b62ac3eb262f8ea","seconds":0.005709164,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"rules.zil","2":"data.zil"},"scalar_interfaces":[]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test imported_impls_check_uncalled_method_sets_signatures_and_collisions ... FAILED
+test original_three_module_where_and_inline_inputs_reach_independent_verify ... ok
+
+thread 'privacy_local_self_and_nominal_identity_remain_required' (77) panicked at crates/zil-driver/tests/impl233_modules.rs:52:5:
+{"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-UNKNOWN-FIELD","message":"unknown field code","span":{"file":0,"start":52,"end":58},"notes":[]}],"artifacts":{"core":"/workspace/scratch/994319f2ba02/zil-233/out/native/impl233-72/private-self-method-export/phases/core.txt","ct-core":"/workspace/scratch/994319f2ba02/zil-233/out/native/impl233-72/private-self-method-export/phases/ct-core.txt","source-map":"/workspace/scratch/994319f2ba02/zil-233/out/native/impl233-72/private-self-method-export/phases/source-map.txt","syntax":"/workspace/scratch/994319f2ba02/zil-233/out/native/impl233-72/private-self-method-export/phases/syntax.txt"},"input_fingerprint":"59202a848fc357e6f88af7b32223fa4ed03ea11922e02b080a940aec5fc275e3","seconds":0.008401942,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"rules.zil","2":"data.zil"},"scalar_interfaces":[]}
+test privacy_local_self_and_nominal_identity_remain_required ... FAILED
+test static_trait_declarations_cannot_hide_reserved_capabilities_after_module_renaming ... ok
+test new_imported_trait_work_has_exact_cold_warm_and_fresh_boundaries ... ok
+test resource_implementations_keep_shared_heads_and_original_drop_responsibility ... ok
+test public_imported_traits_export_checked_shared_mutable_static_and_value_methods ... ok
+
+failures:
+
+failures:
+    imported_impls_check_uncalled_method_sets_signatures_and_collisions
+    privacy_local_self_and_nominal_identity_remain_required
+
+test result: FAILED. 6 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+
+error: test failed, to rerun pass `-p zil-driver --test impl233_modules`
