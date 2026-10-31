@@ -138,6 +138,14 @@ pub fn validate(
     context: &AttributeContext,
     limits: &Limits,
 ) -> AttributeValidation {
+    validate_with_usage(module, context, limits).0
+}
+
+pub(crate) fn validate_with_usage(
+    module: &Module,
+    context: &AttributeContext,
+    limits: &Limits,
+) -> (AttributeValidation, usize) {
     let mut validator = Validator {
         context,
         limits,
@@ -148,7 +156,7 @@ pub fn validate(
     for item in &module.items {
         validator.item(item, Retention::Keep);
     }
-    validator.result
+    (validator.result, validator.work)
 }
 struct Validator<'a> {
     context: &'a AttributeContext,

@@ -97,6 +97,18 @@ impl CompilationSession {
     pub fn active_query_count(&self) -> usize {
         self.database.active_count()
     }
+    /// Successful syntax is independent of preceding modules' consumption.
+    /// Insufficient receipts use the original quota-specific query/parser so
+    /// the first error, source span and partial work remain unchanged.
+    pub(super) fn parse_key(&self, source: &SourceUnit, options: &CompileOptions) -> QueryKey {
+        let key = parse_identity(source, options);
+        if matches!(self.raw.get(&key), Some(RawSnapshot::Parse(parsed)) if !parsed.fits_limits(&options.limits))
+        {
+            query_key(source, options, Phase::Parse, false)
+        } else {
+            key
+        }
+    }
     pub fn compile_path(&mut self, path: &Path, options: &CompileOptions) -> CompileReport {
         self.compile_project_path(path, options)
     }
@@ -252,15 +264,15 @@ impl CompilationSession {
             )]);
         }
         let artifacts = ArtifactPlan::new(source, options)?;
-        let parse_key = query_key(source, options, Phase::Parse, false);
+        let identity = query_key(source, options, Phase::Parse, false);
         report.trace.clone().measure("source_cache", "stage", |_| {
-            disk_source(source, options, report, &parse_key)
+            disk_source(source, options, report, &identity)
         })?;
         // These immutable identities describe this request, not a proof. Reuse
         // them vertically instead of rehashing source bytes for every phase.
         let target = options.target.fingerprint();
-        let key =
-            |phase, depends_on_target| phase_key(&parse_key, phase, depends_on_target, target);
+        let key = |phase, depends_on_target| phase_key(&identity, phase, depends_on_target, target);
+        let parse_key = self.parse_key(source, options);
         let (parsed, parse_snapshot) =
             self.query(parse_key.clone(), &[], options, report, observer, || {
                 let parsed = zil_syntax::parse_with_limits(source, &options.limits);
@@ -625,6 +637,15 @@ pub(super) fn query_key(
     phase: Phase,
     target_dependent: bool,
 ) -> QueryKey {
+    query_key_with_limits(source, options, phase, target_dependent, &options.limits)
+}
+fn query_key_with_limits(
+    source: &SourceUnit,
+    options: &CompileOptions,
+    phase: Phase,
+    target_dependent: bool,
+    limits: &Limits,
+) -> QueryKey {
     let mut input = b"ZIL-DRIVER-SOURCE-2\0".to_vec();
     input.extend_from_slice(&source.file_id.0.to_le_bytes());
     input.extend_from_slice(&source.module_id.0.to_le_bytes());
@@ -636,7 +657,6 @@ pub(super) fn query_key(
         env!("CARGO_PKG_VERSION")
     )
     .into_bytes();
-    let limits = &options.limits;
     for value in [
         limits.max_source_bytes as u64,
         limits.max_tokens as u64,
@@ -664,6 +684,16 @@ pub(super) fn query_key(
             Fingerprint::ZERO
         },
     }
+}
+fn parse_identity(source: &SourceUnit, options: &CompileOptions) -> QueryKey {
+    let mut neutral = options.limits.clone();
+    neutral.max_tokens = 0;
+    neutral.max_nodes = 0;
+    let mut key = query_key_with_limits(source, options, Phase::Parse, false, &neutral);
+    let mut rules = b"ZIL-PARSE-RECEIPT-CP33-v1\0".to_vec();
+    rules.extend_from_slice(&key.rules.0);
+    key.rules = Fingerprint::of(&rules);
+    key
 }
 pub(super) fn phase_key(
     identity: &QueryKey,

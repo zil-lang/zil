@@ -14,7 +14,7 @@ pub(crate) fn module(
     source: &SourceUnit,
     raw: &[Token],
     limits: &Limits,
-) -> (Module, Vec<Diagnostic>) {
+) -> (Module, Vec<Diagnostic>, usize) {
     let mut tokens = Vec::new();
     for token in raw {
         match token.kind {
@@ -58,6 +58,7 @@ pub(crate) fn module(
             span: source.span(),
         },
         parser.diagnostics,
+        parser.nodes,
     )
 }
 
