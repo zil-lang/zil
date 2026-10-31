@@ -1,0 +1,1 @@
+import rules;pub struct Item{value:i32}impl rules.Read for Item{fn value()->i32=>1}

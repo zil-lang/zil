@@ -1,0 +1,1519 @@
+{
+  "verdict": "Fail",
+  "reviewer": "/root/handoff_integrity",
+  "implementation_commit": "41d136fa31cc00b5a4b81f3c03092ee31f0d6f00",
+  "execution_commit": "f4bd9356de13a8335ea9a332209f112310cda5b4",
+  "production_equivalence": "Review merge adds only independent tests/evidence to candidate production source",
+  "command": "cargo test --offline --locked -p zil-driver --no-default-features --test review233_independent -- --nocapture",
+  "tests": {
+    "passed": 5,
+    "failed": 2,
+    "ignored": 0
+  },
+  "finding": "Generic helper defined in trait module cannot call the imported local-Self implementation: Types E-UNKNOWN-FIELD value. The trait library must not need a reverse import of each implementing module.",
+  "cases": [
+    {
+      "case": "duplicate",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-DUPLICATE",
+          "message": "overlapping concrete trait implementation",
+          "span": {
+            "file": 2,
+            "start": 80,
+            "end": 125
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "extra-method",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-METHOD-SET",
+          "message": "method not declared by this trait",
+          "span": {
+            "file": 2,
+            "start": 80,
+            "end": 98
+          },
+          "notes": []
+        },
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-METHOD-SET",
+          "message": "implementation must define every declared method exactly once",
+          "span": {
+            "file": 2,
+            "start": 35,
+            "end": 99
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "field-collision",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-RECEIVER-MEMBER-CONFLICT",
+          "message": "field and inherent method share a name",
+          "span": {
+            "file": 2,
+            "start": 29,
+            "end": 38
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "foreign-self",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "static local traits require a concrete local value struct or a shared-head resource implementation",
+          "span": {
+            "file": 2,
+            "start": 13,
+            "end": 63
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait implementation resolution",
+          "span": {
+            "file": 2,
+            "start": 13,
+            "end": 63
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "inherent-collision",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "colliding trait, inherent or field name requires explicit trait-qualified resolution",
+          "span": {
+            "file": 2,
+            "start": 100,
+            "end": 119
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait implementation resolution",
+          "span": {
+            "file": 2,
+            "start": 75,
+            "end": 120
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "missing",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-METHOD-SET",
+          "message": "implementation must define every declared method exactly once",
+          "span": {
+            "file": 2,
+            "start": 35,
+            "end": 61
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "missing-trait",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-MODULE-MEMBER",
+          "message": "imported module has no such type declaration",
+          "span": {
+            "file": 2,
+            "start": 40,
+            "end": 50
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "near-reserved",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "case": "not-imported",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-RECEIVER-NONE",
+          "message": "leading-dot member requires a lexical method receiver",
+          "span": {
+            "file": 2,
+            "start": 64,
+            "end": 66
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "owned-resource-receiver",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "resource trait implementations in this slice require shared &Self receivers",
+          "span": {
+            "file": 2,
+            "start": 135,
+            "end": 183
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait implementation resolution",
+          "span": {
+            "file": 2,
+            "start": 135,
+            "end": 183
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "private-trait",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-MODULE-PRIVATE",
+          "message": "imported declaration is private",
+          "span": {
+            "file": 2,
+            "start": 40,
+            "end": 50
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "receiver",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-SIGNATURE",
+          "message": "implementation receiver, parameters, passing modes and return type must match the declared signature",
+          "span": {
+            "file": 2,
+            "start": 60,
+            "end": 92
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-Copy",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Copy is a reserved structural capability name",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-Drop",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-Fn",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 14
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-FnMut",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 17
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-FnOnce",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 18
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-Send",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-Share",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 17
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-StoreElement",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-NAME-DUPLICATE",
+          "message": "duplicate declaration name",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 24
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-Sync",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-Transfer",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 20
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-declaration-Copy",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Copy is a reserved structural capability name",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-declaration-Drop",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-declaration-Fn",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 14
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-declaration-FnMut",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 17
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-declaration-FnOnce",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 18
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-declaration-Send",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-declaration-Share",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 17
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-declaration-StoreElement",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-NAME-DUPLICATE",
+          "message": "duplicate declaration name",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 24
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-declaration-Sync",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "reserved-declaration-Transfer",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 20
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "resource-cleanup-O0",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "case": "resource-cleanup-O2",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "case": "result",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-SIGNATURE",
+          "message": "implementation receiver, parameters, passing modes and return type must match the declared signature",
+          "span": {
+            "file": 2,
+            "start": 60,
+            "end": 88
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "signature-owner",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "case": "signature-owner-O0",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "case": "signature-owner-O2",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "case": "signature-same-layout-wrong-owner",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-SIGNATURE",
+          "message": "implementation receiver, parameters, passing modes and return type must match the declared signature",
+          "span": {
+            "file": 2,
+            "start": 73,
+            "end": 119
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "split-where",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-UNKNOWN-FIELD",
+          "message": "unknown field value",
+          "span": {
+            "file": 1,
+            "start": 82,
+            "end": 89
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "two-impl-modules-O0",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-UNKNOWN-FIELD",
+          "message": "unknown field value",
+          "span": {
+            "file": 1,
+            "start": 82,
+            "end": 89
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    }
+  ],
+  "native_runs": [
+    {
+      "case": "resource-cleanup-O0",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "resource-cleanup-O2",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "signature-owner-O0",
+      "exit": "Some(0)",
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "signature-owner-O2",
+      "exit": "Some(0)",
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "backend": "Clang17 reference only; LLVM23 API not run locally",
+  "files": [
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/duplicate/compile.json",
+      "sha256": "67a21feb3737d462cbfa007b2a0884e4a43be6b8fccba7cdc473f42607da6124"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/duplicate/rules.zil",
+      "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/duplicate/data.zil",
+      "sha256": "4ed3947b520b7c5e24d91b3b5f6c8b3ef70e420521fea3dcfbf060dd925cb633"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/duplicate/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/extra-method/compile.json",
+      "sha256": "5ec32351db60a0547db92daa44135a99b89fbed952c714b18ea73cbe1f219e4e"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/extra-method/rules.zil",
+      "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/extra-method/data.zil",
+      "sha256": "44481ed2b105912acc6e6ce56c69d4910143aaea6cbceaa7b4ca5471e6aee35a"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/extra-method/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/field-collision/compile.json",
+      "sha256": "20535589235ef1089b2c8f62e13db7bbd5ae32a85039658a8b109249d8a528bf"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/field-collision/rules.zil",
+      "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/field-collision/data.zil",
+      "sha256": "117268a37284a0c96bf3b8db3c3c6e066682800129ed7e77311faa931bc01780"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/field-collision/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/foreign-self/compile.json",
+      "sha256": "149b2382686ecb83de3c03adc6edbffef580e7c7d93285b2d88923de452b2bf0"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/foreign-self/rules.zil",
+      "sha256": "4067aeeebff4673daaeeef30597bfdabe3023385bae1ac4c6679bd09f7713ff8"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/foreign-self/data.zil",
+      "sha256": "9e36332e924488b72bcb2e62f5b2fb61a8f6d5f97d814b48500bd9caf27c3892"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/foreign-self/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/inherent-collision/compile.json",
+      "sha256": "24226f4352dd46d35ef0efe16f40f7521bb2d56c5b8e0d357783af63aa5703e2"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/inherent-collision/rules.zil",
+      "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/inherent-collision/data.zil",
+      "sha256": "b2a1d8d3a61e1a383ec908172d15df6caef7774510b9194927206b2e93f9bb53"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/inherent-collision/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/missing/compile.json",
+      "sha256": "ac8f27ed7b62a9f5c5184f81d04056f1dc0430b836d891c552b61dfac0bd2b7f"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/missing/rules.zil",
+      "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/missing/data.zil",
+      "sha256": "a6431f5ab94468a5ed18f523c7ac3276b6116650939e2a8058501c51c9bb146e"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/missing/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/missing-trait/compile.json",
+      "sha256": "f887ac5e5369858e6fb813e7ec7724763ba9c58e822834e8565d95891a429141"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/missing-trait/rules.zil",
+      "sha256": "361c435e168a2a6f512e63ffd4906c16b511be94e7ce5862289527ee5b6e0650"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/missing-trait/data.zil",
+      "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/missing-trait/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/near-reserved/compile.json",
+      "sha256": "b1239290d059a6162ee7d2f5761453fb2d44ecb844d5607c273393307618f1f3"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/near-reserved/rules.zil",
+      "sha256": "ec7b5f516fd7e33d2fcc9b443ce2ec3d6ba7596f17980c8d426a37d0a57a491d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/near-reserved/data.zil",
+      "sha256": "dcaf76a0464501daea13643e48f7cb46a3f2aa64fe1f3875ed3230ce7bd52953"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/near-reserved/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/not-imported/compile.json",
+      "sha256": "abedae320df5b1acf70e1d66f615020f24265b25669d308ddad0a086961b778b"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/not-imported/rules.zil",
+      "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/not-imported/data.zil",
+      "sha256": "48d5d289b0ddef24d07c0f1c8201893dc01cfd591f158f86b8bfb3e2d4f479c4"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/not-imported/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/owned-resource-receiver/compile.json",
+      "sha256": "b96151c59915539faa054dd0eb8adfed59aed58da1d0b72fb56564b326d0c793"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/owned-resource-receiver/rules.zil",
+      "sha256": "55e62a58fdc126d121e059595349d26fd4e591f67ea4b22e027b5904cd8d18d1"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/owned-resource-receiver/data.zil",
+      "sha256": "91b476a5dde6abb3c9993b1c0a1496c5cd1e03a57b24f76a830773632039ead9"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/owned-resource-receiver/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/private-trait/compile.json",
+      "sha256": "680bcd8e675cd5061450d93c748d0cc83c95ecfba391c03d5300cc74101647b1"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/private-trait/rules.zil",
+      "sha256": "a4453f07e5c64df9ebed14c26deb61722c6a66336deb258decebb5a3e7270b4f"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/private-trait/data.zil",
+      "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/private-trait/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/receiver/compile.json",
+      "sha256": "16f7377938c2bbea2d8991b1f1495d9bb5cf4ab1f2aa522a83f5b7a12bae6985"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/receiver/rules.zil",
+      "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/receiver/data.zil",
+      "sha256": "f41760cbe7e4c3fa78ab8696e4dc7bc5f02b19ecea3316ca2ea12b90817296e3"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/receiver/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Copy/compile.json",
+      "sha256": "428da0fadb627ea325feb81cba01cf8133e409f4c2bae1e3c9be202c7e89203a"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Copy/rules.zil",
+      "sha256": "9f0ed4ddc14ec765a1438d514f3441303d6d89f494945c52a27a31965287ded7"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Copy/data.zil",
+      "sha256": "139318fa29a944e288a2a933158741870ce0fd261db0e9a10ac3cf711105f6ba"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Copy/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Drop/compile.json",
+      "sha256": "6fd4a0148e526af50275188622d80969ecfda5f37deaeedff082274951dec47b"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Drop/rules.zil",
+      "sha256": "9b26ef6bd3826b3a9e3a299e89114adcb57c62f1df98f9a61fe8f1b8e4efbbc9"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Drop/data.zil",
+      "sha256": "c74b4dfb6a9d7b24a5caba3680465a776c3fc754c4013c56045dde8dc5511a89"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Drop/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Fn/compile.json",
+      "sha256": "1deb996df633b48d9637c97ff8cf7269441511ce29318a1433a500ce2f24a383"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Fn/rules.zil",
+      "sha256": "a1a9a4f05c818fca6c5de6ea15322bdb9ba14ea79fc9f93f5075daa0b12cb3ec"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Fn/data.zil",
+      "sha256": "8d0986e3242b37b1e5e93cd20deee3a19b132054cd0f32f8fbc9842f9dd99151"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Fn/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-FnMut/compile.json",
+      "sha256": "a80fee0786bbd9c33127b8e2da5d72cd7176a89c23d8e6652eab311a98c64b26"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-FnMut/rules.zil",
+      "sha256": "1d721ce3e1b797d7fdb177d7d1eba7743a2f45dcc882a0ef29dcc792ac1a9a41"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-FnMut/data.zil",
+      "sha256": "e0a66cf9486a0ccaf93a0d2319e30f6a69d8ad5ffb9b7afa4cf8eaf2341102c3"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-FnMut/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-FnOnce/compile.json",
+      "sha256": "100b353b96136d33ca733f31e9880d1819e6354c555e8b1adcff36da7326cfb9"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-FnOnce/rules.zil",
+      "sha256": "b58a65f8659f0a2d8791876e3a3027559232ffe251ba53ceec6f31f43d15cae6"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-FnOnce/data.zil",
+      "sha256": "b56f7151cdd3d8b14f73ee01af9ffa09482c86f93194d8d4594a85af633fce69"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-FnOnce/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Send/compile.json",
+      "sha256": "c8269490c99efebefd7c16526d98829a188a3fa349603c58d17eaff024e9b7d5"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Send/rules.zil",
+      "sha256": "5a698308c07a889034a585306ac0dc3b5fa4d060c21d2a28d129ea70358be0e8"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Send/data.zil",
+      "sha256": "d99737e43db56c91fe536673691fa04a3757b3518b64e6dcf5cee18bb53c7ca9"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Send/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Share/compile.json",
+      "sha256": "d7b9283114f02ccabd716200128906f161c7af6c9940dfe08f20f2c2a90c3d71"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Share/rules.zil",
+      "sha256": "78c1dcd9a8f846f6f6c9f4156f5ad0e4b56a8ded5d356389fcc0ab40b6b77b83"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Share/data.zil",
+      "sha256": "1b6c253e3003cc843ad67123799a86523b4681b1a9d940bbf829484fd07704a1"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Share/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-StoreElement/compile.json",
+      "sha256": "53a9d18d4c12de82e316c34b5ed1fd0e2dc925f2512c6ec6524fe0fb15594638"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-StoreElement/rules.zil",
+      "sha256": "a5503c39b6270e5ca9812a3d6fe0e24ebc9c97c81572854a7ee1f2bca066799a"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-StoreElement/data.zil",
+      "sha256": "0a0b36d3bd37ca6f517aa3c28bfc4c7480f14d098154d4270e9d0aea30b206d9"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-StoreElement/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Sync/compile.json",
+      "sha256": "31450c3b87aea340c179b4539c9facf6911132798af492c8b1438b759a09da7f"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Sync/rules.zil",
+      "sha256": "8dc61105b3d4ba2485f454130b5c5b092504afd1bf07b593b9b020bd393b20e1"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Sync/data.zil",
+      "sha256": "eb515201933a504510f53c3b9288b455d661935b8a9b2ae4f677fa39885e8462"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Sync/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Transfer/compile.json",
+      "sha256": "118bbf53e54be789bd7b005f5d22645383fcc7ed8740bec0ff4ac51526c99ce2"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Transfer/rules.zil",
+      "sha256": "011be6c8d3244d24ab329b329244eeb1550b7b8c5293dc0ff63b33b959cb8532"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Transfer/data.zil",
+      "sha256": "05c8fb9ac6fb6dd6f932aa6ed57001fede58a071db23c3773a93cd7b3896e9cb"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-Transfer/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Copy/compile.json",
+      "sha256": "a03b33ff37f3054a9575c3ae98e85d47cbe5d9793f13d63e45ebdac0f3c0d018"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Copy/rules.zil",
+      "sha256": "9f0ed4ddc14ec765a1438d514f3441303d6d89f494945c52a27a31965287ded7"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Copy/main.zil",
+      "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Drop/compile.json",
+      "sha256": "c64f33fe4c83dff0d0a933040984b4b04680a692bbae1a13261b76da55d119ed"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Drop/rules.zil",
+      "sha256": "9b26ef6bd3826b3a9e3a299e89114adcb57c62f1df98f9a61fe8f1b8e4efbbc9"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Drop/main.zil",
+      "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Fn/compile.json",
+      "sha256": "9154da4c5301d094ec366125b28265e9a87b15c20f3d8154674db22a80959249"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Fn/rules.zil",
+      "sha256": "a1a9a4f05c818fca6c5de6ea15322bdb9ba14ea79fc9f93f5075daa0b12cb3ec"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Fn/main.zil",
+      "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-FnMut/compile.json",
+      "sha256": "3b9ff03f0cf8d4c7b3b6409acfcd4bd394b6f5e0d51bd6599147b7eae9959e5f"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-FnMut/rules.zil",
+      "sha256": "1d721ce3e1b797d7fdb177d7d1eba7743a2f45dcc882a0ef29dcc792ac1a9a41"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-FnMut/main.zil",
+      "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-FnOnce/compile.json",
+      "sha256": "c28b88616290d28af2065f04e7e04be7e1331699776b93f47bff762a857d0582"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-FnOnce/rules.zil",
+      "sha256": "b58a65f8659f0a2d8791876e3a3027559232ffe251ba53ceec6f31f43d15cae6"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-FnOnce/main.zil",
+      "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Send/compile.json",
+      "sha256": "f3b82ea826d6f8b6a98cda4367e74923be11bbda0a33f352e67c90a09225579d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Send/rules.zil",
+      "sha256": "5a698308c07a889034a585306ac0dc3b5fa4d060c21d2a28d129ea70358be0e8"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Send/main.zil",
+      "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Share/compile.json",
+      "sha256": "e9cb6c522f2db48f6b9423fbe8c009c3a33538c9ed88a13c44a1241450e58874"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Share/rules.zil",
+      "sha256": "78c1dcd9a8f846f6f6c9f4156f5ad0e4b56a8ded5d356389fcc0ab40b6b77b83"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Share/main.zil",
+      "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-StoreElement/compile.json",
+      "sha256": "dec1acdc0c0cbd8a41b6809657027c7fb027822d5969ec3e9474145b81427867"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-StoreElement/rules.zil",
+      "sha256": "a5503c39b6270e5ca9812a3d6fe0e24ebc9c97c81572854a7ee1f2bca066799a"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-StoreElement/main.zil",
+      "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Sync/compile.json",
+      "sha256": "1cd1f04d774ac9ebe32b92b110e23517f1d6ed21d4940f867533e0dd558603c9"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Sync/rules.zil",
+      "sha256": "8dc61105b3d4ba2485f454130b5c5b092504afd1bf07b593b9b020bd393b20e1"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Sync/main.zil",
+      "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Transfer/compile.json",
+      "sha256": "9e2c1858da9150fbb1ee6fd20905c11525db30b80dc7ceeab41a8cc80151fa8d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Transfer/rules.zil",
+      "sha256": "011be6c8d3244d24ab329b329244eeb1550b7b8c5293dc0ff63b33b959cb8532"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/reserved-declaration-Transfer/main.zil",
+      "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O0/compile.json",
+      "sha256": "b8f38a4d4193e608c2d9e643cb8281ceafeefec52684252b3ce8b872b2de09a6"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O0/rules.zil",
+      "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O0/stdout",
+      "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O0/exit.txt",
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O0/data.zil",
+      "sha256": "91b476a5dde6abb3c9993b1c0a1496c5cd1e03a57b24f76a830773632039ead9"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O0/main.zil",
+      "sha256": "e351e4be0d630b6dfcb9dec99706b3f6d4547e431e183e456a80bbc0740b8289"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O2/compile.json",
+      "sha256": "a389426344985a6c2254af6e9042e28e3d499da6327b8cd50fc170c8fa7b48c9"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O2/rules.zil",
+      "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O2/stdout",
+      "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O2/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O2/exit.txt",
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O2/data.zil",
+      "sha256": "91b476a5dde6abb3c9993b1c0a1496c5cd1e03a57b24f76a830773632039ead9"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/resource-cleanup-O2/main.zil",
+      "sha256": "e351e4be0d630b6dfcb9dec99706b3f6d4547e431e183e456a80bbc0740b8289"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/result/compile.json",
+      "sha256": "0470b8d536eb5032afafe719991219792379110083a02352a95a306e115c40c2"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/result/rules.zil",
+      "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/result/data.zil",
+      "sha256": "57ff722c19decfdb8594651c277a3a4b1fc425c4ca8dd48ce692da3ee4d2d99e"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/result/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner/compile.json",
+      "sha256": "89437f1abc4313dda25fb6c8eff26c52a148f4ac70789cd4a4831a408428c31b"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner/rules.zil",
+      "sha256": "f31da7022a22533371e8c2aa1368b2c53a00245d3647ba70f00a98784476f563"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner/data.zil",
+      "sha256": "b63f244ae7e2ca9e5b793938752ded586f67dc3bcd7b248af5149ffc6c8f7374"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner/main.zil",
+      "sha256": "e351e4be0d630b6dfcb9dec99706b3f6d4547e431e183e456a80bbc0740b8289"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O0/compile.json",
+      "sha256": "9b3b1b2778c7703a95c45ce1081a71bd2e3edbdee9462624d4ebf8c88daaa541"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O0/rules.zil",
+      "sha256": "f31da7022a22533371e8c2aa1368b2c53a00245d3647ba70f00a98784476f563"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O0/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O0/exit.txt",
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O0/data.zil",
+      "sha256": "b63f244ae7e2ca9e5b793938752ded586f67dc3bcd7b248af5149ffc6c8f7374"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O0/main.zil",
+      "sha256": "e351e4be0d630b6dfcb9dec99706b3f6d4547e431e183e456a80bbc0740b8289"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O2/compile.json",
+      "sha256": "e37be602c57b54090985665b0ba3ad290cdee87599f133a664329ca4f73d4ee2"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O2/rules.zil",
+      "sha256": "f31da7022a22533371e8c2aa1368b2c53a00245d3647ba70f00a98784476f563"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O2/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O2/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O2/exit.txt",
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O2/data.zil",
+      "sha256": "b63f244ae7e2ca9e5b793938752ded586f67dc3bcd7b248af5149ffc6c8f7374"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-owner-O2/main.zil",
+      "sha256": "e351e4be0d630b6dfcb9dec99706b3f6d4547e431e183e456a80bbc0740b8289"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-same-layout-wrong-owner/other.zil",
+      "sha256": "dc3b32408676b359c1f23113a7466638816cf7c4d3ba4a3c14096db497e7b5a2"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-same-layout-wrong-owner/compile.json",
+      "sha256": "61b41f3e20315057ed75f3e0778d4619dcfc31ad841e4c8cb447d3af1c903b73"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-same-layout-wrong-owner/rules.zil",
+      "sha256": "f31da7022a22533371e8c2aa1368b2c53a00245d3647ba70f00a98784476f563"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-same-layout-wrong-owner/data.zil",
+      "sha256": "f058bb7d7eaef9429aa6e33f2778aff5e2d031191026e0a22822efa6e101e8bf"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/signature-same-layout-wrong-owner/main.zil",
+      "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/split-where/compile.json",
+      "sha256": "d4982f1d643f80eb1f8a93366f8f4b2fcc0990c7a4278aa23b271bd96e9bcf92"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/split-where/rules.zil",
+      "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/split-where/data.zil",
+      "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/split-where/main.zil",
+      "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/split-where/core.txt.gz",
+      "sha256": "dd3c6c45d662987d7c13042f4f38e3bb79f5aa890dc3117d4a77183a46a7e0ac"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/split-where/ct-core.txt.gz",
+      "sha256": "f24aca7eedea9dc9ac2b9801b6b9f27df3c160075c3dfa6f9a338b6b54da8b14"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/split-where/source-map.txt.gz",
+      "sha256": "9540864fe09054c4dd67eacab4bc1ef42f3dcb0e4437a89bafc86afceb032942"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/two-impl-modules-O0/compile.json",
+      "sha256": "5de8e5d14e5dd5525052fa443b2e7a77dee385202909d9b6e68665400251140f"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/two-impl-modules-O0/rules.zil",
+      "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/two-impl-modules-O0/data.zil",
+      "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/two-impl-modules-O0/second.zil",
+      "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+    },
+    {
+      "path": "evidence/reviews/233/candidate-41d136fa/cases/two-impl-modules-O0/main.zil",
+      "sha256": "0ad79657cc85e7dfc9244d7bf5e1839270a2f6045ccb85782e492344eac54697"
+    }
+  ]
+}
