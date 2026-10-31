@@ -205,7 +205,7 @@ Doing
       "candidate": "397bf24fef0d7f58aaefb444c17c733652b5e12f",
       "review": "8d8bf861df1b33883002398907ed82d05379a711",
       "result": "docs/research/compile-performance/LLVM23-RESULT.md",
-      "compile6_addendum": "Previously untested publication-temp collision independently reproduced on original 485301e baseline; original Pass scope/data retained, current unqualified publication correctness blocked until CP27. See COMPILE6/CP12-review-finding.json."
+      "compile6_addendum": "Previously untested publication-temp collision independently reproduced on original485; original Pass scope/data retained. Independently reviewed CP28 repairs the defect in research only, without parse cache adoption. Main unchanged by this round."
     },
     "CP13": {
       "status": "NoGo",
@@ -480,10 +480,11 @@ Doing
       ],
       "plan": "docs/research/compile-performance/COMPILE6-PLAN.md",
       "candidate": "d8872b52f5a215c2efd33aaadba5083f471e0bc2",
-      "author_validation": "22 targeted tests and 5 real CLI requests / 4 native controls passed; independent review pending; release SHA256 c9f10a9840fd8bdbb884e4981c7dbb5895ebfe653ecb7b486b1979c16441278f.",
+      "author_validation": "22 author and independently rerun targeted tests, independent 5 CLI / 4 native controls passed. Release SHA256 c9f10a9840fd8bdbb884e4981c7dbb5895ebfe653ecb7b486b1979c16441278f.",
       "delivery": "e6bf523eee3c83510505d74838fdfd298cbff502",
       "review": "evidence/research/compile-performance/COMPILE6/CP26-review.json",
-      "performance": "NotRun; scoped correctness Pass only, preexisting query/object findings assigned CP27."
+      "performance": "Complete independently reviewed 240/240 full CLI and 768 native checks; wall B/A 0.9938432463326667, CPU 1.0205148634147498, exploratory95 [0.9504020168445472,1.0264901370314046]. Cold wall 0.8389311500021226; no established overall gain.",
+      "result": "docs/research/compile-performance/CP26-RESULT.md"
     },
     "CP27": {
       "status": "ReviewPass",
@@ -505,14 +506,16 @@ Doing
         "evidence/research/compile-performance/COMPILE6/OBJECT-review-finding.json"
       ],
       "candidate": "d9a71f603d73c1df4a367189cc5b41ca15bf7d70",
-      "author_validation": "31 targeted tests passed; independent review and final release pending.",
+      "author_validation": "31 targeted tests passed; independent 31 rerun plus 9 real CLI / 9 native controls; final release SHA256 b82d690e8e26c6337f02d67cf515d816ed833db6b6d69ff6f66db49a889db7d3.",
       "delivery": "a1ff78eb8b3cee0a9ba2720ac4bbaa6aa8174dd0",
       "review": "evidence/research/compile-performance/COMPILE6/CP27-review.json",
       "delivery_review": "evidence/research/compile-performance/COMPILE6/CP27-delivery-review.json",
       "published_source": "abefce0c2c1731a085ce97f941e32b3286209b30",
       "published_delivery": "79bb5348fe426a62aecaae808321f70966cbc24c",
       "validation": "31 author and independently rerun targeted tests; independent query4CLI/4native and object5CLI/5native. Overlapping executions not added as unique tests.",
-      "performance": "Pending; final candidate versus baseline and native Rust windows prepared/preflight passed, formal measurements separately controlled."
+      "performance": "Full combined candidate versus original485: 240/240 full CLI and 768 native checks pass; wall B/A 1.0758383658, CPU1.0792596348, exploratory95 [0.9559321878,1.1226603064], independent formal data/math/parse/object review Pass. Full performance candidate NoGo; not an isolated estimate of the two ownership fixes. Native Rust complete360build/1152native plus180runtime independently reviewed; O0cold0.7941191017, incremental1.8629389121, O2closed1.0217591117; no general compiler advantage.",
+      "result": "docs/research/compile-performance/CP27-RESULT.md",
+      "performance_review": "evidence/research/compile-performance/COMPILE6/CP27-vs-baseline-performance-verdict.json"
     },
     "CP25": {
       "status": "Planned",
@@ -528,13 +531,37 @@ Doing
       ],
       "result": "docs/research/compile-performance/CP25-FEASIBILITY.md",
       "adoption": "Hold: present project-level query granularity, globally assigned IDs, negative lookups, semantic summaries and shared budgets prevent a safe scheduling-only shortcut."
+    },
+    "CP28": {
+      "status": "ReviewPass",
+      "author": "/root/toolchain_recovery (implementation), /root/ownership_finish (validation)",
+      "reviewer": "/root/cp28_independent",
+      "baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
+      "purpose": "Independently backport the two proven preexisting temporary-file ownership fixes onto the original baseline, without adopting the failed parse-cache performance candidate. Preserve key/format/quota/Verify/cache opt-in/durability contracts.",
+      "branch": "research/cp28-cache-ownership",
+      "write_set": [
+        "crates/zil-driver/src/query_cache.rs",
+        "crates/zil-backend-llvm/src/object_cache.rs",
+        "crates/zil-driver/tests/cache_publication_cp27.rs",
+        "docs/research/compile-performance/CP28-CACHE-OWNERSHIP.md",
+        "evidence/research/compile-performance/CP28"
+      ],
+      "validation_plan": "Exact baseline+scoped patch/source audit; same 31 relevant controls rerun on CP28 and independent real query/object collision-preservation, repair and warm-hit CLI/native controls. No compile performance claim. All build/CLI work waits until the three frozen Rust formal windows are complete.",
+      "adoption": "Correctness-only local research integration approved by independent Pass; remote update separately confirmed; main Hold.",
+      "candidate": "fc7fa3dcb53516cad1fca0d38362c8d6b2fccc16",
+      "delivery": "6e5e81c59c5324a0f555ac736d8a03fb9c40e984",
+      "crates_tree": "a7ae8da1862a69cf673b8db50431b4991cb0d1c5",
+      "review": "evidence/research/compile-performance/CP28/CP28-review.json",
+      "result": "docs/research/compile-performance/CP28-CACHE-OWNERSHIP.md",
+      "validation": "31 author and independently rerun targeted tests, separately9CLI/9native each; exact208 source inputs/source and delivery crates/release metadata bound. Overlapping validations not summed.",
+      "performance": "NotRun onCP28. Full CP27 combined candidate performance does not isolate these two guards."
     }
   },
   "mainline_acceptance": "Hold: main not changed by this research round; targeted correctness passed, composite-type performance risk signals unresolved; full workspace/product gates NotRun.",
-  "next_priority": "Isolate type_cow clone/compare and CT memo costs before adoption; then fine-grained frontend invalidation for private edits and O2 improvements preserving per-case runtime quality.",
-  "latest_result": "docs/research/compile-performance/COMPILE5-RESULT.md",
-  "measured_source": "951471d5a6e26e15de96e0bfaf91cd3e537a3dd9",
-  "scope": "Same-host combined O0 bridge reduces wall cost 1.576%; Rust O0cold0.818380, incremental1.312799,O2closed1.047511. Separate local composite probes mixed; no cross-host pooled score or universal Rust advantage.",
+  "next_priority": "Isolate cache preparation/validation and AST materialization full costs, then stable owner/transactional dependencies/result facets/ensure-current and affected SCC recomputation. CP25 feasibility only; do not add scheduling without actual work reduction.",
+  "latest_result": "docs/research/compile-performance/COMPILE6-RESULT.md",
+  "measured_source": "d9a71f603d73c1df4a367189cc5b41ca15bf7d70",
+  "scope": "Compile6: full parse candidate NoGo versus original485 wall1.075838/CPU1.079260. NativeRustO0cold0.794119,incremental1.862939,O2closed1.021759. Adopt only independently reviewed baseline CP28 ownership fixes; no CP28 performance claim.",
   "compile4_baseline": "64072793a0f41994f216a6207bf49ee1e2d224f8",
   "compile4_status": "Complete_Exploratory_NotAProductGate:149 Cargo tests and52 Python controls pass;600 build+240 runtime rows independently checked.",
   "compile5_baseline": "a715f828261ff4b6ef9c8125623064360745aae4",
@@ -549,7 +576,16 @@ Doing
     "source_scope": "No production compiler change after951471d5."
   },
   "compile6_baseline": "485301e1f1dcdfb0b4e24f6249355104243c3fe3",
-  "compile6_status": "Doing: CP21/23 full-cost NoGo and CP22 late defect/initial mixed-cost NoGo retained. CP26/27 correctness Pass. Final candidate and all native Rust windows preflight passed; formal publication-cost and final incremental windows in progress, no final speedup claim."
+  "compile6_status": "Complete_Exploratory_NotAProductGate: deepZIT review and original-source synchronous controls; five independently reviewed complete ZIL240-row windows (original CP23 failed window separately retained), threeRust360build/1152native+180runtime; full candidate NoGo. CP28correctness Pass and local research integration; remote publication must be confirmed separately.",
+  "adopted_correctness_source": "fc7fa3dcb53516cad1fca0d38362c8d6b2fccc16",
+  "compile6_remote_publication": {
+    "confirmed_remote": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+    "confirmed_tree": "156f35b43b990608104bce607206671b16140ab2",
+    "status": "Blocked_WriteAPITimeouts_ReadbackUnchanged",
+    "reason": "create_blob/create_tree/create_branch20s bounded requests all timeout; readback works; no explicit permissions or auto-review rejection returned",
+    "receipt": "evidence/research/compile-performance/COMPILE6/GIT-FINAL-PUBLICATION.json",
+    "scope": "Final local integration/evidence not yet published remotely; isolated earlier CP21/22/23/26/27 branches remain published; main not written by this round"
+  }
 }
 ```
 
@@ -563,3 +599,11 @@ Doing
 2026-10-30 zil编译4：候选0393660f完成远端执行和独立复算。CP14/15/16/17按研究范围ReviewPass；149项定向Cargo测试、52项工具控制通过，840条正式计时记录完整；总体超过Rust未达成，main合流Hold。详见COMPILE4-RESULT.md，历史负结果不改。
 
 2026-10-31 北京时间 zil编译5：候选951471d5完成独立同机CI和三份复核。O0旧新桥接降低1.576%；与Rust冷/增量/O2分别0.818380/1.312799/1.047511。辅助复合类型窗口正负混合，不以主矩阵收益覆盖风险；研究交付完成，主线采用Hold。完整证据见COMPILE5-RESULT.md。
+
+## 2026-10-31 编译7续接
+
+用户授权加强增量编译并继续专项；从编译6本地ee72fd6独立恢复。CP29有限标量Types原始结果复用、CP30已发布查询快读、CP31完整会话与源码候选开销窗口开始施工。精确写集和独审分工见 `docs/research/compile-performance/COMPILE7-PLAN.md`；不改变父任务、正式门、schema、语义和预算。CP25仍无生产计量。稀疏历史及handoff基线失败如实保留。
+
+2026-10-31 编译7追加派工：CP29完整会话负结果保留；CP32从a0f38d2b隔离继续，研究有界部分保留、延迟快照复制和已验证源权重复用，64MiB与语义/预算/Verify合同不变。写集、作者和独审见COMPILE7-PLAN。
+
+2026-10-31 编译7追加CP33：源码确认公开编辑改变逐文件剩余token/node额度从而扩大Parse失效；从ee72独立移植纯内存ParseUsage/预算拟合身份，不含旧磁盘memo。作者incremental_research、非作者cp25_evidence，见COMPILE7-PLAN。
