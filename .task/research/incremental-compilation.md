@@ -98,3 +98,5 @@ Rust精确源码又确认O2默认MergeFunctions与当前LLVM默认管线的具�
 DB六区组独立消融完成，未证明净提速；真实driver的内容版本键让反向索引不能改善主要编辑路径。按changes/research-reactive-key-attribution.md将默认zil-db/src/lib.rs完整恢复3d6原字节，保留EE实现、修复后的JS适配、差分控制和全部正负实验身份。Analyze init投影、语义候选缓存、分区和scalar promotion分别保留独立候选身份；不把组合O0收益归于撤回的DB。稳定查询身份/有效性/依赖与等值屏障不是删除input哈希的小修，不在此次撤回中暗改。
 
 实际Session事件与源码审计进一步定位私有编辑997/1025重解析：32 raw owner中整项目四阶段占四项，其余仅28 Parse；旧ExpandedProject未持有项目AST。按changes/research-project-syntax-retention.md在既有driver project/session与测试写集内，由semantic_incremental实施当前项目原始Parse Arc子所有权及精确身份/费用复用。必须同时接入filesystem loader真实计算路径，不能只改变事件计数；借旧语法索引时仍释放旧Core/Typed，保留当前输入检查、限额、产物、错误及取消边界。新增常驻AST字节需实测RSS，不把owner数量上界冒充字节上界，也不声称实现函数级Types增量。
+
+实际LLVM自身进程采样将大函数O2热点定位到JumpThreading入口块替换反复全量重算支配树。按changes/research-entry-preserving-jump-threading.md追加tools/research/incremental-compilation/jump_threading_plugin/**及pass_timing/**独立研究工具写集；固定上游23.1.4源码/SDK，原版clone与内建pass先对照，再保持入口块与WeakTrackingVH工作表。只在隔离opt插件/私有捕获快照验证，不修改生产LLVM API或默许新的C++边界；原Verify、机器预检、当前工具/管线缓存身份、故障记录和成功请求发布均须保留。限定独审与正式完整请求收益分别绑定，不能把pass时间下降冒充端到端或Rust胜出。

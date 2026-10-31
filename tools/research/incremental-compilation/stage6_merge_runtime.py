@@ -12,6 +12,8 @@ ARM_OPTIONS = {
     'after_closed': ['--function-merging', 'after', '--closed-executable'],
     'before_and_after': ['--function-merging', 'before-and-after'],
     'before_and_after_closed': ['--function-merging', 'before-and-after', '--closed-executable'],
+    'incremental_after': ['--function-merging', 'after', '--incremental-o2'],
+    'incremental_after_closed': ['--function-merging', 'after', '--incremental-o2', '--closed-executable'],
     'rust': [],
 }
 DEFAULT_ARMS = ['off', 'off_closed', 'after', 'after_closed', 'before_and_after', 'before_and_after_closed']
