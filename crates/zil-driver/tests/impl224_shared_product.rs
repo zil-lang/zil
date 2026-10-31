@@ -181,22 +181,21 @@ fn live_shared_borrows_prevent_consumption_replacement_and_mutation() {
 #[test]
 fn sharing_does_not_add_mutable_owned_reads_retention_or_escape() {
     for (label, body) in [
-        ("mutable-product", "fn bad(p:&mut Root){}fn main(){}".into()),
+        (
+            "mutable-product",
+            "fn bad(p:&mut Root){}fn main(){}".to_owned(),
+        ),
         (
             "borrow-return",
-            "fn bad(p:&Root)->&Root{return p}fn main(){}".into(),
+            "fn bad(p:&Root)->&Root{return p}fn main(){}".to_owned(),
         ),
         (
             "copy-child",
-            "fn bad(p:&Root){let child=p.child}fn main(){}".into(),
+            "fn bad(p:&Root){let child=p.child}fn main(){}".to_owned(),
         ),
         (
             "copy-owner",
-            "fn bad(p:&Root){let owner=p.child.owner}fn main(){}".into(),
-        ),
-        (
-            "capture",
-            format!("fn main()->i32{{let root={ROOT};let p=&root;let f=()=>value(p);return f()}}"),
+            "fn bad(p:&Root){let owner=p.child.owner}fn main(){}".to_owned(),
         ),
     ] {
         let report = compile(label, &source(&body), Limits::default());
@@ -204,6 +203,21 @@ fn sharing_does_not_add_mutable_owned_reads_retention_or_escape() {
         assert_ne!(report.status, ResultCategory::ResourceLimit, "{label}");
         assert!(!report.artifacts.contains_key("executable"));
     }
+}
+
+// Original 224 source bytes are retained. Stage 226 admits this local shared
+// address capture; mutable access, escaping returns and owning copies above stay closed.
+#[test]
+fn original_shared_capture_promoted_by_226() {
+    let body =
+        format!("fn main()->i32{{let root={ROOT};let p=&root;let f=()=>value(p);return f()}}");
+    let report = compile("capture", &source(&body), Limits::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
 }
 
 fn typed(label: &str, text: &str) -> TypedModule {
