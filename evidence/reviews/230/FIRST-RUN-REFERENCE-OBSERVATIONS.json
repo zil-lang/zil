@@ -1,0 +1,2128 @@
+{
+  "schema_version": 1,
+  "task": "230",
+  "status": "FirstRunScopedReferenceObservationsOnly",
+  "final_verdict": null,
+  "reviewer": "/root/defer_design",
+  "implementation_author": "/root/continuity_audit",
+  "independent_of_implementation_author": true,
+  "run": 41182685056,
+  "ci_url": "https://github.com/zil-lang/zil/actions/runs/41182685056",
+  "checkout": "015cb5d4e6c7794de616e0a933520cd3dfa886f7",
+  "implementation_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+  "ci_candidate": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+  "test_commit": "69fa1d5ca24eb9424d7d8c6f67b9d8f44f0f47de",
+  "source_test_blob": "b7775a3cea5623c4d81cfc2b98a785d10e691d55",
+  "source_test_sha256": "f2b24b94c42acddac6417bce1633c2aa2ba46f87c96ba82aa42e60a08f2046b3",
+  "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+  "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
+  "observed_at_utc": "2026-10-31T08:21:28.171294+00:00",
+  "comparison_default_observation_commit": "8855ef79b07db14b6540f1e1ebc5ef357dd1d971",
+  "comparison_default_observation_sha256": "ce226d0c4fb48a8eda23d288d376b14a9fe453d960bc4300000f48c61d1ce737",
+  "source_bindings": [
+    {
+      "path": "crates/zil-driver/src/ct_selection/hygiene.rs",
+      "git_blob": "f1becf839873b99f7f359e634fde4b397e83cd6e",
+      "bound_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+      "sha256": "e867d390af163e3b259f525db1cda2f47e1294dc40d2934cda190152fd1faf2e"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/hygiene_types.rs",
+      "git_blob": "89a2eed87b78937e0f1f73979ec734b99a0e3ed0",
+      "bound_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+      "sha256": "a2c0d9d66d2b1ce3df60fb6ff81e3305cf813439e0f5561e8af2b7e2d4601894"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/materialize.rs",
+      "git_blob": "fba1fcf218a89778fadd007b10cb524ec5f37d01",
+      "bound_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+      "sha256": "43086af25c2f51101daaeeae511084a4de4fbf97cee57f047d23c2d56f904b39"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl230_generation.rs",
+      "git_blob": "240e7fa63033c8835784584a2de544cbbcdf4100",
+      "bound_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+      "sha256": "60692f47d5a5f692d40dfd8b3fdb738ea4121b1e812de9e50b9bb5c704ca6379"
+    },
+    {
+      "path": "crates/zil-driver/tests/review230_independent.rs",
+      "git_blob": "b7775a3cea5623c4d81cfc2b98a785d10e691d55",
+      "bound_commit": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+      "sha256": "f2b24b94c42acddac6417bce1633c2aa2ba46f87c96ba82aa42e60a08f2046b3"
+    },
+    {
+      "path": "examples/mainline/ct_enums230/events.zil",
+      "git_blob": "95e09dd399fccfd20f20ef8954da25bb3a496c78",
+      "bound_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+      "sha256": "7a15bb9bbdc0ea8db4b8e0da5a9a6299df36b7ea393a99c98dea9a9ca922708d"
+    },
+    {
+      "path": "examples/mainline/ct_enums230/events_plain.zil",
+      "git_blob": "2b976990c515641aa267d91a0b2ec45309f014c7",
+      "bound_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+      "sha256": "bdd03f5f0b492c3c173d4da832639aaa5fb6a046979cea94b5ba0aa6abfca7bb"
+    }
+  ],
+  "source_tree_receipts_identical": true,
+  "reference_workspace_aggregate_observed": {
+    "passed": 2924,
+    "failed": 6,
+    "ignored": 0
+  },
+  "default_workspace_aggregate_observed": {
+    "passed": 2967,
+    "failed": 6,
+    "ignored": 0
+  },
+  "reference_failed_test_names": [
+    "one_environment_keeps_owned_store_and_shared_product_responsibilities_separate",
+    "raw_one_branch_store_injection_cannot_reuse_ordinary_origin_plan",
+    "generated_types_do_not_grant_where_binders_members_or_numeric_rights",
+    "independent_module_identity_alias_privacy_and_binder_boundaries",
+    "independent_module_where_budget_boundary_survives_cache_replay",
+    "independent_native_grouped_module_and_generated_enum_consumers"
+  ],
+  "toolchain": {
+    "status": "Pass",
+    "checks": {
+      "llvm": {
+        "path": "/home/runner/work/_temp/llvm-23.1.4/lib/libLLVM.so.23.1",
+        "sha256": "82441dae7d94aac9e1964b06ee6d4bb0f28c0fcf3aaa31df91c886806a112567",
+        "version": "23.1.4"
+      },
+      "clang": {
+        "path": "/home/runner/work/_temp/llvm-23.1.4/bin/clang-23",
+        "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+        "version": "23.1.4",
+        "banner": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+      },
+      "lld_link": {
+        "path": "/home/runner/work/_temp/llvm-23.1.4/bin/lld",
+        "sha256": "0f8d53acaf6ff4990506a26739c12fb90315fdcc0430ec4c305ca75115774d4b",
+        "version": "23.1.4",
+        "banner": "LLD 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+      },
+      "rustc": {
+        "path": "/home/runner/.cargo/bin/rustup",
+        "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4",
+        "version": "1.99.1",
+        "banner": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+      },
+      "cargo": {
+        "path": "/home/runner/.cargo/bin/rustup",
+        "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4",
+        "version": "1.99.1",
+        "banner": "cargo 1.99.1 (5f94df478 2026-08-27)"
+      }
+    },
+    "required_llvm": "23.1.4",
+    "required_rust": "1.99.1"
+  },
+  "native_archive": {
+    "artifact_id": 13036110485,
+    "file": "reference-native.zip",
+    "bytes": 191066194,
+    "sha256": "4d2fd0d3600fe6c1679b1448f4d92c515e86537a64eddf2ce7ff246cdd831f86",
+    "members": 63042,
+    "extracted_to": "/workspace/scratch/b2d4304a481d/z10-ci/41182685056/reference-native"
+  },
+  "artifact_manifest": {
+    "sha256": "832c6039dddd1ddc06d7fcf4c7ba6ab7f002526876de77e0d160d29be9811e98",
+    "scope": [
+      "review230-67296/",
+      "enums230-64898/",
+      "raw-wire230/"
+    ],
+    "files_independently_rehashed": 719,
+    "all_saved_files_match_manifest": true
+  },
+  "independent_review": {
+    "executed_tests": [
+      "address_payloads_and_recursive_alias_payloads_keep_ordinary_rejections",
+      "forward_payload_alias_variant_spelling_and_pattern_binder_are_independent",
+      "generic_type_binder_shadows_alias_and_does_not_leak_to_later_functions",
+      "payload_constant_substitution_rechecks_changed_source_in_a_warm_session",
+      "qualified_import_and_same_spelled_generated_enum_keep_separate_identities",
+      "same_layout_generated_public_enums_remain_nominal_between_modules",
+      "transparent_aliases_do_not_merge_distinct_generation_rounds",
+      "variant_payload_visits_share_request_limits_with_cold_and_warm_replay",
+      "ordinary_expansion_and_generated_sources_execute_at_o0_and_o2"
+    ],
+    "source_copies_verified": 46,
+    "ordinary_report_count": 27,
+    "budget_report_count": 10,
+    "native_count": 8,
+    "semantic_fields_compared": [
+      "status",
+      "phase",
+      "diagnostics",
+      "input_fingerprint",
+      "cache_hit",
+      "verification_runs",
+      "source_files"
+    ],
+    "cases": [
+      {
+        "label": "forward",
+        "sources": {
+          "main": {
+            "bytes": 407,
+            "sha256": "e77977e57f0455b49783e535816d22ddf762a114a15a15595d3e2e91510c469f"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "7d32f54505f35b1e762144282e759bbf055cd28282e20962e6da2d3a8135df6c",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "forward-plain",
+        "sources": {
+          "main": {
+            "bytes": 342,
+            "sha256": "d6f3d66b39dd6fc6272b45024e78c2acef60ad30180c1eaf6902bd37d52f07f8"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "f1d4c9884b270e64cfe80f33862b1feb883436ad78ed5126394bd584922090ae",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "generic-alias-no-privilege",
+        "sources": {
+          "main": {
+            "bytes": 131,
+            "sha256": "6b0e92413247eaa355ba8a0c8b0e32097df370a0b90ab58265d98ae652228492"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-GENERIC-ARGUMENT"
+        ],
+        "report_sha256": "056c06cb5581a1975c435913876a8481d5a6c5d2a5f99a7336f77d0ce9a2b14a",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "generic-alias-shadow",
+        "sources": {
+          "main": {
+            "bytes": 217,
+            "sha256": "468370ffca1fe3e8985128c6bd07694232c9a807798bfdf98cd212e94cb9b574"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "2e140d787961e86bc7271c24ec18bfef5d7e820fafb19ac130627bad0a719048",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "module-distinct-identity",
+        "sources": {
+          "main": {
+            "bytes": 69,
+            "sha256": "75a958a1deb57c7c663b9252f6d16a50f469cf7ba5831a9777b008451e5b3133"
+          },
+          "left": {
+            "bytes": 132,
+            "sha256": "348a29e30f6e8229b6191e330ce579ddc26586545f60fd7e54c2c312178305c7"
+          },
+          "right": {
+            "bytes": 103,
+            "sha256": "77c41c6f40ffe033f918a786190240b3f9ccce9f5aba392584bc06b3fd044aae"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-TYPE-MISMATCH"
+        ],
+        "report_sha256": "d19e0a72e2e506b2bc28fa8242aab63e8da6ae325bc85f3ec5394a43deb311a8",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "module-own-identity",
+        "sources": {
+          "main": {
+            "bytes": 68,
+            "sha256": "48f09c3e7fc98e45c7ae41edf81762a97bd697d5ed6f8dbc56fb8c7917eb6ba7"
+          },
+          "left": {
+            "bytes": 132,
+            "sha256": "348a29e30f6e8229b6191e330ce579ddc26586545f60fd7e54c2c312178305c7"
+          },
+          "right": {
+            "bytes": 103,
+            "sha256": "77c41c6f40ffe033f918a786190240b3f9ccce9f5aba392584bc06b3fd044aae"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "918157bdcdf20890c07459c18000a63e8bcf7fa90d884975a291da682e79970c",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "native-O0-forward",
+        "sources": {
+          "main": {
+            "bytes": 407,
+            "sha256": "e77977e57f0455b49783e535816d22ddf762a114a15a15595d3e2e91510c469f"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "e6f9ae153f920a49f0c6546dc01a314d608ab6eb31eab1e46e57fb3c981dcee8",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O0",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O0-forward/.zil-driver-67296-59/.zil-build-67296-0/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O0-forward/.zil-driver-67296-59/.zil-build-67296-0/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15832,
+          "program_sha256": "546d4e37ec9f5f62ee2aa75dd9393d676908ef2ff7d95563ff8017e6c90e1629"
+        }
+      },
+      {
+        "label": "native-O0-forward-plain",
+        "sources": {
+          "main": {
+            "bytes": 342,
+            "sha256": "d6f3d66b39dd6fc6272b45024e78c2acef60ad30180c1eaf6902bd37d52f07f8"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "5e00dd12a539ceef2a169c7265ad34ee51bcf316c587d311c4e786443b699140",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O0",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O0-forward-plain/.zil-driver-67296-97/.zil-build-67296-1/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O0-forward-plain/.zil-driver-67296-97/.zil-build-67296-1/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15832,
+          "program_sha256": "546d4e37ec9f5f62ee2aa75dd9393d676908ef2ff7d95563ff8017e6c90e1629"
+        }
+      },
+      {
+        "label": "native-O0-qualified",
+        "sources": {
+          "main": {
+            "bytes": 87,
+            "sha256": "a3d1e5bbdcbd4b0de0d49e04fd1dfe20cc3b89b366866d36da11b3df189416e1"
+          },
+          "events": {
+            "bytes": 521,
+            "sha256": "0d53439504705ef2097a23db62b99e7bdd28dcea63c820662420dec9f0e745a2"
+          },
+          "wire": {
+            "bytes": 135,
+            "sha256": "4730b04a62c40210245e05cdbd8b3c3b954b67f3b8eb828c8ca42cd92dc565c7"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "fa270b178955627f51d4a0aad3e3d27847334b72eccdbcf68a24d62b1a183c94",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O0",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O0-qualified/.zil-driver-67296-139/.zil-build-67296-2/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O0-qualified/.zil-driver-67296-139/.zil-build-67296-2/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15896,
+          "program_sha256": "2affe4b6714e8bb6ba8e0c8f6ca4a99375278aba22911099ed722c183f832e0d"
+        }
+      },
+      {
+        "label": "native-O0-qualified-plain",
+        "sources": {
+          "main": {
+            "bytes": 87,
+            "sha256": "a3d1e5bbdcbd4b0de0d49e04fd1dfe20cc3b89b366866d36da11b3df189416e1"
+          },
+          "events": {
+            "bytes": 452,
+            "sha256": "e6e0c645d58394c48e4be6526ab09ab1b27607ad7d88f2e6f58c8baaba554a93"
+          },
+          "wire": {
+            "bytes": 135,
+            "sha256": "4730b04a62c40210245e05cdbd8b3c3b954b67f3b8eb828c8ca42cd92dc565c7"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "d49c075e9d622d25b163364b36a1cfb59bbfea22310f5b4a13367e75c2611245",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O0",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O0-qualified-plain/.zil-driver-67296-159/.zil-build-67296-3/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O0-qualified-plain/.zil-driver-67296-159/.zil-build-67296-3/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15896,
+          "program_sha256": "2affe4b6714e8bb6ba8e0c8f6ca4a99375278aba22911099ed722c183f832e0d"
+        }
+      },
+      {
+        "label": "native-O2-forward",
+        "sources": {
+          "main": {
+            "bytes": 407,
+            "sha256": "e77977e57f0455b49783e535816d22ddf762a114a15a15595d3e2e91510c469f"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "6d189310833bcfe32c9330eca76726717d64d001d9615ecba57e58494bf59e2a",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O2",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O2",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O2-forward/.zil-driver-67296-170/.zil-build-67296-4/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O2-forward/.zil-driver-67296-170/.zil-build-67296-4/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15832,
+          "program_sha256": "d2ef2ad1ece4cb8e343dee735e1ce4ccd6b3b53340c203e761e11dca2305432e"
+        }
+      },
+      {
+        "label": "native-O2-forward-plain",
+        "sources": {
+          "main": {
+            "bytes": 342,
+            "sha256": "d6f3d66b39dd6fc6272b45024e78c2acef60ad30180c1eaf6902bd37d52f07f8"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "679bb2495a6bd478e5b0d888a0b1a10a83a7400af8168ecc75a56ba4554b4e43",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O2",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O2",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O2-forward-plain/.zil-driver-67296-180/.zil-build-67296-5/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O2-forward-plain/.zil-driver-67296-180/.zil-build-67296-5/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15832,
+          "program_sha256": "d2ef2ad1ece4cb8e343dee735e1ce4ccd6b3b53340c203e761e11dca2305432e"
+        }
+      },
+      {
+        "label": "native-O2-qualified",
+        "sources": {
+          "main": {
+            "bytes": 87,
+            "sha256": "a3d1e5bbdcbd4b0de0d49e04fd1dfe20cc3b89b366866d36da11b3df189416e1"
+          },
+          "events": {
+            "bytes": 521,
+            "sha256": "0d53439504705ef2097a23db62b99e7bdd28dcea63c820662420dec9f0e745a2"
+          },
+          "wire": {
+            "bytes": 135,
+            "sha256": "4730b04a62c40210245e05cdbd8b3c3b954b67f3b8eb828c8ca42cd92dc565c7"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "6cc915a8c310667b439b67bcfdf2f70c847b4b859ff1f85160f2f1b1694a95a1",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O2",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O2",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O2-qualified/.zil-driver-67296-193/.zil-build-67296-6/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O2-qualified/.zil-driver-67296-193/.zil-build-67296-6/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15896,
+          "program_sha256": "9577cd30a506b7011bf05501794863649c5ecbc5087df0813899c3170e8afc23"
+        }
+      },
+      {
+        "label": "native-O2-qualified-plain",
+        "sources": {
+          "main": {
+            "bytes": 87,
+            "sha256": "a3d1e5bbdcbd4b0de0d49e04fd1dfe20cc3b89b366866d36da11b3df189416e1"
+          },
+          "events": {
+            "bytes": 452,
+            "sha256": "e6e0c645d58394c48e4be6526ab09ab1b27607ad7d88f2e6f58c8baaba554a93"
+          },
+          "wire": {
+            "bytes": 135,
+            "sha256": "4730b04a62c40210245e05cdbd8b3c3b954b67f3b8eb828c8ca42cd92dc565c7"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "ba4ab6c019706dee851061e2edd0e25082afa9e13b1b0100208a459ebd845bd6",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O2",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O2",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O2-qualified-plain/.zil-driver-67296-205/.zil-build-67296-7/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/review230-67296/native-O2-qualified-plain/.zil-driver-67296-205/.zil-build-67296-7/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15896,
+          "program_sha256": "9577cd30a506b7011bf05501794863649c5ecbc5087df0813899c3170e8afc23"
+        }
+      },
+      {
+        "label": "payload-address-false",
+        "sources": {
+          "main": {
+            "bytes": 37,
+            "sha256": "e00615c0c2b40e05841339fb853745356cd542c313fb5078f413fba6bb219606"
+          }
+        },
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "report_sha256": "98f15e9aee07164bdc500bd5a5f00e729076c671651fb02a31707b2c0142c406",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "payload-address-true",
+        "sources": {
+          "main": {
+            "bytes": 53,
+            "sha256": "5ad27205680bf503728c14a2cd0e77840760ab829b65d82a575ab20d911533bc"
+          }
+        },
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "report_sha256": "4969e5d5dfd22c598647d792adbec1d9124168a88d9d546801058d8ae2b45209",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "payload-edit-0",
+        "sources": {
+          "main": {
+            "bytes": 150,
+            "sha256": "ff1f9713d2bb1c55c1b3d6cbe124648a73915e6a517cd28186d0bf492c118da7"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "8fa34e57829d86045b293de2077386c3793f10c8416f0e4a1674b8581669297d",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "payload-edit-1",
+        "sources": {
+          "main": {
+            "bytes": 150,
+            "sha256": "ff1f9713d2bb1c55c1b3d6cbe124648a73915e6a517cd28186d0bf492c118da7"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": true,
+        "diagnostic_codes": [],
+        "report_sha256": "972911f7e4e1ad1e61651b61fbd9fdaa88a86af992cd8a262424988519819f6c",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "payload-edit-2",
+        "sources": {
+          "main": {
+            "bytes": 147,
+            "sha256": "3953210b5990eec99a15b94e46510a9da5f99a593062443abbc37afa8ab8fd5f"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-ARRAY-LENGTH"
+        ],
+        "report_sha256": "186897d7d66f642e143cb17eb3f508a4b86afd2a31d66f31f0c91921198bc484",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "payload-edit-3",
+        "sources": {
+          "main": {
+            "bytes": 150,
+            "sha256": "ff1f9713d2bb1c55c1b3d6cbe124648a73915e6a517cd28186d0bf492c118da7"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": true,
+        "diagnostic_codes": [],
+        "report_sha256": "545592eeb5fbabf850fabc894cebf4dd6c840bbfb66b0290b1805ac83deae3c6",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "payload-recursive-alias-false",
+        "sources": {
+          "main": {
+            "bytes": 48,
+            "sha256": "b3cf8572cdb17f7ddd06c57a4b77958c4e6c1e05fa1a6674e9293669a3851488"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-INFINITE-LAYOUT"
+        ],
+        "report_sha256": "52bf7d01181d27f0b39a61dc34ea2671ab9840fea01f30bc689cebd2dbf5b559",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "payload-recursive-alias-true",
+        "sources": {
+          "main": {
+            "bytes": 64,
+            "sha256": "0af932131fe5426bdb5e2d8875d2e833fc615d10188400a0346d2c804134d076"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-INFINITE-LAYOUT"
+        ],
+        "report_sha256": "1db431e9bf8e1577bcafe7ed82728fad2fc61e0337f4af55f61f69c39802816d",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "qualified",
+        "sources": {
+          "main": {
+            "bytes": 87,
+            "sha256": "a3d1e5bbdcbd4b0de0d49e04fd1dfe20cc3b89b366866d36da11b3df189416e1"
+          },
+          "events": {
+            "bytes": 521,
+            "sha256": "0d53439504705ef2097a23db62b99e7bdd28dcea63c820662420dec9f0e745a2"
+          },
+          "wire": {
+            "bytes": 135,
+            "sha256": "4730b04a62c40210245e05cdbd8b3c3b954b67f3b8eb828c8ca42cd92dc565c7"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "3592f286bf824097a37cc0b852194f885ee0e46429c9e69aba135e21dcfdb5b0",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "qualified-missing-member",
+        "sources": {
+          "main": {
+            "bytes": 74,
+            "sha256": "06a813720840b83ed5a5d66d325991974c3fc46e194a46057ba06451f69d8fb7"
+          },
+          "data": {
+            "bytes": 23,
+            "sha256": "c7fdb2a82b667f7b421537d3156a8fa933f0357248e4d1031a6446ce6e52b595"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-MODULE-MEMBER"
+        ],
+        "report_sha256": "2b4541f4d2bc5e67f1f72ec0a7836ba2d6a2db8cdcb9dce01d90d6360f7c5a71",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "qualified-plain",
+        "sources": {
+          "main": {
+            "bytes": 87,
+            "sha256": "a3d1e5bbdcbd4b0de0d49e04fd1dfe20cc3b89b366866d36da11b3df189416e1"
+          },
+          "events": {
+            "bytes": 452,
+            "sha256": "e6e0c645d58394c48e4be6526ab09ab1b27607ad7d88f2e6f58c8baaba554a93"
+          },
+          "wire": {
+            "bytes": 135,
+            "sha256": "4730b04a62c40210245e05cdbd8b3c3b954b67f3b8eb828c8ca42cd92dc565c7"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "34616f9cc5634f49822450a210090fd6bcb110607ea338a2df7c03526d275d0f",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "round-alias",
+        "sources": {
+          "main": {
+            "bytes": 216,
+            "sha256": "ed72916965977a4c71e8d68addc011006e65f099eac6197b93916a34d166d191"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-TYPE-MISMATCH"
+        ],
+        "report_sha256": "5ad5e60d477deac7c9d791106e999a837d2caaea7d72b60440080c1b388d59b4",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "round-alias-plain",
+        "sources": {
+          "main": {
+            "bytes": 248,
+            "sha256": "2f2758f6c74bdf0f57b3a46526d65dc77bb7a72eb8284830a533fc4fd9916bfc"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-TYPE-MISMATCH"
+        ],
+        "report_sha256": "39e2f7eba3c3ea7f64568319f021a5299b37669dd29798e2f7a382ddc98f10fe",
+        "semantic_report_fields_equal_default": true
+      }
+    ],
+    "budgets": [
+      {
+        "label": "limit-work",
+        "minimum": 3014,
+        "source_sha256": "21b8fafe638c7fae1d88450418f8f83318a7b94b67677e6a2f7a85360eab907e",
+        "attempts": [
+          {
+            "file": "attempt-0.json",
+            "allowance": 3014,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": false,
+            "sha256": "de1ba5c74d14e2ee11e9af163e2afd59b9b0f5e0d5785780f515a0f2aa2eeb3b"
+          },
+          {
+            "file": "attempt-1.json",
+            "allowance": 3014,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": true,
+            "sha256": "03aaac2e84c675d2842b03d0585c6d2a55e84e66aef556d38ab42cb0e89c0eeb"
+          },
+          {
+            "file": "attempt-2.json",
+            "allowance": 3013,
+            "status": "ResourceLimit",
+            "phase": "ct",
+            "verification_runs": 0,
+            "cache_hit": false,
+            "sha256": "a48231ffe57abae35e6399fde5a134dade29f7423d3a594371be02ccbd3aefae"
+          },
+          {
+            "file": "attempt-3.json",
+            "allowance": 3014,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": true,
+            "sha256": "acbc6415f21c2ea244b814339c5585b4f07f06e4b0aeb1e15d6721a7ee7dca39"
+          },
+          {
+            "file": "fresh.json",
+            "allowance": 3014,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": false,
+            "sha256": "c571cc0293d41feddca5848254157bea29ee357521646569a716426bc81b8745"
+          }
+        ]
+      },
+      {
+        "label": "limit-nodes",
+        "minimum": 512,
+        "source_sha256": "21b8fafe638c7fae1d88450418f8f83318a7b94b67677e6a2f7a85360eab907e",
+        "attempts": [
+          {
+            "file": "attempt-0.json",
+            "allowance": 512,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": false,
+            "sha256": "e0bb70d1a0051dbf641fc59f7559c73537da18c573201e38c7097daeedf20376"
+          },
+          {
+            "file": "attempt-1.json",
+            "allowance": 512,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": true,
+            "sha256": "dac9f18b9c03eebf767d6b4e464ab14f43790794809f64bb4329bbb8ff07508d"
+          },
+          {
+            "file": "attempt-2.json",
+            "allowance": 511,
+            "status": "ResourceLimit",
+            "phase": "ct",
+            "verification_runs": 0,
+            "cache_hit": false,
+            "sha256": "5b3a5431a83c6c84aef053284e44de448c142cdd4b20c378bc39d04cb0715b70"
+          },
+          {
+            "file": "attempt-3.json",
+            "allowance": 512,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": true,
+            "sha256": "97e6d379f5efe45cd7264c9613f6d701a2fad716cf7fa5928cd7f80537e1683a"
+          },
+          {
+            "file": "fresh.json",
+            "allowance": 512,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": false,
+            "sha256": "14caea72179b1fe8af72bc96fc49abe450b3e819efe6cd4fa537ced3b0a29094"
+          }
+        ]
+      }
+    ]
+  },
+  "author_supplement": {
+    "source_test_blob": "240e7fa63033c8835784584a2de544cbbcdf4100",
+    "executed_tests": [
+      "enum_generation_limits_charge_every_iteration_and_warm_replay",
+      "enum_generation_types_constructors_patterns_and_shadows_reach_verify",
+      "new_enum_profile_keeps_generation_and_configready_boundaries",
+      "nominal_separation_names_and_ordinary_payload_rejections_survive",
+      "public_generated_enum_crosses_real_module_boundaries",
+      "generated_enums_and_handwritten_events_execute_at_o0_and_o2"
+    ],
+    "source_copies_verified": 50,
+    "ordinary_report_count": 47,
+    "budget_report_count": 10,
+    "native_count": 8,
+    "cases": [
+      {
+        "label": "configready",
+        "sources": {
+          "source": {
+            "bytes": 75,
+            "sha256": "0c6794d1ff0d2ba794fbe0bec734c993649b60c1ed03fadc54ac53ff188c4902"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "ct",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-CT-PHASE-DEPENDENCY"
+        ],
+        "report_sha256": "b70d9c1af58626a5a5f7ba77a5cb49245aac7d0c6118fe20efe245f3a3a15640",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "declaration-attribute",
+        "sources": {
+          "source": {
+            "bytes": 55,
+            "sha256": "13960600f67f3ace605e29628910fea35d35d7347c7fd475e909804f40e2941b"
+          }
+        },
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "report_sha256": "ce44dc8f8d6789c9c78c23a4474d30756d4fb0c8e88b40c83304b9e0289afbfd",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "duplicate-cross-kind",
+        "sources": {
+          "source": {
+            "bytes": 52,
+            "sha256": "94c6ef294323bee2a05a9c23a911377fa00c5040dd61ce07d2a2cac3d5ce6608"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-NAME-DUPLICATE"
+        ],
+        "report_sha256": "018c9c8b871f5bdb491d648d8902f26ba4a0050e45a48c71ae2fa0c87d582bac",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "duplicate-private",
+        "sources": {
+          "source": {
+            "bytes": 51,
+            "sha256": "91c9426bd11145f343f7d82a85faf6a66dc4ec496ce9fcea5c492c003241053b"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-NAME-DUPLICATE"
+        ],
+        "report_sha256": "a48e663159e0308cf4f7374ca509184103e954cfa6b0c9cca4bef40f054f9502",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "duplicate-public",
+        "sources": {
+          "source": {
+            "bytes": 48,
+            "sha256": "1f3dc267a63b82bad278a9b2c82940b67fad607bc6a3c2a13b115728db68179d"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-NAME-DUPLICATE"
+        ],
+        "report_sha256": "1c04d1799026ddf0fba5cccd0111f7883101af118981b16855f4c77497d23834",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "duplicate-variant",
+        "sources": {
+          "source": {
+            "bytes": 44,
+            "sha256": "6a6213ae9cccfaf389b39e326ee441ffabbd3a529a847352dfd8ee1726728ff8"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-ENUM-VARIANT-DUPLICATE"
+        ],
+        "report_sha256": "3346a14476e38c9769288cb47980d88175fd628fd0e00cb5983d85218e3fed4a",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "empty",
+        "sources": {
+          "source": {
+            "bytes": 50,
+            "sha256": "a37bb10fd827c4b354a7b6946dd2c2bbae37280554ebbbc203eac76b5862e597"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "0145c4f7d9ce4a229e74c0614d2055cd3e480d518098f3dc70f38966272e5e60",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "events",
+        "sources": {
+          "source": {
+            "bytes": 697,
+            "sha256": "7a15bb9bbdc0ea8db4b8e0da5a9a6299df36b7ea393a99c98dea9a9ca922708d"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "18fb73e188b650f8409964c9ce3f1b2c4a6d2c6621e220b2b4f4026e15aef6c5",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "events-plain",
+        "sources": {
+          "source": {
+            "bytes": 606,
+            "sha256": "bdd03f5f0b492c3c173d4da832639aaa5fb6a046979cea94b5ba0aa6abfca7bb"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "9e5cbd38dbc5514f9e9e28accc3d6641ebb0a9876d39e497be946373da386d42",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "generic",
+        "sources": {
+          "source": {
+            "bytes": 48,
+            "sha256": "151c1d467c029734ada021aa133645d4b469243aa7b6da11562a3ce59820d73b"
+          }
+        },
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "report_sha256": "55458d40c864f356e5142536d06451aa3e983d4d4069a6dd79b4f4ee2e87b245",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "generic-no-privilege",
+        "sources": {
+          "source": {
+            "bytes": 94,
+            "sha256": "007cfc259c5643f974f0e6f00255488c82df64b0dac78444ef8cae65db54c426"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-GENERIC-ARGUMENT"
+        ],
+        "report_sha256": "4d3b5846ca1594dc938b2cc2539af3708a256c01427954061da7d9ff31d6d956",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "generic-shadow",
+        "sources": {
+          "source": {
+            "bytes": 127,
+            "sha256": "9b30a229e5d2bfb795019a771241046d69f902a4d7301e8a84832c367dcf234e"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "6ce76c077c8673b9eb075ac5c4540352ce54e7777267af616590697dcaf030f5",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "native-O0-events",
+        "sources": {
+          "source": {
+            "bytes": 697,
+            "sha256": "7a15bb9bbdc0ea8db4b8e0da5a9a6299df36b7ea393a99c98dea9a9ca922708d"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "5abe124c8fa3ede8047e3287e0b17370327ec9b5c9e7971f637006771d9e1521",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O0",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O0-events/.zil-driver-64898-69/.zil-build-64898-0/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O0-events/.zil-driver-64898-69/.zil-build-64898-0/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15864,
+          "program_sha256": "ea70d073a81f258b31d45c542f7434e78c42bed81cc06b80f90e1ae57cb0c32d"
+        }
+      },
+      {
+        "label": "native-O0-nested",
+        "sources": {
+          "source": {
+            "bytes": 245,
+            "sha256": "170cb94a3150287cf45e73c84eba2a2215346e0889b3ee14488cf5df2b0ef577"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "e28b351a79dcc99cad78bbf91d4e4aa6c02e3a83cd4d9fff8bd575dfc5dee9f9",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O0",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O0-nested/.zil-driver-64898-194/.zil-build-64898-3/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O0-nested/.zil-driver-64898-194/.zil-build-64898-3/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15864,
+          "program_sha256": "8346fa6803cbf1656f6cd092a0bb59298c240f8d49dc7b07d39a6db9cff52377"
+        }
+      },
+      {
+        "label": "native-O0-plain",
+        "sources": {
+          "source": {
+            "bytes": 606,
+            "sha256": "bdd03f5f0b492c3c173d4da832639aaa5fb6a046979cea94b5ba0aa6abfca7bb"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "b0ad323dfcb195498bcd68597637bc5edadad8575b396586c4bd6ec2cd20f867",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O0",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O0-plain/.zil-driver-64898-115/.zil-build-64898-1/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O0-plain/.zil-driver-64898-115/.zil-build-64898-1/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15864,
+          "program_sha256": "ea70d073a81f258b31d45c542f7434e78c42bed81cc06b80f90e1ae57cb0c32d"
+        }
+      },
+      {
+        "label": "native-O0-widths",
+        "sources": {
+          "source": {
+            "bytes": 311,
+            "sha256": "3f08482c95dd9995e1194f3c4d65119800ed9a8268601a6553d905c97d648008"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "78a6e888eeae25787c3d5bd0564ade3cf97e17db9b8414a6dc7293ba013b8a72",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O0",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O0-widths/.zil-driver-64898-153/.zil-build-64898-2/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O0-widths/.zil-driver-64898-153/.zil-build-64898-2/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15864,
+          "program_sha256": "4b84967bf14bcdee5d5fe4b5f525e0ffb0c626784154ce8ee1a7e71b283b0746"
+        }
+      },
+      {
+        "label": "native-O2-events",
+        "sources": {
+          "source": {
+            "bytes": 697,
+            "sha256": "7a15bb9bbdc0ea8db4b8e0da5a9a6299df36b7ea393a99c98dea9a9ca922708d"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "33c8019b2234e96df4aceeeb4dba5e23b3cbcbe9d3d2015d09e3ce0a48629341",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O2",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O2",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O2-events/.zil-driver-64898-214/.zil-build-64898-4/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O2-events/.zil-driver-64898-214/.zil-build-64898-4/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15864,
+          "program_sha256": "330dae70912d2986866fe6c6e8f708a048258d529785dfe39f45307e8224000a"
+        }
+      },
+      {
+        "label": "native-O2-nested",
+        "sources": {
+          "source": {
+            "bytes": 245,
+            "sha256": "170cb94a3150287cf45e73c84eba2a2215346e0889b3ee14488cf5df2b0ef577"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "d23b81bb425d7b947de18a05b6cdb95df519f93089d3e469b1f76736e43bad70",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O2",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O2",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O2-nested/.zil-driver-64898-246/.zil-build-64898-7/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O2-nested/.zil-driver-64898-246/.zil-build-64898-7/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15864,
+          "program_sha256": "c08b513bf961c14cb8ecfebbf3f01fa45db1180af146474f779d7b3e229022a7"
+        }
+      },
+      {
+        "label": "native-O2-plain",
+        "sources": {
+          "source": {
+            "bytes": 606,
+            "sha256": "bdd03f5f0b492c3c173d4da832639aaa5fb6a046979cea94b5ba0aa6abfca7bb"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "7fa23c2e8ff98930bf89137e3f6ff7bb79d693414c8cef2f00ee5c31d9e22c5e",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O2",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O2",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O2-plain/.zil-driver-64898-224/.zil-build-64898-5/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O2-plain/.zil-driver-64898-224/.zil-build-64898-5/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15864,
+          "program_sha256": "330dae70912d2986866fe6c6e8f708a048258d529785dfe39f45307e8224000a"
+        }
+      },
+      {
+        "label": "native-O2-widths",
+        "sources": {
+          "source": {
+            "bytes": 311,
+            "sha256": "3f08482c95dd9995e1194f3c4d65119800ed9a8268601a6553d905c97d648008"
+          }
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "9cdf798fd1d0952389b45e4f04c2d5ae05abb3d148f8b5cbe218deac3d1e1ad5",
+        "semantic_report_fields_equal_default": true,
+        "native": {
+          "backend": "clang",
+          "fallback": null,
+          "optimization": "O2",
+          "commands": [
+            [
+              "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O2",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O2-widths/.zil-driver-64898-235/.zil-build-64898-6/module.ll",
+              "-o",
+              "/home/runner/work/_temp/native-evidence/reference/enums230-64898/native-O2-widths/.zil-driver-64898-235/.zil-build-64898-6/program"
+            ]
+          ],
+          "exit": "Some(0)",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "program_bytes": 15864,
+          "program_sha256": "fa06afdd821ad98ccb8fb8c38ff4954dd21ed6f607a36b4c1b991ef2d9ceb623"
+        }
+      },
+      {
+        "label": "nested",
+        "sources": {
+          "source": {
+            "bytes": 245,
+            "sha256": "170cb94a3150287cf45e73c84eba2a2215346e0889b3ee14488cf5df2b0ef577"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "dc3c35e75d7063ee6396c0a04d57e06692c53a02f15999db3a8c1135b9e6df31",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "nominal-iteration",
+        "sources": {
+          "source": {
+            "bytes": 155,
+            "sha256": "e05dc05a20d293fe241749ac19dac2b3aae0ac368b024f57717d945f8b050a07"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-TYPE-MISMATCH"
+        ],
+        "report_sha256": "5aadee443167ac30fdba4627c4b98b7881fe80764700c8b8256d1f410ce8b95c",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "nonexhaustive",
+        "sources": {
+          "source": {
+            "bytes": 92,
+            "sha256": "4dea27aab86eec20a6f17a9e967ea12eaa9774b2f536f2a07b483fcb2db98e39"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-MATCH-NONEXHAUSTIVE"
+        ],
+        "report_sha256": "36e469af13ab726aba80eed61c137844d05dcf11b7d1aef3af85fb969f1bff50",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "owned",
+        "sources": {
+          "source": {
+            "bytes": 54,
+            "sha256": "74225b5288cbe1a44189293d052ce4fc8366d1e094aa31cf9c09b4b0f890c254"
+          }
+        },
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "report_sha256": "57c01e36c3cb096e6511a0ad0c3152df90d6e0c97a54afeb6a1bffb5a1f2bbea",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "package",
+        "sources": {
+          "source": {
+            "bytes": 49,
+            "sha256": "069d861a66e3b6b610844665f0e95125a2429e069c6902da25f9d83ee3355ef5"
+          }
+        },
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "report_sha256": "c4f6e977b8f1542ce37c3e4bf82f3d68400045a6cabcfe68b5896b7d901adaba",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "private-escape",
+        "sources": {
+          "source": {
+            "bytes": 59,
+            "sha256": "363cd7531c058b48bae70c0627403549f209cab3ea4b1820d3846907663c5ad5"
+          }
+        },
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "report_sha256": "c0391c0f8bd1d6501af18debed8be0f7ef3437498bcd53b07a9444e29f6126de",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "project",
+        "sources": {
+          "main": {
+            "bytes": 81,
+            "sha256": "7585c7134ff5e5602c3fc983c951b26f9aca53ae1e4b4a1f0d2705751f1948cc"
+          },
+          "events": {
+            "bytes": 136,
+            "sha256": "cf812ed1d38f8b6a0d4f1104636fe9fc977675f510f4fbc2d46aadb1311d1fa9"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "d36d43525510cf48d8e51d70cc9cc693537d5d4127b8547d011fad74d90c14a9",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "public",
+        "sources": {
+          "source": {
+            "bytes": 112,
+            "sha256": "d1f5c140c2575f98fb0b52059e7014dc75f70bef9ea1d4212cde39e96468c14c"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "c464e6af924d5d4527564da42bd839dbc288a789e792e1123fc6f698a2cae04d",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "record",
+        "sources": {
+          "source": {
+            "bytes": 49,
+            "sha256": "ca43ae21bea8aaba56be189eecd238081f185ac8801f67156e61258cac05b452"
+          }
+        },
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "report_sha256": "4778fe303728f5106b9337f7d50d7478506303aaadee413285046ec1cd899e5f",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "recursive",
+        "sources": {
+          "source": {
+            "bytes": 45,
+            "sha256": "803ec843d6b7485830882c5ac68c3588f32097603c85d377d1e83be89e50313e"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-INFINITE-LAYOUT"
+        ],
+        "report_sha256": "a2145bec5d7708f64806c5886a655c10afa2973260454a57cbeb31108347a2e3",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "reserved-generated-ByteBuffer",
+        "sources": {
+          "source": {
+            "bytes": 51,
+            "sha256": "32dbf44453a4b1149a61b63efcd4aef8ed687e10eddaf6b248ed8397cef21d20"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-BYTE-BUFFER-NAME"
+        ],
+        "report_sha256": "cd80b8d779b8127c898f466d442c1aac2900cdef389b176078f0ce0f1d6d72ce",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "reserved-generated-Copy",
+        "sources": {
+          "source": {
+            "bytes": 45,
+            "sha256": "c32b57303cb7facf250b9bb2e244a9ce898c9635dacc42e5ec63d41267b9a4d2"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-GENERIC-ARGUMENT"
+        ],
+        "report_sha256": "2bdc345c98e9fac81613d484c6445d3d4c7b5a0b74c1efd7bc1c2a050a880206",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "reserved-generated-Store",
+        "sources": {
+          "source": {
+            "bytes": 46,
+            "sha256": "b5af84cea329fd6ac0fe5c95e1e8f56adbd1b47ac86f38416043792703d7d9fe"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-OWNED-STORE-NAME"
+        ],
+        "report_sha256": "0143b63023c08ef6868889adc423f986091e22f9a85227a416dad6178b243940",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "reserved-generated-i32",
+        "sources": {
+          "source": {
+            "bytes": 44,
+            "sha256": "0b6fbb62d7623aa207401a108e6494becf9d7328b8fd4c2102895d9b38cb1dfb"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-NAME-DUPLICATE"
+        ],
+        "report_sha256": "a89fe0bf5e5bf853ef5f7073c8fdbbdebac0dd6e3105519025b84cbd9d5aa4c1",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "reserved-plain-ByteBuffer",
+        "sources": {
+          "source": {
+            "bytes": 35,
+            "sha256": "ba0be6476ca62845d15321a668e0bb20f69d2fa23e3e3d61ab8ff585e34508ee"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-BYTE-BUFFER-NAME"
+        ],
+        "report_sha256": "3e9de4613e03cfc8fe9742677110622f8251b1e35219ee0ac094b410961f5346",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "reserved-plain-Copy",
+        "sources": {
+          "source": {
+            "bytes": 29,
+            "sha256": "0413dc92cf47044e723d0c26928e7f34822a69dd7d725b345508f9595b9890c7"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-GENERIC-ARGUMENT"
+        ],
+        "report_sha256": "2fa275109b6362f4a4ed191a54562d80ac94b037db61a98b0dfc9508e2c7b883",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "reserved-plain-Store",
+        "sources": {
+          "source": {
+            "bytes": 30,
+            "sha256": "a732580948f9aed610c8f971cada9afa46fdbcc5fb0b29dc9788847c6b805871"
+          }
+        },
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-OWNED-STORE-NAME"
+        ],
+        "report_sha256": "ea036ddd45523c1bcb3c8e7a52bf70aacf21e2aca214e5f4d8a59bbae253bbaa",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "reserved-plain-i32",
+        "sources": {
+          "source": {
+            "bytes": 28,
+            "sha256": "0922489b2eaadeac59868808f3baa2e3b0537053ee5c6abd9868cef137e1af10"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "c6c788bd75f9edb688cb3fdcbb5d6d337793036edd035c8bdb6822643eda9689",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "resource",
+        "sources": {
+          "source": {
+            "bytes": 50,
+            "sha256": "2fa7d2a31b60d41c6d46044f2cfb5068aaa0c1736b003a9dbe41b754af529cb1"
+          }
+        },
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "report_sha256": "b950842f2d17d61da2fe6a9056f52b7708f37b8c2fa95377f62c78c5a37b90ee",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "trait",
+        "sources": {
+          "source": {
+            "bytes": 67,
+            "sha256": "cfc02e27d96ba3dbdb14d300e203ef0a56eb7ce78eea4644629f930ae9e913fe"
+          }
+        },
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "report_sha256": "36dc56da28e5d0d598233bfc489403cd51065bcbdc8c9e28f3377df445f50e09",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "type-iterator-name",
+        "sources": {
+          "source": {
+            "bytes": 133,
+            "sha256": "e1a07a6c02d95015cf474bed93613876d2eaedbf8da326d237815a2eb3be149e"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "70cda94a5ce78dda212b745dc653ae6a7bb414b55ba1f7d6118630ded114455a",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "unit",
+        "sources": {
+          "source": {
+            "bytes": 42,
+            "sha256": "3962ad2537cc0273c4eb3bc34526a42699d0f22eed214f9c2a186f951eda47aa"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "3c07912fcab097ec189b17537e11211599787cd507f004efee5956875ab3d693",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "unknown-payload",
+        "sources": {
+          "source": {
+            "bytes": 51,
+            "sha256": "58d430c63151ef169395ccf43e9aab380156e357c9ce8aafc2419e8ba71a4458"
+          }
+        },
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "report_sha256": "e0f4705d5653f8c3627a66636026a672e3baec55fe1f995df746e2a3095e1250",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "value-pattern-shadow",
+        "sources": {
+          "source": {
+            "bytes": 142,
+            "sha256": "92868a67903b036b932e8e3e3e8a1c8c2a56e537edd2db0e0260197c3446c720"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "ca22abfe8c6d34775d6fa1d325ec14ae64c17acc318bc27df7a66c6bbca77f34",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "variant-attribute",
+        "sources": {
+          "source": {
+            "bytes": 55,
+            "sha256": "9bfe877e41731f96d7495611d3d82c12a5e229312dd2f084c11c96fdb05a363d"
+          }
+        },
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "report_sha256": "b62c1916972a09338d931a6721a7128a13231593c51296f37c76297120cc9407",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "widths",
+        "sources": {
+          "source": {
+            "bytes": 311,
+            "sha256": "3f08482c95dd9995e1194f3c4d65119800ed9a8268601a6553d905c97d648008"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "380cd30259e9f565bf32ce7b0977fab77b4c89bbbfa7d1667296213c0f2fff2b",
+        "semantic_report_fields_equal_default": true
+      },
+      {
+        "label": "zero-tuple",
+        "sources": {
+          "source": {
+            "bytes": 134,
+            "sha256": "845f5a32c10ed37c5ef5df8e46f3685e9c8068af33864e54e6cd65c97ea7c006"
+          }
+        },
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "cache_hit": false,
+        "diagnostic_codes": [],
+        "report_sha256": "f08fbdd237cdd38ac65942b2bc28a2499633adeccacde659b4525e709f993ea0",
+        "semantic_report_fields_equal_default": true
+      }
+    ],
+    "budgets": [
+      {
+        "label": "budget-work",
+        "minimum": 2698,
+        "source_sha256": "3f08482c95dd9995e1194f3c4d65119800ed9a8268601a6553d905c97d648008",
+        "attempts": [
+          {
+            "file": "attempt-0.json",
+            "allowance": 2698,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": false,
+            "sha256": "0ac6d1bfc7e17a44aebafe9b22261c9d47ca3bee36f8c1f24c7806f5a20248fe"
+          },
+          {
+            "file": "attempt-1.json",
+            "allowance": 2698,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": true,
+            "sha256": "a18e27d0db274d8e18908855d135a562a912b9d34dd6457d6824177d2cfc0416"
+          },
+          {
+            "file": "attempt-2.json",
+            "allowance": 2697,
+            "status": "ResourceLimit",
+            "phase": "ct",
+            "verification_runs": 0,
+            "cache_hit": false,
+            "sha256": "601344f0cf6b17fcc6e242cbeab4968638aa6502e13fb377d791768bfdffe441"
+          },
+          {
+            "file": "attempt-3.json",
+            "allowance": 2698,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": true,
+            "sha256": "54cbdd4ac12ccc4dfcc18d7675730f6ad5a9073e839f36d1d9d18afb34b2e173"
+          },
+          {
+            "file": "fresh.json",
+            "allowance": 2698,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": false,
+            "sha256": "61f42a6f49fd23a16010beb8c8dc236070a3d054388f5a1479a296e61318f77c"
+          }
+        ]
+      },
+      {
+        "label": "budget-nodes",
+        "minimum": 871,
+        "source_sha256": "3f08482c95dd9995e1194f3c4d65119800ed9a8268601a6553d905c97d648008",
+        "attempts": [
+          {
+            "file": "attempt-0.json",
+            "allowance": 871,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": false,
+            "sha256": "7462fb73c22c5aaec4150eed04895e2c1e56eadc408cec96eb6add73c6f22f65"
+          },
+          {
+            "file": "attempt-1.json",
+            "allowance": 871,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": true,
+            "sha256": "c16cddf68d26ad0fab7172f958937abca5b6a2912606e528e3a17ed9c78a32e7"
+          },
+          {
+            "file": "attempt-2.json",
+            "allowance": 870,
+            "status": "ResourceLimit",
+            "phase": "ct",
+            "verification_runs": 0,
+            "cache_hit": false,
+            "sha256": "53d86a7759fd6c2b6c7121bbf85f3d6692c80ab235ed92794311ac55df4cce51"
+          },
+          {
+            "file": "attempt-3.json",
+            "allowance": 871,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": true,
+            "sha256": "bb0b8fbfb0b312c7370aee88d5254ae8313d2581ecb91970b5e1468f86285471"
+          },
+          {
+            "file": "fresh.json",
+            "allowance": 871,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "cache_hit": false,
+            "sha256": "5e8e944edcf738de5fdb4f5980d2148b186dbb6b97e78e0a3ce1be456ce5180d"
+          }
+        ]
+      }
+    ],
+    "raw_wire_test": "ct_selection::hygiene::generated_enum_tests::impl230_generated_enum_raw_wire_reconstructs_and_rejects_forgery",
+    "raw_wire_artifacts": {
+      "core.txt": {
+        "bytes": 16459,
+        "sha256": "f94c1b015706ff5aa10ba1d6d1d0e916964715da91d9b4fbbe836363baeaf0bc"
+      },
+      "candidate.txt": {
+        "bytes": 5482,
+        "sha256": "c39c57e2d2483c3784bfedc22dc9d4b8a81417edd0b6c6a381408e07ea163802"
+      },
+      "rejected.txt": {
+        "bytes": 3193,
+        "sha256": "3b075372d9db929ab15ec7476e595a2784dbfc252dbce473eb4c600300de86d7"
+      },
+      "candidate.wire": {
+        "bytes": 1905,
+        "sha256": "640d011ad829972bedfaf86d785cba5d45e777a0fbff137503cb84d7e47ae69c"
+      },
+      "typed.txt": {
+        "bytes": 31751,
+        "sha256": "2d42ef8fcf81d6fabb5f7e834c8c5bee00410a0de939de65bf74e2132f5c8d79"
+      },
+      "source.zil": {
+        "bytes": 119,
+        "sha256": "4b7d7e6d869d5ddd9789a5dbb4aaf3af8fb73597b950c6226a13daff2acc7da5"
+      }
+    },
+    "raw_wire_observed": "Executed positive reconstruction and Wire roundtrip assertions passed. Three real generated-enum mutations each rejected in raw and Wire with E-VERIFY-ENUM. All 6 raw/Wire artifacts are byte-identical to the default run."
+  },
+  "remaining_before_formal_review": [
+    "Final production P2 and second-round CI candidate are not yet frozen.",
+    "Both first-round complete workspace gates have six failures; scoped 230 observations do not mark either complete gate Pass.",
+    "Formal review must bind supplied P2 and second-round complete required gates."
+  ],
+  "limitations": [
+    "This artifact records inspection of executed CI outputs, not a new local Rust execution.",
+    "Reference uses explicitly selected Clang 23.1.4 with -x ir at O0/O2; it does not claim to be LLVM API execution.",
+    "Source and semantic report fields match the default run, while backend metadata, commands, timing and executable bytes are permitted to differ.",
+    "Budget minima bind only their exact saved inputs and checkout.",
+    "The handwritten unused enum i32 case is retained as Success baseline; generated i32 remains rejected by the 228/230 reserved-name rule.",
+    "active_query_count assertions are in executed tests, not separately serialized report fields."
+  ],
+  "production_or_test_edits": false,
+  "local_cargo_executed": false,
+  "receipt_hashes": {
+    "reference/reference.log": "f98079f317beef79297eab8b1c278eb300b72e415cf77bfefe8753c34caa23b6",
+    "reference/commit.txt": "c6b2722401e7733b386b10845aad2cedc113d695037c39c1ca86c9fcd3c691d0",
+    "reference/source-tree.txt": "190656718ddb4b4ce217b14883363d0fa4d2ab34a9b2791f1f467252e37f99d6",
+    "reference/toolchain.txt": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0",
+    "reference/llvm-api-toolchain.json": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71",
+    "reference-native-download-receipt.json": "089eb89144daec2454909240d0edb1490526f8380b43dbcd2deca1c72cfbd926",
+    "reference-download-receipt.json": "3d0e99d40f04459e193d304934500c965827453dc8213a691640c90957b2bdf5"
+  }
+}
