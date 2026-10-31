@@ -331,3 +331,130 @@ fn reused_frontend_builds_current_native_output_and_preserves_link_cancellation(
         );
     }
 }
+
+#[test]
+#[cfg(feature = "llvm-api")]
+fn real_resources_generics_ct_and_products_reuse_evicted_frontends() {
+    use std::{
+        io::Write,
+        path::Path,
+        process::{Command, Stdio},
+    };
+    use zil_driver::{NativeBackend, Optimization};
+    // Build explicit source graphs using the real syntax parser, including
+    // only reachable imports. No test-supplied IR enters the driver.
+    fn explicit(path: &Path) -> ProjectSources {
+        let path = path.canonicalize().unwrap();
+        let root_dir = path.parent().unwrap().to_owned();
+        let mut files = vec![path.clone()];
+        let mut ids = BTreeMap::from([(path, ModuleId(0))]);
+        let mut sources = Vec::new();
+        let mut paths = BTreeMap::new();
+        let mut index = 0;
+        while index < files.len() {
+            let path = &files[index];
+            let source = SourceUnit::new(
+                FileId(index as u32),
+                ModuleId(index as u32),
+                path.to_string_lossy(),
+                fs::read_to_string(path).unwrap(),
+            );
+            let parsed = zil_syntax::parse(&source);
+            assert!(parsed.diagnostics.is_empty());
+            for item in parsed.module.items {
+                if let zil_syntax::ast::ItemKind::Import(import) = item.kind {
+                    let mut imported = root_dir.clone();
+                    for segment in &import.path {
+                        imported.push(segment);
+                    }
+                    let imported = imported.with_extension("zil").canonicalize().unwrap();
+                    let next = ModuleId(files.len() as u32);
+                    let id = *ids.entry(imported.clone()).or_insert_with(|| {
+                        files.push(imported);
+                        next
+                    });
+                    paths.insert(import.path, id);
+                }
+            }
+            sources.push(source);
+            index += 1;
+        }
+        ProjectSources {
+            root: ModuleId(0),
+            modules: sources,
+            paths,
+        }
+    }
+    fn execute(path: &Path, input: &[u8]) -> (Option<i32>, Vec<u8>, Vec<u8>) {
+        let mut process = Command::new(path)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        process.stdin.take().unwrap().write_all(input).unwrap();
+        let result = process.wait_with_output().unwrap();
+        (result.status.code(), result.stdout, result.stderr)
+    }
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline");
+    for (name, input) in [
+        ("byte_io/main.zil", b"hello, Zil!\n\0\x80".as_slice()),
+        ("resource_closures/main.zil", b"D"),
+        ("generic_store178/main.zil", b"2"),
+        ("mixed_capture182/main.zil", b"2"),
+        ("ct_selection219/main.zil", b"2"),
+        ("ct_types228/arrays_defaults.zil", b""),
+        ("where_copy229/main.zil", b""),
+        ("shared_product224/main.zil", b""),
+    ] {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let mut case = Case::new(2);
+            let path = root.join(name);
+            case.project = explicit(&path);
+            // Evict the actual consumers' Parse owners, even for small source
+            // graphs, so this control necessarily exercises the new reuse.
+            for i in 100..112 {
+                case.project.modules.push(SourceUnit::new(
+                    FileId(i),
+                    ModuleId(i),
+                    case.dir.join(format!("padding{i}.zil")).to_string_lossy(),
+                    format!("fn padding{i}()->i32{{return 0;}}"),
+                ));
+            }
+            let oracle_options = CompileOptions {
+                stop_after: Stage::Build,
+                backend: NativeBackend::Clang,
+                optimization,
+                output: Some(case.dir.join("oracle")),
+                ..CompileOptions::default()
+            };
+            successful(&CompilationSession::default().compile_path(&path, &oracle_options));
+            let expected = execute(&case.dir.join("oracle"), input);
+            assert_eq!(
+                expected.0,
+                Some(if name.starts_with("ct_selection") {
+                    2
+                } else {
+                    0
+                })
+            );
+            let options = CompileOptions {
+                backend: NativeBackend::LlvmApi,
+                output: Some(case.dir.join("program")),
+                object_cache: Some(case.dir.join("objects")),
+                ..oracle_options
+            };
+            let mut session = CompilationSession::with_capacity(8);
+            for warm in [false, true] {
+                let report = session.compile_project(&case.project, &options);
+                successful(&report);
+                assert_eq!(parses(&report, QueryDisposition::Executed) == 0, warm);
+                assert_eq!(
+                    execute(&case.dir.join("program"), input),
+                    expected,
+                    "{name} {optimization:?}"
+                );
+            }
+        }
+    }
+}
