@@ -1,0 +1,261 @@
+{
+  "status": "StaticPlanOnlyAwaitingFunctionalCapture",
+  "scope": "Created during root exclusive23shape timing: only small receipt reads and path metadata; no content hashing, large traversal or compression. Root grants subsequent window before collection.",
+  "packages": {
+    "llvm-combined": {
+      "research_roots": [
+        "stage6-combined-review",
+        "stage6/api-pass-timing-slp-effective-probe/manifest.json",
+        "stage6/combined-rebuild-smoke",
+        "stage6/combined-rebuild-smoke.log",
+        "stage6/combined-rebuild-source-equivalence.json",
+        "stage6/combined-v1-api-candidate-build.log",
+        "stage6/combined-v1-api-candidate-prepare.log",
+        "stage6/combined-v1-api-candidate-snapshot/RESEARCH.json",
+        "stage6/combined-v1-api-candidate-snapshot/RESEARCH.patch",
+        "stage6/combined-v1-api-candidate-snapshot/SOURCE-ORIGINALS.json",
+        "stage6/combined-v1-api-original-build.log",
+        "stage6/combined-v1-api-original-prepare.log",
+        "stage6/combined-v1-api-original-snapshot/RESEARCH.json",
+        "stage6/combined-v1-api-original-snapshot/RESEARCH.patch",
+        "stage6/combined-v1-api-original-snapshot/SOURCE-ORIGINALS.json",
+        "stage6/combined-v1-author.json",
+        "stage6/combined-v1-author.md",
+        "stage6/combined-v1-candidate",
+        "stage6/combined-v1-candidate-build.log",
+        "stage6/combined-v1-controls",
+        "stage6/combined-v1-controls.log",
+        "stage6/combined-v1-original",
+        "stage6/combined-v1-original-build.log",
+        "stage6/combined-v1-pair",
+        "stage6/combined-v1-pair-spec.json",
+        "stage6/combined-v1-producer-sources",
+        "stage6/combined-v1-profiles",
+        "stage6/combined-v1-profiles.log",
+        "stage6/combined-v1-source",
+        "stage6/jump-threading-plugin-sdk/headers-receipt.json",
+        "stage6/merge-screen-default-after/source-large-8192/main.zil",
+        "stage6/slp-effective-opaque/2048-branch/closed0-slp-on.row.json",
+        "stage6/slp-effective-opaque/2048-branch/input.bin",
+        "stage6/slp-effective-opaque/2048-branch/main.zil",
+        "stage6/slp-effective-opaque/8192-arithmetic/closed0-slp-on.row.json",
+        "stage6/slp-effective-opaque/8192-arithmetic/input.bin",
+        "stage6/slp-effective-opaque/8192-arithmetic/main.zil"
+      ],
+      "source_strategy": "Toolchain construction74431, exact common ZIL888 plus retained tag patch; do not relabel as current HEAD. Retain old rebuild.py/finalize_pair.py copies and 5 profiles as diagnostic only.",
+      "borrowed_sources": {
+        "stage6/slp-effective-opaque/8192-arithmetic/main.zil": {
+          "expected_sha256": "2839e6510b4a4baaa688844359fa7c5d71ca1bb3135fe634dc096a301303d63a",
+          "referrers": [
+            "stage6/combined-v1-profiles/arithmetic-after/result.json",
+            "stage6/combined-v1-profiles/arithmetic-early/result.json"
+          ]
+        },
+        "stage6/slp-effective-opaque/2048-branch/main.zil": {
+          "expected_sha256": "7b5dd2fdb15f498b75f5bb462479b3d29bf693f8611a3ea1f5c59a4abf25c257",
+          "referrers": [
+            "stage6/combined-v1-profiles/branch-after/result.json"
+          ]
+        },
+        "stage6/merge-screen-default-after/source-large-8192/main.zil": {
+          "expected_sha256": "93b4bc8286886a52e8436202fc2f33c41f978325be5daed62210f2ed8c573bf0",
+          "referrers": [
+            "stage6/combined-v1-profiles/scalar-after/result.json",
+            "stage6/combined-v1-profiles/scalar-closed-early/result.json"
+          ]
+        }
+      },
+      "tools": [
+        "toolchain_combination",
+        "pass_timing"
+      ],
+      "exclude": "Full API snapshot Cargo/crates recover from888+patch; compiled artifacts/SDK identity only. quality-closure/residual/formalCLI roots excluded.",
+      "root_exists_checks": {
+        "stage6-combined-review": true,
+        "stage6/api-pass-timing-slp-effective-probe/manifest.json": true,
+        "stage6/combined-rebuild-smoke": true,
+        "stage6/combined-rebuild-smoke.log": true,
+        "stage6/combined-rebuild-source-equivalence.json": true,
+        "stage6/combined-v1-api-candidate-build.log": true,
+        "stage6/combined-v1-api-candidate-prepare.log": true,
+        "stage6/combined-v1-api-candidate-snapshot/RESEARCH.json": true,
+        "stage6/combined-v1-api-candidate-snapshot/RESEARCH.patch": true,
+        "stage6/combined-v1-api-candidate-snapshot/SOURCE-ORIGINALS.json": true,
+        "stage6/combined-v1-api-original-build.log": true,
+        "stage6/combined-v1-api-original-prepare.log": true,
+        "stage6/combined-v1-api-original-snapshot/RESEARCH.json": true,
+        "stage6/combined-v1-api-original-snapshot/RESEARCH.patch": true,
+        "stage6/combined-v1-api-original-snapshot/SOURCE-ORIGINALS.json": true,
+        "stage6/combined-v1-author.json": true,
+        "stage6/combined-v1-author.md": true,
+        "stage6/combined-v1-candidate": true,
+        "stage6/combined-v1-candidate-build.log": true,
+        "stage6/combined-v1-controls": true,
+        "stage6/combined-v1-controls.log": true,
+        "stage6/combined-v1-original": true,
+        "stage6/combined-v1-original-build.log": true,
+        "stage6/combined-v1-pair": true,
+        "stage6/combined-v1-pair-spec.json": true,
+        "stage6/combined-v1-producer-sources": true,
+        "stage6/combined-v1-profiles": true,
+        "stage6/combined-v1-profiles.log": true,
+        "stage6/combined-v1-source": true,
+        "stage6/jump-threading-plugin-sdk/headers-receipt.json": true,
+        "stage6/merge-screen-default-after/source-large-8192/main.zil": true,
+        "stage6/slp-effective-opaque/2048-branch/closed0-slp-on.row.json": true,
+        "stage6/slp-effective-opaque/2048-branch/input.bin": true,
+        "stage6/slp-effective-opaque/2048-branch/main.zil": true,
+        "stage6/slp-effective-opaque/8192-arithmetic/closed0-slp-on.row.json": true,
+        "stage6/slp-effective-opaque/8192-arithmetic/input.bin": true,
+        "stage6/slp-effective-opaque/8192-arithmetic/main.zil": true
+      }
+    },
+    "research-ci-tools": {
+      "research_roots": [
+        "stage6/research-llvm-ci",
+        "stage6/research-llvm-ci-independent-v1"
+      ],
+      "source_strategy": "Snapshot actual6ed workflow/manifest/proposal bytes; compare with author/independent recorded hashes. Fixtures are fake non-ELF protocol controls, not hosted full candidate CI.",
+      "git_snapshots": [
+        {
+          "revision": "6ed",
+          "paths": [
+            ".github/workflows/research-llvm.yml",
+            "tools/ci/research_llvm_manifest.py",
+            "changes/research-llvm-ci.md"
+          ]
+        }
+      ],
+      "preservation_note": "Keep tiny fake DSO/archive/clang bytes used for rejection controls explicitly, despite compiled-file suffixes.",
+      "root_exists_checks": {
+        "stage6/research-llvm-ci": true,
+        "stage6/research-llvm-ci-independent-v1": true
+      }
+    },
+    "benchmark-tools": {
+      "research_roots": [
+        "stage6-confirmation-review",
+        "stage6-timer-review",
+        "stage6/confirmation-runner-controls",
+        "stage6/opaque-compile-author-controls-v1",
+        "stage6/opaque-compile-author-controls-v2",
+        "stage6/opaque-compile-author-controls.py",
+        "stage6/opaque-compile-author-final-controls-v1",
+        "stage6/opaque-compile-author-final-controls.py",
+        "stage6/opaque-compile-author-isolation-v1",
+        "stage6/opaque-compile-author-rust-v1",
+        "stage6/opaque-compile-independent-v1",
+        "stage6/stage6-opaque-runner-before-pipeline-tightening.py",
+        "stage6/toolchain-runtime-api-guard-prepare-only.log",
+        "stage6/toolchain-runtime-api-guard-receipt.json",
+        "stage6/toolchain-runtime-api-guard-run-prepared.log",
+        "stage6/toolchain-runtime-api-guard-smoke",
+        "stage6/toolchain-runtime-api-guard-smoke.json",
+        "stage6/toolchain-runtime-tool-controls",
+        "stage6/toolchain-runtime-v1-config-controls"
+      ],
+      "source_strategy": "Preserve every initial/final tool copy in controls/reviews; df04 delivery binding is distinct from original c17/7830 opaque and a638 reference-cache review. Recover immutable old stage6_bench/config/runtime sources when a copy is absent, never bind to current timer.",
+      "git_snapshots": [
+        {
+          "revision": "df04d4920b9d3ec618e660f8149063eb6019b317",
+          "paths": [
+            "tools/research/incremental-compilation/stage6_bench.py",
+            "tools/research/incremental-compilation/stage6_confirmation.py",
+            "tools/research/incremental-compilation/stage6_opaque_bench.py",
+            "tools/research/incremental-compilation/stage6_toolchain_runtime.py",
+            "tools/research/incremental-compilation/stage6_runtime_config.py"
+          ]
+        },
+        {
+          "revision": "a638e8aacab9ced167c31eb52a75001c3d134c75",
+          "paths": [
+            "tools/research/incremental-compilation/stage6_bench.py"
+          ]
+        }
+      ],
+      "root_exists_checks": {
+        "stage6-confirmation-review": true,
+        "stage6-timer-review": true,
+        "stage6/confirmation-runner-controls": true,
+        "stage6/opaque-compile-author-controls-v1": true,
+        "stage6/opaque-compile-author-controls-v2": true,
+        "stage6/opaque-compile-author-controls.py": true,
+        "stage6/opaque-compile-author-final-controls-v1": true,
+        "stage6/opaque-compile-author-final-controls.py": true,
+        "stage6/opaque-compile-author-isolation-v1": true,
+        "stage6/opaque-compile-author-rust-v1": true,
+        "stage6/opaque-compile-independent-v1": true,
+        "stage6/stage6-opaque-runner-before-pipeline-tightening.py": true,
+        "stage6/toolchain-runtime-api-guard-prepare-only.log": true,
+        "stage6/toolchain-runtime-api-guard-receipt.json": true,
+        "stage6/toolchain-runtime-api-guard-run-prepared.log": true,
+        "stage6/toolchain-runtime-api-guard-smoke": true,
+        "stage6/toolchain-runtime-api-guard-smoke.json": true,
+        "stage6/toolchain-runtime-tool-controls": true,
+        "stage6/toolchain-runtime-v1-config-controls": true
+      },
+      "author_freeze_confirmation": "Opaque author confirms all5roots,2scripts and old c17 runner copy frozen; runtime author confirms earlier toolchain-runtime-* controls were already frozen and should retain their own receipts.",
+      "opaque_final_source_sha256": "7830d095eb1cdbc0e7096f7519fea670f27d5ab49475743ff8e7274681dfe83a",
+      "opaque_final_markdown_sha256": "5f23ab5b996c6434bb679ae83a875f05466ae44aeee962d01d1410775cbc758b",
+      "identity_note": "a638e8aacab9ced167c31eb52a75001c3d134c75 is the prior reference-cache Git revision; do not confuse it with the runtime prepared stage6_bench file SHA c682809\u2026."
+    },
+    "runtime-final-v1": {
+      "research_roots": [
+        "stage6/combined-runtime-analysis-v1",
+        "stage6/combined-runtime-config-controls",
+        "stage6/combined-runtime-config-v1.json",
+        "stage6/combined-runtime-config-v2.json",
+        "stage6/combined-runtime-exclusive-lease.json",
+        "stage6/combined-runtime-formal-v1.log",
+        "stage6/combined-runtime-native-oracles-v1",
+        "stage6/combined-runtime-native-oracles-v1.log",
+        "stage6/combined-runtime-preparation-execution.json",
+        "stage6/combined-runtime-prepare-v1.log",
+        "stage6/combined-runtime-prepared-v1",
+        "stage6/combined-runtime-ready.json",
+        "stage6/confirmation-incremental-original-nogo.json",
+        "stage6/runtime-analysis-independent-v1",
+        "stage6/runtime-combined-review"
+      ],
+      "source_strategy": "Use frozen prepared/scripts copies: runtime cc611392\u2026, merge_runtime569288f\u2026, stage6_bench c682809\u2026. Compile54 diagnostic builds,270 untimed correctness controls,1620 formal native rows remain separate. 300 overlapping comparisons/123 adverse; no multiplecomparison population claim.",
+      "formal_boundaries": "Native full-process runtime only; one instrumented build perartifact not compile performance. Original bounded-import quality NoGo326x retained with1740 planned NotRun, not failed or completed requests.",
+      "root_exists_checks": {
+        "stage6/combined-runtime-analysis-v1": true,
+        "stage6/combined-runtime-config-controls": true,
+        "stage6/combined-runtime-config-v1.json": true,
+        "stage6/combined-runtime-config-v2.json": true,
+        "stage6/combined-runtime-exclusive-lease.json": true,
+        "stage6/combined-runtime-formal-v1.log": true,
+        "stage6/combined-runtime-native-oracles-v1": true,
+        "stage6/combined-runtime-native-oracles-v1.log": true,
+        "stage6/combined-runtime-preparation-execution.json": true,
+        "stage6/combined-runtime-prepare-v1.log": true,
+        "stage6/combined-runtime-prepared-v1": true,
+        "stage6/combined-runtime-ready.json": true,
+        "stage6/confirmation-incremental-original-nogo.json": true,
+        "stage6/runtime-analysis-independent-v1": true,
+        "stage6/runtime-combined-review": true
+      },
+      "author_freeze_confirmation": "All listed runtime roots and adjacent files frozen; independent analysis reviewer confirms its entire root frozen. Lease/NoGo owned by root and explicitly frozen in assignment.",
+      "producer_versions": {
+        "original_copy": "stage6/combined-runtime-config-controls/stage6_runtime_config-v1.py",
+        "original_sha256": "ea5aab5478480076ae9d4b014119e9909c7fda77f62bb12d870679697c80c62d",
+        "repaired_sha256": "26ae7536c4eb925c05dd33cae51551a0c6891a3a0699ee6fd57d26d70ff9b6b1",
+        "boundary": "Actualv1 config binds old producer; v2 config and revised producer/logs are retained without modifying frozen v1 experiment."
+      }
+    }
+  },
+  "excluded_active": [
+    "quality_closure",
+    "quality-closure-*",
+    "residual-branch-static",
+    "confirmation-real and review not yet frozen",
+    "all current formalCLI windows",
+    "any new candidate/producer state after this explicit frozen set"
+  ],
+  "capture_requirements": [
+    "Stream exact hashes, raw/manifest parts <=40MiB; original failures/stdout/rows/source/oracles/commands remain.",
+    "Preserve c682/a638/df04 identity separation and original tools before further timer edits.",
+    "No mutation of earlier frozen packages or original measured roots; no git commit by archive agent."
+  ]
+}

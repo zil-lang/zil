@@ -1,0 +1,87 @@
+{
+  "schema": 2,
+  "kind": "confirmation-default-cache-cleanup",
+  "collected_utc": "2026-10-31T15:29:04.973574+00:00",
+  "head_at_collection": "df04d4920b9d3ec618e660f8149063eb6019b317",
+  "collector_sha256": "a2aaa70bc0ebad0dffc38219e3824e3535f4f9e2ed50bf0b50570ab4d0f7e09f",
+  "archive": {
+    "logical_path": "raw.tar.gz",
+    "bytes": 880410,
+    "sha256": "990a97c1ba3ed2f18f72a9914f1b1f845c98f3dc4d8d4087db84a34d99265175",
+    "parts": [
+      {
+        "path": "raw.tar.gz",
+        "bytes": 880410,
+        "sha256": "990a97c1ba3ed2f18f72a9914f1b1f845c98f3dc4d8d4087db84a34d99265175"
+      }
+    ]
+  },
+  "manifests": {
+    "FILES": {
+      "encoding": "gzip-jsonl",
+      "rows": 25,
+      "logical_bytes": 10912,
+      "logical_sha256": "5a0db1be335160b02a81861a51156b7c26742d26566ef4dda805099fefc1ff27",
+      "storage": {
+        "logical_path": "FILES.jsonl.gz",
+        "bytes": 1969,
+        "sha256": "561117a1376d4d2956756de40ece42edb62a702e6edfa84ffb4b1fa3f6480681",
+        "parts": [
+          {
+            "path": "FILES.jsonl.gz",
+            "bytes": 1969,
+            "sha256": "561117a1376d4d2956756de40ece42edb62a702e6edfa84ffb4b1fa3f6480681"
+          }
+        ]
+      }
+    },
+    "OMITTED": {
+      "encoding": "gzip-jsonl",
+      "rows": 0,
+      "logical_bytes": 0,
+      "logical_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "storage": {
+        "logical_path": "OMITTED.jsonl.gz",
+        "bytes": 34,
+        "sha256": "b3d8e5c9e3ff7710c875585e12dd3b52b3c2eacd9bcf8aa17e0bc58aeee63075",
+        "parts": [
+          {
+            "path": "OMITTED.jsonl.gz",
+            "bytes": 34,
+            "sha256": "b3d8e5c9e3ff7710c875585e12dd3b52b3c2eacd9bcf8aa17e0bc58aeee63075"
+          }
+        ]
+      }
+    }
+  },
+  "metadata": {
+    "FILES.jsonl.gz": {
+      "bytes": 1969,
+      "sha256": "561117a1376d4d2956756de40ece42edb62a702e6edfa84ffb4b1fa3f6480681"
+    },
+    "OMITTED.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "b3d8e5c9e3ff7710c875585e12dd3b52b3c2eacd9bcf8aa17e0bc58aeee63075"
+    },
+    "ROOTS.json": {
+      "bytes": 2815,
+      "sha256": "4896359b83c99fe1b504a91e802456c6fb3394e9e2e65e20933ae6c5ff33dff9"
+    },
+    "PLAN.json": {
+      "bytes": 212,
+      "sha256": "73382b4dd4ae8c89825d72f237a5a3d88d60d5006da3b874e7dcd60cf104d58c"
+    }
+  },
+  "summary": [
+    {
+      "class": "retained-raw-evidence",
+      "files": 25,
+      "bytes": 10946084
+    }
+  ],
+  "retained_paths": 25,
+  "omitted_paths": 0,
+  "unique_blobs": 24,
+  "boundary": "Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.",
+  "scope": "Exact authorized post-archive cleanup of only138 default-window Rustincremental cache directories after full5172-file SHA validation against the frozen raw archive. All source/program/object/semantic-cache and request evidence paths retained. Full per-file validation/deletion audit and partial/error reporting preserved. Separately includes frozen v2 no-bytecode analysis and correction receipts: v1 SourceFileLoader generated a post-measurement pyc, whose bytes/source and before/after identities remain documented; no original raw/v1/pyc deletion or rewriting. v2 statistical tables match v1; cleanup is not a performance measurement. Initial cleanup verified all5172 files and safely stopped after22 deletes because own hardlink unlink changed aliasctime. V2 binds that partial ledger, revalidates all5150 remaining files, and rehashes any own-hardlink alias metadata change immediately before unlink. Both epochs and exact diagnosis remain retained."
+}

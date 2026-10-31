@@ -1,0 +1,9 @@
+{
+  "kind": "benchmark-tools",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 1485,
+  "omitted_paths": 103,
+  "unique_blobs": 529,
+  "identity_sha256": "f2bd6cf4d579970b444a3633f8a74c1fa2aa4b015dd6d64d26272630e126a49e",
+  "verified_utc": "2026-10-31T15:20:41.216271+00:00"
+}

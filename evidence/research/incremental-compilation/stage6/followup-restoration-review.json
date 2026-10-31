@@ -1,0 +1,16 @@
+{
+  "reviewer": "/root/revisit_graph_zit/zit_adapter_probe",
+  "status": "StaticDependencyIssuesClosed",
+  "scope": "Read-only dependency inspection and final small plan/ROOTS/IDENTITY/VERIFY review; zero independent blob rehash/decompression/native runs. Collector separately verified every blob and manifest.",
+  "closed": [
+    "Exact744 six tool trees with four C++ upstream source/license/provenance sets, tools/llvm/Cargo, actual install receipt and original C API IR/C/oracle inputs selected",
+    "CI275 explicit preservation paths retain fake DSO/archive/clang byte controls",
+    "df04 merge-runtime, real-pair and distribution imports restored; initial unfrozen missing-helper capture explicitly retained and corrected",
+    "Runtime prepared three-script import chain closed with actual measured old bytes"
+  ],
+  "limitations": [
+    "Full --window real regeneration requires exactdf04 examples/mainline repository checkout; package retains actual experiment source copies and does not claim to be a complete checkout",
+    "Compiled native artifacts and SDK archives are SHA-inventoried rather than included as byte payload",
+    "Future quality fixes and unreviewed/current formal CLI matrices remain outside these packages"
+  ]
+}

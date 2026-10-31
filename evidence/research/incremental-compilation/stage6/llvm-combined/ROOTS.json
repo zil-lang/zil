@@ -1,0 +1,518 @@
+[
+  {
+    "prefix": "research/stage6-combined-review",
+    "source_path": "/workspace/.zil-env/research/stage6-combined-review"
+  },
+  {
+    "prefix": "research/stage6-jt-review/boundaries/address_indirect.ll",
+    "source_path": "/workspace/.zil-env/research/stage6-jt-review/boundaries/address_indirect.ll"
+  },
+  {
+    "prefix": "research/stage6-jt-review/boundaries/convergence.ll",
+    "source_path": "/workspace/.zil-env/research/stage6-jt-review/boundaries/convergence.ll"
+  },
+  {
+    "prefix": "research/stage6-jt-review/boundaries/eh.ll",
+    "source_path": "/workspace/.zil-env/research/stage6-jt-review/boundaries/eh.ll"
+  },
+  {
+    "prefix": "research/stage6-jt-review/boundaries/guard.ll",
+    "source_path": "/workspace/.zil-env/research/stage6-jt-review/boundaries/guard.ll"
+  },
+  {
+    "prefix": "research/stage6-jt-review/boundaries/main.c",
+    "source_path": "/workspace/.zil-env/research/stage6-jt-review/boundaries/main.c"
+  },
+  {
+    "prefix": "research/stage6-jt-review/boundaries/nonreturn_assume.ll",
+    "source_path": "/workspace/.zil-env/research/stage6-jt-review/boundaries/nonreturn_assume.ll"
+  },
+  {
+    "prefix": "research/stage6-jt-review/boundaries/profile_switch.ll",
+    "source_path": "/workspace/.zil-env/research/stage6-jt-review/boundaries/profile_switch.ll"
+  },
+  {
+    "prefix": "research/stage6-jt-review/differential/control.ll",
+    "source_path": "/workspace/.zil-env/research/stage6-jt-review/differential/control.ll"
+  },
+  {
+    "prefix": "research/stage6-jt-review/differential/expected.bin",
+    "source_path": "/workspace/.zil-env/research/stage6-jt-review/differential/expected.bin"
+  },
+  {
+    "prefix": "research/stage6-jt-review/differential/main.c",
+    "source_path": "/workspace/.zil-env/research/stage6-jt-review/differential/main.c"
+  },
+  {
+    "prefix": "research/stage6-native-jt-review/c-api/plan.json",
+    "source_path": "/workspace/.zil-env/research/stage6-native-jt-review/c-api/plan.json"
+  },
+  {
+    "prefix": "research/stage6-native-jt-review/c_api_child.py",
+    "source_path": "/workspace/.zil-env/research/stage6-native-jt-review/c_api_child.py"
+  },
+  {
+    "prefix": "research/stage6/api-pass-timing-slp-effective-probe/manifest.json",
+    "source_path": "/workspace/.zil-env/research/stage6/api-pass-timing-slp-effective-probe/manifest.json"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/Cargo.lock",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/Cargo.lock"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/Cargo.toml",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/Cargo.toml"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/SOURCE-INVENTORY-6884d4ddcd27.json",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/SOURCE-INVENTORY-6884d4ddcd27.json"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/llvm/check_toolchain.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/llvm/check_toolchain.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/llvm/install.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/llvm/install.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/llvm/release-linux-x86_64.json",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/llvm/release-linux-x86_64.json"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/llvm/test_validate_migration.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/llvm/test_validate_migration.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/llvm/validate_migration.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/llvm/validate_migration.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/llvm/version.txt",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/llvm/version.txt"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/README.md",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/README.md"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/abi_probe.cpp",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/abi_probe.cpp"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/build_native_toolchain.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/build_native_toolchain.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/build_plugin.sh",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/build_plugin.sh"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/cache_bundle.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/cache_bundle.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/clang_wrapper.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/clang_wrapper.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/controls.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/controls.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/finalize_api_pair.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/finalize_api_pair.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/opaque_controls.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/opaque_controls.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/prepare_api_snapshot.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/prepare_api_snapshot.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/prepare_clone.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/prepare_clone.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/prepare_headers.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/prepare_headers.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/prepare_native_patch.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/prepare_native_patch.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/prepare_pipeline.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/prepare_pipeline.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/run_request.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/run_request.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/screen.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/screen.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/source_controls.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/source_controls.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.cpp",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.cpp"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.h",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.h"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/upstream/LICENSE.TXT",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/upstream/LICENSE.TXT"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/upstream/PROVENANCE.json",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/jump_threading_plugin/upstream/PROVENANCE.json"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/README.md",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/README.md"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/c_api_child.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/c_api_child.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/c_api_controls.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/c_api_controls.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/cache_control.cpp",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/cache_control.cpp"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/cache_controls.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/cache_controls.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/prepare_patch.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/prepare_patch.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/profile_branch.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/profile_branch.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/upstream/LICENSE.TXT",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/upstream/LICENSE.TXT"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/upstream/LazyValueInfo.cpp",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/upstream/LazyValueInfo.cpp"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/upstream/PROVENANCE.json",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/lvi_cache/upstream/PROVENANCE.json"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/pass_timing/README.md",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/pass_timing/README.md"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/pass_timing/build_probe.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/pass_timing/build_probe.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/pass_timing/enable_timing.c",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/pass_timing/enable_timing.c"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/pass_timing/run_probe.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/pass_timing/run_probe.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/pass_timing/slp_opaque_compare.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/pass_timing/slp_opaque_compare.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/pass_timing/slp_vector_control.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/pass_timing/slp_vector_control.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/README.md",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/README.md"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/controls.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/controls.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/prepare.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/prepare.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/profile.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/profile.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/upstream/LICENSE.TXT",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/upstream/LICENSE.TXT"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/upstream/PROVENANCE.json",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/upstream/PROVENANCE.json"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/upstream/PassBuilderPipelines.cpp",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/post_ipsccp_cfg/upstream/PassBuilderPipelines.cpp"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/README.md",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/README.md"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/build.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/build.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/demand_idf.inc",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/demand_idf.inc"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/inspect_demand_plan.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/inspect_demand_plan.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/instrument_demand.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/instrument_demand.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/instrument_grouped.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/instrument_grouped.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/prepare.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/prepare.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/prepare_demand_idf.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/prepare_demand_idf.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/prepare_grouped_bulk.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/prepare_grouped_bulk.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/prepare_shared_idf.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/prepare_shared_idf.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/prepare_v4.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/prepare_v4.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/shared_idf.inc",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/shared_idf.inc"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/upstream/LICENSE.TXT",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/upstream/LICENSE.TXT"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/upstream/PROVENANCE.json",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/upstream/PROVENANCE.json"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/upstream/SSAUpdaterBulk.cpp",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/upstream/SSAUpdaterBulk.cpp"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/validate_controls.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/ssa_update/validate_controls.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/README.md",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/README.md"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/controls.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/controls.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/finalize_pair.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/finalize_pair.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/prepare.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/prepare.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/prepare_api.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/prepare_api.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/profile.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/profile.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/rebuild.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/74431f9d6e65d716f8d1e94d99b679eb399acdfc/tools/research/incremental-compilation/toolchain_combination/rebuild.py"
+  },
+  {
+    "prefix": "research/stage6/combined-rebuild-smoke",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-rebuild-smoke"
+  },
+  {
+    "prefix": "research/stage6/combined-rebuild-smoke.log",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-rebuild-smoke.log"
+  },
+  {
+    "prefix": "research/stage6/combined-rebuild-source-equivalence.json",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-rebuild-source-equivalence.json"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-api-candidate-build.log",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-api-candidate-build.log"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-api-candidate-prepare.log",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-api-candidate-prepare.log"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-api-candidate-snapshot/RESEARCH.json",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-api-candidate-snapshot/RESEARCH.json"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-api-candidate-snapshot/RESEARCH.patch",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-api-candidate-snapshot/RESEARCH.patch"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-api-candidate-snapshot/SOURCE-ORIGINALS.json",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-api-candidate-snapshot/SOURCE-ORIGINALS.json"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-api-original-build.log",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-api-original-build.log"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-api-original-prepare.log",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-api-original-prepare.log"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-api-original-snapshot/RESEARCH.json",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-api-original-snapshot/RESEARCH.json"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-api-original-snapshot/RESEARCH.patch",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-api-original-snapshot/RESEARCH.patch"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-api-original-snapshot/SOURCE-ORIGINALS.json",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-api-original-snapshot/SOURCE-ORIGINALS.json"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-author.json",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-author.json"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-author.md",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-author.md"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-candidate",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-candidate"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-candidate-build.log",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-candidate-build.log"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-controls",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-controls"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-controls.log",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-controls.log"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-original",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-original"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-original-build.log",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-original-build.log"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-pair",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-pair"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-pair-spec.json",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-pair-spec.json"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-producer-sources",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-producer-sources"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-profiles",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-profiles"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-profiles.log",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-profiles.log"
+  },
+  {
+    "prefix": "research/stage6/combined-v1-source",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-v1-source"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-sdk/headers-receipt.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-sdk/headers-receipt.json"
+  },
+  {
+    "prefix": "research/stage6/merge-screen-default-after/source-large-8192/main.zil",
+    "source_path": "/workspace/.zil-env/research/stage6/merge-screen-default-after/source-large-8192/main.zil"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/2048-branch/closed0-slp-on.row.json",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/2048-branch/closed0-slp-on.row.json"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/2048-branch/input.bin",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/2048-branch/input.bin"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/2048-branch/main.zil",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/2048-branch/main.zil"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/8192-arithmetic/closed0-slp-on.row.json",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/8192-arithmetic/closed0-slp-on.row.json"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/8192-arithmetic/input.bin",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/8192-arithmetic/input.bin"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/8192-arithmetic/main.zil",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/8192-arithmetic/main.zil"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/llvm-combined-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/llvm-combined-plan.json"
+  },
+  {
+    "prefix": "external/llvm-23.1.4/install-receipt.json",
+    "source_path": "/workspace/.zil-env/llvm-23.1.4/install-receipt.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

@@ -1,0 +1,92 @@
+{
+  "schema": 2,
+  "kind": "runtime-final-v1",
+  "collected_utc": "2026-10-31T15:20:11.662019+00:00",
+  "head_at_collection": "df04d4920b9d3ec618e660f8149063eb6019b317",
+  "collector_sha256": "c5521584077b0c1d035748f5084c1a8bde027c17b32b1dece8fb3e3f3f5f0496",
+  "archive": {
+    "logical_path": "raw.tar.gz",
+    "bytes": 5364897,
+    "sha256": "9b3b4b7e1526f49aa5059499ed4f77b1276c9d874fb9a6303ddd5a952bd57b75",
+    "parts": [
+      {
+        "path": "raw.tar.gz",
+        "bytes": 5364897,
+        "sha256": "9b3b4b7e1526f49aa5059499ed4f77b1276c9d874fb9a6303ddd5a952bd57b75"
+      }
+    ]
+  },
+  "manifests": {
+    "FILES": {
+      "encoding": "gzip-jsonl",
+      "rows": 6662,
+      "logical_bytes": 3249921,
+      "logical_sha256": "d97c16ed959b2dd5abc51d885d1b17addff6024607c31c6c0c3c40be27b54d4c",
+      "storage": {
+        "logical_path": "FILES.jsonl.gz",
+        "bytes": 246373,
+        "sha256": "1488bcd45de6dd0e188b25f8a8df09f0ed9aa38b9de900299c45002440de2342",
+        "parts": [
+          {
+            "path": "FILES.jsonl.gz",
+            "bytes": 246373,
+            "sha256": "1488bcd45de6dd0e188b25f8a8df09f0ed9aa38b9de900299c45002440de2342"
+          }
+        ]
+      }
+    },
+    "OMITTED": {
+      "encoding": "gzip-jsonl",
+      "rows": 54,
+      "logical_bytes": 21696,
+      "logical_sha256": "78db039f8005f1bf940922439a76a030973aeca76005b4e951778ff9a479fdfd",
+      "storage": {
+        "logical_path": "OMITTED.jsonl.gz",
+        "bytes": 2948,
+        "sha256": "a21e169601f41a9ec050eaf5ed0e66c56b30c3c26f64432579051b1219a6252d",
+        "parts": [
+          {
+            "path": "OMITTED.jsonl.gz",
+            "bytes": 2948,
+            "sha256": "a21e169601f41a9ec050eaf5ed0e66c56b30c3c26f64432579051b1219a6252d"
+          }
+        ]
+      }
+    }
+  },
+  "metadata": {
+    "FILES.jsonl.gz": {
+      "bytes": 246373,
+      "sha256": "1488bcd45de6dd0e188b25f8a8df09f0ed9aa38b9de900299c45002440de2342"
+    },
+    "OMITTED.jsonl.gz": {
+      "bytes": 2948,
+      "sha256": "a21e169601f41a9ec050eaf5ed0e66c56b30c3c26f64432579051b1219a6252d"
+    },
+    "ROOTS.json": {
+      "bytes": 3111,
+      "sha256": "be0e0687e29ed40cc07b2b6b07f6c0594601d2e55a3b11cee66c8fccfef55f7c"
+    },
+    "PLAN.json": {
+      "bytes": 300,
+      "sha256": "25ba657054abb700fd73a6a7e4c13377d0a9c20b85b800e919f9ca34376c0bf9"
+    }
+  },
+  "summary": [
+    {
+      "class": "elf-executable-or-object",
+      "files": 54,
+      "bytes": 34444216
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 6662,
+      "bytes": 251046360
+    }
+  ],
+  "retained_paths": 6662,
+  "omitted_paths": 54,
+  "unique_blobs": 2575,
+  "boundary": "Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.",
+  "scope": "Frozen54 diagnostic builds,270 untimed native correctness and1620 exclusive native runtime observations; author and independent300-cell recomputation preserve123 adverse comparisons. Original incremental quality NoGo and1740 planned NotRun remain explicit. Actual frozen prepared/scripts identities are not replaced by later timer sources. No new quality-closure candidate or formal compile results included."
+}

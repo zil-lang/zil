@@ -1,0 +1,27 @@
+{
+  "kind": "llvm-combined",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 328,
+      "bytes": 934715264
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 47,
+      "bytes": 2204024
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 1079,
+      "bytes": 50639312
+    },
+    {
+      "class": "symlink-target-recorded-without-dereference",
+      "files": 4,
+      "bytes": 60
+    }
+  ],
+  "selected_paths": 1458,
+  "unique_blobs": 432
+}
