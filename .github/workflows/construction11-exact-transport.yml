@@ -1,0 +1,74 @@
+name: Construction11 exact source transport
+on:
+  push:
+    branches: ['chore/construction11-exact-transport']
+permissions:
+  contents: write
+concurrency:
+  group: construction11-exact-transport
+  cancel-in-progress: false
+jobs:
+  transport:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Verify and publish the exact reviewed local Git history
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY_TRANSPORT'
+          from pathlib import Path
+          import base64, hashlib, json, subprocess
+          root = Path('.construction11')
+          manifest = json.loads((root / 'manifest.json').read_text())
+          assert manifest['schema_version'] == 1
+          allowed = {'impl/232-readonly-product-capture', 'impl/233-cross-module-trait', 'review/construction11', 'integration/construction11'}
+          assert manifest['targets'] and all(t['branch'] in allowed for t in manifest['targets'])
+          assert len({t['branch'] for t in manifest['targets']}) == len(manifest['targets'])
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+          bundle = root / 'source.bundle'
+          chunks = []
+          for part in manifest['parts']:
+              path = Path(part['path'])
+              assert path.parts[:2] == ('.construction11', 'parts') and '..' not in path.parts
+              data = path.read_bytes()
+              assert len(data) == part['size'] and hashlib.sha256(data).hexdigest() == part['sha256']
+              chunks.append(data)
+          data = b''.join(chunks)
+          assert len(data) == manifest['bundle_size'] and hashlib.sha256(data).hexdigest() == manifest['bundle_sha256']
+          bundle.write_bytes(data)
+          subprocess.run(['git', 'bundle', 'verify', str(bundle)], check=True)
+          actual = dict((ref, sha) for sha, ref in (line.split() for line in git('bundle', 'list-heads', str(bundle)).splitlines()))
+          expected = {'refs/heads/' + t['branch']: t['sha'] for t in manifest['targets']}
+          assert actual == expected, (actual, expected)
+          result = {'transport_commit': git('rev-parse', 'HEAD'), 'bundle_sha256': manifest['bundle_sha256'], 'published': []}
+          for target in manifest['targets']:
+              branch, sha = target['branch'], target['sha']
+              subprocess.run(['git', 'fetch', str(bundle), 'refs/heads/' + branch], check=True)
+              assert git('rev-parse', 'FETCH_HEAD') == sha
+              subprocess.run(['git', 'merge-base', '--is-ancestor', manifest['base'], sha], check=True)
+              ref = 'refs/heads/' + branch
+              before = git('ls-remote', 'origin', ref)
+              old = before.split()[0] if before else None
+              if old != sha:
+                  assert old == target.get('expected_remote_sha'), (branch, old, target.get('expected_remote_sha'))
+                  if old:
+                      subprocess.run(['git', 'merge-base', '--is-ancestor', old, sha], check=True)
+                  subprocess.run(['git', 'push', '--force-with-lease=' + ref + ':' + (old or ''), 'origin', sha + ':' + ref], check=True)
+              assert git('ls-remote', 'origin', ref).split()[0] == sha
+              result['published'].append({'branch': branch, 'sha': sha, 'previous': old})
+          subprocess.run(['git', 'fsck', '--full', '--strict'], check=True)
+          Path('PUBLISHED.json').write_text(json.dumps(result, indent=2) + '\n')
+          print(json.dumps(result, indent=2))
+          PY_TRANSPORT
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: construction11-publish-${{ github.run_id }}
+          path: PUBLISHED.json
+          if-no-files-found: error
+          retention-days: 30

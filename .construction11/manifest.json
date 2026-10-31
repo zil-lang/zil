@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "base": "0a3d0021fa788a27c87df20454c34c338039f1c5",
+  "bundle_size": 9564,
+  "bundle_sha256": "49719bb1eee83675f05e75d28f909fb8bc941edf366e215797939432ae1736d3",
+  "targets": [
+    {
+      "branch": "integration/construction11",
+      "sha": "8738226592a03f2a0f33db3b4389ceb816e84f2e",
+      "expected_remote_sha": null
+    }
+  ],
+  "parts": [
+    {
+      "path": ".construction11/parts/part-000.bin",
+      "size": 9564,
+      "sha256": "49719bb1eee83675f05e75d28f909fb8bc941edf366e215797939432ae1736d3",
+      "git_blob": "abf95b9f52c153268092ee331e7f80f56d3e8dd2"
+    }
+  ]
+}
