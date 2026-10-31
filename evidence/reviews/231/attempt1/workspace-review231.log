@@ -1,0 +1,43 @@
+     Running tests/review231_independent.rs (/home/runner/work/_temp/target/debug/deps/review231_independent-aeeb6a38a68ccc4b)
+
+running 6 tests
+test independent_module_identity_alias_privacy_and_binder_boundaries ... FAILED
+test independent_module_where_budget_boundary_survives_cache_replay ... FAILED
+test independent_grouped_bounds_and_cross_subject_clause_order ... ok
+test independent_raw_ast_prefixes_only_apply_the_reserved_name_exclusion ... ok
+test independent_native_grouped_module_and_generated_enum_consumers ... FAILED
+test independent_reserved_capabilities_and_similar_ordinary_trait_names ... ok
+
+failures:
+
+---- independent_module_identity_alias_privacy_and_binder_boundaries stdout ----
+
+thread 'independent_module_identity_alias_privacy_and_binder_boundaries' (35482) panicked at crates/zil-driver/tests/review231_independent.rs:62:5:
+assertion `left == right` failed: qualified-group: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-RECEIVER-NONE","message":"leading-dot member requires a lexical method receiver","span":{"file":2,"start":82,"end":84},"notes":[]}],"artifacts":{"core":"/home/runner/work/_temp/native-evidence/workspace/review231-35480/qualified-group/phases/core.txt","source-map":"/home/runner/work/_temp/native-evidence/workspace/review231-35480/qualified-group/phases/source-map.txt","syntax":"/home/runner/work/_temp/native-evidence/workspace/review231-35480/qualified-group/phases/syntax.txt"},"input_fingerprint":"54fdd9ec47bd19ae421f96379347a6545f8355a783fb7fa5c063eeac6a909766","seconds":0.032791391,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"rules.zil","2":"data.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- independent_module_where_budget_boundary_survives_cache_replay stdout ----
+
+thread 'independent_module_where_budget_boundary_survives_cache_replay' (35483) panicked at crates/zil-driver/tests/review231_independent.rs:391:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-RECEIVER-NONE","message":"leading-dot member requires a lexical method receiver","span":{"file":2,"start":82,"end":84},"notes":[]}],"artifacts":{},"input_fingerprint":"54fdd9ec47bd19ae421f96379347a6545f8355a783fb7fa5c063eeac6a909766","seconds":0.00136354,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"rules.zil","2":"data.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+---- independent_native_grouped_module_and_generated_enum_consumers stdout ----
+
+thread 'independent_native_grouped_module_and_generated_enum_consumers' (35484) panicked at crates/zil-driver/tests/review231_independent.rs:321:13:
+assertion `left == right` failed: project/O0: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-RECEIVER-NONE","message":"leading-dot member requires a lexical method receiver","span":{"file":2,"start":82,"end":84},"notes":[]}],"artifacts":{"core":"/home/runner/work/_temp/native-evidence/workspace/review231-35480/native-O0-project/phases/core.txt","source-map":"/home/runner/work/_temp/native-evidence/workspace/review231-35480/native-O0-project/phases/source-map.txt","syntax":"/home/runner/work/_temp/native-evidence/workspace/review231-35480/native-O0-project/phases/syntax.txt"},"input_fingerprint":"54fdd9ec47bd19ae421f96379347a6545f8355a783fb7fa5c063eeac6a909766","seconds":0.011812473,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"rules.zil","2":"data.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+
+failures:
+    independent_module_identity_alias_privacy_and_binder_boundaries
+    independent_module_where_budget_boundary_survives_cache_replay
+    independent_native_grouped_module_and_generated_enum_consumers
+
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+error: test failed, to rerun pass `-p zil-driver --test review231_independent`
