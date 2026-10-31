@@ -1,0 +1,210 @@
+{
+  "schema": 1,
+  "kind": "llvm-ssa",
+  "scope": "Frozen standalone SSA v1-v4 chronology and two separate v2/v4 independent correctness reviews; no combined candidate or formal/runtime acceptance. v1 failure and v2/v3 negative results remain distinct.",
+  "tools": [
+    "ssa_update"
+  ],
+  "tool_source_commit": "7266d29b19fb6f40898f94ad88b7027c0c7b0346",
+  "tool_source_inventory": [
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/README.md",
+      "bytes": 4267,
+      "sha256": "0585c2bc69618a8b9f886924d80c28af76ff47c17c1e437a9074c059d9da7707"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/instrument_demand.py",
+      "bytes": 3931,
+      "sha256": "4158c6c76c9d22f7226e7a210f3162673086f330f009388992fad6315c1b2d20"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/instrument_grouped.py",
+      "bytes": 3318,
+      "sha256": "c5c64d3d23d0a0e76bd0ee754bb345ae304fba0fc8bb8e5ed56d4ff04f98a8c3"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/build.py",
+      "bytes": 2002,
+      "sha256": "685af328d7165a446db23443771a82edbd7881f2b91639073ccc6dbadf65c15f"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/prepare_v4.py",
+      "bytes": 1273,
+      "sha256": "a34e0164341a1578d2e937867b3302769cf604e667a1296f7883fe0a5860024b"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/prepare_demand_idf.py",
+      "bytes": 3328,
+      "sha256": "3990447a6bd389ec7c7ed39276c70535eab339279beb9a45bfc4fdb2b114fc42"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/prepare_grouped_bulk.py",
+      "bytes": 5257,
+      "sha256": "06d532a06bbd3275dc43bc2f691f1b5a6329f0575a1fd1ede354cf4ddf8a7269"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/demand_idf.inc",
+      "bytes": 6495,
+      "sha256": "c04526897516c9f1c42d60f88a5707ad6fef20c762c7cbb208c26bb50b5ed383"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/prepare.py",
+      "bytes": 4990,
+      "sha256": "41e7076de81114086eed62c4e8ec8ba97a91d25db98e9657890a3aa53e86e935"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/validate_controls.py",
+      "bytes": 4008,
+      "sha256": "cc1a092c02930da54845618d83d39f83cfb521cd7a585a058a793fb8d73823a2"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/prepare_shared_idf.py",
+      "bytes": 3306,
+      "sha256": "8e03fa5be8f090bb4a92532d37e975a30a300828cd8b2535b9df26fc76210965"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/inspect_demand_plan.py",
+      "bytes": 3304,
+      "sha256": "1ac901a509db8bbdb4422fcd6439875292786aae0819778466c634647def4841"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/shared_idf.inc",
+      "bytes": 4286,
+      "sha256": "40c322bc5e2e2232bd37af1bcdebb0ff80441ef30e42623ce19ac904949faae2"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/upstream/LICENSE.TXT",
+      "bytes": 15141,
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/upstream/PROVENANCE.json",
+      "bytes": 485,
+      "sha256": "d8a5e106e3f64d6507ed598705fb233f3436c8cd4f5415860f500723e5689a5a"
+    },
+    {
+      "path": "tools/research/incremental-compilation/ssa_update/upstream/SSAUpdaterBulk.cpp",
+      "bytes": 11544,
+      "sha256": "923fa36dd298d9241894db6214f2bfe0c6f08d8123343526a917bff67c40a2ed"
+    },
+    {
+      "path": "changes/research-jump-threading-ssa.md",
+      "bytes": 7071,
+      "sha256": "0da9963330ba429e873b1e0d8aa43444662714c9c1a76f3ba51cb747f0ce9908"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/build_native_toolchain.py",
+      "bytes": 11710,
+      "sha256": "6115fb8fbdeb223d49afe966c7234521f25f0cfa43bf2c173d1c9fe4481f1b0d"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py",
+      "bytes": 13038,
+      "sha256": "a0ba55510734f389a61ebd0efb72630bdfdf0400db3158bcc2baea586e4854db"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.cpp",
+      "bytes": 129818,
+      "sha256": "735bdb11bc0a10b549a430eb69863dce4f64a4be48f878f47c380b6898caaf62"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.h",
+      "bytes": 9432,
+      "sha256": "5abd69e54d52f6b9b0c47dc1332fa1c034ee718d9c53567a6bc93eee12350688"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/upstream/PROVENANCE.json",
+      "bytes": 679,
+      "sha256": "4017f3231d3b3761b5981740ea19ee1fbc9c69ae584797e457a8ae46aa0f5698"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/upstream/LICENSE.TXT",
+      "bytes": 15141,
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+    },
+    {
+      "path": "tools/llvm/release-linux-x86_64.json",
+      "bytes": 844,
+      "sha256": "a822f495aa0e605e8248f05ee9d58bd853dc6f020621a3488843b267b3d931cf"
+    },
+    {
+      "path": "tools/llvm/install.py",
+      "bytes": 9225,
+      "sha256": "5732842ebdc834e069cd2bb084e2da68e0b1af9c1dcf7e4c2323c370fc4ea172"
+    }
+  ],
+  "research_roots": [
+    "stage6/ssa-update",
+    "stage6/ssa-handoff.log",
+    "stage6-ssa-v2-review",
+    "stage6-ssa-v4-review",
+    "stage6/slp-effective-opaque/512-branch",
+    "stage6/slp-effective-opaque/2048-branch",
+    "stage6/ca79-opaque-perf-v2/2048-branch",
+    "stage6-native-jt-review/c_api_child.py",
+    "stage6-native-jt-review/c-api/plan.json",
+    "stage6-native-jt-review/c-api/original",
+    "stage6-jt-review/differential",
+    "stage6-jt-review/boundaries",
+    "stage6/jump-threading-plugin-sdk/headers-receipt.json"
+  ],
+  "repo_extra_sources": [
+    "changes/research-jump-threading-ssa.md",
+    "tools/research/incremental-compilation/jump_threading_plugin/build_native_toolchain.py",
+    "tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py",
+    "tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.cpp",
+    "tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.h",
+    "tools/research/incremental-compilation/jump_threading_plugin/upstream/PROVENANCE.json",
+    "tools/research/incremental-compilation/jump_threading_plugin/upstream/LICENSE.TXT",
+    "tools/llvm/release-linux-x86_64.json",
+    "tools/llvm/install.py"
+  ],
+  "external_sources": [
+    {
+      "logical_path": "external-build-inputs/llvm-23.1.4/install-receipt.json",
+      "path": "/workspace/.zil-env/llvm-23.1.4/install-receipt.json"
+    }
+  ],
+  "input_and_oracle_bin_paths": [
+    "stage6-ssa-v2-review/helper-inputs/lifetime.bin",
+    "stage6-ssa-v2-review/helper-inputs/edge-self.bin",
+    "stage6-ssa-v2-review/helper-inputs/fallbacks.bin",
+    "stage6-ssa-v2-review/helper-inputs/debug.bin",
+    "stage6-ssa-v2-review/helper-inputs/expected.bin",
+    "stage6-ssa-v4-review/bulk-inputs/expected.bin",
+    "stage6-ssa-v4-review/helper-inputs/lifetime.bin",
+    "stage6-ssa-v4-review/helper-inputs/edge-self.bin",
+    "stage6-ssa-v4-review/helper-inputs/fallbacks.bin",
+    "stage6-ssa-v4-review/helper-inputs/debug.bin",
+    "stage6-ssa-v4-review/helper-inputs/expected.bin",
+    "stage6/slp-effective-opaque/512-branch/input.bin",
+    "stage6/slp-effective-opaque/2048-branch/input.bin",
+    "stage6-jt-review/differential/expected.bin"
+  ],
+  "perf_paths": [
+    "stage6/ca79-opaque-perf-v2/2048-branch/perf.data"
+  ],
+  "omission_paths": {},
+  "exclusions": [
+    "Compiled ELF/object/static-library bytes have per-path omissions, including small harness binaries; exact harness source/commands/results remain.",
+    "SDK downloaded archive and headers reconstructed by retained install/header receipts and pinned official release; no full compiler target.",
+    "Active combined, residual, CI/runtime/opaque-runner roots excluded."
+  ],
+  "diagnostic_identity": "ca79 original perf reference and slp-effective sources are retained as original baseline inputs/oracles, not relabeled v4 performance. Functional timing alone is not an exclusive final benchmark.",
+  "preserve_paths": [
+    "research/stage6-ssa-v2-review/helper-inputs/lifetime.bin",
+    "research/stage6-ssa-v2-review/helper-inputs/edge-self.bin",
+    "research/stage6-ssa-v2-review/helper-inputs/fallbacks.bin",
+    "research/stage6-ssa-v2-review/helper-inputs/debug.bin",
+    "research/stage6-ssa-v2-review/helper-inputs/expected.bin",
+    "research/stage6-ssa-v4-review/bulk-inputs/expected.bin",
+    "research/stage6-ssa-v4-review/helper-inputs/lifetime.bin",
+    "research/stage6-ssa-v4-review/helper-inputs/edge-self.bin",
+    "research/stage6-ssa-v4-review/helper-inputs/fallbacks.bin",
+    "research/stage6-ssa-v4-review/helper-inputs/debug.bin",
+    "research/stage6-ssa-v4-review/helper-inputs/expected.bin",
+    "research/stage6/slp-effective-opaque/512-branch/input.bin",
+    "research/stage6/slp-effective-opaque/2048-branch/input.bin",
+    "research/stage6-jt-review/differential/expected.bin"
+  ]
+}

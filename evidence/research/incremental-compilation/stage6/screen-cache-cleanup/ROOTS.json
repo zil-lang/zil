@@ -1,0 +1,38 @@
+[
+  {
+    "prefix": "research/stage6/archived-rust-incremental-cleanup-execute-final.log",
+    "source_path": "/workspace/.zil-env/research/stage6/archived-rust-incremental-cleanup-execute-final.log"
+  },
+  {
+    "prefix": "research/stage6/archived-rust-incremental-cleanup-execute.log",
+    "source_path": "/workspace/.zil-env/research/stage6/archived-rust-incremental-cleanup-execute.log"
+  },
+  {
+    "prefix": "research/stage6/archived-rust-incremental-cleanup-execute.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archived-rust-incremental-cleanup-execute.py"
+  },
+  {
+    "prefix": "research/stage6/archived-rust-incremental-cleanup-executed.json",
+    "source_path": "/workspace/.zil-env/research/stage6/archived-rust-incremental-cleanup-executed.json"
+  },
+  {
+    "prefix": "research/stage6/archived-rust-incremental-cleanup-initial-schema.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archived-rust-incremental-cleanup-initial-schema.py"
+  },
+  {
+    "prefix": "research/stage6/archived-rust-incremental-cleanup-plan.json",
+    "source_path": "/workspace/.zil-env/research/stage6/archived-rust-incremental-cleanup-plan.json"
+  },
+  {
+    "prefix": "research/stage6/archived-rust-incremental-cleanup-receipt.md",
+    "source_path": "/workspace/.zil-env/research/stage6/archived-rust-incremental-cleanup-receipt.md"
+  },
+  {
+    "prefix": "research/stage6/archived-rust-incremental-cleanup-sha-audit.jsonl",
+    "source_path": "/workspace/.zil-env/research/stage6/archived-rust-incremental-cleanup-sha-audit.jsonl"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

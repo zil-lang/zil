@@ -1,0 +1,9 @@
+{
+  "kind": "ci-main-412093",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 5,
+  "omitted_paths": 0,
+  "unique_blobs": 5,
+  "identity_sha256": "f1a0ffb2a0a84c19ee22887d0c39cee53f9976d50ff57ee3d06d760c96087b54",
+  "verified_utc": "2026-10-31T14:42:51.819831+00:00"
+}

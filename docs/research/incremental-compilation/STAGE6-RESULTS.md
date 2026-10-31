@@ -14,6 +14,8 @@ ac4与888的release CLI逐字相同，SHA256均为`0d0e05f4b3ba14c298fef7907c8a6
 
 随后取得的磁盘恢复证据没有把CI失败隐去：`41207249551`在888上因runner日志写入ENOSPC失败，下载的failed.log为空、logs.zip仅22字节且无条目，不能从这些空日志推定源码测试结果。root又发现初版清理步骤由sudo创建父目录造成后续普通用户不可写，以及umask导致root收据可能不可读；最终改为普通用户先创建父目录，并仅将该JSON显式设为0644。原作者/独审的同用户控制不覆盖sudo跨UID，两次修订与控制失败均原样归档。`41209327141`的真实预构建清理收据已上传，空闲空间从11624448000增至33555800064字节（10.826→31.251GiB）；这只证明清理和收据上传成功。收件时整次CI仍进行中，不计全CI Pass。见`ci-disk`包。
 
+后续正式GitHub结果另存于`ci-main-412093`：运行[41209327141](https://github.com/zil-lang/zil/actions/runs/41209327141)最终为completed/success，精确HEAD为`2e8f8c1f6e4bcb92d829cfa91cc4582c230f1e3e`，完成时间2026-10-31 14:39:16 UTC。原先“进行中”的收据和失败包保持不变；成功不属于后来74431组合LLVM、6ed研究workflow或当前HEAD，也不替代那些候选自己的CI、运行质量和性能矩阵。完整run/jobs/artifact-list及原日志ZIP已保留。
+
 ## 已经作出的取舍
 
 | 路线 | 本轮实际进展 | 已冻结结果与当前边界 |
@@ -193,6 +195,24 @@ ca79另一次冻结profile共549样本，157包含JT，152包含共同重算链�
 
 这些是限定正确性进展，功能窗里的耗时不是正式端到端收益；完整EH传播、sanitizer/profile域及广泛运行质量并未验收。源码工具以09f1提交冻结，全部初始失败与修复、两独审、原input/oracle/ZIP/perf和精确来源见`llvm-entry`包。旧四次perf仍是官方baseline，不标成entry测量。后续SSA/LVI/CFG及组合候选另有身份，最终仍需冻结新组合编译器、实际加载库、pipeline与缓存身份再测完整矩阵。
 
+## 继续拆解LLVM热点：LVI、CFG和SSA v1–v4
+
+这些候选已经实际实现为隔离LLVM库，并分别完成限定独审。它们对应不同浪费，不能把各功能窗的阶段CPU比相乘成累计提速；组合独审和最终矩阵仍另行进行。下表全部是原先功能/诊断窗口，不是排他正式性能结论。
+
+| 候选 | 实际改变与观测 | 负面与解释边界 |
+|---|---|---|
+| LVI值索引 | 在三个写入点维护value→hashed block-slot关系，eraseValue访问相关槽；同输入CVP CPU 18.8509→0.5466秒，两exe逐字相同 | JT仍39.96/41.67秒；索引含历史陈旧成员，内存不由当前live cache大小界定；单次进程峰值不能证明内存改善 |
+| O2 IPSCCP后CFG清理 | 增加一次SimplifyCFG，提前移除常量传播后无用结构；算术InstCombine CPU 53.5422→0.3395秒，同输入exe逐字相同 | JT从0.0979增到1.2684秒，scalar入口热点基本未变；不是已证实全分布净益 |
+| SSA v1 | 只在CFG/DT一致的threadEdge调用Bulk；保留其它调用点与debug/lifetime原路径 | 初次缺clang链接失败原样保留；有效retry中每变量live-region扫描仍在，JT约25秒属于旧功能窗 |
+| SSA v2/v3 | 分别尝试共享未剪枝IDF和按需求闭包，并先检查PHI/use增长上限 | 两者在512-branch都拒绝全部505次helper；真实一处use需要两个PHI，阈值拒绝了必要SSA，无预期收益，不能改标成v4 |
+| SSA v4 | 完整定义/使用块集合相同才复用原Bulk的精确pruned-IDF和reserve信息；不复用值/类型/通知 | 单2048-branch JT为5.2435 CPU秒，CVP仍19.3791秒；前述约25/42来自其它功能窗，不算匹配正式加速比 |
+
+LVI独审执行48000次随机缓存变更/不变量检查、52个边界检查点、4次精确epoch拒绝，以及真实C API、当前ZIL Verify、loader和对象缓存控制。最初cache控制没有活跃predecessor事实的覆盖缺口由cache-v2补齐；最初两份profile准备因缺time工具和继承子进程最大RSS方法不适合而在启动编译器前拒绝，全部保留。最终诊断用精确wait4子进程资源，仍不能消除功能窗口并发影响。
+
+CFG独审保留17个成功ZIL构建、2个当前类型拒绝、68次native及6个pipeline请求：O0/O3序列相同，O2只多目标pass。原profile因缺clang报E-LINK-IO，后面的v2才是有效重试，不能丢掉失败。原113798082字节stage stderr完整归档；380782521字节重复派生pass-tables.json只保存精确SHA，解析工具和原stderr可恢复。
+
+SSA v4以相同flags重编译JumpThreading与SSAUpdaterBulk两单元，保持公共header/class/layout及原值重写、通知和PHI清理规则。独立v4审计为82个C API请求、134次native、39个helper及2个直接utility函数/34变量；v2的74个API/126次native属于其独立旧审计，不能相加冒充v4覆盖。v4另建计数库记录505个batch、18781变量、18276命中/505 miss、511838次live-in访问、37562 PHI，解释实际减少的结构工作；计数库时间不充当性能臂。初始helper链接、debug/lifetime夹具、错误CLI及v2/v3失败/无收益均保留。当前输入、完整32位oracle、clean-source重建和原ca79 perf也都可追溯。最终组合尚未借这些限定Pass获得正式速度或运行质量验收。
+
 ## 原始表与失败记录索引
 
 所有包都保留原始身份。schema-1的thin/screens/correctness/merge-screens用`stage6_archive.py`，schema-2其余新包用`stage6_archive_large.py`：`--extract <包目录> --dest <新目录>`恢复下表的逻辑路径，`--verify <包目录>`核对。algorithms包是其原有多tar档案。README、IDENTITY、VERIFY与完整FILES/OMITTED说明保留范围；ELF/缓存二进制省略项仍有原字节SHA。压缩和内容去重没有改写统计行或失败状态。
@@ -217,6 +237,11 @@ ca79另一次冻结profile共549样本，157包含JT，152包含共同重算链�
 | [integration-correctness](../../../evidence/research/incremental-compilation/stage6/integration-correctness) | `research/stage6/integration-checks/`的75项、Clippy/fmt、ac4/888身份与真实CI失败；`stage6-integration-review/`的3项/29报告对、夹具失败和DB补审；upstream四静态文件；旧Rust缓存清理中断/完成收据 |
 | [ci-disk](../../../evidence/research/incremental-compilation/stage6/ci-disk) | `research/stage6/ci-disk-recovery*/`全部作者/独审、sudo父目录及umask修订；412072原始失败/空日志；412093真实清理JSON/ZIP，整次CI未计Pass |
 | [llvm-entry](../../../evidence/research/incremental-compilation/stage6/llvm-entry) | v1 generated/native源码与patch、原版/entry DSO及ac4 API pair身份；完整plugin失败/修复/opaque/resource控制；`stage6-jt-review`与`stage6-native-jt-review`；42原ZIP、2input/2oracle与旧baseline四perf |
+| [llvm-lvi](../../../evidence/research/incremental-compilation/stage6/llvm-lvi) | `lvi-value-index*`全部原始/失败/profile/cache-v2与`stage6-lvi-review`；生成源码/license/patch、原输入和完整oracle |
+| [llvm-cfg](../../../evidence/research/incremental-compilation/stage6/llvm-cfg) | `post-ipsccp-cfg*`、arithmetic IR/stage/CFG原始诊断和两独审；原113.8MB stderr保留，380.8MB派生表仅SHA |
+| [llvm-ssa](../../../evidence/research/incremental-compilation/stage6/llvm-ssa) | 完整`ssa-update` v1–v4源/失败/计数/有效重试/clean重建；独审v2/v4、14份原input/oracle及原ca79 perf |
+| [screen-cache-cleanup](../../../evidence/research/incremental-compilation/stage6/screen-cache-cleanup) | 36个旧screen Rust缓存的计划、1112文件完整SHA匹配/删除audit；初次schema读取失败在删除前退出，正确重试回收1152760644字节 |
+| [ci-main-412093](../../../evidence/research/incremental-compilation/stage6/ci-main-412093) | 精确2e8 HEAD的官方成功CI，原run/jobs/artifact-list和503718字节完整日志ZIP；不接受后来的组合或当前HEAD |
 
 
 ## 待完成的确认，不预填结果

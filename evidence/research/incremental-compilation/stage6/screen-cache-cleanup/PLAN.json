@@ -1,0 +1,12 @@
+{
+  "kind": "screen-cache-cleanup",
+  "summary": [
+    {
+      "class": "retained-raw-evidence",
+      "files": 9,
+      "bytes": 1326159
+    }
+  ],
+  "selected_paths": 9,
+  "unique_blobs": 9
+}

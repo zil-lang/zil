@@ -1,0 +1,151 @@
+{
+  "schema": 1,
+  "kind": "llvm-lvi",
+  "scope": "Frozen isolated functional candidate and independent review only; no combined/final runtime/formal performance acceptance. Earlier failed preparation/build/fixture epochs remain intact.",
+  "tools": [
+    "lvi_cache",
+    "pass_timing"
+  ],
+  "tool_source_commit": "7266d29b19fb6f40898f94ad88b7027c0c7b0346",
+  "tool_source_inventory": [
+    {
+      "path": "tools/research/incremental-compilation/lvi_cache/c_api_child.py",
+      "bytes": 5519,
+      "sha256": "6ddf533c052e7c1b946629c9bb45495fb5feaa0dd7b713cf2ac04b14a0c5ca14"
+    },
+    {
+      "path": "tools/research/incremental-compilation/lvi_cache/c_api_controls.py",
+      "bytes": 7352,
+      "sha256": "ab990ff1b79cbb64319cf339ad5f941a7d536caf8f1231bcdd2bdb1b06d2d4da"
+    },
+    {
+      "path": "tools/research/incremental-compilation/lvi_cache/README.md",
+      "bytes": 1971,
+      "sha256": "ba467d0ceba68dbe45aed7162c2474df6b49745680038259c829e09ab31b0456"
+    },
+    {
+      "path": "tools/research/incremental-compilation/lvi_cache/cache_control.cpp",
+      "bytes": 7842,
+      "sha256": "bf21e16bd81691f54e6b8a2bd9055c09c9d8251788e1c0a0f127f06f185f0525"
+    },
+    {
+      "path": "tools/research/incremental-compilation/lvi_cache/profile_branch.py",
+      "bytes": 6900,
+      "sha256": "de14e8f9b3dac71e8883356bef985e5bcd69ed548a0b147a3bb3754a9842be1f"
+    },
+    {
+      "path": "tools/research/incremental-compilation/lvi_cache/prepare_patch.py",
+      "bytes": 6300,
+      "sha256": "e32c71dde489b0244ae78873f2bcebef66aaaf8bdc3672f3807e2f9be2c2ebe0"
+    },
+    {
+      "path": "tools/research/incremental-compilation/lvi_cache/cache_controls.py",
+      "bytes": 6292,
+      "sha256": "82f86a2d2067f2344cd3bed78a1e1dd600962c70fc335d1acfa871a6e2e4cc4a"
+    },
+    {
+      "path": "tools/research/incremental-compilation/lvi_cache/upstream/LICENSE.TXT",
+      "bytes": 15141,
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+    },
+    {
+      "path": "tools/research/incremental-compilation/lvi_cache/upstream/PROVENANCE.json",
+      "bytes": 819,
+      "sha256": "fd3013ca9abb6253c8b469d3169d532b05a063032771e8428bcee478dde31be0"
+    },
+    {
+      "path": "tools/research/incremental-compilation/lvi_cache/upstream/LazyValueInfo.cpp",
+      "bytes": 91791,
+      "sha256": "acba830547744352e9ec983f3f7574a48e28a736c512fae7721afe0ac746cbe7"
+    },
+    {
+      "path": "tools/research/incremental-compilation/pass_timing/build_probe.py",
+      "bytes": 1504,
+      "sha256": "3cadb7e38d30732f278203d36cd18200879b0dc274b89fef4bdbb776ef904dcf"
+    },
+    {
+      "path": "tools/research/incremental-compilation/pass_timing/enable_timing.c",
+      "bytes": 3910,
+      "sha256": "37e00f620ee2b69a78bebfe75c75ca4714cbf775d443d220ce99fbc2e44072c5"
+    },
+    {
+      "path": "tools/research/incremental-compilation/pass_timing/README.md",
+      "bytes": 3450,
+      "sha256": "ca43fe45eb6a28378cc249548818375d44423a233174e379ded25e65ca786b71"
+    },
+    {
+      "path": "tools/research/incremental-compilation/pass_timing/slp_opaque_compare.py",
+      "bytes": 5416,
+      "sha256": "aea8520428b6dcb6f580efcbfddebd8f141d09ebc6cedf8bd1c9498a3ecab13f"
+    },
+    {
+      "path": "tools/research/incremental-compilation/pass_timing/slp_vector_control.py",
+      "bytes": 7260,
+      "sha256": "3c50e910c956806ee4867dfaec4cbcf85be25a832987e75882707d763cebbf94"
+    },
+    {
+      "path": "tools/research/incremental-compilation/pass_timing/run_probe.py",
+      "bytes": 5782,
+      "sha256": "edbedebe1668a9fb96b0bc6731b2ad35266c5cbd9809b2fb2cdd03f140e4939a"
+    },
+    {
+      "path": "changes/research-lvi-value-index.md",
+      "bytes": 6258,
+      "sha256": "12047ca1f94956441f2f31b9fc8c557948ed4649468855c495b1a312f954da15"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py",
+      "bytes": 13038,
+      "sha256": "a0ba55510734f389a61ebd0efb72630bdfdf0400db3158bcc2baea586e4854db"
+    },
+    {
+      "path": "tools/llvm/release-linux-x86_64.json",
+      "bytes": 844,
+      "sha256": "a822f495aa0e605e8248f05ee9d58bd853dc6f020621a3488843b267b3d931cf"
+    },
+    {
+      "path": "tools/llvm/install.py",
+      "bytes": 9225,
+      "sha256": "5732842ebdc834e069cd2bb084e2da68e0b1af9c1dcf7e4c2323c370fc4ea172"
+    }
+  ],
+  "research_roots": [
+    "stage6-lvi-review",
+    "stage6/lvi-value-index-author.md",
+    "stage6/lvi-value-index-controls",
+    "stage6/lvi-value-index-indexed",
+    "stage6/lvi-value-index-indexed-build.log",
+    "stage6/lvi-value-index-original",
+    "stage6/lvi-value-index-original-build.log",
+    "stage6/lvi-value-index-profiles",
+    "stage6/lvi-value-index-source",
+    "stage6/slp-effective-opaque/2048-branch/closed0-slp-on.row.json",
+    "stage6/slp-effective-opaque/2048-branch/input.bin",
+    "stage6/slp-effective-opaque/2048-branch/main.zil",
+    "stage6/jump-threading-plugin-sdk/headers-receipt.json"
+  ],
+  "repo_extra_sources": [
+    "changes/research-lvi-value-index.md",
+    "tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py",
+    "tools/llvm/release-linux-x86_64.json",
+    "tools/llvm/install.py"
+  ],
+  "external_sources": [
+    {
+      "logical_path": "external-build-inputs/llvm-23.1.4/install-receipt.json",
+      "path": "/workspace/.zil-env/llvm-23.1.4/install-receipt.json"
+    }
+  ],
+  "input_and_oracle_bin_paths": [
+    "stage6/lvi-value-index-controls/c-api/inputs/generated-expected.bin",
+    "stage6/slp-effective-opaque/2048-branch/input.bin"
+  ],
+  "perf_paths": [],
+  "omission_paths": {},
+  "exclusions": [
+    "Large compiled ELF/object/static-library bytes omitted with per-path identity; raw generated source/patch/commands/stdout/stderr retained.",
+    "Shared SDK/rebuild component identities in toolchain receipts; no SDK archive or full compiler target copies.",
+    "Combined candidate, residual-branch-static and all active formal/runtime tool roots excluded."
+  ],
+  "source_evidence_note": "Profile requests reference original ca79 sources; retain actual main.zil/input.bin/five-seed source oracle and original failure epochs without changing source identity."
+}

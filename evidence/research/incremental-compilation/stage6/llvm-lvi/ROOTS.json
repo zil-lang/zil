@@ -1,0 +1,90 @@
+[
+  {
+    "prefix": "research/stage6-lvi-review",
+    "source_path": "/workspace/.zil-env/research/stage6-lvi-review"
+  },
+  {
+    "prefix": "research/stage6/lvi-value-index-author.md",
+    "source_path": "/workspace/.zil-env/research/stage6/lvi-value-index-author.md"
+  },
+  {
+    "prefix": "research/stage6/lvi-value-index-controls",
+    "source_path": "/workspace/.zil-env/research/stage6/lvi-value-index-controls"
+  },
+  {
+    "prefix": "research/stage6/lvi-value-index-indexed",
+    "source_path": "/workspace/.zil-env/research/stage6/lvi-value-index-indexed"
+  },
+  {
+    "prefix": "research/stage6/lvi-value-index-indexed-build.log",
+    "source_path": "/workspace/.zil-env/research/stage6/lvi-value-index-indexed-build.log"
+  },
+  {
+    "prefix": "research/stage6/lvi-value-index-original",
+    "source_path": "/workspace/.zil-env/research/stage6/lvi-value-index-original"
+  },
+  {
+    "prefix": "research/stage6/lvi-value-index-original-build.log",
+    "source_path": "/workspace/.zil-env/research/stage6/lvi-value-index-original-build.log"
+  },
+  {
+    "prefix": "research/stage6/lvi-value-index-profiles",
+    "source_path": "/workspace/.zil-env/research/stage6/lvi-value-index-profiles"
+  },
+  {
+    "prefix": "research/stage6/lvi-value-index-source",
+    "source_path": "/workspace/.zil-env/research/stage6/lvi-value-index-source"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/2048-branch/closed0-slp-on.row.json",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/2048-branch/closed0-slp-on.row.json"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/2048-branch/input.bin",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/2048-branch/input.bin"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/2048-branch/main.zil",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/2048-branch/main.zil"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-sdk/headers-receipt.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-sdk/headers-receipt.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/lvi_cache",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/lvi_cache"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/pass_timing",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/pass_timing"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/llvm-lvi-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/llvm-lvi-plan.json"
+  },
+  {
+    "prefix": "collection-source/changes/research-lvi-value-index.md",
+    "source_path": "/workspace/zil/changes/research-lvi-value-index.md"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py"
+  },
+  {
+    "prefix": "collection-source/tools/llvm/release-linux-x86_64.json",
+    "source_path": "/workspace/zil/tools/llvm/release-linux-x86_64.json"
+  },
+  {
+    "prefix": "collection-source/tools/llvm/install.py",
+    "source_path": "/workspace/zil/tools/llvm/install.py"
+  },
+  {
+    "prefix": "external-build-inputs/llvm-23.1.4/install-receipt.json",
+    "source_path": "/workspace/.zil-env/llvm-23.1.4/install-receipt.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

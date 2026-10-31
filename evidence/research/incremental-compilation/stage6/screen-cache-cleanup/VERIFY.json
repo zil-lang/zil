@@ -1,0 +1,9 @@
+{
+  "kind": "screen-cache-cleanup",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 9,
+  "omitted_paths": 0,
+  "unique_blobs": 9,
+  "identity_sha256": "2ad18c7896baaa08aa1c475d547d73d47c0b2a21a028e0938f61a44354b5716c",
+  "verified_utc": "2026-10-31T14:41:19.028672+00:00"
+}
