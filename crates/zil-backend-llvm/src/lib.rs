@@ -26,6 +26,7 @@ mod build;
 mod cgu;
 mod emit;
 mod machine_cgu;
+mod machine_scalar;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
 mod object_cache;
 pub use object_cache::{ObjectCacheSummary, PendingObjectCache, installed_compiler_identity};

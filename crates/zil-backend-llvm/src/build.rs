@@ -218,9 +218,15 @@ pub fn build_view_with_cancellation(
             None,
         )]);
     }
-    let machine = crate::emit::lower_view_with_options(verified, lir, &options.emit)?;
-    // Diagnostic/reference output only. API preflight runs once per owned unit,
-    // immediately before its LLVMBuilder calls; it cannot be bypassed.
+    let mut machine = crate::emit::lower_view_with_options(verified, lir, &options.emit)?;
+    // The opt-in O2 strategy plans read-only, then validates the complete
+    // original model before replacing any calls. Ordinary O2 skips this pass.
+    if options.optimization == Optimization::O2 && options.incremental_o2 {
+        crate::machine_scalar::fold_known_leaf_calls(&mut machine, lir);
+    }
+    // Diagnostic/reference output only. A nonempty scalar plan requires one
+    // complete original-model preflight. Existing per-unit API preflight still runs
+    // immediately before its LLVMBuilder calls and cannot be bypassed.
     let llvm = machine.to_text();
     let mut plan = crate::machine_cgu::partition_view(
         machine,

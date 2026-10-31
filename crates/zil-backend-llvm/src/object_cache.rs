@@ -18,10 +18,10 @@ use zil_llvm_api::model::Module;
 const MAGIC: &[u8; 8] = b"ZILOBJ01";
 const HEADER: usize = 8 + 32 + 32 + 8;
 const MAX_OBJECT: u64 = 128 * 1024 * 1024;
-// Isolate the complete-call-closure machine-input policy, including builds
-// which leave that policy disabled. Object format and current verification do
-// not change; every selected implementation body is hashed by machine_key.
-const ACTION_PROTOCOL: &str = "ZIL-OBJECT-ACTION-212-v2-complete-direct-call-closures";
+// Isolate complete call closures and checked scalar leaves, including O0
+// builds where it is disabled. The format and current verification are unchanged;
+// actual transformed bodies are hashed, with the precise compiler/library identity.
+const ACTION_PROTOCOL: &str = "ZIL-OBJECT-ACTION-212-v3-complete-call-closures-checked-scalar-v3";
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

@@ -65,7 +65,10 @@ fn success(r: &CompileReport, expected: i32) {
         1,
         "linking must execute on cache hits too"
     );
-    let out = Command::new(&r.artifacts["executable"]).output().unwrap();
+    let out = Command::new(&r.artifacts["executable"])
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
     assert_eq!(out.status.code(), Some(expected), "{out:?}");
 }
 fn entries(root: &Path) -> Vec<PathBuf> {
@@ -89,8 +92,13 @@ fn unused_foreign_declarations_do_not_invalidate_independent_objects() {
         let d = Dir::new();
         d.source();
         let o = d.options(8, optimization);
+        assert!(!o.incremental_o2);
         let first = d.build(&o);
         success(&first, 42);
+        // Ordinary O2 retains the original machine calls: the opt-in scalar
+        // evaluator must not consume hidden()/b.get() before partitioning.
+        let machine = fs::read_to_string(&first.artifacts["llvm"]).unwrap();
+        assert!(machine.matches("call i32 @zil.fn.").count() >= 3);
         let units = first.native_codegen.as_ref().unwrap().actual_units;
         assert!(units > 1);
         let executable = fs::read(&first.artifacts["executable"]).unwrap();
@@ -494,13 +502,16 @@ fn large_file_o0_chunks_reuse_unchanged_objects_and_keep_current_verification() 
 }
 
 #[test]
-fn o2_imported_bodies_invalidate_consumers_and_preserve_current_verification() {
-    fn source(count: usize, edited: usize, extra: bool) -> String {
+fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
+    fn source(count: usize, edited: usize, extra: bool, opaque: bool) -> String {
         let mut text = if extra {
             "fn inserted()->i32{return 7;}\n".to_owned()
         } else {
             String::new()
         };
+        if opaque {
+            text += "extern \"C\" fn getchar()->i32;\n";
+        }
         for i in 0..count {
             text += &format!(
                 "fn f{i}(x:i32)->i32{{return x+{};}}\n",
@@ -508,15 +519,21 @@ fn o2_imported_bodies_invalidate_consumers_and_preserve_current_verification() {
             );
         }
         text += "fn main()->i32{var total:i32=0;\n";
+        if opaque {
+            // success() supplies EOF, so the runtime value is exactly zero;
+            // it remains unknown to the compile-time scalar evaluator.
+            text += "var seed:i32=0;unsafe{seed=getchar()+1;}\n";
+        }
+        let argument = if opaque { "seed" } else { "0" };
         for i in 0..count {
-            text += &format!("total=total+f{i}(0);\n");
+            text += &format!("total=total+f{i}({argument});\n");
         }
         text += "return total;}\n";
         text
     }
-    for closed in [false, true] {
+    for (closed, opaque) in [(false, false), (true, false), (false, true), (true, true)] {
         let d = Dir::new();
-        let original = source(600, usize::MAX, false);
+        let original = source(600, usize::MAX, false, opaque);
         d.write("main.zil", &original);
         let mut options = d.options(8, Optimization::O2);
         options.incremental_o2 = true;
@@ -525,6 +542,13 @@ fn o2_imported_bodies_invalidate_consumers_and_preserve_current_verification() {
         success(&cold, 0);
         assert_eq!(cold.native_codegen.as_ref().unwrap().actual_units, 3);
         assert_eq!(cold.native_codegen.as_ref().unwrap().object_cache.misses, 3);
+        let machine = fs::read_to_string(&cold.artifacts["llvm"]).unwrap();
+        let direct_calls = machine.matches("call i32 @zil.fn.").count();
+        assert_eq!(
+            direct_calls >= 600,
+            opaque,
+            "opaque={opaque}: {direct_calls}"
+        );
         let warm = d.build(&options);
         success(&warm, 0);
         let summary = warm.native_codegen.as_ref().unwrap();
@@ -539,8 +563,44 @@ fn o2_imported_bodies_invalidate_consumers_and_preserve_current_verification() {
             "{}",
             warm.to_json()
         );
-        // f0 owns unit0; its imported body is also consumed by main in unit2.
-        d.write("main.zil", &source(600, 0, false));
+        // A real body edit can preserve the known scalar result. Its owner
+        // changes, but only an opaque consumer still depends on the full body.
+        let old_body = "fn f0(x:i32)->i32{return x+0;}";
+        let new_body = "fn f0(x:i32)->i32{return x*1;}";
+        assert_eq!(original.matches(old_body).count(), 1);
+        let neutral_source = original.replacen(old_body, new_body, 1);
+        assert_ne!(neutral_source, original);
+        assert_eq!(neutral_source.matches(new_body).count(), 1);
+        d.write("main.zil", &neutral_source);
+        let neutral = d.build(&options);
+        success(&neutral, 0);
+        let neutral_cache = &neutral.native_codegen.as_ref().unwrap().object_cache;
+        let neutral_misses = if opaque { 2 } else { 1 };
+        assert_eq!(
+            neutral_cache.misses,
+            neutral_misses,
+            "{}",
+            neutral.to_json()
+        );
+        assert_eq!(
+            neutral_cache.hits,
+            3 - neutral_misses,
+            "{}",
+            neutral.to_json()
+        );
+        d.write("main.zil", &original);
+        let neutral_restored = d.build(&options);
+        success(&neutral_restored, 0);
+        let restored_cache = &neutral_restored
+            .native_codegen
+            .as_ref()
+            .unwrap()
+            .object_cache;
+        assert_eq!(restored_cache.hits, 3, "{}", neutral_restored.to_json());
+        assert_eq!(restored_cache.misses, 0, "{}", neutral_restored.to_json());
+        // f0 owns unit0. Main in unit2 consumes its folded result for known
+        // arguments, or its complete imported implementation for opaque ones.
+        d.write("main.zil", &source(600, 0, false, opaque));
         let early = d.build(&options);
         success(&early, 1);
         assert_eq!(
@@ -550,7 +610,7 @@ fn o2_imported_bodies_invalidate_consumers_and_preserve_current_verification() {
             early.to_json()
         );
         assert_eq!(early.native_codegen.as_ref().unwrap().object_cache.hits, 1);
-        d.write("main.zil", &source(600, 599, false));
+        d.write("main.zil", &source(600, 599, false, opaque));
         let late = d.build(&options);
         success(&late, 1);
         // Reverting f0 reuses its original owner; only the entry owner changes.
@@ -562,7 +622,7 @@ fn o2_imported_bodies_invalidate_consumers_and_preserve_current_verification() {
         );
         assert_eq!(late.native_codegen.as_ref().unwrap().object_cache.hits, 2);
         for (count, extra) in [(600, true), (599, false)] {
-            d.write("main.zil", &source(count, 0, extra));
+            d.write("main.zil", &source(count, 0, extra, opaque));
             success(&d.build(&options), 1);
         }
         d.write("main.zil", &original);
@@ -573,7 +633,11 @@ fn o2_imported_bodies_invalidate_consumers_and_preserve_current_verification() {
             3
         );
         let executable = fs::read(options.output.as_ref().unwrap()).unwrap();
-        d.write("main.zil", &original.replace("f300(0)", "f300(0,1)"));
+        let argument = if opaque { "seed" } else { "0" };
+        d.write(
+            "main.zil",
+            &original.replace(&format!("f300({argument})"), &format!("f300({argument},1)")),
+        );
         let bad = d.build(&options);
         assert_eq!(bad.status, ResultCategory::SafeReject);
         assert_eq!(bad.phase, Phase::Types);
