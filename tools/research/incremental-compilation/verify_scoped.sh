@@ -13,7 +13,7 @@ cargo test --offline --locked \
   --test impl083_bytes_native --test impl120_field_backing_native \
   --test impl228_consumer --test impl228_generation --test impl229_where_copy \
   --test object_cache212 --test cp34_fingerprint --test cp33_parse_receipts \
-  --test builder210 --test narrow_constants
+  --test builder210 --test narrow_constants --test project_frontend_reuse
 cargo clippy --offline --locked --all-targets \
   -p zil-db -p zil-expand -p zil-ir -p zil-lower -p zil-syntax -p zil-verify \
   -p zil-llvm-api -p zil-backend-llvm -p zil-driver \
