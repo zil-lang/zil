@@ -1,0 +1,22 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/994319f2ba02/zil-review226-control/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/994319f2ba02/zil-review226-control/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/994319f2ba02/zil-review226-control/crates/zil-verify)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/994319f2ba02/zil-review226-control/crates/zil-llvm-api)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/994319f2ba02/zil-review226-control/crates/zil-syntax)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/994319f2ba02/zil-review226-control/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/994319f2ba02/zil-review226-control/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/994319f2ba02/zil-review226-control/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/994319f2ba02/zil-review226-control/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/994319f2ba02/zil-review226-control/crates/zil-lower)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/994319f2ba02/zil-review226-control/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/994319f2ba02/zil-review226-control/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review226-control/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 23.17s
+     Running tests/review232_ci077.rs (.work/target-review077-0a/debug/deps/review232_ci077-72045f2825d65b29)
+
+running 2 tests
+test whole_view_disguised_as_managed_descriptor_still_rejects_a_real_mutation ... ok
+test original077_source_and_selector_have_explicit_mutation_evidence ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
