@@ -334,8 +334,8 @@ fn check_program_inner(
                     .memo_usage(before.expect("active memo captured builder counters"));
                 memo.record(module_index, &typed, usage).is_none()
             }) {
-                // An ineligible output or storage bound simply disables this
-                // optional epoch; it never changes the current typed result.
+                // An ineligible output disables this optional epoch. Storage
+                // capacity only omits modules; it cannot alter the typed result.
                 memo = None;
             }
             // This is a diagnostic label only; all resolution and calls use module/function IDs.
@@ -413,6 +413,11 @@ fn check_program_inner(
         closures,
         unsupported: Vec::new(),
     };
+    // Memo snapshots describe the ordinary Builder output, before lending can
+    // mutate it. Selection is complete before any new cache snapshot is copied.
+    let next_memo = memo
+        .map(|memo| memo.finish(&module.functions))
+        .unwrap_or_default();
     lending::populate(&mut module, limits).map_err(|e| vec![e])?;
     for interface in &mut interfaces {
         interface.exports.sort_by(|a, b| a.name.cmp(&b.name));
@@ -425,7 +430,7 @@ fn check_program_inner(
             interfaces,
             root_functions,
         },
-        memo.map(program_memo::Request::finish).unwrap_or_default(),
+        next_memo,
     ))
 }
 
