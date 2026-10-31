@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-31T13:15:00Z",
-  "status": "LanguageSlices232To234Accepted;MetadataPublicationAndBranchCleanupInProgress",
+  "observed_at_utc": "2026-10-31T13:45:25.307851+00:00",
+  "status": "ConstructionStatusAuditComplete;LanguageMainlinePartial",
   "conversation": "zil施工状态核查",
   "actual_tested_main": "f2572502beb76eb86e9254dea855404e4998a64d",
   "restored_review_tip": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
@@ -117,28 +117,66 @@
     "retained callbacks/drain/suspend/cancel/concurrency"
   ],
   "branch_cleanup": {
-    "status": "Pending exact-tip archive and guarded deletion",
-    "research_and_cp25": "Retained",
-    "previous_construction10_receipt": "evidence/integration/construction10/cleanup/RESULT.json"
+    "status": "ArchivedDeletedAndVerified",
+    "run_id": 41206556938,
+    "run_attempt": 2,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41206556938/attempts/2",
+    "checked_main": "886ce5581aa4d176c19d9edf302282297d907a97",
+    "deleted_refs": [
+      "refs/heads/chore/construction8-resume",
+      "refs/heads/chore/construction10-cleanup",
+      "refs/heads/chore/construction10-exact-transport",
+      "refs/heads/chore/construction10-recovery",
+      "refs/heads/chore/construction11-exact-transport",
+      "refs/heads/integration/construction11",
+      "refs/heads/review/construction11",
+      "refs/heads/task/construction-status-20261031-cleanup"
+    ],
+    "original_branches": 23,
+    "remaining_branches": 16,
+    "archive_tags": {
+      "refs/tags/archive/20261031/construction8-resume-6f7b7679a4fd": "6f7b7679a4fd54df0e0460a7b61c425710ad0953",
+      "refs/tags/archive/20261031/construction10-cleanup-acccc78fe1b4": "acccc78fe1b4719fe7598f8ea5d64812e1e9ff5c",
+      "refs/tags/archive/20261031/construction10-exact-transport-d6218fe763f1": "d6218fe763f13cac89f52f0c6663344bb916b371",
+      "refs/tags/archive/20261031/construction10-recovery-88d3e426af67": "88d3e426af67e48d0fbc041ec406f35b54b17b60",
+      "refs/tags/archive/20261031/construction11-exact-transport-a40d12be3767": "a40d12be3767c198d80e8928fac84fe8fb5a5522",
+      "refs/tags/archive/20261031/construction11-integration-c0418f532e75": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+      "refs/tags/archive/20261031/construction11-review-61203584c01e": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+      "refs/tags/archive/20261031/construction-status-cleanup-62e273ac1159": "62e273ac1159056a3a0d305f1363001460ac0a71"
+    },
+    "research_and_cp25": "Retained; all unrelated refs unchanged during atomic operation",
+    "receipt": "evidence/integration/construction-status-20261031/cleanup/RESULT.json",
+    "local_worktrees": "This fresh audit environment did not have the old worktrees; no claim of deleting another sandbox process or worktree"
   },
   "handoff_record_integrity": {
-    "status": "NotRerunInThisStaticAudit",
-    "last_recoverable_snapshot": {
-      "status": "Fail",
-      "checked_commit": "115f4f81e58b6262e3f80234953310158f8b0785",
-      "errors": 1145,
-      "warnings": 0,
-      "baseline_errors_unchanged": true,
-      "added_errors": 0,
-      "removed_errors": 0,
-      "four_accepted_task_errors": 0,
-      "receipt": "evidence/integration/construction10/closeout/RESULT.json"
-    },
-    "unrecoverable_checkpoint_not_used": "1c868827"
+    "status": "Fail",
+    "checked_commit": "886ce5581aa4d176c19d9edf302282297d907a97",
+    "baseline_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+    "errors": 1145,
+    "warnings": 0,
+    "baseline_error_multiset_equal": true,
+    "added_errors": 0,
+    "removed_errors": 0,
+    "three_accepted_task_errors": 0,
+    "receipt": "evidence/integration/construction-status-20261031/cleanup/RESULT.json",
+    "first_attempt_retained": "evidence/integration/construction-status-20261031/attempt1/FAILURE.json"
   },
   "previous_snapshot": {
     "commit": "f2572502beb76eb86e9254dea855404e4998a64d",
     "path": "data/construction-progress.json"
   },
-  "metadata_scope": "Compiler/tests/tools/CI/normative inputs remain identical to actual tested main; new HEAD is not a new test execution"
+  "metadata_scope": "Compiler/tests/tools/CI/normative inputs remain identical to actual tested main; new HEAD is not a new test execution",
+  "latest_main_observed": "886ce5581aa4d176c19d9edf302282297d907a97",
+  "check_plan": {
+    "status": "Pass",
+    "checked_commit": "886ce5581aa4d176c19d9edf302282297d907a97",
+    "tasks": 14,
+    "negative_self_tests": 7,
+    "receipt": "evidence/integration/construction-status-20261031/cleanup/RESULT.json"
+  },
+  "notification": {
+    "page": "https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab",
+    "row": "zil施工状态核查",
+    "heartbeat": "Only while actual work is active; audit completion ends this heartbeat"
+  }
 }

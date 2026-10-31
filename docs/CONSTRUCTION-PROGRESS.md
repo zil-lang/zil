@@ -6,4 +6,4 @@
 
 按功能见[最新语言进度](LANGUAGE-STATUS-20261031.md)，实际接续与分支清理状态见[CURRENT-HANDOFF](CURRENT-HANDOFF.md)，精确main证据见[MAIN-CI](../evidence/integration/construction-status-20261031/MAIN-CI.json)。普通defer仍未实现；完整1.4/ZUI NotSatisfied、B0 Doing、181施工、Rust产品及原生WindowsNotRun。编译研究分支独立保留。
 
-最近可恢复的历史handoff快照为1145错误/0警告，该数是记录完整性缺口，不是编译器失败。本轮尚未用完整Git checkout重跑handoff，不沿用不可恢复的旧聊天收尾成绩。临时分支执行前保全归档，执行结果须以新清理原件回写。
+本轮实际main `886ce5581aa4d176c19d9edf302282297d907a97`与f257基线的handoff均1145错误/0警告，错误多重集合相同；232/233/234各0，check-plan14任务/7负向自检通过。首轮三条作者报告归类错误的Fail保留并已修正。清理attempt2已成功归档并删除7旧分支和本轮执行分支，原23枝减至16枝；所有研究与cp25保留。见[实际原件与清理结果](../evidence/integration/construction-status-20261031/cleanup/RESULT.json)。本轮核查收尾，完整语言施工义务按真实状态继续保留。

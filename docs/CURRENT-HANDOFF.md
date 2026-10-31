@@ -18,8 +18,10 @@
 
 ## 可恢复事实与记录边界
 
-核查开始时远端main=`f2572502beb76eb86e9254dea855404e4998a64d`，待发布review tip=`61203584c01ede0e3bd25c5d4d694198d0b2aa52`；二者顶级树净差异仅docs/evidence。日志曾提到的`1c868827`在GitHub查无提交，本次不使用该不可恢复身份或其手填检查成绩；以已发布证据和重新核验结果重建收尾。最近可恢复的handoff快照为施工10的1145错误/0警告，属于历史记录完整性问题；本轮静态核验未重跑该命令，实际后续执行结果必须另记。
+核查开始时远端main=`f2572502beb76eb86e9254dea855404e4998a64d`，待发布review tip=`61203584c01ede0e3bd25c5d4d694198d0b2aa52`；二者顶级树净差异仅docs/evidence。日志曾提到的`1c868827`在GitHub查无提交，本次不使用该不可恢复身份或其手填检查成绩；以已发布证据和重新核验结果重建收尾。本轮已对受测源码基线和实际收尾main `886ce5581aa4d176c19d9edf302282297d907a97`执行handoff：两者均1145错误/0警告，错误多重集合完全相同，新增0/消除0；232/233/234三卡各零错误。check-plan通过14任务与7项负向自检。这仍是历史记录门Fail，不是编译测试失败。
 
-施工10已删除225/226/integration10/review10四分支。此次准备归档并清理施工8/10剩余四个运维分支，以及已被最新main包含的施工11分支；必须先保存精确tip标签、校验成功CI与源码连续性，并以原子push/逐ref租约执行。此条是执行前状态，不将待清理写为已清理。所有research分支和task/cp25-reactive-session保留。原施工10清理回执仍在[evidence/integration/construction10/cleanup/RESULT.json](../evidence/integration/construction10/cleanup/RESULT.json)。
+[实际清理41206556938 attempt2](https://github.com/zil-lang/zil/actions/runs/41206556938/attempts/2)已成功：施工8/10剩余四个运维分支、施工11运输/集成/审核三枝及本轮执行枝均先建只创建不覆盖的精确归档标签，再以单次atomic push和逐ref租约删除，并读回确认。原23个分支降为16个；所有research与task/cp25-reactive-session保留，操作窗口内无其他ref变化。精确refs、标签、原始回执与完整artifact分片见[清理结果](../evidence/integration/construction-status-20261031/cleanup/RESULT.json)。原施工10已删四分支的[旧回执](../evidence/integration/construction10/cleanup/RESULT.json)仍保留。
 
 施工日志只更新zil-log中的“zil施工状态核查”专属行；本轮负责状态修复与分支清理，不据旧日志宣称其他对话后台仍在运行。接续必须按AGENTS.md重新运行handoff与check-plan，并使用实际main。
+
+首次清理attempt1在任何远端修改前发现三卡把未标最终Pass的作者限定记录列入正式evidence，实际1145→1148；已仅调整记录分类，原报告移列historical_evidence_before_acceptance，文件和结果未改写。原失败、独审与重验完整保存；检查器、清理脚本和门槛没有降低。本轮状态核查与清理已收尾。
