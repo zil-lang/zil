@@ -1,0 +1,22 @@
+[
+  {
+    "prefix": "research/stage6/quality-production-a1ab",
+    "source_path": "/workspace/.zil-env/research/stage6/quality-production-a1ab"
+  },
+  {
+    "prefix": "research/stage6-quality-final-review",
+    "source_path": "/workspace/.zil-env/research/stage6-quality-final-review"
+  },
+  {
+    "prefix": "research/stage6/quality-final-a1ab-archived-sources",
+    "source_path": "/workspace/.zil-env/research/stage6/quality-final-a1ab-archived-sources"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/quality-final-a1ab-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/quality-final-a1ab-plan.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

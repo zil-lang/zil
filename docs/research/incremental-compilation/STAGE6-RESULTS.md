@@ -240,6 +240,8 @@ GM不能掩盖分布缺口。默认candidate的512-body仍比Rust慢28.786338倍
 
 因此这个不变策略原计划的23族增量编译1380请求及六opaque族增量编译360请求均在启动前标记NotRun，共1740；不把它们写作失败执行或完成样本，不以较快的编译换取未披露运行退化。后续质量修复使用新身份与新证据，不能覆盖本次NoGo。原分析的`cells.csv`、`all-adverse-cells.csv`、`summary.json`、独立`recomputed.json`和NoGo ledger都完整保留；小样本fresh native进程时间含启动/I/O/清理，不代表所有程序的稳态吞吐。
 
+正式23族CLI的early/late编辑是既定函数的正文值修改，不是函数插入、删除或重命名性能覆盖。当前FunctionId及固定256函数owner划分仍可能随布局变化广泛失效。独立语义图、错误/恢复与模型控制能够证明其限定正确性，不能替代这些未测编辑类型的性能样本；计划中的8192-branch独立功能控制也不在执行前计Pass。
+
 ## 新组合默认合同的23族完整CLI窗口
 
 这个窗口明确使用888共同源码的四单元候选LLVM、O2、after-MergeFunctions与可信原始语义候选缓存，关闭source-cache和incremental-o2；计时工具冻结在df04。Rust使用overflow checks、panic abort、8 CGU，并保留每个序列的增量缓存。六配对区组共1380请求，1320有效；`body-64x16`和`types-64x16`的60次ZIL预算拒绝原样保留，接受性未提高，只有21族/105单元有速度比。全部有效请求都有原生输出观察，630次成功ZIL均有当前独立Verify。
@@ -296,6 +298,41 @@ cold在这21个有效固定族上的点估计均低于Rust，但cold峰值RSS几
 
 两份完整日志ZIP的CRC和每成员SHA均核对，原run/jobs/artifact-list元数据一起保留；artifact列表不冒充已下载其单独payload。归档包含df04的两workflow、精确producer、vendored C++/许可证和SDK重建输入74份源码。两个Pass不属于后续quality-closure候选或当前HEAD，旧2e8成功与更早失败证据保持原身份，不能覆盖重写。
 
+## O2质量闭合v1：修复思路与限定正确性
+
+原incremental运行质量NoGo之后，新的隔离v1候选针对两个具体缺口继续实施：受限正文导入可能截断跨单元直接调用链，available_externally正文也不是每个消费者内可靠保留的内部实现。候选为消费者规划完整的可支持直接调用闭包，生成新Internal实现名，只改直接callee；原canonical函数实体、地址、参数/返回值、间接调用与全局状态仍保留。递归由visited终止；遇跨owner的未知编译器实现、私有存储依赖、名字冲突或整体复制费用超限，回退原完整模块，不默默截断闭包。
+
+复制费用按每个消费者新增的指令/块成本计数，总新增成本不超过原source函数成本，等于边界时接受；这不是两倍文本、RSS或LLVM优化时间的保证。最后消费者取得原值、其他消费者取得未修改模板的副本，避免先处理的canonical owner或clone污染后续消费者。缓存仍以完整变换后单元及声明依赖为输入；这改善跨单元机器优化可见性，不是Types/CT语义增量。
+
+真实API输入捕获的原receipt中`capture_count:false`保持不变：初版错预期每请求16次调用，实际8个CGU各有完整before/after/meta，API以一次default<O2>执行每单元并设置MergeFunctions选项。修正说明也保留此前误称“另有legacy Merge调用”的解释错误，没有把解释修订当重新编译。原始捕获、bounded/full与AE/internal的真实IR消融、默认/closed body对照、snapshot构建和作者30次构建/150次native都属于功能/诊断窗口，不提供正式速度或广泛运行质量结论。
+
+最终v1独审绑定888基础、661份Git输入、实际5ca5…机器划分源码、1f2f…编译器和既有四单元7b5c…DSO；13个独立结构控制覆盖三个owner位置的1535/1536/1537费用、未知helper/私有状态/名字冲突回退及closed地址。另有14次真实ZIL构建、1次当前拒绝、70次原生执行；跨单元受影响编辑为3miss/1hit，无关第四单元编辑为1miss/3hit。递归、函数值、资源/Drop回退、实际loader和当前Verify均有独立控制。
+
+作者测试先因借用/移动错误失败，测试专用`name.clone()`修正后18项通过；原BUILD/15759来源及初始测试字节和后续TEST-SUPPLEMENT分开绑定，不能把测试修正后的快照重标为原编译ELF来源。独审初始panic策略、cache-hit字段及源码格式假设失败也保留。更早的4cab…结构静态审查版本只保存报告/SHA，没有另存完整源码字节，不能声称完整恢复该早期状态。最终v1可恢复输入与旧producer快照已封存于`quality-closure-v1`；主树生产a1ab另有身份与审查，本段不批准它，也不覆盖原326倍NoGo或预填新正式矩阵。
+
+## 同源LLVM隔离：旧888完整CLI收益的幅度
+
+最后一个旧888隔离窗以相同ZIL生产源码比较原版与四单元候选LLVM，工具仍df04，没有Rust臂。23族×6区组×5请求×两ZIL共1380请求；1260有效，body/types两拒绝族在两臂合计120次预算拒绝全部保留。1260次成功都有当前Verify与native观察，对象报告为5736hit/2064miss。独立分析按原始行和同一配对方法复算，不能把这个比值改叫ZIL/Rust。
+
+| 请求 | 21有效族candidate/original GM | 探索性95%区间 | 较慢单元 |
+|---|---:|---|---:|
+| cold | 0.958337 | [0.944967,0.973135] | 9/21 |
+| unchanged | 0.993850 | [0.979411,1.007000] | 9/21 |
+| early_edit | 0.943154 | [0.931690,0.961152] | 8/21 |
+| late_edit | 0.958824 | [0.942958,0.972567] | 6/21 |
+| restore | 1.003497 | [0.984172,1.016109] | 12/21 |
+| 全部有效单元 | 0.971259 | [0.964327,0.977731] | 44/105 |
+
+完整窗口总体收益有限，峰值RSS整体几何比1.005370；大单模块有更明显改善：8192函数cold为3027.1/4526.3ms，前/后编辑为3052.7/4542.6及3031.9/4528.7ms，比值0.6688/0.6720/0.6695。但restore总体1.0035，仍有44个不利点估计；未经多重校正的7不利/20有利区间不作总体显著性判定。这份正式归因不能与opaque单pass诊断倍数混用，更不能改标为随后a1ab质量闭合生产版本。
+
+## a1ab质量闭合生产整合的限定验收
+
+生产`a1ab243fa5ba1b9841c904d251fea7c999aa6681`已另行构建，实际编译器为cdc6…、所加载LLVM仍7b5…；662份来源与构建前后Git一致性、命令、loader及wrapper绑定独立保留。原实验API私有标签不借作生产语义；对象action协议为`ZIL-OBJECT-ACTION-212-v2-complete-direct-call-closures`，旧实验缓存按新身份隔离。
+
+作者18项限定backend测试通过。最终独审另执行8次最终ELF成功构建、2次旧实验缓存对照、40+10次native和3次产物保护负例；旧13个结构控制按精确等价复用，新增结构执行为0。它证明所列源码/缓存/错误控制，不提供正式编译速度或运行质量恢复结论，也不继承df04远端CI为a1ab完整CI。
+
+`ENV-SUPPLEMENT`在构建完成后记录同环境脚本、显式覆盖、工具派发及部分环境/配置存在性；原cargo启动时没有捕获这些值，完整环境及配置内容也未保存。补收据不追认构建时观察，不改写BUILD。新的900请求质量/编译矩阵及8192branch控制须按后续实际身份和状态填写，当前不预填Pass。原326倍NoGo、v1诊断与这里的生产正确性继续分别保留。
+
 ## 原始表与失败记录索引
 
 所有包都保留原始身份。schema-1的thin/screens/correctness/merge-screens用`stage6_archive.py`，schema-2其余新包用`stage6_archive_large.py`：`--extract <包目录> --dest <新目录>`恢复下表的逻辑路径，`--verify <包目录>`核对。algorithms包是其原有多tar档案。README、IDENTITY、VERIFY与完整FILES/OMITTED说明保留范围；ELF/缓存二进制省略项仍有原字节SHA。压缩和内容去重没有改写统计行或失败状态。
@@ -335,6 +372,10 @@ cold在这21个有效固定族上的点估计均低于Rust，但cold峰值RSS几
 | [confirmation-closed-cache-cleanup](../../../evidence/research/incremental-compilation/stage6/confirmation-closed-cache-cleanup) | 138根5172文件的原始清点、全SHA核验、硬链接重验与精确删除；9159个非缓存文件保持一致 |
 | [confirmation-real](../../../evidence/research/incremental-compilation/stage6/confirmation-real) | 14真实小项目336请求、5040原生观察与210oracle、原helper/source/命令/lease及独立分析v1；28完整比较单元，cold历史SHA与最终ELF边界明确 |
 | [ci-dual-df04](../../../evidence/research/incremental-compilation/stage6/ci-dual-df04) | df04研究/官方两成功run的原API元数据与完整ZIP日志、每成员SHA/CRC核对；74份精确workflow/producer/C++/许可证/SDK重建源码 |
+| [quality-closure-v1](../../../evidence/research/incremental-compilation/stage6/quality-closure-v1) | 原Fail捕获/完整actualIR/ablation/body对照/30build150native；旧producer与9工具快照、15759来源/测试修补、独审13model/14build/1reject/70native；早期4cab仅报告SHA边界 |
+| [confirmation-isolation](../../../evidence/research/incremental-compilation/stage6/confirmation-isolation) | 旧888同源原版/候选LLVM1380请求，1260有效/120预算拒绝，全部115状态/105比值、原source/runner/lease/命令及独立分析v1；没有Rust臂 |
+| [quality-final-a1ab](../../../evidence/research/incremental-compilation/stage6/quality-final-a1ab) | 最终a1ab生产SOURCE/BUILD/18tests/loader及旧producer，构建后ENV补收据；独审8最终+2旧cache/50native/3负例，独立于v1且不含性能验收 |
+
 
 
 
@@ -346,7 +387,7 @@ cold在这21个有效固定族上的点估计均低于Rust，但cold峰值RSS几
 | 新窗口/工作 | 本稿状态 | 完成后必须回答的问题 |
 |---|---|---|
 | 最终整合身份的Session | ffe4两窗已完成；不得自动改标为新身份 | 新main/LLVM变动是否影响既有编辑收益、常驻内存及错误/取消/预算控制 |
-| 合入f257后的生产CLI与Rust同工作负载矩阵 | ac4/888限定源码与CLI已冻结；默认与closed各23族、14真实项目的六区组已完成并独立审核；opaque/同源隔离仍待冻结结论 | 默认与closed、冷/暖/前后编辑/恢复，全部形状和失败；同等级优化下是否缩小O2差距 |
+| 合入f257后的生产CLI与Rust同工作负载矩阵 | ac4/888限定源码与CLI已冻结；默认与closed各23族、14真实项目的六区组已完成并独立审核；旧888同源隔离也已完成；新a1ab/opaque质量矩阵仍待冻结结论 | 默认与closed、冷/暖/前后编辑/恢复，全部形状和失败；同等级优化下是否缩小O2差距 |
 | 运行质量后续确认 | 六族旧组合已正式完成，原incremental质量NoGo；真实项目及新修复仍待测 | 保留默认body差距和全部不利格；新策略必须用独立身份证明运行质量，不能借旧GM晋升 |
 | 入口保留JumpThreading库候选 | 真实API四单元组合独审及六族runtime已完成；最终编译矩阵待发布 | 原版clone/内建等价、class/layout及实际加载库身份、LLVM验证、入口/循环/资源控制，以及完整请求和运行质量能否复现收益 |
 | 稳定语义owner与更细Types/CT/函数依赖 | 尚未完成 | 真正减少实际语义工作，并保留当前源码、ID、查找、规则和预算有效性，而非只改缓存计数 |

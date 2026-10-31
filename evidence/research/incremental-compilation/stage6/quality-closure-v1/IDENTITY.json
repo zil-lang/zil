@@ -1,0 +1,102 @@
+{
+  "schema": 2,
+  "kind": "quality-closure-v1",
+  "collected_utc": "2026-10-31T16:18:11.747792+00:00",
+  "head_at_collection": "a1ab243fa5ba1b9841c904d251fea7c999aa6681",
+  "collector_sha256": "80daf64df57d74139eaa70349240ff86fc8fca93b81b306c3e973346a4bd24c3",
+  "archive": {
+    "logical_path": "raw.tar.gz",
+    "bytes": 11627278,
+    "sha256": "f2e3a927aa0bc4120492fcb0c0182e4b896d30a037fe1e8ada2a01cf0f10e4a2",
+    "parts": [
+      {
+        "path": "raw.tar.gz",
+        "bytes": 11627278,
+        "sha256": "f2e3a927aa0bc4120492fcb0c0182e4b896d30a037fe1e8ada2a01cf0f10e4a2"
+      }
+    ]
+  },
+  "manifests": {
+    "FILES": {
+      "encoding": "gzip-jsonl",
+      "rows": 1417,
+      "logical_bytes": 651080,
+      "logical_sha256": "fdda1e88f23a2b06a30201c3000a284b152a5cbc80ead6d53f9e93634e6aa8f5",
+      "storage": {
+        "logical_path": "FILES.jsonl.gz",
+        "bytes": 67663,
+        "sha256": "515309acbf89f81237afbfa393ce9e4ec2248b7c2d4e9f4f9d5dc4bcc4abb458",
+        "parts": [
+          {
+            "path": "FILES.jsonl.gz",
+            "bytes": 67663,
+            "sha256": "515309acbf89f81237afbfa393ce9e4ec2248b7c2d4e9f4f9d5dc4bcc4abb458"
+          }
+        ]
+      }
+    },
+    "OMITTED": {
+      "encoding": "gzip-jsonl",
+      "rows": 169,
+      "logical_bytes": 91620,
+      "logical_sha256": "cb932d45ca22a0db154cd4352d438223d3406b5d0c7631485943943f2034ab7e",
+      "storage": {
+        "logical_path": "OMITTED.jsonl.gz",
+        "bytes": 13414,
+        "sha256": "039f9d1da1da6b084cb10b9fff762db9dbef8b99aed30a1718d928f538f8c03e",
+        "parts": [
+          {
+            "path": "OMITTED.jsonl.gz",
+            "bytes": 13414,
+            "sha256": "039f9d1da1da6b084cb10b9fff762db9dbef8b99aed30a1718d928f538f8c03e"
+          }
+        ]
+      }
+    }
+  },
+  "metadata": {
+    "FILES.jsonl.gz": {
+      "bytes": 67663,
+      "sha256": "515309acbf89f81237afbfa393ce9e4ec2248b7c2d4e9f4f9d5dc4bcc4abb458"
+    },
+    "OMITTED.jsonl.gz": {
+      "bytes": 13414,
+      "sha256": "039f9d1da1da6b084cb10b9fff762db9dbef8b99aed30a1718d928f538f8c03e"
+    },
+    "ROOTS.json": {
+      "bytes": 6614,
+      "sha256": "d809ca0a19e7e18a7bbb7df1859a15763c46e08048f122631cf2a1308649f061"
+    },
+    "PLAN.json": {
+      "bytes": 513,
+      "sha256": "0b3b2c8067eb0f579bd4b39b65a7bd80ff0d6624eddce64db36346a697765b87"
+    }
+  },
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 121,
+      "bytes": 4664680
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 38,
+      "bytes": 13083296
+    },
+    {
+      "class": "large-semantic-cache-candidate",
+      "files": 10,
+      "bytes": 3228630
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 1417,
+      "bytes": 313218437
+    }
+  ],
+  "retained_paths": 1417,
+  "omitted_paths": 169,
+  "unique_blobs": 743,
+  "boundary": "Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.",
+  "scope": "Frozen isolated quality-closurev1 evidence, not final main-tree production: actual API capture with original countFalse/Fail and16-to8/API interpretation corrections; bounded/full AE/internal IR ablations; default/closed body controls; old and corrected producer bytes; original15759 BUILD/source and separate test-only borrow correction with18tests. All timing here is functional/diagnostic, not formal speed or broad runtime-quality acceptance. Independent v1 review binds661 sources,13models,14successful builds,1rejection and70native; original reviewer failures retained. Actual20k runtime inputs/helpers/oracle process records retained, not old1k fixture substitution. Early4cab source bytes are unavailable beyond report/SHA, explicitly not claimed recoverable. Current production, new declaration candidate and active formal matrices excluded."
+}

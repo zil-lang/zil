@@ -1,0 +1,27 @@
+{
+  "kind": "quality-final-a1ab",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 10,
+      "bytes": 198040
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 2,
+      "bytes": 119176
+    },
+    {
+      "class": "large-semantic-cache-candidate",
+      "files": 4,
+      "bytes": 1291452
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 103,
+      "bytes": 1981464
+    }
+  ],
+  "selected_paths": 119,
+  "unique_blobs": 71
+}

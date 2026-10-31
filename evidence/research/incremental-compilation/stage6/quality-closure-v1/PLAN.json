@@ -1,0 +1,27 @@
+{
+  "kind": "quality-closure-v1",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 121,
+      "bytes": 4664680
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 38,
+      "bytes": 13083296
+    },
+    {
+      "class": "large-semantic-cache-candidate",
+      "files": 10,
+      "bytes": 3228630
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 1417,
+      "bytes": 313218437
+    }
+  ],
+  "selected_paths": 1586,
+  "unique_blobs": 743
+}

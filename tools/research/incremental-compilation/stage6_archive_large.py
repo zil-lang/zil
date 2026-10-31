@@ -94,7 +94,7 @@ def roots_for(kind, repo, research):
             'run.json', 'jobs.json', 'artifacts.json', 'logs.zip',
         ]]
         tools = []
-    elif kind in ['llvm-entry', 'llvm-lvi', 'llvm-cfg', 'llvm-ssa', 'llvm-combined', 'research-ci-tools', 'benchmark-tools', 'runtime-final-v1', 'confirmation-default', 'confirmation-default-cache-cleanup', 'confirmation-closed', 'confirmation-closed-cache-cleanup', 'ci-dual-df04', 'confirmation-real']:
+    elif kind in ['llvm-entry', 'llvm-lvi', 'llvm-cfg', 'llvm-ssa', 'llvm-combined', 'research-ci-tools', 'benchmark-tools', 'runtime-final-v1', 'confirmation-default', 'confirmation-default-cache-cleanup', 'confirmation-closed', 'confirmation-closed-cache-cleanup', 'ci-dual-df04', 'confirmation-real', 'quality-closure-v1', 'confirmation-isolation', 'quality-final-a1ab']:
         plan_path = repo / ('evidence/research/incremental-compilation/stage6/' + kind + '-plan.json')
         plan = json.loads(plan_path.read_text())
         roots = [research / name for name in plan['research_roots']]
@@ -305,7 +305,7 @@ def collect(args):
     roots = roots_for(args.kind, args.repo, args.research)
     planned_omissions = {}
     planned_preservation = set()
-    if args.kind in ['llvm-entry', 'llvm-lvi', 'llvm-cfg', 'llvm-ssa', 'llvm-combined', 'research-ci-tools', 'benchmark-tools', 'runtime-final-v1', 'confirmation-default', 'confirmation-default-cache-cleanup', 'confirmation-closed', 'confirmation-closed-cache-cleanup', 'ci-dual-df04', 'confirmation-real']:
+    if args.kind in ['llvm-entry', 'llvm-lvi', 'llvm-cfg', 'llvm-ssa', 'llvm-combined', 'research-ci-tools', 'benchmark-tools', 'runtime-final-v1', 'confirmation-default', 'confirmation-default-cache-cleanup', 'confirmation-closed', 'confirmation-closed-cache-cleanup', 'ci-dual-df04', 'confirmation-real', 'quality-closure-v1', 'confirmation-isolation', 'quality-final-a1ab']:
         plan_path = args.repo / ('evidence/research/incremental-compilation/stage6/' + args.kind + '-plan.json')
         plan = json.loads(plan_path.read_text())
         planned_omissions = plan.get('omission_paths', {})
@@ -388,7 +388,7 @@ def collect(args):
         'manifests': manifests, 'metadata': metadata, 'summary': summary,
         'retained_paths': retained.rows, 'omitted_paths': omitted.rows, 'unique_blobs': len(blobs),
         'boundary': 'Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.',
-        'scope': (plan['archive_scope'] if args.kind in ['llvm-combined', 'research-ci-tools', 'benchmark-tools', 'runtime-final-v1', 'confirmation-default', 'confirmation-default-cache-cleanup', 'confirmation-closed', 'confirmation-closed-cache-cleanup', 'ci-dual-df04', 'confirmation-real'] else
+        'scope': (plan['archive_scope'] if args.kind in ['llvm-combined', 'research-ci-tools', 'benchmark-tools', 'runtime-final-v1', 'confirmation-default', 'confirmation-default-cache-cleanup', 'confirmation-closed', 'confirmation-closed-cache-cleanup', 'ci-dual-df04', 'confirmation-real', 'quality-closure-v1', 'confirmation-isolation', 'quality-final-a1ab'] else
                   'Two completed formal Session roots plus preparation/control evidence. session-final-vs-3d6 is SupersededPrepared only and contributes no measured requests.' if args.kind == 'session' else
                   'Independent Session review, including its full large inventory and recomputation.' if args.kind == 'session-review' else
                   'Two completed six-block AST Session windows: ccf1 versus ffe4 isolation and 3d6 versus ffe4 combination. Frozen raw controls, requests, exclusive-window receipts and original build/source identities. Collection HEAD is a later compiler and does not relabel these measurements.' if args.kind == 'syntax-session' else
@@ -485,7 +485,7 @@ def verify(root, destination=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--kind', choices=['session', 'session-review', 'syntax-session', 'syntax-session-review', 'integration-correctness', 'ci-disk', 'ci-main-412093', 'screen-cache-cleanup', 'llvm-entry', 'llvm-lvi', 'llvm-cfg', 'llvm-ssa', 'llvm-combined', 'research-ci-tools', 'benchmark-tools', 'runtime-final-v1', 'confirmation-default', 'confirmation-default-cache-cleanup', 'confirmation-closed', 'confirmation-closed-cache-cleanup', 'ci-dual-df04', 'confirmation-real', 'scalar-screens', 'scalar-correctness', 'diagnostics', 'syntax-correctness'])
+    parser.add_argument('--kind', choices=['session', 'session-review', 'syntax-session', 'syntax-session-review', 'integration-correctness', 'ci-disk', 'ci-main-412093', 'screen-cache-cleanup', 'llvm-entry', 'llvm-lvi', 'llvm-cfg', 'llvm-ssa', 'llvm-combined', 'research-ci-tools', 'benchmark-tools', 'runtime-final-v1', 'confirmation-default', 'confirmation-default-cache-cleanup', 'confirmation-closed', 'confirmation-closed-cache-cleanup', 'ci-dual-df04', 'confirmation-real', 'quality-closure-v1', 'confirmation-isolation', 'quality-final-a1ab', 'scalar-screens', 'scalar-correctness', 'diagnostics', 'syntax-correctness'])
     parser.add_argument('--repo', type=Path, default=Path.cwd())
     parser.add_argument('--research', type=Path, default=Path('/workspace/.zil-env/research'))
     parser.add_argument('--out', type=Path)

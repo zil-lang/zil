@@ -1,0 +1,16 @@
+{
+  "research_roots": [
+    "stage6/confirmation-isolation",
+    "stage6/confirmation-isolation-execution.json",
+    "stage6/confirmation-isolation-exclusive-lease.json",
+    "stage6/confirmation-isolation.log",
+    "stage6/confirmation-isolation-analysis-v1"
+  ],
+  "tools": [],
+  "repo_extra_sources": [],
+  "external_sources": [],
+  "tool_source_inventory": [],
+  "omission_paths": {},
+  "preserve_paths": [],
+  "archive_scope": "Frozen exclusive old888 common-source LLVM candidate/original isolation window:1380requests,1260valid and120budget refusals;23fixed shapes,6blocks,5requests,twoZIL arms, noRust. Full raw source identities, rows/stdout/stderr/native, commands/lease/execution and AuditComplete independent analysis retained. Exact originaldf04 measurement tool and888 compiler/744 DSO pair remain their measured identities, not finala1ab/newquality. Body-value edits are not function insertion/deletion/rename performance coverage. Final artifacts and source sidecars retain historical audit limits; generated binaries/caches individually SHA-inventoried. No cache deletion authorized or performed by collection."
+}
