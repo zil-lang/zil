@@ -1,0 +1,1 @@
+pub trait Read{fn value(self:Self)->i32;}

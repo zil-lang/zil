@@ -1,0 +1,41 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-verify)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-llvm-api)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-syntax)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-ct)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 21.66s
+     Running tests/review233_independent.rs (.work/target-review233-6d087050/debug/deps/review233_independent-d319a612cef6f2d4)
+
+running 9 tests
+
+thread 'generated_dependency_cannot_authorize_an_unimported_source_trait' (275) panicked at crates/zil-driver/tests/review233_independent.rs:83:5:
+assertion `left == right` failed: actual-source-import-authorizes-ordinary-trait: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-TERMINATOR","message":"expected a semicolon, logical newline, or closing brace after the complete statement","span":{"file":2,"start":130,"end":133},"notes":[]}],"artifacts":{},"input_fingerprint":"914aee4c7bd3077de93364d396cf3db6b3a8260e32490f2056bc03be2a12a579","seconds":0.00209899,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"rules.zil","2":"data.zil","3":"facade.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test generated_dependency_cannot_authorize_an_unimported_source_trait ... FAILED
+test private_missing_unimported_traits_and_foreign_self_stay_closed ... ok
+test uncalled_bad_impls_cannot_escape_signature_method_set_or_collision_checks ... ok
+test renamed_reserved_traits_are_rejected_without_a_generic_bound ... ok
+test imported_signature_types_preserve_their_real_nominal_owner ... ok
+test two_local_self_types_and_same_spelling_traits_keep_nominal_identity ... ok
+test shared_resource_receiver_runs_real_drop_and_rejects_owned_receiver ... ok
+test separate_generic_library_uses_each_actual_method_body ... ok
+test split_trait_impl_uses_definition_module_and_both_bound_spellings ... ok
+
+failures:
+
+failures:
+    generated_dependency_cannot_authorize_an_unimported_source_trait
+
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+error: test failed, to rerun pass `-p zil-driver --test review233_independent`
