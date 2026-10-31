@@ -1,0 +1,15 @@
+{
+  "repository": "https://github.com/llvm/llvm-project",
+  "tag": "llvmorg-23.1.4",
+  "commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "files": [
+    {
+      "name": "PassBuilderPipelines.cpp",
+      "path": "llvm/lib/Passes/PassBuilderPipelines.cpp",
+      "sha256": "b9c1d966a530d87054513e6dddda3b78115d6e92dec421753df4a07f0c713fa0",
+      "git_blob_sha1": "5de45e5668fb92fa2df37ddfa1bc8ac851ef4dd5"
+    }
+  ],
+  "license_sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee",
+  "fetch": "GitHub contents raw at the exact commit; initial sandbox network refusal retained in conversation, successful authorized read returned source."
+}
