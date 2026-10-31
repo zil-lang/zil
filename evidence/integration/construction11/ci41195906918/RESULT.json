@@ -1,0 +1,294 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "run_id": 41195906918,
+  "run_attempt": 1,
+  "job_id": 124521892205,
+  "head_candidate": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+  "actual_checkout": "db07200ba221bdb67f3f1b7bef7f8e9851592a1a",
+  "compared_candidate": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+  "metadata_only_tree_difference": [],
+  "compiler_test_tool_and_normative_inputs_identical": true,
+  "workspace": {
+    "groups": 336,
+    "passed": 3027,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "reference": {
+    "groups": 336,
+    "passed": 2983,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "text_reference": {
+    "groups": 8,
+    "passed": 37,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "migration_runner": {
+    "status": "Pass",
+    "passed": 9
+  },
+  "all_required_steps_success": true,
+  "successful_step_count": 25,
+  "consumer209": {
+    "status": "Pass",
+    "builds": 16,
+    "objects": 40,
+    "observations": 128,
+    "allocation_observations": 88,
+    "actual_failure_injections": 56,
+    "all_observed_live_zero": true,
+    "backend": "llvm-api",
+    "llvm_version": "23.1.4",
+    "fallback": null
+  },
+  "receipt_hashes": {
+    "bundle-verify.log": {
+      "bytes": 2356,
+      "sha256": "fc19369d611d318c72b6ce1b1fbcf5c2b54100af83c468ebf6df140ed33fcb75"
+    },
+    "clippy.log": {
+      "bytes": 1190,
+      "sha256": "636c24d2025f881e91cc96500673f79754e1d4ed24caa64e52976dafe58a8a42"
+    },
+    "commit.txt": {
+      "bytes": 41,
+      "sha256": "9b1669f76a956dd2b7338075f336377a9d7cacf418eda3acf86c00d44285ebcd"
+    },
+    "consumer209.json": {
+      "bytes": 76504,
+      "sha256": "319b680132a200b1e7dd25bf752c2c6114414b0c2d2959346b50e6ba41326c57"
+    },
+    "fmt.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "llvm-api-toolchain.json": {
+      "bytes": 1397,
+      "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+    },
+    "llvm-install.json": {
+      "bytes": 35125,
+      "sha256": "ec27845a20e3124221f459a9156d6a18a18edc6079578ef1a619fedc03175f72"
+    },
+    "migration-runner.log": {
+      "bytes": 107,
+      "sha256": "d041de1238c0ff86f970a1ff7932c08b9ea56782fc94936eb6589c72421feaf7"
+    },
+    "reference-native-manifest.json": {
+      "bytes": 13224563,
+      "sha256": "878d33bfea7dd6ef530d39dc93958fe90748e38e70e0b7d031f94c06efd90a8c"
+    },
+    "reference-resources-after.log": {
+      "bytes": 388,
+      "sha256": "dfc5508690bd22f3aa8e198b8850d0e7683d58333ec91f2cc637a3085db63a52"
+    },
+    "reference-resources-before.log": {
+      "bytes": 220,
+      "sha256": "097bf121e6dd286d3103e6a787b86d3b64a5ec4f0550c36c5d24d739a7690199"
+    },
+    "reference.log": {
+      "bytes": 312355,
+      "sha256": "9072013d05927350e792d47b409cecdddeda155140d0d26463c03b31511e38e6"
+    },
+    "source-tree.txt": {
+      "bytes": 11910416,
+      "sha256": "d5855a3ee6e2b3cd43416042631f9c9b65bd63a18aa406991dac6536bc066c8f"
+    },
+    "text-reference.log": {
+      "bytes": 4019,
+      "sha256": "976e82ddc492b189bc6a877b81bda29bf87c436ebce371671d354786040f3624"
+    },
+    "toolchain.txt": {
+      "bytes": 404,
+      "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+    },
+    "workspace-native-manifest.json": {
+      "bytes": 13822203,
+      "sha256": "3aafe77c3a0627a35113146c51f302dd29dab055527bdff09d9e32d3c49b9e2e"
+    },
+    "workspace-resources-after.log": {
+      "bytes": 344,
+      "sha256": "0928d9461f3d359db6007d55e69ec4137822813de04f895a0212e2766e72f571"
+    },
+    "workspace-resources-before.log": {
+      "bytes": 144,
+      "sha256": "9a5d91ed5e5eb919252547ddc248d07a056be060484933e0bb9240dabf32b47e"
+    },
+    "workspace.log": {
+      "bytes": 310339,
+      "sha256": "918ad121c3b491ee81f5bdb3c0189734b1d665d28b77a9aaf494c6ffd917fc23"
+    }
+  },
+  "boundaries": {
+    "complete_language": "NotSatisfied",
+    "product_gates": "NotRun",
+    "native_Windows": "NotRun",
+    "default_and_reference_counts_not_added": true
+  },
+  "archived_receipts": [
+    {
+      "original": "bundle-verify.log",
+      "stored": "bundle-verify.log",
+      "bytes": 2356,
+      "sha256": "fc19369d611d318c72b6ce1b1fbcf5c2b54100af83c468ebf6df140ed33fcb75",
+      "stored_bytes": 2356,
+      "stored_sha256": "fc19369d611d318c72b6ce1b1fbcf5c2b54100af83c468ebf6df140ed33fcb75"
+    },
+    {
+      "original": "clippy.log",
+      "stored": "clippy.log",
+      "bytes": 1190,
+      "sha256": "636c24d2025f881e91cc96500673f79754e1d4ed24caa64e52976dafe58a8a42",
+      "stored_bytes": 1190,
+      "stored_sha256": "636c24d2025f881e91cc96500673f79754e1d4ed24caa64e52976dafe58a8a42"
+    },
+    {
+      "original": "commit.txt",
+      "stored": "commit.txt",
+      "bytes": 41,
+      "sha256": "9b1669f76a956dd2b7338075f336377a9d7cacf418eda3acf86c00d44285ebcd",
+      "stored_bytes": 41,
+      "stored_sha256": "9b1669f76a956dd2b7338075f336377a9d7cacf418eda3acf86c00d44285ebcd"
+    },
+    {
+      "original": "consumer209.json",
+      "stored": "consumer209.json",
+      "bytes": 76504,
+      "sha256": "319b680132a200b1e7dd25bf752c2c6114414b0c2d2959346b50e6ba41326c57",
+      "stored_bytes": 76504,
+      "stored_sha256": "319b680132a200b1e7dd25bf752c2c6114414b0c2d2959346b50e6ba41326c57"
+    },
+    {
+      "original": "fmt.log",
+      "stored": "fmt.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_bytes": 0,
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original": "llvm-api-toolchain.json",
+      "stored": "llvm-api-toolchain.json",
+      "bytes": 1397,
+      "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71",
+      "stored_bytes": 1397,
+      "stored_sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+    },
+    {
+      "original": "llvm-install.json",
+      "stored": "llvm-install.json",
+      "bytes": 35125,
+      "sha256": "ec27845a20e3124221f459a9156d6a18a18edc6079578ef1a619fedc03175f72",
+      "stored_bytes": 35125,
+      "stored_sha256": "ec27845a20e3124221f459a9156d6a18a18edc6079578ef1a619fedc03175f72"
+    },
+    {
+      "original": "migration-runner.log",
+      "stored": "migration-runner.log",
+      "bytes": 107,
+      "sha256": "d041de1238c0ff86f970a1ff7932c08b9ea56782fc94936eb6589c72421feaf7",
+      "stored_bytes": 107,
+      "stored_sha256": "d041de1238c0ff86f970a1ff7932c08b9ea56782fc94936eb6589c72421feaf7"
+    },
+    {
+      "original": "reference-native-manifest.json",
+      "stored": "reference-native-manifest.json.gz",
+      "bytes": 13224563,
+      "sha256": "878d33bfea7dd6ef530d39dc93958fe90748e38e70e0b7d031f94c06efd90a8c",
+      "stored_bytes": 1866636,
+      "stored_sha256": "7067fa87f5e3b7c8b3a0e1174f0bdd3ef829534e67288ca076ad2d8f0254228e"
+    },
+    {
+      "original": "reference-resources-after.log",
+      "stored": "reference-resources-after.log",
+      "bytes": 388,
+      "sha256": "dfc5508690bd22f3aa8e198b8850d0e7683d58333ec91f2cc637a3085db63a52",
+      "stored_bytes": 388,
+      "stored_sha256": "dfc5508690bd22f3aa8e198b8850d0e7683d58333ec91f2cc637a3085db63a52"
+    },
+    {
+      "original": "reference-resources-before.log",
+      "stored": "reference-resources-before.log",
+      "bytes": 220,
+      "sha256": "097bf121e6dd286d3103e6a787b86d3b64a5ec4f0550c36c5d24d739a7690199",
+      "stored_bytes": 220,
+      "stored_sha256": "097bf121e6dd286d3103e6a787b86d3b64a5ec4f0550c36c5d24d739a7690199"
+    },
+    {
+      "original": "reference.log",
+      "stored": "reference.log.gz",
+      "bytes": 312355,
+      "sha256": "9072013d05927350e792d47b409cecdddeda155140d0d26463c03b31511e38e6",
+      "stored_bytes": 71641,
+      "stored_sha256": "8beef99d462bb6d78a246a91824bff9b41f0193939e96ef0bdcf47dabb10cb3a"
+    },
+    {
+      "original": "source-tree.txt",
+      "stored": "source-tree.txt.gz",
+      "bytes": 11910416,
+      "sha256": "d5855a3ee6e2b3cd43416042631f9c9b65bd63a18aa406991dac6536bc066c8f",
+      "stored_bytes": 1677506,
+      "stored_sha256": "3dc67f4c01594e7a5f130b212cfe98275b2c42258957dde322d02d2dcadd80d6"
+    },
+    {
+      "original": "text-reference.log",
+      "stored": "text-reference.log",
+      "bytes": 4019,
+      "sha256": "976e82ddc492b189bc6a877b81bda29bf87c436ebce371671d354786040f3624",
+      "stored_bytes": 4019,
+      "stored_sha256": "976e82ddc492b189bc6a877b81bda29bf87c436ebce371671d354786040f3624"
+    },
+    {
+      "original": "toolchain.txt",
+      "stored": "toolchain.txt",
+      "bytes": 404,
+      "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0",
+      "stored_bytes": 404,
+      "stored_sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+    },
+    {
+      "original": "workspace-native-manifest.json",
+      "stored": "workspace-native-manifest.json.gz",
+      "bytes": 13822203,
+      "sha256": "3aafe77c3a0627a35113146c51f302dd29dab055527bdff09d9e32d3c49b9e2e",
+      "stored_bytes": 1937158,
+      "stored_sha256": "ee13de99e8cf044c36d8371b3c7f3aa1d21d67629c0ddc86885e4b0c09b7aa57"
+    },
+    {
+      "original": "workspace-resources-after.log",
+      "stored": "workspace-resources-after.log",
+      "bytes": 344,
+      "sha256": "0928d9461f3d359db6007d55e69ec4137822813de04f895a0212e2766e72f571",
+      "stored_bytes": 344,
+      "stored_sha256": "0928d9461f3d359db6007d55e69ec4137822813de04f895a0212e2766e72f571"
+    },
+    {
+      "original": "workspace-resources-before.log",
+      "stored": "workspace-resources-before.log",
+      "bytes": 144,
+      "sha256": "9a5d91ed5e5eb919252547ddc248d07a056be060484933e0bb9240dabf32b47e",
+      "stored_bytes": 144,
+      "stored_sha256": "9a5d91ed5e5eb919252547ddc248d07a056be060484933e0bb9240dabf32b47e"
+    },
+    {
+      "original": "workspace.log",
+      "stored": "workspace.log.gz",
+      "bytes": 310339,
+      "sha256": "918ad121c3b491ee81f5bdb3c0189734b1d665d28b77a9aaf494c6ffd917fc23",
+      "stored_bytes": 72006,
+      "stored_sha256": "1dd28f53a79b6d3f3665c75a648045830c7a24ddbad8beda7fb1a3dbfe9206d1"
+    }
+  ],
+  "repository_bundle": "Retained in the original GitHub artifact and verified local artifact; not embedded recursively inside Git.",
+  "run_url": "https://github.com/zil-lang/zil/actions/runs/41195906918"
+}

@@ -1,0 +1,20 @@
+{
+  "status": "SelectedInventoryVerified",
+  "phase": "workspace",
+  "all_manifest_files": 68508,
+  "selected_files": 7527,
+  "selected_bytes": 231217636,
+  "markers": [
+    "232",
+    "233",
+    "234",
+    "construction11",
+    "077",
+    "192",
+    "225",
+    "226"
+  ],
+  "root": "/workspace/scratch/994319f2ba02/z11-ci41195906918/workspace-native",
+  "full_zip_retained": true,
+  "scope": "Selected file sizes and SHA256 matched the original uploaded inventory; whole archive SHA256 already verified."
+}
