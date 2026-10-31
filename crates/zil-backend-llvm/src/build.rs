@@ -99,6 +99,8 @@ pub struct BuildOptions {
     pub optimization: Optimization,
     /// Explicit Linux executable without generated ZIL symbol exports.
     pub closed_executable: bool,
+    /// Explicit stable O2 chunks with optimizer-only cross-unit body imports.
+    pub incremental_o2: bool,
     pub codegen: CodegenOptions,
     pub emit: EmitOptions,
     pub windows: Option<WindowsLinkOptions>,
@@ -114,6 +116,7 @@ impl BuildOptions {
             output: output.into(),
             optimization: Optimization::O0,
             closed_executable: false,
+            incremental_o2: false,
             codegen: CodegenOptions::default(),
             windows: None,
             object_cache: None,
@@ -202,7 +205,8 @@ pub fn build_view_with_cancellation(
         lir,
         options.emit.entry,
         options.codegen.units,
-        options.optimization == Optimization::O0,
+        options.optimization == Optimization::O0 || options.incremental_o2,
+        options.optimization == Optimization::O2 && options.incremental_o2,
     );
     if options.backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
         return Err(vec![Diagnostic::new(

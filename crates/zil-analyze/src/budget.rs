@@ -33,6 +33,10 @@ impl Budget {
         }
     }
 
+    pub(super) fn remaining(&self) -> usize {
+        self.remaining
+    }
+
     pub(super) fn spend(&mut self, amount: usize, context: &str) -> CompileResult<()> {
         self.remaining = self
             .remaining

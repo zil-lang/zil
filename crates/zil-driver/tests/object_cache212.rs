@@ -494,6 +494,98 @@ fn large_file_o0_chunks_reuse_unchanged_objects_and_keep_current_verification() 
 }
 
 #[test]
+fn o2_imported_bodies_invalidate_consumers_and_preserve_current_verification() {
+    fn source(count: usize, edited: usize, extra: bool) -> String {
+        let mut text = if extra {
+            "fn inserted()->i32{return 7;}\n".to_owned()
+        } else {
+            String::new()
+        };
+        for i in 0..count {
+            text += &format!(
+                "fn f{i}(x:i32)->i32{{return x+{};}}\n",
+                i32::from(i == edited)
+            );
+        }
+        text += "fn main()->i32{var total:i32=0;\n";
+        for i in 0..count {
+            text += &format!("total=total+f{i}(0);\n");
+        }
+        text += "return total;}\n";
+        text
+    }
+    for closed in [false, true] {
+        let d = Dir::new();
+        let original = source(600, usize::MAX, false);
+        d.write("main.zil", &original);
+        let mut options = d.options(8, Optimization::O2);
+        options.incremental_o2 = true;
+        options.closed_executable = closed;
+        let cold = d.build(&options);
+        success(&cold, 0);
+        assert_eq!(cold.native_codegen.as_ref().unwrap().actual_units, 3);
+        assert_eq!(cold.native_codegen.as_ref().unwrap().object_cache.misses, 3);
+        let warm = d.build(&options);
+        success(&warm, 0);
+        let summary = warm.native_codegen.as_ref().unwrap();
+        assert_eq!(summary.object_cache.hits, 3);
+        assert!(
+            summary
+                .object_reports
+                .iter()
+                .all(|r| r.contains("\"input_kind\":\"object-cache\"")
+                    && r.contains("\"producer_verified_before_after\":true")
+                    && r.contains("\"preflight_ns\":")),
+            "{}",
+            warm.to_json()
+        );
+        // f0 owns unit0; its imported body is also consumed by main in unit2.
+        d.write("main.zil", &source(600, 0, false));
+        let early = d.build(&options);
+        success(&early, 1);
+        assert_eq!(
+            early.native_codegen.as_ref().unwrap().object_cache.misses,
+            2,
+            "{}",
+            early.to_json()
+        );
+        assert_eq!(early.native_codegen.as_ref().unwrap().object_cache.hits, 1);
+        d.write("main.zil", &source(600, 599, false));
+        let late = d.build(&options);
+        success(&late, 1);
+        // Reverting f0 reuses its original owner; only the entry owner changes.
+        assert_eq!(
+            late.native_codegen.as_ref().unwrap().object_cache.misses,
+            1,
+            "{}",
+            late.to_json()
+        );
+        assert_eq!(late.native_codegen.as_ref().unwrap().object_cache.hits, 2);
+        for (count, extra) in [(600, true), (599, false)] {
+            d.write("main.zil", &source(count, 0, extra));
+            success(&d.build(&options), 1);
+        }
+        d.write("main.zil", &original);
+        let restored = d.build(&options);
+        success(&restored, 0);
+        assert_eq!(
+            restored.native_codegen.as_ref().unwrap().object_cache.hits,
+            3
+        );
+        let executable = fs::read(options.output.as_ref().unwrap()).unwrap();
+        d.write("main.zil", &original.replace("f300(0)", "f300(0,1)"));
+        let bad = d.build(&options);
+        assert_eq!(bad.status, ResultCategory::SafeReject);
+        assert_eq!(bad.phase, Phase::Types);
+        assert!(bad.native_codegen.is_none());
+        assert_eq!(
+            fs::read(options.output.as_ref().unwrap()).unwrap(),
+            executable
+        );
+    }
+}
+
+#[test]
 fn large_file_chunks_preserve_owned_closures_drop_and_function_addresses() {
     let d = Dir::new();
     let mut source = String::from(
@@ -505,11 +597,17 @@ fn large_file_chunks_preserve_owned_closures_drop_and_function_addresses() {
     source += "fn late()->i32{let t=make(66);let f=move()=>t.code;let p:fn(i32)->i32=padding0;return f()+p(0)-67;}\nfn main()->i32{return early()+late();}\n";
     d.write("main.zil", &source);
     let mut o = d.options(8, Optimization::O0);
-    for (backend, closed) in [
-        (NativeBackend::LlvmApi, false),
-        (NativeBackend::LlvmApi, true),
-        (NativeBackend::Clang, true),
+    for (backend, closed, optimization, incremental) in [
+        (NativeBackend::LlvmApi, false, Optimization::O0, false),
+        (NativeBackend::LlvmApi, true, Optimization::O0, false),
+        (NativeBackend::Clang, true, Optimization::O0, false),
+        (NativeBackend::LlvmApi, false, Optimization::O2, true),
+        (NativeBackend::LlvmApi, true, Optimization::O2, true),
+        (NativeBackend::Clang, true, Optimization::O2, true),
     ] {
+        o.optimization = optimization;
+        o.incremental_o2 = incremental;
+        o.object_cache = Some(d.0.join("objects"));
         o.closed_executable = closed;
         o.backend = backend;
         if backend == NativeBackend::Clang {

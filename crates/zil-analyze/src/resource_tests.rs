@@ -298,6 +298,32 @@ fn independent_effect_fixed_point_follows_direct_and_forwarding_calls() {
         assert_eq!(analyze(&m, &Limits::default()).is_ok(), accepted);
     }
 }
+
+#[test]
+fn initialization_reuse_does_not_cache_callee_effect_safety() {
+    let limits = Limits::default();
+    let mut module = fixture(CallableKind::FnMut, false, 1);
+    add_helper(&mut module, true);
+    let mut session = AnalysisSession::default();
+    session.analyze(&module, &limits).unwrap();
+    module.closures[0].kind = CallableKind::Fn;
+    for instruction in &mut module.functions[0].blocks[0].instructions {
+        if let InstructionKind::CallClosureMut { callee, arguments } = &instruction.kind {
+            instruction.kind = InstructionKind::CallClosureShared {
+                callee: *callee,
+                arguments: arguments.clone(),
+            };
+        }
+    }
+    let cold = analyze(&module, &limits);
+    assert!(cold.is_err());
+    assert_eq!(session.analyze(&module, &limits), cold);
+    assert_eq!(
+        session.last_stats().reused_functions,
+        module.functions.len()
+    );
+    assert_eq!(session.last_stats().executed_functions, 0);
+}
 #[test]
 fn independent_once_state_consumes_captures_and_rejects_reuse() {
     let mut m = fixture(CallableKind::FnOnce, false, 2);
