@@ -468,18 +468,24 @@ pub(super) fn items(
     module: ModuleId,
     serial: u64,
     budget: &mut Budget,
-    imports: &[CoreImport],
+    program: &CoreProgram,
+    has_types: bool,
 ) -> CompileResult<()> {
     let Some(first) = items.first() else {
         return Ok(());
     };
     let mut renamer = Renamer::new(module, serial, budget, first.span)?;
-    if items.iter().any(|item| {
-        matches!(
-            item.kind,
-            s::ItemKind::Aggregate(_) | s::ItemKind::TypeAlias(_)
-        )
-    }) {
+    if has_types {
+        // Only type declarations need module qualifiers. Charge each actual
+        // lookup before inspecting it; the old function-only path does neither.
+        let mut imports = &[][..];
+        for candidate in &program.modules {
+            renamer.budget.node(first.span, 0)?;
+            if candidate.core.module_id == module {
+                imports = candidate.imports.as_slice();
+                break;
+            }
+        }
         return renamer.type_items(items, imports);
     }
     for item in &mut *items {
