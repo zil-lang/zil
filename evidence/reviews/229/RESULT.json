@@ -1,0 +1,100 @@
+{
+  "task": "229",
+  "role": "independent non-author review",
+  "reviewer": "/root/scope_audit",
+  "status": "Pass",
+  "implementation_commit": "d8c71880928c2e0497ffe078834382503960256b",
+  "production_diff_from_implementation": "empty for crates/zil-expand/src and crates/zil-driver/src",
+  "test_commit": "34c60933ef64c3f03f61e5930009968f92ec2ed8",
+  "independent_tests": {
+    "passed": 8,
+    "failed": 0,
+    "native_builds": 10,
+    "native_executions": 10,
+    "native_backend": "llvm-api",
+    "llvm_version": "23.1.4",
+    "input_kind": "builder",
+    "parse_ns": 0,
+    "optimization": [
+      "O0",
+      "O2"
+    ],
+    "llvm_equal": "plain, where and repeated clauses: entire emitted llvm.ll equal after excluding only verified-fingerprint comment"
+  },
+  "budget_controls": {
+    "independent_alias_chain": {
+      "work": 3666,
+      "nodes": 934,
+      "unchanged_from_original_candidate": true,
+      "checks": "fresh N, warm N, N-1, recovered warm N with zero active queries"
+    },
+    "old_no_collision": [
+      [
+        589,
+        220
+      ],
+      [
+        952,
+        233
+      ]
+    ],
+    "where_alias_specialization": [
+      1651,
+      488
+    ],
+    "nominal_collision_inline": [
+      837,
+      188
+    ],
+    "nominal_collision_where": [
+      936,
+      230
+    ],
+    "exact_author_budget_tests_independently_replayed": 3
+  },
+  "prior_attempts": {
+    "attempt-01": {
+      "implementation_commit": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+      "tests_passed": 4,
+      "tests_failed": 1,
+      "finding": "Original unused T:Copy field access borrowed a same-spelled nominal T member; wrong Success/Verify. Failing raw source and phases retained."
+    },
+    "attempt-02": {
+      "implementation_commit": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+      "tests_passed": 4,
+      "tests_failed": 2,
+      "finding": "Same real defect plus inline T:Copy control reproduced wrong Success/Verify. The two failures are one defect family, not two distinct fixes."
+    },
+    "attempt-03": {
+      "implementation_commit": "d8c71880928c2e0497ffe078834382503960256b",
+      "tests_passed": 7,
+      "tests_failed": 1,
+      "finding": "All original attacks now reject. A new reviewer cross-module positive had >=> token adjacency; Parse correctly rejected. Test-only spacing corrected; no production edit."
+    },
+    "attempt-04": {
+      "implementation_commit": "d8c71880928c2e0497ffe078834382503960256b",
+      "tests_passed": 7,
+      "tests_failed": 1,
+      "finding": "The new reviewer cross-module positive read private fields; Types correctly rejected E-FIELD-PRIVATE. Test-only fields made public; no production edit."
+    },
+    "attempt-05": {
+      "implementation_commit": "d8c71880928c2e0497ffe078834382503960256b",
+      "tests_passed": 8,
+      "tests_failed": 0,
+      "finding": "Final independent suite; 10 native builds/executions, all required symbolic rejections, ordinary closed boundaries and cumulative limits passed."
+    }
+  },
+  "native_reports": [
+    "attempt-05/raw/review229-30/native-O0-duplicates/report.json",
+    "attempt-05/raw/review229-30/native-O0-plain/report.json",
+    "attempt-05/raw/review229-30/native-O0-where/report.json",
+    "attempt-05/raw/review229-30/native-O2-duplicates/report.json",
+    "attempt-05/raw/review229-30/native-O2-plain/report.json",
+    "attempt-05/raw/review229-30/native-O2-where/report.json",
+    "attempt-05/raw/review229-30/nominal-native-O0-false/report.json",
+    "attempt-05/raw/review229-30/nominal-native-O0-true/report.json",
+    "attempt-05/raw/review229-30/nominal-native-O2-false/report.json",
+    "attempt-05/raw/review229-30/nominal-native-O2-true/report.json"
+  ],
+  "scope": "Finite free-function Copy where normalization and nominal binder repair; unchanged default limits and schema. No production code changed by reviewer. No joint-candidate, full-workspace, product or Rust-performance conclusion."
+}

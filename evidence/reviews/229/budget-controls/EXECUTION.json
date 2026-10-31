@@ -1,0 +1,65 @@
+{
+  "implementation_commit": "d8c71880928c2e0497ffe078834382503960256b",
+  "commands": [
+    {
+      "name": "old",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl229_where_copy",
+        "old_source_budget_controls",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.43344952499319334
+    },
+    {
+      "name": "new",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl229_where_copy",
+        "where_aliases_and_specialization_share_exact_fresh_and_warm_limits",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.09113747299124952
+    },
+    {
+      "name": "collision",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl229_nominal_shadow",
+        "real_collision_paths_have_measured_fresh_and_exhausted_boundaries",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.28562875899660867
+    }
+  ]
+}
