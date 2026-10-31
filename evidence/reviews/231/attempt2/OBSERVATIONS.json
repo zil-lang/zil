@@ -1,0 +1,607 @@
+{
+  "schema_version": 1,
+  "scope": "Independent reading of original run 41184530698 receipts; no compiler rerun by this reviewer. Configurations are repeated controls, not additive independent source coverage.",
+  "manifest_verification": {
+    "workspace": {
+      "prefix": "review231-35239",
+      "verified_members": 461,
+      "verified_bytes": 9735393,
+      "source_manifest_sha256": "b609fe51936811f31f6832461754cdd7bca0f8a014ff6a0943917192727693c7",
+      "full_manifest_members": 65796,
+      "selected_raw_members": 206,
+      "no_missing_or_extra_files": true
+    },
+    "reference": {
+      "prefix": "review231-67083",
+      "verified_members": 461,
+      "verified_bytes": 9731806,
+      "source_manifest_sha256": "c8e0117b1687e0fa630b883ba3578de32501029a234064ef677df3ba2f13e418",
+      "full_manifest_members": 63318,
+      "selected_raw_members": 206,
+      "no_missing_or_extra_files": true
+    }
+  },
+  "source_verification": {
+    "source_files_per_configuration": 103,
+    "case_directories_per_configuration": 62,
+    "source_bytes_match_frozen_test_construction": true,
+    "canonical_source_hash_map_sha256": "cf019cdadc524e20658bd660f9599a3a27de8b06fb52e439a734aee040d1c570"
+  },
+  "configuration_comparison": {
+    "semantic_json_reports": 65,
+    "differences": 0,
+    "raw_prefix_groups": 7,
+    "raw_source_syntax_result_byte_differences": 0
+  },
+  "configurations": {
+    "workspace": {
+      "workspace_counts": {
+        "groups": 326,
+        "passed": 2976,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "independent_target_counts": {
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "log_sha256": "82c0bb4b1d1dc1d8c8ae4779a88f3dbfe6fb00f6cf1c706ee9c5d891de34c981",
+      "native": [
+        {
+          "case": "native-O0-generated",
+          "backend": "llvm-api",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [
+            {
+              "llvm_version": "23.1.4",
+              "input_kind": "builder",
+              "pipeline": "default<O0>",
+              "verify_before_after": true,
+              "parse_ns": 0,
+              "object_bytes": 1392
+            }
+          ],
+          "report_path": "workspace-native/review231-35239/native-O0-generated/report.json"
+        },
+        {
+          "case": "native-O0-inline",
+          "backend": "llvm-api",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [
+            {
+              "llvm_version": "23.1.4",
+              "input_kind": "builder",
+              "pipeline": "default<O0>",
+              "verify_before_after": true,
+              "parse_ns": 0,
+              "object_bytes": 1520
+            }
+          ],
+          "report_path": "workspace-native/review231-35239/native-O0-inline/report.json"
+        },
+        {
+          "case": "native-O0-project",
+          "backend": "llvm-api",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [
+            {
+              "llvm_version": "23.1.4",
+              "input_kind": "builder",
+              "pipeline": "default<O0>",
+              "verify_before_after": true,
+              "parse_ns": 0,
+              "object_bytes": 1480
+            }
+          ],
+          "report_path": "workspace-native/review231-35239/native-O0-project/report.json"
+        },
+        {
+          "case": "native-O0-where",
+          "backend": "llvm-api",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [
+            {
+              "llvm_version": "23.1.4",
+              "input_kind": "builder",
+              "pipeline": "default<O0>",
+              "verify_before_after": true,
+              "parse_ns": 0,
+              "object_bytes": 1520
+            }
+          ],
+          "report_path": "workspace-native/review231-35239/native-O0-where/report.json"
+        },
+        {
+          "case": "native-O2-generated",
+          "backend": "llvm-api",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [
+            {
+              "llvm_version": "23.1.4",
+              "input_kind": "builder",
+              "pipeline": "default<O2>",
+              "verify_before_after": true,
+              "parse_ns": 0,
+              "object_bytes": 640
+            }
+          ],
+          "report_path": "workspace-native/review231-35239/native-O2-generated/report.json"
+        },
+        {
+          "case": "native-O2-inline",
+          "backend": "llvm-api",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [
+            {
+              "llvm_version": "23.1.4",
+              "input_kind": "builder",
+              "pipeline": "default<O2>",
+              "verify_before_after": true,
+              "parse_ns": 0,
+              "object_bytes": 672
+            }
+          ],
+          "report_path": "workspace-native/review231-35239/native-O2-inline/report.json"
+        },
+        {
+          "case": "native-O2-project",
+          "backend": "llvm-api",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [
+            {
+              "llvm_version": "23.1.4",
+              "input_kind": "builder",
+              "pipeline": "default<O2>",
+              "verify_before_after": true,
+              "parse_ns": 0,
+              "object_bytes": 712
+            }
+          ],
+          "report_path": "workspace-native/review231-35239/native-O2-project/report.json"
+        },
+        {
+          "case": "native-O2-where",
+          "backend": "llvm-api",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [
+            {
+              "llvm_version": "23.1.4",
+              "input_kind": "builder",
+              "pipeline": "default<O2>",
+              "verify_before_after": true,
+              "parse_ns": 0,
+              "object_bytes": 672
+            }
+          ],
+          "report_path": "workspace-native/review231-35239/native-O2-where/report.json"
+        }
+      ],
+      "budget": {
+        "nodes": {
+          "minimum": 394,
+          "sequence": [
+            "cold N",
+            "warm N",
+            "N-1",
+            "recovered N",
+            "fresh N"
+          ],
+          "results": [
+            {
+              "receipt": "attempt-0.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": false
+            },
+            {
+              "receipt": "attempt-1.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": true
+            },
+            {
+              "receipt": "attempt-2.json",
+              "status": "ResourceLimit",
+              "phase": "expand",
+              "verification_runs": 0,
+              "cache_hit": false
+            },
+            {
+              "receipt": "attempt-3.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": true
+            },
+            {
+              "receipt": "fresh.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": false
+            }
+          ],
+          "active_query_count_zero": "Asserted after each of the four session attempts by the executed independent test; not a CompileReport JSON field"
+        },
+        "work": {
+          "minimum": 2169,
+          "sequence": [
+            "cold N",
+            "warm N",
+            "N-1",
+            "recovered N",
+            "fresh N"
+          ],
+          "results": [
+            {
+              "receipt": "attempt-0.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": false
+            },
+            {
+              "receipt": "attempt-1.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": true
+            },
+            {
+              "receipt": "attempt-2.json",
+              "status": "ResourceLimit",
+              "phase": "analyze",
+              "verification_runs": 0,
+              "cache_hit": false
+            },
+            {
+              "receipt": "attempt-3.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": true
+            },
+            {
+              "receipt": "fresh.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": false
+            }
+          ],
+          "active_query_count_zero": "Asserted after each of the four session attempts by the executed independent test; not a CompileReport JSON field"
+        }
+      }
+    },
+    "reference": {
+      "workspace_counts": {
+        "groups": 326,
+        "passed": 2933,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "independent_target_counts": {
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "log_sha256": "f5c2236d7c5db39fd8950c0f241938d67d294516d497cb1490dca211a13562d9",
+      "native": [
+        {
+          "case": "native-O0-generated",
+          "backend": "clang",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [],
+          "report_path": "reference-native/review231-67083/native-O0-generated/report.json"
+        },
+        {
+          "case": "native-O0-inline",
+          "backend": "clang",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [],
+          "report_path": "reference-native/review231-67083/native-O0-inline/report.json"
+        },
+        {
+          "case": "native-O0-project",
+          "backend": "clang",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [],
+          "report_path": "reference-native/review231-67083/native-O0-project/report.json"
+        },
+        {
+          "case": "native-O0-where",
+          "backend": "clang",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [],
+          "report_path": "reference-native/review231-67083/native-O0-where/report.json"
+        },
+        {
+          "case": "native-O2-generated",
+          "backend": "clang",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [],
+          "report_path": "reference-native/review231-67083/native-O2-generated/report.json"
+        },
+        {
+          "case": "native-O2-inline",
+          "backend": "clang",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [],
+          "report_path": "reference-native/review231-67083/native-O2-inline/report.json"
+        },
+        {
+          "case": "native-O2-project",
+          "backend": "clang",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [],
+          "report_path": "reference-native/review231-67083/native-O2-project/report.json"
+        },
+        {
+          "case": "native-O2-where",
+          "backend": "clang",
+          "verification_runs": 1,
+          "fallback": null,
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "objects": [],
+          "report_path": "reference-native/review231-67083/native-O2-where/report.json"
+        }
+      ],
+      "budget": {
+        "nodes": {
+          "minimum": 394,
+          "sequence": [
+            "cold N",
+            "warm N",
+            "N-1",
+            "recovered N",
+            "fresh N"
+          ],
+          "results": [
+            {
+              "receipt": "attempt-0.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": false
+            },
+            {
+              "receipt": "attempt-1.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": true
+            },
+            {
+              "receipt": "attempt-2.json",
+              "status": "ResourceLimit",
+              "phase": "expand",
+              "verification_runs": 0,
+              "cache_hit": false
+            },
+            {
+              "receipt": "attempt-3.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": true
+            },
+            {
+              "receipt": "fresh.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": false
+            }
+          ],
+          "active_query_count_zero": "Asserted after each of the four session attempts by the executed independent test; not a CompileReport JSON field"
+        },
+        "work": {
+          "minimum": 2169,
+          "sequence": [
+            "cold N",
+            "warm N",
+            "N-1",
+            "recovered N",
+            "fresh N"
+          ],
+          "results": [
+            {
+              "receipt": "attempt-0.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": false
+            },
+            {
+              "receipt": "attempt-1.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": true
+            },
+            {
+              "receipt": "attempt-2.json",
+              "status": "ResourceLimit",
+              "phase": "analyze",
+              "verification_runs": 0,
+              "cache_hit": false
+            },
+            {
+              "receipt": "attempt-3.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": true
+            },
+            {
+              "receipt": "fresh.json",
+              "status": "Success",
+              "phase": "verify",
+              "verification_runs": 1,
+              "cache_hit": false
+            }
+          ],
+          "active_query_count_zero": "Asserted after each of the four session attempts by the executed independent test; not a CompileReport JSON field"
+        }
+      }
+    }
+  },
+  "preserved_boundary_observations": {
+    "cross_module_trait_impl": {
+      "forms": [
+        "inline",
+        "where"
+      ],
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "messages": [
+        "trait implementation resolution",
+        "trait receiver declaration is not available in this source module"
+      ]
+    },
+    "unannotated_enum_payload": {
+      "forms": [
+        "generated where",
+        "generated inline",
+        "plain where",
+        "plain inline"
+      ],
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "message": "enum payload type cannot be inferred",
+      "annotated_i32_controls": "All four Success with Verify 1"
+    },
+    "raw_module_prefix": {
+      "blocked": [
+        "$module17_Send",
+        "$module0_Sync",
+        "$module43_FnOnce"
+      ],
+      "accepted": [
+        "$modulex_Send",
+        "$module_Send",
+        "$module17_User_Send",
+        "$module17_Send_User"
+      ]
+    }
+  },
+  "complete_gate_receipts": {
+    "job_steps": {
+      "total": 25,
+      "success": 25,
+      "failed": 0,
+      "skipped": 0
+    },
+    "format": {
+      "status": "Pass",
+      "log_bytes": 0,
+      "basis": "Successful actual Formatting job step, frozen cargo fmt --all -- --check command, and original empty fmt.log"
+    },
+    "clippy": {
+      "status": "Pass",
+      "all_targets": true,
+      "deny_warnings": true,
+      "original_log_completed": true
+    },
+    "text_reference": {
+      "groups": 8,
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "migration": {
+      "passed": 9,
+      "failed": 0,
+      "log_result": "OK"
+    },
+    "native_state_allocation_controls": {
+      "receipt_status": "Pass",
+      "actual_checkout": "045dc75cec6eaa4de52951e075c52fd809fb6b3c",
+      "builds": 16,
+      "builder_objects": 40,
+      "observations": 128,
+      "allocation_observations": 88,
+      "fault_observations": 56,
+      "commands": 145,
+      "all_builder_verify_before_after": true,
+      "all_no_fallback": true,
+      "all_observed_allocations_freed_and_live_zero": true,
+      "scope": "Raw validator receipt checked; this reviewer did not rerun the independent business oracle or these native programs."
+    }
+  }
+}
