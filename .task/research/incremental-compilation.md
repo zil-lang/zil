@@ -65,3 +65,5 @@
 第五阶段生产候选前置提案为changes/research-large-module-codegen.md；追加build.rs内部调用与该提案写集。先仅O0显式多CGU固定分块，O2保留原分区/优化质量；不可把O2差距称为已修复。真实源码对象复用及独立审核后计量。
 
 第五阶段第二候选先记录changes/research-closed-executable-port.md，移植旧CP13显式封闭构建；追加CLI main.rs及CLI限定测试写集。保持默认false及公共Wire/JSON形状，默认/closed分别计量和独审，来源绑定旧e7b492c6。
+
+第五阶段第三候选先记录changes/research-dominator-intervals.md，在既有preflight.rs写集内为当前支配树构造大图区间索引，独立旧walk差分后测完整成本，保持SSA/phi/不可达语义与首错。
