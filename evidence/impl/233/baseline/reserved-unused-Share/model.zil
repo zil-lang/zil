@@ -1,0 +1,1 @@
+pub trait Share{}pub struct Payload{n:i32}impl Share for Payload{}
