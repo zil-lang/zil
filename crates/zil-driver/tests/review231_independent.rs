@@ -321,7 +321,72 @@ fn independent_raw_ast_prefixes_only_apply_the_reserved_name_exclusion() {
     }
 }
 
-const GENERATED: &str = "trait Read{fn value(self:&Self)->i32;}struct Cell{n:i32}impl Read for Cell{fn value()->i32=>.n}#for(offset in [3]){enum Tag{Value(i32)}pub fn get<T>(x:&T)->i32 where T:((Read)){let tag=Tag.Value(x.value()+offset);match tag{Tag.Value(v)=>{return v}}}}fn main()->i32{let x=Cell{n:7};return get(&x)-10}";
+const ORIGINAL_GENERATED: &str = "trait Read{fn value(self:&Self)->i32;}struct Cell{n:i32}impl Read for Cell{fn value()->i32=>.n}#for(offset in [3]){enum Tag{Value(i32)}pub fn get<T>(x:&T)->i32 where T:((Read)){let tag=Tag.Value(x.value()+offset);match tag{Tag.Value(v)=>{return v}}}}fn main()->i32{let x=Cell{n:7};return get(&x)-10}";
+const GENERATED: &str = ORIGINAL_GENERATED;
+
+#[test]
+fn independent_enum_payload_inference_keeps_inline_equivalence() {
+    let plain = "trait Read{fn value(self:&Self)->i32;}struct Cell{n:i32}impl Read for Cell{fn value()->i32=>.n}enum Tag{Value(i32)}pub fn get<T>(x:&T)->i32 where T:((Read)){let tag=Tag.Value(x.value()+3);match tag{Tag.Value(v)=>{return v}}}fn main()->i32{let x=Cell{n:7};return get(&x)-10}";
+    let inline = |source: &str| {
+        source.replace(
+            "get<T>(x:&T)->i32 where T:((Read))",
+            "get<T:((Read))>(x:&T)->i32",
+        )
+    };
+    for (label, source) in [("generated", ORIGINAL_GENERATED), ("plain", plain)] {
+        let where_report = check(
+            &format!("payload-unannotated-{label}-where"),
+            &[("main", source)],
+        );
+        let inline_source = inline(source);
+        let inline_report = check(
+            &format!("payload-unannotated-{label}-inline"),
+            &[("main", &inline_source)],
+        );
+        assert_eq!(where_report.status, inline_report.status);
+        assert_eq!(where_report.phase, inline_report.phase);
+        for report in [&where_report, &inline_report] {
+            if report.status == ResultCategory::Success {
+                assert_eq!(report.verification_runs, 1);
+            } else {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::SafeReject,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+                assert!(
+                    report
+                        .diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.code == "E-GENERIC-ARGUMENT"
+                            && diagnostic.message == "enum payload type cannot be inferred"),
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 0);
+            }
+        }
+        let annotated = source
+            .replace(
+                "let tag=Tag.Value(x.value()+offset)",
+                "let payload:i32=x.value()+offset;let tag=Tag.Value(payload)",
+            )
+            .replace(
+                "let tag=Tag.Value(x.value()+3)",
+                "let payload:i32=x.value()+3;let tag=Tag.Value(payload)",
+            );
+        accept(
+            &format!("payload-annotated-{label}-where"),
+            &[("main", &annotated)],
+        );
+        accept(
+            &format!("payload-annotated-{label}-inline"),
+            &[("main", &inline(&annotated))],
+        );
+    }
+}
 
 #[test]
 fn independent_native_grouped_module_and_generated_enum_consumers() {
