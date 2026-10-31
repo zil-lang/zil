@@ -1,0 +1,1 @@
+resource Empty{}package Leaf{manages owner:Empty}package Root{child:Leaf}fn inspect(p:&Root)->i32{return 7}fn main()->i32{let root=Root{child:Leaf{owner:Empty{}}};let view=&root;let callback=()=>inspect(view);let n=callback();let moved=root;return n-7}

@@ -1,0 +1,658 @@
+{
+  "schema_version": 1,
+  "task": "231",
+  "reviewer": "/root/continuity_audit",
+  "implementation_author": "/root/defer_design",
+  "verdict": "NotRun",
+  "record_kind": "IndependentFixtureRepairAndScopedReferenceValidation",
+  "production_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+  "code_commit": "792b254112e5a15583a70e91743ab1068fe57bd1",
+  "test_blob": "33b9c08e1fe2eefc12e0d6ce101ba14276674532",
+  "production_changes": [],
+  "original_six_test_assertions_weakened": false,
+  "local_validation": {
+    "status": "Pass",
+    "scope": "Only review231_independent; local reference diagnostic validation, not official LLVM23 full CI",
+    "command": "cargo test -p zil-driver --test review231_independent --no-default-features --offline --locked -j1 -- --nocapture --test-threads=1",
+    "exit_code": 0,
+    "tests": {
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "native_compiler": "Ubuntu clang 17.0.6",
+    "backend": "clang",
+    "llvm_api_tested_in_this_run": false,
+    "target_directory": "/workspace/scratch/b2d4304a481d/z10-target-review231",
+    "test_report_root": "/workspace/scratch/b2d4304a481d/z10-ci/review231-local/final-792b25411/review231-32",
+    "log": "local/final-792b25411.log",
+    "log_sha256": "cd9fb0540d38afe99444860a640d973f109e2a906db0efbc08993eaf9229ef41"
+  },
+  "retained_failures": [
+    {
+      "attempt": "first_receiver_fix",
+      "status": "Fail",
+      "test_definition_commit": "0eaffb8772db97ffe09934e571a5d3c81e47ed0d",
+      "log_sha256": "a830450bfe81e2c6f3ef1c909cbb3f9d40e1efe890c6608b1e86f583d793d66c",
+      "log": "root-first-fixed/first-fixed-tests.log",
+      "test_results": {
+        "passed": 3,
+        "failed": 3,
+        "ignored": 0
+      },
+      "reports": [
+        {
+          "status": "Unsupported",
+          "phase": "types",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "trait implementation resolution",
+              "span": {
+                "file": 2,
+                "start": 38,
+                "end": 99
+              },
+              "notes": []
+            },
+            {
+              "phase": "types",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "trait receiver declaration is not available in this source module",
+              "span": {
+                "file": 2,
+                "start": 66,
+                "end": 98
+              },
+              "notes": []
+            }
+          ],
+          "artifacts": {
+            "core": "/workspace/scratch/b2d4304a481d/z10-ci/local-repair/reference-clang17/review231-295/qualified-group/phases/core.txt",
+            "ct-core": "/workspace/scratch/b2d4304a481d/z10-ci/local-repair/reference-clang17/review231-295/qualified-group/phases/ct-core.txt",
+            "source-map": "/workspace/scratch/b2d4304a481d/z10-ci/local-repair/reference-clang17/review231-295/qualified-group/phases/source-map.txt",
+            "syntax": "/workspace/scratch/b2d4304a481d/z10-ci/local-repair/reference-clang17/review231-295/qualified-group/phases/syntax.txt"
+          },
+          "input_fingerprint": "2857f3c116699016a85ba63f12600749b83a33ccdfe86815261fb821a86c46b2",
+          "seconds": 0.013378425,
+          "cache_hit": false,
+          "commands": [],
+          "native_codegen": null,
+          "disk_cache": "disabled",
+          "query_events": [
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "expand",
+              "disposition": "executed"
+            },
+            {
+              "phase": "ct",
+              "disposition": "executed"
+            },
+            {
+              "phase": "types",
+              "disposition": "executed"
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "main.zil",
+            "1": "rules.zil",
+            "2": "data.zil"
+          },
+          "scalar_interfaces": []
+        },
+        {
+          "status": "Unsupported",
+          "phase": "types",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "trait implementation resolution",
+              "span": {
+                "file": 2,
+                "start": 38,
+                "end": 99
+              },
+              "notes": []
+            },
+            {
+              "phase": "types",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "trait receiver declaration is not available in this source module",
+              "span": {
+                "file": 2,
+                "start": 66,
+                "end": 98
+              },
+              "notes": []
+            }
+          ],
+          "artifacts": {},
+          "input_fingerprint": "2857f3c116699016a85ba63f12600749b83a33ccdfe86815261fb821a86c46b2",
+          "seconds": 0.003179938,
+          "cache_hit": false,
+          "commands": [],
+          "native_codegen": null,
+          "disk_cache": "disabled",
+          "query_events": [
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "expand",
+              "disposition": "executed"
+            },
+            {
+              "phase": "ct",
+              "disposition": "executed"
+            },
+            {
+              "phase": "types",
+              "disposition": "executed"
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "main.zil",
+            "1": "rules.zil",
+            "2": "data.zil"
+          },
+          "scalar_interfaces": []
+        },
+        {
+          "status": "Unsupported",
+          "phase": "types",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "trait implementation resolution",
+              "span": {
+                "file": 2,
+                "start": 38,
+                "end": 99
+              },
+              "notes": []
+            },
+            {
+              "phase": "types",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "trait receiver declaration is not available in this source module",
+              "span": {
+                "file": 2,
+                "start": 66,
+                "end": 98
+              },
+              "notes": []
+            }
+          ],
+          "artifacts": {
+            "core": "/workspace/scratch/b2d4304a481d/z10-ci/local-repair/reference-clang17/review231-295/native-O0-project/phases/core.txt",
+            "ct-core": "/workspace/scratch/b2d4304a481d/z10-ci/local-repair/reference-clang17/review231-295/native-O0-project/phases/ct-core.txt",
+            "source-map": "/workspace/scratch/b2d4304a481d/z10-ci/local-repair/reference-clang17/review231-295/native-O0-project/phases/source-map.txt",
+            "syntax": "/workspace/scratch/b2d4304a481d/z10-ci/local-repair/reference-clang17/review231-295/native-O0-project/phases/syntax.txt"
+          },
+          "input_fingerprint": "2857f3c116699016a85ba63f12600749b83a33ccdfe86815261fb821a86c46b2",
+          "seconds": 0.00951064,
+          "cache_hit": false,
+          "commands": [],
+          "native_codegen": null,
+          "disk_cache": "disabled",
+          "query_events": [
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "expand",
+              "disposition": "executed"
+            },
+            {
+              "phase": "ct",
+              "disposition": "executed"
+            },
+            {
+              "phase": "types",
+              "disposition": "executed"
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "main.zil",
+            "1": "rules.zil",
+            "2": "data.zil"
+          },
+          "scalar_interfaces": []
+        }
+      ]
+    },
+    {
+      "attempt": "three_module_relocation",
+      "status": "Fail",
+      "test_definition_commit": "3a6691825de30dc89baaa6064d833de1957cbed7",
+      "log_sha256": "0e7d229ce385f302cd0f99d065105361cfb25bcf99918b324997ac120bd5ca3d",
+      "log": "local/three-modules-3a6691825.log",
+      "test_results": {
+        "passed": 6,
+        "failed": 1,
+        "ignored": 0
+      },
+      "reports": [
+        {
+          "status": "SafeReject",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "SafeReject",
+              "code": "E-GENERIC-ARGUMENT",
+              "message": "enum payload type cannot be inferred",
+              "span": {
+                "file": 0,
+                "start": 195,
+                "end": 211
+              },
+              "notes": []
+            }
+          ],
+          "artifacts": {
+            "syntax": "/workspace/scratch/b2d4304a481d/z10-ci/review231-local/three-modules-3a6691825/review231-32/native-O0-generated/phases/syntax.txt"
+          },
+          "input_fingerprint": "f64a5be79ac11c932fddfef814768e97f5d6de9bab61d00b53acd12129495a53",
+          "seconds": 0.006110597,
+          "cache_hit": false,
+          "commands": [],
+          "native_codegen": null,
+          "disk_cache": "disabled",
+          "query_events": [
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "expand",
+              "disposition": "executed"
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "main.zil"
+          },
+          "scalar_interfaces": []
+        }
+      ]
+    }
+  ],
+  "original_ci_failure": "evidence/reviews/231/attempt1/ATTEMPT1.json",
+  "intermediate_probe_runs": [
+    {
+      "commit": "31df6df3c755e206e0383f2ffbdb7aec127e0ed6",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "filtered_out": 6
+      },
+      "scope": "Cross-module impl where/inline boundary comparison only",
+      "log": "local/boundary-31df6df3c.log"
+    },
+    {
+      "commit": "2df6d8143a7b22b816fbc31cb67ff19e4e0e3a1a",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "filtered_out": 7
+      },
+      "scope": "Generated/plain enum payload inference where/inline comparison only",
+      "log": "local/inference-2df6d8143.log"
+    }
+  ],
+  "controls": [
+    {
+      "case": "existing-cross-module-impl-inline",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "messages": [
+        "trait implementation resolution",
+        "trait receiver declaration is not available in this source module"
+      ],
+      "artifact": "local/boundary-31df6df3c/review231-275/existing-cross-module-impl-inline/report.json"
+    },
+    {
+      "case": "existing-cross-module-impl-where",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "messages": [
+        "trait implementation resolution",
+        "trait receiver declaration is not available in this source module"
+      ],
+      "artifact": "local/boundary-31df6df3c/review231-275/existing-cross-module-impl-where/report.json"
+    },
+    {
+      "case": "payload-annotated-generated-inline",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "messages": [],
+      "artifact": "local/inference-2df6d8143/review231-32/payload-annotated-generated-inline/report.json"
+    },
+    {
+      "case": "payload-annotated-generated-where",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "messages": [],
+      "artifact": "local/inference-2df6d8143/review231-32/payload-annotated-generated-where/report.json"
+    },
+    {
+      "case": "payload-annotated-plain-inline",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "messages": [],
+      "artifact": "local/inference-2df6d8143/review231-32/payload-annotated-plain-inline/report.json"
+    },
+    {
+      "case": "payload-annotated-plain-where",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "messages": [],
+      "artifact": "local/inference-2df6d8143/review231-32/payload-annotated-plain-where/report.json"
+    },
+    {
+      "case": "payload-unannotated-generated-inline",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "messages": [
+        "enum payload type cannot be inferred"
+      ],
+      "artifact": "local/inference-2df6d8143/review231-32/payload-unannotated-generated-inline/report.json"
+    },
+    {
+      "case": "payload-unannotated-generated-where",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "messages": [
+        "enum payload type cannot be inferred"
+      ],
+      "artifact": "local/inference-2df6d8143/review231-32/payload-unannotated-generated-where/report.json"
+    },
+    {
+      "case": "payload-unannotated-plain-inline",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "messages": [
+        "enum payload type cannot be inferred"
+      ],
+      "artifact": "local/inference-2df6d8143/review231-32/payload-unannotated-plain-inline/report.json"
+    },
+    {
+      "case": "payload-unannotated-plain-where",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "messages": [
+        "enum payload type cannot be inferred"
+      ],
+      "artifact": "local/inference-2df6d8143/review231-32/payload-unannotated-plain-where/report.json"
+    }
+  ],
+  "unchanged_boundary_implementation": [
+    {
+      "path": "crates/zil-expand/src/receivers.rs",
+      "baseline_and_production_blob": "cedda433862931be48c318465e4968bed80f04ce"
+    },
+    {
+      "path": "crates/zil-expand/src/static_traits.rs",
+      "baseline_and_production_blob": "580a1650f3b9b0734efd05a5216b505ef2cb24f2"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_enum.rs",
+      "baseline_and_production_blob": "5e89806f1ae03402131e1d2646f76db28ad66577"
+    }
+  ],
+  "repairs": [
+    {
+      "subject": "Cross-module implementation input",
+      "finding": "Both the exact where input and its inline counterpart are Unsupported at Types with the same implementation/receiver resolution diagnostics.",
+      "positive_fixture": "rules defines Code/Payload/local impl/constructor; data forwards the public Payload value; main keeps the qualified grouped rules.Code where bound.",
+      "negative_fixture": "Original cross-module impl input remains in an explicit where/inline boundary test. Separate same-method/wrong-trait input still rejects because module2 Payload does not satisfy module1 Code."
+    },
+    {
+      "subject": "Generated enum payload inference",
+      "finding": "Generated and handwritten unannotated payloads both SafeReject at Expand in both where and inline forms. Explicit i32 local binding reaches Verify in all four controls.",
+      "positive_fixture": "Native generated case names the same expression as let payload:i32 before constructing and matching the same enum. Trait call, CT offset, expected machine result and backend assertions remain.",
+      "negative_fixture": "ORIGINAL_GENERATED remains unchanged in the inference equivalence test and archived source snapshots."
+    }
+  ],
+  "native": [
+    {
+      "case": "native-O0-generated",
+      "report": "local/final-792b25411/review231-32/native-O0-generated/report.json",
+      "status": "Success",
+      "verification_runs": 1,
+      "backend": "clang",
+      "fallback": null,
+      "actual_exit_code": 0,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "report_sha256": "05d9b8d70e08d56454603e446845090fdcdebe78c8ea043f19d5e2b23388f019"
+    },
+    {
+      "case": "native-O0-inline",
+      "report": "local/final-792b25411/review231-32/native-O0-inline/report.json",
+      "status": "Success",
+      "verification_runs": 1,
+      "backend": "clang",
+      "fallback": null,
+      "actual_exit_code": 0,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "report_sha256": "b702a57000ea6c0bfd884bb5fbf9f24f9f8190409ee9bf90c654e04647d792d2"
+    },
+    {
+      "case": "native-O0-project",
+      "report": "local/final-792b25411/review231-32/native-O0-project/report.json",
+      "status": "Success",
+      "verification_runs": 1,
+      "backend": "clang",
+      "fallback": null,
+      "actual_exit_code": 0,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "report_sha256": "5fc14e60cca3e1ccf72396c165c7a0db7de33d14efaba77b4a6a2006a6544449"
+    },
+    {
+      "case": "native-O0-where",
+      "report": "local/final-792b25411/review231-32/native-O0-where/report.json",
+      "status": "Success",
+      "verification_runs": 1,
+      "backend": "clang",
+      "fallback": null,
+      "actual_exit_code": 0,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "report_sha256": "968a873326cc99cde6d51f4a2e7add81398aad948e83ff1ccacb842142330616"
+    },
+    {
+      "case": "native-O2-generated",
+      "report": "local/final-792b25411/review231-32/native-O2-generated/report.json",
+      "status": "Success",
+      "verification_runs": 1,
+      "backend": "clang",
+      "fallback": null,
+      "actual_exit_code": 0,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "report_sha256": "f735a57596e71cb363b990bab85d860f0748ecda4944773854459abe22851c06"
+    },
+    {
+      "case": "native-O2-inline",
+      "report": "local/final-792b25411/review231-32/native-O2-inline/report.json",
+      "status": "Success",
+      "verification_runs": 1,
+      "backend": "clang",
+      "fallback": null,
+      "actual_exit_code": 0,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "report_sha256": "75c0b8a4d215990f83ae0524e3b7b790ed10c9c0d043e7a12b2ed470df3f5c8c"
+    },
+    {
+      "case": "native-O2-project",
+      "report": "local/final-792b25411/review231-32/native-O2-project/report.json",
+      "status": "Success",
+      "verification_runs": 1,
+      "backend": "clang",
+      "fallback": null,
+      "actual_exit_code": 0,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "report_sha256": "be111438cc5d7864a2cc55e897b40e958d4c461dfd56d04f1664533502f51d5b"
+    },
+    {
+      "case": "native-O2-where",
+      "report": "local/final-792b25411/review231-32/native-O2-where/report.json",
+      "status": "Success",
+      "verification_runs": 1,
+      "backend": "clang",
+      "fallback": null,
+      "actual_exit_code": 0,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "report_sha256": "af7c06027197a63845927cd8aa136697f41549248ac530719e646a8912ef23e8"
+    }
+  ],
+  "budgets": [
+    {
+      "axis": "module-nodes",
+      "minimum": 394,
+      "runs": [
+        {
+          "file": "local/final-792b25411/review231-32/module-nodes/attempt-0.json",
+          "status": "Success",
+          "phase": "verify",
+          "cache_hit": false,
+          "verification_runs": 1
+        },
+        {
+          "file": "local/final-792b25411/review231-32/module-nodes/attempt-1.json",
+          "status": "Success",
+          "phase": "verify",
+          "cache_hit": true,
+          "verification_runs": 1
+        },
+        {
+          "file": "local/final-792b25411/review231-32/module-nodes/attempt-2.json",
+          "status": "ResourceLimit",
+          "phase": "expand",
+          "cache_hit": false,
+          "verification_runs": 0
+        },
+        {
+          "file": "local/final-792b25411/review231-32/module-nodes/attempt-3.json",
+          "status": "Success",
+          "phase": "verify",
+          "cache_hit": true,
+          "verification_runs": 1
+        },
+        {
+          "file": "local/final-792b25411/review231-32/module-nodes/fresh.json",
+          "status": "Success",
+          "phase": "verify",
+          "cache_hit": false,
+          "verification_runs": 1
+        }
+      ],
+      "historical_threshold_reused": false
+    },
+    {
+      "axis": "module-work",
+      "minimum": 2169,
+      "runs": [
+        {
+          "file": "local/final-792b25411/review231-32/module-work/attempt-0.json",
+          "status": "Success",
+          "phase": "verify",
+          "cache_hit": false,
+          "verification_runs": 1
+        },
+        {
+          "file": "local/final-792b25411/review231-32/module-work/attempt-1.json",
+          "status": "Success",
+          "phase": "verify",
+          "cache_hit": true,
+          "verification_runs": 1
+        },
+        {
+          "file": "local/final-792b25411/review231-32/module-work/attempt-2.json",
+          "status": "ResourceLimit",
+          "phase": "analyze",
+          "cache_hit": false,
+          "verification_runs": 0
+        },
+        {
+          "file": "local/final-792b25411/review231-32/module-work/attempt-3.json",
+          "status": "Success",
+          "phase": "verify",
+          "cache_hit": true,
+          "verification_runs": 1
+        },
+        {
+          "file": "local/final-792b25411/review231-32/module-work/fresh.json",
+          "status": "Success",
+          "phase": "verify",
+          "cache_hit": false,
+          "verification_runs": 1
+        }
+      ],
+      "historical_threshold_reused": false
+    }
+  ],
+  "artifacts_manifest": "ARTIFACTS.json",
+  "acceptance_limit": "No formal Pass is issued. Root will supply P2 and the second complete GitHub LLVM23 CI checkout, logs and native/budget artifacts for final independent review. Prior failures remain Fail; local probe counts are not added to full-workspace counts."
+}

@@ -1,0 +1,10 @@
+{
+  "scope": "Reference fixture iteration only; not formal LLVM23 CI",
+  "head_before": "beba0e4de1d1a96ba8e5e64f95f82c0b52f724b0",
+  "head_after": "beba0e4de1d1a96ba8e5e64f95f82c0b52f724b0",
+  "test_blob": "96a696f917dac46010ad3e107163d3f2ce13e261",
+  "command": "source /workspace/scratch/b2d4304a481d/z10-repair-env.sh\nexport CARGO_TARGET_DIR=/workspace/scratch/b2d4304a481d/z10-target-review225226\nexport ZIL_TEST_REPORT_DIR=/workspace/scratch/b2d4304a481d/z10-ci/review225226-local/attempt1\ncargo test -p zil-driver --no-default-features --test review225226_capture --locked -j1 -- --test-threads=1 --nocapture",
+  "exit_code": 0,
+  "seconds": 21.070279121398926,
+  "log": "/workspace/scratch/b2d4304a481d/z10-ci/review225226-local/attempt1-beba0e4.log"
+}

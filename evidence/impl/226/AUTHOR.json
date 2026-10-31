@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task": "226",
+  "evidence_level": "AuthorExecutedNotIndependentReview",
+  "implementation_commit": "35b97d2bece94a884bfc6b6edd474081f6105e3a",
+  "baseline": "42ce8081a2aa5722a14fea53f23f819f46685a60",
+  "contract_commit": "5be89dfb36b1f927524008526ae647f3c4a03e59",
+  "spec_sha256": "f88ccd11ed50392508c5742ab108706889434a0aa492046e5559aca1b3578983",
+  "normative_sha256": "9eb72e7e8508a34f0978952ed96fc9b7bdd40362b608b88c4a93be2ab950fdde",
+  "scope": "Explicit synchronous shared Product address captures whose final independently reconstructed origins are actual ordinary local Product carriers only. Not complete default Product capture or parameter-origin admission.",
+  "implementation": "Types checks finite shared capture shape; Analyze and Verify independently inspect completed whole-module origin facts, never intermediate fixed-point approximations or candidate claims. Store, parameter and outer-capture roots remain closed. Existing initialization, loan, ownership and cleanup checks remain. Lower/LLVM accept only the already-verified pointer shape using the exact VerifiedModule/LIR binding.",
+  "toolchain": {"rust": "1.99.1", "llvm": "23.1.4", "host": "Linux x86_64", "native_backend": "LlvmApiBuilder", "fallback": false},
+  "targeted": {
+    "command": "cargo test --locked --offline -p zil-driver --features llvm-api --test impl226_budget --test impl226_shared_product_capture --test impl224_shared_product --test impl214_source --test impl204_source --test impl204_budget --no-fail-fast",
+    "exit": 0, "passed": 64, "failed": 0, "ignored": 0,
+    "log_sha256": "09ce3137b5a6289bba47229427875e9fefc7016170be8cd67fca81d36d9d62cf",
+    "overlap": "Prior iterations and overlapping stage 225 regressions are not added to this total."
+  },
+  "clippy": {"scope": "zil-driver impl226_budget, impl226_shared_product_capture and impl224_shared_product with llvm-api; -D warnings", "exit": 0, "log_sha256": "7b0451313d3c4eef5c1ef8d2b56301b880495657f98bdae9894a7785e1bab8e7"},
+  "native": {"optimizations": ["O0", "O2"], "new_test_builds": 8, "new_test_executions": 8, "cases": ["local explicit shared capture", "move of shared address, not Product ownership", "direct child with alias", "branch roots retain two actual owners"], "oracle": "Exact exit, stdout, empty stderr, actual LLVM API builder and no fallback; no runtime safety claim for unexecuted negative programs."},
+  "raw_wire": {"control": "Source-derived ordinary Product capture with an unrelated same-type live Store element address", "mutation": "Replace exactly one MakeClosure capture operand with a dominating same-type OwnedStoreBorrow result", "plan": "Valid control candidate with updated exact fingerprint; not an empty candidate", "checks": ["control raw Verify success", "control Wire Verify success", "mutated Analyze specific origin rejection", "mutated raw Verify specific origin rejection", "mutated Wire Verify specific origin rejection"], "negative_execution": false},
+  "budgets": {"legacy_candidate": {"Types": 835, "Analyze": 7129, "Verify": 12161}, "new_local_shared": {"Types": 1787, "Analyze": 15791, "Verify": 30761}, "checks": ["N success", "N-1 ResourceLimit only", "fresh N success"]},
+  "migration": {"source": "Original impl224 capture input retained byte-for-byte, promoted to Success by 226; mutable Product, borrowed returns, owned child/head copies remain rejected", "old_baseline_test": "Original 224 closed-boundary test passed unchanged on baseline42", "old_baseline_log_sha256": "029a282cb033b3f6ec74116c695c30cdc06f48230df294fe794882439083cfa1"},
+  "historical_iterations": ["Initial author harness syntax/API errors retained", "Initial producer admission stopped at legacy guard, then Lower and LLVM representation guards; these were author implementation iterations, not independent findings", "Weak empty-candidate raw test replaced with actual same-type operand substitution and exact diagnostic", "Old224 capture assertion failed intentionally after admission; migration retained original source and other negative controls", "Migration test Rust type inference error fixed without changing tested ZIL sources"],
+  "independent_review": "Pending",
+  "full_ci": "Pending",
+  "remaining": ["default plain Product readonly capture", "ordinary parameter-origin and outer-capture origin admission", "mutable or retained/escaping Product capture", "general recursive Store or arbitrary ownership", "full 1.4", "Rust product gates", "native Windows"],
+  "status": "AuthorPassPartialContractPendingIntegration"
+}

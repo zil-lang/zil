@@ -1,0 +1,40 @@
+{
+  "command": [
+    "node",
+    "tools/handoff.mjs",
+    "--check"
+  ],
+  "head_before": "aaeb67f12b5638677332132e28df86fa23cde3d8",
+  "head_after": "aaeb67f12b5638677332132e28df86fa23cde3d8",
+  "exit_code": 1,
+  "stdout_bytes": 520839,
+  "stderr_bytes": 0,
+  "stdout_path": "/workspace/scratch/b2d4304a481d/z10-recovery/handoff-base-initial.stdout",
+  "stderr_path": "/workspace/scratch/b2d4304a481d/z10-recovery/handoff-base-initial.stderr",
+  "authority": {
+    "method": "git-main-worktree",
+    "task_root": ".task",
+    "current_is_main": true,
+    "main_tree_now": "/workspace/scratch/b2d4304a481d/z10-restored-main"
+  },
+  "status": "Fail",
+  "errors_count": 1388,
+  "warnings_count": 0,
+  "errors_by_reason": {
+    "baseline must identify an existing complete commit.": 123,
+    "Evidence is missing, empty, or uncommitted": 452,
+    "Historical normative registry is missing or malformed.": 117,
+    "Task specification snapshot differs from its implementation commit.": 122,
+    "implementation_commit must identify an existing complete commit.": 119,
+    "No review evidence matches the recorded reviewer and implementation commit.": 176,
+    "Implementation commit is not in main history; retain the reviewed commit with merge --no-ff.": 117,
+    "integration_commit must identify an existing complete commit.": 117,
+    "Task specification snapshot is stale.": 28,
+    "Task has no valid JSON record.": 2,
+    "Historical normative input does not match its committed registry: _zil_design.md": 5,
+    "Historical normative input does not match its committed registry: spec/interfaces.json": 5,
+    "Historical normative digest does not match its committed registry.": 5
+  },
+  "sparse_policy": "All tracked paths except /evidence/ are checked out; no checker changes",
+  "stdout_sha256": "038cea6a1bef9fa65d53bd188f4dd3d7b3ca017b6ef35c43b2e4c4f26185f35f"
+}

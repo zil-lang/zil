@@ -1,0 +1,94 @@
+{
+  "origin": "Recovered exact Git pack object data; no compilation or review Pass inferred",
+  "production_commit": "2c8acce8f01dfb46830a31b6eaf52ef786ed73a1",
+  "author_delivery_commit": "e6785afdc27348ea2bc28ab3b5a82cc837a53d37",
+  "root_candidate_commit": "2dcb7bc3c05c8f7c02757c73dfd5188fd057480b",
+  "files": [
+    {
+      "repository_path": "crates/zil-expand/src/generic_trait_bounds.rs",
+      "git_blob_sha": "71891d7c28277681c82453ea13c97aece7745528",
+      "sha256": "117b52fe8fd6bfb422e91c781a042034d42cbd4703c5a1b4fae8db98be9ba2ce",
+      "bytes": 16808,
+      "source_delta_object": 77,
+      "base_blob_sha": "144390a524cfcce87ec1cf1d1a29c969ac97619b",
+      "base_source": "GitHub fetch_blob zil-lang/zil; Git blob hash verified",
+      "recovered_path": "/workspace/scratch/b2d4304a481d/z10-recovery/recovered231/71891d7c28277681c82453ea13c97aece7745528",
+      "target_hash_crosscheck": "matches the complete 20-byte entry inserted by pack delta-76 for the expand/src tree"
+    },
+    {
+      "repository_path": "crates/zil-expand/src/generic_where.rs",
+      "git_blob_sha": "a8db37edccaa2db42c0aa138a32b474b4eecec8f",
+      "sha256": "4206f476253b1b5e12ed3a9609f0ea04274183ee1fda91b23234fa0572895422",
+      "bytes": 9194,
+      "source_delta_object": 78,
+      "base_blob_sha": "7693cc031c3b7bad0b9016970d9635f0c412e45f",
+      "base_source": "GitHub fetch_blob zil-lang/zil; Git blob hash verified",
+      "recovered_path": "/workspace/scratch/b2d4304a481d/z10-recovery/recovered231/a8db37edccaa2db42c0aa138a32b474b4eecec8f",
+      "target_hash_crosscheck": "matches the complete 20-byte entry inserted by pack delta-76 for the expand/src tree"
+    },
+    {
+      "repository_path": "crates/zil-expand/src/modules.rs",
+      "git_blob_sha": "5c972b8defc55cd9b61bbee79bb272b90c54eb07",
+      "sha256": "3007bbe170c859ddeaa67aacfdb5ce32337d61912541825538a0db1f95afa987",
+      "bytes": 39960,
+      "source_delta_object": 79,
+      "base_blob_sha": "1dc8c168b4dbf034859a740973c307868a1f7f2b",
+      "base_source": "GitHub fetch_blob zil-lang/zil; Git blob hash verified",
+      "recovered_path": "/workspace/scratch/b2d4304a481d/z10-recovery/recovered231/5c972b8defc55cd9b61bbee79bb272b90c54eb07",
+      "target_hash_crosscheck": "matches the complete 20-byte entry inserted by pack delta-76 for the expand/src tree"
+    },
+    {
+      "repository_path": "crates/zil-driver/tests/impl231_where_traits.rs",
+      "git_blob_sha": "07efe215af769bebfb318ca45182494506870e61",
+      "sha256": "6614797f5682e90dffaf6acb97b15a8242ef2e00c5f354d475a985de699523c8",
+      "bytes": 29917,
+      "source_object": 69,
+      "recovered_path": "/workspace/scratch/b2d4304a481d/z10-recovery/07efe215af769bebfb318ca45182494506870e61",
+      "hash_verified": true
+    },
+    {
+      "repository_path": "crates/zil-driver/tests/review230_independent.rs",
+      "git_blob_sha": "b7775a3cea5623c4d81cfc2b98a785d10e691d55",
+      "sha256": "f2b24b94c42acddac6417bce1633c2aa2ba46f87c96ba82aa42e60a08f2046b3",
+      "bytes": 16950,
+      "source_object": 72,
+      "recovered_path": "/workspace/scratch/b2d4304a481d/z10-recovery/b7775a3cea5623c4d81cfc2b98a785d10e691d55",
+      "hash_verified": true
+    },
+    {
+      "repository_path": "crates/zil-driver/tests/impl229_where_copy.rs",
+      "git_blob_sha": "f686335c5fe723de364e45e6f78be1367e0dd184",
+      "sha256": "1472406f3d4cd17468105e148fbc2daa9dfb065881d30a20e699a9b46bdab2bf",
+      "bytes": 17860,
+      "source_delta_object": 67,
+      "base_blob_sha": "780ed257ed948b2a4544ab056d06772a9964be29",
+      "base_source": "GitHub fetch_blob zil-lang/zil; Git blob hash verified",
+      "recovered_path": "/workspace/scratch/b2d4304a481d/z10-recovery/recovered231/f686335c5fe723de364e45e6f78be1367e0dd184",
+      "target_hash_crosscheck": "matches complete 20-byte entry inserted by pack delta-56 for driver/tests tree"
+    },
+    {
+      "repository_path": "crates/zil-driver/tests/review229_independent.rs",
+      "git_blob_sha": "08edda11ebba1656445e204a9f1884bb7b520200",
+      "sha256": "dc6c1abf2426faf88f5187d6dc7d1c777ae7ee7d2ebb55c8442c08429e89d0c0",
+      "bytes": 16014,
+      "source_delta_object": 71,
+      "base_blob_sha": "b348afaeb249e487495dbf46e645ec4d00fae008",
+      "base_source": "GitHub fetch_blob zil-lang/zil; Git blob hash verified",
+      "recovered_path": "/workspace/scratch/b2d4304a481d/z10-recovery/recovered231/08edda11ebba1656445e204a9f1884bb7b520200",
+      "target_hash_crosscheck": "matches complete 20-byte entry inserted by pack delta-56 for driver/tests tree"
+    }
+  ],
+  "review230_final_assertion_confirmed": true,
+  "additional_test_delta_bases_needed": [],
+  "remaining_limits": [
+    "This manifest verifies only the listed blobs; it does not claim the complete commit closure or lost evidence archives have been recovered.",
+    "All execution assertions remain historical records until the original raw reports and exact candidate are available."
+  ],
+  "author_evidence": {
+    "status": "NotRecoverableFromAvailable104Objects",
+    "evidence_tree_git_sha": "d3a7601dced53942c7c26801a0dfcd78311b2d67",
+    "tree_provenance": "Original tree entry inserted in complete pack delta-93; tree contents themselves are not among the current 104 complete objects",
+    "author_result_json": "Not present among complete blobs; do not reconstruct from remembered summary",
+    "archives": "No 231 archive bytes or archive blob hashes available in this prefix. Preserve missing tree SHA and await additional pack bytes. No Pass recreated."
+  }
+}

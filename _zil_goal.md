@@ -175,3 +175,8 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-31 施工9验收228–229
 
 有限生成非泛型struct/alias与普通自由泛型where Copy已随PR11合入main；共同实现04fbd476、实际main e60f9e22，完整PR/main runs41154458005/41156023933各25步骤通过，各自默认2905/0/0、reference2863/0/0。三个独审问题已返修且原Fail保留；预算变化按具名源记录，不宣称编译性能收益。225–227并行记录保留，B0/181、完整1.4/ZUI、Rust四目标和原生Windows状态不变。接续以docs/CURRENT-HANDOFF.md及真实main为准。
+
+
+## 2026-10-31 施工10并行接续
+
+从aaeb67f12接续，230有限Unit/Tuple enum生成与231既有名义trait where正规化按独立写集施工；225/226先核精确来源、独审与最新集成回归再合入。227普通defer仍需注册/必须执行/清理顺序完整合同，不能用FnOnce最多一次代替必须执行。B0/181与完整1.4/ZUI/Rust产品门保持原状态。

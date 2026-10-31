@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "status": "PendingFullCI",
+  "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+  "previous_production_candidate": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+  "production_source_identical": true,
+  "unchanged_scopes": [
+    "crates/*/src",
+    "Cargo.lock",
+    ".github/workflows/verify-main.yml",
+    "validation/product-gates.json",
+    "tools/llvm",
+    "spec",
+    "_zil_design.md"
+  ],
+  "test_blobs": {
+    "crates/zil-driver/tests/review225226_capture.rs": "96a696f917dac46010ad3e107163d3f2ce13e261",
+    "crates/zil-driver/tests/review229_joint.rs": "1047e9c8750cc84a285505d88ae1e2ecaba8a884",
+    "crates/zil-driver/tests/review230_independent.rs": "b7775a3cea5623c4d81cfc2b98a785d10e691d55",
+    "crates/zil-driver/tests/review231_independent.rs": "33b9c08e1fe2eefc12e0d6ce101ba14276674532"
+  },
+  "first_run": "evidence/integration/construction10/attempt-1/COMPLETE.json",
+  "local_correction_receipts": [
+    "evidence/reviews/225/construction10/reference-correction/RESULT.json",
+    "evidence/reviews/231/repair-local/REPAIR.json"
+  ],
+  "local_reference_does_not_substitute_llvm23_ci": true,
+  "independent_test_counts": {
+    "225_226": 9,
+    "230": 9,
+    "231": 8
+  },
+  "global_status": {
+    "complete_1_4": "NotSatisfied",
+    "B0": "Doing",
+    "Rust_product_gates": "NotRun",
+    "native_Windows": "NotRun"
+  }
+}

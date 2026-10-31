@@ -1,0 +1,124 @@
+{
+  "production_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+  "ci_candidate": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+  "ancestry": [
+    {
+      "ancestor": "8ea37c2de56cf65f1448e4fa647671f4459ad148",
+      "descendant": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+      "exit": 0
+    },
+    {
+      "ancestor": "c8dd71a4b75ed7731fca8372a3a055f017991eb3",
+      "descendant": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+      "exit": 0
+    },
+    {
+      "ancestor": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+      "descendant": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+      "exit": 0
+    },
+    {
+      "ancestor": "7877b92e47b43bf9a1118f27796282ccc9346495",
+      "descendant": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+      "exit": 0
+    }
+  ],
+  "source_paths": [
+    {
+      "slice": "225",
+      "path": "crates/zil-analyze/src/dynamic_store.rs",
+      "original_blob": "4f43bcfebd042e956c2e23ccbbf3d8c44ab8c275",
+      "production_blob": "4f43bcfebd042e956c2e23ccbbf3d8c44ab8c275",
+      "equal": true
+    },
+    {
+      "slice": "225",
+      "path": "crates/zil-types/src/dynamic_store.rs",
+      "original_blob": "38adc836e6280bc1a5f868c50244d3b491c798b8",
+      "production_blob": "38adc836e6280bc1a5f868c50244d3b491c798b8",
+      "equal": true
+    },
+    {
+      "slice": "225",
+      "path": "crates/zil-verify/src/dynamic_store.rs",
+      "original_blob": "8155bb9f151c261edf7c447fcb71587c292fcbf2",
+      "production_blob": "8155bb9f151c261edf7c447fcb71587c292fcbf2",
+      "equal": true
+    },
+    {
+      "slice": "226",
+      "path": "crates/zil-analyze/src/budget.rs",
+      "original_blob": "63663b46f5640897a4ccfb9c15b187c00a282b5d",
+      "production_blob": "63663b46f5640897a4ccfb9c15b187c00a282b5d",
+      "equal": true
+    },
+    {
+      "slice": "226",
+      "path": "crates/zil-analyze/src/holds.rs",
+      "original_blob": "52b63d9968f0e1ec2eb3e2838c22a6ec2cb54873",
+      "production_blob": "52b63d9968f0e1ec2eb3e2838c22a6ec2cb54873",
+      "equal": true
+    },
+    {
+      "slice": "226",
+      "path": "crates/zil-backend-llvm/src/emit.rs",
+      "original_blob": "4a5121e933d52c6457fdde6beee2398cfe3740d0",
+      "production_blob": "4a5121e933d52c6457fdde6beee2398cfe3740d0",
+      "equal": true
+    },
+    {
+      "slice": "226",
+      "path": "crates/zil-lower/src/lib.rs",
+      "original_blob": "7eb9de189b51c82473b8ad91517997fa967c1847",
+      "production_blob": "7eb9de189b51c82473b8ad91517997fa967c1847",
+      "equal": true
+    },
+    {
+      "slice": "226",
+      "path": "crates/zil-types/src/closures.rs",
+      "original_blob": "5dfa504544b4844036af34fbf5908a8fa21a6868",
+      "production_blob": "5dfa504544b4844036af34fbf5908a8fa21a6868",
+      "equal": true
+    },
+    {
+      "slice": "226",
+      "path": "crates/zil-verify/src/borrows.rs",
+      "original_blob": "4a95fe4665831f72ae21eb220793c78d62b1f84a",
+      "production_blob": "4a95fe4665831f72ae21eb220793c78d62b1f84a",
+      "equal": true
+    },
+    {
+      "slice": "226",
+      "path": "crates/zil-verify/src/closures.rs",
+      "original_blob": "102bf7097fd4a0626ceb8a864032e68793542c8b",
+      "production_blob": "102bf7097fd4a0626ceb8a864032e68793542c8b",
+      "equal": true
+    }
+  ],
+  "2dcb7bc3c05c8f7c02757c73dfd5188fd057480b_crates": "a5b4a535053b6bf6478b95a975eed848a0846ffd",
+  "85a09bb0618868f9c4ec9073ba6fe19f72666b56_crates": "a5b4a535053b6bf6478b95a975eed848a0846ffd",
+  "test_blob": "9479b3e5a914b4ce75b2b84ac05447d08896696b",
+  "no_ff_merges": [
+    {
+      "merge_commit": "31474713a8747d5d73e28f4626bc4b22d67ec1ae",
+      "parents": [
+        "4d0534eeb70c0b5e9abb01bfd5db1db5f8b3a379",
+        "8ea37c2de56cf65f1448e4fa647671f4459ad148"
+      ]
+    },
+    {
+      "merge_commit": "dc900a5a0a2fedd016ccce026a134c3225fb98bd",
+      "parents": [
+        "31474713a8747d5d73e28f4626bc4b22d67ec1ae",
+        "c8dd71a4b75ed7731fca8372a3a055f017991eb3"
+      ]
+    }
+  ],
+  "ci_crates_changes": [
+    "A\tcrates/zil-driver/tests/review225226_capture.rs",
+    "A\tcrates/zil-driver/tests/review230_independent.rs",
+    "A\tcrates/zil-driver/tests/review231_independent.rs"
+  ],
+  "current_spec_sha256": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+  "production_spec_sha256": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a"
+}

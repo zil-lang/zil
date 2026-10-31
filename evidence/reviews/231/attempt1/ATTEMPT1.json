@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "task": "231",
+  "reviewer": "/root/continuity_audit",
+  "status": "Fail",
+  "classification": "ReviewerFixtureErrorPendingCorrectedRun",
+  "production_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+  "ci_run": 41182685056,
+  "ci_job": 124483160069,
+  "actual_checkout": "015cb5d4e6c7794de616e0a933520cd3dfa886f7",
+  "original_test_commit": "6e8fedac2af340ef2c09f134dd8a4d319b004bfb",
+  "original_test_blob": "130080594ed458632de761fec4c32bd6c7399d69",
+  "original_test_blob_saved_as": "ORIGINAL-REVIEW231.rs.txt",
+  "ci_source_tree_entry": "100644 blob 130080594ed458632de761fec4c32bd6c7399d69\tcrates/zil-driver/tests/review231_independent.rs",
+  "actual_test_result": {
+    "passed": 3,
+    "failed": 3,
+    "ignored": 0,
+    "filtered_out": 0
+  },
+  "failures": [
+    {
+      "test": "independent_module_identity_alias_privacy_and_binder_boundaries",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostic": {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-RECEIVER-NONE",
+        "message": "leading-dot member requires a lexical method receiver",
+        "span": {
+          "file": 2,
+          "start": 82,
+          "end": 84
+        },
+        "notes": []
+      },
+      "verification_runs": 0,
+      "report": "independent_module_identity_alias_privacy_and_binder_boundaries.json"
+    },
+    {
+      "test": "independent_module_where_budget_boundary_survives_cache_replay",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostic": {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-RECEIVER-NONE",
+        "message": "leading-dot member requires a lexical method receiver",
+        "span": {
+          "file": 2,
+          "start": 82,
+          "end": 84
+        },
+        "notes": []
+      },
+      "verification_runs": 0,
+      "report": "independent_module_where_budget_boundary_survives_cache_replay.json"
+    },
+    {
+      "test": "independent_native_grouped_module_and_generated_enum_consumers",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostic": {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-RECEIVER-NONE",
+        "message": "leading-dot member requires a lexical method receiver",
+        "span": {
+          "file": 2,
+          "start": 82,
+          "end": 84
+        },
+        "notes": []
+      },
+      "verification_runs": 0,
+      "report": "independent_native_grouped_module_and_generated_enum_consumers.json"
+    }
+  ],
+  "original_workspace_log": {
+    "path": "/workspace/scratch/b2d4304a481d/z10-ci/41182685056/workspace/workspace.log",
+    "sha256": "2b5844d01a6c4559e931a29e410ae560851de1495c34b03ef324f21c42eaf93b",
+    "exact_test_section": "workspace-review231.log"
+  },
+  "cause": "The shared three-module fixture declared an implicit receiver on an implementation of a separately declared module trait, while its method body used leading-dot field syntax. All three failures reached Types E-RECEIVER-NONE at data.zil bytes 82..84 before their intended assertions.",
+  "correction": {
+    "scope": "Only the positive Payload implementation and same-method/wrong-trait negative control in review231_independent.rs",
+    "before": "fn code()->i32=>.n",
+    "after": "fn code(self:&Self)->i32=>self.n",
+    "new_test_blob": "657abfd598bcb1aee6b67ac5cfbad270b5fe62e2",
+    "reason": "An explicit self receiver is selected by receivers::function from the real nominal host; self.n uses that bound receiver. The trait signature, private field, real module identity, negative mismatch and all assertions are retained.",
+    "assertions_changed": false,
+    "production_changed": false,
+    "validation_status": "NotRun",
+    "cargo_executed_by_reviewer": false
+  },
+  "preservation": "The original test blob, actual three diagnostic reports and exact failing target log are retained. This does not reclassify the first CI run as successful.",
+  "next_step": "Run the corrected six independent probes through the root-provided scoped validation route, then require fresh complete CI and actual native/budget artifacts before signing."
+}

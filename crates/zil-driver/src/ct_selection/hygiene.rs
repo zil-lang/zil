@@ -135,7 +135,7 @@ impl<'a> Renamer<'a> {
     fn unsupported(&self, span: Span) -> Vec<Diagnostic> {
         vec![Diagnostic::unsupported(
             Phase::Expand,
-            "#for generates ordinary functions, non-generic method-free structs and plain type aliases; other Type/Syntax declarations are unsupported",
+            "#for generates ordinary functions, non-generic method-free structs, plain type aliases and non-generic Unit/Tuple enums; other Type/Syntax declarations are unsupported",
             Some(span),
         )]
     }
@@ -520,4 +520,101 @@ pub(super) fn items(
         renamer.function(function, 0)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod generated_enum_tests {
+    use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
+    use zil_ir::InstructionKind;
+
+    #[test]
+    fn impl230_generated_enum_raw_wire_reconstructs_and_rejects_forgery() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "raw230.zil",
+            "#for(n in [42]){enum E{A(i32),B(i32)}pub fn result()->i32{let e=E.A(n);match e{E.A(x)=>{return x},E.B(x)=>{return x}}}}",
+        );
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let ast = zil_syntax::parse(&source).into_result().unwrap();
+        let selected = crate::ct_selection::select(
+            std::slice::from_ref(&source),
+            &[&ast],
+            &[Vec::new()],
+            source.module_id,
+            source.fingerprint(),
+            &target,
+            &limits,
+        )
+        .unwrap();
+        let remaining = selected.receipt.remaining(&limits).unwrap();
+        let core = zil_expand::expand_with_map_limits(&source, &selected.modules[0], &remaining)
+            .unwrap()
+            .core;
+        let module = zil_types::check(&core, &target, &remaining).unwrap();
+        let plan = zil_analyze::analyze(&module, &remaining).unwrap();
+        let verified =
+            zil_verify::verify_module(module.clone(), plan.clone(), &target, &remaining).unwrap();
+        assert_eq!(verified.module(), &module);
+        let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &remaining).unwrap();
+        assert_eq!(
+            zil_ir::wire::decode_module_candidate(&bytes, &remaining).unwrap(),
+            (module.clone(), plan.clone())
+        );
+        zil_verify::verify_module_bytes(&bytes, &target, &remaining).unwrap();
+        let mut rejected = Vec::new();
+        for alteration in 0..3 {
+            let mut forged = module.clone();
+            let mut changed = false;
+            for instruction in forged
+                .functions
+                .iter_mut()
+                .flat_map(|f| &mut f.blocks)
+                .flat_map(|b| &mut b.instructions)
+            {
+                match &mut instruction.kind {
+                    InstructionKind::MakeVariant { variant, .. } if alteration == 0 => {
+                        *variant = 99;
+                        changed = true;
+                    }
+                    InstructionKind::MakeVariant { fields, .. } if alteration == 1 => {
+                        fields.clear();
+                        changed = true;
+                    }
+                    InstructionKind::ReadVariant { index, .. } if alteration == 2 => {
+                        *index = 99;
+                        changed = true;
+                    }
+                    _ => {}
+                }
+                if changed {
+                    break;
+                }
+            }
+            assert!(
+                changed,
+                "mutation must touch a real generated-enum instruction"
+            );
+            let mut stale = plan.clone();
+            stale.module_fingerprint = forged.fingerprint();
+            let raw = zil_verify::verify_module(forged.clone(), stale.clone(), &target, &remaining)
+                .unwrap_err();
+            let bytes = zil_ir::wire::encode_module_candidate(&forged, &stale, &remaining).unwrap();
+            let wire = zil_verify::verify_module_bytes(&bytes, &target, &remaining).unwrap_err();
+            assert_eq!(raw[0].code, "E-VERIFY-ENUM", "{raw:?}");
+            assert_eq!(wire[0].code, "E-VERIFY-ENUM", "{wire:?}");
+            rejected.push((alteration, raw, wire));
+        }
+        if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
+            let path = std::path::PathBuf::from(root).join("raw-wire230");
+            std::fs::create_dir_all(&path).unwrap();
+            std::fs::write(path.join("source.zil"), &source.text).unwrap();
+            std::fs::write(path.join("core.txt"), format!("{core:#?}")).unwrap();
+            std::fs::write(path.join("typed.txt"), format!("{module:#?}")).unwrap();
+            std::fs::write(path.join("candidate.txt"), format!("{plan:#?}")).unwrap();
+            std::fs::write(path.join("candidate.wire"), bytes).unwrap();
+            std::fs::write(path.join("rejected.txt"), format!("{rejected:#?}")).unwrap();
+        }
+    }
 }

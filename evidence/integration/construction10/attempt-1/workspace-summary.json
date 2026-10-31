@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "status": "Fail",
+  "run_id": 41182685056,
+  "job_id": 124483160069,
+  "artifact_id": 13035518926,
+  "head_candidate": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+  "actual_checkout": "015cb5d4e6c7794de616e0a933520cd3dfa886f7",
+  "suite": "complete default workspace",
+  "counts": {
+    "groups": 326,
+    "passed": 2967,
+    "failed": 6,
+    "ignored": 0
+  },
+  "failed_tests": [
+    "one_environment_keeps_owned_store_and_shared_product_responsibilities_separate",
+    "raw_one_branch_store_injection_cannot_reuse_ordinary_origin_plan",
+    "generated_types_do_not_grant_where_binders_members_or_numeric_rights",
+    "independent_module_identity_alias_privacy_and_binder_boundaries",
+    "independent_module_where_budget_boundary_survives_cache_replay",
+    "independent_native_grouped_module_and_generated_enum_consumers"
+  ],
+  "log_sha256": "2b5844d01a6c4559e931a29e410ae560851de1495c34b03ef324f21c42eaf93b",
+  "raw_log": "workspace.log.gz",
+  "other_gates": "still running; not inferred from this receipt"
+}

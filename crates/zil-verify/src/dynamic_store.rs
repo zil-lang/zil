@@ -69,8 +69,8 @@ fn check_capture_leaf_tree(element: &Type, budget: &mut Budget) -> Check<()> {
     Ok(())
 }
 
-/// The inner Store of an owning capture deliberately uses the old leaf
-/// element profile, not the broader callback Store predicate. This check is
+/// A captured inner Store permits complete Products as well as old leaves,
+/// but never the broader callback Store profile. This check is
 /// also used while qualifying resource-only outer Store metadata, before the
 /// ordinary module closure pass has run.
 fn check_captured_store(
@@ -99,12 +99,16 @@ fn check_captured_store(
             None,
         ));
     };
-    if !fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
-        || !fields.iter().all(|(_, ty)| {
-            ty.is_copy_value()
-                || matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer
-                    || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
-        })
+    // Full payload work and hidden-type scanning were paid above. Nested
+    // Products are requalified below by this kernel's ordinary-type and actual
+    // layout checks; a child tag alone never establishes admission.
+    if !packages::has_children(element)
+        && (!fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
+            || !fields.iter().all(|(_, ty)| {
+                ty.is_copy_value()
+                    || matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer
+                        || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
+            }))
     {
         return Err(unsupported(
             "Store callback captures retain the finite owning environment profile: inner Store elements must be leaf Copy/direct-Managed Packages",

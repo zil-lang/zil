@@ -18,18 +18,34 @@ fn output(label: &str) -> PathBuf {
 
 #[test]
 fn generated_types_do_not_grant_where_binders_members_or_numeric_rights() {
-    for (label, text) in [
+    for (label, text, accepted_by_231) in [
         (
             "alias-numeric",
             "#for(n in [1]){type T=i32;fn bad<T>(x:T)->T where T:Copy=>x+x;}fn main()->i32=>0",
+            false,
         ),
         (
             "nominal-field",
             "#for(n in [1]){struct T{x:i32}fn bad<T>(x:T)->i32 where T:Copy=>x.x;}fn main()->i32=>0",
+            false,
         ),
         (
+            // Keep the original 229 input bytes and label. The frozen 231
+            // profile admits this declared ordinary nominal trait obligation;
+            // the function body only returns T and gains no extra operations.
             "invalid-bound",
             "trait Marker{}#for(n in [1]){type Count=i32;fn bad<T>(x:T)->T where T:Copy+Marker=>x;}fn main()->i32=>0",
+            true,
+        ),
+        (
+            "missing-bound",
+            "trait Marker{}#for(n in [1]){type Count=i32;fn bad<T>(x:T)->T where T:Copy+Missing=>x;}fn main()->i32=>0",
+            false,
+        ),
+        (
+            "generic-bound",
+            "trait Marker<U>{}#for(n in [1]){type Count=i32;fn bad<T>(x:T)->T where T:Copy+Marker=>x;}fn main()->i32=>0",
+            false,
         ),
     ] {
         let p = output(label);
@@ -42,6 +58,17 @@ fn generated_types_do_not_grant_where_binders_members_or_numeric_rights() {
             },
         );
         fs::write(p.join("report.json"), report.to_json()).unwrap();
+        if accepted_by_231 {
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{label}: {}",
+                report.to_json()
+            );
+            assert_eq!(report.phase, Phase::Verify, "{label}: {}", report.to_json());
+            assert_eq!(report.verification_runs, 1);
+            continue;
+        }
         assert!(
             matches!(
                 report.status,
