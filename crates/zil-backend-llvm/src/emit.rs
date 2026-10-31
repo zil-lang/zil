@@ -386,6 +386,9 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                 ty.is_copy_value()
                     || matches!(ty, Type::Closure(_))
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+                    // The exact capability/LIR comparison above already binds
+                    // origin admission; use the existing pointer field layout.
+                    || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
                     // The exact VerifiedModule binding above carries the
                     // independently checked owning Store capture contract.
                     // Borrowed descriptions do not gain an owning ABI here.
@@ -2510,6 +2513,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
         _ if ty.is_copy_value()
             || matches!(ty, Type::Closure(_))
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+            || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
             || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
@@ -2578,6 +2582,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 if !field.is_copy_value()
                     && !matches!(field, Type::Closure(_))
                     && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+                    && !(field.is_package_address() && matches!(field, Type::Address { mutable: false, .. }))
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
                     && !matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
