@@ -1,6 +1,6 @@
 # 已核单块标量局部的机器值提升候选
 
-状态：静态提案与控制设计，未实现、未编译、未测收益。基线为43037eb7b108ba864144979204b5c6d18636dac3。该候选由第六阶段O2审计提出，等待真实LLVM pass profile后由root决定实施；不将SLP或MergeFunctions窗口的成绩归给它。
+状态：最小候选已实现，作者限定控制通过，等待独立审核与独占性能消融，未测收益。生产基线为43037eb7b108ba864144979204b5c6d18636dac3，派工登记ffa3b1acf；原llvm_shape_audit转为作者，独审另行分配。该候选不将SLP或MergeFunctions窗口的成绩归给自己。
 
 ## 已核事实与归因边界
 
@@ -16,9 +16,9 @@ Rust1.99.1固定revision `58cf8f9c35b355199727627d07ae34a4e2846d67`的`compiler/
 
 限定为后端内部机器表示优化，输入仍先经过当前独立Verify与bind_lir。首片只允许Bool、U8、U16、I32、I64；不把整个is_copy_value集合当成标量，不纳入Unit、指针、Address、Desc、ForeignHandle、数组、聚合、Closure、错误联合或资源。
 
-1. 只读参数：参数初始化视为函数入口的唯一定义；全函数零Store、零借址、零捕获/未知局部使用，且只作普通Load，才以原参数值替代Load。多个源码块中的只读参数Load可使用该入口值；这是入口支配成立的单独规则，不开放跨块可变局部。
+1. 只读参数：参数初始化视为函数入口的唯一定义；全函数零Store、零借址、零捕获/未知局部使用，且只作普通Load，才以原参数值替代Load。正常出口的StorageDead没有机器操作且仍由原Verify检查生命周期；StorageLive重启则回退。多个源码块中的只读参数Load可使用该入口值；这是入口支配成立的单独规则，不开放跨块可变局部。
 2. 局部变量：全部相关使用须落在同一个原TypedBlock，且只包含明确白名单的Load、Store、StorageLive、StorageDead。逐指令模拟当前值；每个Load必须已有当前激活中的定义，Store更新为当时RHS的ValueId。StorageLive/Dead清空当前定义，不能把上一激活的值带到下一激活。非只读参数若第一次Load仍依赖跨次进入块的旧值，回退原槽；最小实现可直接排除这类可变参数。
-3. BorrowLocal/BorrowLocalMut、TakeLocal、捕获/环境绑定、资源/清理指令、跨块读写和任何未分类局部使用均令该局部整体回退。资格判定不只检查LocalDecl.mutable，也不靠“未看到通常的借用”推断无地址暴露。机器层再检查候选slot的所有实际使用只为匹配类型的普通Load/Store；出现GEP、作为实参、其它使用或未知Op即回退。
+3. BorrowLocal/BorrowLocalMut令该局部整体回退。首片对TakeLocal、捕获/环境绑定、资源/清理、投影及其它未分类指令更保守地令整个函数回退；跨块可变局部回退。资格判定不只检查LocalDecl.mutable，也不靠“未看到通常的借用”推断无地址暴露。机器层再检查候选slot的所有实际使用只为匹配类型的普通Load/Store；出现GEP、作为实参、其它使用或未知Op即回退。
 4. 每个Load替换为该时刻的值，而非局部最终值。例如`old=x; x=next; return old`必须保留old快照。采用真正的operand别名替换并删除已消解的Load/Store/Alloca；不得用freeze代替Load，也不添加nsw/nuw、noalias、nonnull等事实。
 5. 分支、调用、overflow intrinsic、比较、checked成功块、trap、错误传播和全部清理指令保持原先后。机器发射产生的checked成功块仅是同一TypedBlock内顺序的细化，不为跨源码控制流合并提供许可。不引入Phi、跨块SSA求解或新的支配树算法。
 
@@ -36,9 +36,9 @@ Rust1.99.1固定revision `58cf8f9c35b355199727627d07ae34a4e2846d67`的`compiler/
 
 当前EmitOptions不接收优化级别，候选在共同发射层实施将同时影响O0/O2；若选择仅O2，须另明确策略传递、文本参考和身份合同，不能暗加环境变量开关。先保持共同路径并核对两级行为及完整成本，不调整LLVM优化质量策略。
 
-## 真实source控制设计（尚未执行）
+## 真实source控制设计与首轮执行
 
-下列新增短源是待运行输入，不声称已通过；语法来源为既有narrow_constants、borrowed_closures、cross_function_borrows和byte_io真实源码。每项都固定原输入、原参考与候选，API/Text、O0/O2使用同一行为oracle。
+下表是原控制设计，具体已执行范围以`crates/zil-driver/tests/scalar_local_promotion.rs`与本节执行记录为准；不能把尚未重放的全部既有消费者/预算项目算入已通过。语法来源为既有narrow_constants、borrowed_closures、cross_function_borrows和byte_io真实源码，API/Text、O0/O2使用同一行为oracle。
 
 | 控制 | 待核source/预期 | 机器义务 |
 |---|---|---|
@@ -57,8 +57,12 @@ Rust1.99.1固定revision `58cf8f9c35b355199727627d07ae34a4e2846d67`的`compiler/
 
 缓存控制需包含：同源码第二请求命中但当前Verify仍运行；更改被提升局部的初始化常量必须失效；恢复原字节复用原key；不同编译器参考/候选身份不串用。LIR原始伪造/不匹配VerifiedModule继续拒绝。原阶段N/N−1/fresh逻辑预算控制按同源重放，新增后端分析成本计入完整请求，不调高默认额度。
 
+首轮功能窗作者执行：内部保护3/0、新driver source控制7/0，其中44次真实source构建覆盖API/Clang的O0/O2及4次API cache请求，直接值/同块旧值快照、只读跨块参数、5种标量、分支/循环/借址/捕获回退、无缓冲A/AB失败顺序、current Verify与cold/warm/edit/restore均通过；源派生越界LocalId/ValueId和真实借用冲突继续被Verify拒绝。内部手填模型的未知地址用途、非连续ID回退及长链/cycle测试单列，不计source接受性。原日志为`stage6/scalar-promotion-internal.log`和`scalar-promotion-source-initial.log`，作者说明与逐文件SHA在`stage6/scalar-promotion-author.md`。没有本地全仓或性能采样，首次功能执行无失败/返修。
+
+冻结前按独审建议仅追加4个内部边界控制，算法未改；最终内部7/0，不与首轮3/0相加。既有borrowed_closures 13/0、impl056 4/0、narrow_constants 2/0及backend lib/driver新test的定向Clippy均通过，作为既有回归单列，不重标为新增覆盖。日志为`scalar-promotion-internal-final.log`、`scalar-promotion-regressions.log`及两个`scalar-promotion-clippy-*`；独审差分及性能消融仍未完成。
+
 ## 决策与计量
 
-先由真实API pass profile区分SROA/Promote、支配树、InstCombine/SimplifyCFG和大root函数耗时；这份静态发现不能当作耗时定因。功能与非作者审核通过后，root冻结候选实现/参考二进制，以相同Merge、SLP、CGU/closed及目标参数独占交错计量。记录完整CLI、preflight/builder/optimize/emit、RSS、对象与原生产物体积、运行输出及opaque运行质量；保留128小样本与不合格局部为主的资源/循环分布，不只报告8192最好单元。不重跑或重标已冻结Merge/SLP窗口。
+真实API pass profile已由另一作者定位JumpThreading约1.755s、SROA约0.091s、SLP约0.025s；本候选不声称解决主要优化热点，仍独立计量构造/预检/总请求的净成本。功能与非作者审核通过后，root冻结候选实现/参考二进制，以相同Merge、SLP、CGU/closed及目标参数独占交错计量。记录完整CLI、preflight/builder/optimize/emit、RSS、对象与原生产物体积、运行输出及opaque运行质量；保留128小样本与不合格局部为主的资源/循环分布，不只报告8192最好单元。不重跑或重标已冻结Merge/SLP窗口。
 
-四目标：安全仅有上述等价条件与待运行反例设计；运行/内存质量未测；语言表达和公共接口不变，新增后端维护成本须计入；编译成本尚无实测收益。没有建立任何可重复净突破，完整语言/产品门保持原状态。
+四目标：安全仅有上述等价条件与限定原生/反例控制，不代替独审或完整语言证明；运行吞吐/峰值内存质量未测；语言表达和公共接口不变，新增后端维护成本须计入；编译成本尚无实测收益。没有建立任何可重复净突破，完整语言/产品门保持原状态。
