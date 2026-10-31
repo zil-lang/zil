@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/environment_recovery",
+  "candidate": "75f22dda0f80b49aeba16bc64b39249211d5e7ac",
+  "review_checkout": "806aed69045d92f3161ad5abab3b1ebd6b432b76",
+  "status": "Pass",
+  "scope": "Shared declaration reserved-name extraction only",
+  "selected_tests_before": 3,
+  "selected_tests_after": 4,
+  "before_after_exact_boundaries": [
+    {
+      "dimension": "work",
+      "N": 2044,
+      "at_N": "Success",
+      "at_N_minus_1": "ResourceLimit"
+    },
+    {
+      "dimension": "nodes",
+      "N": 407,
+      "at_N": "Success",
+      "at_N_minus_1": "ResourceLimit"
+    },
+    {
+      "dimension": "depth",
+      "N": 6,
+      "at_N": "Success",
+      "at_N_minus_1": "ResourceLimit"
+    }
+  ],
+  "ordinary_event_consumer_comparison": [
+    {
+      "optimization": "O0",
+      "file": "phases/core.txt",
+      "byte_equal": true,
+      "sha256": "32a6c8ea67be479ae3cb02858965d16b3debf6786e3af182543b4f79c561770f"
+    },
+    {
+      "optimization": "O0",
+      "file": "phases/lir.txt",
+      "byte_equal": true,
+      "sha256": "96fa62ccd2acdecfd453d6d30731f608ceb787d468c2033d1c4c7e57b0ae0c44"
+    },
+    {
+      "optimization": "O0",
+      "file": "phases/llvm.ll",
+      "byte_equal": true,
+      "sha256": "5d701c1aba726643a949e8bebf4f03f8f2973f4486bd57056de88f87032929c7"
+    },
+    {
+      "optimization": "O0",
+      "file": "48.stdout",
+      "byte_equal": true,
+      "sha256": "6da43b944e494e885e69af021f93c6d9331c78aa228084711429160a5bbd15b5"
+    },
+    {
+      "optimization": "O0",
+      "file": "49.stdout",
+      "byte_equal": true,
+      "sha256": "fcb5f40df9be6bae66c1d77a6c15968866a9e6cbd7314ca432b019d17392f6f4"
+    },
+    {
+      "optimization": "O0",
+      "file": "120.stdout",
+      "byte_equal": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "optimization": "O2",
+      "file": "phases/core.txt",
+      "byte_equal": true,
+      "sha256": "32a6c8ea67be479ae3cb02858965d16b3debf6786e3af182543b4f79c561770f"
+    },
+    {
+      "optimization": "O2",
+      "file": "phases/lir.txt",
+      "byte_equal": true,
+      "sha256": "96fa62ccd2acdecfd453d6d30731f608ceb787d468c2033d1c4c7e57b0ae0c44"
+    },
+    {
+      "optimization": "O2",
+      "file": "phases/llvm.ll",
+      "byte_equal": true,
+      "sha256": "5d701c1aba726643a949e8bebf4f03f8f2973f4486bd57056de88f87032929c7"
+    },
+    {
+      "optimization": "O2",
+      "file": "48.stdout",
+      "byte_equal": true,
+      "sha256": "6da43b944e494e885e69af021f93c6d9331c78aa228084711429160a5bbd15b5"
+    },
+    {
+      "optimization": "O2",
+      "file": "49.stdout",
+      "byte_equal": true,
+      "sha256": "fcb5f40df9be6bae66c1d77a6c15968866a9e6cbd7314ca432b019d17392f6f4"
+    },
+    {
+      "optimization": "O2",
+      "file": "120.stdout",
+      "byte_equal": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "native_builds_after": 2,
+  "native_runs_after": 6,
+  "not_claimed": [
+    "Complete 228 implementation",
+    "Complete 229 implementation",
+    "Workspace acceptance"
+  ]
+}

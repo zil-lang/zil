@@ -1,0 +1,60 @@
+{
+  "task": "228",
+  "implementation_commit": "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+  "shared_precheck_commit": "75f22dda0f80b49aeba16bc64b39249211d5e7ac",
+  "author": "/root/scope_audit",
+  "author_tests": {
+    "passed": 6,
+    "failed": 0,
+    "ignored": 0,
+    "valid_sources": 11,
+    "native_builds": 22,
+    "native_executions": 22,
+    "native_backend": "llvm-api",
+    "llvm_version": "23.1.4",
+    "object_input": "builder",
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "platform": "x86_64-unknown-linux-gnu"
+  },
+  "limits": {
+    "max_nodes_minimum": 614,
+    "max_analysis_steps_minimum": 1809,
+    "controls": "N,warm N,N-1,recovered warm N,fresh N; no default limit changed"
+  },
+  "affected_regressions": {
+    "passed": 19,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 1,
+    "filtered_reason": "impl222 generation_boundaries test includes the exact old generated-type rejection that root migrates to Success; this author run is limited, not a full gate"
+  },
+  "prior_attempts": {
+    "attempt-01": "3 passed / 3 failed; two newly authored fixtures used invalid syntax (Value.B pattern omitted (), trait signature omitted semicolon). Raw original inputs and results preserved; no production change was made to repair these grammar errors. Native test stopped at invalid alias-enum fixture after earlier cases.",
+    "attempt-02": "all 6 passed after correcting those two fixtures; overlaps final and is not additive"
+  },
+  "archives": [
+    {
+      "label": "attempt-01",
+      "bytes": 63932,
+      "files": 369,
+      "sha256": "1d992a7b513d89ff47543646b68e9d8cead44e88950c143fc8cffbac58d87bbd"
+    },
+    {
+      "label": "attempt-02",
+      "bytes": 74932,
+      "files": 559,
+      "sha256": "79441cd25ea4b1aaa8f815d079daa9d4088a15ed3c20d8b31dcb993b5cf308bd"
+    },
+    {
+      "label": "final",
+      "bytes": 309376,
+      "files": 2299,
+      "sha256": "dbc265551413247bbfbd0ec8d9594a92a35661189ad43f7568082dd5752bed05"
+    }
+  ],
+  "product_status": "NotRun; not complete language 1.4 or ZUI; no Rust performance conclusion",
+  "source_changes": "Finite non-generic method-free structs and plain aliases; type/value hygiene, full-batch prebinding, reserved names, generic shadowing, fields/defaults/alias type scalar slots; unchanged schema."
+}

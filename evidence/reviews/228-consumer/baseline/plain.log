@@ -1,0 +1,21 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-base)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-llvm-api)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-verify)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-syntax)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 12.70s
+     Running tests/impl228_consumer.rs (/workspace/scratch/e9af9764d083/targets/consumer/debug/deps/impl228_consumer-12206911d29295af)
+
+running 1 test
+test plain_event_consumer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.20s
+

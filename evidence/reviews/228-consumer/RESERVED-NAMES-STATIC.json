@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/environment_recovery",
+  "review_kind": "Static non-author source review only; runtime gates pending",
+  "candidate": "75f22dda0f80b49aeba16bc64b39249211d5e7ac",
+  "parent": "45fa541ed11b26f2aadc99a6a574c54b1cbec105",
+  "status": "StaticPass",
+  "automated_assertions": {
+    "alias_reserved_name_sequence_equal": true,
+    "alias_reserved_name_sequence": [
+      "u8",
+      "u16",
+      "i32",
+      "i64",
+      "bool",
+      "void",
+      "c_handle",
+      "c_wstr"
+    ],
+    "existing_nominal_diagnostic_text_retained": true
+  },
+  "manual_findings": [
+    "The original specialize declaration match, names_budget preflight and generic-parameter traversal are unchanged.",
+    "check_nominal_name preserves the old ByteBuffer/OwnedStore predicate-before-Copy order, the item span, and one-element Diagnostic vector.",
+    "generic_alias normalizer preserves names.insert short-circuit ordering and exactly the original scalar-name set.",
+    "The old path adds no AST scan, allocation, cloning, name-table insertion, or budget charge.",
+    "The new public helper adds only pre-hygiene reserved-name validation; it produces no semantic type facts or safety capability.",
+    "The 228 caller must charge its own generated-name work before this helper. That caller is outside this extraction commit and remains for its complete review."
+  ],
+  "not_run": [
+    "runtime tests of this exact extraction",
+    "N/N-1 budget comparison on this exact extraction"
+  ],
+  "files": [
+    {
+      "path": "crates/zil-expand/src/lib.rs",
+      "sha256": "6b598c52c205abc6ee2b2e5dc7b80f45ad9f52368449c261483d3b7d3d5dc7cd"
+    },
+    {
+      "path": "crates/zil-expand/src/generics.rs",
+      "sha256": "d15034745a45cdcc97b50ebfc984013cd1c52b6880d1eccb7f1d6c9981325a2a"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_alias.rs",
+      "sha256": "82ca71e4d705ca6267b9ed0e37ef11fe2dc1ed45e6b37c0b26e561afdd2d995c"
+    }
+  ]
+}

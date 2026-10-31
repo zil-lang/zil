@@ -1,0 +1,44 @@
+    Finished `test` profile [unoptimized] target(s) in 0.00s
+     Running tests/impl228_generation.rs (/workspace/scratch/e9af9764d083/targets/228/debug/deps/impl228_generation-e6dc0bebaa7ed20a)
+
+running 6 tests
+test declaration_reserved_names_cannot_escape_through_alpha_renaming ... ok
+test duplicate_nominals_visibility_and_unchecked_types_still_reject ... ok
+test declarations_aliases_defaults_and_namespaces_reach_independent_verify ... FAILED
+test generated_type_tables_share_request_limits_and_warm_cache_charges ... ok
+test unsupported_declaration_kinds_and_configready_remain_closed ... FAILED
+test generated_and_plain_declarations_execute_at_o0_and_o2 ... FAILED
+
+failures:
+
+---- declarations_aliases_defaults_and_namespaces_reach_independent_verify stdout ----
+
+thread 'declarations_aliases_defaults_and_namespaces_reach_independent_verify' (10) panicked at crates/zil-driver/tests/impl228_generation.rs:82:9:
+assertion `left == right` failed: alias-enum: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-PATTERN","message":"qualified patterns require a constructor argument list","span":{"file":0,"start":118,"end":120},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-MODULE-STATEMENT","message":"module scope requires a declaration; executable statements belong inside a function","span":{"file":0,"start":132,"end":133},"notes":[]}],"artifacts":{},"input_fingerprint":"257546657bc06d7393d88c6aecf1a50d8004fbd72ba31b13e9943f7b223855cf","seconds":0.00155863,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"generated-types228.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- unsupported_declaration_kinds_and_configready_remain_closed stdout ----
+
+thread 'unsupported_declaration_kinds_and_configready_remain_closed' (22) panicked at crates/zil-driver/tests/impl228_generation.rs:217:9:
+assertion `left == right` failed: trait: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-FUNCTION-BODY","message":"function requires a block, arrow expression, or declaration semicolon","span":{"file":0,"start":47,"end":48},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-MODULE-STATEMENT","message":"module scope requires a declaration; executable statements belong inside a function","span":{"file":0,"start":48,"end":49},"notes":[]}],"artifacts":{},"input_fingerprint":"3907556c1f323e4f77ea6f05a5a8133326b8cbf512ad38a9a6643b6660e69822","seconds":0.001111156,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"generated-types228.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Unsupported
+
+---- generated_and_plain_declarations_execute_at_o0_and_o2 stdout ----
+
+thread 'generated_and_plain_declarations_execute_at_o0_and_o2' (12) panicked at crates/zil-driver/tests/impl228_generation.rs:326:13:
+assertion `left == right` failed: alias-enum: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-PATTERN","message":"qualified patterns require a constructor argument list","span":{"file":0,"start":118,"end":120},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-MODULE-STATEMENT","message":"module scope requires a declaration; executable statements belong inside a function","span":{"file":0,"start":132,"end":133},"notes":[]}],"artifacts":{},"input_fingerprint":"257546657bc06d7393d88c6aecf1a50d8004fbd72ba31b13e9943f7b223855cf","seconds":0.001871253,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"generated-types228.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+
+failures:
+    declarations_aliases_defaults_and_namespaces_reach_independent_verify
+    generated_and_plain_declarations_execute_at_o0_and_o2
+    unsupported_declaration_kinds_and_configready_remain_closed
+
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+
+error: test failed, to rerun pass `-p zil-driver --test impl228_generation`

@@ -1,0 +1,1 @@
+type Number=i32;struct Pair{left:Number,right:Number}fn keep<T:Copy>(x:T)->T=>x;fn main()->i32{let x:Number=keep(7);let y=keep(Pair{left:3,right:5});return x+y.left+y.right-15}

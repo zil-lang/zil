@@ -286,9 +286,10 @@ impl materialize::Materializer<'_, '_> {
         iterable: &mut s::Expr,
         items: &[s::Item],
         depth: usize,
-    ) -> CompileResult<Vec<s::Item>> {
+    ) -> CompileResult<(Vec<s::Item>, bool)> {
         let values = self.values(binding, iterable, depth)?;
         let mut output = Vec::new();
+        let mut output_has_types = false;
         for value in values {
             for item in items {
                 let cost = syntax::item_cost(item, &self.budget.remaining)?;
@@ -300,14 +301,22 @@ impl materialize::Materializer<'_, '_> {
             let result = self.items(&mut selected, depth + 1, true);
             self.locals.pop();
             self.iterations.pop();
-            result?;
-            super::hygiene::items(&mut selected, self.module, serial, self.budget)?;
+            let has_types = result?;
+            output_has_types |= has_types;
+            super::hygiene::items(
+                &mut selected,
+                self.module,
+                serial,
+                self.budget,
+                &self.context.program,
+                has_types,
+            )?;
             for item in selected {
                 self.budget.node(item.span, depth + 1)?;
                 output.push(item);
             }
         }
-        Ok(output)
+        Ok((output, output_has_types))
     }
 
     pub(super) fn for_statements(
