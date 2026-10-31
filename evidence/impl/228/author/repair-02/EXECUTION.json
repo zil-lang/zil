@@ -1,0 +1,54 @@
+{
+  "implementation_commit": "c1578e319d606d745835a7c3c609a3bb738b3c15",
+  "commands": [
+    {
+      "name": "impl228",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl228_generation",
+        "--",
+        "--test-threads=2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 6.460062086000107
+    },
+    {
+      "name": "affected",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl219_budget",
+        "--test",
+        "impl219_ct_boundary",
+        "--test",
+        "impl219_selection",
+        "--test",
+        "impl222_review_regressions",
+        "--test",
+        "impl222_generation",
+        "--",
+        "--test-threads=2",
+        "--skip",
+        "generation_boundaries_and_runtime_shadowing_fail_closed"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.1880873999907635
+    }
+  ],
+  "scope": "author limited; unchanged root migration boundary excluded"
+}
