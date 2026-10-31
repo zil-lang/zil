@@ -1,0 +1,63 @@
+{
+  "actual_checkout": "045dc75cec6eaa4de52951e075c52fd809fb6b3c",
+  "groups": 326,
+  "counts": {
+    "passed": 2976,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "suites": {
+    "review225226_capture": {
+      "result": "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s",
+      "ok_tests": [
+        "callable_hidden_in_managed_resource_head_is_not_capture_authority",
+        "mixed_ordinary_and_dynamic_branch_origins_are_rejected",
+        "ordinary_branch_union_keeps_each_possible_owner_live",
+        "owned_store_environment_does_not_acquire_external_shared_product_hold",
+        "raw_one_branch_store_injection_cannot_reuse_ordinary_origin_plan",
+        "child_take_and_replacement_wait_for_last_actual_callback_use",
+        "separate_local_environments_preserve_owned_store_and_shared_product_responsibilities",
+        "zero_storage_ordinary_product_capture_does_not_need_store_layout",
+        "two_nonempty_same_type_stores_preserve_payloads_and_cleanup"
+      ]
+    },
+    "review230_independent": {
+      "result": "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s",
+      "ok_tests": [
+        "address_payloads_and_recursive_alias_payloads_keep_ordinary_rejections",
+        "forward_payload_alias_variant_spelling_and_pattern_binder_are_independent",
+        "generic_type_binder_shadows_alias_and_does_not_leak_to_later_functions",
+        "payload_constant_substitution_rechecks_changed_source_in_a_warm_session",
+        "qualified_import_and_same_spelled_generated_enum_keep_separate_identities",
+        "same_layout_generated_public_enums_remain_nominal_between_modules",
+        "transparent_aliases_do_not_merge_distinct_generation_rounds",
+        "variant_payload_visits_share_request_limits_with_cold_and_warm_replay",
+        "ordinary_expansion_and_generated_sources_execute_at_o0_and_o2"
+      ]
+    },
+    "review231_independent": {
+      "result": "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s",
+      "ok_tests": [
+        "independent_cross_module_impl_matches_existing_inline_boundary",
+        "independent_grouped_bounds_and_cross_subject_clause_order",
+        "independent_enum_payload_inference_keeps_inline_equivalence",
+        "independent_module_identity_alias_privacy_and_binder_boundaries",
+        "independent_module_where_budget_boundary_survives_cache_replay",
+        "independent_raw_ast_prefixes_only_apply_the_reserved_name_exclusion",
+        "independent_reserved_capabilities_and_similar_ordinary_trait_names",
+        "independent_native_grouped_module_and_generated_enum_consumers"
+      ]
+    },
+    "review229_joint": {
+      "result": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+      "ok_tests": [
+        "generated_types_do_not_grant_where_binders_members_or_numeric_rights",
+        "generated_array_alias_and_shadowing_where_helper_execute_at_o0_and_o2"
+      ]
+    }
+  },
+  "candidate_tree_exact_match": true,
+  "workspace_log_sha256": "82c0bb4b1d1dc1d8c8ae4779a88f3dbfe6fb00f6cf1c706ee9c5d891de34c981"
+}
