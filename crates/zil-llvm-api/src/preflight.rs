@@ -511,6 +511,68 @@ fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize
     }
     (seen, idom)
 }
+// DFS intervals on the current dominator tree turn repeated ancestor walks
+// into constant-time tests. Iterative traversal also handles deep CFGs without
+// growing the Rust call stack. Unreachable blocks retain sentinel intervals.
+fn dominator_intervals(reachable: &[bool], idom: &[usize]) -> Vec<(usize, usize)> {
+    let n = idom.len();
+    let mut child = vec![usize::MAX; n];
+    let mut sibling = vec![usize::MAX; n];
+    for b in 1..n {
+        if reachable[b] {
+            let parent = idom[b];
+            sibling[b] = child[parent];
+            child[parent] = b;
+        }
+    }
+    let mut intervals = vec![(usize::MAX, usize::MAX); n];
+    let mut stack = vec![(0usize, false)];
+    let mut clock = 0;
+    while let Some((b, exit)) = stack.pop() {
+        if exit {
+            intervals[b].1 = clock;
+        } else {
+            intervals[b].0 = clock;
+            clock += 1;
+            stack.push((b, true));
+            let mut next = child[b];
+            while next != usize::MAX {
+                stack.push((next, false));
+                next = sibling[next];
+            }
+        }
+    }
+    intervals
+}
+fn dominates(
+    reachable: &[bool],
+    idom: &[usize],
+    intervals: Option<&[(usize, usize)]>,
+    a: usize,
+    mut b: usize,
+) -> bool {
+    if !reachable[b] {
+        return true;
+    }
+    if !reachable[a] {
+        return false;
+    }
+    if a == 0 || a == b {
+        return true;
+    }
+    if let Some(spans) = intervals {
+        return spans[a].0 <= spans[b].0 && spans[b].0 < spans[a].1;
+    }
+    loop {
+        if a == b {
+            return true;
+        }
+        if b == 0 {
+            return false;
+        }
+        b = idom[b];
+    }
+}
 fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
     let Some(blocks) = &f.blocks else {
         return Ok(vec![]);
@@ -603,23 +665,8 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
         return fail("entry block has a predecessor");
     }
     let (reachable, idom) = dominators(&succ, &pred);
-    let dominates = |a: usize, mut b: usize| {
-        if !reachable[b] {
-            return true;
-        }
-        if !reachable[a] {
-            return false;
-        }
-        loop {
-            if a == b {
-                return true;
-            }
-            if b == 0 {
-                return false;
-            }
-            b = idom[b];
-        }
-    };
+    let intervals = (n >= 32).then(|| dominator_intervals(&reachable, &idom));
+    let dominates = |a, b| dominates(&reachable, &idom, intervals.as_deref(), a, b);
     let mut uses = Vec::new();
     for (b, block) in blocks.iter().enumerate() {
         for (j, i) in block.instructions.iter().enumerate() {
@@ -935,6 +982,77 @@ mod named_layout_tests {
                     );
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod dominance_interval_tests {
+    use super::*;
+    fn old_walk(reachable: &[bool], idom: &[usize], a: usize, mut b: usize) -> bool {
+        if !reachable[b] {
+            return true;
+        }
+        if !reachable[a] {
+            return false;
+        }
+        loop {
+            if a == b {
+                return true;
+            }
+            if b == 0 {
+                return false;
+            }
+            b = idom[b];
+        }
+    }
+    #[test]
+    fn intervals_match_original_walk_for_cycles_unreachable_and_irreducible_cfgs() {
+        let mut seed = 0x9e3779b97f4a7c15u64;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for n in [1, 2, 7, 31, 32, 33, 64, 129] {
+            for _ in 0..40 {
+                let mut succ = vec![vec![]; n];
+                let mut pred = vec![vec![]; n];
+                for (b, edges) in succ.iter_mut().enumerate() {
+                    for (p, predecessors) in pred.iter_mut().enumerate().skip(1) {
+                        if next() % 11 == 0 {
+                            edges.push(p);
+                            predecessors.push(b);
+                        }
+                    }
+                }
+                let (reachable, idom) = dominators(&succ, &pred);
+                let spans = dominator_intervals(&reachable, &idom);
+                for a in 0..n {
+                    for b in 0..n {
+                        let expected = old_walk(&reachable, &idom, a, b);
+                        assert_eq!(
+                            dominates(&reachable, &idom, Some(&spans), a, b),
+                            expected,
+                            "n={n} {a}->{b}"
+                        );
+                        assert_eq!(dominates(&reachable, &idom, None, a, b), expected);
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn deep_dominator_chain_uses_iterative_intervals() {
+        let n: usize = 65_536;
+        let idom = (0..n).map(|b| b.saturating_sub(1)).collect::<Vec<usize>>();
+        let reachable = vec![true; n];
+        let spans = dominator_intervals(&reachable, &idom);
+        for b in 1..n {
+            assert!(dominates(&reachable, &idom, Some(&spans), b - 1, b));
+            assert!(!dominates(&reachable, &idom, Some(&spans), b, b - 1));
+            assert!(dominates(&reachable, &idom, Some(&spans), 1, b));
         }
     }
 }
