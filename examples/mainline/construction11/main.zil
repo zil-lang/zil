@@ -10,5 +10,6 @@ fn main() -> i32 {
     let callback = () => rules.read(&item.child.value)
     let value = callback() + callback()
     let moved = item
-    return value - 14
+    if value != 14 { return 1 }
+    return 0
 }

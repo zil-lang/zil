@@ -68,6 +68,18 @@ fn shared_product_callback_calls_trait_library_then_releases_owner() {
                 report.to_json()
             );
             assert_eq!(report.verification_runs, 1);
+            let summary = report.native_codegen.as_ref().unwrap();
+            assert_eq!(summary.backend, backend);
+            assert!(summary.fallback.is_none());
+            if backend == NativeBackend::LlvmApi {
+                assert!(!summary.object_reports.is_empty());
+                assert!(
+                    summary
+                        .object_reports
+                        .iter()
+                        .all(|r| r.contains("\"input_kind\":\"builder\""))
+                );
+            }
             let output = Command::new(root.join("program")).output().unwrap();
             fs::write(root.join("stdout.bin"), &output.stdout).unwrap();
             fs::write(root.join("stderr.bin"), &output.stderr).unwrap();
