@@ -1,0 +1,12 @@
+# 232 首轮正式CI夹具核对与具名迁移
+
+PR15首轮run41194080948，候选77b30b4e13187ca9e5ddf8b830f11675fcaffa5c，实际检出89406b33b43fc17fe967b5bb9f629a16cb44b763；源码树逐字相同。默认workspace实测3020通过、4失败、0忽略/过滤；reference仍按原工作流继续。原失败永久保留在evidence/integration/construction11/attempt-1，不据局部判断重标Pass。
+
+本记录不改变232冻结合同、规范hash、生产接受性、schema/Wire或默认额度。只允许以下具名夹具在证据齐备后迁移：
+
+1. impl192_copy_fields的owning_package_captures_borrow_the_actual_environment_field：原显式move的native步骤已过；失败位于第278行，删除move后的ordinary变体仍为Types/Unsupported，只有旧诊断字符串不匹配。将诊断断言绑定当前明确的mutable Product拒绝及E-UNSUPPORTED，输入、owned native、readonly及overlap原样保留。root初判为生产回归已在逐行核对后纠正，未据此改生产。
+2. impl072_packages中默认捕获后give p.a的原逐字输入：非作者须确认实际Managed消费仍创建拥有FnOnce并转交完整Product；按已冻结真实用途分类接受时，迁移原期望并保留二次调用/后续owner使用的最近拒绝，不得迁成共享捕获。
+3. impl077_package_captures中默认读取p.a.n的原逐字输入：按已冻结普通局部只读共享合同核对后迁移，并保留相交move和普通mutable的最近拒绝。
+4. 同077的whole view disguised as Managed description篡改：首先保留旧0a与新77b同一原输入的Typed/Wire前后身份与指令命中数。若新投影导致旧mutation零命中，必须使用可证明仍生成真实描述子的控制源，要求精确非零命中、IR实际改变以及Analyze/raw Verify/Wire的对应拒绝；原共享写/未恢复FnMut攻击不放宽。此项仍待独立核对，不能以推测结案。
+
+作者只做具名限定回归，非作者审查精确新提交；root合并后重新执行正式LLVM23全门。第一轮全部执行身份与失败保留，不取消原运行以遮蔽其结果。
