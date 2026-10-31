@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "scope": "Actual branch archival/deletion and live record integrity verification; not new compiler tests",
+  "checked_main": "886ce5581aa4d176c19d9edf302282297d907a97",
+  "accepted_source_ci_main": "f2572502beb76eb86e9254dea855404e4998a64d",
+  "run_id": 41206556938,
+  "run_attempt": 2,
+  "job_id": 124553711282,
+  "run_url": "https://github.com/zil-lang/zil/actions/runs/41206556938/attempts/2",
+  "source_script_commit": "62e273ac1159056a3a0d305f1363001460ac0a71",
+  "source_script_sha256": "5cbb553f2b5ffc0f24d3933bf1cf2f9cce4e5cc688df734dc13b660020c2aee8",
+  "manifest_sha256": "ff29e8e242407e3d17a1133989c70a1c6c73e9f12940c36b157b73ab3462ba70",
+  "dry_run": "DryRunValidated",
+  "execution": "ArchivedDeletedAndVerified",
+  "deleted_and_archived": [
+    {
+      "ref": "refs/heads/chore/construction8-resume",
+      "expected_sha": "6f7b7679a4fd54df0e0460a7b61c425710ad0953",
+      "kind": "transport",
+      "base": "42ce8081a2aa5722a14fea53f23f819f46685a60",
+      "archive_tag": "refs/tags/archive/20261031/construction8-resume-6f7b7679a4fd",
+      "allowed_files": [
+        ".github/workflows/construction8-close-transport.yml",
+        ".github/workflows/construction8-dispatch.yml",
+        ".github/workflows/construction8-publish225.yml",
+        ".github/workflows/construction8-publish226.yml",
+        ".github/workflows/construction8-repair226.yml",
+        ".github/workflows/construction8-resume.yml",
+        ".github/workflows/construction8-rust-recovery.yml",
+        ".github/workflows/construction8-strengthen225.yml",
+        "docs/log/zil施工8.md"
+      ],
+      "published_commits": [
+        "8ea37c2de56cf65f1448e4fa647671f4459ad148",
+        "c8dd71a4b75ed7731fca8372a3a055f017991eb3"
+      ]
+    },
+    {
+      "ref": "refs/heads/chore/construction10-cleanup",
+      "expected_sha": "acccc78fe1b4719fe7598f8ea5d64812e1e9ff5c",
+      "kind": "transport",
+      "base": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
+      "archive_tag": "refs/tags/archive/20261031/construction10-cleanup-acccc78fe1b4",
+      "allowed_files": [
+        ".construction10-cleanup/cleanup.py",
+        ".construction10-cleanup/manifest.json",
+        ".construction10-cleanup/script.sha256",
+        ".github/workflows/construction10-cleanup.yml"
+      ],
+      "published_commits": [
+        "9e7072b1ebdc6900c7370863c27c7432953bd830"
+      ]
+    },
+    {
+      "ref": "refs/heads/chore/construction10-exact-transport",
+      "expected_sha": "d6218fe763f13cac89f52f0c6663344bb916b371",
+      "kind": "transport",
+      "base": "aaeb67f12b5638677332132e28df86fa23cde3d8",
+      "archive_tag": "refs/tags/archive/20261031/construction10-exact-transport-d6218fe763f1",
+      "allowed_files": [
+        ".construction10/manifest.json",
+        ".github/workflows/construction10-exact-transport.yml"
+      ],
+      "allowed_prefixes": [
+        ".construction10/parts/"
+      ],
+      "transport_manifest": ".construction10/manifest.json",
+      "published_commits": [
+        "b4094d45e6fa3018363d17599af3aae642d37f67"
+      ]
+    },
+    {
+      "ref": "refs/heads/chore/construction10-recovery",
+      "expected_sha": "88d3e426af67e48d0fbc041ec406f35b54b17b60",
+      "kind": "transport",
+      "base": "aaeb67f12b5638677332132e28df86fa23cde3d8",
+      "archive_tag": "refs/tags/archive/20261031/construction10-recovery-88d3e426af67",
+      "allowed_files": [
+        ".construction10/manifest.json",
+        ".github/workflows/construction10-recovery.yml"
+      ],
+      "allowed_prefixes": [
+        ".construction10/parts/"
+      ],
+      "published_commits": [],
+      "scope": "Unpublished partial recovery: only three original chunks and their text copies exist. Archive preserves this failed attempt; no claim that manifest target 2dcb7bc3 was published or accepted."
+    },
+    {
+      "ref": "refs/heads/chore/construction11-exact-transport",
+      "expected_sha": "a40d12be3767c198d80e8928fac84fe8fb5a5522",
+      "kind": "transport",
+      "base": "0a3d0021fa788a27c87df20454c34c338039f1c5",
+      "archive_tag": "refs/tags/archive/20261031/construction11-exact-transport-a40d12be3767",
+      "allowed_files": [
+        ".construction11/manifest.json",
+        ".github/workflows/construction11-exact-transport.yml"
+      ],
+      "allowed_prefixes": [
+        ".construction11/parts/"
+      ],
+      "transport_manifest": ".construction11/manifest.json",
+      "published_commits": [
+        "61203584c01ede0e3bd25c5d4d694198d0b2aa52"
+      ]
+    },
+    {
+      "ref": "refs/heads/integration/construction11",
+      "expected_sha": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+      "kind": "merged",
+      "archive_tag": "refs/tags/archive/20261031/construction11-integration-c0418f532e75"
+    },
+    {
+      "ref": "refs/heads/review/construction11",
+      "expected_sha": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+      "kind": "merged",
+      "archive_tag": "refs/tags/archive/20261031/construction11-review-61203584c01e"
+    },
+    {
+      "ref": "refs/heads/task/construction-status-20261031-cleanup",
+      "expected_sha": "62e273ac1159056a3a0d305f1363001460ac0a71",
+      "kind": "task",
+      "archive_tag": "refs/tags/archive/20261031/construction-status-cleanup-62e273ac1159"
+    }
+  ],
+  "original_head_count": 23,
+  "including_temporary_executor_head_count": 24,
+  "final_head_count": 16,
+  "unrelated_ref_changes": [],
+  "retained_heads": {
+    "refs/heads/main": "886ce5581aa4d176c19d9edf302282297d907a97",
+    "refs/heads/research/compile-performance": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+    "refs/heads/research/compile7-20261031": "a894f8476cd043314113ba40b4a492deaf281895",
+    "refs/heads/research/cp21-invalidate": "8c4fa27f677b992e6d5590493a4ea530b95ae46d",
+    "refs/heads/research/cp22-parse-cache": "74142bc822c57b1246c9bf328c019fd364ee150a",
+    "refs/heads/research/cp23-query-read": "1cb27ac6b907aeef28b8a472d15ee1859b9959c1",
+    "refs/heads/research/cp26-parse-publication": "7e7f8083af9361de17793c602bfaa7117e6f47b9",
+    "refs/heads/research/cp27-temp-ownership": "79bb5348fe426a62aecaae808321f70966cbc24c",
+    "refs/heads/research/cp29-types-memo": "11d88c78037a77d2c188a6684cdaa0300f60b7b9",
+    "refs/heads/research/cp30-published-read": "df13bc96536c7f775d7227256e45db7fc9e178b2",
+    "refs/heads/research/cp32-bounded-type-retention": "b9ccf36aac5720886c9e68b3a812b4f61f841626",
+    "refs/heads/research/cp33-parse-budget-receipts": "675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17",
+    "refs/heads/research/cp34-streaming-fingerprint": "9fe23d7180b41830f599128324c769deac37211d",
+    "refs/heads/research/cp35-shared-verify-input": "de0eefdc38e1a25129f219d2a7c7933922790e13",
+    "refs/heads/research/incremental-compilation": "ac4ebb9e5fe668b160cbc4b1fe30db735858fdce",
+    "refs/heads/task/cp25-reactive-session": "e739f583b63ba8fa44fa26a937d36afb9cbaea2a"
+  },
+  "record_integrity": {
+    "baseline": "f2572502beb76eb86e9254dea855404e4998a64d",
+    "candidate": "886ce5581aa4d176c19d9edf302282297d907a97",
+    "baseline_status": "Fail",
+    "candidate_status": "Fail",
+    "baseline_error_count": 1145,
+    "candidate_error_count": 1145,
+    "new_errors": [],
+    "resolved_errors": [],
+    "new_warnings": [],
+    "scope": "Record integrity delta and plan consistency; an inherited Fail remains Fail.",
+    "candidate_cards": {
+      "232": {
+        "records": 1,
+        "status": "已合入",
+        "committed": true,
+        "errors": 0,
+        "warnings": 0
+      },
+      "233": {
+        "records": 1,
+        "status": "已合入",
+        "committed": true,
+        "errors": 0,
+        "warnings": 0
+      },
+      "234": {
+        "records": 1,
+        "status": "已合入",
+        "committed": true,
+        "errors": 0,
+        "warnings": 0
+      }
+    }
+  },
+  "record_warnings": 0,
+  "check_plan": {
+    "status": "Pass",
+    "tasks": 14,
+    "negative_self_tests": 7,
+    "both_baseline_and_checked_main": true
+  },
+  "original_failure_retained": "evidence/integration/construction-status-20261031/attempt1/FAILURE.json",
+  "artifact": {
+    "id": 13044836251,
+    "bytes": 263349,
+    "sha256": "4d55b12fc7aa89925f3613e8d5473b17af775e67b93cbc6401652bdf8758ff12",
+    "persistent_archive": "evidence/integration/construction-status-20261031/cleanup/ARCHIVE.json"
+  },
+  "raw_receipts": [
+    "evidence/integration/construction-status-20261031/cleanup/dry-receipt.json.gz",
+    "evidence/integration/construction-status-20261031/cleanup/execute-receipt.json.gz"
+  ],
+  "metadata_publication_scope": "This result records checked commit 886ce558; later report publication does not pretend to be another handoff run."
+}

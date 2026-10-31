@@ -1,0 +1,406 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/feature_audit",
+  "verdict": "Pass",
+  "scope": "Independent read-only reconciliation of the actual GitHub cleanup attempt 2, archived raw outputs, and fresh remote refs; not simulated tests and not a new cleanup execution.",
+  "observed_at_utc": "2026-10-31 13:47:41 UTC",
+  "repository": "zil-lang/zil",
+  "execution": {
+    "run_id": 41206556938,
+    "run_attempt": 2,
+    "job_id": 124553711282,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41206556938/attempts/2",
+    "head_sha": "62e273ac1159056a3a0d305f1363001460ac0a71",
+    "head_branch": "task/construction-status-20261031-cleanup",
+    "path": ".github/workflows/construction-status-20261031-cleanup.yml",
+    "status": "completed",
+    "conclusion": "success",
+    "job_status": "completed",
+    "job_conclusion": "success",
+    "job_steps": [
+      {
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 1
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 2
+      },
+      {
+        "name": "Verify exact reviewed files and bounded safety controls",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 3
+      },
+      {
+        "name": "Use the existing workflow Git credential",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 4
+      },
+      {
+        "name": "Check live refs and compare actual baseline and current main records",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 5
+      },
+      {
+        "name": "Archive exact tips and atomically retire only the reviewed branches",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 6
+      },
+      {
+        "name": "Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 7
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 14
+      },
+      {
+        "name": "Complete job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 15
+      }
+    ],
+    "main_during_cleanup": "886ce5581aa4d176c19d9edf302282297d907a97"
+  },
+  "artifact": {
+    "id": 13044836251,
+    "name": "construction-status-cleanup-41206556938-2",
+    "bytes": 263349,
+    "sha256": "4d55b12fc7aa89925f3613e8d5473b17af775e67b93cbc6401652bdf8758ff12",
+    "github_digest_matches": true,
+    "members_checked": 171,
+    "zip_crc_check": "Pass",
+    "receipt_log_stream_hashes_checked": 162,
+    "all_recorded_stdout_stderr_hashes_match": true,
+    "receipts": {
+      "dry": {
+        "archive_member": "_temp/status-audit-dry/receipt.json",
+        "archive_sha256": "59d12bfec48980f730c6acd1741e55d15eda1e108a99c6d2aeaff83360f7d48a",
+        "local_path": "cleanup-attempt2-dry-run.json",
+        "local_sha256": "eadee699f7afb4a67d6300344ce5dbd8184be3fd13db4b1bada1e7cad0b45276",
+        "difference": "Local extracted copy omits exactly the final LF; JSON objects are identical."
+      },
+      "execute": {
+        "archive_member": "_temp/status-audit-execute/receipt.json",
+        "archive_sha256": "b1a7e9d5518172c8792b0fb1fb20556118f04a6a27a231f71ac170dbb8b93b1c",
+        "local_path": "cleanup-attempt2-execute.json",
+        "local_sha256": "243e945cdea651d6e1bfc642c8c4dd1a148389123d309b98e429ddf797e2db91",
+        "difference": "Local extracted copy omits exactly the final LF; JSON objects are identical."
+      }
+    },
+    "reviewed_implementation_files": [
+      {
+        "path": "ops-audit/cleanup.py",
+        "sha256": "5cbb553f2b5ffc0f24d3933bf1cf2f9cce4e5cc688df734dc13b660020c2aee8",
+        "verification": "artifact member"
+      },
+      {
+        "path": "ops-audit/manifest.json",
+        "sha256": "ff29e8e242407e3d17a1133989c70a1c6c73e9f12940c36b157b73ab3462ba70",
+        "verification": "artifact member"
+      },
+      {
+        "path": "ops-audit/test_cleanup.py",
+        "sha256": "85d6d72fa572bdc1a2ee4f4b943ebe74c4327654382fbd000edd6e84275db8c6",
+        "verification": "artifact member"
+      },
+      {
+        "path": "ops-audit/README.md",
+        "sha256": "74d067f05d64f7d816804aa07d0efa5826625416bcd1b5d87d37c62eedac774f",
+        "verification": "exact GitHub commit README blob 93d7cb01a752fcbdf1f6c4c824ac88cb487742ae matched to reviewed local bytes; README is not an uploaded member"
+      },
+      {
+        "path": ".github/workflows/construction-status-20261031-cleanup.yml",
+        "sha256": "a175cea6ca1de955af31d913764f4797e68caaacbd0ddd9b47007c71a17c45eb",
+        "verification": "artifact member"
+      }
+    ]
+  },
+  "actual_record_checks": {
+    "baseline": "f2572502beb76eb86e9254dea855404e4998a64d",
+    "candidate": "886ce5581aa4d176c19d9edf302282297d907a97",
+    "baseline_errors": 1145,
+    "candidate_errors": 1145,
+    "baseline_warnings": 0,
+    "candidate_warnings": 0,
+    "new_errors": 0,
+    "resolved_errors": 0,
+    "equal_error_multisets": true,
+    "candidate_cards": {
+      "232": {
+        "records": 1,
+        "status": "已合入",
+        "committed": true,
+        "errors": 0,
+        "warnings": 0
+      },
+      "233": {
+        "records": 1,
+        "status": "已合入",
+        "committed": true,
+        "errors": 0,
+        "warnings": 0
+      },
+      "234": {
+        "records": 1,
+        "status": "已合入",
+        "committed": true,
+        "errors": 0,
+        "warnings": 0
+      }
+    },
+    "baseline_status": "Fail",
+    "candidate_status": "Fail",
+    "scope": "Historical record integrity remains Fail with the identical 1145-error multiset. This is not a passing whole-history handoff.",
+    "actual_plan_self_tests": {
+      "baseline": {
+        "exit_code": 0,
+        "ok": true,
+        "tasks": 14,
+        "self_tests": [
+          {
+            "name": "dependency cycle",
+            "rejected": true
+          },
+          {
+            "name": "missing artifact owner",
+            "rejected": true
+          },
+          {
+            "name": "parallel write conflict",
+            "rejected": true
+          },
+          {
+            "name": "Ready without baseline",
+            "rejected": true
+          },
+          {
+            "name": "zero execution minimum",
+            "rejected": true
+          },
+          {
+            "name": "unmapped protocol case",
+            "rejected": true
+          },
+          {
+            "name": "Done without actual results",
+            "rejected": true
+          }
+        ]
+      },
+      "candidate": {
+        "exit_code": 0,
+        "ok": true,
+        "tasks": 14,
+        "self_tests": [
+          {
+            "name": "dependency cycle",
+            "rejected": true
+          },
+          {
+            "name": "missing artifact owner",
+            "rejected": true
+          },
+          {
+            "name": "parallel write conflict",
+            "rejected": true
+          },
+          {
+            "name": "Ready without baseline",
+            "rejected": true
+          },
+          {
+            "name": "zero execution minimum",
+            "rejected": true
+          },
+          {
+            "name": "unmapped protocol case",
+            "rejected": true
+          },
+          {
+            "name": "Done without actual results",
+            "rejected": true
+          }
+        ]
+      }
+    },
+    "dry_run_status": "DryRunValidated",
+    "execute_status": "ArchivedDeletedAndVerified",
+    "execute_receipt_bound_to_exact_archived_dry_receipt": true
+  },
+  "actual_ref_changes": {
+    "archive_creation_count": 8,
+    "deleted_old_branch_count": 7,
+    "deleted_execution_branch_count": 1,
+    "archive_creation_atomic": true,
+    "archive_creation_absent_ref_leases": true,
+    "deletion_atomic": true,
+    "deletion_exact_tip_leases": true,
+    "mutation_commands_observed": {
+      "create-only-archives": {
+        "exit_code": 0,
+        "stdout": "To https://github.com/zil-lang/zil.git\n*\t6f7b7679a4fd54df0e0460a7b61c425710ad0953:refs/tags/archive/20261031/construction8-resume-6f7b7679a4fd\t[new tag]\n*\tacccc78fe1b4719fe7598f8ea5d64812e1e9ff5c:refs/tags/archive/20261031/construction10-cleanup-acccc78fe1b4\t[new tag]\n*\td6218fe763f13cac89f52f0c6663344bb916b371:refs/tags/archive/20261031/construction10-exact-transport-d6218fe763f1\t[new tag]\n*\t88d3e426af67e48d0fbc041ec406f35b54b17b60:refs/tags/archive/20261031/construction10-recovery-88d3e426af67\t[new tag]\n*\ta40d12be3767c198d80e8928fac84fe8fb5a5522:refs/tags/archive/20261031/construction11-exact-transport-a40d12be3767\t[new tag]\n*\tc0418f532e750e7df2b00d9b7d76da82baa5086c:refs/tags/archive/20261031/construction11-integration-c0418f532e75\t[new tag]\n*\t61203584c01ede0e3bd25c5d4d694198d0b2aa52:refs/tags/archive/20261031/construction11-review-61203584c01e\t[new tag]\n*\t62e273ac1159056a3a0d305f1363001460ac0a71:refs/tags/archive/20261031/construction-status-cleanup-62e273ac1159\t[new tag]\nDone\n"
+      },
+      "atomic-leased-deletion": {
+        "exit_code": 0,
+        "stdout": "To https://github.com/zil-lang/zil.git\n-\t:refs/heads/chore/construction10-cleanup\t[deleted]\n-\t:refs/heads/chore/construction10-exact-transport\t[deleted]\n-\t:refs/heads/chore/construction10-recovery\t[deleted]\n-\t:refs/heads/chore/construction11-exact-transport\t[deleted]\n-\t:refs/heads/chore/construction8-resume\t[deleted]\n-\t:refs/heads/integration/construction11\t[deleted]\n-\t:refs/heads/review/construction11\t[deleted]\n-\t:refs/heads/task/construction-status-20261031-cleanup\t[deleted]\nDone\n"
+      }
+    },
+    "main_unchanged_by_cleanup": true,
+    "unrelated_changes_during_cleanup": [],
+    "targets": [
+      {
+        "deleted_ref": "refs/heads/chore/construction8-resume",
+        "deleted_tip": "6f7b7679a4fd54df0e0460a7b61c425710ad0953",
+        "archive_ref": "refs/tags/archive/20261031/construction8-resume-6f7b7679a4fd",
+        "live_archive_sha": "6f7b7679a4fd54df0e0460a7b61c425710ad0953",
+        "live_branch_absent": true
+      },
+      {
+        "deleted_ref": "refs/heads/chore/construction10-cleanup",
+        "deleted_tip": "acccc78fe1b4719fe7598f8ea5d64812e1e9ff5c",
+        "archive_ref": "refs/tags/archive/20261031/construction10-cleanup-acccc78fe1b4",
+        "live_archive_sha": "acccc78fe1b4719fe7598f8ea5d64812e1e9ff5c",
+        "live_branch_absent": true
+      },
+      {
+        "deleted_ref": "refs/heads/chore/construction10-exact-transport",
+        "deleted_tip": "d6218fe763f13cac89f52f0c6663344bb916b371",
+        "archive_ref": "refs/tags/archive/20261031/construction10-exact-transport-d6218fe763f1",
+        "live_archive_sha": "d6218fe763f13cac89f52f0c6663344bb916b371",
+        "live_branch_absent": true
+      },
+      {
+        "deleted_ref": "refs/heads/chore/construction10-recovery",
+        "deleted_tip": "88d3e426af67e48d0fbc041ec406f35b54b17b60",
+        "archive_ref": "refs/tags/archive/20261031/construction10-recovery-88d3e426af67",
+        "live_archive_sha": "88d3e426af67e48d0fbc041ec406f35b54b17b60",
+        "live_branch_absent": true
+      },
+      {
+        "deleted_ref": "refs/heads/chore/construction11-exact-transport",
+        "deleted_tip": "a40d12be3767c198d80e8928fac84fe8fb5a5522",
+        "archive_ref": "refs/tags/archive/20261031/construction11-exact-transport-a40d12be3767",
+        "live_archive_sha": "a40d12be3767c198d80e8928fac84fe8fb5a5522",
+        "live_branch_absent": true
+      },
+      {
+        "deleted_ref": "refs/heads/integration/construction11",
+        "deleted_tip": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+        "archive_ref": "refs/tags/archive/20261031/construction11-integration-c0418f532e75",
+        "live_archive_sha": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+        "live_branch_absent": true
+      },
+      {
+        "deleted_ref": "refs/heads/review/construction11",
+        "deleted_tip": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+        "archive_ref": "refs/tags/archive/20261031/construction11-review-61203584c01e",
+        "live_archive_sha": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+        "live_branch_absent": true
+      },
+      {
+        "deleted_ref": "refs/heads/task/construction-status-20261031-cleanup",
+        "deleted_tip": "62e273ac1159056a3a0d305f1363001460ac0a71",
+        "archive_ref": "refs/tags/archive/20261031/construction-status-cleanup-62e273ac1159",
+        "live_archive_sha": "62e273ac1159056a3a0d305f1363001460ac0a71",
+        "live_branch_absent": true
+      }
+    ]
+  },
+  "fresh_remote_observation": {
+    "branches_url": "https://api.github.com/repos/zil-lang/zil/branches?per_page=100",
+    "archive_refs_url": "https://api.github.com/repos/zil-lang/zil/git/matching-refs/tags/archive/20261031/",
+    "remaining_heads": [
+      {
+        "ref": "refs/heads/main",
+        "sha": "886ce5581aa4d176c19d9edf302282297d907a97"
+      },
+      {
+        "ref": "refs/heads/research/compile7-20261031",
+        "sha": "a894f8476cd043314113ba40b4a492deaf281895"
+      },
+      {
+        "ref": "refs/heads/research/compile-performance",
+        "sha": "e7b492c6e04128e6106bbf29c0d6c7b381556d77"
+      },
+      {
+        "ref": "refs/heads/research/cp21-invalidate",
+        "sha": "8c4fa27f677b992e6d5590493a4ea530b95ae46d"
+      },
+      {
+        "ref": "refs/heads/research/cp22-parse-cache",
+        "sha": "74142bc822c57b1246c9bf328c019fd364ee150a"
+      },
+      {
+        "ref": "refs/heads/research/cp23-query-read",
+        "sha": "1cb27ac6b907aeef28b8a472d15ee1859b9959c1"
+      },
+      {
+        "ref": "refs/heads/research/cp26-parse-publication",
+        "sha": "7e7f8083af9361de17793c602bfaa7117e6f47b9"
+      },
+      {
+        "ref": "refs/heads/research/cp27-temp-ownership",
+        "sha": "79bb5348fe426a62aecaae808321f70966cbc24c"
+      },
+      {
+        "ref": "refs/heads/research/cp29-types-memo",
+        "sha": "11d88c78037a77d2c188a6684cdaa0300f60b7b9"
+      },
+      {
+        "ref": "refs/heads/research/cp30-published-read",
+        "sha": "df13bc96536c7f775d7227256e45db7fc9e178b2"
+      },
+      {
+        "ref": "refs/heads/research/cp32-bounded-type-retention",
+        "sha": "b9ccf36aac5720886c9e68b3a812b4f61f841626"
+      },
+      {
+        "ref": "refs/heads/research/cp33-parse-budget-receipts",
+        "sha": "675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17"
+      },
+      {
+        "ref": "refs/heads/research/cp34-streaming-fingerprint",
+        "sha": "9fe23d7180b41830f599128324c769deac37211d"
+      },
+      {
+        "ref": "refs/heads/research/cp35-shared-verify-input",
+        "sha": "de0eefdc38e1a25129f219d2a7c7933922790e13"
+      },
+      {
+        "ref": "refs/heads/research/incremental-compilation",
+        "sha": "ac4ebb9e5fe668b160cbc4b1fe30db735858fdce"
+      },
+      {
+        "ref": "refs/heads/task/cp25-reactive-session",
+        "sha": "e739f583b63ba8fa44fa26a937d36afb9cbaea2a"
+      }
+    ],
+    "head_count": 16,
+    "all_eight_target_branches_absent": true,
+    "all_eight_archive_tags_exact": true,
+    "research_branches_preserved": 14,
+    "cp25_task_preserved": true,
+    "changes_since_cleanup_final_snapshot": []
+  },
+  "review_actions": {
+    "remote_writes": 0,
+    "tests_rerun": 0,
+    "inspected": "Existing ZIP members and their recorded hashes, raw handoff and plan stdout, actual git push stdout and leased atomic argv, bound receipts, GitHub attempt/job/artifact identity and fresh head/tag listings.",
+    "input_copy_note": "Two supplied local receipt JSON copies omit the original trailing LF only. Object equality was confirmed; hash binding uses ZIP originals. README is absent from the upload and was verified from exact task commit 62e273ac against Git blob 93d7cb01a752fcbdf1f6c4c824ac88cb487742ae and its reviewed SHA256.",
+    "boundary": "This observation certifies the inspected cleanup result, not full language completion, Rust product goals, or all historical handoff record completeness."
+  }
+}
