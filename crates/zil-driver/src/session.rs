@@ -18,7 +18,8 @@ use zil_ir::{CandidatePlan, CoreModule, Type, TypedModule, TypedProgram};
 use zil_syntax::ParseResult;
 
 /// Only unverified, immutable data can be retained across requests. There is no
-/// VerifiedModule/VerifiedCTIR variant and no disk deserializer for this enum.
+/// VerifiedModule/VerifiedCTIR variant. The explicit trusted semantic cache can
+/// restore a raw ProjectTyped value, followed by current Analyze and Verify.
 #[derive(Clone, Debug)]
 pub(super) enum RawSnapshot {
     Parse(Arc<ParseResult>),
@@ -79,7 +80,9 @@ impl RawSnapshot {
     /// NOT a content checksum or a verifier capability. Its complete query key
     /// binds source bytes/positions, rules, every limit and target; ordered
     /// dependency identities bind the exact upstream constructions observed.
-    /// Raw snapshots cannot be deserialized or injected through the public API.
+    /// Most values are private constructions. ProjectTyped can also come from
+    /// the explicit trusted semantic cache, bound to the complete key and
+    /// installed compiler identity; deserialization never grants authority.
     /// The public Typed/Verified fingerprints and independent Verify are intact.
     fn digest(&self, key: &QueryKey, dependencies: &[Arc<QuerySnapshot>]) -> Fingerprint {
         if let Self::Typed(typed) = self {
@@ -261,6 +264,28 @@ impl CompilationSession {
         observer: &mut dyn FnMut(&QueryEvent),
         execute: impl FnOnce() -> CompileResult<RawSnapshot>,
     ) -> CompileResult<(RawSnapshot, Arc<QuerySnapshot>)> {
+        self.query_with_disposition(
+            key,
+            dependencies,
+            options,
+            report,
+            observer,
+            execute,
+            QueryDisposition::Executed,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn query_with_disposition(
+        &mut self,
+        key: QueryKey,
+        dependencies: &[Arc<QuerySnapshot>],
+        options: &CompileOptions,
+        report: &mut CompileReport,
+        observer: &mut dyn FnMut(&QueryEvent),
+        execute: impl FnOnce() -> CompileResult<RawSnapshot>,
+        disposition: QueryDisposition,
+    ) -> CompileResult<(RawSnapshot, Arc<QuerySnapshot>)> {
         options
             .cancellation
             .check(key.phase)
@@ -281,7 +306,7 @@ impl CompilationSession {
             .begin(key.clone())
             .map_err(|error| vec![error])?;
         let result = execute();
-        event(key.phase, QueryDisposition::Executed, report, observer);
+        event(key.phase, disposition, report, observer);
         let raw = match result {
             Ok(raw) => raw,
             Err(errors) => {

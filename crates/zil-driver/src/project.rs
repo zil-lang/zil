@@ -152,7 +152,7 @@ impl CompilationSession {
         }
         let root = validate_sources(project, &options.limits)?;
         // Protect every dependency before publishing even a raw cache entry.
-        let artifacts = ArtifactPlan::project(root, &project.modules, options)?;
+        let mut artifacts = ArtifactPlan::project(root, &project.modules, options)?;
         let fingerprint = project_fingerprint(project);
         report.input_fingerprint = fingerprint;
         report.source_files = project
@@ -164,7 +164,73 @@ impl CompilationSession {
         let target = options.target.fingerprint();
         self.prepare_project(&identity, target, project.modules.len());
         let key = |phase, depends_on_target| phase_key(&identity, phase, depends_on_target, target);
-        if loaded_syntax.is_none()
+        let mut semantic = super::semantic_cache::Store::new(options, &key(Phase::Types, true));
+        if let Some(store) = &mut semantic {
+            store.bind_path(&artifacts.semantic_cache(&store.path())?);
+            report.disk_cache = if store.path().exists() {
+                DiskCacheStatus::Rebuilt
+            } else {
+                DiskCacheStatus::Missing
+            };
+            if let Some(typed) = store.load(options)
+                && typed.module.source_fingerprint == fingerprint
+                && typed.module.module_id == project.root
+                && typed.module.target == options.target
+            {
+                let before = report.clone();
+                let imported = self.query_with_disposition(
+                    key(Phase::Types, true),
+                    &[],
+                    options,
+                    report,
+                    observer,
+                    || Ok(RawSnapshot::ProjectTyped(Arc::new(typed))),
+                    QueryDisposition::Reused,
+                );
+                let attempt = imported.and_then(|(raw, snapshot)| {
+                    let RawSnapshot::ProjectTyped(typed) = raw else {
+                        return Err(infra(
+                            "E-QUERY-KIND",
+                            "restored frontend has another snapshot kind",
+                        ));
+                    };
+                    report.phase = Phase::Types;
+                    report.cache_hit = true;
+                    report.disk_cache = DiskCacheStatus::Hit;
+                    report.scalar_interfaces = typed.interfaces.clone();
+                    self.finish_typed(
+                        options,
+                        report,
+                        observer,
+                        TypedInput::Program(typed),
+                        snapshot,
+                        artifacts.clone(),
+                    )
+                });
+                match attempt {
+                    Ok(()) => return Ok(()),
+                    Err(errors) => {
+                        // A decodable but rejected candidate cannot change the
+                        // source result. Remove imported raw queries and rerun
+                        // the current sources; cancellation is never retried.
+                        self.clear();
+                        if options.cancellation.is_cancelled()
+                            || !matches!(report.phase, Phase::Types | Phase::Analyze)
+                        {
+                            return Err(errors);
+                        }
+                        let events = std::mem::take(&mut report.query_events);
+                        let verification_runs = report.verification_runs;
+                        *report = before;
+                        report.query_events = events;
+                        report.verification_runs = verification_runs;
+                        report.disk_cache = DiskCacheStatus::Rebuilt;
+                    }
+                }
+            }
+        }
+        if semantic.is_none()
+            && loaded_syntax.is_none()
             && options.stop_after >= Stage::Types
             && options.emit_dir.is_none()
             && options.cache_dir.is_none()
@@ -415,14 +481,20 @@ impl CompilationSession {
         if options.stop_after == Stage::Types {
             return Ok(());
         }
-        self.finish_typed(
+        let result = self.finish_typed(
             options,
             report,
             observer,
-            TypedInput::Program(typed),
+            TypedInput::Program(typed.clone()),
             typed_snapshot,
-            artifacts,
-        )
+            artifacts.clone(),
+        );
+        if result.is_ok()
+            && let Some(store) = &semantic
+        {
+            store.save(&typed, options, &artifacts);
+        }
+        result
     }
 }
 

@@ -7,6 +7,7 @@ mod contracts;
 mod ct_program;
 mod ct_selection;
 mod project;
+mod semantic_cache;
 mod session;
 pub use project::{ProjectSources, compile_project};
 pub use session::CompilationSession;
@@ -62,6 +63,8 @@ pub struct CompileOptions {
     pub output: Option<PathBuf>,
     pub entry: Option<String>,
     pub cache_dir: Option<PathBuf>,
+    /// Explicitly trusted local raw TypedProgram cache; never stores Verified.
+    pub semantic_cache: Option<PathBuf>,
     /// Trusted local machine-object cache; independent of source-candidate cache.
     pub object_cache: Option<PathBuf>,
     pub clang: Option<PathBuf>,
@@ -89,6 +92,7 @@ impl Default for CompileOptions {
             output: None,
             entry: None,
             cache_dir: None,
+            semantic_cache: None,
             object_cache: None,
             clang: None,
             optimization: zil_backend_llvm::Optimization::O0,
