@@ -3,8 +3,8 @@
 
 Not the formal product gate. Includes per-process startup and actual source reads
 for CLI, current Verify for every successful ZIL request, link/publication for
-build. Native semantic checks run outside timing. CPU affinity is fixed. The
-/usr/bin/time wrapper is included in CLI wall time for all arms.
+build. Native semantic checks run outside timing. CPU affinity is fixed. CLI wall time covers launch through wait4; CPU time and maximum RSS come from
+the same child wait, without a separate timing executable.
 """
 import argparse
 import hashlib
@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import statistics
+import signal
 import subprocess
 import time
 
@@ -90,15 +91,28 @@ def main():
                             cmd=[str(compilers[arm]),mode,str(source/'main.zil'),'--json']
                             if mode=='build':
                                 cmd+=['--entry','value','--opt','O0','--codegen-units','8','--codegen-jobs','2','--object-cache',str(run/'objects'),'-o',str(run/'program')]
-                        resource=run/f'{label}.resources.json'
-                        timed=['/usr/bin/time','-f','{"max_rss_kib":%M,"user_seconds":%U,"system_seconds":%S}','-o',str(resource),*cmd]
-                        started=time.perf_counter_ns()
-                        result=subprocess.run(timed,capture_output=True,timeout=180)
-                        elapsed=time.perf_counter_ns()-started
-                        (run/f'{label}.stdout').write_bytes(result.stdout)
-                        (run/f'{label}.stderr').write_bytes(result.stderr)
+                        def timeout_handler(signum, frame):
+                            raise TimeoutError(f'compiler timeout: {cmd}')
+                        signal.signal(signal.SIGALRM, timeout_handler)
+                        with (run/f'{label}.stdout').open('wb') as stdout, (run/f'{label}.stderr').open('wb') as stderr:
+                            started=time.perf_counter_ns()
+                            proc=subprocess.Popen(cmd,stdout=stdout,stderr=stderr)
+                            signal.alarm(180)
+                            try:
+                                _,status,usage=os.wait4(proc.pid,0)
+                            except BaseException:
+                                proc.kill()
+                                os.wait4(proc.pid,0)
+                                proc.returncode=-9
+                                raise
+                            finally:
+                                signal.alarm(0)
+                            elapsed=time.perf_counter_ns()-started
+                            proc.returncode=os.waitstatus_to_exitcode(status)
+                        result=subprocess.CompletedProcess(cmd,proc.returncode,(run/f'{label}.stdout').read_bytes(),(run/f'{label}.stderr').read_bytes())
+                        resources={'max_rss_kib':usage.ru_maxrss,'user_seconds':usage.ru_utime,'system_seconds':usage.ru_stime}
                         assert result.returncode==0,(cmd,result.stderr.decode()[:3000])
-                        row={'interface':'cli','modules':modules,'mode':mode,'block':block,'position':position,'arm':arm,'request':label,'elapsed_ns':elapsed,'resources':json.loads(resource.read_text()),'command':cmd,'source_sha256':sha(source/('main.rs' if arm=='rust' else 'main.zil')),'edited_sha256':sha(source/('m1.rs' if arm=='rust' else 'm1.zil'))}
+                        row={'interface':'cli','modules':modules,'mode':mode,'block':block,'position':position,'arm':arm,'request':label,'elapsed_ns':elapsed,'resources':resources,'command':cmd,'source_sha256':sha(source/('main.rs' if arm=='rust' else 'main.zil')),'edited_sha256':sha(source/('m1.rs' if arm=='rust' else 'm1.zil'))}
                         if arm!='rust':
                             report=json.loads(result.stdout)
                             assert report['status']=='Success' and report['verification_runs']==1,report
