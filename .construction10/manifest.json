@@ -1,166 +1,111 @@
 {
   "schema_version": 1,
-  "base": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
-  "bundle_size": 1595230,
-  "bundle_sha256": "2aeb1abf38e15eaca228113e96009b527ce0bff8906fc7350e6442961354f2ea",
+  "base": "f1492652cb6497a33f39e615fd398456ce09253a",
+  "bundle_size": 1032831,
+  "bundle_sha256": "a155e90fd5e4a44b484beafde7313051e5fdbc54f05943062834f07d53a299e3",
   "targets": [
     {
       "branch": "review/construction10-231",
-      "sha": "f1492652cb6497a33f39e615fd398456ce09253a",
-      "expected_remote_sha": null
+      "sha": "6475a91f8c8f7b31693cab71973048b0de850072",
+      "expected_remote_sha": "f1492652cb6497a33f39e615fd398456ce09253a"
     }
   ],
   "parts": [
     {
       "path": ".construction10/parts/part-000.bin",
       "size": 65536,
-      "sha256": "35a3d8f0edcee2e23653de3e8774f14d753ce81a92a24b2dbda4654602142b1f",
-      "git_blob": "a923529eafd5bd26544381024e0aaa93364bb42c"
+      "sha256": "60018288c69341fadd2a0ffae94323f1b69910898973118099817c038d826d9b",
+      "git_blob": "8f17aa015e871ad0c2abd25881dfe053d68e6324"
     },
     {
       "path": ".construction10/parts/part-001.bin",
       "size": 65536,
-      "sha256": "2bc9f54eb4629b024731026efc476e8f0091adf5bf642902f25884c561596e40",
-      "git_blob": "51bb811106082a6c4234c17c4729259edaee1012"
+      "sha256": "0bb2c097bc6d500a92eef968c88674e4d9278d846a9ca07960bc92b318be534e",
+      "git_blob": "d5d44cade83340e341cab7baa1daf97769eb8db5"
     },
     {
       "path": ".construction10/parts/part-002.bin",
       "size": 65536,
-      "sha256": "f721f5d6aafe5ccd5d244be07b0e27037a8ab9226611e96ebc791e66cf6bb610",
-      "git_blob": "94808668e33aa8dc38ace8b5fc5f2719d992a4ef"
+      "sha256": "5e49c1fa9e5bd5aa585f6b2bb0b2b09961bb95192e8b4c0d0fe8a8aabd2c35ad",
+      "git_blob": "db21bd4cbd9dd8011ba82a967d85c5a101a30be2"
     },
     {
       "path": ".construction10/parts/part-003.bin",
       "size": 65536,
-      "sha256": "9024dfe69aebc6dd88154b7ac6e27f367149ab81a5543810c853727cedc0e1ab",
-      "git_blob": "2845740a6a39d9900aee40b9f2d85ccdbc9a357c"
+      "sha256": "5ef6a1e50360cdb2048e82165e01f249fad2c5475294b462dac580710895f92b",
+      "git_blob": "fb079dc2575ac10c072da67505639ef234ce0183"
     },
     {
       "path": ".construction10/parts/part-004.bin",
       "size": 65536,
-      "sha256": "deeb55c242ee3c773ae0907a1b06590a028f900b079ecd4c43edcefc4a25f4f5",
-      "git_blob": "a4e4e2e52cef4654173439c413a5f9765b5abc91"
+      "sha256": "6ecf0380a5de15232e9339968475a2e6eaf950d5d803da087a3c6e640e85dfc9",
+      "git_blob": "34aa0b04097a25b46370f19ede2e2dcb7db3af51"
     },
     {
       "path": ".construction10/parts/part-005.bin",
       "size": 65536,
-      "sha256": "4d99fbdb709ee8e8bd1385e06957bbb3c6c1500230879665e7bf4ad856f4ce55",
-      "git_blob": "301b8e9fc64b1885557632dfc8bd7ddf077819eb"
+      "sha256": "3cbe6736fe15914efd9fba3d2045f745f5380d38c27075f699257eb63b3e247b",
+      "git_blob": "2824f9873a7c21d9e3a452156be7f7bb47c58a6d"
     },
     {
       "path": ".construction10/parts/part-006.bin",
       "size": 65536,
-      "sha256": "30c771ff10cf35967e99b97ace5110bea2b83ba9d6ef2d0f1471f20f326b3532",
-      "git_blob": "e4e47993709aef718ad31c97d163c4713162d467"
+      "sha256": "f18f13b87037e34be08672b704f17fc9a2eacdf8bcba8b2acd6d01335cae5365",
+      "git_blob": "a0ecd208d3849cdfab44b4cbd4f35abd3a2888c9"
     },
     {
       "path": ".construction10/parts/part-007.bin",
       "size": 65536,
-      "sha256": "91dd4e6d003cc219caac85a200298afa537ff18694322be9813360cb41f37879",
-      "git_blob": "0347984fe895fbe6e9df5efbe98020421f4a9833"
+      "sha256": "f81bee52ab964291ad3450a069112c4840da6cae0f0342fdc18ff4a6fb8c744f",
+      "git_blob": "96cda3c8a0c5a586d6f98be52cceb7041faa240b"
     },
     {
       "path": ".construction10/parts/part-008.bin",
       "size": 65536,
-      "sha256": "53df4792b8d592a9df4fc80227b8cf71a05a014630007de8084c997834f49cec",
-      "git_blob": "789f206189d7d5c2eca64bb4d8909a0bd4ad6d61"
+      "sha256": "165dc404c24a95639ccb896505336030363e55ca5cfc7b80bf77c2fe003cf7ea",
+      "git_blob": "7a5bc9215614a8b528ca47a3bf84a0613e332c95"
     },
     {
       "path": ".construction10/parts/part-009.bin",
       "size": 65536,
-      "sha256": "679b6af621b2a2e83b1c45799c2cc20bd73c0a4e4a36061086bfa7bee5494516",
-      "git_blob": "1020b4d39df3ce55d130a80a187fc3184b75541b"
+      "sha256": "4fdda909b0ab6f565b6a2d05d8d6f43e46da9f8b0ba6b09e30bf6931d57fd0ed",
+      "git_blob": "0f04dda3e5bc2a309d5610b80c8f92dee30749a7"
     },
     {
       "path": ".construction10/parts/part-010.bin",
       "size": 65536,
-      "sha256": "44211e22758d83c4b668d2ba511c443d61bc114f1fb2d67f7f9e1d25240a9ae0",
-      "git_blob": "39c11d6b34d679c12646634037767c1c8058b03a"
+      "sha256": "decaed932bf331263c00f734f52a781ede8c3725d9f64108737da078dd6fbf33",
+      "git_blob": "1ef1263dd1d9ddb683eff8474912cf5e02cb5d62"
     },
     {
       "path": ".construction10/parts/part-011.bin",
       "size": 65536,
-      "sha256": "6648f3c8c00550a267a2634b1ccf28b4ad8f6b1a9e42f3df75a3d38f5b335bbd",
-      "git_blob": "37bb12c32e68c5b78f3c32335aa9dbe11c241cd4"
+      "sha256": "09ec0ef2593a79189260e69d24b3cecdb4fd9ef934927cb8239c071f53cb4998",
+      "git_blob": "b22f29af83636618df7102d152d5fa2cc6be3eaa"
     },
     {
       "path": ".construction10/parts/part-012.bin",
       "size": 65536,
-      "sha256": "aa2a72a316dadd79b76792402eb05b263ce93e2127eeec01532d0b49a6485cac",
-      "git_blob": "c9d241c43358a867d227e6f8bba749c94306bd2f"
+      "sha256": "f2ab4f18b5c0699f1f879fd2ac052031fe768c5a15dcddb1ca4b007b87747131",
+      "git_blob": "2aeb1b7f4bd1ed69d55061eb7adf51614c35d810"
     },
     {
       "path": ".construction10/parts/part-013.bin",
       "size": 65536,
-      "sha256": "59621798db42b966d8eae7692a3152fd813fd05c0a3adf4d782a34c5018fef63",
-      "git_blob": "ce257fdba6128e9ece1b0fd8ef9bfb884886ded0"
+      "sha256": "95574af7383b348de0ac1917b0537053ac79a163bf725478d862fe126fe33f98",
+      "git_blob": "e2cec30decb59b84647ac05699ad96d366fcf83c"
     },
     {
       "path": ".construction10/parts/part-014.bin",
       "size": 65536,
-      "sha256": "aacd4b00ba25d837ae7f304c3f9997d8e5f93c050b0ed60ad8ef222f6664ed1e",
-      "git_blob": "f8b2d908906932223c39109c33d89670197d9bcf"
+      "sha256": "051fa268e363abe5241ca18eecb511387f4803c9da2c24021ef4aec81a4a6780",
+      "git_blob": "8504ae66d9ffffd8365f9cb585287b19ea4e21bf"
     },
     {
       "path": ".construction10/parts/part-015.bin",
-      "size": 65536,
-      "sha256": "23e58c17b860654f763026f1903697ecf3bb6b27833bc31aacc8c059a9c90bd7",
-      "git_blob": "0084bd138098b2e1a384664cbbd1bcb9a8335efd"
-    },
-    {
-      "path": ".construction10/parts/part-016.bin",
-      "size": 65536,
-      "sha256": "2ddebb550af376e988473e37b3839633febea0466de27dae34836a627a1252c9",
-      "git_blob": "c5031f5b9f68505aa88abf06359e1f7483e155c3"
-    },
-    {
-      "path": ".construction10/parts/part-017.bin",
-      "size": 65536,
-      "sha256": "2aa598cee833dda66357afecf8d48a3e21f97d278be9a717a0715a3d3af52e12",
-      "git_blob": "a587ce9e7e1f5918ae88a125a61df4c54f049475"
-    },
-    {
-      "path": ".construction10/parts/part-018.bin",
-      "size": 65536,
-      "sha256": "7825f7abba86bba1571a2025916ad80dde523abb1c4475b99dfef4a43e5dcf5f",
-      "git_blob": "341e00f5b9d78bbac08b35a21fd061c4f081b0ad"
-    },
-    {
-      "path": ".construction10/parts/part-019.bin",
-      "size": 65536,
-      "sha256": "fbbd6a571e3252f69f95ae7d61b1f6619c75f89eaa709171aabb8d5514124e18",
-      "git_blob": "eb44ce2573c6fde6655c070ae63e325c8c6dd78c"
-    },
-    {
-      "path": ".construction10/parts/part-020.bin",
-      "size": 65536,
-      "sha256": "b9c22a51765a0a70a17955775294f3cc120687eb10390858fb8ff8f0a450a40e",
-      "git_blob": "2fb709d367d86d3bf84887cd1ee77ce7187dc4ec"
-    },
-    {
-      "path": ".construction10/parts/part-021.bin",
-      "size": 65536,
-      "sha256": "a68af8fbc6df671f3a6b6028d90199d49ef82c326706868036bf62677bd058d0",
-      "git_blob": "b498d32f8268ece59b69f0fc58f4e308d6f78b9d"
-    },
-    {
-      "path": ".construction10/parts/part-022.bin",
-      "size": 65536,
-      "sha256": "24befac051d8b1ca13137a74daf5355329c30d6681d134eb8b6f053f64476b9b",
-      "git_blob": "a2f70fc92f69f2f39b5477b42d08266a1103deb3"
-    },
-    {
-      "path": ".construction10/parts/part-023.bin",
-      "size": 65536,
-      "sha256": "6af9a96bbf922e628352d7b902add164fb3a1b4b263e817feb26c814dea21c41",
-      "git_blob": "0a89cdad797ea9b55a952420929f4fc6b196046f"
-    },
-    {
-      "path": ".construction10/parts/part-024.bin",
-      "size": 22366,
-      "sha256": "25b5e00bebe4f6d07c39deb9595b4dd0952c70bb5e0437be35c09f0abe86fb04",
-      "git_blob": "7b4d4cac64e56cff6d3337028e22195751df90eb"
+      "size": 49791,
+      "sha256": "5a60a588d3b1221e24c1bc683d0c0521c54bc4177a576f34c185ef07213c8dc7",
+      "git_blob": "c1b26403b347b0fa42cad9b368c3e87ed8222cb6"
     }
-  ],
-  "purpose": "Import exact corrected candidate objects to a staging branch; the connector then fast-forwards integration/construction10 under its exact lease to trigger PR CI."
+  ]
 }
