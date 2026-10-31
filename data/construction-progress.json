@@ -4,7 +4,7 @@
   "status": "Integrated",
   "conversation": "zil施工10",
   "accepted_main_at_start": "aaeb67f12b5638677332132e28df86fa23cde3d8",
-  "latest_main_observed": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+  "latest_main_observed": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
   "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
   "main_merge_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
   "integration_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
@@ -483,14 +483,22 @@
     "Ordinary defer registration and exactly-once execution across the five exit families, after aligning capture semantics with the current design."
   ],
   "branch_cleanup": {
-    "status": "Pending verified execution after this metadata publication",
-    "allowlist": [
-      "impl/225-product-store-capture",
-      "impl/226-shared-product-capture",
-      "integration/construction10",
-      "review/construction10-231"
+    "status": "DeletedAndVerifiedAbsent",
+    "run_id": 41187879812,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41187879812",
+    "validated_main": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
+    "accepted_full_ci_main": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+    "deleted_refs": [
+      "refs/heads/impl/225-product-store-capture",
+      "refs/heads/impl/226-shared-product-capture",
+      "refs/heads/integration/construction10",
+      "refs/heads/review/construction10-231"
     ],
-    "research_branches": "Retained: unmerged unique commits remain."
+    "raw_receipt": "evidence/integration/construction10/cleanup/RESULT.json",
+    "research_branches": "Retained: unmerged unique commits remain.",
+    "local_worktrees_removed": 6,
+    "local_cleanup_receipt": "evidence/integration/construction10/cleanup/local-worktrees.json",
+    "independent_verification": "evidence/integration/construction10/cleanup/INDEPENDENT-OBSERVATION.json"
   },
   "metadata_scope": "Tested main identity is M. Subsequent task, review and evidence commits retain identical compiler/test/tool/normative inputs; their HEAD is not claimed as another full test execution.",
   "handoff_record_integrity": {
@@ -511,5 +519,14 @@
     "negative_self_tests": 7,
     "receipt": "evidence/integration/construction10/closeout/check-plan.stdout"
   },
-  "candidate_commit": "f1492652cb6497a33f39e615fd398456ce09253a"
+  "candidate_commit": "f1492652cb6497a33f39e615fd398456ce09253a",
+  "sandbox": {
+    "name": "zil-sandbox10",
+    "separate_git_repository": true,
+    "object_alternates": false,
+    "compiler_cache_reused": false,
+    "ready": true,
+    "last_verified_metadata_commit": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
+    "final_receipt_sync": "The final evidence commit is fast-forwarded after publication; inspect live Git HEAD rather than treating this prepublication observation as a self-hash."
+  }
 }
