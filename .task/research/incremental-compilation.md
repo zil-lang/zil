@@ -86,3 +86,5 @@
 追加研究写集tools/research/incremental-compilation/stage6_algorithms/**、docs/research/incremental-compilation/STAGE6*、evidence/research/incremental-compilation/stage6/**及各research提案。生产候选分配：O2稳定分区/导入由o2_graph_implementation持有backend machine_cgu/build与llvm-api必要内部表示；zit_incremental_implementation持有zil-db与driver/session；semantic_incremental持有zil-analyze并与session作者协调接入；root持有driver/lib/project、CLI及相应测试。公共Wire/schema、Cargo.lock、默认额度、Verify独立性与产品门保持；新增策略先显式声明，不靠降优化级别制造速度收益。旧076资源联合关系和CGU图严格分清，修复zit适配不重标原JS场景的设计为通用bug。
 
 每个候选先提案与真实正反例，限定测试与独审绑定源码；最终资源独占交错计量，记录完整请求、运行行为/质量、RSS、缓存失效及不利结果。handoff历史完整性检查仍因精简恢复历史/旧记录缺失为Fail，不重标全库历史验收状态；已审核现行生产与专项Doing记录继续授权当前研究。
+
+第六阶段初筛后追加：与实际Rust1.99.1源码/工作产品比对确认ThinLocal和持久语义查询是具体差距，继续制作实际CGU ThinLTO隔离对照及显式可信语义候选缓存。ThinLTO独立工具写集tools/research/incremental-compilation/thin_local/**及提案，当前EE生产不改；semantic_incremental继续持有driver/project、lib、artifacts、新semantic_cache及相应测试/session协调接入，root负责CLI。新增trusted缓存为显式选项，既有source缓存不改，完整源/规则/limits/target/compiler身份绑定，每次当前Verify保持；不以内容hash证明不可信来源。先控制/独审，最终另固定实现与性能身份；EE初筛仍只测保留的EE二进制。

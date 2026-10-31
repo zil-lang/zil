@@ -21,15 +21,26 @@ const DUMPS: &[(&str, &str, Stage)] = &[
     ("llvm", "ll", Stage::Build),
 ];
 
+#[derive(Clone)]
 struct PlannedFile {
     name: &'static str,
     path: PathBuf,
 }
 
+#[derive(Clone)]
 pub(super) struct ArtifactPlan {
     files: Vec<PlannedFile>,
 }
 impl ArtifactPlan {
+    pub(super) fn semantic_cache(&mut self, path: &Path) -> CompileResult<PathBuf> {
+        let path = destination(path)?;
+        self.files.push(PlannedFile {
+            name: "semantic-cache",
+            path: path.clone(),
+        });
+        self.validate()?;
+        Ok(path)
+    }
     pub(super) fn project(
         source: &SourceUnit,
         sources: &[SourceUnit],

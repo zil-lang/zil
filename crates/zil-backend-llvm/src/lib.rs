@@ -28,7 +28,7 @@ mod emit;
 mod machine_cgu;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
 mod object_cache;
-pub use object_cache::{ObjectCacheSummary, PendingObjectCache};
+pub use object_cache::{ObjectCacheSummary, PendingObjectCache, installed_compiler_identity};
 
 use zil_ir::FunctionId;
 

@@ -107,13 +107,13 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--zil-arg',action='append',default=[]);p.add_argument('--reference-arg',action='append',default=[]);p.add_argument('--reference-zil',type=Path);p.add_argument('--zil',type=Path,required=True);p.add_argument('--rustc',type=Path,required=True);p.add_argument('--out',type=Path,required=True)
     p.add_argument('--blocks',type=int,default=5);p.add_argument('--case',action='append');p.add_argument('--mode',action='append',choices=['check','O0','O2'])
-    p.add_argument('--closed-executable',action='store_true');p.add_argument('--source-cache',action='store_true');p.add_argument('--smoke',action='store_true');p.add_argument('--timeout',type=int,default=180)
+    p.add_argument('--semantic-cache',action='store_true');p.add_argument('--closed-executable',action='store_true');p.add_argument('--source-cache',action='store_true');p.add_argument('--smoke',action='store_true');p.add_argument('--timeout',type=int,default=180)
     a=p.parse_args();a.out.mkdir(parents=True,exist_ok=False);cpus=sorted(os.sched_getaffinity(0))[:2];os.sched_setaffinity(0,cpus)
     shutil.copy2(Path(__file__),a.out/'runner.py')
     cases=[c for c in shapes() if not a.case or c['name'] in a.case];assert cases
     reference='baseline' if a.reference_zil else 'rust'
     modes=a.mode or ['check','O0','O2'];requests=REQUESTS[:1] if a.smoke else REQUESTS
-    manifest={'source':subprocess.check_output(['git','rev-parse','HEAD'],text=True,cwd=ROOT).strip(),'tool_sha256':sha(Path(__file__)),'binaries':{n:{'path':str(v.resolve()),'sha256':sha(v)} for n,v in [('zil',a.zil),(reference,a.reference_zil or a.rustc)]},'cases':cases,'blocks':a.blocks,'modes':modes,'requests':requests,'cpus':cpus,'source_cache':a.source_cache,'zil_args':a.zil_arg,'reference_args':a.reference_arg,'closed_executable':a.closed_executable,'scope':__doc__,'flags':'O0/O2, overflow checks, panic abort, 8 CGU, ZIL jobs2; rustc incremental and ZIL object cache persist per sequence; optional unverified ZIL source cache'}
+    manifest={'source':subprocess.check_output(['git','rev-parse','HEAD'],text=True,cwd=ROOT).strip(),'tool_sha256':sha(Path(__file__)),'binaries':{n:{'path':str(v.resolve()),'sha256':sha(v)} for n,v in [('zil',a.zil),(reference,a.reference_zil or a.rustc)]},'cases':cases,'blocks':a.blocks,'modes':modes,'requests':requests,'cpus':cpus,'source_cache':a.source_cache,'semantic_cache':a.semantic_cache,'zil_args':a.zil_arg,'reference_args':a.reference_arg,'closed_executable':a.closed_executable,'scope':__doc__,'flags':'O0/O2, overflow checks, panic abort, 8 CGU, ZIL jobs2; rustc incremental and ZIL object cache persist per sequence; optional unverified ZIL source cache'}
     (a.out/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n');rows=[]
     for c in cases:
         src=a.out/('source-'+c['name']);generate(c,src,0)
@@ -136,6 +136,7 @@ def main():
                             if mode!='check':cmd+=['--opt',mode,'--codegen-units','8','--codegen-jobs','2','--object-cache',str(run/'objects'),'-o',str(run/'program')]
                             if mode!='check' and arm=='zil' and a.closed_executable:cmd+=['--closed-executable']
                             if a.source_cache:cmd+=['--cache-dir',str(run/'source-cache')]
+                            if a.semantic_cache and arm=='zil':cmd+=['--semantic-cache',str(run/'semantics')]
                             cmd+=(a.zil_arg if arm=='zil' else a.reference_arg)
                         else:
                             cmd=[str(a.rustc.resolve()),str(src/'main.rs'),'--edition=2024','-A','dead_code','-C','overflow-checks=yes','-C','panic=abort','-C','opt-level='+('2' if mode=='O2' else '0'),'-C','codegen-units=8','-C','incremental='+str(run/'incremental'),'-o',str(run/'program')]
