@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "task": "230",
+  "status": "Pass",
+  "verdict": "Pass",
+  "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+  "reviewer": "/root/defer_design",
+  "implementation_author": "/root/continuity_audit",
+  "observed_main_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+  "run": 41186163758,
+  "job": 124493408210,
+  "ci_url": "https://github.com/zil-lang/zil/actions/runs/41186163758/job/124493408210",
+  "comparison_candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
+  "recorded_at_utc": "2026-10-31T09:08:24.835219+00:00",
+  "scope": "Main continuity check for slice 230 after the reviewed PR merge. Exact source/test/toolchain identity, named execution and native artifact inventory are checked; the detailed PR raw-native review is reused without repeating native downloads or Cargo.",
+  "original_review": {
+    "commit": "32603a1cf9d5e6e45b0dce23ca423441c7a60ccd",
+    "path": "evidence/reviews/230/FINAL.json",
+    "sha256": "07672de305fde7de98c0a9c25a47b959ec3389888bdd5392eb354bafc010aa97",
+    "unchanged": true,
+    "preserved_raw_receipts": "evidence/reviews/230/p2-receipts.tar.gz",
+    "preserved_raw_receipts_sha256": "804a53cddd04dacfc18025b24ee382a6a017a39605a31613d0d14404be51dcd1"
+  },
+  "identity": {
+    "main_and_I2_git_tree_zero_diff": true,
+    "both_actual_main_source_tree_receipts_match_I2_byte_for_byte": true,
+    "source_tree_entries": 87508,
+    "source_tree_sha256": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5",
+    "independent_test_blob": "b7775a3cea5623c4d81cfc2b98a785d10e691d55",
+    "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+    "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
+    "normative_source_test_and_workflow_unchanged_via_identical_tree": true,
+    "toolchain_receipts_identical_to_reviewed_PR": true,
+    "rustc": "1.99.1",
+    "llvm_and_clang": "23.1.4"
+  },
+  "execution": {
+    "official_job_steps_success": 25,
+    "default_workspace": {
+      "passed": 2976,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "reference_workspace": {
+      "passed": 2933,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "independent_test_names": [
+      "address_payloads_and_recursive_alias_payloads_keep_ordinary_rejections",
+      "forward_payload_alias_variant_spelling_and_pattern_binder_are_independent",
+      "generic_type_binder_shadows_alias_and_does_not_leak_to_later_functions",
+      "payload_constant_substitution_rechecks_changed_source_in_a_warm_session",
+      "qualified_import_and_same_spelled_generated_enum_keep_separate_identities",
+      "same_layout_generated_public_enums_remain_nominal_between_modules",
+      "transparent_aliases_do_not_merge_distinct_generation_rounds",
+      "variant_payload_visits_share_request_limits_with_cold_and_warm_replay",
+      "ordinary_expansion_and_generated_sources_execute_at_o0_and_o2"
+    ],
+    "independent_per_configuration": {
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "author_test_names": [
+      "enum_generation_limits_charge_every_iteration_and_warm_replay",
+      "enum_generation_types_constructors_patterns_and_shadows_reach_verify",
+      "new_enum_profile_keeps_generation_and_configready_boundaries",
+      "nominal_separation_names_and_ordinary_payload_rejections_survive",
+      "public_generated_enum_crosses_real_module_boundaries",
+      "generated_enums_and_handwritten_events_execute_at_o0_and_o2"
+    ],
+    "author_per_configuration": {
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "raw_wire_test_passed_both_configurations": "ct_selection::hygiene::generated_enum_tests::impl230_generated_enum_raw_wire_reconstructs_and_rejects_forgery",
+    "budgets": {
+      "independent_work": 3014,
+      "independent_nodes": 512,
+      "author_work": 2698,
+      "author_nodes": 871,
+      "evidence": "Unchanged budget and cache tests actually passed in both main configurations. Current inventory minimum.json and source hashes match the inspected PR inputs; all N/N/N-1/N/fresh report entries are present. Detailed raw budget reports are reused from the unchanged PR review."
+    },
+    "formatting": "empty original fmt.log and successful strict step",
+    "clippy": "all-target -D warnings step complete with no diagnostic lines",
+    "text_reference": {
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "migration_runner_tests_passed": 9,
+    "global_consumer": "Official State/allocation-failure step succeeded. Detailed global consumer review is handled by root and branch_audit; it was not repeated here."
+  },
+  "artifact_inventory": {
+    "workspace": {
+      "total_inventory_files": 65796,
+      "scoped_230_files": 719,
+      "scoped_paths_match_reviewed_PR": true,
+      "source_entries_matching_reviewed_PR_hashes": 97,
+      "stable_source_budget_output_and_raw_wire_entries_matching": 154,
+      "independent_native_case_inventories": 8,
+      "author_native_case_inventories": 8,
+      "executable_hashes_matching_reviewed_PR": 16,
+      "budget_minimum_entries": {
+        "review230/limit-work": {
+          "minimum_bound_by_identical_saved_json_hash": 3014,
+          "bytes": 31,
+          "sha256": "9a5bb3a0d858b8ece9cfcbd7d183c23a23062a0f05d16e4fc23ff1cb1741ade8"
+        },
+        "review230/limit-nodes": {
+          "minimum_bound_by_identical_saved_json_hash": 512,
+          "bytes": 29,
+          "sha256": "04db3101733b27d48e28d9477098b52703dd6ab0652ccf25d27e4b8a14f6386c"
+        },
+        "enums230/budget-work": {
+          "minimum_bound_by_identical_saved_json_hash": 2698,
+          "bytes": 17,
+          "sha256": "b324d7306a9c4ab829caefd7d4348649436e3421582944a91ff8804a7c53beec"
+        },
+        "enums230/budget-nodes": {
+          "minimum_bound_by_identical_saved_json_hash": 871,
+          "bytes": 16,
+          "sha256": "0ea19cdc3130024119b87012f0ee12a12da8e031a2f863a497e1dd97ff2fa311"
+        }
+      },
+      "manifest_sha256": "9ebd7c7572a3e32bb8babf4b078c5b98249fdc4be23c875c4ba42671194146d1",
+      "artifact_metadata_sha256": "ae484f131dc54ff0be1381a8818ec8b6529d7948d7d778ed320680166e101963",
+      "uploaded_native_artifact": {
+        "id": 13036929389,
+        "name": "zil-main-41186163758-1-workspace-native",
+        "size_in_bytes": 195176278,
+        "digest": "sha256:9cc0793732318e762b17b0f8bd1eebdd84a652ea575fafb8c0e6ed66d63b2ba2",
+        "created_at": "2026-10-31T08:57:32Z",
+        "expires_at": "2026-11-30T08:56:33Z"
+      },
+      "native_zip_downloaded_by_reviewer": false
+    },
+    "reference": {
+      "total_inventory_files": 63318,
+      "scoped_230_files": 719,
+      "scoped_paths_match_reviewed_PR": true,
+      "source_entries_matching_reviewed_PR_hashes": 97,
+      "stable_source_budget_output_and_raw_wire_entries_matching": 154,
+      "independent_native_case_inventories": 8,
+      "author_native_case_inventories": 8,
+      "executable_hashes_matching_reviewed_PR": 16,
+      "budget_minimum_entries": {
+        "review230/limit-work": {
+          "minimum_bound_by_identical_saved_json_hash": 3014,
+          "bytes": 31,
+          "sha256": "9a5bb3a0d858b8ece9cfcbd7d183c23a23062a0f05d16e4fc23ff1cb1741ade8"
+        },
+        "review230/limit-nodes": {
+          "minimum_bound_by_identical_saved_json_hash": 512,
+          "bytes": 29,
+          "sha256": "04db3101733b27d48e28d9477098b52703dd6ab0652ccf25d27e4b8a14f6386c"
+        },
+        "enums230/budget-work": {
+          "minimum_bound_by_identical_saved_json_hash": 2698,
+          "bytes": 17,
+          "sha256": "b324d7306a9c4ab829caefd7d4348649436e3421582944a91ff8804a7c53beec"
+        },
+        "enums230/budget-nodes": {
+          "minimum_bound_by_identical_saved_json_hash": 871,
+          "bytes": 16,
+          "sha256": "0ea19cdc3130024119b87012f0ee12a12da8e031a2f863a497e1dd97ff2fa311"
+        }
+      },
+      "manifest_sha256": "0b6a816edabb9f5e999394d68899e61a4753c23ab96d3d676c93593fa428f902",
+      "artifact_metadata_sha256": "67bc6de745bd5ac8cea0682bb1aa409a275b2d36832df58bfe999a5c46a3c6a4",
+      "uploaded_native_artifact": {
+        "id": 13037930262,
+        "name": "zil-main-41186163758-1-reference-native",
+        "size_in_bytes": 191578832,
+        "digest": "sha256:8b0ae5c620c3209e61296a10f742c7e35947324e4fd6b00eb98dce62b312cbfe",
+        "created_at": "2026-10-31T09:03:53Z",
+        "expires_at": "2026-11-30T09:03:07Z"
+      },
+      "native_zip_downloaded_by_reviewer": false
+    }
+  },
+  "receipts": {
+    "official_jobs_sha256": "01734d7b5a1ec80c909da4422e9f76f7fed8cbe87740e5e524cda7c487121c74",
+    "official_run_sha256": "376b32a2025b0994917f40d937ebbf895d8ec022d5ea25ed3a627488c96afb4f",
+    "final_receipt_identity_and_logs_match_downloaded_phase_receipts": true,
+    "final_download_receipt": {
+      "artifact_id": 13037137092,
+      "file": "final.zip",
+      "bytes": 320448149,
+      "sha256": "d3a8a1685a20cc0bcebb55e6a52610088560174f813132ce36338e8ef1025680",
+      "members": 46,
+      "extracted_to": "z10-ci/41186163758/final"
+    },
+    "phase_receipt_sha256": {
+      "workspace": {
+        "workspace.log": "8d8e0e090b1480cc33b65c6ba1322393e67963358326596d3b54ec6350c92484",
+        "commit.txt": "aade5c19ddcc5e20be26c3e662d8bf66768984e5c5e8b0d344b5e66e713b40a4",
+        "source-tree.txt": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5",
+        "toolchain.txt": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0",
+        "llvm-api-toolchain.json": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+      },
+      "reference": {
+        "reference.log": "328d875ed9b5603c6775b2a3aad911d1875a688594bb113e27ec50768880bb6e",
+        "commit.txt": "aade5c19ddcc5e20be26c3e662d8bf66768984e5c5e8b0d344b5e66e713b40a4",
+        "source-tree.txt": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5",
+        "toolchain.txt": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0",
+        "llvm-api-toolchain.json": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+      }
+    }
+  },
+  "reuse_decision": "Detailed PR230 review remains applicable: source, tests, normative files, workflow and toolchain bytes are unchanged; named main tests execute successfully; both inventories retain all 719 required slice paths, identical stable input/output hashes and all 16 matching native executable hashes per configuration. This record does not claim a new raw-native archive inspection.",
+  "boundaries": {
+    "complete_language_goals_1_to_4": "NotSatisfied",
+    "B0": "Doing",
+    "Rust_product_performance_gates": "NotRun",
+    "native_Windows_execution": "NotRun",
+    "other_slices": "Retain their separate independent review ownership.",
+    "historical_failures": "First-run failed evidence and the original PR FINAL remain unchanged.",
+    "main_native_archive_scope": "Manifest and API artifact metadata were checked; no main native ZIP was downloaded or reopened by this reviewer."
+  },
+  "production_or_test_edits": false,
+  "local_cargo_executed": false
+}
