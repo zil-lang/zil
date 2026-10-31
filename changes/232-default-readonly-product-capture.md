@@ -5,3 +5,5 @@
 Types生成现有&Product捕获，Analyze和Verify继续独立重建普通局部根及实际loan；本片不开放未核参数、外层capture、动态Store窗口、逃逸、可变Product或长期保留。不改公共schema/Wire、ABI、默认限额或产品门。新增遍历预费，旧不受影响路径费用保持，必须记录实际预算边界。
 
 写集以主树工单为准。旧impl214_source中平坦与递归只读默认拒绝保留原字节晋升；其它旧测试仅在同一合同直接要求下迁移并列明，原失败不覆盖。正反例须覆盖只读/显式move、读后消费、嵌套消费、活借用相交move/replace、最后使用后move、同型Store来源替换、raw/Wire独立核验、N/N−1/fresh以及O0/O2清理行为。限定Clang17结果不得冒充正式LLVM23验收。
+
+实现澄清：上述完整投影读取规则同样适用于已有显式拥有Product的闭包捕获视图。保有所有权不等于读取中间child时消费child；最终Copy/既有共享头读取沿已核借读路径，真正最终child/Managed消费仍走原take。该修复只覆盖已派定捕获视图，不推广普通local任意深层take，也不改变显式move时的责任转交和原清理顺序。
