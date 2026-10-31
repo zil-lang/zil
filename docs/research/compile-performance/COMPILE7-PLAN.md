@@ -1,6 +1,6 @@
 # 编译7 增量编译与完整成本
 
-状态：施工。父项：`research/compile-performance`，用户2026-10-31授权继续专项与增量投入。本地基线 `ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8`；恢复时可读语言主线 `42ce8081a2aa5722a14fea53f23f819f46685a60`；本轮只读核实远端main已到 `b8c93e70d44038d4ea59affa4c972c706404dac5`。本轮不宣称已吸收语言主线后续功能，不改正式验收门与公共schema。
+状态：本轮探索交付完成，长期专项仍 Doing。父项：`research/compile-performance`，用户2026-10-31授权继续专项与增量投入。本地基线 `ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8`；恢复时可读语言主线 `42ce8081a2aa5722a14fea53f23f819f46685a60`；本轮只读核实远端main已到 `b8c93e70d44038d4ea59affa4c972c706404dac5`。本轮不宣称已吸收语言主线后续功能，不改正式验收门与公共schema。以下派工和计量安排按当时顺序保留，最终结果见末节与 COMPILE7-RESULT。
 
 恢复：独立检出目录，读取旧对象库只作为来源；3526份非历史证据文件逐blob核对恢复，未物化84272份历史/大型证据。原handoff失败及稀疏历史限制如实保存，不改成Pass。研究候选由非作者独审；原始窗口失败保留。仅在无其他编译/测试负载时测性能。
 
@@ -54,3 +54,15 @@ CP33完整200序列/1400请求通过，根初算默认B/A=0.975870、8192=0.9473
 写集限crates/zil-verify/src/lib.rs、zil-driver/src/session.rs、project.rs及必要有限测试/说明。保留旧owned验证入口，新私有owner可持有已有Arc<TypedModule>或Arc<TypedProgram>与Arc<CandidatePlan>，项目不得先clone内嵌module再包Arc；后续module()/plan()只借读。每次调用原check_module，保持检查与预算/首错顺序、取消点和Verify计数；raw snapshot不得持有Verified权限、成功位或验证票据。共享program入口仅授予module权限，interfaces不得扩大为已验证结果。既有Owned调用不得无端增加Arc分配，wire/schema/哈希/接受规则保持。
 
 限定控制覆盖owned/shared全结果与诊断等价、Arc别名/clone-on-write隔离、实际当前额度、单源/项目/磁盘checkpoint入口、失败/取消与每请求Verify=1；独立审核后使用同冻结完整会话协议，不引用静态工作量作为速度数字。
+
+CP35另预先安排完整一次性CLI对照：在其正确性通过后，使用未改的bench.py、同ee72 CLI、原五语料及原四请求权重、O0/build、3个ABBA/BAAB区块、units/jobs=1、两臂source/query/object缓存一致开启，LLVM/Clang/LLD文件身份冻结，40预检+240正式CLI及各输入native输出均保留。该窗口单独判断新进程到native产物的完整成本，不与持久会话混算，不改正式product-gates；它不取决于CP34是否有利，也不以新Rust比较或O2/runtime测量冒称。其它编译/测试全部停止后才正式计时。
+
+CP34完整会话200序列已通过，根初算默认/8192分别0.965558/0.950374；CP35会话分别1.005305/1.015609，完整CLI仍在跑，均待独立复算。为了核实CP34的前端有利点估计能否转化成真实build收益，追加独立CP34完整CLI窗口，参数、五语料、三缓存、3区块、40预检/240正式与CP35完全相同，各自与ee72配对，不能把两窗的候选彼此直接相除。当前三窗全部停止前，只能静态准备CP34 CLI构建；不叠加CP35或CP33，不改变测量权重，不挑选有利语料。
+
+## 最终收束：2026-10-31
+
+CP29/30/32/33/34/35 六个精确候选均完成限定作者控制、非作者审核、完整200序列/1400请求会话窗口与独立复算；两容量分别计量，原权重保持。CP34/35各自完成40编译/128 native预检及240编译/768 native正式CLI，并首次独立复算通过。CP30最初114序列失败前缀仍为Incomplete_NoScore，未拼接；CP35首次作者测试预期失败和证据打包首次失败分别保留，不重命名为成功。
+
+结果：CP29/30/32/34/35未建立整体默认编译净提速，本轮速度采用NoGo；CP33有公开编辑与完整七请求局部收益、默认采用Hold；CP35另有CLI冷请求与编译RSS局部收益。六候选源码分别保留研究分支，没有默认合入或叠加。根生产crates树保持CP28 `a7ae8da1862a69cf673b8db50431b4991cb0d1c5`，本轮未写main、未改正式产品门。精确数值、区间、构建/源码对应与限制以[COMPILE7-RESULT](COMPILE7-RESULT.md)和独立汇总为准。
+
+后续仅交静态Typed指纹调用图与不可变raw owner可行性，不在本轮继续实施或以调用次数估算提速；细粒度语义查询与真实依赖采集仍未完成。父专项不标Done，完整语言/运行/维护/编译四目标及产品级净突破保持未完成。

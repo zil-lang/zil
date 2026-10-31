@@ -611,3 +611,11 @@ Doing
 2026-10-31 编译7追加CP35：CP33完整计时停止；从ee72fd6独立研究fresh Verify共享不可变raw输入，保留原check_module及全部权限/预算/错误合同，仅消除输入深复制。CP34/35各自对基线，不混合归因，作者与非作者独审写集见COMPILE7-PLAN。
 
 2026-10-31 编译7追加CP33：源码确认公开编辑改变逐文件剩余token/node额度从而扩大Parse失效；从ee72独立移植纯内存ParseUsage/预算拟合身份，不含旧磁盘memo。作者incremental_research、非作者cp25_evidence，见COMPILE7-PLAN。
+
+## 2026-10-31 编译7探索交付收束
+
+六候选CP29/30/32/33/34/35的限定正确性审核、各200序列/1400请求完整会话窗口及独立复算完成；CP34/35另各完成完整CLI 40编译/128 native预检与240编译/768 native正式窗口，全部通过。所有原失败窗口、测试预期失败、打包失败按实际性质分别保留，不合并或筛选得分。
+
+根集成裁决：CP29/30/32/34/35整体默认速度采用NoGo；CP33公开编辑与完整七请求有局部收益，默认采用Hold；CP35 CLI冷请求与编译峰值RSS收益单列。没有候选达到本轮整体默认净提速的证据要求，生产crates仍为CP28 `a7ae8da1862a69cf673b8db50431b4991cb0d1c5`，不叠加六候选。新研究汇总分支`research/compile7-20261031`保存源码映射、报告、原始窗口、逐文件哈希和独立审核；旧研究分支及main未被本轮覆盖。
+
+CP25仍无独立性能比较；ZIT/Rust/Blaze机制研究与ZIL实测分开。下一处Typed指纹重复计算仅交静态调用图和不可变owner可行性，本轮未实施、未计时。详见`docs/research/compile-performance/COMPILE7-RESULT.md`及`evidence/research/compile-performance/COMPILE7/review/COMPILE7-INDEPENDENT-SYNTHESIS.json`。本次研究交付Complete_Exploratory_NotAProductGate；父专项Doing、产品四目标与整体净突破未完成，正式门与公共schema不变。
