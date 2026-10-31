@@ -20,6 +20,7 @@ pub(super) struct Budget {
     pub(super) helper_calls: usize,
     pub(super) helper_edges: usize,
     pub(super) helper_depth: usize,
+    pub(super) shared_product_capture: bool,
 }
 
 impl Budget {
@@ -30,6 +31,7 @@ impl Budget {
             helper_calls: limits.max_instructions,
             helper_edges: limits.max_analysis_steps,
             helper_depth: limits.max_call_depth,
+            shared_product_capture: false,
         }
     }
 
@@ -517,6 +519,30 @@ pub(super) fn preflight(
             "closure signature preflight",
         )?;
         for ty in &closure.captures {
+            if ty.is_package_address() {
+                budget.shared_product_capture = true;
+                let Type::Address {
+                    mutable: false,
+                    inner,
+                } = ty
+                else {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "mutable Product capture is not implemented",
+                        None,
+                    )]);
+                };
+                super::resources::product::admit(inner, budget)?;
+                budget.type_work(&closure.result, true, "shared Product capture result")?;
+                if !closure.result.is_copy_value() {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "shared Product captures require a finite Copy result",
+                        None,
+                    )]);
+                }
+                continue;
+            }
             if ty.is_slice_address() || super::resources::owned_error(ty) {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
