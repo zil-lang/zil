@@ -94,3 +94,7 @@ Rust精确源码又确认O2默认MergeFunctions与当前LLVM默认管线的具�
 精确Rust比对再确认O2与O3的SLP开关不同。按changes/research-o2-slp-ablation.md在隔离43037快照仅关闭SLP并更新真实pipeline/cache身份，追加tools/research/incremental-compilation/slp_ablation/**写集。当前生产保持原行为；独立构建/控制和同负载编译及运行质量消融后再决定，不将Merge窗口收益归给此候选。
 
 真实机器IR审计发现只读参数和单源块标量仍产生大量不可观察的栈往返。按changes/research-scalar-local-promotion.md追加emit.rs、emit/scalar_locals.rs及driver scalar_local_promotion控制写集，由llvm_shape_audit转为该候选作者；保留独立review_incremental_slice1审核分离。仅允许白名单、无地址暴露且当前定义可证明的标量；不重排调用/trap、不引入跨源块Phi或更改预算/Verify。先作为待审候选实现，最终必须同Merge/SLP设置消融后决定保留，不以静态IR计数宣称收益。
+
+DB六区组独立消融完成，未证明净提速；真实driver的内容版本键让反向索引不能改善主要编辑路径。按changes/research-reactive-key-attribution.md将默认zil-db/src/lib.rs完整恢复3d6原字节，保留EE实现、修复后的JS适配、差分控制和全部正负实验身份。Analyze init投影、语义候选缓存、分区和scalar promotion分别保留独立候选身份；不把组合O0收益归于撤回的DB。稳定查询身份/有效性/依赖与等值屏障不是删除input哈希的小修，不在此次撤回中暗改。
+
+实际Session事件与源码审计进一步定位私有编辑997/1025重解析：32 raw owner中整项目四阶段占四项，其余仅28 Parse；旧ExpandedProject未持有项目AST。按changes/research-project-syntax-retention.md在既有driver project/session与测试写集内，由semantic_incremental实施当前项目原始Parse Arc子所有权及精确身份/费用复用。必须同时接入filesystem loader真实计算路径，不能只改变事件计数；借旧语法索引时仍释放旧Core/Typed，保留当前输入检查、限额、产物、错误及取消边界。新增常驻AST字节需实测RSS，不把owner数量上界冒充字节上界，也不声称实现函数级Types增量。

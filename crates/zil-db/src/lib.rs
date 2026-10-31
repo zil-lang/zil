@@ -121,19 +121,10 @@ pub struct QuerySnapshot {
     pub bytes: Arc<[u8]>,
     pub revision: u64,
 }
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct ReverseDependency {
-    consumer: QueryKey,
-    kind: FingerprintKind,
-    observed: Fingerprint,
-}
 #[derive(Default)]
 pub struct Database {
     snapshots: BTreeMap<QueryKey, Arc<QuerySnapshot>>,
     active: BTreeSet<QueryKey>,
-    // Only actual reads are indexed. Failed publications never change these edges.
-    dependents: BTreeMap<QueryKey, BTreeSet<ReverseDependency>>,
-    active_published: BTreeSet<QueryKey>,
     revision: u64,
 }
 fn query_error(code: &str, message: &str) -> Diagnostic {
@@ -141,45 +132,22 @@ fn query_error(code: &str, message: &str) -> Diagnostic {
 }
 impl Database {
     pub fn begin(&mut self, key: QueryKey) -> Result<(), Diagnostic> {
-        if !self.active.insert(key.clone()) {
+        if !self.active.insert(key) {
             return Err(query_error(
                 "E-QUERY-CYCLE",
                 "query depends on an unfinished query",
             ));
         }
-        if self.snapshots.contains_key(&key) {
-            self.active_published.insert(key);
-        }
         Ok(())
     }
     pub fn abort(&mut self, key: &QueryKey) {
         self.active.remove(key);
-        self.active_published.remove(key);
     }
 
     /// Check the whole dependency closure, including in-progress ancestors.
     /// Looking only at direct fingerprints could expose a transitively stale
     /// snapshot after one of its inputs was replaced.
     pub fn read(&self, key: &QueryKey) -> Result<Option<Arc<QuerySnapshot>>, Diagnostic> {
-        // A published graph is closed and acyclic: publication checks the whole
-        // input closure before atomically replacing edges; invalidation removes
-        // the reverse closure; collection keeps the forward closure. A newly
-        // begun, never-published key cannot be an ancestor of a stored snapshot.
-        // Retain ordered traversal whenever an existing node is being replaced,
-        // so active-ancestor errors and dependency checks keep their old order.
-        if self.active_published.is_empty() {
-            if self.active.contains(key) {
-                return Err(query_error(
-                    "E-QUERY-CYCLE",
-                    "cannot observe an active query dependency",
-                ));
-            }
-            return Ok(self.snapshots.get(key).cloned());
-        }
-        self.read_closure(key)
-    }
-
-    fn read_closure(&self, key: &QueryKey) -> Result<Option<Arc<QuerySnapshot>>, Diagnostic> {
         let mut pending = vec![(key.clone(), false)];
         let mut visiting = BTreeSet::new();
         let mut complete = BTreeSet::new();
@@ -259,10 +227,9 @@ impl Database {
             }
             Ok(())
         })();
-        self.abort(&key);
+        self.active.remove(&key);
         checked?;
         self.invalidate(&key, &fingerprints);
-        self.remove_snapshot(&key);
         self.revision = self.revision.saturating_add(1);
         let result = Arc::new(QuerySnapshot {
             key: key.clone(),
@@ -272,16 +239,6 @@ impl Database {
             bytes: bytes.into(),
             revision: self.revision,
         });
-        for dependency in &result.dependencies {
-            self.dependents
-                .entry(dependency.key.clone())
-                .or_default()
-                .insert(ReverseDependency {
-                    consumer: key.clone(),
-                    kind: dependency.kind,
-                    observed: dependency.observed,
-                });
-        }
         self.snapshots.insert(key, result.clone());
         Ok(result)
     }
@@ -291,46 +248,29 @@ impl Database {
     /// `publish` invokes this operation automatically.
     pub fn invalidate(&mut self, key: &QueryKey, new: &ResultFingerprints) -> Vec<QueryKey> {
         let mut gone = BTreeSet::new();
-        let mut pending = self
-            .dependents
-            .get(key)
-            .into_iter()
-            .flatten()
-            .filter(|edge| new.get(edge.kind) != edge.observed)
-            .map(|edge| edge.consumer.clone())
-            .collect::<Vec<_>>();
-        while let Some(consumer) = pending.pop() {
-            if !gone.insert(consumer.clone()) {
-                continue;
+        loop {
+            let next = self
+                .snapshots
+                .iter()
+                .filter(|(candidate, value)| {
+                    !gone.contains(*candidate)
+                        && value.dependencies.iter().any(|dependency| {
+                            (dependency.key == *key
+                                && new.get(dependency.kind) != dependency.observed)
+                                || gone.contains(&dependency.key)
+                        })
+                })
+                .map(|(candidate, _)| candidate.clone())
+                .collect::<Vec<_>>();
+            if next.is_empty() {
+                break;
             }
-            if let Some(edges) = self.dependents.get(&consumer) {
-                pending.extend(edges.iter().map(|edge| edge.consumer.clone()));
-            }
+            gone.extend(next);
         }
         for key in &gone {
-            self.remove_snapshot(key);
+            self.snapshots.remove(key);
         }
         gone.into_iter().collect()
-    }
-
-    fn remove_snapshot(&mut self, key: &QueryKey) {
-        if let Some(snapshot) = self.snapshots.remove(key) {
-            for dependency in &snapshot.dependencies {
-                let empty = if let Some(edges) = self.dependents.get_mut(&dependency.key) {
-                    edges.remove(&ReverseDependency {
-                        consumer: key.clone(),
-                        kind: dependency.kind,
-                        observed: dependency.observed,
-                    });
-                    edges.is_empty()
-                } else {
-                    false
-                };
-                if empty {
-                    self.dependents.remove(&dependency.key);
-                }
-            }
-        }
     }
     /// Retain metadata needed to validate the supplied raw-cache roots. A raw
     /// value may be evicted while its small dependency receipt is still needed
@@ -349,21 +289,11 @@ impl Database {
                 pending.extend(snapshot.dependencies.iter().map(|dep| dep.key.clone()));
             }
         }
-        let gone = self
-            .snapshots
-            .keys()
-            .filter(|key| !keep.contains(*key))
-            .cloned()
-            .collect::<Vec<_>>();
-        for key in gone {
-            self.remove_snapshot(&key);
-        }
+        self.snapshots.retain(|key, _| keep.contains(key));
     }
     pub fn clear(&mut self) {
         self.snapshots.clear();
         self.active.clear();
-        self.dependents.clear();
-        self.active_published.clear();
     }
     pub fn len(&self) -> usize {
         self.snapshots.len()
