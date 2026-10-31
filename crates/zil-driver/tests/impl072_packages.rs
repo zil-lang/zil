@@ -1,7 +1,10 @@
 //! Real source admission and nearest boundaries for partial local packages.
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
 use zil_driver::{CompileOptions, ProjectSources, Stage, compile_project, compile_source};
-use zil_ir::{InstructionKind, Type, TypedModule};
+use zil_ir::{CallableKind, InstructionKind, Type, TypedModule};
+
+#[path = "impl232_fixture_support/mod.rs"]
+mod fixture232;
 
 const DEFINITIONS: &str = "resource R{n:i32} package P{manages a:R,manages b:R,n:i32} fn make()->P{return P{a:R{n:20},b:R{n:21},n:1}} fn relay(p:P)->P{return p} fn consume(give r:R)->i32{return r.n} fn keep(give r:R,n:i32)->R contract{result(give)}{return give r} fn step(ok:bool)->bool!i32{if ok{return 0}return true}";
 
@@ -262,12 +265,58 @@ fn packages072_mutability_exact_resource_type_and_ownership_are_preserved() {
 }
 
 #[test]
-fn packages072_outer_package_owned_capture_remains_unsupported() {
-    rejected(
-        "fn main()->i32{var p=make();let f=()=>consume(give p.a);return f()}",
-        Phase::Types,
-        "E-UNSUPPORTED",
-    );
+fn packages072_default_managed_take_captures_the_complete_package_once() {
+    // Original rejection input, including its return value, is unchanged.
+    let body = "fn main()->i32{var p=make();let f=()=>consume(give p.a);return f()}";
+    let source = |body: &str| {
+        SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "packages072-negative.zil",
+            format!("{DEFINITIONS} {body}"),
+        )
+    };
+    let module = typed(body);
+    assert_eq!(module.closures.len(), 1);
+    assert_eq!(module.closures[0].kind, CallableKind::FnOnce);
+    let main = module.functions.iter().find(|f| f.name == "main").unwrap();
+    let owner = main.locals.iter().find(|l| l.name == "p").unwrap();
+    assert!(matches!(owner.ty, Type::Package { .. }));
+    assert_eq!(module.closures[0].captures, vec![owner.ty.clone()]);
+    let (block, at, capture) = main
+        .blocks
+        .iter()
+        .find_map(|block| {
+            block.instructions.iter().enumerate().find_map(|(at, i)| {
+                if let InstructionKind::MakeClosure { captures, .. } = &i.kind {
+                    assert_eq!(captures.len(), 1);
+                    Some((block, at, captures[0]))
+                } else {
+                    None
+                }
+            })
+        })
+        .unwrap();
+    assert!(block.instructions[..at].iter().any(|i| {
+        i.result == Some(capture)
+            && matches!(i.kind, InstructionKind::TakeLocal { local } if local == owner.id)
+    }));
+    fixture232::verified("072-owned-original", &source(body), &module);
+    fixture232::native("072-owned-original", &source(body), 20);
+    for (label, replacement) in [
+        ("072-owner-after-creation", "return p.n+f()"),
+        ("072-second-call", "let first=f();return f()+first"),
+    ] {
+        let invalid = body.replace("return f()", replacement);
+        assert_ne!(invalid, body);
+        fixture232::rejected(
+            label,
+            &source(&invalid),
+            ResultCategory::SafeReject,
+            Phase::Analyze,
+            "E-UNINITIALIZED",
+        );
+    }
 }
 
 #[test]
