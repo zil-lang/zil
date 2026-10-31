@@ -18,6 +18,11 @@ pub struct ProgramMemoStats {
     pub retained_modules: usize,
     /// Bounded structural storage accounting, not a measurement of allocator RSS.
     pub retained_weight: usize,
+    pub source_modules_reused: usize,
+    pub source_modules_checked: usize,
+    pub capacity_skipped_modules: usize,
+    /// New cache snapshots copied after complete module selection, not output clones.
+    pub snapshot_cloned_functions: usize,
 }
 
 /// One successful project epoch, at most 16,384 modules / 64 MiB structural
@@ -36,6 +41,9 @@ impl ProgramMemo {
 }
 
 struct Environment {
+    // Derived entirely from the complete identity below, including the lengths
+    // used for bounded per-function working receipt reservations.
+    weight: usize,
     root: ModuleId,
     target: TargetProfile,
     limits: Limits,
@@ -84,7 +92,15 @@ struct ModuleMemo {
     // a caller-supplied source_fingerprint alone is never sufficient.
     core: CoreModule,
     functions: Vec<FunctionMemo>,
+    source_weight: usize,
     typed_weight: usize,
+}
+
+/// Only small receipts are retained while the actual typed output is built.
+/// No speculative TypedFunction snapshot is copied by record().
+struct FunctionReceipt {
+    id: FunctionId,
+    usage: closures::MemoUsage,
 }
 
 pub(super) struct Request<'a> {
@@ -97,9 +113,11 @@ pub(super) struct Request<'a> {
     environment_matches: bool,
     reuse: Vec<bool>,
     cacheable: Vec<bool>,
-    functions: Vec<Vec<FunctionMemo>>,
+    functions: Vec<Vec<FunctionReceipt>>,
+    source_weight: Vec<usize>,
     typed_weight: Vec<usize>,
     weight: usize,
+    capacity: usize,
     stats: ProgramMemoStats,
 }
 impl<'a> Request<'a> {
@@ -111,23 +129,23 @@ impl<'a> Request<'a> {
         context: Fingerprint,
         previous: &'a ProgramMemo,
     ) -> Option<Self> {
-        if program.modules.len() > MAX_MODULES {
-            return None;
-        }
-        let mut weight = size_of::<Environment>() + size_of::<ProgramMemo>();
-        for value in [
-            &target.id,
-            &target.triple,
-            &target.backend,
-            &target.rule_version,
-        ] {
-            text(&mut weight, value)?;
-        }
-        let mut cacheable = Vec::with_capacity(program.modules.len());
-        for module in &program.modules {
-            cacheable.push(source_weight(module, tables, &mut weight)?);
-        }
-        if !cacheable.iter().any(|enabled| *enabled) {
+        Self::with_capacity(
+            program, tables, target, limits, context, previous, MAX_WEIGHT,
+        )
+    }
+
+    // Production always uses MAX_WEIGHT. Small internal controls exercise exact
+    // boundaries without changing language Limits or the public driver/schema.
+    fn with_capacity(
+        program: &'a CoreProgram,
+        tables: &'a Tables,
+        target: &'a TargetProfile,
+        limits: &'a Limits,
+        context: Fingerprint,
+        previous: &'a ProgramMemo,
+        capacity: usize,
+    ) -> Option<Self> {
+        if program.modules.len() > MAX_MODULES || capacity > MAX_WEIGHT {
             return None;
         }
         let environment_matches = previous.environment.as_ref().is_some_and(|old| {
@@ -160,23 +178,55 @@ impl<'a> Request<'a> {
                     .zip(&program.modules)
                     .all(|(imports, m)| imports == &m.imports)
         });
+        let weight = if environment_matches {
+            previous
+                .environment
+                .as_ref()
+                .expect("matched environment")
+                .weight
+        } else {
+            environment_weight(program, target)?
+        };
+        if weight > capacity {
+            // The complete environment is mandatory even for a partial epoch.
+            return None;
+        }
         let mut reuse = Vec::with_capacity(program.modules.len());
-        let mut typed_weight = Vec::with_capacity(program.modules.len());
+        let mut cacheable = Vec::with_capacity(program.modules.len());
+        let mut source_weights = Vec::with_capacity(program.modules.len());
+        let mut typed_weights = Vec::with_capacity(program.modules.len());
+        let mut stats = ProgramMemoStats {
+            eligible: true,
+            ..ProgramMemoStats::default()
+        };
         for (index, module) in program.modules.iter().enumerate() {
             let old = previous
                 .modules
                 .get(index)
                 .and_then(Option::as_ref)
                 .filter(|old| {
-                    cacheable[index]
-                        && environment_matches
+                    environment_matches
                         && old.core == module.core
                         && old.functions.len() == module.core.functions.len()
                 });
-            let old_weight = old.map_or(0, |old| old.typed_weight);
-            add(&mut weight, old_weight)?;
+            if let Some(old) = old {
+                // Full Core equality proves the previous whitelist/weight
+                // receipt still applies; a source fingerprint is insufficient.
+                stats.source_modules_reused += 1;
+                cacheable.push(true);
+                source_weights.push(old.source_weight);
+                typed_weights.push(old.typed_weight);
+            } else {
+                let mut source = 0;
+                cacheable.push(source_weight(module, tables, &mut source)?);
+                stats.source_modules_checked += 1;
+                source_weights.push(source);
+                typed_weights.push(0);
+            }
             reuse.push(old.is_some());
-            typed_weight.push(old_weight);
+        }
+        if !cacheable.iter().any(|enabled| *enabled) {
+            return None;
         }
         Some(Self {
             program,
@@ -188,13 +238,12 @@ impl<'a> Request<'a> {
             environment_matches,
             reuse,
             cacheable,
-            typed_weight,
+            source_weight: source_weights,
+            typed_weight: typed_weights,
             weight,
+            capacity,
             functions: (0..program.modules.len()).map(|_| Vec::new()).collect(),
-            stats: ProgramMemoStats {
-                eligible: true,
-                ..ProgramMemoStats::default()
-            },
+            stats,
         })
     }
 
@@ -229,22 +278,95 @@ impl<'a> Request<'a> {
             // complete foreign contracts are part of the environment identity.
             typed_weight(typed, true)?;
         } else if !self.reuse[module] {
-            let size = typed_weight(typed, false)?;
-            add(&mut self.weight, size)?;
-            self.typed_weight[module] += size;
-            self.functions[module].push(FunctionMemo {
-                typed: typed.clone(),
-                usage,
-            });
+            add(&mut self.typed_weight[module], typed_weight(typed, false)?);
+            if self.source_weight[module].saturating_add(self.typed_weight[module])
+                <= self.capacity - self.weight
+            {
+                if self.functions[module].is_empty() {
+                    // This exact-length receipt reservation was accounted for
+                    // before the request grew any per-function metadata.
+                    self.functions[module]
+                        .reserve_exact(self.program.modules[module].core.functions.len());
+                }
+                self.functions[module].push(FunctionReceipt {
+                    id: typed.id,
+                    usage,
+                });
+            } else {
+                // An oversized module is optional storage, not a language error.
+                // Continue output validation; only its small receipts are dropped.
+                self.functions[module].clear();
+            }
         }
         Some(())
     }
 
-    pub(super) fn finish(mut self) -> ProgramMemo {
+    /// Called before lending mutates any function, after ordinary functions
+    /// have been sorted by FunctionId. No generated identities qualify here.
+    pub(super) fn finish(mut self, output: &[TypedFunction]) -> ProgramMemo {
+        let mut weight = self.weight;
+        let mut modules = Vec::with_capacity(self.program.modules.len());
+        for (index, module) in self.program.modules.iter().enumerate() {
+            if !self.cacheable[index] {
+                modules.push(None);
+                continue;
+            }
+            let size = self.source_weight[index].saturating_add(self.typed_weight[index]);
+            let Some(next_weight) = weight.checked_add(size).filter(|n| *n <= self.capacity) else {
+                self.stats.capacity_skipped_modules += 1;
+                modules.push(None);
+                continue;
+            };
+            if self.reuse[index] {
+                modules.push(self.previous.modules[index].clone());
+            } else {
+                let receipts = &self.functions[index];
+                if receipts.len() != module.core.functions.len()
+                    || !receipts
+                        .iter()
+                        .all(|r| output.get(r.id.0 as usize).is_some_and(|f| f.id == r.id))
+                {
+                    // Never publish an incomplete snapshot if an internal
+                    // construction assumption fails. The actual output survives.
+                    return ProgramMemo::default();
+                }
+                let functions = receipts
+                    .iter()
+                    .zip(&module.core.functions)
+                    .map(|(receipt, core)| {
+                        let mut typed = output[receipt.id.0 as usize].clone();
+                        // Project labels are assigned after record(). Restore the
+                        // exact original Builder name expected by a later load().
+                        typed.name.clone_from(&core.name);
+                        self.stats.snapshot_cloned_functions += 1;
+                        FunctionMemo {
+                            typed,
+                            usage: receipt.usage,
+                        }
+                    })
+                    .collect();
+                modules.push(Some(Arc::new(ModuleMemo {
+                    core: module.core.clone(),
+                    functions,
+                    source_weight: self.source_weight[index],
+                    typed_weight: self.typed_weight[index],
+                })));
+            }
+            weight = next_weight;
+            self.stats.retained_modules += 1;
+        }
+        if self.stats.retained_modules == 0 {
+            // Do not copy the complete environment for an empty selection.
+            return ProgramMemo {
+                stats: self.stats,
+                ..ProgramMemo::default()
+            };
+        }
         let environment = if self.environment_matches {
             self.previous.environment.clone()
         } else {
             Some(Arc::new(Environment {
+                weight: self.weight,
                 root: self.program.root,
                 target: self.target.clone(),
                 limits: self.limits.clone(),
@@ -276,27 +398,7 @@ impl<'a> Request<'a> {
                 tables: self.tables.clone(),
             }))
         };
-        let modules = self
-            .program
-            .modules
-            .iter()
-            .enumerate()
-            .map(|(index, module)| {
-                if !self.cacheable[index] {
-                    None
-                } else if self.reuse[index] {
-                    self.previous.modules[index].clone()
-                } else {
-                    Some(Arc::new(ModuleMemo {
-                        core: module.core.clone(),
-                        functions: std::mem::take(&mut self.functions[index]),
-                        typed_weight: self.typed_weight[index],
-                    }))
-                }
-            })
-            .collect::<Vec<_>>();
-        self.stats.retained_modules = modules.iter().filter(|m| m.is_some()).count();
-        self.stats.retained_weight = self.weight;
+        self.stats.retained_weight = weight;
         ProgramMemo {
             environment,
             modules,
@@ -305,17 +407,83 @@ impl<'a> Request<'a> {
     }
 }
 
-fn add(weight: &mut usize, bytes: usize) -> Option<()> {
-    *weight = weight.checked_add(bytes).filter(|n| *n <= MAX_WEIGHT)?;
-    Some(())
+// Capacity overflow is a saturating size, never an eligibility failure. The
+// whitelist must still examine the rest of an oversized live module.
+fn add(weight: &mut usize, bytes: usize) {
+    *weight = weight.saturating_add(bytes).min(MAX_WEIGHT + 1);
 }
-fn array<T>(weight: &mut usize, length: usize) -> Option<()> {
-    // Include allocation bookkeeping as structural slack, without claiming to
-    // predict a particular allocator's usable size or resident pages.
-    add(weight, length.checked_mul(size_of::<T>())?.checked_add(64)?)
+fn array<T>(weight: &mut usize, length: usize) {
+    add(
+        weight,
+        length.saturating_mul(size_of::<T>()).saturating_add(64),
+    );
 }
-fn text(weight: &mut usize, value: &str) -> Option<()> {
-    add(weight, value.len().checked_add(64)?)
+fn text(weight: &mut usize, value: &str) {
+    add(weight, value.len().saturating_add(64));
+}
+
+fn scalar_header(f: &CoreFunction) -> bool {
+    f.type_parameters.is_empty()
+        && f.state_parameters.is_empty()
+        && f.callable_parameters.is_empty()
+        && f.callable_return.is_none()
+        && f.receiver.is_none()
+        && matches!(f.result_mode, PassingMode::Copy | PassingMode::Infer)
+        && f.return_type.is_b0_scalar()
+        && f.parameters.iter().all(|p| {
+            matches!(p.mode, PassingMode::Copy | PassingMode::Infer) && p.ty.is_b0_scalar()
+        })
+}
+
+fn environment_weight(program: &CoreProgram, target: &TargetProfile) -> Option<usize> {
+    let mut weight = size_of::<Environment>() + size_of::<ProgramMemo>();
+    for value in [
+        &target.id,
+        &target.triple,
+        &target.backend,
+        &target.rule_version,
+    ] {
+        text(&mut weight, value);
+    }
+    // Include all environment storage and conservative working receipt/vector
+    // reservations, even for modules eventually omitted from the epoch.
+    array::<ModuleId>(&mut weight, program.modules.len());
+    array::<Vec<CoreImport>>(&mut weight, program.modules.len());
+    array::<Vec<DeclarationIdentity>>(&mut weight, program.modules.len());
+    array::<Option<Arc<ModuleMemo>>>(&mut weight, program.modules.len());
+    array::<Vec<FunctionReceipt>>(&mut weight, program.modules.len());
+    array::<[usize; 4]>(&mut weight, program.modules.len());
+    for module in &program.modules {
+        let core = &module.core;
+        if !core.aggregates.is_empty() || !core.enums.is_empty() || !core.unsupported.is_empty() {
+            return None;
+        }
+        add(&mut weight, 256); // module table node / allocation slack
+        array::<CoreImport>(&mut weight, module.imports.len());
+        for import in &module.imports {
+            text(&mut weight, &import.alias);
+        }
+        array::<DeclarationIdentity>(&mut weight, core.functions.len());
+        array::<FunctionReceipt>(&mut weight, core.functions.len());
+        for f in &core.functions {
+            if !scalar_header(f) {
+                return None;
+            }
+            add(&mut weight, size_of::<Signature>() + 256);
+            text(&mut weight, &f.name);
+            array::<PassingMode>(&mut weight, f.parameters.len());
+            array::<Type>(&mut weight, f.parameters.len());
+            if let Some(foreign) = &f.foreign {
+                text(&mut weight, &foreign.abi);
+                text(&mut weight, &foreign.symbol);
+                array::<u32>(&mut weight, foreign.noescape_parameters.len());
+            }
+        }
+        if weight > MAX_WEIGHT {
+            return Some(weight);
+        }
+    }
+    Some(weight)
 }
 
 /// This conservative whitelist is an optional optimization classifier. It runs
@@ -327,12 +495,9 @@ fn source_weight(module: &ProgramModule, tables: &Tables, weight: &mut usize) ->
     if !core.aggregates.is_empty() || !core.enums.is_empty() || !core.unsupported.is_empty() {
         return None;
     }
-    add(weight, size_of::<ModuleMemo>() + 256)?;
-    array::<CoreFunction>(weight, core.functions.len())?;
-    array::<CoreImport>(weight, module.imports.len())?;
-    for import in &module.imports {
-        text(weight, &import.alias)?;
-    }
+    add(weight, size_of::<ModuleMemo>() + 256);
+    array::<CoreFunction>(weight, core.functions.len());
+    array::<FunctionMemo>(weight, core.functions.len());
     for f in &core.functions {
         if !f.type_parameters.is_empty()
             || !f.state_parameters.is_empty()
@@ -349,30 +514,20 @@ fn source_weight(module: &ProgramModule, tables: &Tables, weight: &mut usize) ->
         }
         if let Some(foreign) = &f.foreign {
             cacheable = false;
-            text(weight, &foreign.abi)?;
-            text(weight, &foreign.symbol)?;
-            array::<u32>(weight, foreign.noescape_parameters.len())?;
+            text(weight, &foreign.abi);
+            text(weight, &foreign.symbol);
+            array::<u32>(weight, foreign.noescape_parameters.len());
         }
-        array::<PassingMode>(weight, f.parameters.len())?;
-        add(weight, size_of::<DeclarationIdentity>())?;
-        // Function/table String keys and all signature values are retained too.
-        add(
-            weight,
-            size_of::<FunctionMemo>() + size_of::<Signature>() + 256,
-        )?;
-        text(weight, &f.name)?;
-        text(weight, &f.name)?;
-        text(weight, &f.name)?;
-        array::<CoreParameter>(weight, f.parameters.len())?;
-        array::<Type>(weight, f.parameters.len())?;
+        text(weight, &f.name);
+        array::<CoreParameter>(weight, f.parameters.len());
         for p in &f.parameters {
-            text(weight, &p.name)?;
+            text(weight, &p.name);
         }
         let mut pending = vec![Input::Block(&f.body)];
         while let Some(input) = pending.pop() {
             match input {
                 Input::Block(block) => {
-                    array::<CoreStatement>(weight, block.statements.len())?;
+                    array::<CoreStatement>(weight, block.statements.len());
                     for statement in &block.statements {
                         use CoreStatementKind as S;
                         match &statement.kind {
@@ -385,7 +540,7 @@ fn source_weight(module: &ProgramModule, tables: &Tables, weight: &mut usize) ->
                                 if ty.as_ref().is_some_and(|t| !t.is_b0_scalar()) {
                                     return None;
                                 }
-                                text(weight, name)?;
+                                text(weight, name);
                                 pending.extend(initializer.iter().map(Input::Expr));
                             }
                             S::Assign { target, value } => {
@@ -413,7 +568,7 @@ fn source_weight(module: &ProgramModule, tables: &Tables, weight: &mut usize) ->
                                 end,
                                 body,
                             } => {
-                                text(weight, name)?;
+                                text(weight, name);
                                 pending.push(Input::Expr(start));
                                 pending.push(Input::Expr(end));
                                 pending.push(Input::Block(body));
@@ -429,13 +584,13 @@ fn source_weight(module: &ProgramModule, tables: &Tables, weight: &mut usize) ->
                     }
                 }
                 Input::Expr(e) => {
-                    // A fixed node allowance bounds both boxed and inline children
-                    // and the temporary traversal stack before growing it.
-                    add(weight, size_of::<CoreExpr>() + 64)?;
+                    // Existing shape/name preflight bounds this traversal by
+                    // language Limits. Size saturation must not skip its tail.
+                    add(weight, size_of::<CoreExpr>() + 64);
                     use CoreExprKind as E;
                     match &e.kind {
                         E::Literal(value) if value.ty().is_b0_scalar() => {}
-                        E::Integer(s) | E::Name(s) => text(weight, s)?,
+                        E::Integer(s) | E::Name(s) => text(weight, s),
                         E::Bool(_) | E::Unit => {}
                         E::Ascribed { ty, value } | E::IntegerConvert { target: ty, value }
                             if ty.is_b0_scalar() =>
@@ -469,12 +624,12 @@ fn source_weight(module: &ProgramModule, tables: &Tables, weight: &mut usize) ->
                             if !declared {
                                 return None;
                             }
-                            array::<CoreExpr>(weight, arguments.len())?;
+                            array::<CoreExpr>(weight, arguments.len());
                             pending.push(Input::Expr(callee));
                             pending.extend(arguments.iter().map(Input::Expr));
                         }
                         E::Member { object, member } if matches!(object.kind, E::Name(_)) => {
-                            text(weight, member)?;
+                            text(weight, member);
                             pending.push(Input::Expr(object));
                         }
                         E::If {
@@ -510,17 +665,17 @@ fn typed_weight(function: &TypedFunction, allow_foreign: bool) -> Option<usize> 
     {
         return None;
     }
-    let mut weight = size_of::<FunctionMemo>();
-    text(&mut weight, &function.name)?;
-    array::<LocalId>(&mut weight, function.parameters.len())?;
-    array::<LocalDecl>(&mut weight, function.locals.len())?;
-    array::<Type>(&mut weight, function.values.len())?;
-    array::<BasicBlock>(&mut weight, function.blocks.len())?;
+    let mut weight = 0;
+    text(&mut weight, &function.name);
+    array::<LocalId>(&mut weight, function.parameters.len());
+    array::<LocalDecl>(&mut weight, function.locals.len());
+    array::<Type>(&mut weight, function.values.len());
+    array::<BasicBlock>(&mut weight, function.blocks.len());
     for local in &function.locals {
-        text(&mut weight, &local.name)?;
+        text(&mut weight, &local.name);
     }
     for block in &function.blocks {
-        array::<Instruction>(&mut weight, block.instructions.len())?;
+        array::<Instruction>(&mut weight, block.instructions.len());
         for instruction in &block.instructions {
             use InstructionKind as I;
             match &instruction.kind {
@@ -534,9 +689,9 @@ fn typed_weight(function: &TypedFunction, allow_foreign: bool) -> Option<usize> 
                 | I::Binary { .. } => {}
                 I::Constant(value) if value.ty().is_b0_scalar() => {}
                 I::ConvertInteger { target, .. } if target.is_b0_scalar() => {}
-                I::Call { arguments, .. } => array::<ValueId>(&mut weight, arguments.len())?,
+                I::Call { arguments, .. } => array::<ValueId>(&mut weight, arguments.len()),
                 I::ForeignCall { arguments, .. } if allow_foreign => {
-                    array::<ValueId>(&mut weight, arguments.len())?
+                    array::<ValueId>(&mut weight, arguments.len())
                 }
                 I::UnsafeEnter { .. } | I::UnsafeExit { .. } if allow_foreign => {}
                 _ => return None,
@@ -545,3 +700,7 @@ fn typed_weight(function: &TypedFunction, allow_foreign: bool) -> Option<usize> 
     }
     Some(weight)
 }
+
+#[cfg(test)]
+#[path = "cp32_program_memo_tests.rs"]
+mod cp32_tests;
