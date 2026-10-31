@@ -211,3 +211,54 @@ fn rendered_and_direct_modes_have_same_behavior() {
         assert!(reference.bytes.starts_with(b"\x7fELF"));
     }
 }
+
+#[test]
+fn signed_and_unsigned_spellings_of_integer_bits_are_identical_at_all_widths() {
+    for width in [1, 8, 16, 32, 64] {
+        for signed in [-1i128, -(1i128 << (width - 1))] {
+            let unsigned = signed + (1i128 << width);
+            for expected_equal in [true, false] {
+                let right = if expected_equal {
+                    unsigned
+                } else {
+                    unsigned - 1
+                };
+                let module = m(vec![Item::Function(f(
+                    "main",
+                    vec![],
+                    Ty::Int(32),
+                    vec![b(
+                        "entry",
+                        vec![
+                            i(
+                                "equal",
+                                Op::Compare {
+                                    predicate: "eq".into(),
+                                    ty: Ty::Int(width),
+                                    left: Val::Int(signed),
+                                    right: Val::Int(right),
+                                },
+                            ),
+                            i(
+                                "code",
+                                Op::Cast {
+                                    opcode: "zext".into(),
+                                    arg: a(Ty::Int(1), "%equal"),
+                                    to: Ty::Int(32),
+                                },
+                            ),
+                            i("", Op::Return(Some(a(Ty::Int(32), "%code")))),
+                        ],
+                    )],
+                ))]);
+                for opt in [Optimization::O0, Optimization::O2] {
+                    assert_eq!(
+                        execute(&module, opt),
+                        i32::from(expected_equal),
+                        "width={width} signed={signed} right={right} opt={opt:?}"
+                    );
+                }
+            }
+        }
+    }
+}

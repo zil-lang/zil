@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/next_language_slices",
+  "implementation_author": "/root",
+  "verdict": "Pass",
+  "reviewed_candidate_commit": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+  "actual_ci_checkout": "db07200ba221bdb67f3f1b7bef7f8e9851592a1a",
+  "ci_run_id": 41195906918,
+  "ci_run_attempt": 1,
+  "ci_event": "pull_request",
+  "recorded_at": "2026-10-31T11:41:48.235854+00:00",
+  "scope": "Root-authored three-module consumer: ordinary readonly Product capture invokes the cross-module generic trait helper, last use releases the loan, and the original owner moves and drops once.",
+  "source_identity": {
+    "source_tree_sha256": "d5855a3ee6e2b3cd43416042631f9c9b65bd63a18aa406991dac6536bc066c8f",
+    "main_rules_data_byte_equal_to_candidate_in_each_positive_case": true,
+    "negative_is_exact_owner_move_before_final_callback_use": true
+  },
+  "oracle_strengthening_commit": "0ba1662c82072476ac4e722c8fc645a921b75eb8",
+  "negative_artifact_retention_commit": "9d36cbaf63d159c0a8386752e9492f1d0f109fa3",
+  "default": {
+    "receipt": "ci41195906918/workspace/RESULT.json",
+    "positive_native_observations": 4,
+    "negative_source_rejections": 1,
+    "actual_modes": [
+      [
+        "clang",
+        "O0"
+      ],
+      [
+        "clang",
+        "O2"
+      ],
+      [
+        "llvm-api",
+        "O0"
+      ],
+      [
+        "llvm-api",
+        "O2"
+      ]
+    ],
+    "verified_native_files": 91
+  },
+  "reference": {
+    "receipt": "ci41195906918/reference/RESULT.json",
+    "positive_native_observations": 2,
+    "negative_source_rejections": 1,
+    "actual_modes": [
+      [
+        "clang",
+        "O0"
+      ],
+      [
+        "clang",
+        "O2"
+      ]
+    ],
+    "verified_native_files": 51
+  },
+  "positive_assertions": [
+    "Full i32 result 14 compared in ZIL before exit selection",
+    "Actual backend equals requested backend, no fallback",
+    "API objects use builder, parse_ns=0, verify_before_after=true",
+    "Actual exit zero, stderr empty, stdout exactly byte 0x41 once",
+    "Current source Verify runs exactly once"
+  ],
+  "negative_assertions": [
+    "SafeReject at Verify",
+    "E-BORROW-CONFLICT",
+    "verification_runs=1",
+    "No executable, native codegen or native commands"
+  ],
+  "green_integration_gate": "../234/ci41195906918/gates/GATE-VERIFICATION.json",
+  "formal_ci_steps_success": 25,
+  "prior_first_run": "41194080948 remains overall Fail; its scoped joint success is preserved at evidence commit 00ce4eeffe60beba612a9b02e5513d18c047d7b6 and does not substitute for this run.",
+  "audit_execution": "No new compiler test or native execution; all observations are from the exact second-run artifacts.",
+  "stage_counts_not_added_as_unique_coverage": true,
+  "main_ci_acceptance": "NotClaimed; separate MAIN-CONTINUITY must bind eventual main commit and CI.",
+  "language_product_boundary": "This finite three-module consumer does not establish full 1.4, all ZUI prerequisites, complete higher-order lifecycle behavior or Rust four-goal product acceptance."
+}
