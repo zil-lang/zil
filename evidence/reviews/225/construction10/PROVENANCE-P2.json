@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+  "ci_candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
+  "actual_checkout_commit": "045dc75cec6eaa4de52951e075c52fd809fb6b3c",
+  "full_tree_sha256": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5",
+  "full_tree_entries": 87508,
+  "all_three_actual_tree_manifests_equal_I2": true,
+  "P2_is_ancestor_of_I2": true,
+  "P139_to_P2_production_src_unchanged": true,
+  "P2_to_I2_changed_paths": [
+    ".task/impl/225.md",
+    ".task/impl/226.md",
+    ".task/impl/230.md",
+    ".task/impl/231.md",
+    "evidence/integration/construction10/attempt-2/FREEZE.json",
+    "evidence/reviews/230/FIRST-RUN-REFERENCE-OBSERVATIONS.json"
+  ],
+  "test_path": "crates/zil-driver/tests/review225226_capture.rs",
+  "test_blob": "96a696f917dac46010ad3e107163d3f2ce13e261",
+  "test_sha256": "e528cdff294706356d0f739df08c3161d61baa5c042966f625dd1048721836e2",
+  "original_delivery": [
+    {
+      "slice": "225",
+      "tip": "8ea37c2de56cf65f1448e4fa647671f4459ad148",
+      "true_ancestor_P2": true,
+      "identical_production_blobs": [
+        {
+          "path": "crates/zil-analyze/src/dynamic_store.rs",
+          "original_blob": "4f43bcfebd042e956c2e23ccbbf3d8c44ab8c275",
+          "P2_blob": "4f43bcfebd042e956c2e23ccbbf3d8c44ab8c275"
+        },
+        {
+          "path": "crates/zil-types/src/dynamic_store.rs",
+          "original_blob": "38adc836e6280bc1a5f868c50244d3b491c798b8",
+          "P2_blob": "38adc836e6280bc1a5f868c50244d3b491c798b8"
+        },
+        {
+          "path": "crates/zil-verify/src/dynamic_store.rs",
+          "original_blob": "8155bb9f151c261edf7c447fcb71587c292fcbf2",
+          "P2_blob": "8155bb9f151c261edf7c447fcb71587c292fcbf2"
+        }
+      ]
+    },
+    {
+      "slice": "226",
+      "tip": "c8dd71a4b75ed7731fca8372a3a055f017991eb3",
+      "true_ancestor_P2": true,
+      "identical_production_blobs": [
+        {
+          "path": "crates/zil-analyze/src/budget.rs",
+          "original_blob": "63663b46f5640897a4ccfb9c15b187c00a282b5d",
+          "P2_blob": "63663b46f5640897a4ccfb9c15b187c00a282b5d"
+        },
+        {
+          "path": "crates/zil-analyze/src/holds.rs",
+          "original_blob": "52b63d9968f0e1ec2eb3e2838c22a6ec2cb54873",
+          "P2_blob": "52b63d9968f0e1ec2eb3e2838c22a6ec2cb54873"
+        },
+        {
+          "path": "crates/zil-backend-llvm/src/emit.rs",
+          "original_blob": "4a5121e933d52c6457fdde6beee2398cfe3740d0",
+          "P2_blob": "4a5121e933d52c6457fdde6beee2398cfe3740d0"
+        },
+        {
+          "path": "crates/zil-lower/src/lib.rs",
+          "original_blob": "7eb9de189b51c82473b8ad91517997fa967c1847",
+          "P2_blob": "7eb9de189b51c82473b8ad91517997fa967c1847"
+        },
+        {
+          "path": "crates/zil-types/src/closures.rs",
+          "original_blob": "5dfa504544b4844036af34fbf5908a8fa21a6868",
+          "P2_blob": "5dfa504544b4844036af34fbf5908a8fa21a6868"
+        },
+        {
+          "path": "crates/zil-verify/src/borrows.rs",
+          "original_blob": "4a95fe4665831f72ae21eb220793c78d62b1f84a",
+          "P2_blob": "4a95fe4665831f72ae21eb220793c78d62b1f84a"
+        },
+        {
+          "path": "crates/zil-verify/src/closures.rs",
+          "original_blob": "102bf7097fd4a0626ceb8a864032e68793542c8b",
+          "P2_blob": "102bf7097fd4a0626ceb8a864032e68793542c8b"
+        }
+      ]
+    }
+  ],
+  "original_no_ff_merges": [
+    "31474713a8747d5d73e28f4626bc4b22d67ec1ae 4d0534eeb70c0b5e9abb01bfd5db1db5f8b3a379 8ea37c2de56cf65f1448e4fa647671f4459ad148",
+    "dc900a5a0a2fedd016ccce026a134c3225fb98bd 31474713a8747d5d73e28f4626bc4b22d67ec1ae c8dd71a4b75ed7731fca8372a3a055f017991eb3"
+  ]
+}
