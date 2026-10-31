@@ -28,3 +28,8 @@
 
 - 2026-10-31：从远端 main 建立专项；首片优先消除未用外部声明对所有 CGU 的失效放大。当前 Session 容量断崖、整项目语义重做及核验/Lower 重复成本已定位，后续依纵向路线继续。
 - 2026-10-31：首片实现 `665a0a06dc36a94f19e9ee8bbcd87fab321c6423` 已推送；限定64测试通过，后端Clippy通过。按独审意见收紧错误拒绝断言，最终功能审核绑定 `8fb69d61b41a241806e7021de93a27ce7e213f7b` 为Pass。200次完整CLI screen和200次native均通过；收益限于声明失效控制，保留private编辑约1.1%不利点估计，未宣称产品突破。长期专项继续Doing，main未集成。
+
+
+## 混合源码验证发现的后端正确性修复
+
+第二窗口后在真实 byte_io 示例发现原基线已有的 LLVM API O2 常量传播错误。按 `changes/research-narrow-integer-constants.md` 先记录语义修复，再追加写集：`crates/zil-llvm-api/src/native/builder.rs`、`crates/zil-llvm-api/tests/builder210.rs`、`crates/zil-driver/tests/narrow_constants.rs`、该changes提案。此修复不降优化级别或减少独立验证；错误基线O2不计等价速度收益。
