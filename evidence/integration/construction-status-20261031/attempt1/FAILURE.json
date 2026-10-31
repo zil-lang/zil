@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "status": "Fail retained",
+  "run_id": 41206556938,
+  "job_id": 124552697430,
+  "run_url": "https://github.com/zil-lang/zil/actions/runs/41206556938",
+  "artifact_id": 13044686083,
+  "artifact_sha256": "985d9fa0288adac6a3e7fe939136cd978db24ba23988633e4bb758a4de8b5ca5",
+  "actual_main": "7e8c645d8e671fd95ac7dc38922e8f804af12c49",
+  "mutation_attempted": false,
+  "reason": "Refusal: New handoff issues; no remote mutation permitted",
+  "record_integrity_delta": {
+    "baseline": "f2572502beb76eb86e9254dea855404e4998a64d",
+    "candidate": "7e8c645d8e671fd95ac7dc38922e8f804af12c49",
+    "baseline_status": "Fail",
+    "candidate_status": "Fail",
+    "baseline_error_count": 1145,
+    "candidate_error_count": 1148,
+    "new_errors": [
+      {
+        "id": "232",
+        "reason": "Evidence has no passing outcome: evidence/impl/232/AUTHOR.json",
+        "count": 1
+      },
+      {
+        "id": "233",
+        "reason": "Evidence has no passing outcome: evidence/impl/233/author-final/RESULT.json",
+        "count": 1
+      },
+      {
+        "id": "234",
+        "reason": "Evidence has no passing outcome: evidence/impl/234/AUTHOR.json",
+        "count": 1
+      }
+    ],
+    "resolved_errors": [],
+    "new_warnings": [],
+    "scope": "Record integrity delta and plan consistency; an inherited Fail remains Fail.",
+    "candidate_cards": {
+      "232": {
+        "records": 1,
+        "status": "已合入",
+        "committed": true,
+        "errors": 1,
+        "warnings": 0
+      },
+      "233": {
+        "records": 1,
+        "status": "已合入",
+        "committed": true,
+        "errors": 1,
+        "warnings": 0
+      },
+      "234": {
+        "records": 1,
+        "status": "已合入",
+        "committed": true,
+        "errors": 1,
+        "warnings": 0
+      }
+    }
+  },
+  "remedy": "Move author-limited non-Pass reports from formal accepted evidence to historical_evidence_before_acceptance; preserve original bytes and statuses, use already available independent FINAL and successful main CI for acceptance. Checker unchanged.",
+  "retest_status": "Pending"
+}
