@@ -500,7 +500,9 @@ fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize
         for &b in post.iter().skip(1) {
             let mut p = pred[b].iter().copied().filter(|&p| idom[p] != usize::MAX);
             let Some(mut next) = p.next() else { continue };
-            if pred[b].len() >= 32 {
+            // Pay O(n) setup only when the current block has enough edges to
+            // cover it. Many small joins in a large CFG keep the old walk.
+            if pred[b].len() >= 32 && pred[b].len() >= n.div_ceil(4) {
                 next = intersect_many(next, p, &rank, &idom);
             } else {
                 for p in p {
