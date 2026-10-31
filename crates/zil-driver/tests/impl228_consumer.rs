@@ -8,9 +8,10 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::{Duration, Instant},
 };
-use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit, json_string};
+use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit, json_string};
 use zil_driver::{
-    CompileOptions, NativeBackend, Optimization, ProjectSources, Stage, compile_project,
+    CompileOptions, CompileReport, NativeBackend, Optimization, ProjectSources, Stage,
+    compile_project,
 };
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -181,4 +182,75 @@ fn paired_sources_change_only_the_requested_declaration_forms() {
     ] {
         assert_eq!(MAIN, main);
     }
+}
+
+fn rejection(label: &str, main: &str, events: &str) -> CompileReport {
+    let case = Case::new(label);
+    fs::write(case.0.join("main.zil"), main).unwrap();
+    fs::write(case.0.join("events.zil"), events).unwrap();
+    let report = compile_project(
+        &project(main, events),
+        &CompileOptions {
+            emit_dir: Some(case.0.join("phases")),
+            ..CompileOptions::default()
+        },
+    );
+    fs::write(case.0.join("compile.json"), report.to_json()).unwrap();
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{label}: {}",
+        report.to_json()
+    );
+    assert!(!report.artifacts.contains_key("executable"));
+    report
+}
+
+#[test]
+fn generated_event_shapes_keep_distinct_nominal_identities() {
+    let main = "import events\nfn main()->i32{return events.accept(events.first())}";
+    let plain = rejection(
+        "nominal-plain",
+        main,
+        "struct Pointer{kind:i32}struct Touch{kind:i32}\n\
+         pub fn first()->Pointer=>Pointer{kind:74}\n\
+         pub fn accept(event:Touch)->i32=>event.kind",
+    );
+    let generated = rejection(
+        "nominal-generated",
+        main,
+        "#for(mode in [0,1]){struct Event{kind:i32}\n\
+         #if(mode==0){pub fn first()->Event=>Event{kind:74}}\n\
+         else{pub fn accept(event:Event)->i32=>event.kind}}",
+    );
+    assert_eq!(plain.phase, generated.phase);
+    assert_eq!(plain.diagnostics[0].code, generated.diagnostics[0].code);
+}
+
+#[test]
+fn trailing_copy_bound_cannot_duplicate_an_owning_event_resource() {
+    let main = "import events\nresource Marker{code:i32}\n\
+                fn main()->i32{let owner=Marker{code:65};events.duplicate(owner);return 0}";
+    let inline = rejection(
+        "resource-inline",
+        main,
+        "pub fn duplicate<T:Copy>(value:T)->(T,T)=>(value,value)",
+    );
+    let trailing = rejection(
+        "resource-where",
+        main,
+        "pub fn duplicate<T>(value:T)->(T,T) where T:Copy =>(value,value)",
+    );
+    for report in [&inline, &trailing] {
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("Copy")),
+            "{}",
+            report.to_json()
+        );
+    }
+    assert_eq!(inline.diagnostics[0].code, trailing.diagnostics[0].code);
 }
