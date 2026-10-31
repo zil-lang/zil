@@ -1,0 +1,185 @@
+{
+  "positive": [
+    {
+      "case": "construction11-8860-Clang-O0",
+      "compile": {
+        "report": "construction11-8860-Clang-O0/report.json",
+        "backend": "clang",
+        "optimization": "O0",
+        "warm": false,
+        "verification_runs": 1,
+        "fallback": null,
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        }
+      },
+      "full_result_guard": "value != 14 returns 1 in exact source",
+      "exit": 0,
+      "stdout_hex": "41",
+      "stderr_hex": ""
+    },
+    {
+      "case": "construction11-8860-Clang-O2",
+      "compile": {
+        "report": "construction11-8860-Clang-O2/report.json",
+        "backend": "clang",
+        "optimization": "O2",
+        "warm": false,
+        "verification_runs": 1,
+        "fallback": null,
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        }
+      },
+      "full_result_guard": "value != 14 returns 1 in exact source",
+      "exit": 0,
+      "stdout_hex": "41",
+      "stderr_hex": ""
+    },
+    {
+      "case": "construction11-8860-LlvmApi-O0",
+      "compile": {
+        "report": "construction11-8860-LlvmApi-O0/report.json",
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "warm": false,
+        "verification_runs": 1,
+        "fallback": null,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2536,
+            "input_kind": "builder",
+            "preflight_ns": 601982,
+            "builder_ns": 483887,
+            "parse_ns": 0,
+            "optimize_ns": 164254,
+            "emit_ns": 2532222,
+            "total_ns": 4268014
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        }
+      },
+      "full_result_guard": "value != 14 returns 1 in exact source",
+      "exit": 0,
+      "stdout_hex": "41",
+      "stderr_hex": ""
+    },
+    {
+      "case": "construction11-8860-LlvmApi-O2",
+      "compile": {
+        "report": "construction11-8860-LlvmApi-O2/report.json",
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "warm": false,
+        "verification_runs": 1,
+        "fallback": null,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 944,
+            "input_kind": "builder",
+            "preflight_ns": 531858,
+            "builder_ns": 355717,
+            "parse_ns": 0,
+            "optimize_ns": 1983308,
+            "emit_ns": 2216153,
+            "total_ns": 5317689
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        }
+      },
+      "full_result_guard": "value != 14 returns 1 in exact source",
+      "exit": 0,
+      "stdout_hex": "41",
+      "stderr_hex": ""
+    }
+  ],
+  "negative": [
+    {
+      "case": "construction11-active-loan-reject-8860",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "write or storage change overlaps a shared address still required by a later use",
+          "span": {
+            "file": 0,
+            "start": 440,
+            "end": 444
+          },
+          "notes": []
+        }
+      ],
+      "native_execution": "NotRun"
+    }
+  ]
+}

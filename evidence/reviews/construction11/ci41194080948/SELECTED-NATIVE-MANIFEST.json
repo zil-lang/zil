@@ -1,0 +1,812 @@
+{
+  "original_manifest_sha256": "aa3458adac01b811ac3fd0f04c691ca65a8fa53498df0c4befbbd7d959278ba8",
+  "verified_files": [
+    {
+      "path": "construction11-8860-Clang-O0/data.zil",
+      "mode": 420,
+      "bytes": 150,
+      "sha256": "91e1a4e72857e7c8570be91bb783f0548e1c5535e39d45298ee643fb86ed27bd"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/exit.txt",
+      "mode": 420,
+      "bytes": 8,
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/main.zil",
+      "mode": 420,
+      "bytes": 532,
+      "sha256": "b97c252e9b23fb9f1ca424237b482a81cf7664f2ebac6500a7f77e0aabf232eb"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/phases/candidate.txt",
+      "mode": 420,
+      "bytes": 16073,
+      "sha256": "b27e7c4a2dee22acc38b7c197510437ef85730d93edbb55cd2e5629db7a3e37e"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/phases/core.txt",
+      "mode": 420,
+      "bytes": 97858,
+      "sha256": "1cc7508abe818391e76d0f843e823033a53f89ff94546598b50b318991eea421"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/phases/ct-core.txt",
+      "mode": 420,
+      "bytes": 115619,
+      "sha256": "1257d5328b1c51e78976673d780d6ad8c6d2a86e26019ec053e6bfb34264d239"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/phases/interfaces.txt",
+      "mode": 420,
+      "bytes": 7524,
+      "sha256": "c867562909ad9c83f91bea9372efb2c0d8782321209ec6cba6c292b76c4d38e3"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/phases/lir.txt",
+      "mode": 420,
+      "bytes": 146772,
+      "sha256": "da2cbfd21be0a1903ab9f706ac0c93cfc68f83620a8fce2162db0a55983fa44b"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/phases/llvm.ll",
+      "mode": 420,
+      "bytes": 9399,
+      "sha256": "0b06bf5b0262a4e186462269c0f869adc062ccfba0b4cc11cb3afc767d2ce213"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/phases/source-map.txt",
+      "mode": 420,
+      "bytes": 52039,
+      "sha256": "6b6396760ca17f619cf602934fdd75f39773e8a5ace4a753edc6d00d7cdfe5c5"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/phases/syntax.txt",
+      "mode": 420,
+      "bytes": 214258,
+      "sha256": "7e8f6dbbc181a73bc79c9ceb5a912b249fad72faf8a016a333a2154d081068b6"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/phases/typed.txt",
+      "mode": 420,
+      "bytes": 145940,
+      "sha256": "fe2089a6005cdb3ae3e137f84c15ebd39963e17b0a1272979116100d31dedf86"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/phases/verified-interfaces.txt",
+      "mode": 420,
+      "bytes": 10840,
+      "sha256": "a9edaf10d7b4c9b73372e0c488676f7d17a9b7d03a4ebce52fcf72717af52234"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/phases/verified.txt",
+      "mode": 420,
+      "bytes": 146017,
+      "sha256": "e68d2ca34e87866ab1933ca77b76253268badaeb25f84b9610da598ba4a8dc2c"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/program",
+      "mode": 493,
+      "bytes": 16048,
+      "sha256": "a8649c7507fc7609515eb72e68279a1368bed732f4d71ae612291a89e00058ea"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/program.ll",
+      "mode": 420,
+      "bytes": 9399,
+      "sha256": "0b06bf5b0262a4e186462269c0f869adc062ccfba0b4cc11cb3afc767d2ce213"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/report.json",
+      "mode": 420,
+      "bytes": 4071,
+      "sha256": "91e53902a2c15197b5f0c6a21c4c3a5ad289201cfa692814aefe3a49b65059b3"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/rules.zil",
+      "mode": 420,
+      "bytes": 111,
+      "sha256": "5f4a1eefcc6766ac9cf44c3b5800221747951dee01f088349b8337a1a36c481f"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/stderr.bin",
+      "mode": 420,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/stdout.bin",
+      "mode": 420,
+      "bytes": 1,
+      "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/data.zil",
+      "mode": 420,
+      "bytes": 150,
+      "sha256": "91e1a4e72857e7c8570be91bb783f0548e1c5535e39d45298ee643fb86ed27bd"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/exit.txt",
+      "mode": 420,
+      "bytes": 8,
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/main.zil",
+      "mode": 420,
+      "bytes": 532,
+      "sha256": "b97c252e9b23fb9f1ca424237b482a81cf7664f2ebac6500a7f77e0aabf232eb"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/phases/candidate.txt",
+      "mode": 420,
+      "bytes": 16073,
+      "sha256": "b27e7c4a2dee22acc38b7c197510437ef85730d93edbb55cd2e5629db7a3e37e"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/phases/core.txt",
+      "mode": 420,
+      "bytes": 97858,
+      "sha256": "1cc7508abe818391e76d0f843e823033a53f89ff94546598b50b318991eea421"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/phases/ct-core.txt",
+      "mode": 420,
+      "bytes": 115619,
+      "sha256": "1257d5328b1c51e78976673d780d6ad8c6d2a86e26019ec053e6bfb34264d239"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/phases/interfaces.txt",
+      "mode": 420,
+      "bytes": 7524,
+      "sha256": "c867562909ad9c83f91bea9372efb2c0d8782321209ec6cba6c292b76c4d38e3"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/phases/lir.txt",
+      "mode": 420,
+      "bytes": 146772,
+      "sha256": "da2cbfd21be0a1903ab9f706ac0c93cfc68f83620a8fce2162db0a55983fa44b"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/phases/llvm.ll",
+      "mode": 420,
+      "bytes": 9399,
+      "sha256": "0b06bf5b0262a4e186462269c0f869adc062ccfba0b4cc11cb3afc767d2ce213"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/phases/source-map.txt",
+      "mode": 420,
+      "bytes": 52039,
+      "sha256": "6b6396760ca17f619cf602934fdd75f39773e8a5ace4a753edc6d00d7cdfe5c5"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/phases/syntax.txt",
+      "mode": 420,
+      "bytes": 214258,
+      "sha256": "7e8f6dbbc181a73bc79c9ceb5a912b249fad72faf8a016a333a2154d081068b6"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/phases/typed.txt",
+      "mode": 420,
+      "bytes": 145940,
+      "sha256": "fe2089a6005cdb3ae3e137f84c15ebd39963e17b0a1272979116100d31dedf86"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/phases/verified-interfaces.txt",
+      "mode": 420,
+      "bytes": 10840,
+      "sha256": "a9edaf10d7b4c9b73372e0c488676f7d17a9b7d03a4ebce52fcf72717af52234"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/phases/verified.txt",
+      "mode": 420,
+      "bytes": 146017,
+      "sha256": "e68d2ca34e87866ab1933ca77b76253268badaeb25f84b9610da598ba4a8dc2c"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/program",
+      "mode": 493,
+      "bytes": 16008,
+      "sha256": "70f7efe52252329fd4911cae29f7c2de897e40254503dacb8a7e8cd203c8ed28"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/program.ll",
+      "mode": 420,
+      "bytes": 9399,
+      "sha256": "0b06bf5b0262a4e186462269c0f869adc062ccfba0b4cc11cb3afc767d2ce213"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/report.json",
+      "mode": 420,
+      "bytes": 4071,
+      "sha256": "a6257462353eb0829e4acacba76645b6307e9cc3964d1c780ff7566deb9f5591"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/rules.zil",
+      "mode": 420,
+      "bytes": 111,
+      "sha256": "5f4a1eefcc6766ac9cf44c3b5800221747951dee01f088349b8337a1a36c481f"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/stderr.bin",
+      "mode": 420,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/stdout.bin",
+      "mode": 420,
+      "bytes": 1,
+      "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/data.zil",
+      "mode": 420,
+      "bytes": 150,
+      "sha256": "91e1a4e72857e7c8570be91bb783f0548e1c5535e39d45298ee643fb86ed27bd"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/exit.txt",
+      "mode": 420,
+      "bytes": 8,
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/main.zil",
+      "mode": 420,
+      "bytes": 532,
+      "sha256": "b97c252e9b23fb9f1ca424237b482a81cf7664f2ebac6500a7f77e0aabf232eb"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/phases/candidate.txt",
+      "mode": 420,
+      "bytes": 16073,
+      "sha256": "b27e7c4a2dee22acc38b7c197510437ef85730d93edbb55cd2e5629db7a3e37e"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/phases/core.txt",
+      "mode": 420,
+      "bytes": 97858,
+      "sha256": "1cc7508abe818391e76d0f843e823033a53f89ff94546598b50b318991eea421"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/phases/ct-core.txt",
+      "mode": 420,
+      "bytes": 115619,
+      "sha256": "1257d5328b1c51e78976673d780d6ad8c6d2a86e26019ec053e6bfb34264d239"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/phases/interfaces.txt",
+      "mode": 420,
+      "bytes": 7524,
+      "sha256": "c867562909ad9c83f91bea9372efb2c0d8782321209ec6cba6c292b76c4d38e3"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/phases/lir.txt",
+      "mode": 420,
+      "bytes": 146772,
+      "sha256": "da2cbfd21be0a1903ab9f706ac0c93cfc68f83620a8fce2162db0a55983fa44b"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/phases/llvm.ll",
+      "mode": 420,
+      "bytes": 9399,
+      "sha256": "0b06bf5b0262a4e186462269c0f869adc062ccfba0b4cc11cb3afc767d2ce213"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/phases/source-map.txt",
+      "mode": 420,
+      "bytes": 52039,
+      "sha256": "6b6396760ca17f619cf602934fdd75f39773e8a5ace4a753edc6d00d7cdfe5c5"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/phases/syntax.txt",
+      "mode": 420,
+      "bytes": 214258,
+      "sha256": "7e8f6dbbc181a73bc79c9ceb5a912b249fad72faf8a016a333a2154d081068b6"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/phases/typed.txt",
+      "mode": 420,
+      "bytes": 145940,
+      "sha256": "fe2089a6005cdb3ae3e137f84c15ebd39963e17b0a1272979116100d31dedf86"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/phases/verified-interfaces.txt",
+      "mode": 420,
+      "bytes": 10840,
+      "sha256": "a9edaf10d7b4c9b73372e0c488676f7d17a9b7d03a4ebce52fcf72717af52234"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/phases/verified.txt",
+      "mode": 420,
+      "bytes": 146017,
+      "sha256": "e68d2ca34e87866ab1933ca77b76253268badaeb25f84b9610da598ba4a8dc2c"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/program",
+      "mode": 493,
+      "bytes": 16048,
+      "sha256": "9a5f373bace5808dc2a2f221a98cbe8873392af872296ed0c99ec8f54568e237"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/program.ll",
+      "mode": 420,
+      "bytes": 9399,
+      "sha256": "0b06bf5b0262a4e186462269c0f869adc062ccfba0b4cc11cb3afc767d2ce213"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/report.json",
+      "mode": 420,
+      "bytes": 4548,
+      "sha256": "b305d47e13c2a52223a7acf204958f17eaee747c51dd6368f3df4a5c198b0cab"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/rules.zil",
+      "mode": 420,
+      "bytes": 111,
+      "sha256": "5f4a1eefcc6766ac9cf44c3b5800221747951dee01f088349b8337a1a36c481f"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/stderr.bin",
+      "mode": 420,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/stdout.bin",
+      "mode": 420,
+      "bytes": 1,
+      "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/data.zil",
+      "mode": 420,
+      "bytes": 150,
+      "sha256": "91e1a4e72857e7c8570be91bb783f0548e1c5535e39d45298ee643fb86ed27bd"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/exit.txt",
+      "mode": 420,
+      "bytes": 8,
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/main.zil",
+      "mode": 420,
+      "bytes": 532,
+      "sha256": "b97c252e9b23fb9f1ca424237b482a81cf7664f2ebac6500a7f77e0aabf232eb"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/candidate.txt",
+      "mode": 420,
+      "bytes": 16073,
+      "sha256": "b27e7c4a2dee22acc38b7c197510437ef85730d93edbb55cd2e5629db7a3e37e"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/core.txt",
+      "mode": 420,
+      "bytes": 97858,
+      "sha256": "1cc7508abe818391e76d0f843e823033a53f89ff94546598b50b318991eea421"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/ct-core.txt",
+      "mode": 420,
+      "bytes": 115619,
+      "sha256": "1257d5328b1c51e78976673d780d6ad8c6d2a86e26019ec053e6bfb34264d239"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/interfaces.txt",
+      "mode": 420,
+      "bytes": 7524,
+      "sha256": "c867562909ad9c83f91bea9372efb2c0d8782321209ec6cba6c292b76c4d38e3"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/lir.txt",
+      "mode": 420,
+      "bytes": 146772,
+      "sha256": "da2cbfd21be0a1903ab9f706ac0c93cfc68f83620a8fce2162db0a55983fa44b"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/llvm.ll",
+      "mode": 420,
+      "bytes": 9399,
+      "sha256": "0b06bf5b0262a4e186462269c0f869adc062ccfba0b4cc11cb3afc767d2ce213"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/source-map.txt",
+      "mode": 420,
+      "bytes": 52039,
+      "sha256": "6b6396760ca17f619cf602934fdd75f39773e8a5ace4a753edc6d00d7cdfe5c5"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/syntax.txt",
+      "mode": 420,
+      "bytes": 214258,
+      "sha256": "7e8f6dbbc181a73bc79c9ceb5a912b249fad72faf8a016a333a2154d081068b6"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/typed.txt",
+      "mode": 420,
+      "bytes": 145940,
+      "sha256": "fe2089a6005cdb3ae3e137f84c15ebd39963e17b0a1272979116100d31dedf86"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/verified-interfaces.txt",
+      "mode": 420,
+      "bytes": 10840,
+      "sha256": "a9edaf10d7b4c9b73372e0c488676f7d17a9b7d03a4ebce52fcf72717af52234"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/verified.txt",
+      "mode": 420,
+      "bytes": 146017,
+      "sha256": "e68d2ca34e87866ab1933ca77b76253268badaeb25f84b9610da598ba4a8dc2c"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/program",
+      "mode": 493,
+      "bytes": 16008,
+      "sha256": "b91eddd58df142b00397b417f29ae7350a6f67057681d7b0fa3f42ecdad288f0"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/program.ll",
+      "mode": 420,
+      "bytes": 9399,
+      "sha256": "0b06bf5b0262a4e186462269c0f869adc062ccfba0b4cc11cb3afc767d2ce213"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/report.json",
+      "mode": 420,
+      "bytes": 4548,
+      "sha256": "85018ba6fea1f70403ffcfb4fb1d28081425d14db67a91cafdf97827544c7d34"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/rules.zil",
+      "mode": 420,
+      "bytes": 111,
+      "sha256": "5f4a1eefcc6766ac9cf44c3b5800221747951dee01f088349b8337a1a36c481f"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/stderr.bin",
+      "mode": 420,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/stdout.bin",
+      "mode": 420,
+      "bytes": 1,
+      "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/data.zil",
+      "mode": 420,
+      "bytes": 150,
+      "sha256": "91e1a4e72857e7c8570be91bb783f0548e1c5535e39d45298ee643fb86ed27bd"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/main.zil",
+      "mode": 420,
+      "bytes": 532,
+      "sha256": "2be01961ebcdde834d299e516962ec91aee513d7823d0df62d73da4d992f1421"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/phases/candidate.txt",
+      "mode": 420,
+      "bytes": 16080,
+      "sha256": "929dec8bc1b4037549f9fff4bccf7607c7157c2b5621b2774a28371bd16748e2"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/phases/core.txt",
+      "mode": 420,
+      "bytes": 97857,
+      "sha256": "7c801b05a652947c02ed2d5f5c2820a5745b8e8adadc79a3d212689ff8c3d36c"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/phases/ct-core.txt",
+      "mode": 420,
+      "bytes": 115618,
+      "sha256": "206e3eda2beecbf0d014405bc78d8b7d84b2815c3b67832724438878027f6558"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/phases/interfaces.txt",
+      "mode": 420,
+      "bytes": 7521,
+      "sha256": "ab035b10e412546e66ced204077fb29fdf7bd4eae6c6acbe2926bd92325e3482"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/phases/source-map.txt",
+      "mode": 420,
+      "bytes": 52039,
+      "sha256": "e141cd5c46e5d4aa35c77addacc589f323368a38dbf0d8ca4775d4b4d3511d01"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/phases/syntax.txt",
+      "mode": 420,
+      "bytes": 214258,
+      "sha256": "5d2b174ee5eaea07d6b36aeaa0177187a0930f9930d30f0e7d4cc789330d777e"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/phases/typed.txt",
+      "mode": 420,
+      "bytes": 145942,
+      "sha256": "a42fbaf55457346dd8138c88459ff2b7f4387d5968a96ced85b506dc7de9ea9e"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/report.json",
+      "mode": 420,
+      "bytes": 2779,
+      "sha256": "da0a8712e49141d73c2906789d6ee68a9c37c78f2b08e5681e9ae13358b870d4"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/rules.zil",
+      "mode": 420,
+      "bytes": 111,
+      "sha256": "5f4a1eefcc6766ac9cf44c3b5800221747951dee01f088349b8337a1a36c481f"
+    }
+  ],
+  "retained_files": [
+    {
+      "path": "construction11-8860-Clang-O0/data.zil",
+      "mode": 420,
+      "bytes": 150,
+      "sha256": "91e1a4e72857e7c8570be91bb783f0548e1c5535e39d45298ee643fb86ed27bd"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/exit.txt",
+      "mode": 420,
+      "bytes": 8,
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/main.zil",
+      "mode": 420,
+      "bytes": 532,
+      "sha256": "b97c252e9b23fb9f1ca424237b482a81cf7664f2ebac6500a7f77e0aabf232eb"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/program.ll",
+      "mode": 420,
+      "bytes": 9399,
+      "sha256": "0b06bf5b0262a4e186462269c0f869adc062ccfba0b4cc11cb3afc767d2ce213"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/report.json",
+      "mode": 420,
+      "bytes": 4071,
+      "sha256": "91e53902a2c15197b5f0c6a21c4c3a5ad289201cfa692814aefe3a49b65059b3"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/rules.zil",
+      "mode": 420,
+      "bytes": 111,
+      "sha256": "5f4a1eefcc6766ac9cf44c3b5800221747951dee01f088349b8337a1a36c481f"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/stderr.bin",
+      "mode": 420,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "construction11-8860-Clang-O0/stdout.bin",
+      "mode": 420,
+      "bytes": 1,
+      "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/data.zil",
+      "mode": 420,
+      "bytes": 150,
+      "sha256": "91e1a4e72857e7c8570be91bb783f0548e1c5535e39d45298ee643fb86ed27bd"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/exit.txt",
+      "mode": 420,
+      "bytes": 8,
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/main.zil",
+      "mode": 420,
+      "bytes": 532,
+      "sha256": "b97c252e9b23fb9f1ca424237b482a81cf7664f2ebac6500a7f77e0aabf232eb"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/program.ll",
+      "mode": 420,
+      "bytes": 9399,
+      "sha256": "0b06bf5b0262a4e186462269c0f869adc062ccfba0b4cc11cb3afc767d2ce213"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/report.json",
+      "mode": 420,
+      "bytes": 4071,
+      "sha256": "a6257462353eb0829e4acacba76645b6307e9cc3964d1c780ff7566deb9f5591"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/rules.zil",
+      "mode": 420,
+      "bytes": 111,
+      "sha256": "5f4a1eefcc6766ac9cf44c3b5800221747951dee01f088349b8337a1a36c481f"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/stderr.bin",
+      "mode": 420,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "construction11-8860-Clang-O2/stdout.bin",
+      "mode": 420,
+      "bytes": 1,
+      "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/data.zil",
+      "mode": 420,
+      "bytes": 150,
+      "sha256": "91e1a4e72857e7c8570be91bb783f0548e1c5535e39d45298ee643fb86ed27bd"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/exit.txt",
+      "mode": 420,
+      "bytes": 8,
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/main.zil",
+      "mode": 420,
+      "bytes": 532,
+      "sha256": "b97c252e9b23fb9f1ca424237b482a81cf7664f2ebac6500a7f77e0aabf232eb"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/program.ll",
+      "mode": 420,
+      "bytes": 9399,
+      "sha256": "0b06bf5b0262a4e186462269c0f869adc062ccfba0b4cc11cb3afc767d2ce213"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/report.json",
+      "mode": 420,
+      "bytes": 4548,
+      "sha256": "b305d47e13c2a52223a7acf204958f17eaee747c51dd6368f3df4a5c198b0cab"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/rules.zil",
+      "mode": 420,
+      "bytes": 111,
+      "sha256": "5f4a1eefcc6766ac9cf44c3b5800221747951dee01f088349b8337a1a36c481f"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/stderr.bin",
+      "mode": 420,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O0/stdout.bin",
+      "mode": 420,
+      "bytes": 1,
+      "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/data.zil",
+      "mode": 420,
+      "bytes": 150,
+      "sha256": "91e1a4e72857e7c8570be91bb783f0548e1c5535e39d45298ee643fb86ed27bd"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/exit.txt",
+      "mode": 420,
+      "bytes": 8,
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/main.zil",
+      "mode": 420,
+      "bytes": 532,
+      "sha256": "b97c252e9b23fb9f1ca424237b482a81cf7664f2ebac6500a7f77e0aabf232eb"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/candidate.txt",
+      "mode": 420,
+      "bytes": 16073,
+      "sha256": "b27e7c4a2dee22acc38b7c197510437ef85730d93edbb55cd2e5629db7a3e37e"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/core.txt",
+      "mode": 420,
+      "bytes": 97858,
+      "sha256": "1cc7508abe818391e76d0f843e823033a53f89ff94546598b50b318991eea421"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/typed.txt",
+      "mode": 420,
+      "bytes": 145940,
+      "sha256": "fe2089a6005cdb3ae3e137f84c15ebd39963e17b0a1272979116100d31dedf86"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/phases/verified.txt",
+      "mode": 420,
+      "bytes": 146017,
+      "sha256": "e68d2ca34e87866ab1933ca77b76253268badaeb25f84b9610da598ba4a8dc2c"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/program.ll",
+      "mode": 420,
+      "bytes": 9399,
+      "sha256": "0b06bf5b0262a4e186462269c0f869adc062ccfba0b4cc11cb3afc767d2ce213"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/report.json",
+      "mode": 420,
+      "bytes": 4548,
+      "sha256": "85018ba6fea1f70403ffcfb4fb1d28081425d14db67a91cafdf97827544c7d34"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/rules.zil",
+      "mode": 420,
+      "bytes": 111,
+      "sha256": "5f4a1eefcc6766ac9cf44c3b5800221747951dee01f088349b8337a1a36c481f"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/stderr.bin",
+      "mode": 420,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "construction11-8860-LlvmApi-O2/stdout.bin",
+      "mode": 420,
+      "bytes": 1,
+      "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/data.zil",
+      "mode": 420,
+      "bytes": 150,
+      "sha256": "91e1a4e72857e7c8570be91bb783f0548e1c5535e39d45298ee643fb86ed27bd"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/main.zil",
+      "mode": 420,
+      "bytes": 532,
+      "sha256": "2be01961ebcdde834d299e516962ec91aee513d7823d0df62d73da4d992f1421"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/phases/candidate.txt",
+      "mode": 420,
+      "bytes": 16080,
+      "sha256": "929dec8bc1b4037549f9fff4bccf7607c7157c2b5621b2774a28371bd16748e2"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/phases/core.txt",
+      "mode": 420,
+      "bytes": 97857,
+      "sha256": "7c801b05a652947c02ed2d5f5c2820a5745b8e8adadc79a3d212689ff8c3d36c"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/phases/typed.txt",
+      "mode": 420,
+      "bytes": 145942,
+      "sha256": "a42fbaf55457346dd8138c88459ff2b7f4387d5968a96ced85b506dc7de9ea9e"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/report.json",
+      "mode": 420,
+      "bytes": 2779,
+      "sha256": "da0a8712e49141d73c2906789d6ee68a9c37c78f2b08e5681e9ae13358b870d4"
+    },
+    {
+      "path": "construction11-active-loan-reject-8860/rules.zil",
+      "mode": 420,
+      "bytes": 111,
+      "sha256": "5f4a1eefcc6766ac9cf44c3b5800221747951dee01f088349b8337a1a36c481f"
+    }
+  ],
+  "excluded_binary_policy": "program and object-cache payloads verified by size/SHA256 but not copied"
+}

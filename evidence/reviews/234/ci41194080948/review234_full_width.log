@@ -1,0 +1,6 @@
+     Running tests/review234_full_width.rs (/home/runner/work/_temp/target/debug/deps/review234_full_width-6b08ee0cf6ae2d63)
+
+running 1 test
+test all_i32_and_i64_return_bits_match_independent_oracle_cold_and_warm ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s

@@ -1,0 +1,67 @@
+{
+  "run_id": 41194080948,
+  "candidate": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+  "actual_checkout": "89406b33b43fc17fe967b5bb9f629a16cb44b763",
+  "source_tree_sha256": "7f4bf3e6e02f4d3f9935c86cd6d18089fc892683f67abe942dc9311ca17746d4",
+  "exact_source_tree_match": true,
+  "workspace_log_sha256": "ad4ea2b5fdb0d9ad9595fe8ce4a28a777d1a0af9eb5ea129b28eb1f39f99c2ce",
+  "native_manifest_sha256": "aa3458adac01b811ac3fd0f04c691ca65a8fa53498df0c4befbbd7d959278ba8",
+  "original_manifest_files": 68300,
+  "llvm_version": "23.1.4",
+  "whole_workspace": {
+    "passed": 3020,
+    "failed": 4,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "whole_run_acceptance": "Fail; these selected stages do not override workspace failure",
+  "new_test_or_binary_execution": false,
+  "status": "ScopedArtifactAuditPass",
+  "scope": "First failed CI run, workspace stage only",
+  "reviewer": "/root/safety_review",
+  "builder210": {
+    "suite": "9 passed / 0 failed",
+    "new_width_test": "Pass in original CI log",
+    "widths": [
+      1,
+      8,
+      16,
+      32,
+      64
+    ],
+    "generated_model_executions_from_frozen_test_loops": 40,
+    "oracle": "signed/unsigned equivalent bits versus one-bit-neighbor, actual exit 1/0",
+    "evidence_boundary": "Exact Rust test source and successful CI log; temporary per-case objects/receipts were deleted by test Drop, not independently archived here"
+  },
+  "impl234": {
+    "rust_tests": 2,
+    "compilations": 24,
+    "native_observations": 88,
+    "negative_exit_observations": 64,
+    "byte_stream_observations": 24,
+    "source_boundary": "Exact pinned test/source files retained; inline negative SourceUnit bytes were not written by original test, do not claim captured .zil files"
+  },
+  "review234": {
+    "rust_tests": 1,
+    "compilations": 8,
+    "native_observations": 56,
+    "output_bytes_per_case": 12,
+    "independent_little_endian_oracle_recomputed": true
+  },
+  "backends": [
+    "LLVM API 23.1.4",
+    "Clang 23.1.4"
+  ],
+  "optimizations": [
+    "O0",
+    "O2"
+  ],
+  "cold_warm_api_pairs": 8,
+  "cold_builder_parse_ns_zero": true,
+  "warm_matching_object_cache_keys": true,
+  "fallbacks": 0,
+  "warm_boundary": "Source Verify runs once again; LLVM object report correctly says producer verified, LLVM verification not repeated on cache hit",
+  "verified_native_files": 708,
+  "retained_native_files": 684,
+  "final_234_acceptance": "Pending final green CI review by /root/next_language_slices"
+}
