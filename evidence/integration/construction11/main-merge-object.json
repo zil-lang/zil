@@ -1,0 +1,40 @@
+{
+  "sha": "f2572502beb76eb86e9254dea855404e4998a64d",
+  "node_id": "C_kwDOVXdqJNoAKGYyNTcyNTAyYmViNzZlYjg2ZTkyNTRkZWE4NTU0MDRlNDk5OGE2NGQ",
+  "url": "https://api.github.com/repos/zil-lang/zil/git/commits/f2572502beb76eb86e9254dea855404e4998a64d",
+  "html_url": "https://github.com/zil-lang/zil/commit/f2572502beb76eb86e9254dea855404e4998a64d",
+  "author": {
+    "name": "cicin",
+    "email": "dsscicin@163.com",
+    "date": "2026-10-31T11:44:36Z"
+  },
+  "committer": {
+    "name": "GitHub",
+    "email": "noreply@github.com",
+    "date": "2026-10-31T11:44:36Z"
+  },
+  "tree": {
+    "sha": "da369979b8a7f7d0a93f14defbb2e68ba9e53142",
+    "url": "https://api.github.com/repos/zil-lang/zil/git/trees/da369979b8a7f7d0a93f14defbb2e68ba9e53142"
+  },
+  "message": "Merge pull request #15: bounded construction11 language improvements\n\nAccept finite Product readonly capture, cross-module ordinary traits, and LLVM integer-width correctness after exact non-author reviews and complete PR CI 41195906918. Retain the first failed CI and all source history. The actual main commit receives separate complete CI; complete language and product gates remain open.",
+  "parents": [
+    {
+      "sha": "0a3d0021fa788a27c87df20454c34c338039f1c5",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/commits/0a3d0021fa788a27c87df20454c34c338039f1c5",
+      "html_url": "https://github.com/zil-lang/zil/commit/0a3d0021fa788a27c87df20454c34c338039f1c5"
+    },
+    {
+      "sha": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/commits/c0418f532e750e7df2b00d9b7d76da82baa5086c",
+      "html_url": "https://github.com/zil-lang/zil/commit/c0418f532e750e7df2b00d9b7d76da82baa5086c"
+    }
+  ],
+  "verification": {
+    "verified": true,
+    "reason": "valid",
+    "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5dSkCRC1aQ7uu5UhlAAAzAIQADq1KPLoH4IHSvcw6S2Oj0b8\nSR/eUM3/7W7CD3F6UursJ9pyt+8PVao5vKIezB6dOyNLVN4hM0xUB8nqtn7kweE0\nrKYskLGcIwexhRCJPO94mCimK2xKb8K7VEgcbO5qaGg6lpeKTP96ATD2PH1O+qr5\nwqpPqYT9OsEHu8vi7YDpPgrrhn5VhhuhMGbiT/oX4kLa+XsZUbnOpmVAY3TjLW89\nOiLKXSlTzomvhIsW7LOE/goKRp1HbmmAmvWp0dgEH1z0w6HsL0xf9TvZ//bMqTRP\n1R9+eL6BL9oV7+m5A0t8y3sTIiR6pHHuLTQIsn181RW6nN4f3AKMccc8k1VVPGxX\naAbzgp3ZWEvUrs/U6cVH2gN/c+MVjdUzx8dqMfoEjwB/jmIUTA0hdWuIMpdP5U1p\n5SqPnvAAXTziwmoQckAOQ+i4GpNlIgmn++IikisE8J206tRywSDYAvwO8ny8vUc/\nulTgmZjrefSxpfEpoKhocKiJ4mIY68Lul2OXWhgvehV/DkJGNYHOJZmX1Gu1gLHZ\nTL7XmAu0dPf/n7I3wTtqtTKVb4Ekimn9FGMcAqsMWYUo06xyS2dAzceDDZwWO5td\nTNH4GXcs1lY/1cJnH3fIRMaA8dCF6O3nBiuXYzN9OEI6bbQrSUWGeF6Lw4l5mY1U\n7DDu1QaDQWX7yfTm53BT\n=GjMa\n-----END PGP SIGNATURE-----\n",
+    "payload": "tree da369979b8a7f7d0a93f14defbb2e68ba9e53142\nparent 0a3d0021fa788a27c87df20454c34c338039f1c5\nparent c0418f532e750e7df2b00d9b7d76da82baa5086c\nauthor cicin <dsscicin@163.com> 1793447076 +0800\ncommitter GitHub <noreply@github.com> 1793447076 +0800\n\nMerge pull request #15: bounded construction11 language improvements\n\nAccept finite Product readonly capture, cross-module ordinary traits, and LLVM integer-width correctness after exact non-author reviews and complete PR CI 41195906918. Retain the first failed CI and all source history. The actual main commit receives separate complete CI; complete language and product gates remain open.",
+    "verified_at": "2026-10-31T11:44:37Z"
+  }
+}
