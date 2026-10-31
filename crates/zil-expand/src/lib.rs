@@ -108,6 +108,12 @@ fn conversion_name_error(span: Span) -> Diagnostic {
     )
 }
 
+/// Preserve ordinary nominal/alias reserved-name checks before an untrusted
+/// source generator alpha-renames a declaration. This grants no type facts.
+pub fn check_generated_type_name(name: &str, span: Span) -> CompileResult<()> {
+    generics::check_generated_type_name(name, span).map_err(|error| vec![error])
+}
+
 #[derive(Clone, Debug)]
 pub struct ExpandedModule {
     pub core: CoreModule,
