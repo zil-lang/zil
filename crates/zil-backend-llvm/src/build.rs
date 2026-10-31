@@ -219,12 +219,14 @@ pub fn build_view_with_cancellation(
         )]);
     }
     let mut machine = crate::emit::lower_view_with_options(verified, lir, &options.emit)?;
-    // The opt-in O2 strategy plans read-only, then validates the complete
-    // original model before replacing any calls. Ordinary O2 skips this pass.
+    // The opt-in O2 strategy contracts strict checked-add chains before
+    // scalar evaluation. Each nonempty plan validates its complete unchanged
+    // input before mutation. Ordinary O2 skips both passes.
     if options.optimization == Optimization::O2 && options.incremental_o2 {
+        crate::machine_checked_add_chain::fold_checked_add_chains(&mut machine);
         crate::machine_scalar::fold_known_leaf_calls(&mut machine, lir);
     }
-    // Diagnostic/reference output only. A nonempty scalar plan requires one
+    // Diagnostic/reference output only. Each nonempty transform plan requires
     // complete original-model preflight. Existing per-unit API preflight still runs
     // immediately before its LLVMBuilder calls and cannot be bypassed.
     let llvm = machine.to_text();
