@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "base": "aaeb67f12b5638677332132e28df86fa23cde3d8",
+  "bundle_size": 4511479,
+  "bundle_sha256": "d097ddfc7e75c831547307904c34226661ba91a3a189514bc91f9946800f4fc3",
+  "targets": [
+    {
+      "branch": "integration/construction10",
+      "sha": "2dcb7bc3c05c8f7c02757c73dfd5188fd057480b",
+      "expected_remote_sha": null
+    }
+  ],
+  "parts": [
+    {
+      "path": ".construction10/parts/part-000.bin",
+      "size": 262144,
+      "sha256": "4e598fb8597340767ef42edd7a6491541efc9f432fe489711ac1399c603770f0",
+      "git_blob": "018267c9d22a039ca73577c6c259e97fd16707f6"
+    },
+    {
+      "path": ".construction10/parts/part-001.bin",
+      "size": 262144,
+      "sha256": "2e3d8c649610080ddf502992e71db409c1fa2d0fb5fc876e52cc36848db543dd",
+      "git_blob": "aa9c00954d8d026258daca303bebd6ea474cd265"
+    },
+    {
+      "path": ".construction10/parts/part-002.bin",
+      "size": 262144,
+      "sha256": "5d09abdd1528c9fdab968a39d444d1cbeb84d379552fc1bbc790ce5aecb2e729",
+      "git_blob": "dff55cb37768d917b72733872ad1e58c64fdc34e"
+    },
+    {
+      "path": ".construction10/parts/part-003.bin",
+      "size": 262144,
+      "sha256": "2339071c63856e20fb3fe81169a729d51afbf74988387725485f6c68e30f2a55",
+      "git_blob": "67facf71e1b25333244f1c04c1ac3b844462b8b7"
+    },
+    {
+      "path": ".construction10/parts/part-004.bin",
+      "size": 262144,
+      "sha256": "179a89dcd0a38354c1407064dcf137cb9eef63b5379f7247533a2def7221e039",
+      "git_blob": "2c740bf92a19f1819d2e1e23b0ff5c5ef4d73c0e"
+    },
+    {
+      "path": ".construction10/parts/part-005.bin",
+      "size": 262144,
+      "sha256": "fdf619bb21a8967c739c0c8d1261bbf2a1fb1b06d0a20fff692cea40c8ed8b6b",
+      "git_blob": "ad29f447f8161b329e6f83e7fcccbdf3c07d0e44"
+    },
+    {
+      "path": ".construction10/parts/part-006.bin",
+      "size": 262144,
+      "sha256": "221ab8a5c392c73af4acad825561810c0255ce9bb6a78e07a4d43fb153cdf3c2",
+      "git_blob": "29d98c5ad4b8875e74dc1aa43807e394c19d1922"
+    },
+    {
+      "path": ".construction10/parts/part-007.bin",
+      "size": 262144,
+      "sha256": "ec9129f27c5696b7d7d3b40e48b57ac5de7ebb81bb36875129cae579d9bed178",
+      "git_blob": "c92db1ceee06a2d5e01075c15460025d5485048e"
+    },
+    {
+      "path": ".construction10/parts/part-008.bin",
+      "size": 262144,
+      "sha256": "2b78cec5cf152c6a92a5c9be2c8ba43933a53b6b8b85c0494c99a8ce5bd1b502",
+      "git_blob": "1f6209acda7cf947516871342433a479267b8643"
+    },
+    {
+      "path": ".construction10/parts/part-009.bin",
+      "size": 262144,
+      "sha256": "7690e583fb8e0146208bc5616950e4908fc6d31cc5ae9705a977662cfc0c75de",
+      "git_blob": "4808fa7ef23ca4854d82474af99e80a9ffb13783"
+    },
+    {
+      "path": ".construction10/parts/part-010.bin",
+      "size": 262144,
+      "sha256": "e819d4b29efe98c51ae7a19c0a189e7c192e5bdf5dc510fb8a6afd9774c7ad4b",
+      "git_blob": "5fcfe188caaf2b612b309da0f948be7f553c563b"
+    },
+    {
+      "path": ".construction10/parts/part-011.bin",
+      "size": 262144,
+      "sha256": "dda41518dfe7396f58d660ef2b30620518514036311f2d1faecdeaa85e4fcb74",
+      "git_blob": "9ae58aeca8279bbae825d01b5aec12438370005f"
+    },
+    {
+      "path": ".construction10/parts/part-012.bin",
+      "size": 262144,
+      "sha256": "049cf57a53c1942821fe6ca99f8b7d7e6bf4334232b7ce7fe4eda57ffd2c8c9b",
+      "git_blob": "57ffab36abc8d2eb590a641a5b91e08740903c4a"
+    },
+    {
+      "path": ".construction10/parts/part-013.bin",
+      "size": 262144,
+      "sha256": "72a5c6805950636fb380a571d1560654b7d64e1ea6bafe6abe64854720bf6850",
+      "git_blob": "5cc67d4a7c6adbddbf5d7f7cdef42bd26d75f0af"
+    },
+    {
+      "path": ".construction10/parts/part-014.bin",
+      "size": 262144,
+      "sha256": "100fa89b5934957337bcaacb85066d51ae7e05e1d267b2669e5dac9621c13c80",
+      "git_blob": "816015be5706ee59eda1922a5e01010ef9cf65e3"
+    },
+    {
+      "path": ".construction10/parts/part-015.bin",
+      "size": 262144,
+      "sha256": "22a3a722a49e185173cf240bf58b99e33cfef3758908c6cdd8450d5b08357383",
+      "git_blob": "3fec9e07fc5670902c020492a175c84b45601f3c"
+    },
+    {
+      "path": ".construction10/parts/part-016.bin",
+      "size": 262144,
+      "sha256": "65d81fc74d2b040e2a186bbbe7e0f3cb9cd04692aedb6453bbdefc74794c35fe",
+      "git_blob": "027428347d22d110969a80b88dec77dffd88a89d"
+    },
+    {
+      "path": ".construction10/parts/part-017.bin",
+      "size": 55031,
+      "sha256": "c687e4eb02c126ca2c0bf1c397573b5f052f05acbf84495e9687d8cf2f2c7bd9",
+      "git_blob": "c356b8f6261ec0f44811236eab3299601c27b2fb"
+    }
+  ]
+}

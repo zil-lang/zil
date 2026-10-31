@@ -1,0 +1,49 @@
+name: Construction10 recovery
+on:
+  push:
+    branches: ['chore/construction10-recovery']
+permissions:
+  contents: write
+concurrency:
+  group: construction10-recovery
+  cancel-in-progress: false
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Preserve uploaded prefix and baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p recovery-output
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, hashlib, json
+          out=Path('recovery-output')
+          items=[]
+          for p in sorted(Path('.construction10/parts').glob('part-*.bin')):
+              b=p.read_bytes()
+              (out/(p.name+'.b64')).write_text(base64.b64encode(b).decode()+'\n')
+              items.append({'path':p.name,'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()})
+          (out/'UPLOADED-PREFIX.json').write_text(json.dumps(items,indent=2)+'\n')
+          PY
+          git bundle create recovery-output/main.bundle aaeb67f12b5638677332132e28df86fa23cde3d8 refs/remotes/origin/impl/225-product-store-capture refs/remotes/origin/impl/226-shared-product-capture
+          git bundle verify recovery-output/main.bundle
+          cp .construction10/manifest.json recovery-output/EXPECTED-CANDIDATE.json
+          git config user.name "ZIL construction10 recovery"
+          git config user.email "zil-construction10@users.noreply.github.com"
+          cp recovery-output/part-*.b64 .construction10/parts/
+          git add .construction10/parts/*.b64
+          git commit -m "recovery: make the three preserved candidate chunks text-readable [skip ci]"
+          git push origin HEAD:refs/heads/chore/construction10-recovery
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: construction10-recovery-${{ github.run_id }}
+          path: recovery-output/
+          if-no-files-found: error
+          retention-days: 30
