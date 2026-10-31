@@ -390,14 +390,16 @@ fn element_shape_mutable_owned_field_return_and_capture_guards_are_explicit() {
             "Store element windows are synchronous",
         );
     }
+    // 226 admits the shared shape, but actual Store origins remain forbidden.
+    // Preserve this exact source and require the independent origin diagnostic.
     reject_source(
         &format!(
             "{PACKAGE} fn main()->i32{{{SETUP}let view=store_at(s,0);let callback=()=>view.n;return callback()}}"
         ),
         ResultCategory::Unsupported,
-        Types,
+        zil_base::Phase::Analyze,
         "E-UNSUPPORTED",
-        "Store element address capture",
+        "shared Product capture requires proven ordinary local Product origins",
     );
     // 224 admits this original shared resource-head projection.
     let resource_head = check(&format!(

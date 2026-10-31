@@ -266,7 +266,6 @@ fn unsupported_declaration_kinds_and_configready_remain_closed() {
         ("generic-alias", "type A<T>=T"),
         ("method", "struct S{x:i32;fn value(self:Self)->i32=>self.x}"),
         ("resource", "resource R{x:i32}"),
-        ("enum", "enum E{A}"),
         ("trait", "trait T{fn value(self:Self)->i32;}"),
     ] {
         let report = check(
@@ -280,6 +279,15 @@ fn unsupported_declaration_kinds_and_configready_remain_closed() {
             report.to_json()
         );
     }
+    // Original 228 rejection bytes, promoted by the separately frozen 230
+    // contract. The nearest record/generic enum rejections live in impl230.
+    let report = check("enum", "#for(n in [1]){enum E{A}}fn main()->i32=>0");
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
     let report = check(
         "configready",
         "#for(n in [1]){pub struct Shape{x:i32}}#if(Shape){fn selected()->i32=>0}fn main()->i32=>0",

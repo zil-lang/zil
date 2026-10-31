@@ -1,5 +1,5 @@
-//! Finite, local nominal trait implementations. This layer verifies declaration
-//! conformance only; emitted functions remain untrusted Core and follow the
+//! Finite nominal trait implementations for a local concrete Self. Declaration
+//! conformance emits untrusted Core, which still follows the
 //! ordinary type/analyze/independent-Verify pipeline. No trait grants capability.
 use super::*;
 use crate::receivers::substitute_self;
@@ -12,7 +12,17 @@ fn plain_name(ty: &s::TypeRef) -> Option<&str> {
         _ => None,
     }
 }
-fn reserved_trait(name: &str) -> bool {
+pub(super) fn reserved_trait(name: &str) -> bool {
+    // Only the normalizer's exact prefix is ignored for exclusion. Nominal
+    // equality and implementation lookup always retain the complete identity.
+    let name = name
+        .strip_prefix("$module")
+        .and_then(|suffix| {
+            suffix.split_once('_').filter(|(module, _)| {
+                !module.is_empty() && module.bytes().all(|byte| byte.is_ascii_digit())
+            })
+        })
+        .map_or(name, |(_, source)| source);
     matches!(
         name,
         "Copy" | "Transfer" | "Share" | "Send" | "Sync" | "Drop" | "Fn" | "FnMut" | "FnOnce"
@@ -29,24 +39,132 @@ fn finite_method(f: &s::Function) -> bool {
     f.generics.is_empty() && f.where_clause.is_empty() && f.contract.is_empty()
 }
 
-impl Expander<'_> {
+impl<'a> Expander<'a> {
     fn trait_error(&mut self, code: &str, span: Span, message: impl Into<String>) {
         self.diagnostics
             .push(Diagnostic::error(Phase::Expand, code, Some(span), message));
     }
 
-    pub(super) fn collect_static_traits(&mut self, module: &s::Module, limits: &Limits) {
-        // No local declaration means no supported static impl in this slice.
-        // Existing unsupported-impl handling still runs in item lowering.
-        if !module
-            .items
-            .iter()
-            .any(|item| matches!(item.kind, s::ItemKind::Trait(_)))
-        {
+    fn collect_trait_declaration(&mut self, item: &'a s::Item, work: &mut usize) {
+        let s::ItemKind::Trait(t) = &item.kind else {
+            return;
+        };
+        if t.name.starts_with("$module") {
+            let Some(left) = work.checked_sub(t.name.len()) else {
+                self.diagnostics.push(Diagnostic::limit(
+                    Phase::Expand,
+                    "module trait identity budget exceeded",
+                    Some(item.span),
+                ));
+                return;
+            };
+            *work = left;
+        }
+        if reserved_trait(&t.name) {
+            self.trait_error(
+                "E-TRAIT-RESERVED",
+                item.span,
+                "built-in capability and cleanup traits cannot be redeclared",
+            );
             return;
         }
-        // Only this module's nominal declarations are in scope in this slice.
-        // Cross-module/generic/associated/default resolution is not guessed.
+        if !t.generics.is_empty() || !t.bounds.is_empty() {
+            self.unsupported(
+                "generic or supertrait declarations require the full trait solver",
+                item.span,
+            );
+            return;
+        }
+        let mut names = BTreeSet::new();
+        let mut valid = true;
+        for member in &t.members {
+            self.unexecuted_attributes(&member.attributes, "trait member");
+            let s::ItemKind::Function(f) = &member.kind else {
+                self.unsupported(
+                    "associated trait items are not in the static local trait slice",
+                    member.span,
+                );
+                valid = false;
+                continue;
+            };
+            let cost = f.params.len().saturating_add(1);
+            let Some(left) = work.checked_sub(cost) else {
+                self.diagnostics.push(Diagnostic::limit(
+                    Phase::Expand,
+                    "trait signature budget exceeded",
+                    Some(member.span),
+                ));
+                return;
+            };
+            *work = left;
+            for parameter in &f.params {
+                self.unexecuted_attributes(&parameter.attributes, "trait parameter");
+            }
+            if !names.insert(f.name.clone()) {
+                self.trait_error("E-TRAIT-METHOD-SET", member.span, "duplicate trait method");
+                valid = false;
+            }
+            if !finite_method(f) || !matches!(f.body, s::FunctionBody::Declaration) {
+                self.unsupported("default, generic or contract-bearing trait methods require additional trait evidence", member.span);
+                valid = false;
+            }
+            if f.params
+                .first()
+                .is_some_and(|p| p.name == "self" && (!receiver_type(&p.ty) || p.give))
+                || f.params.iter().skip(1).any(|p| p.name == "self")
+            {
+                self.trait_error("E-TRAIT-SIGNATURE", member.span, "static value trait receiver must be Self, &Self, or &mut Self in first position");
+                valid = false;
+            }
+        }
+        if valid {
+            self.static_traits.insert(t.name.clone());
+        }
+    }
+
+    pub(super) fn collect_static_traits(
+        &mut self,
+        module: &'a s::Module,
+        declarations: &[&'a s::Module],
+        imports: &[CoreImport],
+        limits: &Limits,
+    ) {
+        // Preserve the old no-trait and builtin Drop paths. An actually
+        // normalized external trait implementation activates project lookup.
+        if !module.items.iter().any(|item| match &item.kind {
+            s::ItemKind::Trait(_) => true,
+            s::ItemKind::Impl(implementation) => implementation
+                .trait_type
+                .as_ref()
+                .and_then(plain_name)
+                .is_some_and(|name| name.starts_with("$module") && !self.traits.contains_key(name)),
+            _ => false,
+        }) {
+            return;
+        }
+        // Charge the established declaration/member total before constructing
+        // local indexes, including modules newly entering through an imported
+        // trait. The old path retains exactly the same total cost.
+        let mut work = limits.max_analysis_steps;
+        for item in &module.items {
+            let visits = 1usize.saturating_add(match &item.kind {
+                s::ItemKind::Aggregate(a) => a.fields.len().saturating_add(a.methods.len()),
+                s::ItemKind::Impl(i) => i.members.len(),
+                s::ItemKind::Trait(t) => t.members.len(),
+                _ => 0,
+            });
+            let Some(left) = work.checked_sub(visits) else {
+                self.diagnostics.push(Diagnostic::limit(
+                    Phase::Expand,
+                    "trait declaration scan exceeded budget",
+                    None,
+                ));
+                return;
+            };
+            work = left;
+        }
+        // The concrete Self must still be defined in this module. Project
+        // signatures do not grant foreign-Self or generic implementation rights.
         let locals: BTreeMap<_, _> = module
             .items
             .iter()
@@ -58,24 +176,6 @@ impl Expander<'_> {
                 }
             })
             .collect();
-        // Parsing bounds syntax depth/nodes; this scan also charges declaration
-        // and member visits before constructing local signature indexes.
-        let visits = module.items.iter().fold(module.items.len(), |n, item| {
-            n.saturating_add(match &item.kind {
-                s::ItemKind::Aggregate(a) => a.fields.len().saturating_add(a.methods.len()),
-                s::ItemKind::Impl(i) => i.members.len(),
-                s::ItemKind::Trait(t) => t.members.len(),
-                _ => 0,
-            })
-        });
-        let Some(mut work) = limits.max_analysis_steps.checked_sub(visits) else {
-            self.diagnostics.push(Diagnostic::limit(
-                Phase::Expand,
-                "trait declaration scan exceeded budget",
-                None,
-            ));
-            return;
-        };
         let fields: BTreeMap<_, BTreeSet<_>> = locals
             .iter()
             .map(|(name, a)| (*name, a.fields.iter().map(|f| f.name.as_str()).collect()))
@@ -93,67 +193,12 @@ impl Expander<'_> {
                 );
                 continue;
             }
-            if reserved_trait(&t.name) {
-                self.trait_error(
-                    "E-TRAIT-RESERVED",
-                    item.span,
-                    "built-in capability and cleanup traits cannot be redeclared",
-                );
-                continue;
-            }
-            if !t.generics.is_empty() || !t.bounds.is_empty() {
-                self.unsupported(
-                    "generic or supertrait declarations require the full trait solver",
-                    item.span,
-                );
-                continue;
-            }
-            let mut names = BTreeSet::new();
-            let mut valid = true;
-            for member in &t.members {
-                self.unexecuted_attributes(&member.attributes, "trait member");
-                let s::ItemKind::Function(f) = &member.kind else {
-                    self.unsupported(
-                        "associated trait items are not in the static local trait slice",
-                        member.span,
-                    );
-                    valid = false;
-                    continue;
-                };
-                let cost = f.params.len().saturating_add(1);
-                let Some(left) = work.checked_sub(cost) else {
-                    self.diagnostics.push(Diagnostic::limit(
-                        Phase::Expand,
-                        "trait signature budget exceeded",
-                        Some(member.span),
-                    ));
-                    return;
-                };
-                work = left;
-                for parameter in &f.params {
-                    self.unexecuted_attributes(&parameter.attributes, "trait parameter");
-                }
-                if !names.insert(f.name.clone()) {
-                    self.trait_error("E-TRAIT-METHOD-SET", member.span, "duplicate trait method");
-                    valid = false;
-                }
-                if !finite_method(f) || !matches!(f.body, s::FunctionBody::Declaration) {
-                    self.unsupported("default, generic or contract-bearing trait methods require additional trait evidence", member.span);
-                    valid = false;
-                }
-                if f.params
-                    .first()
-                    .is_some_and(|p| p.name == "self" && (!receiver_type(&p.ty) || p.give))
-                    || f.params.iter().skip(1).any(|p| p.name == "self")
-                {
-                    self.trait_error("E-TRAIT-SIGNATURE", member.span, "static value trait receiver must be Self, &Self, or &mut Self in first position");
-                    valid = false;
-                }
-            }
-            if valid {
-                self.static_traits.insert(t.name.clone());
+            self.collect_trait_declaration(item, &mut work);
+            if t.name.starts_with("$module") {
+                self.project_trait_work = self.project_trait_work.saturating_add(t.name.len());
             }
         }
+        let mut project_nodes = limits.max_nodes;
         let mut impls = BTreeSet::new();
         // A single ordinary function name is the machine target in this slice.
         // Reject unresolved collisions, never silently pick the first impl.
@@ -194,6 +239,39 @@ impl Expander<'_> {
                 );
                 continue;
             };
+            let project_impl = !self.traits.contains_key(trait_name)
+                || self.imported_public_traits.contains(trait_name);
+            let before_project_work = work;
+            if !self.traits.contains_key(trait_name) && trait_name.starts_with("$module") {
+                match project_traits::declaration(
+                    project_traits::Lookup {
+                        current: module.id,
+                        name: trait_name,
+                        span: item.span,
+                    },
+                    declarations,
+                    imports,
+                    &mut work,
+                    &mut project_nodes,
+                    limits,
+                ) {
+                    Ok(Some(declaration_item)) => {
+                        let s::ItemKind::Trait(declaration) = &declaration_item.kind else {
+                            unreachable!()
+                        };
+                        self.traits.insert(trait_name.to_owned(), declaration);
+                        self.collect_trait_declaration(declaration_item, &mut work);
+                        if self.static_traits.contains(trait_name) {
+                            self.imported_public_traits.insert(trait_name.to_owned());
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        self.diagnostics.push(error);
+                        continue;
+                    }
+                }
+            }
             if !self.static_traits.contains(trait_name) {
                 self.unsupported(
                     "trait impl declaration is not a supported local trait",
@@ -361,6 +439,11 @@ impl Expander<'_> {
             }
             if valid {
                 self.static_trait_impls.insert(item.span);
+                if project_impl {
+                    self.project_trait_work = self
+                        .project_trait_work
+                        .saturating_add(before_project_work - work);
+                }
             }
         }
     }

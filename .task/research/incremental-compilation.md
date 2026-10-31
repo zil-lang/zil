@@ -100,3 +100,7 @@ DB六区组独立消融完成，未证明净提速；真实driver的内容版本
 实际Session事件与源码审计进一步定位私有编辑997/1025重解析：32 raw owner中整项目四阶段占四项，其余仅28 Parse；旧ExpandedProject未持有项目AST。按changes/research-project-syntax-retention.md在既有driver project/session与测试写集内，由semantic_incremental实施当前项目原始Parse Arc子所有权及精确身份/费用复用。必须同时接入filesystem loader真实计算路径，不能只改变事件计数；借旧语法索引时仍释放旧Core/Typed，保留当前输入检查、限额、产物、错误及取消边界。新增常驻AST字节需实测RSS，不把owner数量上界冒充字节上界，也不声称实现函数级Types增量。
 
 实际LLVM自身进程采样将大函数O2热点定位到JumpThreading入口块替换反复全量重算支配树。按changes/research-entry-preserving-jump-threading.md追加tools/research/incremental-compilation/jump_threading_plugin/**及pass_timing/**独立研究工具写集；固定上游23.1.4源码/SDK，原版clone与内建pass先对照，再保持入口块与WeakTrackingVH工作表。只在隔离opt插件/私有捕获快照验证，不修改生产LLVM API或默许新的C++边界；原Verify、机器预检、当前工具/管线缓存身份、故障记录和成功请求发布均须保留。限定独审与正式完整请求收益分别绑定，不能把pass时间下降冒充端到端或Rust胜出。
+
+JumpThreading插件限定正确性控制通过后，继续评估单对象工具链落地：在隔离官方23.1.4 PIC archives副本中，仅替换保持原类布局的JumpThreading.cpp.o并重链私有libLLVM；由独立prefix与显式研究pipeline/cache身份区分，实际加载库必须核对。旧SDK、LLVM安装、已冻二进制与缓存不得覆盖。此候选仍属于研究工具链，先限定正确性/独审及实际API完整请求验证；不把opt包装器时间直接作为生产后端结论。
+
+上游主分支已推进f2572502beb76eb86e9254dea855404e4998a64d，专项PR发生Expand接口冲突。按主线已批准的232/233/234语义导入主分支到专项，唯一手工解决同时保留共享声明索引和跨模块trait所需完整模块/imports。旧阶段规范hash和已冻二进制证据不改写；合并后记录新规范身份并做限定组合控制与新HEAD远端CI，不自行合入main。

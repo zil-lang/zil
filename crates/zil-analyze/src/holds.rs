@@ -461,6 +461,76 @@ pub(super) fn infer_module(
     store_profiles: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
+    let result = infer_module_inner(module, graphs, store_profiles, budget)?;
+    if !budget.shared_product_capture {
+        return Ok(result);
+    }
+    // Only inspect the producer's own completed solution. In particular, an
+    // empty intermediate return-origin approximation is never a rejection or
+    // proof before the module-level fixed point has converged.
+    budget.spend(module.functions.len(), "shared Product capture functions")?;
+    for ((f, (_, reachable)), values) in module.functions.iter().zip(graphs).zip(&result) {
+        budget.spend(f.blocks.len(), "shared Product capture blocks")?;
+        for (block, live) in f.blocks.iter().zip(reachable) {
+            if !live {
+                continue;
+            }
+            budget.spend(
+                block.instructions.len(),
+                "shared Product capture instructions",
+            )?;
+            for instruction in &block.instructions {
+                let InstructionKind::MakeClosure { captures, .. } = &instruction.kind else {
+                    continue;
+                };
+                budget.spend(captures.len(), "shared Product capture operands")?;
+                for value in captures {
+                    if !f.values[value.0 as usize].is_package_address() {
+                        continue;
+                    }
+                    let origins = &values[value.0 as usize].roots;
+                    budget.spend(origins.len(), "shared Product capture origins")?;
+                    if origins.is_empty() {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "shared Product capture requires proven ordinary local Product origins",
+                            Some(instruction.span),
+                        )]);
+                    }
+                    for origin in origins {
+                        let HoldRoot::Local(local) = origin else {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Analyze,
+                                "shared Product capture requires proven ordinary local Product origins",
+                                Some(instruction.span),
+                            )]);
+                        };
+                        let actual = &f.locals[local.0 as usize].ty;
+                        // A coarsened field root is allowed only when its entire
+                        // real carrier is an ordinary Product, which excludes
+                        // all Store fields. Field-name inequality grants nothing.
+                        if !matches!(actual, Type::Package { .. }) {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Analyze,
+                                "shared Product capture requires proven ordinary local Product origins",
+                                Some(instruction.span),
+                            )]);
+                        }
+                        super::resources::product::admit(actual, budget)?;
+                    }
+                }
+            }
+        }
+    }
+    Ok(result)
+}
+
+fn infer_module_inner(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    store_profiles: &[bool],
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<ValueHold>>> {
     if !module
         .functions
         .iter()

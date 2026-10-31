@@ -244,6 +244,14 @@ fn only_the_exact_unit_protocol_shells_gain_product_payloads() {
             "{MODEL} fn push(s:Store<Root>,value:Root)->Root!void{{return store_push(s,value)}} fn main(){{}}"
         ),
     );
+    // 225 explicitly promotes the same original input; all other boundaries
+    // below retain their prior Unsupported expectation.
+    pass(
+        "captured-product-store",
+        &format!(
+            "{MODEL} fn main(){{let s:Store<Root>=store_new();let f=move ()=>i32(store_len(s))}}"
+        ),
+    );
     for (label, source) in [
         (
             "arbitrary-sum",
@@ -260,12 +268,6 @@ fn only_the_exact_unit_protocol_shells_gain_product_payloads() {
         (
             "mut-product-window",
             format!("{MODEL} fn main(){{let s:Store<Root>=store_new();let w=store_at_mut(s,0)}}"),
-        ),
-        (
-            "captured-product-store",
-            format!(
-                "{MODEL} fn main(){{let s:Store<Root>=store_new();let f=move ()=>i32(store_len(s))}}"
-            ),
         ),
     ] {
         let r = check(label, &source, Stage::Verify);
