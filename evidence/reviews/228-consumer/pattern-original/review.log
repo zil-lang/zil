@@ -1,0 +1,9 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.62s
+     Running tests/review228_consumer_patterns.rs (/workspace/scratch/e9af9764d083/targets/consumer/debug/deps/review228_consumer_patterns-5002b0fff9f0c184)
+
+running 1 test
+test generated_alias_constructor_patterns_match_the_ordinary_source ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

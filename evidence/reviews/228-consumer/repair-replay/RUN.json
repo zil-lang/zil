@@ -1,0 +1,669 @@
+{
+  "schema_version": 1,
+  "start_utc": "2026-10-31T00:59:22.703750+00:00",
+  "end_utc": "2026-10-31T00:59:28.263042+00:00",
+  "checkout": "d5822a5a15ce20643a087e59bd01d59647e97cd6",
+  "production_candidate_228": "2122c2258c2ebca0eb1c28d33bbf536a92e1e48c",
+  "production_candidate_229": "d8c71880928c2e0497ffe078834382503960256b",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "impl228_consumer",
+    "--test",
+    "review228_consumer_patterns",
+    "--test",
+    "review228_consumer_shadow",
+    "--",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "environment": {
+    "CARGO_HOME": "/workspace/scratch/e9af9764d083/cargo-consumer",
+    "CARGO_TARGET_DIR": "/workspace/scratch/e9af9764d083/targets/consumer",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_INCREMENTAL": "0",
+    "ZIL_CLANG": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "LD_LIBRARY_PATH": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/repair-replay/native"
+  },
+  "exit_code": 101,
+  "source_files": [
+    {
+      "path": "examples/mainline/generated_events228/README.md",
+      "sha256": "9e754c558f967fada0e44a66b1d89b25d559d8d9eaf4a182a028bbf8d132f906"
+    },
+    {
+      "path": "examples/mainline/generated_events228/combined/events.zil",
+      "sha256": "5b3bd05203f0fcda74e2c77ad022e2f92b0505bbdffb4851f09e4b8e44ecf4f4"
+    },
+    {
+      "path": "examples/mainline/generated_events228/combined/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723"
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/events.zil",
+      "sha256": "ec806958a5bd7498436d8fad2a7edf2ddbcceb47830372e1eb493db80f290b02"
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723"
+    },
+    {
+      "path": "examples/mainline/generated_events228/plain/events.zil",
+      "sha256": "76e56021048041c2ccbde0d045b166ce72c3dc39d54695aa4fbe34eab823b280"
+    },
+    {
+      "path": "examples/mainline/generated_events228/plain/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723"
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/enum_alias_generated.zil",
+      "sha256": "5b39163b7d4696efc32d8f32cd51c52d981930f9d2a2ed0f9760d47c4adfe9e2"
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/enum_alias_plain.zil",
+      "sha256": "3eda61dd3e73d782be83f45809b27aecb2316d2d59cd8f511c5712b933332a82"
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/shadow_inline.zil",
+      "sha256": "63ac75a4c9d41a5e1880e3e2dd22ba3989701d6f5a72e423a99b68d1c23f71d2"
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/shadow_unbounded.zil",
+      "sha256": "04aa2bdac5cb485b94fa6dbac7d429baf4f8a738a531db2099ebbcfe28c81d9b"
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/shadow_where.zil",
+      "sha256": "f2a8deaed84e0ba4c9f690ff47ebb9f26f73083c907fe11fb40d7c4fb7798895"
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/events.zil",
+      "sha256": "3cf1f38e502ff90d09aeaf1229c91dc7fa6f645402963e55c5d7d5ecf1c2fb47"
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl228_consumer.rs",
+      "sha256": "d9307c88a7fa946aa74aa810388d0ddfc77720fa1d843c549384dc2208960b43"
+    },
+    {
+      "path": "crates/zil-driver/tests/review228_consumer_patterns.rs",
+      "sha256": "2a4e8cb1dd58a336efd7f1c63c35f08066e8c17e4edbd85fd8fe245d8657545d"
+    },
+    {
+      "path": "crates/zil-driver/tests/review228_consumer_shadow.rs",
+      "sha256": "f83fe12d7bf6efd6c5902e8203358a2a4b74052e92b4e17efb2c6ec3aabe7c76"
+    }
+  ],
+  "reports": [
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/consumer228-combined-O0-116-0/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2904,
+            "input_kind": "builder",
+            "preflight_ns": 508674,
+            "builder_ns": 547802,
+            "parse_ns": 0,
+            "optimize_ns": 177022,
+            "emit_ns": 8190151,
+            "total_ns": 10054274
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/consumer228-combined-O2-116-1/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1200,
+            "input_kind": "builder",
+            "preflight_ns": 540721,
+            "builder_ns": 354035,
+            "parse_ns": 0,
+            "optimize_ns": 4144524,
+            "emit_ns": 5706239,
+            "total_ns": 11473358
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/consumer228-generated-O0-116-2/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2904,
+            "input_kind": "builder",
+            "preflight_ns": 916759,
+            "builder_ns": 342007,
+            "parse_ns": 0,
+            "optimize_ns": 81741,
+            "emit_ns": 2513696,
+            "total_ns": 4058306
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/consumer228-generated-O2-116-3/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1200,
+            "input_kind": "builder",
+            "preflight_ns": 716753,
+            "builder_ns": 451820,
+            "parse_ns": 0,
+            "optimize_ns": 4179836,
+            "emit_ns": 3993150,
+            "total_ns": 9626621
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/consumer228-nominal-generated-116-5/compile.json",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-TYPE-MISMATCH",
+          "message": "expected Record { name: \"@module1:$module1_$ctfor222$1$1$0$Event\", fields: [(\"kind\", I32)] }, found Record { name: \"@module1:$module1_$ctfor222$1$0$0$Event\", fields: [(\"kind\", I32)] }",
+          "span": {
+            "file": 0,
+            "start": 50,
+            "end": 64
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/consumer228-nominal-plain-116-4/compile.json",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-TYPE-MISMATCH",
+          "message": "expected Record { name: \"@module1:$module1_Touch\", fields: [(\"kind\", I32)] }, found Record { name: \"@module1:$module1_Pointer\", fields: [(\"kind\", I32)] }",
+          "span": {
+            "file": 0,
+            "start": 50,
+            "end": 64
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/consumer228-plain-O0-116-6/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2904,
+            "input_kind": "builder",
+            "preflight_ns": 458119,
+            "builder_ns": 292003,
+            "parse_ns": 0,
+            "optimize_ns": 96013,
+            "emit_ns": 3071363,
+            "total_ns": 4164864
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/consumer228-plain-O2-116-7/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1200,
+            "input_kind": "builder",
+            "preflight_ns": 578016,
+            "builder_ns": 310169,
+            "parse_ns": 0,
+            "optimize_ns": 3695128,
+            "emit_ns": 3093055,
+            "total_ns": 7964817
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/consumer228-resource-inline-116-8/compile.json",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Copy bound fields require a finite ordinary Copy Value",
+          "span": {
+            "file": 0,
+            "start": 65,
+            "end": 71
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/consumer228-resource-where-116-9/compile.json",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Copy bound fields require a finite ordinary Copy Value",
+          "span": {
+            "file": 0,
+            "start": 65,
+            "end": 71
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/consumer228-where-O0-116-10/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2904,
+            "input_kind": "builder",
+            "preflight_ns": 699157,
+            "builder_ns": 435215,
+            "parse_ns": 0,
+            "optimize_ns": 117554,
+            "emit_ns": 2561557,
+            "total_ns": 4060690
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/consumer228-where-O2-116-11/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1200,
+            "input_kind": "builder",
+            "preflight_ns": 513812,
+            "builder_ns": 295027,
+            "parse_ns": 0,
+            "optimize_ns": 3528120,
+            "emit_ns": 4458750,
+            "total_ns": 9018489
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/pattern228-generated-172/compile.json",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/pattern228-plain-172/compile.json",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/shadow229-inline-174/compile.json",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 41,
+            "end": 44
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/shadow229-unbounded-174/compile.json",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 36,
+            "end": 39
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-replay/native/shadow229-where-174/compile.json",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 49,
+            "end": 52
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    }
+  ]
+}

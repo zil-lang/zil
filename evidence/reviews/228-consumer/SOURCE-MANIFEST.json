@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/environment_recovery",
+  "production_baseline": "45fa541ed11b26f2aadc99a6a574c54b1cbec105",
+  "status": "Pending",
+  "scope": "Fixed-layout event consumer, handwritten equivalents, independent source-to-native observation; no production edits.",
+  "files": [
+    {
+      "path": "examples/mainline/generated_events228/combined/events.zil",
+      "bytes": 803,
+      "sha256": "5b3bd05203f0fcda74e2c77ad022e2f92b0505bbdffb4851f09e4b8e44ecf4f4"
+    },
+    {
+      "path": "examples/mainline/generated_events228/combined/main.zil",
+      "bytes": 405,
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723"
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/events.zil",
+      "bytes": 795,
+      "sha256": "ec806958a5bd7498436d8fad2a7edf2ddbcceb47830372e1eb493db80f290b02"
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/main.zil",
+      "bytes": 405,
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723"
+    },
+    {
+      "path": "examples/mainline/generated_events228/plain/events.zil",
+      "bytes": 921,
+      "sha256": "76e56021048041c2ccbde0d045b166ce72c3dc39d54695aa4fbe34eab823b280"
+    },
+    {
+      "path": "examples/mainline/generated_events228/plain/main.zil",
+      "bytes": 405,
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723"
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/events.zil",
+      "bytes": 929,
+      "sha256": "3cf1f38e502ff90d09aeaf1229c91dc7fa6f645402963e55c5d7d5ecf1c2fb47"
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/main.zil",
+      "bytes": 405,
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723"
+    }
+  ],
+  "expected": [
+    {
+      "input_byte": 48,
+      "stdout": "J",
+      "exit_code": 0
+    },
+    {
+      "input_byte": 49,
+      "stdout": "W",
+      "exit_code": 0
+    },
+    {
+      "input_byte": 120,
+      "stdout": "",
+      "exit_code": 7
+    }
+  ],
+  "variants": {
+    "plain": "handwritten struct/alias plus inline Copy",
+    "generated": "228 generated struct/alias plus inline Copy",
+    "where": "handwritten struct/alias plus 229 where Copy",
+    "combined": "228 generated struct/alias plus 229 where Copy"
+  },
+  "backend": "LLVM API, O0 and O2; assertions require builder input and verified IR, no fallback",
+  "unclaimed": [
+    "complete ZUI",
+    "allocation failure coverage for this allocation-free consumer",
+    "Rust product performance",
+    "native Windows"
+  ]
+}
