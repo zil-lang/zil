@@ -325,13 +325,15 @@ pub fn expand_program_with_limits(
             }
         }
     }
-    for (source, (module, imports)) in sources.iter().zip(&specialized) {
+    for ((source, (module, module_imports)), source_imports) in
+        sources.iter().zip(&specialized).zip(imports)
+    {
         let expanded = expand_inner_project(
             source,
             module,
             true,
             sources,
-            (&declarations, imports),
+            (&declarations, source_imports),
             &remaining,
             Some(&defaults),
         )?;
@@ -375,7 +377,7 @@ pub fn expand_program_with_limits(
             })?;
         let mut exports = source_exports(module, &expanded.core, &expanded.imported_public_traits);
         exports.extend(expanded.generated_exports);
-        let mut resolved_imports = imports.clone();
+        let mut resolved_imports = module_imports.clone();
         resolved_imports.extend(expanded.generated_imports);
         result.push((
             ProgramModule {

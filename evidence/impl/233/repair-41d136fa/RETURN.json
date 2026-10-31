@@ -1,0 +1,8 @@
+{
+  "rejected_source_commit": "41d136fa31cc00b5a4b81f3c03092ee31f0d6f00",
+  "independent_review": "/root/handoff_integrity",
+  "finding": "Generic helper in the public trait module could not see the actual concrete Self method in an implementation module without a reverse source import. Original independent source is preserved byte-for-byte in impl233_modules.rs LIB_MAIN/LIB_RULES/LIB_DATA.",
+  "fix": "Only actual specialization output gains generated ordinary imports of public concrete nominal owners that implement a public imported trait; original source imports separately govern trait-declaration visibility. Symbolic generic bounds and ordinary public export checks remain required.",
+  "scope": "No source back-import, no dictionary, schema or permission change.",
+  "author_fixture_failure": "New private-method negative fixture initially omitted a statement separator; Parse failure retained, corrected by newline only. This malformed source is not semantic rejection evidence."
+}
