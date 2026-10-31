@@ -7,7 +7,7 @@
   "latest_main_observed": "9e7072b1ebdc6900c7370863c27c7432953bd830",
   "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
   "main_merge_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
-  "integration_commit": "f1492652cb6497a33f39e615fd398456ce09253a",
+  "integration_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
   "milestone": "225/226 Product captures; 230 generated Unit/Tuple enums; 231 nominal where bounds",
   "active_development_agents": 0,
   "tasks": [
@@ -510,5 +510,6 @@
     "tasks": 14,
     "negative_self_tests": 7,
     "receipt": "evidence/integration/construction10/closeout/check-plan.stdout"
-  }
+  },
+  "candidate_commit": "f1492652cb6497a33f39e615fd398456ce09253a"
 }
