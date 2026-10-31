@@ -702,6 +702,7 @@ impl CompilationSession {
         let mut build = BuildOptions::new(publication.output());
         build.backend = options.backend;
         build.optimization = options.optimization;
+        build.closed_executable = options.closed_executable;
         build.codegen = options.codegen;
         build.object_cache = options.object_cache.clone();
         build.windows = options.windows.clone();
