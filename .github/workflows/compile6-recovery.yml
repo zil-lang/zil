@@ -41,14 +41,32 @@ jobs:
           cp "$RUNNER_TEMP/llvm23/install-receipt.json" "$RUNNER_TEMP/recovery/llvm-install-receipt.json"
           for name in libxml2.so.2 libzstd.so.1 libz.so.1; do p=$(ldconfig -p | awk -v n="$name" '$1==n && /x86-64/ {print $NF; exit}'); test -n "$p"; cp -L "$p" "$RUNNER_TEMP/sdk/llvm/lib/$name"; done
           rustc +1.99.1 -Vv > "$RUNNER_TEMP/recovery/rustc-version.txt"
-          tar -C "$RUNNER_TEMP/sdk" -czf "$RUNNER_TEMP/recovery/toolchain.tar.gz" rust llvm
-          (cd "$RUNNER_TEMP/recovery" && sha256sum source.tar.gz toolchain.tar.gz > SHA256SUMS)
-      - name: Retain recovery and any failure logs
+          tar -C "$RUNNER_TEMP/sdk" -czf "$RUNNER_TEMP/rust.tar.gz" rust
+          tar -C "$RUNNER_TEMP/sdk" -czf "$RUNNER_TEMP/llvm.tar.gz" llvm
+          (cd "$RUNNER_TEMP" && sha256sum recovery/source.tar.gz rust.tar.gz llvm.tar.gz > recovery/SHA256SUMS)
+          ls -lh "$RUNNER_TEMP/recovery/source.tar.gz" "$RUNNER_TEMP/rust.tar.gz" "$RUNNER_TEMP/llvm.tar.gz"
+      - name: Retain source and any failure logs
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: compile6-recovery-${{ github.run_id }}
+          name: compile6-source-${{ github.run_id }}
           path: ${{ runner.temp }}/recovery/
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
+      - name: Retain Rust toolchain
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: compile6-rust-${{ github.run_id }}
+          path: ${{ runner.temp }}/rust.tar.gz
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
+      - name: Retain LLVM toolchain
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: compile6-llvm-${{ github.run_id }}
+          path: ${{ runner.temp }}/llvm.tar.gz
           retention-days: 7
           compression-level: 0
           if-no-files-found: error
