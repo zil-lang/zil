@@ -1,0 +1,16 @@
+   Compiling zil-syntax v0.1.0 (/workspace/.zil-env/research/stage5/review-exactc6a/crates/zil-syntax)
+   Compiling zil-lower v0.1.0 (/workspace/.zil-env/research/stage5/review-exactc6a/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/.zil-env/research/stage5/review-exactc6a/crates/zil-ct)
+   Compiling zil-types v0.1.0 (/workspace/.zil-env/research/stage5/review-exactc6a/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/.zil-env/research/stage5/review-exactc6a/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/.zil-env/research/stage5/review-exactc6a/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/.zil-env/research/stage5/review-exactc6a/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/.zil-env/research/stage5/review-exactc6a/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 7.76s
+     Running tests/object_cache212.rs (/workspace/.zil-env/research/stage5/review-target5189/debug/deps/object_cache212-8eb14ab05887cf5f)
+
+running 1 test
+test explicit_closed_build_preserves_native_behavior_and_separates_cache_identity ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.32s
+

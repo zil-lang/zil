@@ -1,0 +1,120 @@
+[
+  {
+    "window": "generated-default",
+    "command": [
+      "python3",
+      "tools/research/incremental-compilation/distribution_bench.py",
+      "--zil",
+      "/workspace/.zil-env/research/target-stage5/release/zil",
+      "--rustc",
+      "/workspace/.zil-env/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+      "--blocks",
+      "6",
+      "--out",
+      "/workspace/.zil-env/research/stage5/generated-default"
+    ],
+    "started": "2026-10-31T16:13:53.818862+08:00",
+    "exit": 0,
+    "finished": "2026-10-31T16:39:57.187841+08:00"
+  },
+  {
+    "window": "generated-closed",
+    "command": [
+      "python3",
+      "tools/research/incremental-compilation/distribution_bench.py",
+      "--zil",
+      "/workspace/.zil-env/research/target-stage5/release/zil",
+      "--rustc",
+      "/workspace/.zil-env/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+      "--blocks",
+      "6",
+      "--mode",
+      "O2",
+      "--closed-executable",
+      "--out",
+      "/workspace/.zil-env/research/stage5/generated-closed"
+    ],
+    "started": "2026-10-31T16:39:57.190166+08:00",
+    "exit": 0,
+    "finished": "2026-10-31T16:49:23.911802+08:00"
+  },
+  {
+    "window": "implementation-ablation",
+    "command": [
+      "python3",
+      "tools/research/incremental-compilation/distribution_bench.py",
+      "--zil",
+      "/workspace/.zil-env/research/target-stage5/release/zil",
+      "--rustc",
+      "/workspace/.zil-env/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+      "--blocks",
+      "6",
+      "--reference-zil",
+      "/workspace/.zil-env/research/target-stage4/release/zil",
+      "--mode",
+      "O0",
+      "--mode",
+      "O2",
+      "--case",
+      "large-128",
+      "--case",
+      "large-512",
+      "--case",
+      "large-2048",
+      "--case",
+      "large-4096",
+      "--case",
+      "large-8192",
+      "--case",
+      "even-64x64",
+      "--case",
+      "skew-8",
+      "--case",
+      "body-16x16",
+      "--out",
+      "/workspace/.zil-env/research/stage5/implementation-ablation"
+    ],
+    "started": "2026-10-31T16:49:23.914436+08:00",
+    "exit": 0,
+    "finished": "2026-10-31T17:00:15.300156+08:00"
+  },
+  {
+    "window": "real-default",
+    "command": [
+      "python3",
+      "tools/research/incremental-compilation/real_pair_bench.py",
+      "--zil",
+      "/workspace/.zil-env/research/target-stage5/release/zil",
+      "--rustc",
+      "/workspace/.zil-env/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+      "--blocks",
+      "6",
+      "--out",
+      "/workspace/.zil-env/research/stage5/real-default"
+    ],
+    "started": "2026-10-31T17:00:15.301556+08:00",
+    "exit": 0,
+    "finished": "2026-10-31T17:01:11.653247+08:00"
+  },
+  {
+    "window": "real-closed",
+    "command": [
+      "python3",
+      "tools/research/incremental-compilation/real_pair_bench.py",
+      "--zil",
+      "/workspace/.zil-env/research/target-stage5/release/zil",
+      "--rustc",
+      "/workspace/.zil-env/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+      "--blocks",
+      "6",
+      "--mode",
+      "O2",
+      "--closed-executable",
+      "--out",
+      "/workspace/.zil-env/research/stage5/real-closed"
+    ],
+    "started": "2026-10-31T17:01:11.653691+08:00",
+    "exit": 0,
+    "finished": "2026-10-31T17:01:38.086373+08:00"
+  }
+]

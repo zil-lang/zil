@@ -1,0 +1,11 @@
+FAIL protocol O0 zil unchanged 0
+FAIL protocol O0 zil malformed_json 0
+FAIL protocol O0 zil early_edit 0
+FAIL protocol O0 zil late_edit -9
+FAIL protocol O0 zil compiler_failure 17
+FAIL protocol O0 zil missing_native 0
+FAIL protocol O0 zil native_timeout 0
+FAIL protocol O0 zil launch_failure None
+protocol O0 block 1 / 1
+complete 20
+{"level": "synthetic benchmark-runner fault controls only, not real compilers or performance", "tool_sha256": "187538477e6346eb140ffc9f5e1482a06788de39ec8fec6e7437b9f1ef974885", "rows": 20, "cells": 10, "zil_invalid_rows": 8, "all_failed_cell_ratios_null": true, "full_i32_rejects_expected_plus_127": true, "all_source_identities_match": true, "actual_missing_launch": {"elapsed_ns": 246983, "exit": null, "timeout": false, "launch_error": "[Errno 2] No such file or directory: '/tmp/no-such-zil-review-compiler-02712'", "cpu_seconds": null, "max_rss_kib": null}, "actual_compiler_timeout": {"elapsed_ns": 1001119768, "exit": -9, "timeout": true, "cpu_seconds": 0.008962, "max_rss_kib": 13952}, "simulated_controls": ["JSON null", "non-JSON output", "incorrect full native value differing by 127", "compiler timeout", "compiler failure", "missing native executable after exit0", "native timeout", "compiler launch failure"], "verdict": "Pass"}

@@ -1,0 +1,5 @@
+final-sanity-generated {'valid_current_verify': 42, 'object_hits': 0, 'object_misses': 286, 'native_outcomes': 88, 'native_builds': 88, 'valid_rows': 88, 'invalid_rows': 4} oracle 0
+final-sanity-real {'valid_current_verify': 56, 'object_hits': 122, 'object_misses': 122, 'native_outcomes': 1680, 'native_builds': 112, 'valid_rows': 112} oracle 14
+sanity-generated {'valid_current_verify': 42, 'object_hits': 0, 'object_misses': 286, 'native_outcomes': 88, 'native_builds': 88, 'valid_rows': 88, 'invalid_rows': 4} oracle 0
+sanity-real {'valid_current_verify': 56, 'object_hits': 122, 'object_misses': 122, 'native_outcomes': 1680, 'native_builds': 112, 'valid_rows': 112} oracle 14
+PASS sanity windows 4 inventory 10455

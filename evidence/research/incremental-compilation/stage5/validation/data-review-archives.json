@@ -1,0 +1,46 @@
+{
+  "pass": true,
+  "files": 26524,
+  "windows": [
+    {
+      "window": "generated-default",
+      "files": 13269,
+      "uncompressed_bytes": 956300392,
+      "archive_sha256": "d9e5ba21573ec290677def96aad54d00d27d668ea41b8365e0aa6ce61faed32b",
+      "receipt_sha256": "73471805db2d52f2f8da529b4d439ffb7361136df6f594aa9ccfe604fb97fe6a",
+      "embedded_files_sha256": "b08e97c0a9610d4a1a863c7d270231e6244e39abdfd2d313c04f138786017838"
+    },
+    {
+      "window": "generated-closed",
+      "files": 7485,
+      "uncompressed_bytes": 463844813,
+      "archive_sha256": "1a70f887fe6d593e4bcfb129fd92fbbf03bc65f56548115d16e1c1616c366171",
+      "receipt_sha256": "3d29c78319617ae2616ab66bf8dc10aa38bc3e078b77fd3ed919a14a62a6a511",
+      "embedded_files_sha256": "12b12d489523661f40ef122310b8eaf433b86e5ad37b328224042e2172a251ba"
+    },
+    {
+      "window": "implementation-ablation",
+      "files": 2396,
+      "uncompressed_bytes": 669779932,
+      "archive_sha256": "3850ee2dcf82211fa43a9d32d0a264b18120958cd31667f720850883ce5bdcc4",
+      "receipt_sha256": "066c7dd56c70ffdad9f5215298f4850b2e9f2c9710a1d27f6116d3f1dbfafb62",
+      "embedded_files_sha256": "c03401f6598b563e02963a7544e87ce4239e57a9eb6af16efeae711a2dee29e8"
+    },
+    {
+      "window": "real-default",
+      "files": 2443,
+      "uncompressed_bytes": 11638130,
+      "archive_sha256": "e7b22bd43867838ced10a398625086446d3e4b0dadec875b4cc8a9a4315e89ae",
+      "receipt_sha256": "a2b1190954cdfc2308659f822c351841fe12fb2c076f4151709b5efbc90115ce",
+      "embedded_files_sha256": "2a82450ba833460ffa2fa543b68d66e9a4f748a6e92b2e023f33bcd79d2111e1"
+    },
+    {
+      "window": "real-closed",
+      "files": 931,
+      "uncompressed_bytes": 5567187,
+      "archive_sha256": "4d3298a44ab7f9f86aa79d369179cdafd8cdbaad479cb0194d48d35a66789686",
+      "receipt_sha256": "13e38c0e1260a36b3f6809da7cb8e84f843126246d51bc0f1a0d6ba12e3bb42f",
+      "embedded_files_sha256": "24ae4c495446eecf93c269febc879fa0709e225aa3b2afa5f9bf296b643e2e38"
+    }
+  ]
+}

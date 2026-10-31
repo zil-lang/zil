@@ -1,0 +1,17 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/.zil-env/research/stage5/review-exactc6a/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized] target(s) in 1.92s
+     Running unittests src/lib.rs (/workspace/.zil-env/research/stage5/review-target5189/debug/deps/zil_backend_llvm-3136df6a873984eb)
+
+running 9 tests
+test machine_cgu::tests::closed_policy_keeps_cross_unit_function_addresses_and_global_initializers ... ok
+test machine_cgu::tests::closed_policy_preserves_local_address_use_and_duplicate_rejection ... ok
+test machine_cgu::tests::closed_policy_uses_exact_nonforeign_identity_and_keeps_other_items ... ok
+test machine_cgu::tests::external_uses_import_only_immediate_declarations ... ok
+test machine_cgu::tests::filtering_cannot_hide_invalid_unused_declarations_or_cross_unit_collisions ... ok
+test machine_cgu::tests::foreign_addresses_and_global_initializers_keep_only_consumed_declarations ... ok
+test machine_cgu::tests::local_component_falls_back_without_copying_and_duplicates_remain_invalid ... ok
+test machine_cgu::tests::local_identity_and_global_initializers_are_colocated_once ... ok
+test machine_cgu::tests::large_file_chunks_still_union_shared_local_addresses ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.01s
+

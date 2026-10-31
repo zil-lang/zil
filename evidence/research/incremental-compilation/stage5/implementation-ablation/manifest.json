@@ -1,0 +1,192 @@
+{
+  "source": "283c661bcb18978fe048770dace4994ade1910d2",
+  "tool_sha256": "73c0be9ebbb61e98562f499580adf51010477a216c7597ad72d5b57c43639610",
+  "binaries": {
+    "zil": {
+      "path": "/workspace/.zil-env/research/target-stage5/release/zil",
+      "sha256": "4e8c3dccd2c30c15e825dfe683a8f27ec1f2aca4396b33068c5e16ded04d7ff9"
+    },
+    "baseline": {
+      "path": "/workspace/.zil-env/research/target-stage4/release/zil",
+      "sha256": "44516ae10d3446998aadecd7cfc8006c34b8902b553ddd93faff49fa04a91643"
+    }
+  },
+  "cases": [
+    {
+      "name": "large-128",
+      "sizes": [
+        128
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "large-512",
+      "sizes": [
+        512
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "large-2048",
+      "sizes": [
+        2048
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "large-4096",
+      "sizes": [
+        4096
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "large-8192",
+      "sizes": [
+        8192
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "even-64x64",
+      "sizes": [
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "skew-8",
+      "sizes": [
+        2048,
+        1024,
+        512,
+        256,
+        128,
+        64,
+        32,
+        32
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "body-16x16",
+      "sizes": [
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16
+      ],
+      "flavor": "body"
+    }
+  ],
+  "blocks": 6,
+  "modes": [
+    "O0",
+    "O2"
+  ],
+  "requests": [
+    [
+      "cold",
+      0
+    ],
+    [
+      "unchanged",
+      0
+    ],
+    [
+      "early_edit",
+      1
+    ],
+    [
+      "late_edit",
+      2
+    ],
+    [
+      "restore",
+      0
+    ]
+  ],
+  "cpus": [
+    0,
+    1
+  ],
+  "source_cache": false,
+  "closed_executable": false,
+  "scope": "Expanded paired-source CLI screen; no product thresholds. Preserve every outcome.",
+  "flags": "O0/O2, overflow checks, panic abort, 8 CGU, ZIL jobs2; rustc incremental and ZIL object cache persist per sequence; optional unverified ZIL source cache"
+}

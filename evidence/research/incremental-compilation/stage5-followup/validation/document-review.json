@@ -1,0 +1,228 @@
+{
+  "pass": true,
+  "checks": [
+    {
+      "window": "generated-default",
+      "mode": "O0",
+      "request": "cold",
+      "table": "| 默认O0冷构建 | 1163.567 | 1731.503 | 0.672 |"
+    },
+    {
+      "window": "generated-default",
+      "mode": "O0",
+      "request": "unchanged",
+      "table": "| 默认O0无改动 | 851.774 | 426.111 | 1.999 |"
+    },
+    {
+      "window": "generated-default",
+      "mode": "O0",
+      "request": "early_edit",
+      "table": "| 默认O0前部私有修改 | 1210.647 | 1195.618 | 1.013 |"
+    },
+    {
+      "window": "generated-default",
+      "mode": "O2",
+      "request": "cold",
+      "table": "| 默认O2冷构建 | 5363.392 | 2192.335 | 2.446 |"
+    },
+    {
+      "window": "generated-default",
+      "mode": "O2",
+      "request": "unchanged",
+      "table": "| 默认O2无改动 | 910.927 | 465.142 | 1.958 |"
+    },
+    {
+      "window": "generated-default",
+      "mode": "O2",
+      "request": "early_edit",
+      "table": "| 默认O2前部私有修改 | 5386.851 | 1294.342 | 4.162 |"
+    },
+    {
+      "window": "generated-closed",
+      "mode": "O2",
+      "request": "cold",
+      "table": "| 显式封闭O2冷构建 | 1917.724 | 2148.115 | 0.893 |"
+    },
+    {
+      "window": "generated-closed",
+      "mode": "O2",
+      "request": "unchanged",
+      "table": "| 显式封闭O2无改动 | 872.781 | 396.938 | 2.199 |"
+    },
+    {
+      "window": "generated-closed",
+      "mode": "O2",
+      "request": "early_edit",
+      "table": "| 显式封闭O2前部私有修改 | 1893.783 | 1242.969 | 1.524 |"
+    },
+    {
+      "window": "followup-default",
+      "mode": "O0",
+      "request": "cold",
+      "table": "| 默认O0冷构建 | 1200.480 | 1818.227 | 0.660 |"
+    },
+    {
+      "window": "followup-default",
+      "mode": "O0",
+      "request": "unchanged",
+      "table": "| 默认O0无改动 | 755.106 | 481.478 | 1.568 |"
+    },
+    {
+      "window": "followup-default",
+      "mode": "O0",
+      "request": "early_edit",
+      "table": "| 默认O0前部私有修改 | 1092.106 | 1311.016 | 0.833 |"
+    },
+    {
+      "window": "followup-default",
+      "mode": "O0",
+      "request": "late_edit",
+      "table": "| 默认O0末尾私有修改 | 749.184 | 1196.709 | 0.626 |"
+    },
+    {
+      "window": "followup-default",
+      "mode": "O2",
+      "request": "cold",
+      "table": "| 默认O2冷构建 | 5551.528 | 2421.879 | 2.292 |"
+    },
+    {
+      "window": "followup-default",
+      "mode": "O2",
+      "request": "unchanged",
+      "table": "| 默认O2无改动 | 832.907 | 526.639 | 1.582 |"
+    },
+    {
+      "window": "followup-default",
+      "mode": "O2",
+      "request": "early_edit",
+      "table": "| 默认O2前部私有修改 | 5446.916 | 1337.788 | 4.072 |"
+    },
+    {
+      "window": "followup-closed",
+      "mode": "O2",
+      "request": "cold",
+      "table": "| 显式封闭O2冷构建 | 2170.504 | 2372.091 | 0.915 |"
+    },
+    {
+      "window": "followup-closed",
+      "mode": "O2",
+      "request": "unchanged",
+      "table": "| 显式封闭O2无改动 | 868.463 | 459.576 | 1.890 |"
+    },
+    {
+      "window": "followup-closed",
+      "mode": "O2",
+      "request": "early_edit",
+      "table": "| 显式封闭O2前部私有修改 | 1981.366 | 1320.878 | 1.500 |"
+    },
+    {
+      "window": "followup-isolation",
+      "case": "large-8192",
+      "mode": "O2",
+      "request": "unchanged",
+      "narrative_pair": "1025.708→910.377"
+    },
+    {
+      "window": "followup-isolation",
+      "case": "large-8192",
+      "mode": "O0",
+      "request": "late_edit",
+      "narrative_pair": "913.379→819.606"
+    },
+    {
+      "window": "followup-isolation",
+      "case": "large-8192",
+      "mode": "O0",
+      "request": "early_edit",
+      "narrative_pair": "1356.783→1200.336"
+    },
+    {
+      "window": "followup-isolation",
+      "case": "large-8192",
+      "mode": "O2",
+      "request": "early_edit",
+      "narrative_pair": "5577.572→5566.668"
+    },
+    {
+      "window": "followup-isolation",
+      "case": "large-512",
+      "mode": "O2",
+      "request": "unchanged",
+      "narrative_pair": "64.942→67.631"
+    },
+    {
+      "window": "followup-isolation",
+      "case": "body-16x16",
+      "mode": "O0",
+      "request": "unchanged",
+      "narrative_pair": "372.788→392.627"
+    }
+  ],
+  "scope": "All original19 key Rust table rows,6 isolation narrative pairs,main interval/preflight/RSS anchors and final boundaries; full877 tables separately independently recomputed. Historical algorithm attribution was read against original sources, current59d mechanism against exact review.",
+  "documents": {
+    "docs/research/incremental-compilation/DISTRIBUTION-RESULTS.md": {
+      "bytes": 15361,
+      "sha256": "6235966cf0206550aab02066becbb598a1f4ef952a10338027e7cf7fcfc91413"
+    },
+    "docs/research/incremental-compilation/DISTRIBUTION-TABLES.md": {
+      "bytes": 61325,
+      "sha256": "328363778f8cbf6a2b9dccecdb9c41f97fa2f23b25357a35778dd35a0f639001"
+    },
+    "docs/research/incremental-compilation/PREFLIGHT-FOLLOWUP-TABLES.md": {
+      "bytes": 21770,
+      "sha256": "4a57dcc597b349c4d2f0885a3a95ff82eff416ae6cff46af2e29fc07d6de5c3f"
+    },
+    "docs/research/incremental-compilation/ALGORITHM-ATTRIBUTION.md": {
+      "bytes": 7749,
+      "sha256": "9185cfb9ba533a700dd1dd30720aba670e3e165d9cd81600dd3052c7e5180883"
+    },
+    "docs/research/incremental-compilation/PLAN.md": {
+      "bytes": 5477,
+      "sha256": "7ade2149b00ace3b13faece32664f09ff3d4b287e903278054d6d6269bd8dfd4"
+    },
+    "docs/research/incremental-compilation/README.md": {
+      "bytes": 796,
+      "sha256": "b51fd987671e3fbe8da675b1cc36a8b9a571ef80c59040ef927e9ea05666db3b"
+    },
+    "docs/research/incremental-compilation/DISTRIBUTION-PROTOCOL.md": {
+      "bytes": 5214,
+      "sha256": "d6ff19621d4414eec28f767c528773ecdabe257917267606ebc9464c6aaecf05"
+    },
+    "docs/research/incremental-compilation/PREFLIGHT-FOLLOWUP-PROTOCOL.md": {
+      "bytes": 1706,
+      "sha256": "33ab44cca06c2268e7a28e0f3b637b14f11d5aefe44b55f96034d9d40cff1d7d"
+    },
+    "evidence/research/incremental-compilation/stage5/README.md": {
+      "bytes": 3167,
+      "sha256": "646524da6e005afdd1af1c7cf6f69bde7287e8bc3d80273c08f443a8f6243139"
+    },
+    "evidence/research/incremental-compilation/stage5-followup/README.md": {
+      "bytes": 2940,
+      "sha256": "8febaa2748b632b615892fc9d9f85792e022408632846f4bdfbc65af76b83950"
+    },
+    "docs/research/incremental-compilation/plots/followup/large-module-before-after.svg": {
+      "bytes": 53452,
+      "sha256": "7b5f86e5dcb78f3a4f745e39d0716d5b1f7b86fc9255034286e6d9e44c48bcfa"
+    },
+    "docs/research/incremental-compilation/plots/followup/large-module-rust.svg": {
+      "bytes": 56346,
+      "sha256": "eabf4098c52c628ff0c042ad043d888825bd0610e8295ea8029fa3c7d8beb50f"
+    },
+    "docs/research/incremental-compilation/plots/stage5/large-module-before-after.svg": {
+      "bytes": 47342,
+      "sha256": "c75ab3cc7270a42b7739da8e10936c5d4be632ecc40189a7d4cfb476d7fbdc3f"
+    },
+    "docs/research/incremental-compilation/plots/stage5/large-module-rust.svg": {
+      "bytes": 56760,
+      "sha256": "d3f334779854324ddb24872788753371b45205d71f76faaec78614a016602390"
+    },
+    "tools/research/incremental-compilation/distribution_plot.py": {
+      "bytes": 4145,
+      "sha256": "d4cc304f9ed587e1c48ad4f715e5d3fa4d17267bb1d65f43e9bc8fbcd6a9443b"
+    },
+    "tools/research/incremental-compilation/distribution_report.py": {
+      "bytes": 9076,
+      "sha256": "845b6b3f7b5bb71e70806d45bf97a9eab9845a81f83159810c6c76cb854e14e0"
+    }
+  }
+}

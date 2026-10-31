@@ -1,0 +1,17 @@
+# Independent original stage-5 data review
+
+Verdict: **Pass for evidence/statistical completeness**, limited to production `801933a9e8f060d44b8305786d01399527aa6137` and benchmark tools `283c661bcb18978fe048770dace4994ade1910d2`. Reviewer: `/root/review_incremental_slice1`. This is not a performance/product gate. No benchmark or executable was rerun.
+
+All 7,824 measured rows / 652 cells match the six-block AB/BA protocol and exact request order. 4,392 raw ZIL reports were inspected independently of `valid`: 4,152 current Verify=1 requests and 240 pre-Verify expand ResourceLimit refusals. The failures are the preregistered body-64x16/types-64x16 cases; their 40 cells retain null speed ratios. All 18,846 object reports satisfy current preflight, producer verification and cache history/count controls.
+
+Inputs were independently reconstructed and hashed for every generated edit; real copied files match exact Git bytes. There are 5,928 successful native builds, with 20,040 logged native outcomes, plus 28 Rust O0 oracle builds / 420 outcomes. Four-byte generated output, all 15 real input identities, signal/error exclusion and exact exit/stdout/stderr equality were checked. app's Rust --check matches ZIL ordinary main; legal application nonzero exits remain legal.
+
+All arm time/RSS medians, 612 valid ratios, 2,000 same-block bootstrap draws per valid cell and their fixed-seed bounds, aggregates, component timing sums and 652 table rows match independent recomputation (10,912 numeric comparisons). The interval is exploratory with only six blocks and no simultaneous/product guarantee. Backend component sums are sums over units, not disjoint wall-time attribution.
+
+Unfavorable time cells remain 187 / 51 / 21 / 0 / 0 and unfavorable RSS cells 194 / 67 / 48 / 0 / 0 for generated-default / generated-closed / implementation-ablation / real-default / real-closed. For example, large-8192 default O2 early edit is 5,386.851 vs 1,294.342 ms, ratio4.162; closed O2 unchanged is872.781 vs396.938 ms, ratio2.199. The data do not establish broad Rust superiority for ZIL.
+
+Five raw archives contain26,524 records, all checked against compressed SHA, internal FILES, side receipts and original bytes. Independent consumed-evidence inventory has28,046 files. Archives intentionally exclude compiler/target ELF and cache work products. Per-request native results are logged in rows; separate native streams or every historical executable are not retained. The final sequence artifacts and current compiler ELF hashes were checked locally, without claiming archive portability of those binaries.
+
+ALGORITHM-ATTRIBUTION accurately separates historical076/080 results, CP25's incomplete/unreviewed candidate and CP32's unfavorable full-cost result. Original zit kernel/probe bytes match historical e739; the five synchronous numeric mechanisms and false-cycle threshold limitation are supported, with no present production zit performance attribution. The fan-in proposal and later05e implementation are outside these original801 windows.
+
+Reproducible audit: `recompute-stage5-data.py`, `check-stage5-archives.py`; complete results/adverse lists: `data-review-recomputed.json`; source/report inventory: `data-review-inventory.json`; archive bindings: `data-review-archives.json`. Exact hashes and scope details are in `data-review.json`. Reports are hash-bound pending final delivery commit binding.

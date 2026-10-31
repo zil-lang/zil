@@ -1,0 +1,14 @@
+{
+  "archive": "raw.tar.gz",
+  "sha256": "a22fe143bb9a4f15080ea168aef79cb3c420317a185635ec935aaf04b1fa2315",
+  "bytes": 14336023,
+  "file_count": 10136,
+  "uncompressed_bytes": 301837605,
+  "excluded": "object/incremental caches, executable binaries, object/shared libraries/bitcode; source, IR, reports, native outputs, failures and timing rows retained",
+  "records": [
+    "sanity-generated",
+    "sanity-real",
+    "final-sanity-generated",
+    "final-sanity-real"
+  ]
+}

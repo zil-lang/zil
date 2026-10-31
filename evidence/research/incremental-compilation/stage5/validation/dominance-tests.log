@@ -1,0 +1,2 @@
+error: the package 'zil-llvm-api' does not contain this feature: llvm-api
+help: packages with the missing feature: zil-backend-llvm, zil-driver, zil-cli

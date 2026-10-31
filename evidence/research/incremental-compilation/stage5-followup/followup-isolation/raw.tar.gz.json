@@ -1,0 +1,11 @@
+{
+  "archive": "raw.tar.gz",
+  "sha256": "d18dffdc7ce59da3d25ffb5fdc02af5dd8c89f707503d87d6649e4a11ba7283f",
+  "bytes": 37426529,
+  "file_count": 2737,
+  "uncompressed_bytes": 783405758,
+  "excluded": "object/incremental caches, executable binaries, object/shared libraries/bitcode; source, IR, reports, native outputs, failures and timing rows retained",
+  "records": [
+    "followup-isolation"
+  ]
+}

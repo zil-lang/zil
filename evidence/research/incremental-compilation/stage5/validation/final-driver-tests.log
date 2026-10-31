@@ -1,0 +1,43 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.86s
+     Running tests/narrow_constants.rs (/workspace/.zil-env/target/debug/deps/narrow_constants-f68defb6baf0d0af)
+
+running 2 tests
+test byte_stream_preserves_success_exit_and_all_bytes_at_o0_o2 ... ok
+test negative_return_paths_survive_o2_and_warm_machine_cache ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+
+     Running tests/object_cache212.rs (/workspace/.zil-env/target/debug/deps/object_cache212-8eb14ab05887cf5f)
+
+running 15 tests
+test cancellation_after_backend_success_does_not_commit_object_cache ... ok
+test cache_directory_failure_is_a_visible_bypass_not_a_build_failure ... ok
+test concurrent_requests_share_only_complete_native_objects ... ok
+test corrupt_and_truncated_entries_rebuild_without_changed_native_bytes ... ok
+test diagnostic_fingerprint_change_does_not_pollute_machine_keys ... ok
+test cold_warm_private_public_edits_preserve_current_verify_and_output ... ok
+test current_checked_overflow_still_traps_on_cache_hits ... ok
+test linker_failure_discards_pending_objects_and_preserves_previous_output ... ok
+test optimization_and_units_invalidate_but_job_count_does_not ... ok
+test explicit_closed_build_preserves_native_behavior_and_separates_cache_identity ... ok
+test unsafe_or_invalid_current_source_never_reuses_a_success_capability ... ok
+test large_file_chunks_preserve_owned_closures_drop_and_function_addresses ... ok
+test unused_foreign_declarations_do_not_invalidate_independent_objects ... ok
+test owned_state_store_and_callbacks_match_on_cold_and_warm_o0_o2 ... ok
+test large_file_o0_chunks_reuse_unchanged_objects_and_keep_current_verification ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.41s
+
+     Running tests/project_frontend_reuse.rs (/workspace/.zil-env/target/debug/deps/project_frontend_reuse-82d89ad44939a74f)
+
+running 6 tests
+test replayed_phase_order_keeps_observer_cancellation_and_recovery ... ok
+test reused_frontend_builds_current_native_output_and_preserves_link_cancellation ... ok
+test same_complete_input_reuses_frontend_after_parse_eviction_and_verifies_now ... ok
+test changed_source_identity_rules_limits_and_target_match_fresh ... ok
+test stage_stops_artifacts_disk_sources_and_filesystem_discovery_keep_original_path ... ok
+test real_resources_generics_ct_and_products_reuse_evicted_frontends ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.52s
+

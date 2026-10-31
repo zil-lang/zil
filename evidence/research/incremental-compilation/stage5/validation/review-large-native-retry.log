@@ -1,0 +1,10 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/zil/crates/zil-driver)
+error[E0599]: no variant, associated function, or constant named `InfrastructureFailure` found for enum `ResultCategory` in the current scope
+   --> crates/zil-driver/tests/object_cache212.rs:560:50
+    |
+560 |         assert_eq!(failed.status,ResultCategory::InfrastructureFailure);
+    |                                                  ^^^^^^^^^^^^^^^^^^^^^ variant, associated function, or constant not found in `ResultCategory`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `zil-driver` (test "object_cache212") due to 1 previous error

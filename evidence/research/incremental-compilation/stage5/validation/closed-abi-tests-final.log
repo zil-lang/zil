@@ -1,0 +1,14 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized] target(s) in 0.27s
+     Running tests/closed_executable_research.rs (/workspace/.zil-env/target/debug/deps/closed_executable_research-0612c743d3d644a3)
+
+running 6 tests
+test closed_policy_cannot_bypass_invalid_codegen_options ... ok
+test closed_mode_preserves_entry_binding_and_unsupported_target_rejection ... ok
+test closed_link_failure_keeps_previous_artifacts ... ok
+test selected_entry_and_public_emission_remain_separate_from_closed_build_policy ... ok
+test object_cache_separates_actual_linkage_and_reuses_each_policy ... ok
+test closed_o0_build_keeps_runtime_behavior_with_one_or_many_units ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+

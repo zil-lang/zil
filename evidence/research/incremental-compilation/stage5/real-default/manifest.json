@@ -1,0 +1,68 @@
+{
+  "source": "283c661bcb18978fe048770dace4994ade1910d2",
+  "tool_sha256": "48d43fbdebdcc2e5660fd7bd9dd7db4c4d531e924a6ee964661feaca8cc295dc",
+  "runner_sha256": "73c0be9ebbb61e98562f499580adf51010477a216c7597ad72d5b57c43639610",
+  "binaries": {
+    "zil": {
+      "path": "/workspace/.zil-env/research/target-stage5/release/zil",
+      "sha256": "4e8c3dccd2c30c15e825dfe683a8f27ec1f2aca4396b33068c5e16ded04d7ff9"
+    },
+    "rust": {
+      "path": "/workspace/.zil-env/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+      "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+    }
+  },
+  "cases": [
+    "app",
+    "stream",
+    "slices",
+    "byte_io",
+    "byte_buffer",
+    "byte_buffer_owned",
+    "resources",
+    "resource_closures",
+    "error_cleanup",
+    "owned_component",
+    "package_ui",
+    "retained_ui",
+    "update_ui",
+    "helper_ui"
+  ],
+  "modes": [
+    "check",
+    "O0",
+    "O2"
+  ],
+  "blocks": 6,
+  "cpus": [
+    0,
+    1
+  ],
+  "closed_executable": false,
+  "stdin_hex": [
+    "",
+    "21",
+    "44",
+    "53",
+    "55",
+    "4f",
+    "4d",
+    "45",
+    "54",
+    "4c",
+    "30",
+    "31",
+    "32",
+    "33",
+    "313261732b212d710080"
+  ],
+  "native_arguments": {
+    "app": {
+      "rust": [
+        "--check"
+      ],
+      "zil": []
+    }
+  },
+  "boundary": "Complete subprocess; native outside clock. 8CGU O0/O2 overflow checks panic abort. Both arms persistent object/incremental cache per sequence. Rust source is the checked-in independent native behavior pair, not equal internal compiler work."
+}

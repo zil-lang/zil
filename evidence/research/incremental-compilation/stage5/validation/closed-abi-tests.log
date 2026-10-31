@@ -1,0 +1,3 @@
+error: no test target named `closed_executable_research` in `zil-backend-llvm` package
+help: available test in `zil-cli` package:
+    closed_executable_research

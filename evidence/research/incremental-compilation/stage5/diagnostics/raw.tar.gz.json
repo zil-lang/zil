@@ -1,0 +1,22 @@
+{
+  "archive": "raw.tar.gz",
+  "sha256": "eccbf1ca99db86201153399a36e63fbdc2578097f3825d040b9f5022affc8723",
+  "bytes": 13253863,
+  "file_count": 13722,
+  "uncompressed_bytes": 272038606,
+  "excluded": "object/incremental caches, executable binaries, object/shared libraries/bitcode; source, IR, reports, native outputs, failures and timing rows retained",
+  "records": [
+    "shape-smoke",
+    "shape-smoke-corrected",
+    "incremental-diagnostic",
+    "final-shape-preflight",
+    "closed-and-large-preflight",
+    "real-preflight",
+    "app-corrected-preflight",
+    "new-types-preflight",
+    "ablation-protocol-smoke",
+    "real-closed-preflight",
+    "review-protocol",
+    "source-control"
+  ]
+}

@@ -1,0 +1,19 @@
+   Compiling zil-cli v0.1.0 (/workspace/zil/crates/zil-cli)
+    Finished `test` profile [unoptimized] target(s) in 0.44s
+     Running tests/backend_default.rs (/workspace/.zil-env/target/debug/deps/backend_default-d5222e3191c1299b)
+
+running 4 tests
+test version_names_the_actual_default ... ok
+test ordinary_cli_build_uses_the_compiled_default ... ok
+test explicit_clang_remains_a_real_reference_path ... ok
+test default_backend_runs_the_current_state_consumer_with_ascii_input ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/closed_executable_research.rs (/workspace/.zil-env/target/debug/deps/closed_executable_research-4c25576d7634c876)
+
+running 1 test
+test explicit_closed_build_preserves_entry_and_changes_generated_symbol_exports ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+

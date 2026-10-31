@@ -1,0 +1,94 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "verdict": "Pass",
+  "implementation_commit": "5189f09750c138eb61a4c86bea3654d7f0e57f6f",
+  "baseline_commit": "12fc97bde3a89de450c0eabebbcf11d512123018",
+  "scope": "Exact O0 codegen chunk correctness; uncommitted distribution benchmark protocol separately hash-bound, not performance/product acceptance",
+  "created_utc": "2026-10-31T08:03:48.855758+00:00",
+  "production_findings": [
+    "The new chunk discriminator is passed only when Optimization::O0. count<2 returns original module before grouping; split=false produces (file,0) keys and original file bucket choices. Thus existing O2 partition and one-CGU boundaries are preserved.",
+    "Within each file, the ordinal counts nonforeign LIR functions; chunks of 256 replace file-wide unions. Existing local-linkage target references still union every user with the local definition, including global initializer/function-address references. Entry/PE wrapper union, duplicate fallback, declaration preflight, imports and definition ownership are unchanged.",
+    "Every definition is moved exactly once to a chosen owner; exported cross-owner function/global signatures are preserved. One shared-local component may merge multiple chunks, so actual_units can be smaller than requested/chunk count.",
+    "Object cache keys continue hashing complete machine-unit structure under compiler/LLVM/target/optimization identity. New partitions change their machine inputs; imported signatures update consumer keys; body-only unchanged consumers may hit while changed definitions miss. No Verified authority or linker publication checks are skipped.",
+    "Locality guarantee is limited to unchanged nonforeign LIR function set/order and stable generated IDs. Source-body changes introducing closures/monomorphizations may shift generated functions and conservatively invalidate additional chunks, as the proposal now states."
+  ],
+  "independent_tests": {
+    "exact_snapshot": "review-exact5189 exported from exact Git commit, separate review-target5189 target; no production workspace changes",
+    "passed": 8,
+    "commands": [
+      {
+        "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/research/stage5/review-target5189 cargo test --manifest-path /workspace/.zil-env/research/stage5/review-exact5189/Cargo.toml --offline --locked -p zil-driver --features llvm-api --test object_cache212 large_file",
+        "passed": 2,
+        "exit_code": 0,
+        "log": "review-exact5189-native.log"
+      },
+      {
+        "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/research/stage5/review-target5189 cargo test --manifest-path /workspace/.zil-env/research/stage5/review-exact5189/Cargo.toml --offline --locked -p zil-backend-llvm --features llvm-api --lib machine_cgu",
+        "passed": 6,
+        "exit_code": 0,
+        "log": "review-exact5189-machine.log"
+      }
+    ],
+    "covered": "600-function real-source cold/warm/body edit/insertion/deletion/restore/type rejection plus old-output preservation, count1/O2 boundaries; cross-chunk resource/owning closure/drop/function-address native LLVM API and Clang controls; true/false grouping model with shared private global across chunks; prior declaration/linkage reject controls"
+  },
+  "resolved_review_findings": [
+    {
+      "finding": "New Clang native test used an API-only commands.len()==1 helper",
+      "resolution": "Explicit API-only command count, common Success/Verify/native exit/stdout checks; exact-commit two-test rerun passes.",
+      "original_log": "review-large-native.log"
+    },
+    {
+      "finding": "Modulo-127 benchmark native oracle could miss wrong full integer values",
+      "resolution": "Protocol now outputs/checks all four i32 bytes; synthetic wrong expected+127 case rejected."
+    },
+    {
+      "finding": "Benchmark failures could abort before rows or allow stale executable",
+      "resolution": "Non-JSON/scalar JSON, compile errors/timeouts/launch failure, native errors/timeouts/missing executable persist valid=false; stale program removed before compile; affected cell ratio=null."
+    },
+    {
+      "finding": "Per-request source/edit identity missing",
+      "resolution": "Each row records edit, expected full value, all-file source hash-map digest and identity file."
+    }
+  ],
+  "benchmark_protocol_review": {
+    "level": "Synthetic runner validation plus static paired-source review, not a real compiler benchmark",
+    "frozen_tool_sha256": "187538477e6346eb140ffc9f5e1482a06788de39ec8fec6e7437b9f1ef974885",
+    "source": "review-protocol/distribution_bench.py",
+    "result": "review-protocol/result.json",
+    "synthetic_rows": 20,
+    "failure_controls": 8,
+    "all_failed_ratios_null": true,
+    "actual_launch_failure_and_compiler_timeout_exercised": true,
+    "paired_scope": "Both languages generate same integer arithmetic/control/call shapes; O0/O2, overflow checks, panic-abort Rust, CGU8 and fixed two-CPU affinity; persistent Rust incremental versus ZIL object cache per independent sequence. Alternating AB/BA one pair per block is a declared screen, not old ABBA; check is Rust metadata, not Cargo. Optional source cache must be recorded.",
+    "uncommitted_latest_difference": "Latest tool SHA 1cc5db5c7d8dab794e3243ae7490147c137515044908b665fd8af26bbc4d4e58 differs from tested snapshot only by explicit --closed-executable argument/manifest/forwarding additions for the separately reviewed next candidate. No closed-executable performance acceptance is included here."
+  },
+  "transient_execution_notes": [
+    "Initial corrected-helper rerun overlapped second-candidate worktree mutation and failed compiling its temporary InfrastructureFailure enum spelling; this is not a 5189 result. Exact isolated retest replaces that attempted run without deleting its log.",
+    "First source snapshot omitted tools/llvm/version.txt; setup failure preserved, then exact tools subtree exported and isolated tests passed."
+  ],
+  "source_sha256": {
+    ".task/research/incremental-compilation.md": "d48e02cfb126fca116b6a4f35b1a6296c69b0a3f7d45c46eee2534f5371e1c3a",
+    "changes/research-large-module-codegen.md": "f9ab18e5454741d331e7c82ad139d7f6bba49b81e2ae64a2dba6fab75e2a48a3",
+    "crates/zil-backend-llvm/src/build.rs": "1e5e2d4c9a30c4543d80b3344b9e7dd18a0057b32eb9d272a762a9a22c2f15bf",
+    "crates/zil-backend-llvm/src/machine_cgu.rs": "94092ffb9ef94ed0862e75380fb0fe2147ed79be53d9a84d9007148c7af2e9e2",
+    "crates/zil-driver/tests/object_cache212.rs": "b66ea2ce34cb862865b086931ddb7a76ead43dfb5c3128f7e6d4c683b190da8a"
+  },
+  "evidence_sha256": {
+    "review-exact5189-native.log": "3aaa85b46a0a8c6f39651ec8b21c8486f9175473d3ec64f9618406a86ae1e343",
+    "review-exact5189-machine.log": "ac8f34304039017767b7a618055b714d0819e0c9e28d36066490d097d939c814",
+    "review-machine.log": "fe1f895e85814760a1e5d4527a64e12150a148347c62e2512e89f01d6f069f0a",
+    "review-large-native.log": "7a8a4fd67ddfbccee8b1172fb28a46046e0ec868f1f213bfc521f19e2e547c37",
+    "review-large-native-retry.log": "99070922787f0dd714c69841f95f5f12ea9a02a8fbf919aedbf147c3fbf6b6b9",
+    "review-exact5189-incomplete-snapshot.log": "a4d3c7ab55e65917f1c48b518b39f78780d3b9cb0024dccab3a737b41860b922",
+    "review-benchmark-protocol.py": "28d3808fdfd0c6ef18841076e1b729f039b1c049fae5d707633e2c564b9d9afd",
+    "review-benchmark-protocol.log": "a9f99caf85e0f2352544e010d6373d7d30b9a53053913018d11835b419788045",
+    "review-protocol/result.json": "c640d419b90fa05210c376751dcf06f177037df04142ea532b852e332c157141",
+    "review-protocol/distribution_bench.py": "187538477e6346eb140ffc9f5e1482a06788de39ec8fec6e7437b9f1ef974885"
+  },
+  "limitations": [
+    "No benchmark or full suite executed by reviewer; no speedup approved.",
+    "Native Windows not retested; count1/O2 retain prior grouping, and no O2 optimization-quality improvement is claimed.",
+    "Benchmark synthetic protocol outcomes are explicitly not real ZIL/Rust correctness or performance results.",
+    "The next closed-executable commit is outside this receipt and requires separate review."
+  ]
+}
