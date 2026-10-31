@@ -1,0 +1,1 @@
+import rules;pub struct Payload{n:i32}impl rules.Code for Payload{}

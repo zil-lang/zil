@@ -1,0 +1,1 @@
+import data;fn main()->i32{let x=data.make();return x.code()-13}
