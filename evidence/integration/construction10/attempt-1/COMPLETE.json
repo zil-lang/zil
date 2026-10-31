@@ -1,0 +1,219 @@
+{
+  "schema_version": 1,
+  "verdict": "Fail",
+  "run_id": 41182685056,
+  "run_attempt": 1,
+  "job_id": 124483160069,
+  "head_candidate": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+  "actual_checkout": "015cb5d4e6c7794de616e0a933520cd3dfa886f7",
+  "completed_at": "2026-10-31T08:15:03Z",
+  "workspace": {
+    "groups": 326,
+    "passed": 2967,
+    "failed": 6,
+    "ignored": 0
+  },
+  "reference": {
+    "groups": 326,
+    "passed": 2924,
+    "failed": 6,
+    "ignored": 0
+  },
+  "text_reference": {
+    "groups": 8,
+    "passed": 36,
+    "failed": 0,
+    "ignored": 0
+  },
+  "steps": [
+    {
+      "name": "Set up job",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Install the supported LLVM API toolchain",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Record exact checkout and restorable source history",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Formatting",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Record workspace resources before tests",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Complete workspace tests",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "Record workspace resources after tests",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Preserve workspace receipts before releasing its cache",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Preserve all workspace native evidence before releasing it",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Release only the archived workspace native evidence",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Release only the archived workspace compiler cache",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Record reference resources before tests",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Reference-only build and explicit unavailable control",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "Record reference resources after tests",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Preserve reference receipts before releasing its cache",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Preserve all reference native evidence before releasing it",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Release only the archived reference native evidence",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Release only the archived reference compiler cache",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Native API State and allocation-failure controls",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "All-target Clippy",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Explicit LLVM text-reference boundary",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Small recovery artifact, never target caches",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Complete job",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "consumer209": {
+    "status": "Pass",
+    "builds": 16,
+    "observations": 128,
+    "allocation_observations": 88,
+    "actual_failure_injections": 56,
+    "all_observed_live_zero": true,
+    "backend": "llvm-api",
+    "llvm_version": "23.1.4",
+    "fallback": null
+  },
+  "files": {
+    "reference.log": {
+      "path": "reference.log.gz",
+      "bytes": 313616,
+      "sha256": "f98079f317beef79297eab8b1c278eb300b72e415cf77bfefe8753c34caa23b6"
+    },
+    "consumer209.json": {
+      "path": "consumer209.json.gz",
+      "bytes": 76480,
+      "sha256": "5a1a534fb3714a6242c2fb88a2a80bc0d9ee9d8315a536af46bc150a25406377"
+    },
+    "migration-runner.log": {
+      "path": "migration-runner.log",
+      "bytes": 107,
+      "sha256": "80813fea2a5c418cf207c936fb2200286c24f040ff6f1c23936712ed80c7e1bb"
+    },
+    "text-reference.log": {
+      "path": "text-reference.log",
+      "bytes": 3931,
+      "sha256": "e1a853ac6f934084fd0dc388ed322b581946775eff3dce2b10a0360e611088fa"
+    },
+    "clippy.log": {
+      "path": "clippy.log",
+      "bytes": 1190,
+      "sha256": "30a28d039b42db027c1a0dbfa56c8f80323ff9744657eb11668f7ff0f297b86c"
+    },
+    "fmt.log": {
+      "path": "fmt.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "toolchain.txt": {
+      "path": "toolchain.txt",
+      "bytes": 404,
+      "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+    },
+    "llvm-api-toolchain.json": {
+      "path": "llvm-api-toolchain.json",
+      "bytes": 1397,
+      "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+    },
+    "commit.txt": {
+      "path": "commit.txt",
+      "bytes": 41,
+      "sha256": "c6b2722401e7733b386b10845aad2cedc113d695037c39c1ca86c9fcd3c691d0"
+    },
+    "job.log": {
+      "path": "job.log.gz",
+      "bytes": 1005134,
+      "sha256": "50e9c99938e383b63a9e56d4308b998d4252a46433eb65225b1d7be73be57690"
+    }
+  },
+  "interpretation": "The complete run failed. Passing other gates and scoped slices do not override workspace/reference failures; later corrected CI must obtain its own exact checkout and receipts."
+}

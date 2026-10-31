@@ -1,0 +1,233 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 124483160069,
+      "run_id": 41182685056,
+      "workflow_name": "Main source verification",
+      "head_branch": "integration/construction10",
+      "run_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/41182685056",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOVXdqJM8AAAAc-8ZIBQ",
+      "head_sha": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/jobs/124483160069",
+      "html_url": "https://github.com/zil-lang/zil/actions/runs/41182685056/job/124483160069",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-10-31T07:58:31Z",
+      "started_at": "2026-10-31T07:58:33Z",
+      "completed_at": "2026-10-31T08:15:03Z",
+      "name": "workspace",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-31T07:58:34Z",
+          "completed_at": "2026-10-31T07:58:34Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-31T07:58:34Z",
+          "completed_at": "2026-10-31T07:58:52Z"
+        },
+        {
+          "name": "Install the supported LLVM API toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-31T07:58:52Z",
+          "completed_at": "2026-10-31T07:59:27Z"
+        },
+        {
+          "name": "Record exact checkout and restorable source history",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-31T07:59:27Z",
+          "completed_at": "2026-10-31T07:59:39Z"
+        },
+        {
+          "name": "Formatting",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-31T07:59:39Z",
+          "completed_at": "2026-10-31T07:59:41Z"
+        },
+        {
+          "name": "Record workspace resources before tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-31T07:59:41Z",
+          "completed_at": "2026-10-31T07:59:41Z"
+        },
+        {
+          "name": "Complete workspace tests",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 7,
+          "started_at": "2026-10-31T07:59:41Z",
+          "completed_at": "2026-10-31T08:05:22Z"
+        },
+        {
+          "name": "Record workspace resources after tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-31T08:05:22Z",
+          "completed_at": "2026-10-31T08:05:30Z"
+        },
+        {
+          "name": "Preserve workspace receipts before releasing its cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-31T08:05:30Z",
+          "completed_at": "2026-10-31T08:05:33Z"
+        },
+        {
+          "name": "Preserve all workspace native evidence before releasing it",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-31T08:05:33Z",
+          "completed_at": "2026-10-31T08:06:35Z"
+        },
+        {
+          "name": "Release only the archived workspace native evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-31T08:06:35Z",
+          "completed_at": "2026-10-31T08:06:53Z"
+        },
+        {
+          "name": "Release only the archived workspace compiler cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-31T08:06:53Z",
+          "completed_at": "2026-10-31T08:06:54Z"
+        },
+        {
+          "name": "Record reference resources before tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-31T08:06:54Z",
+          "completed_at": "2026-10-31T08:06:54Z"
+        },
+        {
+          "name": "Reference-only build and explicit unavailable control",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 14,
+          "started_at": "2026-10-31T08:06:54Z",
+          "completed_at": "2026-10-31T08:12:04Z"
+        },
+        {
+          "name": "Record reference resources after tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-31T08:12:04Z",
+          "completed_at": "2026-10-31T08:12:10Z"
+        },
+        {
+          "name": "Preserve reference receipts before releasing its cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-31T08:12:10Z",
+          "completed_at": "2026-10-31T08:12:12Z"
+        },
+        {
+          "name": "Preserve all reference native evidence before releasing it",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-31T08:12:12Z",
+          "completed_at": "2026-10-31T08:13:05Z"
+        },
+        {
+          "name": "Release only the archived reference native evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-31T08:13:05Z",
+          "completed_at": "2026-10-31T08:13:19Z"
+        },
+        {
+          "name": "Release only the archived reference compiler cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-31T08:13:19Z",
+          "completed_at": "2026-10-31T08:13:20Z"
+        },
+        {
+          "name": "Native API State and allocation-failure controls",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-31T08:13:20Z",
+          "completed_at": "2026-10-31T08:14:26Z"
+        },
+        {
+          "name": "All-target Clippy",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-31T08:14:26Z",
+          "completed_at": "2026-10-31T08:14:50Z"
+        },
+        {
+          "name": "Explicit LLVM text-reference boundary",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-31T08:14:50Z",
+          "completed_at": "2026-10-31T08:14:51Z"
+        },
+        {
+          "name": "Small recovery artifact, never target caches",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-31T08:14:51Z",
+          "completed_at": "2026-10-31T08:15:00Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 46,
+          "started_at": "2026-10-31T08:15:00Z",
+          "completed_at": "2026-10-31T08:15:01Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 47,
+          "started_at": "2026-10-31T08:15:01Z",
+          "completed_at": "2026-10-31T08:15:01Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/zil-lang/zil/check-runs/124483160069",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000000085,
+      "runner_name": "GitHub Actions 1000000085",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}
