@@ -1,0 +1,9 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.44s
+     Running tests/impl194_copy_callable.rs (/workspace/scratch/e9af9764d083/targets/consumer/debug/deps/impl194_copy_callable-86c52be087e2f51e)
+
+running 1 test
+test uninstantiated_templates_do_not_gain_numeric_member_or_forged_capabilities ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 18 filtered out; finished in 0.03s
+
