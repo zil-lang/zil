@@ -505,7 +505,12 @@ fn large_file_chunks_preserve_owned_closures_drop_and_function_addresses() {
     source += "fn late()->i32{let t=make(66);let f=move()=>t.code;let p:fn(i32)->i32=padding0;return f()+p(0)-67;}\nfn main()->i32{return early()+late();}\n";
     d.write("main.zil", &source);
     let mut o = d.options(8, Optimization::O0);
-    for backend in [NativeBackend::LlvmApi, NativeBackend::Clang] {
+    for (backend, closed) in [
+        (NativeBackend::LlvmApi, false),
+        (NativeBackend::LlvmApi, true),
+        (NativeBackend::Clang, true),
+    ] {
+        o.closed_executable = closed;
         o.backend = backend;
         if backend == NativeBackend::Clang {
             o.object_cache = None;
@@ -528,4 +533,60 @@ fn large_file_chunks_preserve_owned_closures_drop_and_function_addresses() {
         assert_eq!(native.status.code(), Some(0));
         assert_eq!(native.stdout, b"AB");
     }
+}
+
+#[test]
+fn explicit_closed_build_preserves_native_behavior_and_separates_cache_identity() {
+    fn globals(path: &Path) -> String {
+        let output = Command::new("nm")
+            .args(["-g", "--defined-only"])
+            .arg(path)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        String::from_utf8(output.stdout).unwrap()
+    }
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let d = Dir::new();
+        d.write(
+            "main.zil",
+            "fn helper()->i32{return 21;}\nfn main()->i32{return helper()+helper();}\n",
+        );
+        let mut options = d.options(8, optimization);
+        for (closed, hits) in [(false, 0), (true, 0), (true, 1), (false, 1)] {
+            options.closed_executable = closed;
+            let report = d.build(&options);
+            success(&report, 42);
+            assert_eq!(
+                report.native_codegen.as_ref().unwrap().object_cache.hits,
+                hits
+            );
+            assert_eq!(
+                globals(&report.artifacts["executable"]).contains("zil.fn."),
+                !closed
+            );
+        }
+        options.closed_executable = true;
+        options.object_cache = None;
+        options.backend = NativeBackend::Clang;
+        let report = d.build(&options);
+        success(&report, 42);
+        assert!(!globals(&report.artifacts["executable"]).contains("zil.fn."));
+        let before = fs::read(&report.artifacts["executable"]).unwrap();
+        options.clang = Some(d.0.join("missing-clang"));
+        let failed = d.build(&options);
+        assert_eq!(failed.status, ResultCategory::InfraError);
+        assert_eq!(before, fs::read(&report.artifacts["executable"]).unwrap());
+    }
+    let d = Dir::new();
+    d.source();
+    let mut options = d.options(8, Optimization::O2);
+    options.closed_executable = true;
+    let report = d.build(&options);
+    success(&report, 42);
+    assert!(report.native_codegen.as_ref().unwrap().actual_units > 1);
+    assert!(
+        globals(&report.artifacts["executable"]).contains("zil.fn."),
+        "cross-unit definitions must remain available"
+    );
 }

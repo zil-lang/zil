@@ -97,6 +97,8 @@ pub struct BuildOptions {
     pub clang: PathBuf,
     pub output: PathBuf,
     pub optimization: Optimization,
+    /// Explicit Linux executable without generated ZIL symbol exports.
+    pub closed_executable: bool,
     pub codegen: CodegenOptions,
     pub emit: EmitOptions,
     pub windows: Option<WindowsLinkOptions>,
@@ -111,6 +113,7 @@ impl BuildOptions {
             clang: PathBuf::from("clang"),
             output: output.into(),
             optimization: Optimization::O0,
+            closed_executable: false,
             codegen: CodegenOptions::default(),
             windows: None,
             object_cache: None,
@@ -194,7 +197,7 @@ pub fn build_view_with_cancellation(
     // Diagnostic/reference output only. API preflight runs once per owned unit,
     // immediately before its LLVMBuilder calls; it cannot be bypassed.
     let llvm = machine.to_text();
-    let plan = crate::machine_cgu::partition_view(
+    let mut plan = crate::machine_cgu::partition_view(
         machine,
         lir,
         options.emit.entry,
@@ -215,6 +218,18 @@ pub fn build_view_with_cancellation(
             "E-OBJECT-CACHE-BACKEND",
             "object cache requires the LLVM API backend",
         ));
+    }
+    if options.closed_executable && lir.target.triple != "x86_64-unknown-linux-gnu" {
+        return Err(vec![Diagnostic::new(
+            Phase::Codegen,
+            ResultCategory::Unsupported,
+            "E-CODEGEN-CLOSED-TARGET",
+            "closed-executable code generation requires the Linux executable target",
+            None,
+        )]);
+    }
+    if options.closed_executable {
+        crate::machine_cgu::internalize_closed_executable(&mut plan.units, lir);
     }
     let mut cache_summary = ObjectCacheSummary {
         requested: options.object_cache.is_some(),
@@ -299,7 +314,16 @@ pub fn build_view_with_cancellation(
     let mut commands = Vec::new();
     let split = plan.units.len() > 1;
     let objects = if !split && options.backend == NativeBackend::Clang {
-        // Keep the legacy one-process Unix path exactly, including its flags.
+        // Keep one clang invocation, but an explicit closed build must consume
+        // the transformed unit rather than the public diagnostic sidecar.
+        let input = if options.closed_executable {
+            let input = staging.0.join("unit-0.ll");
+            fs::write(&input, plan.units[0].to_text())
+                .map_err(|e| io_error("write closed codegen unit", &input, e))?;
+            input
+        } else {
+            ir_path.clone()
+        };
         drop(plan.units);
         let mut command = Command::new(&options.clang);
         command
@@ -310,7 +334,7 @@ pub fn build_view_with_cancellation(
         if windows {
             command.arg("-c");
         }
-        command.arg(&ir_path).arg("-o").arg(if windows {
+        command.arg(&input).arg("-o").arg(if windows {
             &object_path
         } else {
             &executable_path

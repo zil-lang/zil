@@ -66,6 +66,8 @@ pub struct CompileOptions {
     pub object_cache: Option<PathBuf>,
     pub clang: Option<PathBuf>,
     pub optimization: zil_backend_llvm::Optimization,
+    /// Explicit Linux build without generated ZIL symbol exports; default false.
+    pub closed_executable: bool,
     pub codegen: CodegenOptions,
     pub windows: Option<zil_backend_llvm::WindowsLinkOptions>,
     pub target: TargetProfile,
@@ -88,6 +90,7 @@ impl Default for CompileOptions {
             object_cache: None,
             clang: None,
             optimization: zil_backend_llvm::Optimization::O0,
+            closed_executable: false,
             codegen: CodegenOptions::default(),
             windows: None,
             target: TargetProfile::host_llvm(),
