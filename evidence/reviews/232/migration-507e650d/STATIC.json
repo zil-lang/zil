@@ -1,0 +1,133 @@
+{
+  "candidate": "507e650d526653ccc79146366e4bb7c30b55ac84",
+  "baseline": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+  "changed_paths": [
+    "crates/zil-driver/tests/impl072_packages.rs",
+    "crates/zil-driver/tests/impl077_package_captures.rs",
+    "crates/zil-driver/tests/impl192_copy_fields.rs",
+    "crates/zil-driver/tests/impl232_fixture_support/mod.rs"
+  ],
+  "production_diff": [],
+  "unchanged_tests_or_blocks": [
+    {
+      "test": "packages072_immutable_field_take_preserves_sibling_and_copy_fields",
+      "unchanged_block_sha256": "c6ad8ebc315f25d2d7bff82f8c71aa1a68c2ce2dbc33285353a4382d204c708e"
+    },
+    {
+      "test": "packages072_refill_restores_whole_transfer_and_returns",
+      "unchanged_block_sha256": "d1ac854c0ffd03336db28a1130fff09c6ade3d7967320fd52303ae0a3943e7b3"
+    },
+    {
+      "test": "packages072_active_replacement_and_rhs_self_take",
+      "unchanged_block_sha256": "b4a2d64237dcf5c84525165ec519102d4c1e5f807cc27f2295e50ded6d8f5f7a"
+    },
+    {
+      "test": "packages072_conditional_empty_slot_can_be_refilled_after_join",
+      "unchanged_block_sha256": "48b0791c27f32d410cf375d1eb030bfff5f78a9db87495a1736a379ec784bf77"
+    },
+    {
+      "test": "packages072_loop_take_refill_reestablishes_whole_shape",
+      "unchanged_block_sha256": "255efd2e1e61718a3037a3c105b21bda7cf48e24ffb6c604628c0e1323f4d4b5"
+    },
+    {
+      "test": "packages072_live_sibling_descriptor_and_finished_old_descriptor_are_allowed",
+      "unchanged_block_sha256": "5531c9710e025ae6985b8b19543137e3f597523071054ded38faf97f2193c618"
+    },
+    {
+      "test": "packages072_replacement_preparation_can_fail_before_or_after_self_take",
+      "unchanged_block_sha256": "5c8fc932849f103119337bcc549120b246677cb2cafd6ef8994b5bed10fe92be"
+    },
+    {
+      "test": "packages072_closure_body_owns_its_own_local_package",
+      "unchanged_block_sha256": "11f661438c97548093f6d62e776ce99299e51d1352e1988cec29ae84386f4bf3"
+    },
+    {
+      "test": "packages072_immutable_shell_resource_payload_writes_match_inside_closures",
+      "unchanged_block_sha256": "14cacda0aa3b3b3c598a5199c85aeb74609bcd7512ed8867c23b1f1efb26f33d"
+    },
+    {
+      "test": "packages072_prepared_owner_precedes_explicit_old_cleanup_and_commit",
+      "unchanged_block_sha256": "a2943d61082909d5a55f4c2f3e83eca355448a99d195e68ddad1a2c238ac3269"
+    },
+    {
+      "test": "packages072_partial_whole_boundary_and_repeated_take_are_rejected",
+      "unchanged_block_sha256": "7a67ecaf614d38f0d2579d686849e7026aa35a0f5631c3b3c880aa8a59860fcb"
+    },
+    {
+      "test": "packages072_maybe_missing_field_and_loop_missing_refill_are_rejected",
+      "unchanged_block_sha256": "7eb59ab5f7a41473126d75671a8d7d65a7a283d4cf38d8c46bfbc779c603e155"
+    },
+    {
+      "test": "packages072_live_old_descriptors_aliases_and_captures_block_invalidation",
+      "unchanged_block_sha256": "043ab0ef2543a0904684455f32566844dc34d244e63143ad02d8fea1abdc2b3e"
+    },
+    {
+      "test": "packages072_rhs_moving_shell_cannot_commit_into_it",
+      "unchanged_block_sha256": "a8ae5d81281d0b06d929984e6344b75f71fa35bbe5879694b9e4ea333f1f20c7"
+    },
+    {
+      "test": "packages072_mutability_exact_resource_type_and_ownership_are_preserved",
+      "unchanged_block_sha256": "ec7b68323a7f5141e4785bfa1c6170262617f8a077cf4285886e7af967916146"
+    },
+    {
+      "test": "packages072_raw_field_store_cannot_skip_old_cleanup_or_change_permissions",
+      "unchanged_block_sha256": "db9663a9b8839b97de306218702d6ad7669674be4ba3bc838652f48375f4fcb3"
+    },
+    {
+      "test": "packages072_direct_operations_keep_defining_module_field_privacy",
+      "unchanged_block_sha256": "67f02f40943c30a4cc79f6619201abaee744382268791375352d6d2fabac7a46"
+    },
+    {
+      "test": "captures077_factory_owns_package_and_shared_calls_do_not_copy_it",
+      "unchanged_block_sha256": "fdda3335e7e96fac771fa82b86196595bcd3dc9286d506548907b0a58dd5abbb"
+    },
+    {
+      "test": "captures077_copy_payload_and_descriptor_helper_writes_are_fnmut",
+      "unchanged_block_sha256": "b57f5bea5e095f0d9818c3c55a21457de1c0928da7cbd951a74a86d7ea45118e"
+    },
+    {
+      "test": "captures077_refill_after_take_and_conditional_take_is_repeatable",
+      "unchanged_block_sha256": "0694306aa19f4258174243b4525564d368ab7480c53b4e7fac12f4da022e4724"
+    },
+    {
+      "test": "captures077_loop_break_continue_and_lexical_shadowing_preserve_slots",
+      "unchanged_block_sha256": "5c27a8cd8ffb97ad1ec25ca212bac34c0b2a253c6f38e33791f7ccd473f25125"
+    },
+    {
+      "test": "captures077_error_edges_choose_once_only_when_responsibility_is_missing",
+      "unchanged_block_sha256": "cfa40d71c66d8e4f13ec594a11c4130448a3737fac33432a1042dde1412a07cb"
+    },
+    {
+      "test": "captures077_partial_whole_and_early_return_use_once",
+      "unchanged_block_sha256": "f0d333490c8a4462064e5990b26655881562baa85f4a0fc486056b02b13b00b0"
+    },
+    {
+      "test": "captures077_analyze_rebuilds_binding_and_activation_boundaries",
+      "unchanged_block_sha256": "5f8969cc0d60c4ee8b83c759e834052fe809cc1d23b62ec1ecdb673d6454875f"
+    },
+    {
+      "test": "captures077_type_and_analyze_work_limits_fail_closed_at_exact_boundary",
+      "unchanged_block_sha256": "6dad830aede5601dc294023af2685c9a0180aafd2c6e9a6c4298a80822945d86"
+    },
+    {
+      "test": "captures077_repeatable_restoration_is_a_return_obligation_not_a_trap_obligation",
+      "unchanged_block_sha256": "41bb5939e904440a62720f23c66dd058d73be23a289d146df9a911a7916ce1eb"
+    },
+    {
+      "block": "077_remaining_four_source_negatives",
+      "sha256": "69f498afe58773cea4ed8e3e523f447b022b2a8379194e9da2d8240906304da7",
+      "unchanged_after_only_original_first_input_promotion": true
+    },
+    {
+      "block": "077_shared_write_and_unrestored_fnmut_tail",
+      "sha256": "f5f56c96698f04e969a2b823bbc5750f170c806d4c4da500a8fedea8dc926bd5",
+      "unchanged": true
+    },
+    {
+      "file": "impl192_copy_fields.rs",
+      "only_exact_diagnostic_expression_changed": true
+    }
+  ],
+  "count_unchanged_original_test_blocks": 26,
+  "result": "Pass"
+}
