@@ -7,3 +7,5 @@
 新增工作先收费；只在首次名义where路径惰性构建现有trait索引。无where与无新增模块解析的纯Copy路径保持原费用；跨模块where实际新解析允许记录旧/新费用及N/N−1/fresh。旧impl229 unknown-bound Marker与review229 separate-invalid-clause按新合同保留原文晋升，并以缺失/泛型trait补最近拒绝；原始历史证据不改。
 
 主写集：expand generic_where.rs、modules.rs、generic_trait_bounds.rs（仅复用既有声明资格入口）及必要generics.rs名字接点；impl231测试、where_traits231消费者与本单证据。需非作者精确提交审查、跨模块公开/私有/缺失、遮蔽、无impl、未调用坏定义、内联等价及LLVM O0/O2对照。
+
+首轮完整CI 41182685056确认review229_joint也含同一旧Marker拒绝边界：按本已冻结合同保留原文晋升，另补最近缺失/泛型trait拒绝；属于遗漏的旧输入迁移，不改变生产、预算或权限范围，原Fail保留。
