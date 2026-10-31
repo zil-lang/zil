@@ -372,7 +372,7 @@ fn real_nominals_and_generic_wrappers_keep_scoped_native_identity() {
     use std::process::Command;
     use zil_driver::{NativeBackend, Optimization};
     const LOCAL: &str = "struct T{x:i32}struct Wrap<T>{value:T}fn duplicate<T>(x:T)->(T,T) where T:Copy=>(x,x);fn concrete<U>(x:U)->i32 where U:Copy{let pair=duplicate(x);let t=T{x:9};return t.x}fn main()->i32{let a=duplicate(T{x:6});let b=duplicate(Wrap::<i32>{value:7});return a.1.x+b.1.value+concrete(true)-22}";
-    const HELPER: &str = "pub struct T{x:i32}pub struct Wrap<T>{value:T}pub fn duplicate<T>(x:T)->(T,T) where T:Copy=>(x,x);pub fn make()->T=>T{x:6};pub fn wrapper()->Wrap<i32> =>Wrap::<i32>{value:7}";
+    const HELPER: &str = "pub struct T{pub x:i32}pub struct Wrap<T>{pub value:T}pub fn duplicate<T>(x:T)->(T,T) where T:Copy=>(x,x);pub fn make()->T=>T{x:6};pub fn wrapper()->Wrap<i32> =>Wrap::<i32>{value:7}";
     const ROOT: &str = "import helper\nfn main()->i32{let a=helper.duplicate(helper.make());let b=helper.duplicate(helper.wrapper());return a.1.x+b.1.value-13}";
     for optimization in [Optimization::O0, Optimization::O2] {
         for project_mode in [false, true] {
