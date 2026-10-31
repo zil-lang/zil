@@ -161,3 +161,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 共同实现 4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41 保留作者与非作者审查身份；正式候选 f4c742fd8bb9567120902812c9a7117928784e5c 的 PR run41088376020 通过；原PR9合并39e52ef7的main run41101248493保留Fail。stdin测试驱动修复经非作者复核后进入新的主线合并 ccae8c60c96a2c174b137b2fab084e9e8a97a02f，其 main run41106864272 全部必需门通过。默认 2861/0/0、参考 2826/0/0；机器故障控制、Clippy、text-reference与迁移门均按实际原收据核回。原Fail/Incomplete和Superseded分别保留，不叠加本地132/19或作者/独审重放。
 
 施工7原29份check输入现15成功/12Unsupported/2原语法无效，0native、旧成功零回退。本轮有限#for、完整Product Store及同步共享Product已能组合；defer普通lowering、&Product闭包捕获、拥有捕获Store<Product>、完整Type/Syntax和更深拥有/长期外部生命周期继续保留。B0/181、完整1.4、全部ZUI、原生Windows及Rust产品四目标未因此完成；编译性能研究分支独立。详见 docs/LANGUAGE-222-224.md 与 evidence/integration/222-224/closeout/ACCEPTANCE.json。
+
+## 2026-10-31 施工8下一阶段225–227
+
+222–224已验收的五个实施/集成/修复分支经逐SHA祖先检查清理，transport仅归档不混入main；编译研究支线及未合任务保留。225推进完整Product Store拥有捕获，226推进同步共享Product捕获（来源区分为必要前置），227先固定普通defer退出/清理合同。没有子代理接口时不虚构独审；新实现仍需独立审核方可合入，父B0、完整1.4/ZUI、原生Windows与四目标产品门保持。

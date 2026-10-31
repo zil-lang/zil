@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "status": "Fail",
+  "baseline": "42ce8081a2aa5722a14fea53f23f819f46685a60",
+  "exit_code": 1,
+  "original_stdout_sha256": "34a30dd033b7d612e7bf8c1948b111ec8a1019cea842d10f1cf00dfbb97859b1",
+  "full_output_local": "/mnt/data/handoff-resume.log",
+  "unpublished_full_output_checkpoint": "68c50700f6477b1091947382fb3081aea73e4920",
+  "note": "Historical integrity failures retained separately from compiler acceptance; no new clean handoff claim. Local checkpoint is not asserted to be published."
+}
