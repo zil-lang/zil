@@ -1,0 +1,9 @@
+{
+  "kind": "screens",
+  "status": "AllBlobsAndSidecarsMatch",
+  "paths": 2274,
+  "unique_blobs": 534,
+  "omitted_paths": 1822,
+  "identity_sha256": "72556c392754a99857fcc4d93887035acb43184394efb2838d4765ca7edbcb94",
+  "verified_utc": "2026-10-31T11:44:48.413875+00:00"
+}

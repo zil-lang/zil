@@ -1,0 +1,297 @@
+{
+  "kind": "correctness",
+  "roots": [
+    {
+      "archive_prefix": "research/stage6-review",
+      "source_path": "/workspace/.zil-env/research/stage6-review"
+    },
+    {
+      "archive_prefix": "research/stage6-semantic-review",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review"
+    },
+    {
+      "archive_prefix": "research/stage6-semantic",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic"
+    },
+    {
+      "archive_prefix": "research/stage6-session-final-probe-controls",
+      "source_path": "/workspace/.zil-env/research/stage6-session-final-probe-controls"
+    },
+    {
+      "archive_prefix": "research/stage6-session-protocol-smoke",
+      "source_path": "/workspace/.zil-env/research/stage6-session-protocol-smoke"
+    },
+    {
+      "archive_prefix": "research/stage6-session-baseline-smoke",
+      "source_path": "/workspace/.zil-env/research/stage6-session-baseline-smoke"
+    },
+    {
+      "archive_prefix": "research/stage6-baseline-session-probe",
+      "source_path": "/workspace/.zil-env/research/stage6-baseline-session-probe"
+    },
+    {
+      "archive_prefix": "research/stage6-old-db-ablation",
+      "source_path": "/workspace/.zil-env/research/stage6-old-db-ablation"
+    },
+    {
+      "archive_prefix": "research/stage6-analysis",
+      "source_path": "/workspace/.zil-env/research/stage6-analysis"
+    },
+    {
+      "archive_prefix": "research/stage6-algorithms-review",
+      "source_path": "/workspace/.zil-env/research/stage6-algorithms-review"
+    },
+    {
+      "archive_prefix": "research/stage6-semantic-cache-integration-clippy.log",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-cache-integration-clippy.log"
+    },
+    {
+      "archive_prefix": "research/stage6-semantic-cache-integration.log",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-cache-integration.log"
+    },
+    {
+      "archive_prefix": "research/stage6-session-protocol-smoke.log",
+      "source_path": "/workspace/.zil-env/research/stage6-session-protocol-smoke.log"
+    },
+    {
+      "archive_prefix": "research/reactive-db-tests.log",
+      "source_path": "/workspace/.zil-env/research/reactive-db-tests.log"
+    },
+    {
+      "archive_prefix": "research/reactive-driver-tests.log",
+      "source_path": "/workspace/.zil-env/research/reactive-driver-tests.log"
+    },
+    {
+      "archive_prefix": "research/stage6-merge-review/api-tests.log",
+      "source_path": "/workspace/.zil-env/research/stage6-merge-review/api-tests.log"
+    },
+    {
+      "archive_prefix": "research/stage6-merge-review/cli-tests.log",
+      "source_path": "/workspace/.zil-env/research/stage6-merge-review/cli-tests.log"
+    },
+    {
+      "archive_prefix": "research/stage6-merge-review/commit.txt",
+      "source_path": "/workspace/.zil-env/research/stage6-merge-review/commit.txt"
+    },
+    {
+      "archive_prefix": "research/stage6-merge-review/driver-tests.log",
+      "source_path": "/workspace/.zil-env/research/stage6-merge-review/driver-tests.log"
+    },
+    {
+      "archive_prefix": "research/stage6-merge-review/resource-tests.log",
+      "source_path": "/workspace/.zil-env/research/stage6-merge-review/resource-tests.log"
+    },
+    {
+      "archive_prefix": "research/stage6-merge-review/review.json",
+      "source_path": "/workspace/.zil-env/research/stage6-merge-review/review.json"
+    },
+    {
+      "archive_prefix": "research/stage6-merge-review/review.md",
+      "source_path": "/workspace/.zil-env/research/stage6-merge-review/review.md"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-api-tests.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-api-tests.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-cli-tests-initial-missing-mode-guard.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-cli-tests-initial-missing-mode-guard.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-cli-tests.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-cli-tests.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-clippy-final.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-clippy-final.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-clippy.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-clippy.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-driver-tests.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-driver-tests.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-fmt-final.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-fmt-final.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-fmt.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-fmt.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-release.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-release.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screen-closed-after.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screen-closed-after.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screen-closed-before-and-after.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screen-closed-before-and-after.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screen-default-after.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screen-default-after.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screen-default-before-and-after.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screen-default-before-and-after.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screens.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screens.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-author.md",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-author.md"
+    },
+    {
+      "archive_prefix": "research/stage6/rust-source",
+      "source_path": "/workspace/.zil-env/research/stage6/rust-source"
+    },
+    {
+      "archive_prefix": "research/stage6/rust-o2-comparison.md",
+      "source_path": "/workspace/.zil-env/research/stage6/rust-o2-comparison.md"
+    },
+    {
+      "archive_prefix": "research/stage6/session-preparation.json",
+      "source_path": "/workspace/.zil-env/research/stage6/session-preparation.json"
+    },
+    {
+      "archive_prefix": "research/stage6/session-preparation-paused.json",
+      "source_path": "/workspace/.zil-env/research/stage6/session-preparation-paused.json"
+    },
+    {
+      "archive_prefix": "research/stage6/session-prepared-protocol-controls",
+      "source_path": "/workspace/.zil-env/research/stage6/session-prepared-protocol-controls"
+    },
+    {
+      "archive_prefix": "research/stage6-merge-tools/shape-functional-audit.json",
+      "source_path": "/workspace/.zil-env/research/stage6-merge-tools/shape-functional-audit.json"
+    },
+    {
+      "archive_prefix": "research/stage6-merge-tools/tool-controls.json",
+      "source_path": "/workspace/.zil-env/research/stage6-merge-tools/tool-controls.json"
+    },
+    {
+      "archive_prefix": "research/stage6-merge-tools/runtime-failure",
+      "source_path": "/workspace/.zil-env/research/stage6-merge-tools/runtime-failure"
+    },
+    {
+      "archive_prefix": "research/stage6-merge-tools/real-failure",
+      "source_path": "/workspace/.zil-env/research/stage6-merge-tools/real-failure"
+    },
+    {
+      "archive_prefix": "research/stage6-merge-tools/runtime-existing-functional",
+      "source_path": "/workspace/.zil-env/research/stage6-merge-tools/runtime-existing-functional"
+    },
+    {
+      "archive_prefix": "research/stage6-merge-tools/real-existing-functional",
+      "source_path": "/workspace/.zil-env/research/stage6-merge-tools/real-existing-functional"
+    },
+    {
+      "archive_prefix": "research/stage6/runtime-smoke",
+      "source_path": "/workspace/.zil-env/research/stage6/runtime-smoke"
+    },
+    {
+      "archive_prefix": "research/stage6/runtime-wired-smoke",
+      "source_path": "/workspace/.zil-env/research/stage6/runtime-wired-smoke"
+    },
+    {
+      "archive_prefix": "research/stage6/shape-smoke",
+      "source_path": "/workspace/.zil-env/research/stage6/shape-smoke"
+    },
+    {
+      "archive_prefix": "research/stage6/runtime-smoke.log",
+      "source_path": "/workspace/.zil-env/research/stage6/runtime-smoke.log"
+    },
+    {
+      "archive_prefix": "research/stage6/runtime-wired-smoke.log",
+      "source_path": "/workspace/.zil-env/research/stage6/runtime-wired-smoke.log"
+    },
+    {
+      "archive_prefix": "research/stage6/shape-smoke.log",
+      "source_path": "/workspace/.zil-env/research/stage6/shape-smoke.log"
+    },
+    {
+      "archive_prefix": "research/stage6/cli-o2.log",
+      "source_path": "/workspace/.zil-env/research/stage6/cli-o2.log"
+    },
+    {
+      "archive_prefix": "research/stage6/cli-o2-wired.log",
+      "source_path": "/workspace/.zil-env/research/stage6/cli-o2-wired.log"
+    },
+    {
+      "archive_prefix": "research/stage6/clippy-initial.log",
+      "source_path": "/workspace/.zil-env/research/stage6/clippy-initial.log"
+    },
+    {
+      "archive_prefix": "research/stage6/fmt-initial.log",
+      "source_path": "/workspace/.zil-env/research/stage6/fmt-initial.log"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/stage6_session_probe.rs",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_session_probe.rs"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/stage6_session_bench.py",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_session_bench.py"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/stage6_runtime.py",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_runtime.py"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/stage6_merge_runtime.py",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_merge_runtime.py"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/stage6_real_pair_bench.py",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_real_pair_bench.py"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/stage6_bench.py",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_bench.py"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/stage6_archive.py",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive.py"
+    }
+  ],
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 1700,
+      "bytes": 1174560801
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 156,
+      "bytes": 430646440
+    },
+    {
+      "class": "ephemeral-rust-incremental-lock",
+      "files": 71,
+      "bytes": 0
+    },
+    {
+      "class": "generated-python-bytecode",
+      "files": 2,
+      "bytes": 38661
+    },
+    {
+      "class": "large-functional-semantic-cache-candidate",
+      "files": 60,
+      "bytes": 117480207
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 48338,
+      "bytes": 421916409
+    }
+  ]
+}

@@ -1,0 +1,317 @@
+{
+  "scope": "Archive coverage checks only, not rerun compiler tests.",
+  "fault_stubs": [
+    {
+      "path": "research/stage6-review/runtime-fault-results/2048-arithmetic/incremental",
+      "source_path": "/workspace/.zil-env/research/stage6-review/runtime-fault-results/2048-arithmetic/incremental",
+      "bytes": 29,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "6d9d8bab02b1b20c6a5989e08f64787a3ddc44c20c1eb5417297e7464c865bd6",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/6d9d8bab02b1b20c6a5989e08f64787a3ddc44c20c1eb5417297e7464c865bd6"
+    },
+    {
+      "path": "research/stage6-review/runtime-fault-results/2048-branch/incremental",
+      "source_path": "/workspace/.zil-env/research/stage6-review/runtime-fault-results/2048-branch/incremental",
+      "bytes": 29,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "6d9d8bab02b1b20c6a5989e08f64787a3ddc44c20c1eb5417297e7464c865bd6",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/6d9d8bab02b1b20c6a5989e08f64787a3ddc44c20c1eb5417297e7464c865bd6"
+    },
+    {
+      "path": "research/stage6-review/runtime-fault-results/512-arithmetic/incremental",
+      "source_path": "/workspace/.zil-env/research/stage6-review/runtime-fault-results/512-arithmetic/incremental",
+      "bytes": 29,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "6d9d8bab02b1b20c6a5989e08f64787a3ddc44c20c1eb5417297e7464c865bd6",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/6d9d8bab02b1b20c6a5989e08f64787a3ddc44c20c1eb5417297e7464c865bd6"
+    },
+    {
+      "path": "research/stage6-review/runtime-fault-results/512-body/incremental",
+      "source_path": "/workspace/.zil-env/research/stage6-review/runtime-fault-results/512-body/incremental",
+      "bytes": 29,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "6d9d8bab02b1b20c6a5989e08f64787a3ddc44c20c1eb5417297e7464c865bd6",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/6d9d8bab02b1b20c6a5989e08f64787a3ddc44c20c1eb5417297e7464c865bd6"
+    },
+    {
+      "path": "research/stage6-review/runtime-fault-results/512-branch/incremental",
+      "source_path": "/workspace/.zil-env/research/stage6-review/runtime-fault-results/512-branch/incremental",
+      "bytes": 29,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "6d9d8bab02b1b20c6a5989e08f64787a3ddc44c20c1eb5417297e7464c865bd6",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/6d9d8bab02b1b20c6a5989e08f64787a3ddc44c20c1eb5417297e7464c865bd6"
+    },
+    {
+      "path": "research/stage6-review/runtime-fault-results/8192-arithmetic/incremental",
+      "source_path": "/workspace/.zil-env/research/stage6-review/runtime-fault-results/8192-arithmetic/incremental",
+      "bytes": 29,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "6d9d8bab02b1b20c6a5989e08f64787a3ddc44c20c1eb5417297e7464c865bd6",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/6d9d8bab02b1b20c6a5989e08f64787a3ddc44c20c1eb5417297e7464c865bd6"
+    }
+  ],
+  "small_semantic_tamper_candidates": [
+    {
+      "path": "research/stage6-semantic-review/cli-controls/cache/semantic-v1/13dec4180b3f13a3d939515da392461a2f605efdfd0737236acb7b07eb587121.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/cli-controls/cache/semantic-v1/13dec4180b3f13a3d939515da392461a2f605efdfd0737236acb7b07eb587121.candidate",
+      "bytes": 1423,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "c9df4341242d284af4bc3c8690fce664d77eeb719b1c03f653c31fc0ecc35ab0",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/c9df4341242d284af4bc3c8690fce664d77eeb719b1c03f653c31fc0ecc35ab0"
+    },
+    {
+      "path": "research/stage6-semantic-review/cli-controls/cache/semantic-v1/997acea4452009f91abb4814c66550de5514614dca705df087c6695cd8b5fcd6.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/cli-controls/cache/semantic-v1/997acea4452009f91abb4814c66550de5514614dca705df087c6695cd8b5fcd6.candidate",
+      "bytes": 1423,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "3cc10bc31765658474cd2aa0c5b9771bb158e216f5c22fc80c526dca0e1b754a",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/3cc10bc31765658474cd2aa0c5b9771bb158e216f5c22fc80c526dca0e1b754a"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/1856bdafad152411cc838a1eb597686dbfc855948f3025a416ef624fa7e6376c.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/1856bdafad152411cc838a1eb597686dbfc855948f3025a416ef624fa7e6376c.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "f8dad88a6dc84079497d262c33c93ac5d0d282cabd5b0e6a3ca3c1b90f6596c5",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/f8dad88a6dc84079497d262c33c93ac5d0d282cabd5b0e6a3ca3c1b90f6596c5"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/194549a9625b091d75ba8772196f7cea640ccc3cd16e5a1da7cf8659a1d9c5cc.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/194549a9625b091d75ba8772196f7cea640ccc3cd16e5a1da7cf8659a1d9c5cc.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "7ae04ddf14de4217228cb826c38eed14fced98268f79efa542b1a3bf7a8c176e",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/7ae04ddf14de4217228cb826c38eed14fced98268f79efa542b1a3bf7a8c176e"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/216cb6316269feba7e6056746b1ea44785ea343638501f81c49ae9617311171a.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/216cb6316269feba7e6056746b1ea44785ea343638501f81c49ae9617311171a.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "6cf87b7f77b144444b571b41968aa84901eb9531b114dad14450f14653bba89a",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/6cf87b7f77b144444b571b41968aa84901eb9531b114dad14450f14653bba89a"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/282da30903480e440e85a226ee26e27d1141d12fbf7bb1f9d6ac6af309f45cc1.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/282da30903480e440e85a226ee26e27d1141d12fbf7bb1f9d6ac6af309f45cc1.candidate",
+      "bytes": 938,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "ec3acadcb8378ce561a697c5316090fa54b2e64177e1a6f2a62d73b6caa5abcf",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/ec3acadcb8378ce561a697c5316090fa54b2e64177e1a6f2a62d73b6caa5abcf"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/298a844e4e69a777833363d9307dcd76105cc1cd1bfbb6962bfb2c547bee33c9.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/298a844e4e69a777833363d9307dcd76105cc1cd1bfbb6962bfb2c547bee33c9.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "87b7edb07ba79d7dc84f6955dfd9b93c1f76f45aac55764f8b21b62cd2ba24f6",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/87b7edb07ba79d7dc84f6955dfd9b93c1f76f45aac55764f8b21b62cd2ba24f6"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/2c5de4f516ae5697d6e2f720ea0f83a683284ea0b8d59d85f9661a160885735d.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/2c5de4f516ae5697d6e2f720ea0f83a683284ea0b8d59d85f9661a160885735d.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "5d56317babf8508d63281a59bc090bf06e45cd08e66e66c9537d0b3cddb86e8e",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/5d56317babf8508d63281a59bc090bf06e45cd08e66e66c9537d0b3cddb86e8e"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/2ce98000f99b160c2cda5ca8c03e45e7e5f6e4ec6737cd1b672ee9b4b6e32430.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/2ce98000f99b160c2cda5ca8c03e45e7e5f6e4ec6737cd1b672ee9b4b6e32430.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "fa9e70e535539b69b39f09f26f07c21774edf88e1d999815f04c2c4745253a9c",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/fa9e70e535539b69b39f09f26f07c21774edf88e1d999815f04c2c4745253a9c"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/332bea15af0dc0edac78cff6ec50ca81b11514108ab5fd9891971e53510de5b0.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/332bea15af0dc0edac78cff6ec50ca81b11514108ab5fd9891971e53510de5b0.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "8c7c6c06e773863d305cc3a0b2201880df94cbec4d106486894b8c49be72e976",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/8c7c6c06e773863d305cc3a0b2201880df94cbec4d106486894b8c49be72e976"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/3544182d3e775a8bbc27d8779425663709e8e7a2a557a7df7be6235e0297babd.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/3544182d3e775a8bbc27d8779425663709e8e7a2a557a7df7be6235e0297babd.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "12b4cfa2398fce1c0f6a078903231d4c129d08eb65fa59e79233d1009b8932ec",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/12b4cfa2398fce1c0f6a078903231d4c129d08eb65fa59e79233d1009b8932ec"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/3957deece0da343bedc0fc9140a10fa9082e905e09a6b1e815f9a15211d9950a.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/3957deece0da343bedc0fc9140a10fa9082e905e09a6b1e815f9a15211d9950a.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "337bf054bc92579b737ba3784d4b056beaf10a73e078b7af80e3c56f0564399e",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/337bf054bc92579b737ba3784d4b056beaf10a73e078b7af80e3c56f0564399e"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/4792ec44ff4d3e519a1b1ce451bbfd6e28f09fb8438ade70ceef0ea3c90babc9.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/4792ec44ff4d3e519a1b1ce451bbfd6e28f09fb8438ade70ceef0ea3c90babc9.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "1efd60b9e4e8378d8c8b431146824bde2550b26ac5a6814b11815bdeb7e0f6f2",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/1efd60b9e4e8378d8c8b431146824bde2550b26ac5a6814b11815bdeb7e0f6f2"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/67c4a2f449183640fbc6d5d9218d09aea4aabdfe679b48e43da3efb6314029b1.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/67c4a2f449183640fbc6d5d9218d09aea4aabdfe679b48e43da3efb6314029b1.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "7164835ed0b44a759bdc7f03d93fda425292ef6525a4b8874b79abe26d62c4a5",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/7164835ed0b44a759bdc7f03d93fda425292ef6525a4b8874b79abe26d62c4a5"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/727bb0bdff15e5a2ad9e70215a827f3b4cbecc74fd2769f8438c6431a6039f74.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/727bb0bdff15e5a2ad9e70215a827f3b4cbecc74fd2769f8438c6431a6039f74.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "32e97216fd53a3b6d34c0fa151248309bc1717a25fde7b655d1e8be7f32f1727",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/32e97216fd53a3b6d34c0fa151248309bc1717a25fde7b655d1e8be7f32f1727"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/82760a823f63c04494355bc8d8cb6d7ad3f6bff78533af7f249bff462dca9641.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/82760a823f63c04494355bc8d8cb6d7ad3f6bff78533af7f249bff462dca9641.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "6ce20ed9b95b3a6fd4098badee65f0af233cf52e20a1dedb48835d15b66bfb56",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/6ce20ed9b95b3a6fd4098badee65f0af233cf52e20a1dedb48835d15b66bfb56"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/91b70421aac20983000b1da830f99d48407344a0b7d60634712e83f109ca1e46.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/91b70421aac20983000b1da830f99d48407344a0b7d60634712e83f109ca1e46.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "d0109cd5dfd2c15aa3ed0a2281351a2688dcea8ebec77deabb71dc38c72a6884",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/d0109cd5dfd2c15aa3ed0a2281351a2688dcea8ebec77deabb71dc38c72a6884"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/9930097fdb2b683e9392943cd91fedaf344f2227d27542928655e703c9ccb2a1.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/9930097fdb2b683e9392943cd91fedaf344f2227d27542928655e703c9ccb2a1.candidate",
+      "bytes": 944,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "8cbd4aea018b0f0efcfd4864a5361836a41ae72e1c9920fa6fb575201d9d13c9",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/8cbd4aea018b0f0efcfd4864a5361836a41ae72e1c9920fa6fb575201d9d13c9"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/9ec844eafd5fec58b17c62a2c0e990c92362896843b853ddb0bd6b5104cf5571.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/9ec844eafd5fec58b17c62a2c0e990c92362896843b853ddb0bd6b5104cf5571.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "054fcfc1e0a6fc62e90b0daaee753ec30e7761719aa2c0b6617169f0597c4559",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/054fcfc1e0a6fc62e90b0daaee753ec30e7761719aa2c0b6617169f0597c4559"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/9f4ee17b692f95d534652dcc77005b8d0563ce256c48ebc36e9a2bd1c6ea9b4c.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/9f4ee17b692f95d534652dcc77005b8d0563ce256c48ebc36e9a2bd1c6ea9b4c.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "14582721cb3a737a473e98695d1f71d83db95c647d2c0120b509140379ae5690",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/14582721cb3a737a473e98695d1f71d83db95c647d2c0120b509140379ae5690"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/bb333698f015d715df2895617565c69748a84ddf7ba77965c2f346a485c7a0fe.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/bb333698f015d715df2895617565c69748a84ddf7ba77965c2f346a485c7a0fe.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "38bb264de122d17956c6d5bcdc78550fb92444dda6632766f58e6716eeff0503",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/38bb264de122d17956c6d5bcdc78550fb92444dda6632766f58e6716eeff0503"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/dad2f329b33cc8d7bea3b264f07a4b0302d5dd9fa5d0173f2b475acf89759dd0.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/dad2f329b33cc8d7bea3b264f07a4b0302d5dd9fa5d0173f2b475acf89759dd0.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "7bc543d1692521d61c564327d4181483192720bd742e5b415eda17cedcdcd69f",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/7bc543d1692521d61c564327d4181483192720bd742e5b415eda17cedcdcd69f"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/ee773c82b4c4f1281421f2a14d39a0649a20fbaefe7b3a62ba824e5f6032aec8.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/ee773c82b4c4f1281421f2a14d39a0649a20fbaefe7b3a62ba824e5f6032aec8.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "3e29eb45fbeedb6e816dc2da32c1eae6d1b83aca874effa51667211eab4d5b0e",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/3e29eb45fbeedb6e816dc2da32c1eae6d1b83aca874effa51667211eab4d5b0e"
+    },
+    {
+      "path": "research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/eef1af6b70d977d1360556e3bc9892f401074296f278f3dc853b6629ba3a7726.candidate",
+      "source_path": "/workspace/.zil-env/research/stage6-semantic-review/identity-budget-controls/cache/semantic-v1/eef1af6b70d977d1360556e3bc9892f401074296f278f3dc853b6629ba3a7726.candidate",
+      "bytes": 940,
+      "mode": 384,
+      "disposition": "retain",
+      "sha256": "618d7e8afd05e08060c6730a5eaea71acaa19276c2b7d5383338eadbd016949a",
+      "sha256_scope": "file-bytes",
+      "archive_member": "blobs/sha256/618d7e8afd05e08060c6730a5eaea71acaa19276c2b7d5383338eadbd016949a"
+    }
+  ],
+  "required_review_and_preparation_receipts": [
+    "stage6-review/review.json",
+    "stage6-semantic-review/review.json",
+    "stage6-merge-review/review.json",
+    "stage6-algorithms-review/review.json",
+    "stage6-merge-tools/shape-functional-audit.json",
+    "stage6/session-preparation.json",
+    "stage6/session-preparation-paused.json"
+  ],
+  "merge_review_source_and_target_excluded": true
+}

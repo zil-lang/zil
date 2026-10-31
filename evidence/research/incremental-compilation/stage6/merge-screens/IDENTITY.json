@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "kind": "merge-screens",
+  "collected_utc": "2026-10-31T12:02:50.676743+00:00",
+  "head_at_collection": "58a75321421fe2ee3b58f69b174c138fc2d24832",
+  "collector_sha256": "b92be9e6400bfc9ab6677304ae2ee40fc48c37e7a63ce9177110f11e6c072613",
+  "boundary": "Raw archived observations, not rerun measurements or final performance acceptance. Each original path maps to exact bytes in a SHA-addressed blob. Duplicate raw bytes are stored once without rewriting text, JSON, LLVM IR, source or receipts. Current collection-source files are distinct from measured request-local or frozen-tool copies. Omitted build products/cache binaries are individually inventoried with their observed byte SHA; original tool/source/request identities remain authoritative.",
+  "archive": {
+    "path": "raw.tar.gz",
+    "bytes": 8254453,
+    "sha256": "ad57a9531f233ae85b1d23c293b205f592cac85c383512676005e7dc8adc0dee"
+  },
+  "sidecars": {
+    "FILES.json": "dfc1a0d78de64de14aa455e318980b89b509ad54f02e8c9ef5d03122c141e3ca",
+    "OMITTED.json": "96ddd8be4ee11c9ddb9da7ae6d7f0b3f03c1d521231667c855ed98bdb17e47ee",
+    "ROOTS.json": "b57755ff6bf6d790d89228a4e9fb24e5e32bcd1636711cc7f889b2176a6ea640",
+    "PLAN.json": "27322cc4a57b34aaf4a5ffde19a9a5f5e0e8b3a75027a943cb7ce8b72c161649"
+  },
+  "retained_paths": 2300,
+  "unique_blobs": 649,
+  "unique_retained_bytes": 120233166,
+  "omitted_paths": 812,
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 705,
+      "bytes": 29380664
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 107,
+      "bytes": 13341360
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 2300,
+      "bytes": 454909042
+    }
+  ],
+  "outside_selected_scope": [],
+  "reconstruction": "Use stage6_archive.py --extract <archive-directory> --dest <new-directory>. Only retained files are reconstructed. Omitted binary cache/tool/executable bytes cannot be recovered from this archive; rebuild using the preserved source and original receipts if needed."
+}

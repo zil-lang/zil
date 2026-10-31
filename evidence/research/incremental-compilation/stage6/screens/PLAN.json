@@ -1,0 +1,95 @@
+{
+  "kind": "screens",
+  "roots": [
+    {
+      "archive_prefix": "research/stage6/screen-default",
+      "source_path": "/workspace/.zil-env/research/stage6/screen-default"
+    },
+    {
+      "archive_prefix": "research/stage6/screen-closed",
+      "source_path": "/workspace/.zil-env/research/stage6/screen-closed"
+    },
+    {
+      "archive_prefix": "research/stage6/screen-isolation",
+      "source_path": "/workspace/.zil-env/research/stage6/screen-isolation"
+    },
+    {
+      "archive_prefix": "research/stage6/screen-execution.json",
+      "source_path": "/workspace/.zil-env/research/stage6/screen-execution.json"
+    },
+    {
+      "archive_prefix": "research/stage6/screen-summary.json",
+      "source_path": "/workspace/.zil-env/research/stage6/screen-summary.json"
+    },
+    {
+      "archive_prefix": "research/stage6/screens.log",
+      "source_path": "/workspace/.zil-env/research/stage6/screens.log"
+    },
+    {
+      "archive_prefix": "research/stage6/run-screens.py",
+      "source_path": "/workspace/.zil-env/research/stage6/run-screens.py"
+    },
+    {
+      "archive_prefix": "research/stage6/o2-author.md",
+      "source_path": "/workspace/.zil-env/research/stage6/o2-author.md"
+    },
+    {
+      "archive_prefix": "research/stage6/rust-o2-comparison.md",
+      "source_path": "/workspace/.zil-env/research/stage6/rust-o2-comparison.md"
+    },
+    {
+      "archive_prefix": "research/stage6/rust-cgu-inventory.json",
+      "source_path": "/workspace/.zil-env/research/stage6/rust-cgu-inventory.json"
+    },
+    {
+      "archive_prefix": "research/stage6/rust-large8192-workproducts.json",
+      "source_path": "/workspace/.zil-env/research/stage6/rust-large8192-workproducts.json"
+    },
+    {
+      "archive_prefix": "research/stage6/rust-source",
+      "source_path": "/workspace/.zil-env/research/stage6/rust-source"
+    },
+    {
+      "archive_prefix": "research/stage6/screen-closed.log",
+      "source_path": "/workspace/.zil-env/research/stage6/screen-closed.log"
+    },
+    {
+      "archive_prefix": "research/stage6/screen-default.log",
+      "source_path": "/workspace/.zil-env/research/stage6/screen-default.log"
+    },
+    {
+      "archive_prefix": "research/stage6/screen-isolation.log",
+      "source_path": "/workspace/.zil-env/research/stage6/screen-isolation.log"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/stage6_bench.py",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_bench.py"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/stage6_archive.py",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive.py"
+    }
+  ],
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 1642,
+      "bytes": 1173587924
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 108,
+      "bytes": 175853424
+    },
+    {
+      "class": "ephemeral-rust-incremental-lock",
+      "files": 72,
+      "bytes": 0
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 2274,
+      "bytes": 272787161
+    }
+  ]
+}

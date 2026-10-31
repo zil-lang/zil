@@ -1,0 +1,9 @@
+{
+  "kind": "merge-screens",
+  "status": "AllBlobsAndSidecarsMatch",
+  "paths": 2300,
+  "unique_blobs": 649,
+  "omitted_paths": 812,
+  "identity_sha256": "c7ab446fa5d538cfeab7ae877d1e6fe96248a6b5f4050733873f846f770d39fa",
+  "verified_utc": "2026-10-31T12:03:24.753459+00:00"
+}

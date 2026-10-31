@@ -1,0 +1,189 @@
+{
+  "kind": "thin",
+  "roots": [
+    {
+      "archive_prefix": "research/stage6/target-thin",
+      "source_path": "/workspace/.zil-env/research/stage6/target-thin"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-author.md",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-author.md"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-controls",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-controls"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-controls-gc",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-controls-gc"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-controls-gc-initial-missing-env",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-controls-gc-initial-missing-env"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-controls-gc-initial-missing-env.log",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-controls-gc-initial-missing-env.log"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-controls-gc.log",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-controls-gc.log"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-controls-initial-lld-driver",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-controls-initial-lld-driver"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-controls-initial-lld-driver.log",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-controls-initial-lld-driver.log"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-controls-initial-phase-assertion",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-controls-initial-phase-assertion"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-controls-initial-phase-assertion.log",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-controls-initial-phase-assertion.log"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-controls.log",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-controls.log"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-controls.py",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-controls.py"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-extended-controls",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-extended-controls"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-extended-controls.log",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-extended-controls.log"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-gc-probe",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-gc-probe"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-module2-pre.ll",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-module2-pre.ll"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-prepare.log",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-prepare.log"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-release.log",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-release.log"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-required-post-corruption",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-required-post-corruption"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-screen-authority.json",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-screen-authority.json"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-screen-body-closed-2block",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-screen-body-closed-2block"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-screen-body-closed-2block.log",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-screen-body-closed-2block.log"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-screen-body-default-2block",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-screen-body-default-2block"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-screen-body-default-2block.log",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-screen-body-default-2block.log"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-screen-closed-2block",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-screen-closed-2block"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-screen-closed-2block.log",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-screen-closed-2block.log"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-screen-default-2block",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-screen-default-2block"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-screen-default-2block.log",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-screen-default-2block.log"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-screen-smoke",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-screen-smoke"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-screen-smoke.log",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-screen-smoke.log"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-screen-summary.json",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-screen-summary.json"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-snapshot",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-snapshot"
+    },
+    {
+      "archive_prefix": "research/stage6/thin-tool-manifest.json",
+      "source_path": "/workspace/.zil-env/research/stage6/thin-tool-manifest.json"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/thin_local",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/thin_local"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/stage6_bench.py",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_bench.py"
+    },
+    {
+      "archive_prefix": "collection-source/changes/research-thin-local-lto.md",
+      "source_path": "/workspace/zil/changes/research-thin-local-lto.md"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/stage6_archive.py",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive.py"
+    }
+  ],
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 2834,
+      "bytes": 425835585
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 3574,
+      "bytes": 311595552
+    },
+    {
+      "class": "ephemeral-thin-cache-timestamp",
+      "files": 240,
+      "bytes": 0
+    },
+    {
+      "class": "generated-python-bytecode",
+      "files": 6,
+      "bytes": 71495
+    },
+    {
+      "class": "llvm-bitcode-or-static-archive",
+      "files": 783,
+      "bytes": 154016524
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 23742,
+      "bytes": 5495802107
+    }
+  ]
+}
