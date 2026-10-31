@@ -151,6 +151,47 @@ const RULES: &str = "pub trait Code{fn code(self:&Self)->i32;}";
 const DATA: &str = "import rules;pub struct Payload{n:i32}impl rules.Code for Payload{fn code(self:&Self)->i32=>self.n}pub fn make()->Payload=>Payload{n:13}";
 
 #[test]
+fn independent_cross_module_impl_matches_existing_inline_boundary() {
+    let main = "import rules;import data;fn read<T>(x:&T)->i32 where T:((rules.Code))=>x.code();fn main()->i32{let x=data.make();return read(&x)-13}";
+    let rules = "pub trait Code{fn code(self:&Self)->i32;}";
+    let data = "import rules;pub struct Payload{n:i32}impl rules.Code for Payload{fn code(self:&Self)->i32=>self.n}pub fn make()->Payload=>Payload{n:13}";
+    let inline = main.replace(
+        "read<T>(x:&T)->i32 where T:((rules.Code))",
+        "read<T:((rules.Code))>(x:&T)->i32",
+    );
+    assert!(!inline.contains("where"));
+    for (form, source) in [("where", main), ("inline", inline.as_str())] {
+        let report = check(
+            &format!("existing-cross-module-impl-{form}"),
+            &[("main", source), ("rules", rules), ("data", data)],
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+        for message in [
+            "trait implementation resolution",
+            "trait receiver declaration is not available in this source module",
+        ] {
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == "E-UNSUPPORTED"
+                        && diagnostic.message == message),
+                "{}",
+                report.to_json()
+            );
+        }
+        assert_eq!(report.verification_runs, 0);
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+#[test]
 fn independent_module_identity_alias_privacy_and_binder_boundaries() {
     accept(
         "qualified-group",
