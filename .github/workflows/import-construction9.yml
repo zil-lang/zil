@@ -1,4 +1,6 @@
-name: Restore construction 9 task objects
+# Replace the existing .github/workflows/import-construction9.yml with this
+# content. Do not install a second push workflow beside the import job.
+name: Archive and close construction 9 task branches
 on:
   push:
     branches: [task/228-transport]
@@ -8,21 +10,38 @@ concurrency:
   group: construction9-task-object-import
   cancel-in-progress: false
 jobs:
-  import:
+  cleanup:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      # The root changes this only in the concretely approved closing commit.
+      CONSTRUCTION9_EXECUTE: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: true
-      - name: Verify bundle and publish exact task refs
+      - name: Verify final snapshot, archive receipts, and close approved refs
         shell: bash
-        run: python3 .construction9/import_tasks.py
-      - name: Preserve publication receipt
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/task/228-transport"
+          cleanup_args=(
+            --snapshot .construction9/cleanup-snapshot.json
+            --expected-transport "$GITHUB_SHA"
+          )
+          if [[ "$CONSTRUCTION9_EXECUTE" = "true" ]]; then
+            cleanup_args+=(--execute)
+          fi
+          python3 .construction9/cleanup_tasks.py "${cleanup_args[@]}"
+      - name: Preserve cleanup plan, archive contents, and result
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: construction9-publication-${{ github.run_id }}
-          path: construction9-publication.json
-          if-no-files-found: error
-          retention-days: 30
+          name: construction9-cleanup-${{ github.run_id }}
+          path: |
+            construction9-cleanup-plan.json
+            construction9-archive-tag.txt
+            construction9-cleanup.json
+          if-no-files-found: warn
+          retention-days: 90

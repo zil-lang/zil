@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "expected_main": "aaeb67f12b5638677332132e28df86fa23cde3d8",
+  "expected_heads": {
+    "task/228": "1082b50ec3221ccf0550255fb1a6675500266055",
+    "task/229": "026ea29beb8d83c382ad04bd417606679769afa3",
+    "task/228-consumer": "2890f226fdc2328248b341de4cdcaeb49871b0a0",
+    "task/228-229": "aaeb67f12b5638677332132e28df86fa23cde3d8"
+  },
+  "expected_transport": null,
+  "main_ci": {
+    "id": 41156023933,
+    "status": "completed",
+    "conclusion": "success",
+    "head_branch": "main",
+    "head_sha": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+    "path": ".github/workflows/verify-main.yml"
+  },
+  "publication_receipts": [
+    {
+      "run_id": 41154384915,
+      "transport_commit": "cfa425410f864f997cb7cfd3295d07e745344130",
+      "path": "publication-41154384915.json",
+      "sha256": "74eb1f24a2ad4d0b9ffffabe9835d0bf8ed3805b8bb89836ff1e7f1b365809cf",
+      "source_zip_sha256": "aa3e0988752d1db837a2be9721aaa4155e9b51320bd7ec8b3e6cd2e8e4636294"
+    },
+    {
+      "run_id": 41162069441,
+      "transport_commit": "0f906831bc2d5d03d7a1866d65d4bd948254dc53",
+      "path": "publication-41162069441.json",
+      "sha256": "bf9eb0afda04ea86cc5b8e5b73d6648cb1c92bcecc768a77b06f8d7feec4539d",
+      "source_zip_sha256": "caa15c7a3db13331b79fb3d019f8251ee6bd4f5de4be241dd592417da97b7845"
+    }
+  ],
+  "preparation_note": "Final concrete snapshot. main E read back after non-force fast-forward; task E publication independently read back; main full CI M succeeded and all protected CI paths M to E are unchanged. Original and incremental exact receipts retained. Root authorizes execution under existing user task/cleanup authorization."
+}
