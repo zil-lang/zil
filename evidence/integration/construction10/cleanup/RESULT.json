@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "operation": "Verified merged branch cleanup",
+  "run_id": 41187879812,
+  "run_url": "https://github.com/zil-lang/zil/actions/runs/41187879812",
+  "workflow_commit": "acccc78fe1b4719fe7598f8ea5d64812e1e9ff5c",
+  "validated_current_main": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
+  "accepted_compiler_main": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+  "accepted_main_ci": {
+    "run_id": 41186163758,
+    "run_attempt": 1
+  },
+  "dry_run_status": "DryRunValidated",
+  "execute_status": "DeletedAndVerifiedAbsent",
+  "deleted_refs": [
+    "refs/heads/impl/225-product-store-capture",
+    "refs/heads/impl/226-shared-product-capture",
+    "refs/heads/integration/construction10",
+    "refs/heads/review/construction10-231"
+  ],
+  "independent_API_readback_absent": true,
+  "remaining_branches_observed": 20,
+  "research_and_unique_operational_branches_retained": true,
+  "script_sha256": "267f413055b9e831e151311769ad33038460d44f50b9872fda7b2509a8addb7c",
+  "raw_receipt_hashes": {
+    "cleanup-dry-run.json": "b59312d654dbe25c421b31b571c506886db53a916614905247689eecee6b70ab",
+    "cleanup-execute.json": "f473bc2e6b18234ad9e09879a374b601ad5151db283654978a8dc9fb6bddd2d8",
+    "manifest.json": "6e4c7166a4bf2935e06b033fdd15708f06dcca0f5daca849ee313df1ae9dd2b0",
+    "refs-after.json": "3a83ef1ff5262951b550c6c76ac598c6c65c3c3ddd314daf956dcbab55f4183f"
+  },
+  "boundaries": {
+    "scope": "Only the four exact allowlisted refs already in freshly checked main; no main, research or unique operational history deleted."
+  },
+  "local_worktrees_removed": 6,
+  "local_cleanup_receipt": "local-worktrees.json",
+  "independent_cleanup_review": "INDEPENDENT-OBSERVATION.json"
+}

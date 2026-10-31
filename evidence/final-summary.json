@@ -46,5 +46,7 @@
   "handoff_closeout_receipt": "evidence/integration/construction10/closeout/RESULT.json",
   "handoff_record_integrity": "Fail",
   "handoff_historical_errors": 1145,
-  "current_four_task_record_errors": 0
+  "current_four_task_record_errors": 0,
+  "branch_cleanup_receipt": "evidence/integration/construction10/cleanup/RESULT.json",
+  "independent_sandbox": "zil-sandbox10"
 }

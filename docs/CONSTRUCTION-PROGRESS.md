@@ -16,3 +16,9 @@ PR默认2976/0/0、reference2933/0/0；main默认2976/0/0、reference2933/0/0。
 ## 实际交接记录检查
 
 在元数据提交 `115f4f81e58b6262e3f80234953310158f8b0785` 上，`check-plan --self-test` 实际通过（14任务、7项负向自检）；`handoff` 仍为 Fail / 1145 errors / 0 warnings，与完整工作树旧基线的错误多重集合逐条相同，新增0、消除0。本轮225/226/230/231各0记录错误。该历史记录完整性缺口保留，不等同编译器CI失败；实际原输出和差分见[收口收据](../evidence/integration/construction10/closeout/RESULT.json)。快照记录这个已检查提交，后续收据提交不冒充另一次执行。
+
+## 已完成的分支与沙盒整理
+
+[清理工作流41187879812](https://github.com/zil-lang/zil/actions/runs/41187879812)已实际成功：`impl/225-product-store-capture`、`impl/226-shared-product-capture`、`integration/construction10`、`review/construction10-231`四个远端分支均在精确祖先/tip/CI与原子租约守卫后删除，并经再次读取确认不存在。其余20个远端分支保留，包含未合编译研究和独有运维历史。原始干跑、删除、独立复核及随后6个干净且已合本地worktree的回收记录见[清理收据](../evidence/integration/construction10/cleanup/RESULT.json)。
+
+当前接续沙盒为独立的 `zil-sandbox10`，自有完整对象库、无alternates，也不复用旧编译缓存；最终证据发布后同步其main。启动时使用实时Git HEAD与handoff定位权威记录。实际完整编译器CI仍绑定 `9e7072b1ebdc6900c7370863c27c7432953bd830`，随后只改工单、证据和说明。

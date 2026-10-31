@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "status": "RemovedAndVerified",
+  "validated_main": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
+  "started_at_utc": "2026-10-31T09:17:49.832920+00:00",
+  "worktrees": [
+    {
+      "worktree": "z10-230",
+      "branch": "refs/heads/impl/230-restored",
+      "head": "14163219c503a6ee959aa52beddfc2c6d1d862b4",
+      "clean_before": true,
+      "ancestor_of_main": true,
+      "removed": true,
+      "branch_deleted": true
+    },
+    {
+      "worktree": "z10-231",
+      "branch": "refs/heads/impl/231-restored",
+      "head": "8c970275931ed9b7735b3a1dfb5be0cf9f32ab0b",
+      "clean_before": true,
+      "ancestor_of_main": true,
+      "removed": true,
+      "branch_deleted": true
+    },
+    {
+      "worktree": "z10-integrate",
+      "branch": "refs/heads/integration/construction10",
+      "head": "6475a91f8c8f7b31693cab71973048b0de850072",
+      "clean_before": true,
+      "ancestor_of_main": true,
+      "removed": true,
+      "branch_deleted": true
+    },
+    {
+      "worktree": "z10-review225226",
+      "branch": "refs/heads/review/construction10-225226",
+      "head": "e169322703ee11b035fa56a21856a10c841aebdc",
+      "clean_before": true,
+      "ancestor_of_main": true,
+      "removed": true,
+      "branch_deleted": true
+    },
+    {
+      "worktree": "z10-review230",
+      "branch": "refs/heads/review/construction10-230",
+      "head": "d8a57152775df948f3e34331181f28579127444e",
+      "clean_before": true,
+      "ancestor_of_main": true,
+      "removed": true,
+      "branch_deleted": true
+    },
+    {
+      "worktree": "z10-review231",
+      "branch": "refs/heads/review/construction10-231",
+      "head": "680fafa6f3e376d57cbe1084cbb6e359c2beaaf0",
+      "clean_before": true,
+      "ancestor_of_main": true,
+      "removed": true,
+      "branch_deleted": true
+    }
+  ],
+  "force_used": false,
+  "shared_recovery_main_retained": true,
+  "independent_sandbox_retained": true,
+  "sandbox_bootstrap_branch": {
+    "branch": "integration/construction10",
+    "head": "f1492652cb6497a33f39e615fd398456ce09253a",
+    "ancestor_of_sandbox_main": true,
+    "deleted": true
+  },
+  "completed_at_utc": "2026-10-31T09:17:50.622676+00:00",
+  "remaining_worktrees": "worktree /workspace/scratch/b2d4304a481d/z10-restored-main\nHEAD 3dc9174d836d0e12f6d9a8374dc5580b12bf62d0\nbranch refs/heads/main\n\n"
+}

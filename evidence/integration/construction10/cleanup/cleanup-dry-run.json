@@ -1,0 +1,443 @@
+{
+  "schema_version": 1,
+  "repository": "zil-lang/zil",
+  "mode": "dry-run",
+  "manifest_path": ".construction10-cleanup/manifest.json",
+  "started_at": "2026-10-31T09:14:50.315106+00:00",
+  "status": "DryRunValidated",
+  "mutation_attempted": false,
+  "steps": [
+    {
+      "step": "validated-manifest",
+      "time": "2026-10-31T09:14:50.315309+00:00",
+      "inputs": ".construction10-cleanup/manifest.json",
+      "result": {
+        "schema_version": 1,
+        "repository": "zil-lang/zil",
+        "accepted_head": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+        "main_ci": {
+          "run_id": 41186163758,
+          "run_attempt": 1
+        },
+        "branches": [
+          {
+            "ref": "refs/heads/impl/225-product-store-capture",
+            "expected_sha": "8ea37c2de56cf65f1448e4fa647671f4459ad148"
+          },
+          {
+            "ref": "refs/heads/impl/226-shared-product-capture",
+            "expected_sha": "c8dd71a4b75ed7731fca8372a3a055f017991eb3"
+          },
+          {
+            "ref": "refs/heads/integration/construction10",
+            "expected_sha": "f1492652cb6497a33f39e615fd398456ce09253a"
+          },
+          {
+            "ref": "refs/heads/review/construction10-231",
+            "expected_sha": "b4094d45e6fa3018363d17599af3aae642d37f67"
+          }
+        ]
+      }
+    },
+    {
+      "step": "repository",
+      "argv": [
+        "gh",
+        "api",
+        "--hostname",
+        "github.com",
+        "--method",
+        "GET",
+        "repos/zil-lang/zil"
+      ],
+      "started_at": "2026-10-31T09:14:50.315463+00:00",
+      "completed_at": "2026-10-31T09:14:50.730529+00:00",
+      "returncode": 0,
+      "stdout_sha256": "bf6392dccf9e8ec6d09f4c438a288d8b78ee8445695baac28ea6afede346b749",
+      "stderr": ""
+    },
+    {
+      "step": "repository-identity",
+      "time": "2026-10-31T09:14:50.734365+00:00",
+      "inputs": "zil-lang/zil",
+      "result": {
+        "full_name": "zil-lang/zil"
+      }
+    },
+    {
+      "step": "git-remote-url",
+      "argv": [
+        "git",
+        "ls-remote",
+        "--get-url",
+        "https://github.com/zil-lang/zil.git"
+      ],
+      "started_at": "2026-10-31T09:14:50.734777+00:00",
+      "completed_at": "2026-10-31T09:14:50.742353+00:00",
+      "returncode": 0,
+      "stdout_sha256": "b963f68390c043b9179587506c2e3af1790e8f41f6fb506fa7ade7d2f03066a7",
+      "stderr": "",
+      "stdout": "https://github.com/zil-lang/zil.git\n"
+    },
+    {
+      "step": "main-ci-preflight",
+      "argv": [
+        "gh",
+        "api",
+        "--hostname",
+        "github.com",
+        "--method",
+        "GET",
+        "repos/zil-lang/zil/actions/runs/41186163758"
+      ],
+      "started_at": "2026-10-31T09:14:50.764875+00:00",
+      "completed_at": "2026-10-31T09:14:51.055703+00:00",
+      "returncode": 0,
+      "stdout_sha256": "f127f228117a05279fec4d7337af3ab71dcf2a9f1c6862ae029ffc8d8f1732de",
+      "stderr": ""
+    },
+    {
+      "step": "main-ci-preflight-identity",
+      "time": "2026-10-31T09:14:51.073794+00:00",
+      "inputs": {
+        "run_id": 41186163758,
+        "run_attempt": 1
+      },
+      "result": {
+        "id": 41186163758,
+        "run_attempt": 1,
+        "status": "completed",
+        "conclusion": "success",
+        "event": "push",
+        "head_branch": "main",
+        "head_sha": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+        "path": ".github/workflows/verify-main.yml",
+        "workflow_id": 397080234,
+        "html_url": "https://github.com/zil-lang/zil/actions/runs/41186163758",
+        "repository": "zil-lang/zil",
+        "head_repository": "zil-lang/zil"
+      }
+    },
+    {
+      "step": "fresh-remote-refs",
+      "argv": [
+        "git",
+        "ls-remote",
+        "--refs",
+        "https://github.com/zil-lang/zil.git",
+        "refs/heads/main",
+        "refs/heads/impl/225-product-store-capture",
+        "refs/heads/impl/226-shared-product-capture",
+        "refs/heads/integration/construction10",
+        "refs/heads/review/construction10-231"
+      ],
+      "started_at": "2026-10-31T09:14:51.084007+00:00",
+      "completed_at": "2026-10-31T09:14:51.448720+00:00",
+      "returncode": 0,
+      "stdout_sha256": "b79b9f245767c18e48d33eda9436ecf1ae2c827fba6b74ccb648fd6629690119",
+      "stderr": "",
+      "stdout": "8ea37c2de56cf65f1448e4fa647671f4459ad148\trefs/heads/impl/225-product-store-capture\nc8dd71a4b75ed7731fca8372a3a055f017991eb3\trefs/heads/impl/226-shared-product-capture\nf1492652cb6497a33f39e615fd398456ce09253a\trefs/heads/integration/construction10\n3dc9174d836d0e12f6d9a8374dc5580b12bf62d0\trefs/heads/main\nb4094d45e6fa3018363d17599af3aae642d37f67\trefs/heads/review/construction10-231\n"
+    },
+    {
+      "step": "fresh-ref-snapshot",
+      "time": "2026-10-31T09:14:51.474153+00:00",
+      "inputs": [
+        "refs/heads/main",
+        "refs/heads/impl/225-product-store-capture",
+        "refs/heads/impl/226-shared-product-capture",
+        "refs/heads/integration/construction10",
+        "refs/heads/review/construction10-231"
+      ],
+      "result": {
+        "refs/heads/impl/225-product-store-capture": "8ea37c2de56cf65f1448e4fa647671f4459ad148",
+        "refs/heads/impl/226-shared-product-capture": "c8dd71a4b75ed7731fca8372a3a055f017991eb3",
+        "refs/heads/integration/construction10": "f1492652cb6497a33f39e615fd398456ce09253a",
+        "refs/heads/main": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
+        "refs/heads/review/construction10-231": "b4094d45e6fa3018363d17599af3aae642d37f67"
+      }
+    },
+    {
+      "step": "init-temporary-repository",
+      "argv": [
+        "git",
+        "init",
+        "--bare",
+        "/tmp/zil-merged-branch-check-_fajbvei"
+      ],
+      "started_at": "2026-10-31T09:14:51.474848+00:00",
+      "completed_at": "2026-10-31T09:14:51.585579+00:00",
+      "returncode": 0,
+      "stdout_sha256": "02b16742eb51ac8f8786a83886bae65d79ee2dc353c1bf509e10060b86117939",
+      "stderr": "hint: Using 'master' as the name for the initial branch. This default branch name\nhint: will change to \"main\" in Git 3.0. To configure the initial branch name\nhint: to use in all of your new repositories, which will suppress this warning,\nhint: call:\nhint:\nhint: \tgit config --global init.defaultBranch <name>\nhint:\nhint: Names commonly chosen instead of 'master' are 'main', 'trunk' and\nhint: 'development'. The just-created branch can be renamed via this command:\nhint:\nhint: \tgit branch -m <name>\nhint:\nhint: Disable this message with \"git config set advice.defaultBranchName false\"\n",
+      "stdout": "Initialized empty Git repository in /tmp/zil-merged-branch-check-_fajbvei/\n"
+    },
+    {
+      "step": "fetch-fresh-ancestry",
+      "argv": [
+        "git",
+        "--git-dir",
+        "/tmp/zil-merged-branch-check-_fajbvei",
+        "-c",
+        "gc.auto=0",
+        "fetch",
+        "--no-tags",
+        "--no-write-fetch-head",
+        "--filter=blob:none",
+        "https://github.com/zil-lang/zil.git",
+        "refs/heads/main:refs/cleanup/input-0",
+        "refs/heads/impl/225-product-store-capture:refs/cleanup/input-1",
+        "refs/heads/impl/226-shared-product-capture:refs/cleanup/input-2",
+        "refs/heads/integration/construction10:refs/cleanup/input-3",
+        "refs/heads/review/construction10-231:refs/cleanup/input-4"
+      ],
+      "started_at": "2026-10-31T09:14:51.613769+00:00",
+      "completed_at": "2026-10-31T09:14:53.038021+00:00",
+      "returncode": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "From https://github.com/zil-lang/zil\n * [new branch]        main                            -> refs/cleanup/input-0\n * [new branch]        impl/225-product-store-capture  -> refs/cleanup/input-1\n * [new branch]        impl/226-shared-product-capture -> refs/cleanup/input-2\n * [new branch]        integration/construction10      -> refs/cleanup/input-3\n * [new branch]        review/construction10-231       -> refs/cleanup/input-4\n",
+      "stdout": ""
+    },
+    {
+      "step": "fetched-ref-refs/heads/main",
+      "argv": [
+        "git",
+        "--git-dir",
+        "/tmp/zil-merged-branch-check-_fajbvei",
+        "rev-parse",
+        "refs/cleanup/input-0"
+      ],
+      "started_at": "2026-10-31T09:14:53.038535+00:00",
+      "completed_at": "2026-10-31T09:14:53.040342+00:00",
+      "returncode": 0,
+      "stdout_sha256": "ae084024769b852154d084f35025bbb78b43b4f532472bd444e9a0aa91cbbec9",
+      "stderr": "",
+      "stdout": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0\n"
+    },
+    {
+      "step": "fetched-ref-refs/heads/impl/225-product-store-capture",
+      "argv": [
+        "git",
+        "--git-dir",
+        "/tmp/zil-merged-branch-check-_fajbvei",
+        "rev-parse",
+        "refs/cleanup/input-1"
+      ],
+      "started_at": "2026-10-31T09:14:53.040720+00:00",
+      "completed_at": "2026-10-31T09:14:53.042218+00:00",
+      "returncode": 0,
+      "stdout_sha256": "5bfb33d651d3ddef85d68d00ea6ce637087552bf53e5474903a206cf16ba0fd3",
+      "stderr": "",
+      "stdout": "8ea37c2de56cf65f1448e4fa647671f4459ad148\n"
+    },
+    {
+      "step": "fetched-ref-refs/heads/impl/226-shared-product-capture",
+      "argv": [
+        "git",
+        "--git-dir",
+        "/tmp/zil-merged-branch-check-_fajbvei",
+        "rev-parse",
+        "refs/cleanup/input-2"
+      ],
+      "started_at": "2026-10-31T09:14:53.042561+00:00",
+      "completed_at": "2026-10-31T09:14:53.044059+00:00",
+      "returncode": 0,
+      "stdout_sha256": "3f5760ff4e96353fd848d33713b3dbf59ee1ba37af3eabf3c1eda3c98afa99ca",
+      "stderr": "",
+      "stdout": "c8dd71a4b75ed7731fca8372a3a055f017991eb3\n"
+    },
+    {
+      "step": "fetched-ref-refs/heads/integration/construction10",
+      "argv": [
+        "git",
+        "--git-dir",
+        "/tmp/zil-merged-branch-check-_fajbvei",
+        "rev-parse",
+        "refs/cleanup/input-3"
+      ],
+      "started_at": "2026-10-31T09:14:53.044407+00:00",
+      "completed_at": "2026-10-31T09:14:53.045894+00:00",
+      "returncode": 0,
+      "stdout_sha256": "77977183c4db61ad9a7015b928a40bd2bc21d4facaa15606331b0c2df8b531c8",
+      "stderr": "",
+      "stdout": "f1492652cb6497a33f39e615fd398456ce09253a\n"
+    },
+    {
+      "step": "fetched-ref-refs/heads/review/construction10-231",
+      "argv": [
+        "git",
+        "--git-dir",
+        "/tmp/zil-merged-branch-check-_fajbvei",
+        "rev-parse",
+        "refs/cleanup/input-4"
+      ],
+      "started_at": "2026-10-31T09:14:53.046235+00:00",
+      "completed_at": "2026-10-31T09:14:53.047710+00:00",
+      "returncode": 0,
+      "stdout_sha256": "5b65f02de702dd64d6eb11a7c905fc659de15d167e560abd2c46dc46944b81cf",
+      "stderr": "",
+      "stdout": "b4094d45e6fa3018363d17599af3aae642d37f67\n"
+    },
+    {
+      "step": "accepted-object-kind",
+      "argv": [
+        "git",
+        "--git-dir",
+        "/tmp/zil-merged-branch-check-_fajbvei",
+        "cat-file",
+        "-t",
+        "9e7072b1ebdc6900c7370863c27c7432953bd830"
+      ],
+      "started_at": "2026-10-31T09:14:53.048058+00:00",
+      "completed_at": "2026-10-31T09:14:53.049667+00:00",
+      "returncode": 0,
+      "stdout_sha256": "50836eee574ecff79dea3b4fd40673d7d000f7a5f177d8a6a3000b59c78383b8",
+      "stderr": "",
+      "stdout": "commit\n"
+    },
+    {
+      "step": "accepted-head-is-in-current-main",
+      "argv": [
+        "git",
+        "--git-dir",
+        "/tmp/zil-merged-branch-check-_fajbvei",
+        "merge-base",
+        "--is-ancestor",
+        "9e7072b1ebdc6900c7370863c27c7432953bd830",
+        "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0"
+      ],
+      "started_at": "2026-10-31T09:14:53.050032+00:00",
+      "completed_at": "2026-10-31T09:14:53.051917+00:00",
+      "returncode": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "step": "tip-in-current-main-refs/heads/impl/225-product-store-capture",
+      "argv": [
+        "git",
+        "--git-dir",
+        "/tmp/zil-merged-branch-check-_fajbvei",
+        "merge-base",
+        "--is-ancestor",
+        "8ea37c2de56cf65f1448e4fa647671f4459ad148",
+        "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0"
+      ],
+      "started_at": "2026-10-31T09:14:53.052264+00:00",
+      "completed_at": "2026-10-31T09:14:53.054547+00:00",
+      "returncode": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "step": "tip-in-current-main-refs/heads/impl/226-shared-product-capture",
+      "argv": [
+        "git",
+        "--git-dir",
+        "/tmp/zil-merged-branch-check-_fajbvei",
+        "merge-base",
+        "--is-ancestor",
+        "c8dd71a4b75ed7731fca8372a3a055f017991eb3",
+        "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0"
+      ],
+      "started_at": "2026-10-31T09:14:53.054912+00:00",
+      "completed_at": "2026-10-31T09:14:53.057208+00:00",
+      "returncode": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "step": "tip-in-current-main-refs/heads/integration/construction10",
+      "argv": [
+        "git",
+        "--git-dir",
+        "/tmp/zil-merged-branch-check-_fajbvei",
+        "merge-base",
+        "--is-ancestor",
+        "f1492652cb6497a33f39e615fd398456ce09253a",
+        "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0"
+      ],
+      "started_at": "2026-10-31T09:14:53.057568+00:00",
+      "completed_at": "2026-10-31T09:14:53.059502+00:00",
+      "returncode": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "step": "tip-in-current-main-refs/heads/review/construction10-231",
+      "argv": [
+        "git",
+        "--git-dir",
+        "/tmp/zil-merged-branch-check-_fajbvei",
+        "merge-base",
+        "--is-ancestor",
+        "b4094d45e6fa3018363d17599af3aae642d37f67",
+        "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0"
+      ],
+      "started_at": "2026-10-31T09:14:53.059890+00:00",
+      "completed_at": "2026-10-31T09:14:53.061560+00:00",
+      "returncode": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "step": "all-preconditions",
+      "time": "2026-10-31T09:14:53.061997+00:00",
+      "inputs": {
+        "schema_version": 1,
+        "repository": "zil-lang/zil",
+        "accepted_head": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+        "main_ci": {
+          "run_id": 41186163758,
+          "run_attempt": 1
+        },
+        "branches": [
+          {
+            "ref": "refs/heads/impl/225-product-store-capture",
+            "expected_sha": "8ea37c2de56cf65f1448e4fa647671f4459ad148"
+          },
+          {
+            "ref": "refs/heads/impl/226-shared-product-capture",
+            "expected_sha": "c8dd71a4b75ed7731fca8372a3a055f017991eb3"
+          },
+          {
+            "ref": "refs/heads/integration/construction10",
+            "expected_sha": "f1492652cb6497a33f39e615fd398456ce09253a"
+          },
+          {
+            "ref": "refs/heads/review/construction10-231",
+            "expected_sha": "b4094d45e6fa3018363d17599af3aae642d37f67"
+          }
+        ]
+      },
+      "result": {
+        "validated": true
+      }
+    }
+  ],
+  "manifest_sha256": "6e4c7166a4bf2935e06b033fdd15708f06dcca0f5daca849ee313df1ae9dd2b0",
+  "validated_main": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
+  "planned_push_argv": [
+    "git",
+    "--git-dir",
+    "/tmp/zil-merged-branch-check-_fajbvei",
+    "push",
+    "--porcelain",
+    "--atomic",
+    "--force-with-lease=refs/heads/impl/225-product-store-capture:8ea37c2de56cf65f1448e4fa647671f4459ad148",
+    "--force-with-lease=refs/heads/impl/226-shared-product-capture:c8dd71a4b75ed7731fca8372a3a055f017991eb3",
+    "--force-with-lease=refs/heads/integration/construction10:f1492652cb6497a33f39e615fd398456ce09253a",
+    "--force-with-lease=refs/heads/review/construction10-231:b4094d45e6fa3018363d17599af3aae642d37f67",
+    "https://github.com/zil-lang/zil.git",
+    ":refs/heads/impl/225-product-store-capture",
+    ":refs/heads/impl/226-shared-product-capture",
+    ":refs/heads/integration/construction10",
+    ":refs/heads/review/construction10-231"
+  ],
+  "completed_at": "2026-10-31T09:14:53.063968+00:00",
+  "exit_code": 0
+}
