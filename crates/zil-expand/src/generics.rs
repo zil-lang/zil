@@ -56,29 +56,6 @@ pub(super) fn check_generated_type_name(name: &str, span: Span) -> R<()> {
     Ok(())
 }
 
-fn check_nominal_name(name: &str, span: Span) -> R<()> {
-    if super::byte_buffer_name(name) || super::owned_store_name(name) {
-        return Err(super::primitive_name_error(name, span));
-    }
-    if copy::reserved_name(name) {
-        return Err(error(span, "Copy is a reserved structural capability name"));
-    }
-    Ok(())
-}
-
-pub(super) fn check_generated_type_name(name: &str, span: Span) -> R<()> {
-    check_nominal_name(name, span)?;
-    if aliases::reserved_declaration_name(name) {
-        return Err(Diagnostic::error(
-            Phase::Expand,
-            "E-NAME-DUPLICATE",
-            Some(span),
-            "duplicate alias or declaration name",
-        ));
-    }
-    Ok(())
-}
-
 pub(super) fn specialize<'a>(
     module: &'a Module,
     limits: &Limits,
