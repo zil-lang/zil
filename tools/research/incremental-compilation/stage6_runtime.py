@@ -2,6 +2,7 @@
 """O2 quality control: opaque runtime input and live, repeatedly called helpers."""
 import argparse, hashlib, json, os, subprocess, time
 from pathlib import Path
+from stage6_bench import measured
 
 def generate(root, n, flavor, rounds):
     branch=flavor=="branch"
@@ -32,10 +33,17 @@ def main():
     cpus=sorted(os.sched_getaffinity(0))[:2];os.sched_setaffinity(0,cpus)
     rows=[]; builds=[]
     arms=['baseline','incremental','closed_incremental','rust']
+    identity=lambda p:dict(path=str(p),sha256=hashlib.sha256(p.read_bytes()).hexdigest())
+    manifest=dict(cpus=cpus,blocks=a.blocks,rounds=a.rounds,binaries={k:identity(v) for k,v in [('zil',a.zil),('baseline',a.baseline),('rustc',a.rustc)]},scope=__doc__,tool=identity(Path(__file__)),timing_tool=identity(Path(__file__).with_name('stage6_bench.py')),source_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),sources={})
+    def save_manifest(): (a.out/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+    save_manifest()
     for n,flavor in [(512,'arithmetic'),(512,'branch'),(2048,'arithmetic'),(2048,'branch'),(512,'body'),(8192,'arithmetic')]:
         branch=flavor=='branch'
         case=f'{n}-'+flavor;root=a.out/case;root.mkdir()
         generate(root,n,flavor,a.rounds)
+        manifest['sources'][case]={p.name:identity(p) for p in [root/'main.zil',root/'main.rs']}
+        save_manifest()
+        valid_builds={}
         for arm in arms:
             exe=root/arm
             if arm=='rust':
@@ -44,12 +52,22 @@ def main():
                 cmd=[str(a.baseline if arm=='baseline' else a.zil),'build',str(root/'main.zil'),'--opt','O2','--codegen-units','8','--codegen-jobs','2','--json','-o',str(exe)]
                 if arm!='baseline':cmd+=['--incremental-o2']
                 if arm=='closed_incremental':cmd+=['--closed-executable']
-            start=time.perf_counter_ns(); result=subprocess.run(cmd,capture_output=True,timeout=240)
-            builds.append(dict(case=case,arm=arm,command=cmd,elapsed_ns=time.perf_counter_ns()-start,exit=result.returncode,stdout=result.stdout.decode(errors='replace'),stderr=result.stderr.decode(errors='replace')))
+            result=measured(cmd,root,arm,240)
+            build=dict(case=case,arm=arm,command=cmd,**result)
+            build['valid']=result['exit']==0 and not result['timeout'] and exe.is_file()
+            if arm!='rust':
+                try:
+                    report=json.loads((root/f'{arm}.stdout').read_text())
+                    build['verification_runs']=report['verification_runs'];build['status']=report['status'];build['native_codegen']=report['native_codegen']
+                    build['valid'] &= report['status']=='Success' and report['verification_runs']==1
+                except (ValueError,KeyError,TypeError) as error:
+                    build['valid']=False;build['report_error']=str(error)
+            if build['valid']:
+                build['exe_bytes']=exe.stat().st_size
+                build['exe_sha256']=hashlib.sha256(exe.read_bytes()).hexdigest()
+            valid_builds[arm]=build['valid']
+            builds.append(build)
             (a.out/'builds.json').write_text(json.dumps(builds,indent=2)+'\n')
-            assert result.returncode==0,builds[-1]
-            builds[-1]['exe_bytes']=exe.stat().st_size
-            builds[-1]['exe_sha256']=hashlib.sha256(exe.read_bytes()).hexdigest()
         values=[sum(((x+64+i%97)%1009 if flavor=='body' else (x*3+i%97)%1009 if not branch or x%3==0 else (x+i%31)%1009) for i in range(n)) for x in range(1009)]
         expected_by_seed={}
         for seed in [0,1,7,42,255]:
@@ -62,14 +80,18 @@ def main():
             for seed in [0,1,7,42,255]:
                 expected=expected_by_seed[seed]
                 for arm in order:
-                    start=time.perf_counter_ns();result=subprocess.run([str(root/arm)],input=bytes([seed]),capture_output=True,timeout=60)
-                    row=dict(case=case,block=block,seed=seed,arm=arm,elapsed_ns=time.perf_counter_ns()-start,exit=result.returncode,stdout_hex=result.stdout.hex(),stderr_hex=result.stderr.hex(),expected=expected)
-                    row['valid']=result.returncode==0 and result.stdout==expected.to_bytes(4,'little') and not result.stderr
+                    row=dict(case=case,block=block,seed=seed,arm=arm,expected=expected,valid=False)
+                    if valid_builds[arm]:
+                        start=time.perf_counter_ns()
+                        try:
+                            result=subprocess.run([str(root/arm)],input=bytes([seed]),capture_output=True,timeout=60)
+                            row.update(elapsed_ns=time.perf_counter_ns()-start,exit=result.returncode,stdout_hex=result.stdout.hex(),stderr_hex=result.stderr.hex())
+                            row['valid']=result.returncode==0 and result.stdout==expected.to_bytes(4,'little') and not result.stderr
+                        except (subprocess.TimeoutExpired,OSError) as error:
+                            row.update(elapsed_ns=time.perf_counter_ns()-start,error=str(error),timeout=isinstance(error,subprocess.TimeoutExpired),stdout_hex=(getattr(error,'stdout',None) or b'').hex(),stderr_hex=(getattr(error,'stderr',None) or b'').hex())
+                    else:row['skipped']='invalid build'
                     rows.append(row)
                     (a.out/'rows.json').write_text(json.dumps(rows,indent=2)+'\n')
-                    assert row['valid'],row
     (a.out/'builds.json').write_text(json.dumps(builds,indent=2)+'\n')
-    identity=lambda p:dict(path=str(p),sha256=hashlib.sha256(p.read_bytes()).hexdigest())
-    (a.out/'manifest.json').write_text(json.dumps(dict(cpus=cpus,blocks=a.blocks,rounds=a.rounds,binaries={k:identity(v) for k,v in [('zil',a.zil),('baseline',a.baseline),('rustc',a.rustc)]},scope=__doc__,source_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()),indent=2)+'\n')
     print(json.dumps(dict(builds=len(builds),observations=len(rows),valid=all(r['valid'] for r in rows))))
 if __name__=='__main__':main()
