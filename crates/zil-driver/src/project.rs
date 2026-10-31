@@ -2,7 +2,9 @@
 //! or source buffer. The filesystem adapter is the only import-reading entry.
 use super::artifacts::ArtifactPlan;
 use super::query_cache::{CtUsage, Prepared};
-use super::session::{RawSnapshot, check_entry_contract, disk_source, event, phase_key, query_key};
+use super::session::{
+    RawSnapshot, TypedInput, check_entry_contract, disk_source, event, phase_key, query_key,
+};
 use super::*;
 use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
@@ -309,10 +311,9 @@ impl CompilationSession {
                     options,
                     report,
                     observer,
-                    &loaded.program.module,
-                    &loaded.candidate,
+                    TypedInput::Program(Arc::new(loaded.program)),
+                    Arc::new(loaded.candidate),
                     artifacts,
-                    Some(&loaded.program),
                 );
             }
         }
@@ -501,10 +502,9 @@ impl CompilationSession {
             options,
             report,
             observer,
-            &typed.module,
+            TypedInput::Program(typed.clone()),
             typed_snapshot,
             artifacts,
-            Some(&typed),
         )?;
         if let Some(cache) = checkpoint {
             cache.store(
