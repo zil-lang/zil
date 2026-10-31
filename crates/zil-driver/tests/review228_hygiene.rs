@@ -52,6 +52,10 @@ const ACCEPTED: &[(&str, &str)] = &[
         "selection-per-iteration-shape",
         "#for(n in [1,2]){struct Event{value:[i32;n]}#if(n==1){pub fn one()->i32{let p=Event{value:[4]};return p.value[0]}}else{pub fn two()->i32{let p=Event{value:[4,5]};return p.value[0]+p.value[1]}}}fn main()->i32=>one()+two()-13",
     ),
+    (
+        "ordinary-function-names-remain-allowed",
+        "#for(n in [3]){type Alias=i32;fn Copy()->i32=>n;fn bool()->Alias=>Copy();pub fn run()->Alias=>bool()-3}fn main()->i32=>run()",
+    ),
 ];
 
 #[test]
