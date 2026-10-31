@@ -944,3 +944,108 @@ fn function_merging_pipeline_changes_actual_cache_keys_and_keeps_failure_transac
         .collect::<Vec<_>>();
     assert_eq!(before, after);
 }
+
+#[test]
+fn monotone_chain_edits_reuse_normalized_objects_but_keep_overflow_order() {
+    use std::io::Write;
+    use std::os::unix::process::ExitStatusExt;
+    use std::process::Stdio;
+
+    fn source(body: &str) -> String {
+        format!(
+            "fn h(x:i32)->i32{{var t:i32=x;{body}return t;}}\n\
+             extern \"C\" fn getchar()->i32;\n\
+             extern \"C\" fn putchar(x:i32)->i32;\n\
+             fn main()->i32{{var seed:i32=0;unsafe{{seed=getchar();}}\
+             let x:i32=2147483644+seed;let result:i32=h(x);\
+             unsafe{{putchar(67);}}return result%200;}}"
+        )
+    }
+    fn cache_and_native(report: &CompileReport, hits: usize, misses: usize, trap: bool) {
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1, "{}", report.to_json());
+        assert_eq!(report.commands.len(), 1);
+        let codegen = report.native_codegen.as_ref().unwrap();
+        assert_eq!(codegen.actual_units, 1, "{}", report.to_json());
+        assert_eq!(codegen.object_cache.hits, hits, "{}", report.to_json());
+        assert_eq!(codegen.object_cache.misses, misses, "{}", report.to_json());
+        let mut child = Command::new("sh")
+            .args(["-c", "ulimit -c 0; exec \"$1\"", "zil-chain-native"])
+            .arg(&report.artifacts["executable"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(&[0]).unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(output.stderr.is_empty(), "{output:?}");
+        if trap {
+            assert_eq!(output.status.signal(), Some(4), "{output:?}");
+            assert!(output.stdout.is_empty(), "{output:?}");
+        } else {
+            assert_eq!(output.status.code(), Some(47), "{output:?}");
+            assert_eq!(output.stdout, b"C", "{output:?}");
+        }
+    }
+    fn cache_snapshot(path: &Path) -> Vec<(PathBuf, Vec<u8>)> {
+        entries(path)
+            .into_iter()
+            .map(|entry| {
+                let bytes = fs::read(&entry).unwrap();
+                (entry, bytes)
+            })
+            .collect()
+    }
+
+    let d = Dir::new();
+    let mut options = d.options(1, Optimization::O2);
+    options.codegen.jobs = 1;
+    options.incremental_o2 = true;
+    options.function_merging = zil_driver::FunctionMerging::AfterOptimization;
+    let original = source("t=t+1;t=t+2;");
+    let swapped = source("t=t+2;t=t+1;");
+    let mixed = source("t=t+4;t=t-1;");
+    assert_ne!(original, swapped);
+    assert_ne!(original, mixed);
+    d.write("main.zil", &original);
+    cache_and_native(&d.build(&options), 0, 1, false);
+    cache_and_native(&d.build(&options), 1, 0, false);
+
+    // Swapping same-direction constants preserves the normalized object input.
+    // The cache must still distinguish the mixed-direction overflow below.
+    d.write("main.zil", &swapped);
+    cache_and_native(&d.build(&options), 1, 0, false);
+    d.write("main.zil", &mixed);
+    cache_and_native(&d.build(&options), 0, 1, true);
+    d.write("main.zil", &original);
+    let restored = d.build(&options);
+    cache_and_native(&restored, 1, 0, false);
+
+    let executable = fs::read(&restored.artifacts["executable"]).unwrap();
+    let llvm = fs::read(&restored.artifacts["llvm"]).unwrap();
+    let cache = cache_snapshot(options.object_cache.as_ref().unwrap());
+    assert_eq!(original.matches("h(x);").count(), 1);
+    let invalid = original.replacen("h(x);", "h(x,0);", 1);
+    assert_ne!(invalid, original);
+    d.write("main.zil", &invalid);
+    let rejected = d.build(&options);
+    assert_eq!(rejected.status, ResultCategory::SafeReject);
+    assert_eq!(rejected.phase, Phase::Types);
+    assert_eq!(rejected.diagnostics[0].code, "E-CALL-ARITY");
+    assert!(rejected.native_codegen.is_none());
+    assert_eq!(
+        fs::read(&restored.artifacts["executable"]).unwrap(),
+        executable
+    );
+    assert_eq!(fs::read(&restored.artifacts["llvm"]).unwrap(), llvm);
+    assert_eq!(
+        cache_snapshot(options.object_cache.as_ref().unwrap()),
+        cache
+    );
+}
