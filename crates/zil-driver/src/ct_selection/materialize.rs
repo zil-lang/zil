@@ -17,8 +17,9 @@ impl Materializer<'_, '_> {
         items: &mut Vec<s::Item>,
         depth: usize,
         generated: bool,
-    ) -> CompileResult<()> {
+    ) -> CompileResult<bool> {
         let mut output = Vec::new();
+        let mut has_types = false;
         for mut item in std::mem::take(items) {
             self.budget.node(item.span, depth)?;
             match &mut item.kind {
@@ -39,7 +40,7 @@ impl Materializer<'_, '_> {
                     }
                     let chosen = self.choose(condition)?;
                     let selected = if chosen { then_items } else { else_items };
-                    self.items(selected, depth + 1, true)?;
+                    has_types |= self.items(selected, depth + 1, true)?;
                     for item in std::mem::take(selected) {
                         self.budget.node(item.span, depth + 1)?;
                         output.push(item);
@@ -57,7 +58,9 @@ impl Materializer<'_, '_> {
                             Some(item.span),
                         )]);
                     }
-                    let generated = self.for_items(binding, iterable, items, depth + 1)?;
+                    let (generated, generated_types) =
+                        self.for_items(binding, iterable, items, depth + 1)?;
+                    has_types |= generated_types;
                     self.budget
                         .spend(generated.len(), generated.len(), item.span)?;
                     output.extend(generated);
@@ -77,6 +80,13 @@ impl Materializer<'_, '_> {
                     )]);
                 }
                 _ => {
+                    // This item has already paid its node visit. Carry the
+                    // result through selection instead of rescanning emitted
+                    // lists just to choose the type-hygiene path.
+                    has_types |= matches!(
+                        item.kind,
+                        s::ItemKind::Aggregate(_) | s::ItemKind::TypeAlias(_)
+                    );
                     self.item(&mut item, depth + 1)?;
                     self.budget.node(item.span, depth + 1)?;
                     output.push(item);
@@ -84,7 +94,7 @@ impl Materializer<'_, '_> {
             }
         }
         *items = output;
-        Ok(())
+        Ok(has_types)
     }
     fn item(&mut self, item: &mut s::Item, depth: usize) -> CompileResult<()> {
         self.budget.node(item.span, depth)?;
@@ -124,8 +134,12 @@ impl Materializer<'_, '_> {
                     }
                 }
             }
-            s::ItemKind::Trait(t) => self.items(&mut t.members, depth + 1, false)?,
-            s::ItemKind::Impl(i) => self.items(&mut i.members, depth + 1, false)?,
+            s::ItemKind::Trait(t) => {
+                self.items(&mut t.members, depth + 1, false)?;
+            }
+            s::ItemKind::Impl(i) => {
+                self.items(&mut i.members, depth + 1, false)?;
+            }
             s::ItemKind::Const(c) => {
                 if let Some(e) = &mut c.value {
                     self.expression(e, depth + 1)?;
