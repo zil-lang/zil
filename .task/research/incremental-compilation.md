@@ -44,3 +44,7 @@
 ## 第三阶段：完整当前输入的前端复用
 
 阶段2发布后继续沿实际phase计数推进，发现暖项目仍补做已淘汰的Parse。先记录`changes/research-project-frontend-reuse.md`；在已有session/project与driver tests写集内实施精确当前Typed原始结果的复用，保持独立Verify与所有产物/预算/取消边界。另追加上述提案及本专项文档/工具/证据；旧最终报告和性能窗口保留原身份，新结果单独冻结，不把它称为函数级语义增量。
+
+## 第四阶段：产物路径重复解析
+
+阶段3已完成两套各1560请求窗口，继续针对暴露出的共同父目录重复解析成本。先记录`changes/research-artifact-directory-reuse.md`，追加写集`crates/zil-driver/src/artifacts.rs`及该提案。只复用一次检查批次的一个成功parent解析，逐文件当前物理身份、错误和每次发布检查不省略；限定测试与独审后重新完整计量。不得跨请求缓存路径安全结论。

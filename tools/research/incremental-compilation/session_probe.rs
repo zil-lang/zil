@@ -3,6 +3,26 @@
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompilationSession, CompileOptions, ProjectSources, Stage};
+// Linux diagnostic only: process CPU includes compiler threads but excludes
+// child linkers/native controls. It is not total build-tree CPU time.
+#[repr(C)]
+struct ProcessTime {
+    seconds: std::ffi::c_long,
+    nanoseconds: std::ffi::c_long,
+}
+unsafe extern "C" {
+    fn clock_gettime(clock: i32, value: *mut ProcessTime) -> i32;
+}
+fn process_cpu_ns() -> u128 {
+    let mut value = ProcessTime {
+        seconds: 0,
+        nanoseconds: 0,
+    };
+    // CLOCK_PROCESS_CPUTIME_ID=2 on the Linux host already required by /proc.
+    // ProcessTime has the native timespec layout and writable storage.
+    assert_eq!(unsafe { clock_gettime(2, &mut value) }, 0);
+    value.seconds as u128 * 1_000_000_000 + value.nanoseconds as u128
+}
 fn leaf(i: usize, functions: usize, edit: usize) -> String {
     let mut text = format!(
         "fn h0()->i32{{return {}{};}}\n",
@@ -76,6 +96,7 @@ fn main() {
         };
         project.modules[1].text = leaf(1, functions, edit);
         let mut times = BTreeMap::<String, (u128, usize, usize)>::new();
+        let cpu_started = process_cpu_ns();
         let started = Instant::now();
         let mut previous = started;
         let report = session.compile_project_with_observer(&project, &options, &mut |event| {
@@ -90,6 +111,7 @@ fn main() {
             previous = now;
         });
         let elapsed = started.elapsed().as_nanos();
+        let process_cpu = process_cpu_ns() - cpu_started;
         assert_eq!(
             report.status,
             ResultCategory::Success,
@@ -117,7 +139,7 @@ fn main() {
             .unwrap()
             .to_owned();
         println!(
-            "{{\"request\":\"{label}\",\"edit\":{edit},\"modules\":{modules},\"functions_per_leaf\":{functions},\"capacity\":{capacity},\"elapsed_ns\":{elapsed},\"retained_raw\":{},\"rss_kib\":{rss},\"phases\":{{{phases}}}}}",
+            "{{\"request\":\"{label}\",\"edit\":{edit},\"modules\":{modules},\"functions_per_leaf\":{functions},\"capacity\":{capacity},\"elapsed_ns\":{elapsed},\"process_cpu_ns\":{process_cpu},\"retained_raw\":{},\"rss_kib\":{rss},\"phases\":{{{phases}}}}}",
             session.cached_query_count()
         );
     }
