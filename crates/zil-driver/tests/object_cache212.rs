@@ -84,6 +84,53 @@ fn entries(root: &Path) -> Vec<PathBuf> {
     files
 }
 #[test]
+fn unused_foreign_declarations_do_not_invalidate_independent_objects() {
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let d = Dir::new();
+        d.source();
+        let o = d.options(8, optimization);
+        let first = d.build(&o);
+        success(&first, 42);
+        let units = first.native_codegen.as_ref().unwrap().actual_units;
+        assert!(units > 1);
+        let executable = fs::read(&first.artifacts["executable"]).unwrap();
+        // Append to the final module so existing definition IDs do not move.
+        for signature in ["x:i32)->i32", "x:i64)->i64"] {
+            d.write("b.zil", &format!(
+                "pub fn get()->i32 {{ return 23; }}\nextern \"C\" fn unused_foreign({signature};"
+            ));
+            let changed = d.build(&o);
+            success(&changed, 42);
+            let n = changed.native_codegen.as_ref().unwrap();
+            assert_eq!(n.actual_units, units);
+            assert_eq!(n.object_cache.hits, units, "{}", changed.to_json());
+            assert_eq!(n.object_cache.misses, 0);
+            assert_eq!(
+                fs::read(&changed.artifacts["executable"]).unwrap(),
+                executable
+            );
+        }
+        // A newly consumed foreign symbol must actually enter code generation.
+        d.write(
+            "b.zil",
+            "pub fn get()->i32 { unsafe { return abs(-24); } }\nextern \"C\" fn abs(x:i32)->i32;",
+        );
+        let used = d.build(&o);
+        success(&used, 43);
+        let n = used.native_codegen.as_ref().unwrap();
+        assert_eq!(n.object_cache.misses, 1, "{}", used.to_json());
+        assert_eq!(n.object_cache.hits, units - 1);
+        // Signature/argument mismatch must be rejected before any cache reuse.
+        d.write(
+            "b.zil",
+            "pub fn get()->i32 { unsafe { return abs(1,2); } }\nextern \"C\" fn abs(x:i32)->i32;",
+        );
+        let bad = d.build(&o);
+        assert_ne!(bad.status, ResultCategory::Success);
+        assert!(bad.native_codegen.is_none());
+    }
+}
+#[test]
 fn cold_warm_private_public_edits_preserve_current_verify_and_output() {
     let d = Dir::new();
     d.source();

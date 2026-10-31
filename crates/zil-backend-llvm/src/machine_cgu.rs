@@ -30,7 +30,20 @@ pub(crate) fn partition(module: Module, lir: &LirModule, entry: EntryPoint, coun
     }
     let mut defs = Vec::new();
     let mut prelude = Vec::new();
+    let mut symbols = BTreeSet::new();
     for (index, item) in module.items.iter().enumerate() {
+        // Removing declarations must not hide a collision with a definition in
+        // a different unit. Leave the original module to the ordinary validator.
+        let symbol = match item {
+            Item::Function(f) => Some(&f.name),
+            Item::Global(g) => Some(&g.name),
+            Item::NamedType(..) => None,
+        };
+        if let Some(symbol) = symbol
+            && !symbols.insert(symbol)
+        {
+            return fallback(module, "duplicate machine definition or declaration");
+        }
         match item {
             Item::Function(f) if f.blocks.is_some() => defs.push(Definition {
                 name: f.name.clone(),
@@ -125,6 +138,27 @@ pub(crate) fn partition(module: Module, lir: &LirModule, entry: EntryPoint, coun
     if members.len() <= 1 {
         return fallback(module, "one linkage-connected source group");
     }
+    // Some foreign/global declarations will no longer reach any native unit.
+    // Validate this declaration-only view once before filtering, so unused
+    // malformed types, ABI attributes or local declarations still fail. It has
+    // no function bodies and does not repeat whole-program SSA preflight.
+    // Named types remain in every unit in this first dependency-closure slice.
+    if prelude
+        .iter()
+        .any(|&index| !matches!(module.items[index], Item::NamedType(..)))
+    {
+        let declarations = Module {
+            triple: module.triple.clone(),
+            fingerprint: module.fingerprint.clone(),
+            items: prelude
+                .iter()
+                .map(|&index| module.items[index].clone())
+                .collect(),
+        };
+        if zil_llvm_api::validate_module(&declarations).is_err() {
+            return fallback(module, "invalid machine declaration prelude");
+        }
+    }
     // Only signatures needed across unit boundaries get copied. Definitions are moved.
     let mut prototypes = BTreeMap::new();
     for (id, d) in defs.iter().enumerate() {
@@ -149,7 +183,19 @@ pub(crate) fn partition(module: Module, lir: &LirModule, entry: EntryPoint, coun
         .collect::<Vec<_>>();
     let mut units = Vec::with_capacity(members.len());
     for (owner, definitions) in members {
-        let mut items = prelude.clone();
+        let referenced = definitions
+            .iter()
+            .flat_map(|&id| defs[id].refs.iter())
+            .collect::<BTreeSet<_>>();
+        let mut items = prelude
+            .iter()
+            .filter(|item| match item {
+                Item::NamedType(..) => true,
+                Item::Function(f) => referenced.contains(&f.name),
+                Item::Global(g) => referenced.contains(&g.name),
+            })
+            .cloned()
+            .collect::<Vec<_>>();
         let mut needed = BTreeSet::new();
         for &id in &definitions {
             needed.extend(
@@ -327,6 +373,108 @@ mod tests {
                 .count(),
             1
         );
+    }
+    #[test]
+    fn foreign_addresses_and_global_initializers_keep_only_consumed_declarations() {
+        let declaration = |name: &str| {
+            let Item::Function(function) = f(name, Ty::Int(32), Val::Int(0)) else {
+                unreachable!()
+            };
+            Item::Function(function.declaration())
+        };
+        let mut foreign = declaration("foreign");
+        if let Item::Function(f) = &mut foreign {
+            f.signature.result = Ty::Int(8);
+            f.signature.result_attrs.push(Attr::ZeroExt);
+            f.attrs.push(Attr::NonLazyBind);
+        }
+        let global = Item::Global(Global {
+            name: "external_state".into(),
+            linkage: Linkage::External,
+            ty: Ty::Named("State".into()),
+            initializer: None,
+            constant: false,
+            unnamed_addr: false,
+            alignment: 8,
+        });
+        let module = m(vec![
+            Item::NamedType("State".into(), vec![Ty::Int(64)]),
+            foreign.clone(),
+            declaration("unused"),
+            global.clone(),
+            Item::Global(Global {
+                name: "table".into(),
+                linkage: Linkage::Private,
+                ty: Ty::array(1, Ty::Ptr),
+                initializer: Some(Val::Array(vec![Arg::new(
+                    Ty::Ptr,
+                    Val::Global("foreign".into()),
+                )])),
+                constant: true,
+                unnamed_addr: false,
+                alignment: 8,
+            }),
+            f("left", Ty::Ptr, Val::Global("table".into())),
+            f("right", Ty::Ptr, Val::Global("external_state".into())),
+            f("independent", Ty::Int(32), Val::Int(7)),
+        ]);
+        let plan = partition(module, &lir(), EntryPoint::None, 64);
+        assert!(plan.units.len() > 1);
+        for unit in &plan.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+            let defined = definitions(unit);
+            assert_eq!(unit.items.contains(&foreign), defined.contains("table"));
+            assert_eq!(unit.items.contains(&global), defined.contains("right"));
+            assert!(
+                !unit
+                    .items
+                    .iter()
+                    .any(|i| matches!(i, Item::Function(f) if f.name == "unused"))
+            );
+        }
+    }
+    #[test]
+    fn filtering_cannot_hide_invalid_unused_declarations_or_cross_unit_collisions() {
+        let Item::Function(function) = f("unused", Ty::Int(32), Val::Int(0)) else {
+            unreachable!()
+        };
+        let valid = function.declaration();
+        let mut local = valid.clone();
+        local.linkage = Linkage::Internal;
+        let mut void_param = valid.clone();
+        void_param.signature.params.push(Param::unnamed(Ty::Void));
+        let mut bad_attr = valid.clone();
+        bad_attr.signature.result = Ty::Ptr;
+        bad_attr.signature.result_attrs.push(Attr::ZeroExt);
+        let mut unknown_type = valid.clone();
+        unknown_type.signature.result = Ty::Named("missing".into());
+        let mut collision = valid;
+        collision.name = "left".into();
+        let invalid_global = Item::Global(Global {
+            name: "unused_global".into(),
+            linkage: Linkage::External,
+            ty: Ty::Int(32),
+            initializer: None,
+            constant: false,
+            unnamed_addr: false,
+            alignment: 3,
+        });
+        for invalid in [local, void_param, bad_attr, unknown_type, collision]
+            .into_iter()
+            .map(Item::Function)
+            .chain([invalid_global])
+        {
+            let module = m(vec![
+                invalid,
+                f("left", Ty::Int(32), Val::Int(1)),
+                f("right", Ty::Int(32), Val::Int(2)),
+            ]);
+            assert!(zil_llvm_api::validate_module(&module).is_err());
+            let plan = partition(module.clone(), &lir(), EntryPoint::None, 64);
+            assert!(plan.fallback.is_some());
+            assert_eq!(plan.units, vec![module]);
+            assert!(zil_llvm_api::validate_module(&plan.units[0]).is_err());
+        }
     }
     #[test]
     fn local_component_falls_back_without_copying_and_duplicates_remain_invalid() {
