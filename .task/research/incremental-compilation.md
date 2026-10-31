@@ -48,3 +48,10 @@
 ## 第四阶段：产物路径重复解析
 
 阶段3已完成两套各1560请求窗口，继续针对暴露出的共同父目录重复解析成本。先记录`changes/research-artifact-directory-reuse.md`，追加写集`crates/zil-driver/src/artifacts.rs`及该提案。只复用一次检查批次的一个成功parent解析，逐文件当前物理身份、错误和每次发布检查不省略；限定测试与独审后重新完整计量。不得跨请求缓存路径安全结论。
+
+## 第三、四阶段完整交付
+
+- 当前生产9fe5f55e；a4前端复用、5e真实源码补强、9fe当前批次路径解析均独审Pass。最终495限定测试、all-targets Clippy与fmt通过。
+- 新四窗共9360请求、8160当前ZIL Verify、3720 native控制；另混合源码320构建/native及16参考构建/native。最终两窗各10区组3120请求，保留所有不利单元及旧O2错例。
+- 最终main直接对照512模块暖check 106.917→13.443 ms、私有修改107.113→94.652 ms，128模块暖build 55.531→35.479 ms。当前完整报告为`docs/research/incremental-compilation/CURRENT.md`；原RESULTS/MEASUREMENTS保持阶段2身份。
+- 保持Doing及集成边界；函数级语义增量、完整链接动作和分段证书仍未完成。最终GitHub自动检查绑定PR精确HEAD，不用前一提交240bb37d8已通过的run替代新源码验证。
