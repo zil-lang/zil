@@ -1,0 +1,993 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "verdict": "Pass",
+  "implementation_commit": "eff7b08c5814a56037dca198c83f2e851c3da61b",
+  "production_commit": "59d8753dc23f0ddfcddbaf5780e3057f3c60b9e9",
+  "scope": "Exact final delivery binding only. Prior independent functional/data reviews retain their own source and measurement identities; no tests/benchmarks rerun.",
+  "time_utc": "2026-10-31T09:56:53.954625+00:00",
+  "clean_tree": true,
+  "production_and_protected_inputs_unchanged": true,
+  "crates_tree": "ffc6594b6ee731b7a6e3bfaaee525b9cc56e494d",
+  "manifests": {
+    "stage5": {
+      "sha256": "4d7e9510024c11273301d582135a51556b5aecc07199df4153f2ff8e7124f10e",
+      "files": 117,
+      "bytes": 118667038,
+      "production_commit": "801933a9e8f060d44b8305786d01399527aa6137",
+      "entries": {
+        "README.md": "646524da6e005afdd1af1c7cf6f69bde7287e8bc3d80273c08f443a8f6243139",
+        "analysis.json": "889b1cefa323ff0b45b20a5fca68ddb6da254ec6d135ac359a6ddc8e56727a91",
+        "diagnostics/raw.tar.gz": "eccbf1ca99db86201153399a36e63fbdc2578097f3825d040b9f5022affc8723",
+        "diagnostics/raw.tar.gz.json": "c4f1d16bda6d9d4abd7bc95aff3d4de602d143aea00896176141f40d7cdd29f0",
+        "generated-closed/manifest.json": "a0e7f35ee97f1d26815cd3cc5398daf6b19f7da1dc77b8a76d5abac37f805d8f",
+        "generated-closed/raw.tar.gz": "1a70f887fe6d593e4bcfb129fd92fbbf03bc65f56548115d16e1c1616c366171",
+        "generated-closed/raw.tar.gz.json": "3d29c78319617ae2616ab66bf8dc10aa38bc3e078b77fd3ed919a14a62a6a511",
+        "generated-closed/summary.json": "51d3909551e6dffff5cdd0067248a2e8be8427f050f08b276b583b77fc677274",
+        "generated-default/manifest.json": "8cd013b5671f012e3a9c83ea81da2fc01b6caf829034a6f3ce09907dff676e37",
+        "generated-default/raw.tar.gz": "d9e5ba21573ec290677def96aad54d00d27d668ea41b8365e0aa6ce61faed32b",
+        "generated-default/raw.tar.gz.json": "73471805db2d52f2f8da529b4d439ffb7361136df6f594aa9ccfe604fb97fe6a",
+        "generated-default/summary.json": "d58efc95ae0288edf59852ac77c6a8c4b5fa1591d127c28e53ac349a4dd7c660",
+        "implementation-ablation/manifest.json": "b11860d60edb33360132dbaf5a68d935ff82d548a53309fadd4b3c440b2d57ca",
+        "implementation-ablation/raw.tar.gz": "3850ee2dcf82211fa43a9d32d0a264b18120958cd31667f720850883ce5bdcc4",
+        "implementation-ablation/raw.tar.gz.json": "066c7dd56c70ffdad9f5215298f4850b2e9f2c9710a1d27f6116d3f1dbfafb62",
+        "implementation-ablation/summary.json": "b9145be6ba57d27b56942c2c3623b2013251e21752c439a04d3e0c84b0033aef",
+        "real-closed/manifest.json": "0b86c71c886f20192fde2ec23980839c37ccc3267c80fb4bd378d54a3fbe8341",
+        "real-closed/raw.tar.gz": "4d3298a44ab7f9f86aa79d369179cdafd8cdbaad479cb0194d48d35a66789686",
+        "real-closed/raw.tar.gz.json": "13e38c0e1260a36b3f6809da7cb8e84f843126246d51bc0f1a0d6ba12e3bb42f",
+        "real-closed/summary.json": "c13f107c1f744a394382ddf2ea0644f539530480c2ecba921a9478d598f2d5c7",
+        "real-default/manifest.json": "f10a56c2caefd22fd067460fe28c4744c656a6f56d290a9cb6a38205521fb238",
+        "real-default/raw.tar.gz": "e7b22bd43867838ced10a398625086446d3e4b0dadec875b4cc8a9a4315e89ae",
+        "real-default/raw.tar.gz.json": "a2b1190954cdfc2308659f822c351841fe12fb2c076f4151709b5efbc90115ce",
+        "real-default/summary.json": "886bf26947edcfe48684a45b856a901ee1762535f0bbe4641b196847e8f345e2",
+        "validation/CP25-FEASIBILITY.md": "e7c039941b85c94c65e722fe90f8a8b4cc097cbd14b4ba096c5600f80be0c7cf",
+        "validation/ablation-protocol-smoke.log": "9bcfdcb84b46467f520b2638f8877a2d23a0442dbc058d0172069de57578c467",
+        "validation/analysis.log": "d254613a702c53e6b758447d8ca68a20f88957c8b70dcdbce759c71ec32bbf6d",
+        "validation/app-corrected-preflight.log": "b4d36a4b8f1de957960b67e24f59a8729136cd1fd521a2371b09f68f5a459799",
+        "validation/backend-tests.log": "d7c319962a547ca2da3f841f125e70832c54d66c290d64ef7f37844b06e0aeae",
+        "validation/check-stage5-archives.py": "e8e580f912fbeb62194ada14f258a7d1c4bc347083ad51b0cd7315fadba73216",
+        "validation/chunk-model-tests.log": "985a69edc6a071959b9b52fc390c25df44a5ea9a461d3164ec4a5c523c15832d",
+        "validation/chunk-source-tests-final.log": "a4c4f805f63916c6f5623d2e38320b4bb896f7050f75b623f132366142900bba",
+        "validation/chunk-source-tests.log": "a7d2d30c27158aeb12404e58b8f5b88336ef95743dd79bf525fa11eb693470e2",
+        "validation/clippy.log": "0fc4ddf92cafaa1f659caae972dac6c62a2840d0c8a44d77db18126b48cec579",
+        "validation/closed-abi-tests-final.log": "c3a3ae5c057a55c982e87fb87dc93fe75112e82710397531ab5459ff48afed70",
+        "validation/closed-abi-tests.log": "5d0d4a6b8ec891c25579cb182377fa3a11025cf9848beef9846025d93bae022c",
+        "validation/closed-and-large-preflight.log": "49fd8a163ea4c8b74804be5bad3eb695f21dfdae65e9e3460f0929b36cb5c54d",
+        "validation/closed-backend-tests.log": "6a42c2136942a91667b71ef166d6bdf39972928a11a841b7b3ede6657cc7ee9f",
+        "validation/closed-cli-tests.log": "258b66c71d9b0a090e010ed9d811e99cee4af5caf8f746dc5f5f5aba648be89a",
+        "validation/closed-clippy-final.log": "a11a1de8037a032bda7e33f88e31dc898d0129cfe94956add639cd289d2ce985",
+        "validation/closed-clippy-final2.log": "35c65f348fbeb94df2649c7d29dc7c89497c51389e7a582bc6cc7c70f8006a68",
+        "validation/closed-clippy.log": "bc193e1436888dc6ab8ab89e13cdedf21bd80b4eaa87f025528ac3c9cb5b1dd2",
+        "validation/closed-driver-tests.log": "d07ce03ba53fb68e27a4c024523d083d7ef551abc6c7347dcb095a43ce6b272b",
+        "validation/closed-review.json": "2fe22537a08358af437c5727c69066845182bbb327dc9b409accaa9e5692ad7d",
+        "validation/closed-review.md": "6ff7267bcd50d68ba3034b4d04dbebec0d442c9f7f67e574a92b988d2227ccbc",
+        "validation/closed_executable_cp13-original.rs": "280bb3131995deb7b0b3f7b2c77b22ef55aab77e140a56397a3f8abab8a4b657",
+        "validation/collect-evidence.py": "e4c398b5e4b20d7a41d4b161f3a344ce46d04a9a7ed41c2c60f99250c711a42c",
+        "validation/collect.log": "c7e0c1dca2e53d6c1cae47e45406c271bc722e9245a231ffa0f54786c423ba29",
+        "validation/data-review-archives.json": "d2b3cf94d8310d0eaf508125d87a91d291549bf74bbedbc75900f8ca94a7b4d0",
+        "validation/data-review-archives.log": "f9c673909163c9628601045295f3715c3b962c0f764595d85ea87a8dd92fd539",
+        "validation/data-review-inventory.json": "e653676ed89094829722370c5047f13953c9802309eda14178380b67d8b8deac",
+        "validation/data-review-recompute.log": "01a87fd323fa3f1ef6aa321ddc29880ec8720e0eae48cab789eb387dd3bd8c3b",
+        "validation/data-review-recomputed.json": "b592ff8977a3af363f8c088bc12648fd4b26157efde3e31d82e2e7c013178cb5",
+        "validation/data-review.json": "e7a9fcc6e0a7567261c22c923be5b5ba5d3d82cce25976fa51643868bb8e47be",
+        "validation/data-review.md": "1a693a141088333a75f9a154932e9fce810bd515f6f220758513f274301febea",
+        "validation/dominance-review.json": "eefd758db7867ef355c1ff74932312cfcaafd8d5fd92329bbe30dc8b6be27340",
+        "validation/dominance-review.md": "7628ee1202125bfa510578009559b15db044f8a3f10261675243a6484850b279",
+        "validation/dominance-tests-corrected.log": "24b3d389b44ca2acd643b99b64e690f150b7b7f53b4d592a5a73aa7e820074e4",
+        "validation/dominance-tests.log": "69f83607655375f731e92ab73f63dd7d821e70455617a7de299334a49184b553",
+        "validation/driver-tests.log": "5136130339953266fb7f93ced372013f4bbcf0c4842ab58d6402d0bd6c7619d8",
+        "validation/environment.json": "74c1856249977a7af020c926feef5c49edb926700d45d49d2ed4202bc4e47cf7",
+        "validation/final-api-tests.log": "330fd7e4115bacefd9fde8e5aa99400e3e947649e00543220f42b698ba03b272",
+        "validation/final-backend-tests.log": "0ba9925bf09bcdaae52be06e448c0ed7064502ef8e48786770f889321be9428f",
+        "validation/final-cli-tests.log": "8336c178eac4785ddfefb14ea6df30d9d6d794fdf65cba17d39148e1ac9e9991",
+        "validation/final-clippy-corrected.log": "f3b43dc794ce25ad2e695ee4aec01345b8dbc46cb231d614fa3152154b7e762d",
+        "validation/final-clippy.log": "13bd9b0791c165cbbcb2d8f0466a756cf62a445ba95673fae4bf0ea4e6d4802b",
+        "validation/final-driver-tests.log": "556b455cfbb8f347be4dd49b96824a98a1db558edfb2a483f116419a4109bd2c",
+        "validation/final-fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "validation/final-shape-preflight.log": "cd9dacd827df8ccd1274d2837fbb2b471444f35bf64a02c844cc8e5716a0b9e2",
+        "validation/fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "validation/fmt2.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "validation/frozen-execution.json": "609740bee09008dd631247a440cbc5c5d34aaccd689d4a059ce051df1951e53f",
+        "validation/frozen-execution.log": "b0de5bef46c14cfd385937e8a38762f756a083f66bbea7ecdc3fe3283c7ca3bb",
+        "validation/generated-closed.log": "b6e4231f4995d6b8228a98f44fcab44e2f3006d1b20a9eae70d21c8db444868a",
+        "validation/generated-default.log": "afa4090ffa8fed23dc2359ca9c4c4ab36f180dad1e1847ee2cf05f969e1f3b6a",
+        "validation/implementation-ablation.log": "af81d724cfeb1ad3e1721861f33081d523ceaea8497a244eb7acad7e06176053",
+        "validation/incremental-diagnostic.log": "977fce3cee5f2b407ad185ed041b5f9a7a76c4d099ca2206ce2bc6ce09af1925",
+        "validation/initial-harness.py": "5cf3815d147612bc22ffb8d1d26a107a601bd24bf38d0217626757a0a24a2b54",
+        "validation/new-types-preflight.log": "73a4fbfea45371058fd16bed31ced38a54fd958eadb8e1de65a1517319f01066",
+        "validation/plot.log": "1a6f201b848b2b001ff957fbae0e48b9eec8fa12d7be9da4ddb6307bfa4a430e",
+        "validation/preflight-runner.py": "ae750be3f9930c582252b3f60b2985496d5e1fe4a580839068837ee733fafeec",
+        "validation/real-closed-preflight.log": "e1905c626c7a2c5a6468b5467791e6dd83783e5208dc5fb0f14070b57de6f5b7",
+        "validation/real-closed.log": "098c8b6ebe4492c036bb08aa0394b746b1e173570e97cc7c2f61b2bcbfeada73",
+        "validation/real-default.log": "a39ea3a71aa685043a4aa6a26a8da7a7f0f58ca9bfd8528ab5a2d040a387f3b0",
+        "validation/real-preflight.log": "1adabf3f4f1bde0d19379028f276a05f4e2dd7f8783af7fa4cd060b9e87e9efc",
+        "validation/recompute-stage5-data.py": "ce6feff012794a19eddee964988657ec156c8e4b5d7fc6d23b2d241dc0658401",
+        "validation/release.log": "5f5dca0fdb8b6c1cef1afee524e6ea9e6c8df624b6a803bcd1f5679d16b8a71e",
+        "validation/review-benchmark-protocol.log": "a9f99caf85e0f2352544e010d6373d7d30b9a53053913018d11835b419788045",
+        "validation/review-benchmark-protocol.py": "28d3808fdfd0c6ef18841076e1b729f039b1c049fae5d707633e2c564b9d9afd",
+        "validation/review-dominance-oracle.log": "c37564559e16e684f4790149789d42903d9ea9f6529d977ea5727d8e075daf04",
+        "validation/review-dominance-oracle.py": "3bdaad0dd5569558dacf215ce06c2d1bf913e6996fc463f50068cadc3f0eaa10",
+        "validation/review-dominance-oracle.rs": "621accd81a08ad579cd37cec156365592d74044afe6dd0726ad9860aff1d3d41",
+        "validation/review-dominance-oracle.tar.gz": "b76a95d97f4ce35cbf33645686d8907a2c382cd40a8ab40b94b1316018bc1398",
+        "validation/review-draft.json": "ff41574f08d7afa7fdbcc640b954f43ddfdfc6a82f00d8fe4b59ce94d9f71df2",
+        "validation/review-draft.md": "3845df38d8939a7cd4b531b83fed7c55eec213f9f95899ab7728f8ad8542c1f9",
+        "validation/review-exact5189-incomplete-snapshot.log": "a4d3c7ab55e65917f1c48b518b39f78780d3b9cb0024dccab3a737b41860b922",
+        "validation/review-exact5189-machine.log": "ac8f34304039017767b7a618055b714d0819e0c9e28d36066490d097d939c814",
+        "validation/review-exact5189-native.log": "3aaa85b46a0a8c6f39651ec8b21c8486f9175473d3ec64f9618406a86ae1e343",
+        "validation/review-exact801-api.log": "a167aad579915fece0391593017f0ff875b1a20c85dd9fa567b3f23a426dcba7",
+        "validation/review-exactc6a-backend.log": "5c9ca97883ef5ec5ef2abf2e3542133ba007120b76b9830cbf643cd9e5b131f5",
+        "validation/review-exactc6a-cli.log": "ad2ecacf777f3bf7035f7d0d2d2942ee26932f3cf80643160c5dba045725f5bf",
+        "validation/review-exactc6a-driver.log": "21b20136302ec193b9ab91714d419c0b0761e106765315be642cec60f9f3d450",
+        "validation/review-exactc6a-machine.log": "3fdced094244df3a2584212fa20633c786bd24f0520af7fa73a7e949c24fdc45",
+        "validation/review-exactc6a-resource.log": "e88ef7296d3ac1e0a90d3d4a27697642c7e9fd99dbc4aed559bcb1a01b2e8775",
+        "validation/review-frozen-distribution-generator.py": "73c0be9ebbb61e98562f499580adf51010477a216c7597ad72d5b57c43639610",
+        "validation/review-large-native-retry.log": "99070922787f0dd714c69841f95f5f12ea9a02a8fbf919aedbf147c3fbf6b6b9",
+        "validation/review-large-native.log": "7a8a4fd67ddfbccee8b1172fb28a46046e0ec868f1f213bfc521f19e2e547c37",
+        "validation/review-machine.log": "fe1f895e85814760a1e5d4527a64e12150a148347c62e2512e89f01d6f069f0a",
+        "validation/run-frozen.py": "4780d31e262198dbe75b4403a43c5c1c6a2b609edfe84fa59f686ee985dca239",
+        "validation/shape-smoke-corrected.log": "be38f49b6b06111bdef0dfea0ad434e43adafb6ec8f7cef90321589d823f7af3",
+        "validation/shape-smoke.log": "98b70650a98c398a0a62bca3dd1d491d790570771c719b66c43c3ab9e7293837",
+        "validation/tool-protocol-review.json": "3464c903eede12f29bc18fd027e653502e4ee11901fdaab83394c6a30f98d209",
+        "validation/tool-protocol-review.md": "135074c39227dd3d628817da718ad325d0846d8c677b479b58fc341e71956c4a",
+        "validation/zit-mechanisms-result.json": "5cb42f7417226514ea13552b4bd7cd94c03ffed83972ee8def7c820a6f058d3b",
+        "validation/zit-mechanisms.mjs": "7546229a48282ccb8625177dae01cba87c262f75b7247f42c864d41b378b58fe",
+        "validation/zit-run.log": "db041bce13f4671d480d81c0fd6f6073d573f2f48b4a77271562037a88c95664",
+        "validation/zit.ts": "719a914356a24ac1edbeb1ffe6637d22311c9299e6be9ddbcdf3f7fdddf1474f"
+      }
+    },
+    "stage5-followup": {
+      "sha256": "00c440951505d488ed4e95f05f60a3eec2e1bdec266031034faa9beaf1727b4a",
+      "files": 71,
+      "bytes": 85513411,
+      "production_commit": "59d8753dc23f0ddfcddbaf5780e3057f3c60b9e9",
+      "entries": {
+        "README.md": "8febaa2748b632b615892fc9d9f85792e022408632846f4bdfbc65af76b83950",
+        "analysis.json": "7a141032759ca6b7f8280ac9ba3a6e204c58ca16b730c9310aed3e7ac1b92118",
+        "controls/raw.tar.gz": "a22fe143bb9a4f15080ea168aef79cb3c420317a185635ec935aaf04b1fa2315",
+        "controls/raw.tar.gz.json": "abeb244b20659a0f800c9205c3405b8350f68b8c3ff5d6603fa0c9e41afbad71",
+        "followup-closed/manifest.json": "e978c12de314794c9072f85bfd9888b25486025dc61aabb97cf6278b654e03d8",
+        "followup-closed/raw.tar.gz": "f4a610fb6329c8ebb8e32aee870e84ccb3ec5431b6b4a86cd2e71b0f7e819a0f",
+        "followup-closed/raw.tar.gz.json": "18bd310a843d7fa392c0e6767c9684d69ccf606d46a19080dda706dd3e60a1b3",
+        "followup-closed/summary.json": "7e33248c5d37ab60b6792b08d5b2cea0acb04dcb2d6fed08199115d4aab6c7b4",
+        "followup-default/manifest.json": "c2f2cad2b6b4eaca84c12429b28e46afea52e9f1efd77b1a90e5cff102cf413d",
+        "followup-default/raw.tar.gz": "7816385b406f5d1ba0afa85b06ada3d3aa87ca2423e45149aa579f59a965540c",
+        "followup-default/raw.tar.gz.json": "fc54d18feb45b00ec3ab1e7f7dafba92046815f7ee7f893d2d7b6be60728cbfe",
+        "followup-default/summary.json": "21fd2ad09f0c2f7eb213af9cfd7bfb6f01b617b7f2941eafe3b79a2e95942aad",
+        "followup-isolation/manifest.json": "cd5405c7331d2590e8ef0b783e6018118ae1170f802889e8dac52485dcfff0da",
+        "followup-isolation/raw.tar.gz": "d18dffdc7ce59da3d25ffb5fdc02af5dd8c89f707503d87d6649e4a11ba7283f",
+        "followup-isolation/raw.tar.gz.json": "e97d60799a4835acc9c041649f66ab3d886afed3cb79eb8d1c12b33720ff84e9",
+        "followup-isolation/summary.json": "9ea14bf862b27e72c2212db061f938cd1d3d377f5a926112211ced30189fa01a",
+        "validation/analysis.log": "4b349efc1c114099ac7b777405056d787b6fc362a006b25735fdecd1cafc3bfd",
+        "validation/api-tests.log": "f7753936ce797db0eb89bce9d4082f7d8b50bd30202b82ac72e69b065fa9efc4",
+        "validation/backend-tests.log": "644a9ef1ca9a6c0a7ace0c6f7604016590385b20efe74a861a2eafd38ad7fa17",
+        "validation/check-final-documents.py": "98542cc9e3c20168d6bf5704117ce85b4d43fb3e74577e3b101ec2194d45991f",
+        "validation/check-followup-archives.py": "b435df96c5f9e36e1eb5caa5df7dd1c507b29189ae7d9492020f1d6746e79b75",
+        "validation/cli-tests.log": "af459f530885c26eba020e6255bfe429d355d802bc5cc5441e5a0a74d2347efb",
+        "validation/clippy.log": "d950a470fc8451cfd8944fc243b8928f763d8fdf201af23dbc0adb8846ffbaf5",
+        "validation/collect-evidence.py": "97781e8064e3a53ba363f791af0bd9a8225f3c541f5ab1eece78d93d3e9ce45c",
+        "validation/collect.log": "8e4ce288b5dc86aba0cc96bfd935b96a164ebd2d8b88386cecd4006b9a102255",
+        "validation/data-review-archives.json": "5658f7a13a9e3521cc05b252b889c1c7a12468f586900b313ecf1fba021d35c8",
+        "validation/data-review-archives.log": "64ccad2e2b36647938ae2cd2077ead36dbf8aef927d8dd55b5d022d07afaf0aa",
+        "validation/data-review-inventory.json": "873c72cb7da5835f97a05b54ea3d5398e1dde8cd8f8a27d938b29b0f5dda182f",
+        "validation/data-review-recompute.log": "923fa364966e0525347c96536a183d1967bcd172491e491159401e897f757c91",
+        "validation/data-review-recomputed.json": "c52d1c1f3f7f9023d5dcd6f9368159db963d1d002bf08ade017cb92732a4ac4b",
+        "validation/data-review.json": "1fa292a0923c372a89b8ede1b17af8ea927c27e329e5c0306121d7812500c17d",
+        "validation/data-review.md": "73d2d91e2d1a79bd57262e86d04e7622ae23e44f13ebe78e84e0cad5ebd4a2e2",
+        "validation/document-review.json": "48331b7d604f34fdf7919c8d8265b1ae805b33684d6400f68d6936cbd403bd4b",
+        "validation/driver-tests.log": "751b7f9eb5714584a2452a21486c6d10741febd4b85acdce50ff1bdf2b457edf",
+        "validation/environment.json": "322914979e217ea657d88361666cf8af0a2aad374fc579be6c59b761c4afaf0b",
+        "validation/final-api-tests.log": "fe48e27dc09ffacdb59ea8bd733aac440ea989b6b0395c0da17e5ab925310882",
+        "validation/final-backend-tests.log": "13b66bf218922b95bf53cd1888211162eac1d1ab85be573c405956a388460b59",
+        "validation/final-cli-tests.log": "c3e4b2e849c8df2ce8abecb237effbf340bac34112821b6fe24018b48ab3b84b",
+        "validation/final-clippy.log": "1983f6cd80ec820402f8e6bca6f0da58e5a43f2f1dd530c4daa9f59213f9971e",
+        "validation/final-driver-tests.log": "05c97afa9a347c3df53467b7f1ecbb9651d2af89fd59b923d3056a0a3b4276c5",
+        "validation/final-fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "validation/final-release.log": "9522f5760ea9f0754bf0d9b70378ee4c000df91fd11eecb56462effcb50d88a9",
+        "validation/final-sanity-generated.log": "91486405e639b2407784883305c2e4371bfe6f06361fdaf1cbed55ab6012d9a6",
+        "validation/final-sanity-real.log": "bb2ca2f7805f953514795591757af3dbe049363c67384184a123b964a65fc00d",
+        "validation/final-sanity-result.json": "3b94eda80c9987c403071e1ed87b47bd6e61ea9c304ac7102b815607cb544e00",
+        "validation/fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "validation/followup-closed.log": "a79b632c4b82de6978356302ddf291c0562b19cde0611b6a4805416b220b44ad",
+        "validation/followup-default.log": "b8367ab018b4196a8519bcf5d6336820ce1b85e95f03e366f1ed510244f0af80",
+        "validation/followup-isolation.log": "b8367ab018b4196a8519bcf5d6336820ce1b85e95f03e366f1ed510244f0af80",
+        "validation/frozen-execution.json": "6325a049703c74b4b4db637b2f88fe3f8db74fd46b0dff671250bcd98e07227a",
+        "validation/frozen-execution.log": "69e5c88e69ca5f0f75c3af5a357cf3d70f4c0e9990049056cd2f31d550e3a87b",
+        "validation/github-main-comparison.json": "bdf90fbde1c2cb987956fee7320ae7c35a79f7128fcc5f7903db328f0aaab888",
+        "validation/plot.log": "e0a46db3e7d086b6ed55477f9c8cc5ec4dbe4b6ef804e1372e9a4a6dc5a6b01a",
+        "validation/recompute-followup-data.py": "76d8f0080e2a8a0f773c2b394ea5438646207b8966318186cae08fab4767a509",
+        "validation/recompute-sanity-data.py": "a85f6148952962812820e2c6bd69bb7e73119f4328665e1cdc928bfc9eabee17",
+        "validation/release.log": "c1a9edfbad31b804ecc8f19765f1fee1948aaf770acb01227c0179857459341e",
+        "validation/review-exact59d-api.log": "1e16667ec87876ad273106e8df015058ee61b3c021ea7513128d9753ff581d28",
+        "validation/review-fanin-oracle.log": "57f1c8c761e500bdf1bcd6f160eff7ec5c4a75021bf71a4b3435aecd06151560",
+        "validation/review-fanin-oracle.py": "e7516548854b64944cc3cd7173e1ccaa9e2ea7a19ffd62085e4407a79104271f",
+        "validation/review-fanin-oracle.rs": "dd3293a4f51d869acac764884470c44ef6054a69acda72a083511018eaf733c3",
+        "validation/review-fanin-oracle.tar.gz": "4c27fd639a10b8f2a408b4fc98d81849da0b9b9f517b8e924cf17a7b5955eea1",
+        "validation/review-frozen-distribution-generator.py": "73c0be9ebbb61e98562f499580adf51010477a216c7597ad72d5b57c43639610",
+        "validation/review.json": "c2ee0622072b6bb7dcb24ec1e46bbb997a17979d4fd381615b2cfafe2c13f4af",
+        "validation/review.md": "1c8ebd6274b2a359063058959012f27f184064bd0e9aae51c31a5df4d1ec5f39",
+        "validation/run-frozen.py": "1d8a04e659c3f5771e6f1c6a794f8303fc9ec1e5ed701ea55a0424549d2c741a",
+        "validation/sanity-frozen-distribution-generator.py": "73c0be9ebbb61e98562f499580adf51010477a216c7597ad72d5b57c43639610",
+        "validation/sanity-generated.log": "91486405e639b2407784883305c2e4371bfe6f06361fdaf1cbed55ab6012d9a6",
+        "validation/sanity-real.log": "bb2ca2f7805f953514795591757af3dbe049363c67384184a123b964a65fc00d",
+        "validation/sanity-review-inventory.json": "9dcdbe16e26d786b69b7cc9897bb9faaf16222813842f3db94c1ddd007f4158f",
+        "validation/sanity-review-recompute.log": "3d9e647e3848b9cab2c2af68fa2ad9d81a9481972857211f7c9b03eae2588098",
+        "validation/sanity-review-recomputed.json": "b42cf3e9d062b9f83ee3031cf62deba482741265a4ea5c5d0e33fa6dfdd1fa13"
+      }
+    }
+  },
+  "receipt_copies": [
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/CP25-FEASIBILITY.md",
+      "sha256": "e7c039941b85c94c65e722fe90f8a8b4cc097cbd14b4ba096c5600f80be0c7cf",
+      "original": "/workspace/.zil-env/research/stage5/CP25-FEASIBILITY.md"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/ablation-protocol-smoke.log",
+      "sha256": "9bcfdcb84b46467f520b2638f8877a2d23a0442dbc058d0172069de57578c467",
+      "original": "/workspace/.zil-env/research/stage5/ablation-protocol-smoke.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/analysis.log",
+      "sha256": "d254613a702c53e6b758447d8ca68a20f88957c8b70dcdbce759c71ec32bbf6d",
+      "original": "/workspace/.zil-env/research/stage5/analysis.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/app-corrected-preflight.log",
+      "sha256": "b4d36a4b8f1de957960b67e24f59a8729136cd1fd521a2371b09f68f5a459799",
+      "original": "/workspace/.zil-env/research/stage5/app-corrected-preflight.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/backend-tests.log",
+      "sha256": "d7c319962a547ca2da3f841f125e70832c54d66c290d64ef7f37844b06e0aeae",
+      "original": "/workspace/.zil-env/research/stage5/backend-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/check-stage5-archives.py",
+      "sha256": "e8e580f912fbeb62194ada14f258a7d1c4bc347083ad51b0cd7315fadba73216",
+      "original": "/workspace/.zil-env/research/stage5/check-stage5-archives.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/chunk-model-tests.log",
+      "sha256": "985a69edc6a071959b9b52fc390c25df44a5ea9a461d3164ec4a5c523c15832d",
+      "original": "/workspace/.zil-env/research/stage5/chunk-model-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/chunk-source-tests-final.log",
+      "sha256": "a4c4f805f63916c6f5623d2e38320b4bb896f7050f75b623f132366142900bba",
+      "original": "/workspace/.zil-env/research/stage5/chunk-source-tests-final.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/chunk-source-tests.log",
+      "sha256": "a7d2d30c27158aeb12404e58b8f5b88336ef95743dd79bf525fa11eb693470e2",
+      "original": "/workspace/.zil-env/research/stage5/chunk-source-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/clippy.log",
+      "sha256": "0fc4ddf92cafaa1f659caae972dac6c62a2840d0c8a44d77db18126b48cec579",
+      "original": "/workspace/.zil-env/research/stage5/clippy.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/closed-abi-tests-final.log",
+      "sha256": "c3a3ae5c057a55c982e87fb87dc93fe75112e82710397531ab5459ff48afed70",
+      "original": "/workspace/.zil-env/research/stage5/closed-abi-tests-final.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/closed-abi-tests.log",
+      "sha256": "5d0d4a6b8ec891c25579cb182377fa3a11025cf9848beef9846025d93bae022c",
+      "original": "/workspace/.zil-env/research/stage5/closed-abi-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/closed-and-large-preflight.log",
+      "sha256": "49fd8a163ea4c8b74804be5bad3eb695f21dfdae65e9e3460f0929b36cb5c54d",
+      "original": "/workspace/.zil-env/research/stage5/closed-and-large-preflight.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/closed-backend-tests.log",
+      "sha256": "6a42c2136942a91667b71ef166d6bdf39972928a11a841b7b3ede6657cc7ee9f",
+      "original": "/workspace/.zil-env/research/stage5/closed-backend-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/closed-cli-tests.log",
+      "sha256": "258b66c71d9b0a090e010ed9d811e99cee4af5caf8f746dc5f5f5aba648be89a",
+      "original": "/workspace/.zil-env/research/stage5/closed-cli-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/closed-clippy-final.log",
+      "sha256": "a11a1de8037a032bda7e33f88e31dc898d0129cfe94956add639cd289d2ce985",
+      "original": "/workspace/.zil-env/research/stage5/closed-clippy-final.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/closed-clippy-final2.log",
+      "sha256": "35c65f348fbeb94df2649c7d29dc7c89497c51389e7a582bc6cc7c70f8006a68",
+      "original": "/workspace/.zil-env/research/stage5/closed-clippy-final2.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/closed-clippy.log",
+      "sha256": "bc193e1436888dc6ab8ab89e13cdedf21bd80b4eaa87f025528ac3c9cb5b1dd2",
+      "original": "/workspace/.zil-env/research/stage5/closed-clippy.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/closed-driver-tests.log",
+      "sha256": "d07ce03ba53fb68e27a4c024523d083d7ef551abc6c7347dcb095a43ce6b272b",
+      "original": "/workspace/.zil-env/research/stage5/closed-driver-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/closed-review.json",
+      "sha256": "2fe22537a08358af437c5727c69066845182bbb327dc9b409accaa9e5692ad7d",
+      "original": "/workspace/.zil-env/research/stage5/closed-review.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/closed-review.md",
+      "sha256": "6ff7267bcd50d68ba3034b4d04dbebec0d442c9f7f67e574a92b988d2227ccbc",
+      "original": "/workspace/.zil-env/research/stage5/closed-review.md"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/closed_executable_cp13-original.rs",
+      "sha256": "280bb3131995deb7b0b3f7b2c77b22ef55aab77e140a56397a3f8abab8a4b657",
+      "original": "/workspace/.zil-env/research/stage5/closed_executable_cp13-original.rs"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/collect-evidence.py",
+      "sha256": "e4c398b5e4b20d7a41d4b161f3a344ce46d04a9a7ed41c2c60f99250c711a42c",
+      "original": "/workspace/.zil-env/research/stage5/collect-evidence.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/collect.log",
+      "sha256": "c7e0c1dca2e53d6c1cae47e45406c271bc722e9245a231ffa0f54786c423ba29",
+      "original": "/workspace/.zil-env/research/stage5/collect.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/data-review-archives.json",
+      "sha256": "d2b3cf94d8310d0eaf508125d87a91d291549bf74bbedbc75900f8ca94a7b4d0",
+      "original": "/workspace/.zil-env/research/stage5/data-review-archives.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/data-review-archives.log",
+      "sha256": "f9c673909163c9628601045295f3715c3b962c0f764595d85ea87a8dd92fd539",
+      "original": "/workspace/.zil-env/research/stage5/data-review-archives.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/data-review-inventory.json",
+      "sha256": "e653676ed89094829722370c5047f13953c9802309eda14178380b67d8b8deac",
+      "original": "/workspace/.zil-env/research/stage5/data-review-inventory.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/data-review-recompute.log",
+      "sha256": "01a87fd323fa3f1ef6aa321ddc29880ec8720e0eae48cab789eb387dd3bd8c3b",
+      "original": "/workspace/.zil-env/research/stage5/data-review-recompute.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/data-review-recomputed.json",
+      "sha256": "b592ff8977a3af363f8c088bc12648fd4b26157efde3e31d82e2e7c013178cb5",
+      "original": "/workspace/.zil-env/research/stage5/data-review-recomputed.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/data-review.json",
+      "sha256": "e7a9fcc6e0a7567261c22c923be5b5ba5d3d82cce25976fa51643868bb8e47be",
+      "original": "/workspace/.zil-env/research/stage5/data-review.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/data-review.md",
+      "sha256": "1a693a141088333a75f9a154932e9fce810bd515f6f220758513f274301febea",
+      "original": "/workspace/.zil-env/research/stage5/data-review.md"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/dominance-review.json",
+      "sha256": "eefd758db7867ef355c1ff74932312cfcaafd8d5fd92329bbe30dc8b6be27340",
+      "original": "/workspace/.zil-env/research/stage5/dominance-review.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/dominance-review.md",
+      "sha256": "7628ee1202125bfa510578009559b15db044f8a3f10261675243a6484850b279",
+      "original": "/workspace/.zil-env/research/stage5/dominance-review.md"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/dominance-tests-corrected.log",
+      "sha256": "24b3d389b44ca2acd643b99b64e690f150b7b7f53b4d592a5a73aa7e820074e4",
+      "original": "/workspace/.zil-env/research/stage5/dominance-tests-corrected.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/dominance-tests.log",
+      "sha256": "69f83607655375f731e92ab73f63dd7d821e70455617a7de299334a49184b553",
+      "original": "/workspace/.zil-env/research/stage5/dominance-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/driver-tests.log",
+      "sha256": "5136130339953266fb7f93ced372013f4bbcf0c4842ab58d6402d0bd6c7619d8",
+      "original": "/workspace/.zil-env/research/stage5/driver-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/final-api-tests.log",
+      "sha256": "330fd7e4115bacefd9fde8e5aa99400e3e947649e00543220f42b698ba03b272",
+      "original": "/workspace/.zil-env/research/stage5/final-api-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/final-backend-tests.log",
+      "sha256": "0ba9925bf09bcdaae52be06e448c0ed7064502ef8e48786770f889321be9428f",
+      "original": "/workspace/.zil-env/research/stage5/final-backend-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/final-cli-tests.log",
+      "sha256": "8336c178eac4785ddfefb14ea6df30d9d6d794fdf65cba17d39148e1ac9e9991",
+      "original": "/workspace/.zil-env/research/stage5/final-cli-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/final-clippy-corrected.log",
+      "sha256": "f3b43dc794ce25ad2e695ee4aec01345b8dbc46cb231d614fa3152154b7e762d",
+      "original": "/workspace/.zil-env/research/stage5/final-clippy-corrected.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/final-clippy.log",
+      "sha256": "13bd9b0791c165cbbcb2d8f0466a756cf62a445ba95673fae4bf0ea4e6d4802b",
+      "original": "/workspace/.zil-env/research/stage5/final-clippy.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/final-driver-tests.log",
+      "sha256": "556b455cfbb8f347be4dd49b96824a98a1db558edfb2a483f116419a4109bd2c",
+      "original": "/workspace/.zil-env/research/stage5/final-driver-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/final-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original": "/workspace/.zil-env/research/stage5/final-fmt.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/final-shape-preflight.log",
+      "sha256": "cd9dacd827df8ccd1274d2837fbb2b471444f35bf64a02c844cc8e5716a0b9e2",
+      "original": "/workspace/.zil-env/research/stage5/final-shape-preflight.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original": "/workspace/.zil-env/research/stage5/fmt.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/fmt2.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original": "/workspace/.zil-env/research/stage5/fmt2.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/frozen-execution.json",
+      "sha256": "609740bee09008dd631247a440cbc5c5d34aaccd689d4a059ce051df1951e53f",
+      "original": "/workspace/.zil-env/research/stage5/frozen-execution.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/frozen-execution.log",
+      "sha256": "b0de5bef46c14cfd385937e8a38762f756a083f66bbea7ecdc3fe3283c7ca3bb",
+      "original": "/workspace/.zil-env/research/stage5/frozen-execution.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/generated-closed.log",
+      "sha256": "b6e4231f4995d6b8228a98f44fcab44e2f3006d1b20a9eae70d21c8db444868a",
+      "original": "/workspace/.zil-env/research/stage5/generated-closed.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/generated-default.log",
+      "sha256": "afa4090ffa8fed23dc2359ca9c4c4ab36f180dad1e1847ee2cf05f969e1f3b6a",
+      "original": "/workspace/.zil-env/research/stage5/generated-default.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/implementation-ablation.log",
+      "sha256": "af81d724cfeb1ad3e1721861f33081d523ceaea8497a244eb7acad7e06176053",
+      "original": "/workspace/.zil-env/research/stage5/implementation-ablation.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/incremental-diagnostic.log",
+      "sha256": "977fce3cee5f2b407ad185ed041b5f9a7a76c4d099ca2206ce2bc6ce09af1925",
+      "original": "/workspace/.zil-env/research/stage5/incremental-diagnostic.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/initial-harness.py",
+      "sha256": "5cf3815d147612bc22ffb8d1d26a107a601bd24bf38d0217626757a0a24a2b54",
+      "original": "/workspace/.zil-env/research/stage5/initial-harness.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/new-types-preflight.log",
+      "sha256": "73a4fbfea45371058fd16bed31ced38a54fd958eadb8e1de65a1517319f01066",
+      "original": "/workspace/.zil-env/research/stage5/new-types-preflight.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/plot.log",
+      "sha256": "1a6f201b848b2b001ff957fbae0e48b9eec8fa12d7be9da4ddb6307bfa4a430e",
+      "original": "/workspace/.zil-env/research/stage5/plot.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/preflight-runner.py",
+      "sha256": "ae750be3f9930c582252b3f60b2985496d5e1fe4a580839068837ee733fafeec",
+      "original": "/workspace/.zil-env/research/stage5/preflight-runner.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/real-closed-preflight.log",
+      "sha256": "e1905c626c7a2c5a6468b5467791e6dd83783e5208dc5fb0f14070b57de6f5b7",
+      "original": "/workspace/.zil-env/research/stage5/real-closed-preflight.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/real-closed.log",
+      "sha256": "098c8b6ebe4492c036bb08aa0394b746b1e173570e97cc7c2f61b2bcbfeada73",
+      "original": "/workspace/.zil-env/research/stage5/real-closed.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/real-default.log",
+      "sha256": "a39ea3a71aa685043a4aa6a26a8da7a7f0f58ca9bfd8528ab5a2d040a387f3b0",
+      "original": "/workspace/.zil-env/research/stage5/real-default.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/real-preflight.log",
+      "sha256": "1adabf3f4f1bde0d19379028f276a05f4e2dd7f8783af7fa4cd060b9e87e9efc",
+      "original": "/workspace/.zil-env/research/stage5/real-preflight.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/recompute-stage5-data.py",
+      "sha256": "ce6feff012794a19eddee964988657ec156c8e4b5d7fc6d23b2d241dc0658401",
+      "original": "/workspace/.zil-env/research/stage5/recompute-stage5-data.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/release.log",
+      "sha256": "5f5dca0fdb8b6c1cef1afee524e6ea9e6c8df624b6a803bcd1f5679d16b8a71e",
+      "original": "/workspace/.zil-env/research/stage5/release.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-benchmark-protocol.log",
+      "sha256": "a9f99caf85e0f2352544e010d6373d7d30b9a53053913018d11835b419788045",
+      "original": "/workspace/.zil-env/research/stage5/review-benchmark-protocol.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-benchmark-protocol.py",
+      "sha256": "28d3808fdfd0c6ef18841076e1b729f039b1c049fae5d707633e2c564b9d9afd",
+      "original": "/workspace/.zil-env/research/stage5/review-benchmark-protocol.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-dominance-oracle.log",
+      "sha256": "c37564559e16e684f4790149789d42903d9ea9f6529d977ea5727d8e075daf04",
+      "original": "/workspace/.zil-env/research/stage5/review-dominance-oracle.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-dominance-oracle.py",
+      "sha256": "3bdaad0dd5569558dacf215ce06c2d1bf913e6996fc463f50068cadc3f0eaa10",
+      "original": "/workspace/.zil-env/research/stage5/review-dominance-oracle.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-dominance-oracle.rs",
+      "sha256": "621accd81a08ad579cd37cec156365592d74044afe6dd0726ad9860aff1d3d41",
+      "original": "/workspace/.zil-env/research/stage5/review-dominance-oracle.rs"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-dominance-oracle.tar.gz",
+      "sha256": "b76a95d97f4ce35cbf33645686d8907a2c382cd40a8ab40b94b1316018bc1398",
+      "original": "/workspace/.zil-env/research/stage5/review-dominance-oracle.tar.gz"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-draft.json",
+      "sha256": "ff41574f08d7afa7fdbcc640b954f43ddfdfc6a82f00d8fe4b59ce94d9f71df2",
+      "original": "/workspace/.zil-env/research/stage5/review-draft.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-draft.md",
+      "sha256": "3845df38d8939a7cd4b531b83fed7c55eec213f9f95899ab7728f8ad8542c1f9",
+      "original": "/workspace/.zil-env/research/stage5/review-draft.md"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-exact5189-incomplete-snapshot.log",
+      "sha256": "a4d3c7ab55e65917f1c48b518b39f78780d3b9cb0024dccab3a737b41860b922",
+      "original": "/workspace/.zil-env/research/stage5/review-exact5189-incomplete-snapshot.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-exact5189-machine.log",
+      "sha256": "ac8f34304039017767b7a618055b714d0819e0c9e28d36066490d097d939c814",
+      "original": "/workspace/.zil-env/research/stage5/review-exact5189-machine.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-exact5189-native.log",
+      "sha256": "3aaa85b46a0a8c6f39651ec8b21c8486f9175473d3ec64f9618406a86ae1e343",
+      "original": "/workspace/.zil-env/research/stage5/review-exact5189-native.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-exact801-api.log",
+      "sha256": "a167aad579915fece0391593017f0ff875b1a20c85dd9fa567b3f23a426dcba7",
+      "original": "/workspace/.zil-env/research/stage5/review-exact801-api.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-exactc6a-backend.log",
+      "sha256": "5c9ca97883ef5ec5ef2abf2e3542133ba007120b76b9830cbf643cd9e5b131f5",
+      "original": "/workspace/.zil-env/research/stage5/review-exactc6a-backend.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-exactc6a-cli.log",
+      "sha256": "ad2ecacf777f3bf7035f7d0d2d2942ee26932f3cf80643160c5dba045725f5bf",
+      "original": "/workspace/.zil-env/research/stage5/review-exactc6a-cli.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-exactc6a-driver.log",
+      "sha256": "21b20136302ec193b9ab91714d419c0b0761e106765315be642cec60f9f3d450",
+      "original": "/workspace/.zil-env/research/stage5/review-exactc6a-driver.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-exactc6a-machine.log",
+      "sha256": "3fdced094244df3a2584212fa20633c786bd24f0520af7fa73a7e949c24fdc45",
+      "original": "/workspace/.zil-env/research/stage5/review-exactc6a-machine.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-exactc6a-resource.log",
+      "sha256": "e88ef7296d3ac1e0a90d3d4a27697642c7e9fd99dbc4aed559bcb1a01b2e8775",
+      "original": "/workspace/.zil-env/research/stage5/review-exactc6a-resource.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-frozen-distribution-generator.py",
+      "sha256": "73c0be9ebbb61e98562f499580adf51010477a216c7597ad72d5b57c43639610",
+      "original": "/workspace/.zil-env/research/stage5/review-frozen-distribution-generator.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-large-native-retry.log",
+      "sha256": "99070922787f0dd714c69841f95f5f12ea9a02a8fbf919aedbf147c3fbf6b6b9",
+      "original": "/workspace/.zil-env/research/stage5/review-large-native-retry.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-large-native.log",
+      "sha256": "7a8a4fd67ddfbccee8b1172fb28a46046e0ec868f1f213bfc521f19e2e547c37",
+      "original": "/workspace/.zil-env/research/stage5/review-large-native.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/review-machine.log",
+      "sha256": "fe1f895e85814760a1e5d4527a64e12150a148347c62e2512e89f01d6f069f0a",
+      "original": "/workspace/.zil-env/research/stage5/review-machine.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/run-frozen.py",
+      "sha256": "4780d31e262198dbe75b4403a43c5c1c6a2b609edfe84fa59f686ee985dca239",
+      "original": "/workspace/.zil-env/research/stage5/run-frozen.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/shape-smoke-corrected.log",
+      "sha256": "be38f49b6b06111bdef0dfea0ad434e43adafb6ec8f7cef90321589d823f7af3",
+      "original": "/workspace/.zil-env/research/stage5/shape-smoke-corrected.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/shape-smoke.log",
+      "sha256": "98b70650a98c398a0a62bca3dd1d491d790570771c719b66c43c3ab9e7293837",
+      "original": "/workspace/.zil-env/research/stage5/shape-smoke.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/tool-protocol-review.json",
+      "sha256": "3464c903eede12f29bc18fd027e653502e4ee11901fdaab83394c6a30f98d209",
+      "original": "/workspace/.zil-env/research/stage5/tool-protocol-review.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/tool-protocol-review.md",
+      "sha256": "135074c39227dd3d628817da718ad325d0846d8c677b479b58fc341e71956c4a",
+      "original": "/workspace/.zil-env/research/stage5/tool-protocol-review.md"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/zit-mechanisms-result.json",
+      "sha256": "5cb42f7417226514ea13552b4bd7cd94c03ffed83972ee8def7c820a6f058d3b",
+      "original": "/workspace/.zil-env/research/stage5/zit-mechanisms-result.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/zit-mechanisms.mjs",
+      "sha256": "7546229a48282ccb8625177dae01cba87c262f75b7247f42c864d41b378b58fe",
+      "original": "/workspace/.zil-env/research/stage5/zit-mechanisms.mjs"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/zit-run.log",
+      "sha256": "db041bce13f4671d480d81c0fd6f6073d573f2f48b4a77271562037a88c95664",
+      "original": "/workspace/.zil-env/research/stage5/zit-run.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5/validation/zit.ts",
+      "sha256": "719a914356a24ac1edbeb1ffe6637d22311c9299e6be9ddbcdf3f7fdddf1474f",
+      "original": "/workspace/.zil-env/research/stage5/zit.ts"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/analysis.log",
+      "sha256": "4b349efc1c114099ac7b777405056d787b6fc362a006b25735fdecd1cafc3bfd",
+      "original": "/workspace/.zil-env/research/stage5-followup/analysis.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/api-tests.log",
+      "sha256": "f7753936ce797db0eb89bce9d4082f7d8b50bd30202b82ac72e69b065fa9efc4",
+      "original": "/workspace/.zil-env/research/stage5-followup/api-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/backend-tests.log",
+      "sha256": "644a9ef1ca9a6c0a7ace0c6f7604016590385b20efe74a861a2eafd38ad7fa17",
+      "original": "/workspace/.zil-env/research/stage5-followup/backend-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/check-final-documents.py",
+      "sha256": "98542cc9e3c20168d6bf5704117ce85b4d43fb3e74577e3b101ec2194d45991f",
+      "original": "/workspace/.zil-env/research/stage5-followup/check-final-documents.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/check-followup-archives.py",
+      "sha256": "b435df96c5f9e36e1eb5caa5df7dd1c507b29189ae7d9492020f1d6746e79b75",
+      "original": "/workspace/.zil-env/research/stage5-followup/check-followup-archives.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/cli-tests.log",
+      "sha256": "af459f530885c26eba020e6255bfe429d355d802bc5cc5441e5a0a74d2347efb",
+      "original": "/workspace/.zil-env/research/stage5-followup/cli-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/clippy.log",
+      "sha256": "d950a470fc8451cfd8944fc243b8928f763d8fdf201af23dbc0adb8846ffbaf5",
+      "original": "/workspace/.zil-env/research/stage5-followup/clippy.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/collect-evidence.py",
+      "sha256": "97781e8064e3a53ba363f791af0bd9a8225f3c541f5ab1eece78d93d3e9ce45c",
+      "original": "/workspace/.zil-env/research/stage5-followup/collect-evidence.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/collect.log",
+      "sha256": "8e4ce288b5dc86aba0cc96bfd935b96a164ebd2d8b88386cecd4006b9a102255",
+      "original": "/workspace/.zil-env/research/stage5-followup/collect.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/data-review-archives.json",
+      "sha256": "5658f7a13a9e3521cc05b252b889c1c7a12468f586900b313ecf1fba021d35c8",
+      "original": "/workspace/.zil-env/research/stage5-followup/data-review-archives.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/data-review-archives.log",
+      "sha256": "64ccad2e2b36647938ae2cd2077ead36dbf8aef927d8dd55b5d022d07afaf0aa",
+      "original": "/workspace/.zil-env/research/stage5-followup/data-review-archives.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/data-review-inventory.json",
+      "sha256": "873c72cb7da5835f97a05b54ea3d5398e1dde8cd8f8a27d938b29b0f5dda182f",
+      "original": "/workspace/.zil-env/research/stage5-followup/data-review-inventory.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/data-review-recompute.log",
+      "sha256": "923fa364966e0525347c96536a183d1967bcd172491e491159401e897f757c91",
+      "original": "/workspace/.zil-env/research/stage5-followup/data-review-recompute.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/data-review-recomputed.json",
+      "sha256": "c52d1c1f3f7f9023d5dcd6f9368159db963d1d002bf08ade017cb92732a4ac4b",
+      "original": "/workspace/.zil-env/research/stage5-followup/data-review-recomputed.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/data-review.json",
+      "sha256": "1fa292a0923c372a89b8ede1b17af8ea927c27e329e5c0306121d7812500c17d",
+      "original": "/workspace/.zil-env/research/stage5-followup/data-review.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/data-review.md",
+      "sha256": "73d2d91e2d1a79bd57262e86d04e7622ae23e44f13ebe78e84e0cad5ebd4a2e2",
+      "original": "/workspace/.zil-env/research/stage5-followup/data-review.md"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/document-review.json",
+      "sha256": "48331b7d604f34fdf7919c8d8265b1ae805b33684d6400f68d6936cbd403bd4b",
+      "original": "/workspace/.zil-env/research/stage5-followup/document-review.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/driver-tests.log",
+      "sha256": "751b7f9eb5714584a2452a21486c6d10741febd4b85acdce50ff1bdf2b457edf",
+      "original": "/workspace/.zil-env/research/stage5-followup/driver-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/final-api-tests.log",
+      "sha256": "fe48e27dc09ffacdb59ea8bd733aac440ea989b6b0395c0da17e5ab925310882",
+      "original": "/workspace/.zil-env/research/stage5-followup/final-api-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/final-backend-tests.log",
+      "sha256": "13b66bf218922b95bf53cd1888211162eac1d1ab85be573c405956a388460b59",
+      "original": "/workspace/.zil-env/research/stage5-followup/final-backend-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/final-cli-tests.log",
+      "sha256": "c3e4b2e849c8df2ce8abecb237effbf340bac34112821b6fe24018b48ab3b84b",
+      "original": "/workspace/.zil-env/research/stage5-followup/final-cli-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/final-clippy.log",
+      "sha256": "1983f6cd80ec820402f8e6bca6f0da58e5a43f2f1dd530c4daa9f59213f9971e",
+      "original": "/workspace/.zil-env/research/stage5-followup/final-clippy.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/final-driver-tests.log",
+      "sha256": "05c97afa9a347c3df53467b7f1ecbb9651d2af89fd59b923d3056a0a3b4276c5",
+      "original": "/workspace/.zil-env/research/stage5-followup/final-driver-tests.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/final-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original": "/workspace/.zil-env/research/stage5-followup/final-fmt.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/final-release.log",
+      "sha256": "9522f5760ea9f0754bf0d9b70378ee4c000df91fd11eecb56462effcb50d88a9",
+      "original": "/workspace/.zil-env/research/stage5-followup/final-release.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/final-sanity-generated.log",
+      "sha256": "91486405e639b2407784883305c2e4371bfe6f06361fdaf1cbed55ab6012d9a6",
+      "original": "/workspace/.zil-env/research/stage5-followup/final-sanity-generated.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/final-sanity-real.log",
+      "sha256": "bb2ca2f7805f953514795591757af3dbe049363c67384184a123b964a65fc00d",
+      "original": "/workspace/.zil-env/research/stage5-followup/final-sanity-real.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/final-sanity-result.json",
+      "sha256": "3b94eda80c9987c403071e1ed87b47bd6e61ea9c304ac7102b815607cb544e00",
+      "original": "/workspace/.zil-env/research/stage5-followup/final-sanity-result.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original": "/workspace/.zil-env/research/stage5-followup/fmt.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/followup-closed.log",
+      "sha256": "a79b632c4b82de6978356302ddf291c0562b19cde0611b6a4805416b220b44ad",
+      "original": "/workspace/.zil-env/research/stage5-followup/followup-closed.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/followup-default.log",
+      "sha256": "b8367ab018b4196a8519bcf5d6336820ce1b85e95f03e366f1ed510244f0af80",
+      "original": "/workspace/.zil-env/research/stage5-followup/followup-default.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/followup-isolation.log",
+      "sha256": "b8367ab018b4196a8519bcf5d6336820ce1b85e95f03e366f1ed510244f0af80",
+      "original": "/workspace/.zil-env/research/stage5-followup/followup-isolation.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/frozen-execution.json",
+      "sha256": "6325a049703c74b4b4db637b2f88fe3f8db74fd46b0dff671250bcd98e07227a",
+      "original": "/workspace/.zil-env/research/stage5-followup/frozen-execution.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/frozen-execution.log",
+      "sha256": "69e5c88e69ca5f0f75c3af5a357cf3d70f4c0e9990049056cd2f31d550e3a87b",
+      "original": "/workspace/.zil-env/research/stage5-followup/frozen-execution.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/github-main-comparison.json",
+      "sha256": "bdf90fbde1c2cb987956fee7320ae7c35a79f7128fcc5f7903db328f0aaab888",
+      "original": "/workspace/.zil-env/research/stage5-followup/github-main-comparison.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/plot.log",
+      "sha256": "e0a46db3e7d086b6ed55477f9c8cc5ec4dbe4b6ef804e1372e9a4a6dc5a6b01a",
+      "original": "/workspace/.zil-env/research/stage5-followup/plot.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/recompute-followup-data.py",
+      "sha256": "76d8f0080e2a8a0f773c2b394ea5438646207b8966318186cae08fab4767a509",
+      "original": "/workspace/.zil-env/research/stage5-followup/recompute-followup-data.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/recompute-sanity-data.py",
+      "sha256": "a85f6148952962812820e2c6bd69bb7e73119f4328665e1cdc928bfc9eabee17",
+      "original": "/workspace/.zil-env/research/stage5-followup/recompute-sanity-data.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/release.log",
+      "sha256": "c1a9edfbad31b804ecc8f19765f1fee1948aaf770acb01227c0179857459341e",
+      "original": "/workspace/.zil-env/research/stage5-followup/release.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/review-exact59d-api.log",
+      "sha256": "1e16667ec87876ad273106e8df015058ee61b3c021ea7513128d9753ff581d28",
+      "original": "/workspace/.zil-env/research/stage5-followup/review-exact59d-api.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/review-fanin-oracle.log",
+      "sha256": "57f1c8c761e500bdf1bcd6f160eff7ec5c4a75021bf71a4b3435aecd06151560",
+      "original": "/workspace/.zil-env/research/stage5-followup/review-fanin-oracle.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/review-fanin-oracle.py",
+      "sha256": "e7516548854b64944cc3cd7173e1ccaa9e2ea7a19ffd62085e4407a79104271f",
+      "original": "/workspace/.zil-env/research/stage5-followup/review-fanin-oracle.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/review-fanin-oracle.rs",
+      "sha256": "dd3293a4f51d869acac764884470c44ef6054a69acda72a083511018eaf733c3",
+      "original": "/workspace/.zil-env/research/stage5-followup/review-fanin-oracle.rs"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/review-fanin-oracle.tar.gz",
+      "sha256": "4c27fd639a10b8f2a408b4fc98d81849da0b9b9f517b8e924cf17a7b5955eea1",
+      "original": "/workspace/.zil-env/research/stage5-followup/review-fanin-oracle.tar.gz"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/review-frozen-distribution-generator.py",
+      "sha256": "73c0be9ebbb61e98562f499580adf51010477a216c7597ad72d5b57c43639610",
+      "original": "/workspace/.zil-env/research/stage5-followup/review-frozen-distribution-generator.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/review.json",
+      "sha256": "c2ee0622072b6bb7dcb24ec1e46bbb997a17979d4fd381615b2cfafe2c13f4af",
+      "original": "/workspace/.zil-env/research/stage5-followup/review.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/review.md",
+      "sha256": "1c8ebd6274b2a359063058959012f27f184064bd0e9aae51c31a5df4d1ec5f39",
+      "original": "/workspace/.zil-env/research/stage5-followup/review.md"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/run-frozen.py",
+      "sha256": "1d8a04e659c3f5771e6f1c6a794f8303fc9ec1e5ed701ea55a0424549d2c741a",
+      "original": "/workspace/.zil-env/research/stage5-followup/run-frozen.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/sanity-frozen-distribution-generator.py",
+      "sha256": "73c0be9ebbb61e98562f499580adf51010477a216c7597ad72d5b57c43639610",
+      "original": "/workspace/.zil-env/research/stage5-followup/sanity-frozen-distribution-generator.py"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/sanity-generated.log",
+      "sha256": "91486405e639b2407784883305c2e4371bfe6f06361fdaf1cbed55ab6012d9a6",
+      "original": "/workspace/.zil-env/research/stage5-followup/sanity-generated.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/sanity-real.log",
+      "sha256": "bb2ca2f7805f953514795591757af3dbe049363c67384184a123b964a65fc00d",
+      "original": "/workspace/.zil-env/research/stage5-followup/sanity-real.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/sanity-review-inventory.json",
+      "sha256": "9dcdbe16e26d786b69b7cc9897bb9faaf16222813842f3db94c1ddd007f4158f",
+      "original": "/workspace/.zil-env/research/stage5-followup/sanity-review-inventory.json"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/sanity-review-recompute.log",
+      "sha256": "3d9e647e3848b9cab2c2af68fa2ad9d81a9481972857211f7c9b03eae2588098",
+      "original": "/workspace/.zil-env/research/stage5-followup/sanity-review-recompute.log"
+    },
+    {
+      "path": "evidence/research/incremental-compilation/stage5-followup/validation/sanity-review-recomputed.json",
+      "sha256": "b42cf3e9d062b9f83ee3031cf62deba482741265a4ea5c5d0e33fa6dfdd1fa13",
+      "original": "/workspace/.zil-env/research/stage5-followup/sanity-review-recomputed.json"
+    }
+  ],
+  "document_sha256": {
+    "docs/research/incremental-compilation/DISTRIBUTION-RESULTS.md": "6235966cf0206550aab02066becbb598a1f4ef952a10338027e7cf7fcfc91413",
+    "docs/research/incremental-compilation/DISTRIBUTION-TABLES.md": "328363778f8cbf6a2b9dccecdb9c41f97fa2f23b25357a35778dd35a0f639001",
+    "docs/research/incremental-compilation/PREFLIGHT-FOLLOWUP-TABLES.md": "4a57dcc597b349c4d2f0885a3a95ff82eff416ae6cff46af2e29fc07d6de5c3f",
+    "docs/research/incremental-compilation/ALGORITHM-ATTRIBUTION.md": "9185cfb9ba533a700dd1dd30720aba670e3e165d9cd81600dd3052c7e5180883",
+    "docs/research/incremental-compilation/PLAN.md": "7ade2149b00ace3b13faece32664f09ff3d4b287e903278054d6d6269bd8dfd4",
+    "docs/research/incremental-compilation/README.md": "b51fd987671e3fbe8da675b1cc36a8b9a571ef80c59040ef927e9ea05666db3b",
+    "docs/research/incremental-compilation/DISTRIBUTION-PROTOCOL.md": "d6ff19621d4414eec28f767c528773ecdabe257917267606ebc9464c6aaecf05",
+    "docs/research/incremental-compilation/PREFLIGHT-FOLLOWUP-PROTOCOL.md": "33ab44cca06c2268e7a28e0f3b637b14f11d5aefe44b55f96034d9d40cff1d7d",
+    "evidence/research/incremental-compilation/stage5/README.md": "646524da6e005afdd1af1c7cf6f69bde7287e8bc3d80273c08f443a8f6243139",
+    "evidence/research/incremental-compilation/stage5-followup/README.md": "8febaa2748b632b615892fc9d9f85792e022408632846f4bdfbc65af76b83950",
+    "docs/research/incremental-compilation/plots/followup/large-module-before-after.svg": "7b5f86e5dcb78f3a4f745e39d0716d5b1f7b86fc9255034286e6d9e44c48bcfa",
+    "docs/research/incremental-compilation/plots/followup/large-module-rust.svg": "eabf4098c52c628ff0c042ad043d888825bd0610e8295ea8029fa3c7d8beb50f",
+    "docs/research/incremental-compilation/plots/stage5/large-module-before-after.svg": "c75ab3cc7270a42b7739da8e10936c5d4be632ecc40189a7d4cfb476d7fbdc3f",
+    "docs/research/incremental-compilation/plots/stage5/large-module-rust.svg": "d3f334779854324ddb24872788753371b45205d71f76faaec78614a016602390",
+    "tools/research/incremental-compilation/distribution_plot.py": "d4cc304f9ed587e1c48ad4f715e5d3fa4d17267bb1d65f43e9bc8fbcd6a9443b",
+    "tools/research/incremental-compilation/distribution_report.py": "845b6b3f7b5bb71e70806d45bf97a9eab9845a81f83159810c6c76cb854e14e0"
+  },
+  "task_summary_sha256": "42ead61c0bc70f0feae8406c4a16e4795185b4eeb2f820fb422260f3ec9815b9",
+  "task_summary_review": "Added section agrees with reviewed evidence: distinct801/59d identity,10524 requests/877 cells,40 invalid cells,113 author/43 independent tests,positive and negative results,unfinished semantic incrementality/Doing/no-main-merge/product boundaries.",
+  "historical_reports_unchanged": {
+    "CURRENT.md": "9a23e8c560757dcb3c19fc9d493d77de5222a79b5724a2d054a2fd82081df3c9",
+    "LATEST-MEASUREMENTS.md": "c469a31b559971cf2ea37a27d60dbd33474a631239ea7b8e5d3d2f7e2a630fd8",
+    "RESULTS.md": "53730fdd521e1fd8e2e9b0312e834926ed6e5b668c32856d6715ecd04c05e69e",
+    "MEASUREMENTS.md": "58f24cc5561bb76acc06ef0c04ca0b8a18adbfcf487827431826a23c4e866af7"
+  },
+  "handwritten_diff_check_pass": true,
+  "original_generated_whitespace_boundary": "Original logs, verbatim CRLF zit.ts, matplotlib SVG and generated table trailing blank-line warnings are preserved bytes already bound by manifests; they are not new production source changes.",
+  "total_manifest_files": 188,
+  "total_manifest_bytes": 204180449,
+  "matched_validation_originals": 146,
+  "prior_raw_archives_identity_matches": 9,
+  "prior_reviews": {
+    "stage5_data": "e7a9fcc6e0a7567261c22c923be5b5ba5d3d82cce25976fa51643868bb8e47be",
+    "followup_data": "1fa292a0923c372a89b8ede1b17af8ea927c27e329e5c0306121d7812500c17d",
+    "followup_functional": "c2ee0622072b6bb7dcb24ec1e46bbb997a17979d4fd381615b2cfafe2c13f4af",
+    "document": "48331b7d604f34fdf7919c8d8265b1ae805b33684d6400f68d6936cbd403bd4b"
+  },
+  "findings": [],
+  "limitations": [
+    "This exact evidence commit is reviewed; subsequent receipt-only commits should preserve production/document/manifest identities. CI must report its actual final pushed HEAD.",
+    "No test/benchmark/product gate was repeated or inferred from binding. All earlier adverse/invalid observations and limited statistical scope remain in their own reviews.",
+    "Frozen evidence directories were not modified. Final binding receipts are written outside the repository to avoid manifest self-reference."
+  ]
+}
