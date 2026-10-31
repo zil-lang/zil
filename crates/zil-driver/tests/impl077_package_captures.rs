@@ -3,6 +3,9 @@ use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, Targ
 use zil_driver::{CompileOptions, Stage, compile_source};
 use zil_ir::*;
 
+#[path = "impl232_fixture_support/mod.rs"]
+mod fixture232;
+
 const DEFINITIONS: &str = "resource R{n:i32} package P{manages a:R,manages b:R,n:i32} fn make()->P{return P{a:R{n:20},b:R{n:21},n:1}} fn consume(give r:R)->i32{return r.n} fn keep(give r:R,n:i32)->R contract{result(give)}{return give r} fn step(ok:bool)->bool!i32{if ok{return 0}return true} fn bump(r:R){r.n+=1}";
 
 fn unit(body: &str) -> SourceUnit {
@@ -156,11 +159,101 @@ fn captures077_partial_whole_and_early_return_use_once() {
 }
 
 #[test]
-fn captures077_nearest_source_rejections_do_not_weaken_other_modes() {
-    rejected(
-        "fn main()->i32{let p=make();let f=()=>p.a.n;return f()}",
-        Phase::Types,
+fn captures077_original_default_read_borrows_the_actual_package() {
+    // Original rejection input, including its return value, is unchanged.
+    let body = "fn main()->i32{let p=make();let f=()=>p.a.n;return f()}";
+    let module = typed(body);
+    assert_eq!(module.closures.len(), 1);
+    assert_eq!(module.closures[0].kind, CallableKind::Fn);
+    let main = module.functions.iter().find(|f| f.name == "main").unwrap();
+    let owner = main.locals.iter().find(|l| l.name == "p").unwrap();
+    assert!(matches!(owner.ty, Type::Package { .. }));
+    assert_eq!(
+        module.closures[0].captures,
+        vec![Type::Address {
+            mutable: false,
+            inner: Box::new(owner.ty.clone()),
+        }]
     );
+    let instructions = main.blocks.iter().flat_map(|b| &b.instructions);
+    let capture = instructions
+        .clone()
+        .find_map(|i| match &i.kind {
+            InstructionKind::MakeClosure { captures, .. } => {
+                assert_eq!(captures.len(), 1);
+                Some(captures[0])
+            }
+            _ => None,
+        })
+        .unwrap();
+    let address = instructions
+        .clone()
+        .find_map(|i| match i.kind {
+            InstructionKind::ReborrowAddress {
+                address,
+                mutable: false,
+            } if i.result == Some(capture) => Some(address),
+            _ => None,
+        })
+        .unwrap();
+    assert!(instructions.clone().any(|i| {
+        i.result == Some(address)
+            && matches!(i.kind, InstructionKind::BorrowLocal { local } if local == owner.id)
+    }));
+    fixture232::verified("077-shared-original", &unit(body), &module);
+    fixture232::native("077-shared-original", &unit(body), 20);
+
+    for (label, invalid) in [
+        (
+            "077-live-owner-move",
+            body.replace("return f()", "let moved=p;return f()"),
+        ),
+        (
+            "077-live-field-take",
+            body.replace("return f()", "let moved=give p.a;return f()"),
+        ),
+        (
+            "077-live-field-replace",
+            body.replace("let p=make()", "var p=make()")
+                .replace("return f()", "p.a=R{n:22};return f()"),
+        ),
+    ] {
+        assert_ne!(invalid, body);
+        fixture232::rejected(
+            label,
+            &unit(&invalid),
+            ResultCategory::SafeReject,
+            Phase::Verify,
+            "E-BORROW-CONFLICT",
+        );
+    }
+    let finished = body.replace("return f()", "let value=f();let moved=p;return value");
+    fixture232::verified(
+        "077-move-after-last-use",
+        &unit(&finished),
+        &typed(&finished),
+    );
+    fixture232::native("077-move-after-last-use", &unit(&finished), 20);
+    let mutable = body
+        .replace("let p=make()", "var p=make()")
+        .replace("let f=()=>p.a.n", "var f=()=>{p.n+=1;return p.n}");
+    let report = fixture232::rejected(
+        "077-default-mutable",
+        &unit(&mutable),
+        ResultCategory::Unsupported,
+        Phase::Types,
+        "E-UNSUPPORTED",
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| { d.message == "mutable Product capture is not implemented" })
+    );
+}
+
+#[test]
+fn captures077_nearest_source_rejections_do_not_weaken_other_modes() {
     rejected(
         "fn main()->i32{var p=make();let f=move ()=>{p.n+=1;return p.n};return f()}",
         Phase::Types,
@@ -268,20 +361,33 @@ fn captures077_analyze_rebuilds_binding_and_activation_boundaries() {
 
 #[test]
 fn captures077_analyze_rejects_shared_alias_write_and_unrestored_fnmut() {
-    raw_rejected("whole view disguised as Managed description", |module| {
-        let local = view(module);
-        let entry = entry_index(module);
-        for block in &mut module.functions[entry].blocks {
-            for instruction in &mut block.instructions {
-                if matches!(
-                    instruction.kind,
-                    InstructionKind::DescribePackageField { .. }
-                ) {
-                    instruction.kind = InstructionKind::DescribeLocal { local };
-                }
+    // The scalar-only READER now uses address projections, so use an explicit
+    // descriptor to keep this particular raw mutation real and reproducible.
+    let original = typed(
+        "fn factory(p:P)->impl Fn()->i32{return move ()=>{let d=p.a;return d.n+p.n}}fn main()->i32{let f=factory(make());let moved=f;return moved()+moved()-42}",
+    );
+    zil_analyze::analyze(&original, &Limits::default()).unwrap();
+    let mut module = original.clone();
+    let local = view(&module);
+    let entry = entry_index(&module);
+    let mut hits = 0;
+    for block in &mut module.functions[entry].blocks {
+        for instruction in &mut block.instructions {
+            if matches!(
+                instruction.kind,
+                InstructionKind::DescribePackageField { .. }
+            ) {
+                hits += 1;
+                instruction.kind = InstructionKind::DescribeLocal { local };
             }
         }
-    });
+    }
+    assert_eq!(hits, 1, "raw mutation must hit one actual description");
+    assert_ne!(module, original, "raw mutation must change the module");
+    assert!(
+        zil_analyze::analyze(&module, &Limits::default()).is_err(),
+        "accepted whole view disguised as Managed description"
+    );
     for body in [
         "fn main()->i32{var p=make();var f=move ()=>{p.n+=1;return p.n};return f()}",
         "fn main()->i32{let p=make();var f=move ()=>{let d=p.a;bump(d);return d.n};return f()}",

@@ -256,15 +256,19 @@ fn main()->i32{{return run(pack(make(root(7))))}}");
 }
 
 #[test]
-fn old_flat_and_new_product_readonly_defaults_remain_closed() {
-    reject(
-        &body("let f=()=>p.tag;return f()"),
-        "Product capture requires explicit move",
-    );
-    reject(
-        &format!("{TYPES}fn main()->i32{{let p=leaf(7);let f=()=>p.n;return f()}}"),
-        "Package capture requires explicit move",
-    );
+fn original_flat_and_recursive_readonly_sources_use_shared_product_captures() {
+    // The two original rejection source strings are unchanged. Slice232
+    // admits their default shared view without turning either into a snapshot.
+    for source in [
+        body("let f=()=>p.tag;return f()"),
+        format!("{TYPES}fn main()->i32{{let p=leaf(7);let f=()=>p.n;return f()}}"),
+    ] {
+        let module = typed(&source);
+        assert_eq!(module.closures[0].kind, CallableKind::Fn);
+        assert!(
+            matches!(&module.closures[0].captures[..], [Type::Address { mutable: false, inner }] if matches!(inner.as_ref(), Type::Package { .. }))
+        );
+    }
 }
 
 #[test]
