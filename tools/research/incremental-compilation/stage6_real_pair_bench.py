@@ -8,7 +8,8 @@ from pathlib import Path
 import shutil
 import statistics
 import subprocess
-from distribution_bench import ROOT, measured, sha
+from distribution_bench import ROOT, sha
+from stage6_bench import measured
 
 CASES=['app','stream','slices','byte_io','byte_buffer','byte_buffer_owned','resources','resource_closures','error_cleanup','owned_component','package_ui','retained_ui','update_ui','helper_ui']
 INPUTS=[b'',b'!',b'D',b'S',b'U',b'O',b'M',b'E',b'T',b'L',b'0',b'1',b'2',b'3',b'12as+!-q\0\x80']
@@ -38,8 +39,10 @@ def main():
     a.out.mkdir(parents=True,exist_ok=False);cpus=sorted(os.sched_getaffinity(0))[:2];os.sched_setaffinity(0,cpus)
     shutil.copy2(Path(__file__),a.out/'runner.py')
     shutil.copy2(Path(__file__).with_name('distribution_bench.py'),a.out/'distribution_bench.py')
+    shutil.copy2(Path(__file__).with_name('stage6_bench.py'),a.out/'stage6_bench.py')
     cases=[c for c in CASES if not a.case or c in a.case];assert cases;modes=a.mode or ['check','O0','O2']
     manifest={'source':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'tool_sha256':sha(Path(__file__)),'runner_sha256':sha(Path(__file__).with_name('distribution_bench.py')),'binaries':{n:{'path':str(v.resolve()),'sha256':sha(v)} for n,v in [('zil',a.zil),('rust',a.rustc)]},'cases':cases,'modes':modes,'blocks':a.blocks,'cpus':cpus,'closed_executable':a.closed_executable,'zil_args':a.zil_arg,'semantic_cache':a.semantic_cache,'order':'alternating AB/BA blocks, complete cold/unchanged sequence per arm','stdin_hex':[x.hex() for x in INPUTS],'native_arguments':{'app':{'rust':['--check'],'zil':[]}},'boundary':'Complete subprocess; native outside clock. 8CGU O0/O2 overflow checks panic abort. Both arms persistent object/incremental cache per sequence. Rust source is the checked-in independent native behavior pair, not equal internal compiler work.'}
+    manifest['timing_runner_sha256']=sha(Path(__file__).with_name('stage6_bench.py'))
     (a.out/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n');rows=[]
     for case in cases:
         source=a.out/('source-'+case);shutil.copytree(ROOT/'examples/mainline'/case,source)
@@ -53,6 +56,7 @@ def main():
             for block in range(a.blocks):
                 for position,arm in enumerate(['zil','rust'] if block%2==0 else ['rust','zil']):
                     run=a.out/f'{case}-{mode}-{block}-{position}-{arm}';run.mkdir()
+                    history_valid=True
                     for request in ['cold','unchanged']:
                         (run/'program').unlink(missing_ok=True)
                         if arm=='zil':
@@ -76,6 +80,9 @@ def main():
                         row['source_identity_sha256']=hashlib.sha256(json.dumps(source_files,sort_keys=True).encode()).hexdigest()
                         if mode!='check' and (run/'program').is_file():
                             row['exe_bytes']=(run/'program').stat().st_size;row['exe_sha256']=sha(run/'program')
+                        row['execution_valid']=bool(row['valid']);row['sequence_history_valid']=history_valid
+                        row['valid']=row['execution_valid'] and history_valid
+                        history_valid=bool(row['valid'])
                         rows.append(row)
                         with (a.out/'rows.jsonl').open('a') as f:f.write(json.dumps(row)+'\n')
                         if not row['valid']:print('FAIL',case,mode,arm,request,flush=True)
