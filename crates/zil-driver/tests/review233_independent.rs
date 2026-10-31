@@ -292,7 +292,7 @@ fn private_missing_unimported_traits_and_foreign_self_stay_closed() {
         (
             "foreign-self",
             "pub trait Read{fn value(self:&Self)->i32;}pub struct Item{n:i32}",
-            "import rules;impl rules.Read for rules.Item{fn value()->i32=>.n}",
+            "import rules;impl rules.Read for rules.Item{fn value()->i32=>7}",
             None,
         ),
     ] {
@@ -311,7 +311,16 @@ fn private_missing_unimported_traits_and_foreign_self_stay_closed() {
 #[test]
 fn renamed_reserved_traits_are_rejected_without_a_generic_bound() {
     for name in [
-        "Transfer", "Share", "Send", "Sync", "Drop", "Fn", "FnMut", "FnOnce",
+        "Copy",
+        "StoreElement",
+        "Transfer",
+        "Share",
+        "Send",
+        "Sync",
+        "Drop",
+        "Fn",
+        "FnMut",
+        "FnOnce",
     ] {
         let rules = format!("pub trait {name}{{}}");
         reject(
