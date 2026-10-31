@@ -144,10 +144,18 @@ impl Database {
         self.active.remove(key);
     }
 
-    /// Check the whole dependency closure, including in-progress ancestors.
-    /// Looking only at direct fingerprints could expose a transitively stale
-    /// snapshot after one of its inputs was replaced.
+    /// Read an immutable published result, rejecting in-progress ancestors.
     pub fn read(&self, key: &QueryKey) -> Result<Option<Arc<QuerySnapshot>>, Diagnostic> {
+        // publish checks the complete input closure before replacing a value;
+        // invalidate removes the complete affected reverse closure. Together
+        // with private storage and immutable snapshots, this keeps every stored
+        // dependency present, matching and acyclic. With no active computation,
+        // repeating that traversal cannot reject an otherwise published result.
+        // An active ancestor still requires the original complete traversal,
+        // even when the requested node itself is not active.
+        if self.active.is_empty() {
+            return Ok(self.snapshots.get(key).cloned());
+        }
         let mut pending = vec![(key.clone(), false)];
         let mut visiting = BTreeSet::new();
         let mut complete = BTreeSet::new();
