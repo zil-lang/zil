@@ -304,7 +304,7 @@ def main():
         "source_tree_sha256": sha(tree), "source_tree_byte_equal": True,
         "source_snapshots": source_records, "log_sha256": sha((phase / f"{stage}.log").read_bytes()),
         "native_manifest_sha256": sha(manifest_path.read_bytes()), "uploaded_manifest_files": len(entries),
-        "stage_test_totals": totals, "toolchain": toolchain,
+        "stage_test_totals": totals, "stage_test_groups": len(rows), "toolchain": toolchain,
         "download_receipts": download_records, "new_test_or_native_execution_during_audit": False,
     }
     write_json(output / "OBSERVATIONS.json", {"review234": full_rows, "impl234": impl_rows, "api_cold_warm_pairs": pairs})
@@ -315,7 +315,7 @@ def main():
         "builder210": {"passed_rust_tests": test_counts["builder210"], "widths": [1, 8, 16, 32, 64], "generated_model_executions_from_frozen_loops": 5 * 2 * 2 * 2 if stage == "workspace" else 0, "oracle": "Actual full-width Compare eq then boolean exit; per-case temporary objects deleted by original test. Exact source and current CI success log retained."},
         "api_cold_warm_pairs": len(pairs), "actual_modes": sorted(expected_modes),
         "verified_native_files": len(selected["234"]), "retained_native_files": len(kept["234"]),
-        "raw_archive": archive_records["234"], "final_acceptance": "Pending reference and complete green integration-gate receipts; this file alone is not FINAL.",
+        "raw_archive": archive_records["234"], "final_acceptance": "Pending both stage audits and complete green integration-gate receipts; this stage file alone is not FINAL.",
     }
     joint_result = {**identity, "verdict": "StageArtifactAuditPass_FinalPending", "rust_tests": test_counts["construction11_integration"], "positive_native_observations": len(positive), "negative_source_rejections": len(negative), "actual_modes": sorted(expected_modes), "full_i32_comparison": 14, "cleanup_stdout_hex": "41", "negative": "Verify/E-BORROW-CONFLICT, verification_runs=1, no executable or native commands", "verified_native_files": len(selected["joint"]), "retained_native_files": len(kept["joint"]), "raw_archive": archive_records["joint"]}
     write_json(output / "RESULT.json", result)
