@@ -134,5 +134,13 @@
   "next_candidates": [
     "Finite non-generic enum generation with Unit/Tuple variants",
     "Where normalization for already-supported nominal trait bounds; module identity handling is a prerequisite"
-  ]
+  ],
+  "handoff_record_integrity": {
+    "status": "Fail",
+    "checked_commit": "3a1aca37a53c310da961c0a54d9c59f7aa35f50b",
+    "errors": 1379,
+    "warnings": 0,
+    "task_228_229_errors": 0,
+    "evidence": "evidence/integration/228-229/closeout/handoff-final-D2/RESULT.json"
+  }
 }

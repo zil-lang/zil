@@ -29,7 +29,7 @@ PR与main整树不同，仅225/226工单和施工8日志三个blob不同；生�
 
 CI证据保存小phase ZIP、完整日志、完整manifest和原始审计。native ZIP payload没有额外本地下载，使用成功上传与inventory保护的清理证明；consumer209工作流保存summary而没有完整命令/可执行目录。原始本轮作者/独审失败的source/IR/native已在各自归档中逐成员核验。
 
-HANDOFF_FINAL_SLOT
+在已提交元数据候选 `3a1aca37a53c310da961c0a54d9c59f7aa35f50b` 的main工作树实际运行 `node tools/handoff.mjs`，全局 **Fail / 1379项记录完整性错误 / 0 warnings**，退出码1。228、229均为已合入且各零错误。相对本轮6ba起点真实基线1372项，错误多重集新增7、减少0；新增记录涉及225、226、227，未改写其他施工工单来抹平错误。这些是工单/证据记录完整性问题，与编译器CI失败不同。原始输出及逐项差分见[handoff-final-D2/RESULT.json](../evidence/integration/228-229/closeout/handoff-final-D2/RESULT.json)。`data/handoff.json`保存上述D提交的实际快照，不冒称包含快照自身的后续提交已重新执行检查。首次元数据D检查有1381项，其中本轮两项是消费者收据status字段混入范围说明；原始D输出保留为Fail。原消费者复核者在新CONSUMER-ACCEPTANCE.json中分离严格状态与有限范围，绑定原始报告摘要和原执行身份，未改原报告、检查器或任何测试结果；本次相对该D新增0、减少2项。
 
 一任务一worktree/target，禁止跨树共用Cargo target。本轮完成后已回收编译缓存，接续使用新的target目录。正式全量由集成者统一运行；不因存储紧张缩减门或改写失败。当前源码、接口和全部规范输入身份优先于旧聊天摘要。
 

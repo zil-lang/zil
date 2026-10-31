@@ -76,5 +76,11 @@
     "data/normative-inputs.json"
   ],
   "original_failures_and_review_identities_preserved": true,
-  "next_handoff_snapshot": "Recorded after this metadata candidate is committed; no circular self-identity claim."
+  "next_handoff_snapshot": {
+    "checked_commit": "3a1aca37a53c310da961c0a54d9c59f7aa35f50b",
+    "status": "Fail",
+    "errors": 1379,
+    "task_228_229_errors": 0,
+    "evidence": "evidence/integration/228-229/closeout/handoff-final-D2/RESULT.json"
+  }
 }
