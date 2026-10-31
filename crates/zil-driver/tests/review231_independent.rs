@@ -165,29 +165,16 @@ fn independent_cross_module_impl_matches_existing_inline_boundary() {
             &format!("existing-cross-module-impl-{form}"),
             &[("main", source), ("rules", rules), ("data", data)],
         );
+        // 233 admits this exact original three-module source through the same
+        // nominal relation for both inline and where bounds. The former
+        // Unsupported result remains in the immutable construction10 evidence.
         assert_eq!(
             report.status,
-            ResultCategory::Unsupported,
+            ResultCategory::Success,
             "{}",
             report.to_json()
         );
-        assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
-        for message in [
-            "trait implementation resolution",
-            "trait receiver declaration is not available in this source module",
-        ] {
-            assert!(
-                report
-                    .diagnostics
-                    .iter()
-                    .any(|diagnostic| diagnostic.code == "E-UNSUPPORTED"
-                        && diagnostic.message == message),
-                "{}",
-                report.to_json()
-            );
-        }
-        assert_eq!(report.verification_runs, 0);
-        assert!(!report.artifacts.contains_key("executable"));
+        assert_eq!(report.verification_runs, 1);
     }
 }
 
