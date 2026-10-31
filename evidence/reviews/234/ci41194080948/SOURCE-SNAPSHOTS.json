@@ -1,0 +1,37 @@
+[
+  {
+    "path": "crates/zil-llvm-api/src/native/builder.rs",
+    "bytes": 28226,
+    "sha256": "65fdcdc8f7fdc8b4b618d96541db95e370e0e45618e6f95532beb2c4345f4a1c"
+  },
+  {
+    "path": "crates/zil-llvm-api/tests/builder210.rs",
+    "bytes": 8057,
+    "sha256": "089ea7472745f6470705c96324935c8be395545ab297bcb09c880653aec77911"
+  },
+  {
+    "path": "crates/zil-llvm-api/tests/support210/mod.rs",
+    "bytes": 7319,
+    "sha256": "5512149f9c2c52db771f6b1d807604f7b05d992054dd1d7e9885b9ab22a1c07a"
+  },
+  {
+    "path": "crates/zil-driver/tests/impl234_narrow_constants.rs",
+    "bytes": 6817,
+    "sha256": "b0754417d246f9645dec141e0b9141ed6573718895158911fff479f978de5136"
+  },
+  {
+    "path": "crates/zil-driver/tests/review234_full_width.rs",
+    "bytes": 7156,
+    "sha256": "23e111b7d1ca60b49efe3c9d1e0394f72117442d7aa9a4cea69cab1fa540e1a6"
+  },
+  {
+    "path": "examples/mainline/byte_io/main.zil",
+    "bytes": 635,
+    "sha256": "e52ef18e5502b5f1523913f2a28dbbbcf7d1d4934e23247e481c4219edf6833e"
+  },
+  {
+    "path": "examples/mainline/byte_io/io.zil",
+    "bytes": 2230,
+    "sha256": "6d8fbe85c350ccc396f18cd18fe6708ebada4b3014d7baaa128d877f44e19dc8"
+  }
+]

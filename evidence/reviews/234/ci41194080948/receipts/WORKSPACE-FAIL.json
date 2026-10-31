@@ -1,0 +1,32 @@
+{
+  "status": "Fail",
+  "run_id": 41194080948,
+  "head_candidate": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+  "actual_checkout": "89406b33b43fc17fe967b5bb9f629a16cb44b763",
+  "source_tree_exact_match": true,
+  "workspace": {
+    "passed": 3020,
+    "failed": 4,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "groups": 335,
+  "failed_tests": [
+    "packages072_outer_package_owned_capture_remains_unsupported",
+    "captures077_analyze_rejects_shared_alias_write_and_unrestored_fnmut",
+    "captures077_nearest_source_rejections_do_not_weaken_other_modes",
+    "owning_package_captures_borrow_the_actual_environment_field"
+  ],
+  "receipt_hashes": {
+    "workspace.log": "ad4ea2b5fdb0d9ad9595fe8ce4a28a777d1a0af9eb5ea129b28eb1f39f99c2ce",
+    "toolchain.txt": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0",
+    "workspace-native-manifest.json": "aa3458adac01b811ac3fd0f04c691ca65a8fa53498df0c4befbbd7d959278ba8",
+    "workspace-resources-before.log": "3ce93534c79f15bea698b455620ed4494a97a3a749388bbc4f72ce22e6676266",
+    "llvm-api-toolchain.json": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71",
+    "source-tree.txt": "7f4bf3e6e02f4d3f9935c86cd6d18089fc892683f67abe942dc9311ca17746d4",
+    "workspace-resources-after.log": "e7ddf6076bc209e31d13b711b8df4f80a19c8263a07794e51fe3c469e1ea182b",
+    "commit.txt": "02ade84e1f53ce0cb1c6fca81a260d4370f3f70bf7a94f6fc3172d87fb32d524"
+  },
+  "reference": "Pending; original run continues; do not cancel or relabel this failure"
+}
