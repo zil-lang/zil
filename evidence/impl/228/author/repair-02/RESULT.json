@@ -1,0 +1,279 @@
+{
+  "implementation_commit": "c1578e319d606d745835a7c3c609a3bb738b3c15",
+  "previous_candidate": "2122c2258",
+  "review_finding": "Generated private functions could hide reserved primitive names through alpha renaming. Both old function-only generation and new mixed batches were affected; non-author original failures retained separately.",
+  "repair": "Pure lib wrapper reuses primitive_name/primitive_name_error; both hygiene paths check the original spelling in their existing prepaid name traversal before binding. No copied rule table, new scan, allocation, namespace or fee.",
+  "author_tests": {
+    "passed": 7,
+    "failed": 0,
+    "native_builds": 22,
+    "native_executions": 22,
+    "backend": "llvm-api",
+    "llvm": "23.1.4",
+    "input": "builder",
+    "parse_ns": 0
+  },
+  "affected_regressions": {
+    "passed": 19,
+    "failed": 0,
+    "filtered": 1,
+    "filtered_reason": "Root owns the exact impl222 old generated-type expected-rejection migration; this is a limited author run."
+  },
+  "thresholds": {
+    "before": {
+      "thresholds/thresholds.json": {
+        "core_steps": 127,
+        "full_steps": 205,
+        "full_nodes": 645
+      },
+      "budget/thresholds.json": {
+        "core_steps": 71,
+        "full_steps": 138,
+        "full_nodes": 751
+      },
+      "minimum.json": {
+        "core_steps": 77,
+        "full_steps": 96,
+        "full_nodes": 1084
+      },
+      "budget-nodes/minimum.json": {
+        "minimum": 616
+      },
+      "budget-work/minimum.json": {
+        "minimum": 1811
+      }
+    },
+    "after": {
+      "minimum.json": {
+        "core_steps": 77,
+        "full_steps": 96,
+        "full_nodes": 1084
+      },
+      "budget-work/minimum.json": {
+        "minimum": 1811
+      },
+      "budget-nodes/minimum.json": {
+        "minimum": 616
+      },
+      "budget/thresholds.json": {
+        "core_steps": 71,
+        "full_steps": 138,
+        "full_nodes": 751
+      },
+      "thresholds/thresholds.json": {
+        "core_steps": 127,
+        "full_steps": 205,
+        "full_nodes": 645
+      }
+    },
+    "all_unchanged": true
+  },
+  "function_name_controls": [
+    {
+      "case": "function-name-mixed-ByteBuffer",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-BYTE-BUFFER-NAME"
+      ]
+    },
+    {
+      "case": "function-name-mixed-Copy",
+      "status": "Success",
+      "phase": "verify",
+      "codes": []
+    },
+    {
+      "case": "function-name-mixed-Store",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-OWNED-STORE-NAME"
+      ]
+    },
+    {
+      "case": "function-name-mixed-bool",
+      "status": "Success",
+      "phase": "verify",
+      "codes": []
+    },
+    {
+      "case": "function-name-mixed-bytes_len",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-BYTE-BUFFER-NAME"
+      ]
+    },
+    {
+      "case": "function-name-mixed-c_null",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-FFI-CONSTRUCTOR-NAME"
+      ]
+    },
+    {
+      "case": "function-name-mixed-i32",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-INTEGER-CONVERSION-NAME"
+      ]
+    },
+    {
+      "case": "function-name-mixed-store_at",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-OWNED-STORE-NAME"
+      ]
+    },
+    {
+      "case": "function-name-plain-ByteBuffer",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-BYTE-BUFFER-NAME"
+      ]
+    },
+    {
+      "case": "function-name-plain-Copy",
+      "status": "Success",
+      "phase": "verify",
+      "codes": []
+    },
+    {
+      "case": "function-name-plain-Store",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-OWNED-STORE-NAME"
+      ]
+    },
+    {
+      "case": "function-name-plain-bool",
+      "status": "Success",
+      "phase": "verify",
+      "codes": []
+    },
+    {
+      "case": "function-name-plain-bytes_len",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-BYTE-BUFFER-NAME"
+      ]
+    },
+    {
+      "case": "function-name-plain-c_null",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-FFI-CONSTRUCTOR-NAME"
+      ]
+    },
+    {
+      "case": "function-name-plain-i32",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-INTEGER-CONVERSION-NAME"
+      ]
+    },
+    {
+      "case": "function-name-plain-store_at",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-OWNED-STORE-NAME"
+      ]
+    },
+    {
+      "case": "function-name-pure-ByteBuffer",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-BYTE-BUFFER-NAME"
+      ]
+    },
+    {
+      "case": "function-name-pure-Copy",
+      "status": "Success",
+      "phase": "verify",
+      "codes": []
+    },
+    {
+      "case": "function-name-pure-Store",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-OWNED-STORE-NAME"
+      ]
+    },
+    {
+      "case": "function-name-pure-bool",
+      "status": "Success",
+      "phase": "verify",
+      "codes": []
+    },
+    {
+      "case": "function-name-pure-bytes_len",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-BYTE-BUFFER-NAME"
+      ]
+    },
+    {
+      "case": "function-name-pure-c_null",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-FFI-CONSTRUCTOR-NAME"
+      ]
+    },
+    {
+      "case": "function-name-pure-i32",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-INTEGER-CONVERSION-NAME"
+      ]
+    },
+    {
+      "case": "function-name-pure-store_at",
+      "status": "SafeReject",
+      "phase": "expand",
+      "codes": [
+        "E-OWNED-STORE-NAME"
+      ]
+    }
+  ],
+  "native_reports": [
+    "types228-74/native-O0-alias-enum/report.json",
+    "types228-74/native-O0-array-alias-function-pointer/report.json",
+    "types228-74/native-O0-arrays-defaults/report.json",
+    "types228-74/native-O0-arrays-defaults-plain/report.json",
+    "types228-74/native-O0-empty-declarations/report.json",
+    "types228-74/native-O0-forward-alias/report.json",
+    "types228-74/native-O0-generic-type-shadow/report.json",
+    "types228-74/native-O0-nested-shadow/report.json",
+    "types228-74/native-O0-public-type/report.json",
+    "types228-74/native-O0-type-and-iterator/report.json",
+    "types228-74/native-O0-value-shadow/report.json",
+    "types228-74/native-O2-alias-enum/report.json",
+    "types228-74/native-O2-array-alias-function-pointer/report.json",
+    "types228-74/native-O2-arrays-defaults/report.json",
+    "types228-74/native-O2-arrays-defaults-plain/report.json",
+    "types228-74/native-O2-empty-declarations/report.json",
+    "types228-74/native-O2-forward-alias/report.json",
+    "types228-74/native-O2-generic-type-shadow/report.json",
+    "types228-74/native-O2-nested-shadow/report.json",
+    "types228-74/native-O2-public-type/report.json",
+    "types228-74/native-O2-type-and-iterator/report.json",
+    "types228-74/native-O2-value-shadow/report.json"
+  ],
+  "full_formal_gate": "NotRun; root-owned",
+  "product_status": "NotRun; limited language slice only"
+}

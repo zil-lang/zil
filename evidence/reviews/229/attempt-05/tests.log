@@ -1,0 +1,16 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/e9af9764d083/zil-review229/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.44s
+     Running tests/review229_independent.rs (/workspace/scratch/e9af9764d083/targets/review229/debug/deps/review229_independent-36770b3184b595c9)
+
+running 8 tests
+test bounds_do_not_leak_between_parameters_or_hide_unexecuted_errors ... ok
+test independent_alias_chain_shares_one_budget_through_specialization ... ok
+test nominal_protection_rechecks_later_binders_and_unused_bodies ... ok
+test real_nominals_and_generic_wrappers_keep_scoped_native_identity ... ok
+test record_shadowing_has_a_preserved_inline_control ... ok
+test uncalled_imported_helpers_keep_symbolic_scope ... ok
+test independent_inline_where_and_repetition_have_identical_machine_semantics ... ok
+test unrelated_where_function_does_not_open_methods_impls_or_foreign_templates ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+

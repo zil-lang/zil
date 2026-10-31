@@ -30,6 +30,8 @@ pub(super) mod store_templates;
 mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
+#[path = "generic_where.rs"]
+mod where_copy;
 
 fn check_nominal_name(name: &str, span: Span) -> R<()> {
     if super::byte_buffer_name(name) || super::owned_store_name(name) {
@@ -59,8 +61,10 @@ pub(super) fn specialize<'a>(
     limits: &Limits,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
+    let mut has_where = false;
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
+        has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
         if let ItemKind::Impl(implementation) = &item.kind
             && implementation
                 .trait_type
@@ -100,6 +104,19 @@ pub(super) fn specialize<'a>(
             }
         }
     }
+    if has_where {
+        let normalized = where_copy::normalize(module, &mut names_budget).map_err(|e| vec![e])?;
+        let (aliased, budget) =
+            aliases::normalize_with_budget(&normalized, names_budget).map_err(|e| vec![e])?;
+        return match aliased {
+            Some(aliased) => {
+                specialize_with_budget(&aliased.module, limits, &aliased.pattern_types, budget)
+            }
+            None => specialize_with_budget(&normalized, limits, &BTreeMap::new(), budget),
+        }
+        .map(Cow::Owned)
+        .map_err(|e| vec![e]);
+    }
     if let Some(normalized) = aliases::normalize(module, limits).map_err(|e| vec![e])? {
         if normalized
             .module
@@ -126,8 +143,17 @@ fn specialize_engine(
     limits: &Limits,
     pattern_types: &BTreeMap<String, TypeRef>,
 ) -> R<Module> {
-    let mut engine = Engine::new(module, limits, pattern_types)?;
-    if !engine.callable_nominal_collision {
+    specialize_with_budget(module, limits, pattern_types, Budget::new(limits))
+}
+
+fn specialize_with_budget<'a>(
+    module: &'a Module,
+    limits: &'a Limits,
+    pattern_types: &'a BTreeMap<String, TypeRef>,
+    budget: Budget<'a>,
+) -> R<Module> {
+    let mut engine = Engine::with_budget(module, limits, pattern_types, budget)?;
+    if !engine.nominal_binder_collision {
         return engine.run(module);
     }
     // Generated aggregates no longer carry the original generic declaration.
@@ -135,10 +161,10 @@ fn specialize_engine(
     // before substituting a caller binder into those aggregate fields.
     let protected = super::modules::protect_alias_nominals(module, &mut engine.budget)?;
     let mut engine = Engine::with_budget(&protected, limits, pattern_types, engine.budget)?;
-    if engine.callable_nominal_collision {
+    if engine.nominal_binder_collision {
         return Err(error(
             module.span,
-            "callable binder still collides with a nominal identity after scoped normalization",
+            "type binder still collides with a nominal identity after scoped normalization",
         ));
     }
     engine.run(&protected)
@@ -158,7 +184,7 @@ struct Engine<'a> {
     inferred_state_values: BTreeSet<String>,
     has_store_templates: bool,
     has_single_state_values: bool,
-    callable_nominal_collision: bool,
+    nominal_binder_collision: bool,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
     instances: BTreeMap<(String, Vec<String>), String>,
@@ -202,13 +228,6 @@ fn name(item: &Item) -> Option<&str> {
 }
 
 impl<'a> Engine<'a> {
-    fn new(
-        module: &'a Module,
-        limits: &'a Limits,
-        pattern_types: &'a BTreeMap<String, TypeRef>,
-    ) -> R<Self> {
-        Self::with_budget(module, limits, pattern_types, Budget::new(limits))
-    }
     fn with_budget(
         module: &'a Module,
         limits: &'a Limits,
@@ -230,7 +249,7 @@ impl<'a> Engine<'a> {
             inferred_state_values: BTreeSet::new(),
             has_store_templates: false,
             has_single_state_values: false,
-            callable_nominal_collision: false,
+            nominal_binder_collision: false,
             signatures: BTreeMap::new(),
             foreign_signatures: BTreeMap::new(),
             instances: BTreeMap::new(),
@@ -304,12 +323,21 @@ impl<'a> Engine<'a> {
                 // This parameter/name was already charged by item preflight.
                 // Borrow the existing nominal index; do not add a global scan,
                 // name copy or a hygiene pass to the noncolliding old path.
-                if callable
-                    .as_ref()
-                    .is_some_and(|bounds| bounds.contains_generic(&parameter.name))
-                    && engine.nominals.contains_key(&parameter.name)
-                {
-                    engine.callable_nominal_collision = true;
+                if engine.nominals.contains_key(&parameter.name) {
+                    if callable
+                        .as_ref()
+                        .is_some_and(|bounds| bounds.contains_generic(&parameter.name))
+                    {
+                        // Preserve the already-accounted callable protection path.
+                        engine.nominal_binder_collision = true;
+                    } else if matches!(parameter.kind, GenericParamKind::Type(_)) {
+                        // Ordinary type binders need the same nominal isolation.
+                        // Do not inspect a symbolic body against an ambiguously
+                        // named nominal table: the caller first protects the
+                        // fully prepaid AST, then validates that scoped module.
+                        engine.nominal_binder_collision = true;
+                        return Ok(engine);
+                    }
                 }
                 if !seen.insert(&parameter.name) {
                     return Err(error(parameter.span, "duplicate type parameter"));

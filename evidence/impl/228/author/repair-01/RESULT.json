@@ -1,0 +1,97 @@
+{
+  "implementation_commit": "2122c2258c2ebca0eb1c28d33bbf536a92e1e48c",
+  "original_commit": "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+  "review_finding": "Unconditional uncharged module scan was executed for every generated function batch. Original author Pass results are retained, but that revision was returned by non-author review.",
+  "repair": "The type flag is derived during already paid materialization and propagated through #if/#for; the function-only path has no extra scan or allocation. Actual type batches prepay each visited module before imports lookup.",
+  "author_tests": {
+    "passed": 6,
+    "failed": 0,
+    "native_builds": 22,
+    "native_executions": 22,
+    "backend": "llvm-api",
+    "llvm": "23.1.4",
+    "input": "builder",
+    "parse_ns": 0
+  },
+  "affected_regressions": {
+    "passed": 19,
+    "failed": 0,
+    "filtered": 1,
+    "filtered_reason": "Root owns the exact impl222 old generated-type expected-rejection migration; this is a limited author run."
+  },
+  "thresholds": {
+    "before": {
+      "thresholds/thresholds.json": {
+        "core_steps": 127,
+        "full_steps": 205,
+        "full_nodes": 645
+      },
+      "budget/thresholds.json": {
+        "core_steps": 71,
+        "full_steps": 138,
+        "full_nodes": 751
+      },
+      "minimum.json": {
+        "core_steps": 77,
+        "full_steps": 96,
+        "full_nodes": 1084
+      },
+      "budget-nodes/minimum.json": {
+        "minimum": 614
+      },
+      "budget-work/minimum.json": {
+        "minimum": 1809
+      }
+    },
+    "after": {
+      "minimum.json": {
+        "core_steps": 77,
+        "full_steps": 96,
+        "full_nodes": 1084
+      },
+      "budget-work/minimum.json": {
+        "minimum": 1811
+      },
+      "budget-nodes/minimum.json": {
+        "minimum": 616
+      },
+      "budget/thresholds.json": {
+        "core_steps": 71,
+        "full_steps": 138,
+        "full_nodes": 751
+      },
+      "thresholds/thresholds.json": {
+        "core_steps": 127,
+        "full_steps": 205,
+        "full_nodes": 645
+      }
+    },
+    "all_old_thresholds_equal": true
+  },
+  "native_reports": [
+    "types228-52/native-O0-alias-enum/report.json",
+    "types228-52/native-O0-array-alias-function-pointer/report.json",
+    "types228-52/native-O0-arrays-defaults/report.json",
+    "types228-52/native-O0-arrays-defaults-plain/report.json",
+    "types228-52/native-O0-empty-declarations/report.json",
+    "types228-52/native-O0-forward-alias/report.json",
+    "types228-52/native-O0-generic-type-shadow/report.json",
+    "types228-52/native-O0-nested-shadow/report.json",
+    "types228-52/native-O0-public-type/report.json",
+    "types228-52/native-O0-type-and-iterator/report.json",
+    "types228-52/native-O0-value-shadow/report.json",
+    "types228-52/native-O2-alias-enum/report.json",
+    "types228-52/native-O2-array-alias-function-pointer/report.json",
+    "types228-52/native-O2-arrays-defaults/report.json",
+    "types228-52/native-O2-arrays-defaults-plain/report.json",
+    "types228-52/native-O2-empty-declarations/report.json",
+    "types228-52/native-O2-forward-alias/report.json",
+    "types228-52/native-O2-generic-type-shadow/report.json",
+    "types228-52/native-O2-nested-shadow/report.json",
+    "types228-52/native-O2-public-type/report.json",
+    "types228-52/native-O2-type-and-iterator/report.json",
+    "types228-52/native-O2-value-shadow/report.json"
+  ],
+  "full_formal_gate": "NotRun; root-owned",
+  "product_status": "NotRun; limited language slice only"
+}

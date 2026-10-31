@@ -1,0 +1,246 @@
+{
+  "id": "229",
+  "recorded_at": "2026-10-31T00:50:36.670559+00:00",
+  "scope": "Author limited source, machine, exact budget and affected regression tests; not integration or product acceptance.",
+  "status": "AuthorPass",
+  "implementation_commit": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+  "contract_commit": "45fa541ed11b26f2aadc99a6a574c54b1cbec105",
+  "shared_names_commit": "2e76a6dd09c2fc47ada43ec8192372c8bafa374b",
+  "shared_names_original": "75f22dda0f80b49aeba16bc64b39249211d5e7ac",
+  "spec_hash": "11c7554a05d0a9d2bc9e34ebf8ec3e80dd2e406b813ef98faa11723d3ecd3e3c",
+  "normative_hash": "9650a02607d782c2981f75930de3ad239c8322677170f81135a13352777c92ae",
+  "exact_test_tree_clean_before_run": true,
+  "implementation_files": [
+    {
+      "path": "crates/zil-driver/tests/impl229_where_copy.rs",
+      "sha256": "fc4a02b49505aff265c757eacf89306923b1ed4db51c95efeb1f7e5e47afc134"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_alias.rs",
+      "sha256": "005c44998e8714c8799f43344442aa7678128e5136808d6f5753b57f3de0b9b2"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_where.rs",
+      "sha256": "b0b56e70e08dc75a3aa5cc43f31eacdbe4b5ca3e6a653955d1389e108dff9af4"
+    },
+    {
+      "path": "crates/zil-expand/src/generics.rs",
+      "sha256": "22bec949b72c5f121a4f49a616c9e4d9cbb1014f088c0463ce62a86c247e56f4"
+    },
+    {
+      "path": "examples/mainline/where_copy229/helper.zil",
+      "sha256": "28f1f78bf48939a9f422d41fbd1715eccace249b77fe7b4f403c6773962acc8d"
+    },
+    {
+      "path": "examples/mainline/where_copy229/main.zil",
+      "sha256": "dde10b603afd31e9f800f8db6853505aad51441361856d9e703c902e46c6295a"
+    },
+    {
+      "path": "examples/mainline/where_copy229/model.zil",
+      "sha256": "c681b170ab9feb72501b72497d13bd4e822c7082bc610d88625d8385326016ac"
+    }
+  ],
+  "environment": {
+    "PATH": "/workspace/scratch/3cf12ce32e36/toolchains/rust-1.99.1/bin:/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin:/usr/local/bin:/usr/bin:/bin",
+    "ZIL_CLANG": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "LD_LIBRARY_PATH": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "CARGO_TARGET_DIR": "/workspace/scratch/e9af9764d083/targets/229",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_BUILD_JOBS": "2"
+  },
+  "commands": [
+    {
+      "kind": "baseline",
+      "production_commit": "2e76a6dd09c2fc47ada43ec8192372c8bafa374b",
+      "new_test_uncommitted": true,
+      "argv": "cargo test --locked -p zil-driver --features llvm-api --test impl229_where_copy old_source_budget_controls -- --nocapture",
+      "exit": 0,
+      "passed": 1,
+      "ZIL_TEST_REPORT_DIR": "/workspace/scratch/e9af9764d083/receipts/229-baseline"
+    },
+    {
+      "kind": "failed-attempt",
+      "tree": "uncommitted 229 implementation based on 2e76a6dd0; inputs and raw failure preserved, not an exact clean SHA",
+      "argv": "cargo test --locked -p zil-driver --features llvm-api --test impl229_where_copy -- --nocapture",
+      "exit": 101,
+      "passed": 4,
+      "failed": 2,
+      "ZIL_TEST_REPORT_DIR": "/workspace/scratch/e9af9764d083/receipts/229-attempt1"
+    },
+    {
+      "kind": "retry",
+      "tree": "same production algorithm as attempt01; tests corrected, uncommitted",
+      "argv": "cargo test --locked -p zil-driver --features llvm-api --test impl229_where_copy -- --nocapture",
+      "exit": 0,
+      "passed": 6,
+      "ZIL_TEST_REPORT_DIR": "/workspace/scratch/e9af9764d083/receipts/229-attempt2"
+    },
+    {
+      "kind": "final-candidate",
+      "tree": "content subsequently committed as 6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+      "argv": "cargo test --locked -p zil-driver --features llvm-api --test impl229_where_copy -- --nocapture",
+      "exit": 0,
+      "passed": 6,
+      "ZIL_TEST_REPORT_DIR": "/workspace/scratch/e9af9764d083/receipts/229-final-candidate"
+    },
+    {
+      "kind": "exact-final",
+      "commit": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+      "argv": "cargo test --locked -p zil-driver --features llvm-api --test impl229_where_copy --test generics --test generic_regressions --test impl103_generic_aliases --test impl194_copy_callable -- --nocapture",
+      "exit": 0,
+      "passed": 53,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "ZIL_TEST_REPORT_DIR": "/workspace/scratch/e9af9764d083/receipts/229-exact-final"
+    },
+    {
+      "kind": "exact-expand",
+      "commit": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+      "argv": "cargo test --locked -p zil-expand --test generics --test normalization",
+      "exit": 0,
+      "passed": 16,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "kind": "lint",
+      "commit": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+      "argv": "cargo clippy --locked -p zil-driver --features llvm-api --test impl229_where_copy -- -D warnings",
+      "exit": 0
+    }
+  ],
+  "new_suite": {
+    "groups_passed": 6,
+    "source_verify_cases": 9,
+    "source_reject_cases": 22,
+    "linux_o0_o2_native_builds": 10,
+    "linux_o0_o2_native_executions": 10,
+    "native_expected_exit": 0,
+    "native_expected_stdout": "",
+    "native_expected_stderr": "",
+    "llvm_comparison": "inline/where/repeated-where at each O0 and O2 are byte equal after removing only the source verified-fingerprint comment; raw files preserved"
+  },
+  "budgets": {
+    "plain_core_before_after": {
+      "analysis_steps": 589,
+      "nodes": 220
+    },
+    "alias_core_before_after": {
+      "analysis_steps": 952,
+      "nodes": 233
+    },
+    "where_alias_specialization_verify": {
+      "analysis_steps": 1651,
+      "nodes": 488
+    },
+    "where_sequence": "fresh N Success / warm N Success / N-1 Expand ResourceLimit with Verify0 / warm N Success; active_query_count 0 after each; no emitted executable on exhausted request",
+    "default_limits_changed": false
+  },
+  "failures_preserved": [
+    {
+      "id": "attempt01-applied-bound",
+      "classification": "TestSourceSyntax",
+      "detail": "Copy<i32>=> token adjacency parses a split >= then > instead of an arrow; the parser rejects before Expand. Added whitespace > => to exercise the intended applied-bound rejection."
+    },
+    {
+      "id": "attempt01-project-unused",
+      "classification": "TestExpectation",
+      "detail": "Unused arithmetic on T:Copy has the existing Unsupported category, not SafeReject. The correction compiles an independent inline T:Copy control and checks equal diagnostic message/category."
+    },
+    {
+      "id": "handoff-start",
+      "classification": "ExistingRecordIntegrity",
+      "status": "Fail",
+      "reported_error_count": 1375,
+      "detail": "Explicit authoritative main tree resolved; historical record-integrity issues were not changed or represented as language failures."
+    }
+  ],
+  "unmeasured": [
+    "formal full workspace integration",
+    "independent review pending",
+    "native Windows",
+    "same-semantics Rust time/RSS/compile comparisons",
+    "general trait/lending/StoreElement/callable/lifetime/const/method/impl where"
+  ],
+  "product_state": {
+    "B0": "Doing",
+    "full_language": "NotSatisfied",
+    "product": "NotRun"
+  },
+  "archives": [
+    {
+      "path": "baseline-raw.tar.gz",
+      "sha256": "37f6071098909b47266b4311db3f04e193943f9914ae1f5018da3273e61da95f",
+      "bytes": 276,
+      "file_count": 1
+    },
+    {
+      "path": "attempt01-failed-raw.tar.gz",
+      "sha256": "5ad78e91ca0f834813e8d6bcad6fa22a6c44e15e44fbf4d61efa96a46a6d341f",
+      "bytes": 230409,
+      "file_count": 302
+    },
+    {
+      "path": "attempt02-raw.tar.gz",
+      "sha256": "3303f2426d1167322411201bb4f75133baf7e8a10e59dee19c21cad2dbcd7cd3",
+      "bytes": 243890,
+      "file_count": 335
+    },
+    {
+      "path": "final-candidate-raw.tar.gz",
+      "sha256": "d45f4aa1d11c9b9ac96a886413d6c3ba2e7cb762fa6d7b566dc77a6c79867a6c",
+      "bytes": 265134,
+      "file_count": 344
+    },
+    {
+      "path": "exact-final-raw.tar.gz",
+      "sha256": "f651e26615e9622bd87f5b5718b5d8a196d81393f0bfdf8bb937e3d836290464",
+      "bytes": 2387530,
+      "file_count": 2625
+    }
+  ],
+  "raw_logs": [
+    {
+      "path": "attempt01-failed.log.gz",
+      "raw_sha256": "f9f8d290b3db9dd8a714738610e1309d0a5b5170c659a4e6f070e912bf4c2078",
+      "raw_bytes": 3006
+    },
+    {
+      "path": "attempt02.log.gz",
+      "raw_sha256": "33e32e530edbd0c1bd77f2b397f6cdd0a07d5a767ce3f6e315f9cbce99b74830",
+      "raw_bytes": 895
+    },
+    {
+      "path": "baseline.log.gz",
+      "raw_sha256": "d2ec14fad35a27c5ca1ed3929169bb9c03cdab6e683a551d32d87b5b6766f7d2",
+      "raw_bytes": 1623
+    },
+    {
+      "path": "clippy.log.gz",
+      "raw_sha256": "f11a10438a0149533472e8672742fafbf5578b4550bce422c9735932cf9c2285",
+      "raw_bytes": 1229
+    },
+    {
+      "path": "exact-expand-regressions.log.gz",
+      "raw_sha256": "6eff03ba81af3e709df39fc6e7139431395c1f51953040af01caea45054afa2d",
+      "raw_bytes": 1847
+    },
+    {
+      "path": "exact-final-driver.log.gz",
+      "raw_sha256": "b4ecfa0fdb4e0ef438035230d3f901653da9c7323e6f5fa88a6d2cd319f5af0f",
+      "raw_bytes": 5378
+    },
+    {
+      "path": "final-candidate.log.gz",
+      "raw_sha256": "e03c4d92743bb9795a2f5a34856f6cff8a1848f672e59323bdf0159ef1011337",
+      "raw_bytes": 993
+    }
+  ]
+}

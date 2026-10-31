@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "utc": "2026-10-31T01:01:00.065110+00:00",
+  "checkout": "c591b12af4088b41137f504711ed20b0a7b460dd",
+  "production_candidate_228": "2122c2258c2ebca0eb1c28d33bbf536a92e1e48c",
+  "production_candidate_229": "d8c71880928c2e0497ffe078834382503960256b",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "review228_consumer_shadow",
+    "--",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "environment": {
+    "CARGO_HOME": "/workspace/scratch/e9af9764d083/cargo-consumer",
+    "CARGO_TARGET_DIR": "/workspace/scratch/e9af9764d083/targets/consumer",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_INCREMENTAL": "0",
+    "ZIL_CLANG": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "LD_LIBRARY_PATH": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/repair-shadow-oracle/native"
+  },
+  "exit_code": 0,
+  "reports": [
+    {
+      "path": "evidence/reviews/228-consumer/repair-shadow-oracle/native/shadow229-inline-no-collision-control-30/compile.json",
+      "source_sha256": "d96fba83234a5b70109a12adfc5789554b4fdd62347573a42641f08ec20c467f",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 47,
+            "end": 50
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-shadow-oracle/native/shadow229-inline-shadow-30/compile.json",
+      "source_sha256": "63ac75a4c9d41a5e1880e3e2dd22ba3989701d6f5a72e423a99b68d1c23f71d2",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 41,
+            "end": 44
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-shadow-oracle/native/shadow229-unbounded-no-collision-control-30/compile.json",
+      "source_sha256": "23d2ce9eea1bb2fb48a9f3ba9f726fcd232e6b07b89dce099ba1147592d5f83a",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 42,
+            "end": 45
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-shadow-oracle/native/shadow229-unbounded-shadow-30/compile.json",
+      "source_sha256": "04aa2bdac5cb485b94fa6dbac7d429baf4f8a738a531db2099ebbcfe28c81d9b",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 36,
+            "end": 39
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-shadow-oracle/native/shadow229-where-no-collision-control-30/compile.json",
+      "source_sha256": "bbfc3db32d4dd073ba470e7dbe48f9121a8c4431422a65b1f98fb5dc83174639",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 58
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "path": "evidence/reviews/228-consumer/repair-shadow-oracle/native/shadow229-where-shadow-30/compile.json",
+      "source_sha256": "f2a8deaed84e0ba4c9f690ff47ebb9f26f73083c907fe11fb40d7c4fb7798895",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 49,
+            "end": 52
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    }
+  ],
+  "native_executions": 0,
+  "scope": "Three exact original nominal-shadow sources and three controls differing only in the unused struct name. All must match Unsupported/Expand/E-UNSUPPORTED, with no verification or executable."
+}

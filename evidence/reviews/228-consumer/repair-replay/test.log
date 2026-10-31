@@ -1,0 +1,56 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 4.62s
+     Running tests/impl228_consumer.rs (/workspace/scratch/e9af9764d083/targets/consumer/debug/deps/impl228_consumer-12206911d29295af)
+
+running 7 tests
+test combined_event_consumer ... ok
+test generated_event_consumer ... ok
+test generated_event_shapes_keep_distinct_nominal_identities ... ok
+test paired_sources_change_only_the_requested_declaration_forms ... ok
+test plain_event_consumer ... ok
+test trailing_copy_bound_cannot_duplicate_an_owning_event_resource ... ok
+test where_event_consumer ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.85s
+
+     Running tests/review228_consumer_patterns.rs (/workspace/scratch/e9af9764d083/targets/consumer/debug/deps/review228_consumer_patterns-5002b0fff9f0c184)
+
+running 1 test
+test generated_alias_constructor_patterns_match_the_ordinary_source ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/review228_consumer_shadow.rs (/workspace/scratch/e9af9764d083/targets/consumer/debug/deps/review228_consumer_shadow-9ba310ba11fafc73)
+
+running 3 tests
+test inline_copy_bound_does_not_capture_a_same_named_struct ... 
+thread 'inline_copy_bound_does_not_capture_a_same_named_struct' (175) panicked at crates/zil-driver/tests/review228_consumer_shadow.rs:23:5:
+assertion `left == right` failed: inline: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"operation on an unconstrained type parameter requires a declared bound","span":{"file":0,"start":41,"end":44},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/repair-replay/native/shadow229-inline-174/phases/syntax.txt"},"input_fingerprint":"63ac75a4c9d41a5e1880e3e2dd22ba3989701d6f5a72e423a99b68d1c23f71d2","seconds":0.002865899,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"nominal_shadow.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: SafeReject
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test trailing_copy_bound_does_not_capture_a_same_named_struct ... 
+thread 'trailing_copy_bound_does_not_capture_a_same_named_struct' (176) panicked at crates/zil-driver/tests/review228_consumer_shadow.rs:23:5:
+assertion `left == right` failed: where: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"operation on an unconstrained type parameter requires a declared bound","span":{"file":0,"start":49,"end":52},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/repair-replay/native/shadow229-where-174/phases/syntax.txt"},"input_fingerprint":"f2a8deaed84e0ba4c9f690ff47ebb9f26f73083c907fe11fb40d7c4fb7798895","seconds":0.002619133,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"nominal_shadow.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: SafeReject
+FAILED
+test unbounded_generic_does_not_capture_a_same_named_struct ... 
+thread 'unbounded_generic_does_not_capture_a_same_named_struct' (177) panicked at crates/zil-driver/tests/review228_consumer_shadow.rs:23:5:
+assertion `left == right` failed: unbounded: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"operation on an unconstrained type parameter requires a declared bound","span":{"file":0,"start":36,"end":39},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/repair-replay/native/shadow229-unbounded-174/phases/syntax.txt"},"input_fingerprint":"04aa2bdac5cb485b94fa6dbac7d429baf4f8a738a531db2099ebbcfe28c81d9b","seconds":0.002625622,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"nominal_shadow.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: SafeReject
+FAILED
+
+failures:
+
+failures:
+    inline_copy_bound_does_not_capture_a_same_named_struct
+    trailing_copy_bound_does_not_capture_a_same_named_struct
+    unbounded_generic_does_not_capture_a_same_named_struct
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-driver --test review228_consumer_shadow`

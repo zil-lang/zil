@@ -1,0 +1,32 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/e9af9764d083/zil-review229/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/e9af9764d083/zil-review229/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 4.30s
+     Running tests/review229_independent.rs (/workspace/scratch/e9af9764d083/targets/review229/debug/deps/review229_independent-36770b3184b595c9)
+
+running 8 tests
+test bounds_do_not_leak_between_parameters_or_hide_unexecuted_errors ... ok
+test independent_alias_chain_shares_one_budget_through_specialization ... ok
+test nominal_protection_rechecks_later_binders_and_unused_bodies ... ok
+test real_nominals_and_generic_wrappers_keep_scoped_native_identity ... FAILED
+test record_shadowing_has_a_preserved_inline_control ... ok
+test uncalled_imported_helpers_keep_symbolic_scope ... ok
+test unrelated_where_function_does_not_open_methods_impls_or_foreign_templates ... ok
+test independent_inline_where_and_repetition_have_identical_machine_semantics ... ok
+
+failures:
+
+---- real_nominals_and_generic_wrappers_keep_scoped_native_identity stdout ----
+
+thread 'real_nominals_and_generic_wrappers_keep_scoped_native_identity' (83) panicked at crates/zil-driver/tests/review229_independent.rs:400:13:
+assertion `left == right` failed: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-FUNCTION-BODY","message":"function requires a block, arrow expression, or declaration semicolon","span":{"file":1,"start":150,"end":151},"notes":[]}],"artifacts":{},"input_fingerprint":"8d1f29bdf4cb36c7f43b31d5968ae9587151ed2ed10839ed6a2f84801592b346","seconds":0.003615798,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"review229.zil","1":"helper.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    real_nominals_and_generic_wrappers_keep_scoped_native_identity
+
+test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+
+error: test failed, to rerun pass `-p zil-driver --test review229_independent`

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/environment_recovery",
+  "checkout": "85fd4511a9ba9a2c84531f8b902ea70a45deaf26",
+  "production_candidates": [
+    "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+    "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4"
+  ],
+  "utc": "2026-10-31T00:50:50.923776+00:00",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "impl228_consumer",
+    "--",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit_code": 0
+}

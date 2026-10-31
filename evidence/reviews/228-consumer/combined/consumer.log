@@ -1,0 +1,16 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 4.49s
+     Running tests/impl228_consumer.rs (/workspace/scratch/e9af9764d083/targets/consumer/debug/deps/impl228_consumer-12206911d29295af)
+
+running 7 tests
+test combined_event_consumer ... ok
+test generated_event_consumer ... ok
+test generated_event_shapes_keep_distinct_nominal_identities ... ok
+test paired_sources_change_only_the_requested_declaration_forms ... ok
+test plain_event_consumer ... ok
+test trailing_copy_bound_cannot_duplicate_an_owning_event_resource ... ok
+test where_event_consumer ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.75s
+
