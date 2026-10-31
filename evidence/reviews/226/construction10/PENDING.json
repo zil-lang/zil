@@ -4,7 +4,7 @@
   "reviewer": "zil施工10/branch_audit",
   "implementation_author": "zil施工8/current-assistant",
   "verdict": "NotRun",
-  "status": "CorrectedFixturesAwaitRetest",
+  "status": "ReferenceScopedPassAwaitFreshFormalCI",
   "implementation_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
   "original_remote_tip": "c8dd71a4b75ed7731fca8372a3a055f017991eb3",
   "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
@@ -245,5 +245,6 @@
     "No claim of full language 1.4, ZUI, general async/escape support or Rust product-gate completion",
     "Review scope is only the 225/226 delivered contracts; formal parent-task and integration status remain root-owned"
   ],
-  "correction": "evidence/reviews/225/construction10/CORRECTION.json"
+  "correction": "evidence/reviews/225/construction10/CORRECTION.json",
+  "reference_result": "evidence/reviews/225/construction10/reference-correction/RESULT.json"
 }

@@ -1,0 +1,29 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/b2d4304a481d/z10-review225226/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/b2d4304a481d/z10-review225226/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/b2d4304a481d/z10-review225226/crates/zil-verify)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/b2d4304a481d/z10-review225226/crates/zil-llvm-api)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/b2d4304a481d/z10-review225226/crates/zil-syntax)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/b2d4304a481d/z10-review225226/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/b2d4304a481d/z10-review225226/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/b2d4304a481d/z10-review225226/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/b2d4304a481d/z10-review225226/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/b2d4304a481d/z10-review225226/crates/zil-lower)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/b2d4304a481d/z10-review225226/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/b2d4304a481d/z10-review225226/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/b2d4304a481d/z10-review225226/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 19.94s
+     Running tests/review225226_capture.rs (/workspace/scratch/b2d4304a481d/z10-target-review225226/debug/deps/review225226_capture-94f63f6aa9d36343)
+
+running 9 tests
+test callable_hidden_in_managed_resource_head_is_not_capture_authority ... ok
+test child_take_and_replacement_wait_for_last_actual_callback_use ... ok
+test mixed_ordinary_and_dynamic_branch_origins_are_rejected ... ok
+test ordinary_branch_union_keeps_each_possible_owner_live ... ok
+test owned_store_environment_does_not_acquire_external_shared_product_hold ... ok
+test raw_one_branch_store_injection_cannot_reuse_ordinary_origin_plan ... ok
+test separate_local_environments_preserve_owned_store_and_shared_product_responsibilities ... ok
+test two_nonempty_same_type_stores_preserve_payloads_and_cleanup ... ok
+test zero_storage_ordinary_product_capture_does_not_need_store_layout ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.11s
+
