@@ -2,7 +2,7 @@
 //! CFG and supported operation shapes; it does NOT prove ZIL memory safety.
 use super::model::*;
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 type Result<T> = std::result::Result<T, String>;
 #[derive(Clone, Debug)]
@@ -144,7 +144,7 @@ impl<'a> World<'a> {
         &self,
         t: &Ty,
         indices: &[Arg],
-        defs: &BTreeMap<&str, Definition>,
+        defs: &HashMap<&str, Definition>,
         constant: bool,
     ) -> Result<()> {
         self.check_ty(t, false)?;
@@ -179,7 +179,7 @@ impl<'a> World<'a> {
         }
         Ok(())
     }
-    fn arg(&self, a: &Arg, defs: &BTreeMap<&str, Definition>, constant: bool) -> Result<()> {
+    fn arg(&self, a: &Arg, defs: &HashMap<&str, Definition>, constant: bool) -> Result<()> {
         self.check_ty(&a.ty, false)?;
         attrs(&a.attrs, Some(&a.ty))?;
         self.value(&a.value, &a.ty, defs, constant, 0)
@@ -188,7 +188,7 @@ impl<'a> World<'a> {
         &self,
         v: &Val,
         t: &Ty,
-        defs: &BTreeMap<&str, Definition>,
+        defs: &HashMap<&str, Definition>,
         constant: bool,
         depth: usize,
     ) -> Result<()> {
@@ -281,7 +281,7 @@ impl<'a> World<'a> {
             _ => None,
         })
     }
-    fn op(&self, op: &Op, defs: &BTreeMap<&str, Definition>, signature: &Signature) -> Result<()> {
+    fn op(&self, op: &Op, defs: &HashMap<&str, Definition>, signature: &Signature) -> Result<()> {
         let value = |v: &Val, t: &Ty| self.value(v, t, defs, false, 0);
         match op {
             Op::Alloca { ty, align } => {
@@ -500,8 +500,12 @@ fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize
         for &b in post.iter().skip(1) {
             let mut p = pred[b].iter().copied().filter(|&p| idom[p] != usize::MAX);
             let Some(mut next) = p.next() else { continue };
-            for p in p {
-                next = intersect(next, p, &idom);
+            if pred[b].len() >= 32 {
+                next = intersect_many(next, p, &rank, &idom);
+            } else {
+                for p in p {
+                    next = intersect(next, p, &idom);
+                }
             }
             if next != idom[b] {
                 idom[b] = next;
@@ -510,6 +514,50 @@ fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize
         }
     }
     (seen, idom)
+}
+// The current idom tree does not change during one predecessor merge. Project
+// each visited node onto the first predecessor's ancestor chain, then choose
+// the highest intersection on that chain. Each parent edge is followed at most
+// once in this merge; shared trap exits no longer rewalk a growing chain for
+// every checked operation. Nothing is retained across blocks or iterations.
+fn intersect_many(
+    first: usize,
+    predecessors: impl Iterator<Item = usize>,
+    rank: &[usize],
+    idom: &[usize],
+) -> usize {
+    if first == 0 {
+        return 0;
+    }
+    let mut projected = vec![usize::MAX; idom.len()];
+    let mut ancestor = first;
+    loop {
+        projected[ancestor] = ancestor;
+        if ancestor == 0 {
+            break;
+        }
+        ancestor = idom[ancestor];
+    }
+    let mut common = first;
+    let mut trail = Vec::new();
+    for mut p in predecessors {
+        trail.clear();
+        while projected[p] == usize::MAX {
+            trail.push(p);
+            p = idom[p];
+        }
+        let meet = projected[p];
+        for &node in &trail {
+            projected[node] = meet;
+        }
+        if rank[meet] < rank[common] {
+            common = meet;
+        }
+        if common == 0 {
+            break;
+        }
+    }
+    common
 }
 // DFS intervals on the current dominator tree turn repeated ancestor walks
 // into constant-time tests. Iterative traversal also handles deep CFGs without
@@ -584,8 +632,10 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
         return fail("variadic definition not supported by machine lowering");
     }
     let n = blocks.len();
-    let mut labels = BTreeMap::new();
-    let mut defs = BTreeMap::new();
+    // Input order controls diagnostics and scheduling; these maps only perform
+    // identity lookup. The label collision scan returns one fixed diagnostic.
+    let mut labels = HashMap::with_capacity(n);
+    let mut defs = HashMap::new();
     for p in &f.signature.params {
         let name = p
             .name
@@ -823,7 +873,7 @@ pub(crate) fn validate(module: &Module) -> Result<Schedule> {
                 world.check_ty(&g.ty, false)?;
                 alignment(g.alignment)?;
                 if let Some(v) = &g.initializer {
-                    world.value(v, &g.ty, &BTreeMap::new(), true, 0)?;
+                    world.value(v, &g.ty, &HashMap::new(), true, 0)?;
                 } else if g.linkage.is_local() {
                     return fail("local global declaration without definition");
                 }
@@ -1053,6 +1103,51 @@ mod dominance_interval_tests {
             assert!(dominates(&reachable, &idom, Some(&spans), b - 1, b));
             assert!(!dominates(&reachable, &idom, Some(&spans), b, b - 1));
             assert!(dominates(&reachable, &idom, Some(&spans), 1, b));
+        }
+    }
+
+    #[test]
+    fn checked_chain_trap_idoms_survive_fanin_order_duplicates_and_backedges() {
+        for length in [1, 2, 30, 31, 32, 33, 128, 4096] {
+            for reverse in [false, true] {
+                for backedge in [false, true] {
+                    let trap = length + 1;
+                    let unreachable = length + 2;
+                    let mut succ = vec![vec![]; length + 3];
+                    succ[0].push(1);
+                    for (b, edges) in succ.iter_mut().enumerate().take(length + 1).skip(1) {
+                        if b < length {
+                            edges.push(b + 1);
+                        }
+                        edges.push(trap);
+                    }
+                    succ[length].push(trap); // Duplicate CFG edge.
+                    if backedge {
+                        succ[length].push((length / 2).max(1));
+                    }
+                    succ[unreachable].extend([unreachable, trap]);
+                    let mut pred = vec![vec![]; succ.len()];
+                    for (b, edges) in succ.iter().enumerate() {
+                        for &next in edges {
+                            pred[next].push(b);
+                        }
+                    }
+                    if reverse {
+                        for edges in &mut pred {
+                            edges.reverse();
+                        }
+                    }
+                    let (reachable, idom) = dominators(&succ, &pred);
+                    for b in 1..=length {
+                        assert!(reachable[b]);
+                        assert_eq!(idom[b], b - 1);
+                    }
+                    assert_eq!(idom[trap], 1);
+                    assert!(reachable[trap]);
+                    assert!(!reachable[unreachable]);
+                    assert_eq!(idom[unreachable], usize::MAX);
+                }
+            }
         }
     }
 }
