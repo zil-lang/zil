@@ -1,0 +1,3154 @@
+{
+  "schema_version": 1,
+  "status": "RecoveredProductionPendingFreshCI",
+  "remote_baseline": "aaeb67f12b5638677332132e28df86fa23cde3d8",
+  "old_production": "2c8acce8f01dfb46830a31b6eaf52ef786ed73a1",
+  "old_candidate": "2dcb7bc3c05c8f7c02757c73dfd5188fd057480b",
+  "old_candidate_crates_tree": "a5b4a535053b6bf6478b95a975eed848a0846ffd",
+  "original_bundle_sha256": "d097ddfc7e75c831547307904c34226661ba91a3a189514bc91f9946800f4fc3",
+  "original_bundle_bytes": 4511479,
+  "preserved_prefix_bytes": 786432,
+  "complete_recovered_pack_objects": 110,
+  "original_commit_records": 29,
+  "rescue_run": 41182185138,
+  "rescue_artifact": 13035587161,
+  "rescue_ref": "chore/construction10-recovery",
+  "rescue_artifact_sha256": "57d022bc537454f3c439d85f0b617b9f38b16e92c3a3af721376b524b60c8c33",
+  "preserved_original_remote_tips": [
+    "8ea37c2de56cf65f1448e4fa647671f4459ad148",
+    "c8dd71a4b75ed7731fca8372a3a055f017991eb3"
+  ],
+  "restored_source_commits": {
+    "230": "14163219c503a6ee959aa52beddfc2c6d1d862b4",
+    "231": "82678ae57b795a37c394ec7479083d172e94c028"
+  },
+  "evidence_limits": [
+    "Not all original author/native evidence is recoverable. No original pass is reused as acceptance of this candidate.",
+    "interfaces profile registration reconstructed under unchanged recovered design text; new normative hash is explicit.",
+    "230 examples extracted from verified original archive; missing original examples tree prevents membership proof.",
+    "231 three module examples reconstructed by original author and tagged NewRecoveryExamplesPendingCI; old 4410/922 budget not reused.",
+    "Original 29 commit bytes are preserved, but missing tree objects prevent claiming full original local history restoration."
+  ],
+  "crates_source_map": [
+    {
+      "path": "crates/zil-analyze/Cargo.toml",
+      "git_blob": "df900e4c508b38301f8b21c630f92d819942fc66",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/budget.rs",
+      "git_blob": "63663b46f5640897a4ccfb9c15b187c00a282b5d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/callable_fields.rs",
+      "git_blob": "1459a949e5ad968d2fcfb17f3ad96f28b613fe43",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/dynamic_store.rs",
+      "git_blob": "4f43bcfebd042e956c2e23ccbbf3d8c44ab8c275",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/helper_flow.rs",
+      "git_blob": "5cafd5bc4d8b6aa07b4d841af672bc9c6401e8f9",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/helpers.rs",
+      "git_blob": "aac51d5c10734dc7ac46f6aa8d7e50a94db93147",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/holds.rs",
+      "git_blob": "52b63d9968f0e1ec2eb3e2838c22a6ec2cb54873",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/lib.rs",
+      "git_blob": "c13e12ce0b2a31c02ddfc4af49d666408fa60084",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/owning_factory.rs",
+      "git_blob": "ca3d86ad4f4bf88bce975c376de982ef700beeba",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/resource_tests.rs",
+      "git_blob": "428fa72da2abb66d98b72a313bdc22fb5811af71",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/resources.rs",
+      "git_blob": "ab4e9fac5785884382d814ca575f6883a14d1c31",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/resources/frontier_tests.rs",
+      "git_blob": "022abdf2d856684f971dab9bb0b977d4a484a123",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/resources/product.rs",
+      "git_blob": "2a023e3f5ae5f5063f717868425345a730ea3d34",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/resources/summary_graph.rs",
+      "git_blob": "9e379f49d554890de31deaf2784dffdacb551beb",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/retained.rs",
+      "git_blob": "5491010354e458560020d761684634cf0fca18ac",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/src/scopes.rs",
+      "git_blob": "0765eae6f163d41724af30b89e1c62bbfeefccb1",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/tests/budgets.rs",
+      "git_blob": "6be5198b49e1d30027edd2d75268069981a8de4e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/tests/impl196_roles.rs",
+      "git_blob": "2db99f4c010083f5699f03486612959b9fd769b9",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/tests/impl200_constructor.rs",
+      "git_blob": "bf1357f7e650e3ac40213852c36c1863d18b01f8",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/tests/impl201_store.rs",
+      "git_blob": "c6abce6ca2bf1f824d435d517ab95fe4bb3227a2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/tests/impl204_capture.rs",
+      "git_blob": "7d24a55f128a742eb6ac75a0a4ed9b2fc5c5c07a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/tests/impl220_factory.rs",
+      "git_blob": "d9aa7ca9941d4a0ff9bf702cfe3e16592d7b0810",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-analyze/tests/package_budgets.rs",
+      "git_blob": "7c1460259e5e664c5c977bc355eddaeaa72a217f",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/Cargo.toml",
+      "git_blob": "7b0393b266aeca61a2593f71625d7c65d982d276",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/build.rs",
+      "git_blob": "063a38863a318d9424ca26a5443699f0ecdd2811",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/cgu.rs",
+      "git_blob": "9c26fd48adf2a5064c9d8a555b10531e2f1d057b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit.rs",
+      "git_blob": "4a5121e933d52c6457fdde6beee2398cfe3740d0",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/arrays.rs",
+      "git_blob": "c2b3b535d44fc444e4d97485f9aad3dfde2f2f53",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/byte_buffer.rs",
+      "git_blob": "47e96702a7122f115375a51d19e15ad414b0ca08",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/dynamic_store.rs",
+      "git_blob": "39fbf9e5328713e240f73ccb220e71fd4ab65964",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/enums.rs",
+      "git_blob": "e7f3b5e9ba5e7dbbc30e7dfcc3afdd0e40ce8303",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/errors.rs",
+      "git_blob": "f2080190c8e831b78c28e3c698c12f6d47bf7ba5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/foreign.rs",
+      "git_blob": "49bee01ec7cdb4884794a2cb2c1af929fb0c7f0b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/packages.rs",
+      "git_blob": "9cf654beae1e26893b40724ec69109c75cf418e4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/resource_closures.rs",
+      "git_blob": "bf9c4d3b84b86c446ff9e7aa7dfc54b6c81c5c33",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/resources.rs",
+      "git_blob": "adca77e8e6b186286fab44786256ff0cb46dcd38",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/slices.rs",
+      "git_blob": "567eeaa26783d6f0cf93751d01cd03fb9fc69f0a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/lib.rs",
+      "git_blob": "627be743dfa2d66d0ace7071d2d188577b687dd7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/machine_cgu.rs",
+      "git_blob": "18fb683a1d47f1caa5f1396fe5ec39a2e426fc57",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/object_cache.rs",
+      "git_blob": "612a2a350c649f28f3585c6605981845ac44b814",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/tests.rs",
+      "git_blob": "1db8b3df41137c2998eb5e842c1dd3ee68d3769c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-base/Cargo.toml",
+      "git_blob": "882bb11a4a30934088abc6cd3a06f67fd016c38a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-base/src/lib.rs",
+      "git_blob": "a28a16b9638919a3d666efa61b7515a073e02512",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-base/src/sha256.rs",
+      "git_blob": "462e05626b95707cfb67c10cf5e7093b300da26f",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-base/src/source_map.rs",
+      "git_blob": "16e4f787c30ad4034871cff97212fa5de71cfe21",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-base/tests/streaming_fingerprint.rs",
+      "git_blob": "22738165c295e95ada0ffc065e850e8b5292f913",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-cli/Cargo.toml",
+      "git_blob": "ed36c14fabd426cb9626334b1f976c85f4362252",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-cli/src/main.rs",
+      "git_blob": "fb3a5a836ef3571069ec986c886c72905a22d9df",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-cli/src/qc.rs",
+      "git_blob": "3c330baa8b6bd02403878eee164ff5b7d6c2f599",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-cli/tests/backend_default.rs",
+      "git_blob": "527b9a86f4605b20232438d36d939a786dd42857",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-cli/tests/object_cache212.rs",
+      "git_blob": "23ba57851b1680f2079fcab3e443a8f485644487",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-cli/tests/qc.rs",
+      "git_blob": "89a54c57710eb7fcf3b8b3aca9bd9b119c0e0402",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-cli/tests/stream_io.rs",
+      "git_blob": "ea313f977cb8ea60c6fdfdc2c51d8ed2eb371720",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ct/Cargo.toml",
+      "git_blob": "77e4cf5f913dd41531f5c4e0bb3aa2214bca2cf4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ct/src/lib.rs",
+      "git_blob": "60c603bfd8db31935b8aa6b079d2af521ddba382",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ct/src/materialize.rs",
+      "git_blob": "560d7cdb70ecf3055fc69b09b78d92499f63993d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ct/src/program.rs",
+      "git_blob": "adca2b8fcde05571d163c5d90dd1c08719ac28d3",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ct/src/source.rs",
+      "git_blob": "98c794dabafe6b9044703673a398518259413f37",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-db/Cargo.toml",
+      "git_blob": "dd8456c5bec7dde8683cb0631d2e0b30a4f78ca7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-db/src/cache.rs",
+      "git_blob": "d2c5f64a71b253f8da100ce81ca846935caf59e2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-db/src/lib.rs",
+      "git_blob": "97f7998b6dad8195c7dbccab19367121c711f420",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-db/src/tests.rs",
+      "git_blob": "a85f91fbe29f40a1e2b7bbb5f3afdd360f777d8a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/Cargo.toml",
+      "git_blob": "c315395f9d6e2f1665ed7fa133f779c3c17d1028",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/examples/proof_frontier.rs",
+      "git_blob": "6b3e532a187c022a26d9539c53dbe4aa0b540865",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/examples/roam_session.rs",
+      "git_blob": "07e79041abe8a754571ef574fc7b9b18a8c42925",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/artifacts.rs",
+      "git_blob": "a2334aa93c5d17d33e6a23ee53d2e8961d0749ae",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/contracts.rs",
+      "git_blob": "2f6975cb9f3bf2abe0d0ffbeea082d3c076f1b8e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_program.rs",
+      "git_blob": "88759c1773e927f6ca4daebc5f62bca7a851874a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection.rs",
+      "git_blob": "c567ec3f091eb82bfed469705e1484ecce9fd682",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/budget.rs",
+      "git_blob": "2e7ae901cd3bdd45749dc25d11476f9c4cf54cd6",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/context.rs",
+      "git_blob": "15f6d477bf489977613fd90e7797ec1f52356cf2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/generation.rs",
+      "git_blob": "3231501643b03beb17739a9efe9151a6ca186c39",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/hygiene.rs",
+      "git_blob": "f1becf839873b99f7f359e634fde4b397e83cd6e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/hygiene_types.rs",
+      "git_blob": "89a2eed87b78937e0f1f73979ec734b99a0e3ed0",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/materialize.rs",
+      "git_blob": "fba1fcf218a89778fadd007b10cb524ec5f37d01",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/type_values.rs",
+      "git_blob": "665a7e41f560699f271e0fe278536c69355702d5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/lib.rs",
+      "git_blob": "2d9c9f78660d553c8a172d8ecc4b0e05dfe4d1be",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/project.rs",
+      "git_blob": "d5538ca13506adb361970c7b4e04ea5c3efd1240",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/session.rs",
+      "git_blob": "45d534e0415257534fc96048c13c1cf7ccce8a92",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/src/tests.rs",
+      "git_blob": "e2d2699c05fa84d36be7638e79fbddadee183e2d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/aggregates.rs",
+      "git_blob": "ea11035bbe1ff8689b536ac22a040dcec38fee34",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/borrowed_closures.rs",
+      "git_blob": "cef9c18fd50cfc507e4fb3c0c2a68a4b724cc08a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/closures_frontend.rs",
+      "git_blob": "a7341bf4417386044985087895caeedb8998b183",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/closures_native.rs",
+      "git_blob": "7f6a9590aa5de74807af6e943bd3a9ac0841b5b2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/comptime_programs.rs",
+      "git_blob": "d496b144561ace1b484a1b8c900c4390dc89ba91",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/cross_function_borrows.rs",
+      "git_blob": "9650c5c10efbd98ed31d67f9c2d8773c2be07b5b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/generic_regressions.rs",
+      "git_blob": "5d02df51f5d3b07ea0b135fe2be08d81f5830c65",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/generics.rs",
+      "git_blob": "1bcc8344fa4b30b9a98c4f7b40149ef7932fa1d3",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl029.rs",
+      "git_blob": "941570ff9e3f65439ea3109137e8d72c56cc591b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl030.rs",
+      "git_blob": "9276db263c7e9e937c40ff46e7a2d7c3a9964c79",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl031.rs",
+      "git_blob": "0b4d9f6151282ede531a15965ff186caa7f2f3d0",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl032.rs",
+      "git_blob": "f0971230288410297f50c9c823311c8fbd31d7f0",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl033.rs",
+      "git_blob": "ce85b47a1f8d9d799ef6c1c4b7ecbf384209e9f6",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl034.rs",
+      "git_blob": "39aebf08749988cf81f2e4d5758ae27277f1227b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl035.rs",
+      "git_blob": "e2ebf2c498db1b8569b9161e611ee634dfee0bff",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl036.rs",
+      "git_blob": "6565bb730791b50cd67228e460a73da8bdb8d040",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl037.rs",
+      "git_blob": "0163570aebee2b67b8a95c4fe472be955e057e7e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl039.rs",
+      "git_blob": "969ac0027596cb584500cadd65a46e9ad315a083",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl040.rs",
+      "git_blob": "1c02a07afd1e789afd087619703c70c30e5795ed",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl041.rs",
+      "git_blob": "c20584caaab0546c4080cb1e34c53d3a6adfc6cb",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl042.rs",
+      "git_blob": "49d9ca30536006690cdb21868cd298e1ae64e824",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl043.rs",
+      "git_blob": "30c1588fe1551e65fde43242baa5713c0334aa34",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl044.rs",
+      "git_blob": "29285aa39f1818d9974a015e7337f8d0e6d2b092",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl046.rs",
+      "git_blob": "f921f06ca4e54f958336b9938ffa8ad7a305e51b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl047.rs",
+      "git_blob": "f91f93e541a8dfcd49ad0b059473bd65f13a78f4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl049.rs",
+      "git_blob": "b62272500d4ade861d8deac4daeaaec4ed297633",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl051.rs",
+      "git_blob": "ed6d37311b3de472eeac45d6d1d311e82cda85da",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl053.rs",
+      "git_blob": "2d0d9cb587d0003cb71612958165318782512c57",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl056.rs",
+      "git_blob": "24ca08289db24a78c6fe9f380592abcad2ff8c5b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl060.rs",
+      "git_blob": "c963c01149512b2b2c01cf81061f838458c13066",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl064.rs",
+      "git_blob": "6999f5eb37533cf7bfe87ed1312d991c7e7e15e7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl065_helpers.rs",
+      "git_blob": "c8a28fc642d4842225027aa8ecac255321501468",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl068_vertical.rs",
+      "git_blob": "78b10bdc8c4d16a79ab3b255041f7718ec8224ae",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl069_retained.rs",
+      "git_blob": "adc220dfde68f0ca32bbbc3ac349aae5a6de581a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl070_retained.rs",
+      "git_blob": "9b2ad61bf303103e15824a9113d71d9e5163789c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl072_packages.rs",
+      "git_blob": "13deedc870f6215f5c6da326659320e3aeea88a1",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl074_packages.rs",
+      "git_blob": "2484cc26d9b43d973fa8da2322597454e5e188bf",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl077_package_captures.rs",
+      "git_blob": "d221618e3c53a8346998dd5b8f6853b33d487684",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl079_package_captures.rs",
+      "git_blob": "79c4ef9c49d9dffb2447c155b812fabf4fb9ba15",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl081_frontend.rs",
+      "git_blob": "a9514e16680f1b3ba5c586db8998daa7c0ef3255",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl083_bytes_native.rs",
+      "git_blob": "30cb183cfc1c1605fa2691dc09a57b75b61fa6bf",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl085_frontend.rs",
+      "git_blob": "ade252ebcfd891be36b520b2b22d6bc23e040f29",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl087_native.rs",
+      "git_blob": "58c2a26e1992fcf5f59dd6f7e4e9debf42ea0349",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl088_ct_collector.rs",
+      "git_blob": "c1300299e30b24840459a0e155445420b7c51831",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl088_ct_preflight.rs",
+      "git_blob": "a1dcff536cad76fc55a0f7ae74ef0676a7eea0a2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl090_slices.rs",
+      "git_blob": "ff17eb2da4d121a4ce9e0d5801fb87c3a4ddd270",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl092_slices_native.rs",
+      "git_blob": "6962ad2593124711cda91ddc1a93728280f4c78e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl094_byte_buffers.rs",
+      "git_blob": "07ace4aa67d320bbf71e337d9b35f96dfda659c5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl094_ct_preflight.rs",
+      "git_blob": "12695377cdc6b706837f1019465b66785d3d1942",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl096_byte_buffer_native.rs",
+      "git_blob": "3540df2b8a93bfc5c6197ff54ceee7cf214b9cf9",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl099_owned_bytes.rs",
+      "git_blob": "99ccd25158e1f3b9b013d2d3f0839fc227cae78a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl099_owned_bytes_native.rs",
+      "git_blob": "56825b236b4206ac0a9e080023c1b12dab7683d5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl103_generic_aliases.rs",
+      "git_blob": "282156cafef13de741677c08aebe934d5ef0a62e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl105_ct_enum.rs",
+      "git_blob": "6cd1564ef53f36ae66696144d2b5751cbf5428f7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl108_foreign_binding.rs",
+      "git_blob": "74d06605b5eb8a4a48fff1032fe0f52dcd441c7d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl109_ascii_map.rs",
+      "git_blob": "e21a7eeb99316d99c1170c1c2426c6d8f930ebd8",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl120_field_backing.rs",
+      "git_blob": "656c277414a29d32c43ae2602662ef823dc86b03",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl120_field_backing_native.rs",
+      "git_blob": "0e6f499f525bcc64d54bc174ead3c993e721d5f6",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl121_callable_nominals.rs",
+      "git_blob": "cf5b1a5410051aa69501eaaa545ff5724541c113",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl122_ct_declarations.rs",
+      "git_blob": "42c11e39773f1c9628f64b0eb29dd684aca27428",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl124_signed_shifts.rs",
+      "git_blob": "2509e497eacb721c3f4297d3104d0d594a77288e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl125_factory_helpers.rs",
+      "git_blob": "c0c64b70ea8cd2ed2f3f46be13727e5015f07a0f",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl126_helper_sequences.rs",
+      "git_blob": "04d320b2d98c7708df32f164ee042e8f888218e0",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl127_local_factory.rs",
+      "git_blob": "082fa79a8a02de9e1f38b34c910fa057542cea06",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl127_raw_factory.rs",
+      "git_blob": "d9938b0371d9f5ae508059ed0d1c9fa5437631fe",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl134_project_defaults.rs",
+      "git_blob": "7c31a18ff29b7af6f7165e4614447af3050b9e93",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl137_truncate.rs",
+      "git_blob": "d2827dfc9ec9caae4384d370a7e101b6c247e224",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl139_owned_text.rs",
+      "git_blob": "d8ecefc8be2426c25c479561be7e9123bc5b2dda",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl142_record_vector.rs",
+      "git_blob": "3bc35eff89f2dcb02d5c3f629588a64f3a455228",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl147_static_traits.rs",
+      "git_blob": "2fa12481a28dd075d40f13201c944cca8e101d79",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl151_closure_methods.rs",
+      "git_blob": "9ee3863e268f501e578f2b2b8a971dca34006080",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl152_growing_inbox.rs",
+      "git_blob": "185ead95770555b60bd47b6af37c54e229113da8",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl153_query_replay.rs",
+      "git_blob": "f41b8a7af8fa9bdbff0a94cfc9e187c298d92e25",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl153_queue_layout.rs",
+      "git_blob": "8b350d7b799df73c0914a36a89ee2f0dda00b14d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl155_managed_replace.rs",
+      "git_blob": "fe244912fdc378cac0fbc284e607770926289e9e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl156_module_methods.rs",
+      "git_blob": "8feaab3077b3d5dde2683d77312292a5c738c7e9",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl158_filesystem_cache.rs",
+      "git_blob": "8b87a9cfc13b3ecaa53bcf70cdbd7dd3c5421401",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl161_nested_closures.rs",
+      "git_blob": "1226296185c6884cf42212e81a65b1f094033b7e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl162_trait_bounds.rs",
+      "git_blob": "dc44e42f1c5378990fc800eac88d45bdd4ff31f0",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl163_resource_methods.rs",
+      "git_blob": "ed65670d214b72af676eba113682c4c841fbc502",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl166_owned_results.rs",
+      "git_blob": "8a1e0767a59d6fc872345b8886727b8f80fa35e9",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl167_array_capture_boundary.rs",
+      "git_blob": "f046b06757dd7bc9f999c6d5bd26289cd97fde98",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl167_owned_arrays.rs",
+      "git_blob": "64ed677ebd918a067b3d62597fdfd4f3b8802c49",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl168_retained_composition.rs",
+      "git_blob": "32cf09255fd756ca5a2876d693c69ad6b668482b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl170_package_fields.rs",
+      "git_blob": "b72159943341386acc02d6ca42136653f4f8af42",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl171_resource_heads.rs",
+      "git_blob": "9c06f2428b9585384265e5412e796c7f493fb604",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl172_owned_store.rs",
+      "git_blob": "f796a3991fbd5c0fb8f6e46985dc9942228d2d19",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl174_store_fields.rs",
+      "git_blob": "d0c61253c5dfec636f9fa052669efedeb6deb6f7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl175_store_views.rs",
+      "git_blob": "07fc71046a28fc87c91f0d32e21e7c8c446167a7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl176_callable_fields.rs",
+      "git_blob": "3b04e6c1c3d2eab093d564ed8d6ee546a4ba24f7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl177_public.rs",
+      "git_blob": "073d8279b5e6232b1a32c279e596a7c0454e78d6",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl177_state_composition.rs",
+      "git_blob": "addb827e155345737925fec4e4d6aaf53e7da1ca",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl178_generic_store.rs",
+      "git_blob": "c1751c20570b0026b88e18f0086fd0cff4b02a59",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl178_helper_give.rs",
+      "git_blob": "a1e69ffcd350f5ca85002ab8e9b82dca7dfe683c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl179_field_precision.rs",
+      "git_blob": "787508bb327b19b33abf24a2b24a12b3098a2642",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl180_store_mut.rs",
+      "git_blob": "42b28d861dee0e0b979aca9d5cf71af87beb7e2c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl181_composition.rs",
+      "git_blob": "b188a8ece338d96728ac3f3888fb8aa1a7bc2e22",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl181_win64_store.rs",
+      "git_blob": "84c81750679a1333d8f1cef6d9055bfee5776bda",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl182_capture_contracts.rs",
+      "git_blob": "dbc7d0d87ebc39da4bbde1496287c504b6c92c3e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl183_owned_resource_results.rs",
+      "git_blob": "03b0a4bc1d0db37ecaf1c3daad511f3146554563",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl183_raw_owned_success.rs",
+      "git_blob": "063acba6a54a1488c318362878a63a173ed1e871",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl184_lending.rs",
+      "git_blob": "040b2afcbc726a7f35654de9f0d9bf291c6f250a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl184_lending_raw.rs",
+      "git_blob": "0be88d30dd1b255b5227eabc2c3f33b409019f42",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl185_lending_schema.rs",
+      "git_blob": "a83eb20f050fe7226bfbedc08c8dd7b1edeabed4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl186_generic_owned_success.rs",
+      "git_blob": "6bf3fb91577ba1ec5cd0405244c3e8fe445aea0a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl186_raw_owned_success.rs",
+      "git_blob": "f36e6a8329080f3671c24440a0d4e5e5c64d3bf7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl187_borrowed_bytes.rs",
+      "git_blob": "1e8863dbac8ad61189da5f60e54cd6594c628c62",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl188_nested_helpers.rs",
+      "git_blob": "75e7df41cfbb0758f3cb6c10ea72c2da150cb533",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl188_nested_helpers_raw.rs",
+      "git_blob": "bc380b62c8c81f8434b75359aa7d821428e8c9bd",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl189_address.rs",
+      "git_blob": "00275a31a9094a4ee8f6ef2529a4ab22cc84227c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl189_address_raw.rs",
+      "git_blob": "37aee70b68173a20a605d9a9232c61d2cebe3451",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl190_flow_raw.rs",
+      "git_blob": "dbbd6216ab917aabdcdcfc95f1167bffa696d600",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl190_flow_source.rs",
+      "git_blob": "62fa6a1d036f8dbc7b2cae6575ab0a2cdc5ff4c2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl190_for_ranges.rs",
+      "git_blob": "cd1a5ec95ccd30d4a9222f017cd932a053821730",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl191_flow_transport.rs",
+      "git_blob": "0e03c69cf29f827fa0d3e16b840280f76809bb29",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl192_copy_fields.rs",
+      "git_blob": "359f92cd8da1abb39ac2f28eef01a16f7575e805",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl192_copy_fields_raw.rs",
+      "git_blob": "89e51a179f560ef3c364c0300e737f35d1fe6ead",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl193_slice_arguments.rs",
+      "git_blob": "c40c8fc7dfbb3cdee15a735e3ce59cb4311cc7be",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl193_slice_arguments_raw.rs",
+      "git_blob": "e6f43f4aa2997630a05d5ef22c64c7e5c9d691bc",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl194_copy_callable.rs",
+      "git_blob": "e75c0b0aa6ee09702296ca2d11d53b494196bdde",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl194_copy_callable_raw.rs",
+      "git_blob": "d097ce396682c38796a8302b8bb6ce532bb7463d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl195_loop_control_raw.rs",
+      "git_blob": "25d7443470af6ce644c14eb744e3daf7ecd4d112",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl195_loop_control_source.rs",
+      "git_blob": "e164d4ca8468404625103e3d27a9f5da5815f31b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl195_symbolic.rs",
+      "git_blob": "cebe1e086febc5e39b7f3d0261e46fe829c01324",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_analyze_roles.rs",
+      "git_blob": "2e4b7bc723f1df31de7ffa103d82fb1fc2ee392b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/00_one_role_control.zil",
+      "git_blob": "a7105663c2e252d040c27008e6fb99d435d5bd60",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/01_same_factory_two_instances_direct.zil",
+      "git_blob": "34fb2c716cb178ef975b8b99573e276ba71e2576",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/02_same_f_shared_distinct.zil",
+      "git_blob": "5e7750f355c3ba92decfa5142336119a6f4375c2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/03_same_f_shared_same_actual.zil",
+      "git_blob": "4216e31055caf4f3a54625b19fc9190970973195",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/04_same_f_mut_distinct.zil",
+      "git_blob": "4319a99f67b7b96d43fce1f55f3cea523bbabefd",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/05_same_f_mut_same_actual.zil",
+      "git_blob": "bc670e5d5847ef4e5bb6976d489828e97f3db604",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/06_f_g_composition.zil",
+      "git_blob": "f7426b4556e7493837ecd0ca00a3b50c4ab0adad",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/07_f_g_mixed_modes.zil",
+      "git_blob": "5e5cbd53cf442dc55d6d4669ddba5ea5690683ed",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/08_same_f_once_distinct.zil",
+      "git_blob": "8b7d627c07f6119e62bb8d0199dad97bf6d97c5a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/09_same_f_once_same_actual.zil",
+      "git_blob": "e7aad9abf2e081177863edd56f9234aa869a4f48",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/10_nested_role_permutation.zil",
+      "git_blob": "30e36ee94c225ac9647d78e404e12a487421ced2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/11_second_role_desc_alias.zil",
+      "git_blob": "8fe67c093c463c2ce27936ab02b31cc87e114280",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/12_nested_second_role_owned_write.zil",
+      "git_blob": "6cc15ebdeb60da94cc9cfac6e3eb553b2ab1f1cf",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_roles_raw.rs",
+      "git_blob": "dda1eaa508f96cbd971d26a6c13a7e18e4049efe",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_roles_source.rs",
+      "git_blob": "1d34fc39960e4344fd583748ebc2216215e02098",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/01-existing-state-f-sibling/main.zil",
+      "git_blob": "821af697c3941101b92499e2be26728ca3bc8b77",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/02-copy-t-package-no-callback/main.zil",
+      "git_blob": "37246ff78e40d7b12d406e8d81b035fa10e6b5c7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/03-state-t-f-construction/main.zil",
+      "git_blob": "46d536c673c4a71dc58d2a6ad2ecc069822e6bf4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/04-state-t-f-input-signature/main.zil",
+      "git_blob": "71da5299bc06043cfd389c9c7bc8b02fb0eaedc8",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/05-copy-t-with-old-state-f/main.zil",
+      "git_blob": "3a87212383812c008f8a46cf7bb707866c106e57",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/06-phantom-t-f-first/main.zil",
+      "git_blob": "a48b1bc5a74e6d1a506890d4059c203a95606d59",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/07-same-f-different-width-t/main.zil",
+      "git_blob": "3ecf393bbb43c6ff9756c38516b714488093b78b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/08-same-f-nominal-a-b/main.zil",
+      "git_blob": "7a906c9ecb49678020ff6e3d83ec430c0faa959b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/09-cross-module-copy-state/main.zil",
+      "git_blob": "ac9cc96476058dd685375a299adfedf3d37fcdce",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/09-cross-module-copy-state/model.zil",
+      "git_blob": "d0fbaef01556df33cf0458d2b2960f41f7f61a40",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/09-cross-module-copy-state/state.zil",
+      "git_blob": "5762659b94f0ef1e3dbbaf56f3180a35f70c22d5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/10-mixed-callback-value-address/main.zil",
+      "git_blob": "a8770de8c62df8c6ecb16a3a531405025d18eaf7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/11-existing-state-f-record-address/main.zil",
+      "git_blob": "d718e45c9f8f56754bc50d6b50f42f9467ba2024",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_cases/12-mixed-held-field-window-negative/main.zil",
+      "git_blob": "ac1867d37dcd8b8eb550d29fc6de7e5f932c79e0",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_mixed_state.rs",
+      "git_blob": "b94b942a994ba7841ddc78eee9eef10d6b7fb796",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl197_mixed_state_raw.rs",
+      "git_blob": "027b95b87d6fb62ec609272a6332eb1fbe410f0d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl199_callback_place.rs",
+      "git_blob": "38d3304821a221f025c683cabeaeb92c948668b4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl199_callback_place_raw.rs",
+      "git_blob": "2778ccb5fae757bf0e2b59ee00ffaea9d15df8ce",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl200_analyze_constructor.rs",
+      "git_blob": "93684746b2b731a27cc620a57070acc81417bf51",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl200_fixtures/00_single_callback_state.zil",
+      "git_blob": "da6b270bd75c909132b7386e68772068c435d20e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl200_fixtures/01_same_f_two_callback_state.zil",
+      "git_blob": "1e15707430c1e403901ac044f45718d2de137566",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl200_fixtures/02_store_of_callback_state.zil",
+      "git_blob": "99dea05423f4291b1196b7f4d151960da7aa5b3d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl200_independent.rs",
+      "git_blob": "6f4b65fbda326dab266be360896c79de71e56707",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl200_state_source.rs",
+      "git_blob": "5792d3e4e708256868ffecc0a33916c817452c71",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl201_analyze_store.rs",
+      "git_blob": "2ce216525346882aafbc6ff52ba86ae8b7b59132",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl201_fixtures/01_pair_store_mut.zil",
+      "git_blob": "c4e170abda3274a4480794a7b80f52ccba8727bd",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl201_independent.rs",
+      "git_blob": "bb84945ac552dd99ce193f9ba237c93b79ff65da",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl201_source.rs",
+      "git_blob": "738eef88362b9e6b3480dbf962a7d24d416f95d9",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl202_budget.rs",
+      "git_blob": "1cbf06c8c417aa3406bd80b20f6902aaa63a4ece",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl202_ct_independent.rs",
+      "git_blob": "29823b3544b3cd084de8eba191662599f367a354",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl202_fixtures/01_original_push.zil",
+      "git_blob": "45cbfaaf082ac16f1e79ba60acb4a7641ab10cb1",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl202_fixtures/02_original_factory.zil",
+      "git_blob": "7745f1d90ad199f1989ed849443ed1910181b875",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl202_fixtures/03_shadow_nested.zil",
+      "git_blob": "c50ea7db4f138a9893b28a80354bd04b481e46bd",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl202_independent.rs",
+      "git_blob": "7b53e401d31cc84cab35136ed17e57eb6ca0818b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl202_raw.rs",
+      "git_blob": "9c54b7bc8613e965b1eefea2c1721f295d8561c4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl202_source.rs",
+      "git_blob": "00a724ee0838697cd93187e7b842e5cd3ed677ca",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl203_ct_boundary.rs",
+      "git_blob": "c2c53436e0f668a03f0de115e09c02945a072414",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl203_ct_independent.rs",
+      "git_blob": "ec0e15682311f3bbb9509910dd3423dc8b203dd6",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl203_fixtures/01_same_factory_distinct_modes.zil",
+      "git_blob": "238fbc6c17f9e58c13ee800caf0971318134d78b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl203_fixtures/02_once_repeated.zil",
+      "git_blob": "c13fd4de0129a42632dccfb07df48fa6181ed79d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl203_fixtures/03_reversed_declared_modes.zil",
+      "git_blob": "70d242f75ada67b16d6b595c3b406f6f9f49ff1b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl203_fixtures/04_mode_cleanup_markers.zil",
+      "git_blob": "a7688ca683fa1c48e96157cffc2c8fc2324ea983",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl203_independent.rs",
+      "git_blob": "3d148f9f0fd467b169e49a3133ee7694085d16df",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl203_source.rs",
+      "git_blob": "b992951ab52db0f2cb51e4dc4737683cdc9303d7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_analyze_capture.rs",
+      "git_blob": "8dd0361395088634be7687636b34cceb975f6966",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_budget.rs",
+      "git_blob": "6f299fa3e89f6afd1d79694462613606c132e0f9",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_fixtures/00_package_owned_control.zil",
+      "git_blob": "789a65509f874d0809c3348b28c32034daa517f5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_fixtures/01_direct_store_capture.zil",
+      "git_blob": "3442780ead5cbce8d649e65514a69d35c23de6ae",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_fixtures/02_original201_package_store_capture.zil",
+      "git_blob": "c326a8159ce211619567878e182b1ce6bb26847d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_fixtures/03_mutating_store_capture.zil",
+      "git_blob": "449f9b48b3282e6ed51565617f3e379dedf75cb4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_fixtures/04_take_capture_live_window.zil",
+      "git_blob": "f462ed0cf9230540a3b6a43c2644bfd29802c558",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_review.rs",
+      "git_blob": "73c1b2440a739aecf3510b0b2ca06cadf607a059",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_review_fixtures/00_package_owned_control.zil",
+      "git_blob": "789a65509f874d0809c3348b28c32034daa517f5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_review_fixtures/01_direct_store_capture.zil",
+      "git_blob": "3442780ead5cbce8d649e65514a69d35c23de6ae",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_review_fixtures/02_original201_package_store_capture.zil",
+      "git_blob": "c326a8159ce211619567878e182b1ce6bb26847d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_review_fixtures/03_mutating_store_capture.zil",
+      "git_blob": "449f9b48b3282e6ed51565617f3e379dedf75cb4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_source.rs",
+      "git_blob": "058e11b41076ba69b63f21e93d4a51fabab57a4b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl205_budget.rs",
+      "git_blob": "fad742a759ac002c1dd66aaffa1e01c1e9aa761c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl205_ct_boundary.rs",
+      "git_blob": "5d09543a104e6a779e45d13557c93ba38bc98935",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl205_ct_independent.rs",
+      "git_blob": "c7504ec0b076b73c013e3ccf0086be398fc1c8af",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl205_independent.rs",
+      "git_blob": "f7ad8e2a477186d65e6d188f741be775b0533eaa",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl205_independent_fixtures/00_original_state_and_replacement.zil",
+      "git_blob": "86bddb673f2000fbaafc128a1fb8ace7ff3745de",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl205_independent_fixtures/01_mixed_unused_copy_alias.zil",
+      "git_blob": "54a5badc3d7a25e37272fe84e8144e1969c7bc16",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl205_independent_fixtures/02_single_state_unused_copy_alias.zil",
+      "git_blob": "7ccc8a2cfa23c1bdd7e5a2cba769d22c5371f300",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl205_independent_fixtures/03_mixed_unused_copy_alias_last_use.zil",
+      "git_blob": "9f809250656a237f490bd662016eb0b6fad7634a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl205_independent_fixtures/04_single_state_non_t_alias.zil",
+      "git_blob": "3644223d7adf206211371ac6ceddff1ed8ced76c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl205_independent_fixtures/05_legacy_state_lending.zil",
+      "git_blob": "e576d916ac21b04fc7f9a9b59759ff865e9ed83d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl205_independent_fixtures/06_author_instantiated_loop_refresh.zil",
+      "git_blob": "7fa2ff759389e20596d39a6d7dcf3fd8d6f837d4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl205_raw.rs",
+      "git_blob": "c75f8e50b1d28b8b2bd00577a5d77ff425c664e9",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl205_source.rs",
+      "git_blob": "d618d28cca79dba775899198a9bcdcc5e58a5f95",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_analyze.rs",
+      "git_blob": "096f85b3f060d60dd5de603ff78d9b62a24e4f7a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_budget.rs",
+      "git_blob": "deaa4ce3978677739ac7b8812d56bace6a0e2319",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_fixtures/00_child_only.zil",
+      "git_blob": "8b9245844554805b31846eac797248aeaabeabc2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_fixtures/00_original120.zil",
+      "git_blob": "bdcf23ec83632619faeb4408ed79a06bab9bf000",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_fixtures/01_mixed_child_created.zil",
+      "git_blob": "50a2e8b9da5e8d7ecf7834d95d9ab262422d14ae",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_fixtures/01_mixed_child_incoming.zil",
+      "git_blob": "a8fd17f470005a3e59706ae1fa606faa803a919a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_fixtures/02_whole_transfer_twice_created.zil",
+      "git_blob": "0f284e221484b7784f8d6b84e007dd21858b24ca",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_fixtures/02_whole_transfer_twice_incoming.zil",
+      "git_blob": "ec6a11a0267dacf33c2a7b10aa64bf35078ff80d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_fixtures/03_child_only_wrappers_created.zil",
+      "git_blob": "bfaa6135fa780baa4589f731f38524580acfbb85",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_fixtures/03_child_only_wrappers_incoming.zil",
+      "git_blob": "b182c74aa5af0cedefeb64bc1f9c46804646a871",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_fixtures/04_unknown_ordinary_calls_do_not_create.zil",
+      "git_blob": "209e319f27237306df4e6b2db7a01ff98e429b8a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent.rs",
+      "git_blob": "e0825b3096dbe99eecde3f53d183c6802ae4ac99",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_capture.rs",
+      "git_blob": "0c8216d545a5a58ba58f68e51b6b293bdeac6cf1",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/00_original120.zil",
+      "git_blob": "bdcf23ec83632619faeb4408ed79a06bab9bf000",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/01_incoming_child_only.zil",
+      "git_blob": "f81dcb09d3352f88d9d24368362d19509d0c0f61",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/02_incoming_forged_create.zil",
+      "git_blob": "a07cba9e11d8a26884b84107d61b40e4fc23dac5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/03_twins_left_created.zil",
+      "git_blob": "115a8a42fe51ddd8cce038b7370f51c0ba5ff678",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/04_twins_right_created.zil",
+      "git_blob": "1e3cf918f226b14961cac40f354cadb1f1b0edce",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/05_twins_left_incoming.zil",
+      "git_blob": "022b187a885a6d6c445cf9841c9ba6bbdaa64bff",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/06_twins_right_incoming.zil",
+      "git_blob": "2564c956674120e9c57b286758ac0c6623d0bec0",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/07_refill_actual_created.zil",
+      "git_blob": "7035f1bc03d2f9291d3b962640d50e871aed9835",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/08_refill_other_stays_incoming.zil",
+      "git_blob": "c46a7161f13c3e2692d9dc31590150280c43203d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/09_join_created.zil",
+      "git_blob": "6a734e3cd83ea86759c5fbd2c98dc15a2fd71e50",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/10_join_mixed.zil",
+      "git_blob": "848c3cfe63829b730b365a7ee0ec7062eef06d9f",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/11_unknown_call_not_create.zil",
+      "git_blob": "c319ede4f6197cd671097892ff058f3177899703",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/12_unknown_call_give.zil",
+      "git_blob": "bc2c8955341d2bc481847d04e381906e7d22e7a9",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/13_managed_create_contract.zil",
+      "git_blob": "4ca640917c4a531f1ff538dfce22e38a20dbc872",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/14_zero_iteration_incoming.zil",
+      "git_blob": "a73e4538748d28c1aabf82f36687b971e5c5caa3",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/15_partial_child_embed.zil",
+      "git_blob": "9099b3be2a54ef0531fbd054ac0de8dc09db83d9",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/16_partial_parent_return.zil",
+      "git_blob": "c1e49bd40160e6d8ac942a56ce1516088fe9125d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/17_child_take_twice.zil",
+      "git_blob": "f1a21d57c90b545a3d43eda54d31d111c980da66",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/18_child_value_reused_after_refill.zil",
+      "git_blob": "c49827638964542c8fb6c140a4309733c094fe9d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/19_desc_last_use.zil",
+      "git_blob": "d41fc34631dc1c8d6de6789d98533d3b313d4c7e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/20_desc_does_not_revive.zil",
+      "git_blob": "7e9c116290c973a7c2d13db2160b326d6071d6e0",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/21_copy_companions.zil",
+      "git_blob": "82f3a015666ad5d72bd9a7c2b69ed86dc64d2067",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/22_inner_store.zil",
+      "git_blob": "f07017917626ac2bc6ba18da25b7a1a73a2ca150",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/23_store_parent.zil",
+      "git_blob": "9288736f60fa965892710d1b9d55e30394b91082",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/24_array_parent.zil",
+      "git_blob": "e8451a55963bec2abc466fd326999daeee5f342c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/25_sum_parent.zil",
+      "git_blob": "683cc0270ffedc38c4e247ab221d5efaff529703",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/26_borrowed_companion.zil",
+      "git_blob": "9385d5f6ab2b9b6a4b292853779f39d05f40d225",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/27_inner_owning_array.zil",
+      "git_blob": "a732ca88f24ad335a0272ab743d56039f63c899e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/28_inner_owning_sum.zil",
+      "git_blob": "5656372fed53fb239e469048b57a0f60ffdb1658",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/29_product_capture.zil",
+      "git_blob": "e7b9dcfa794f408b82908793e3db0c386bc13eff",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/30_inner_concrete_closure.zil",
+      "git_blob": "27dffb04c196656abf88277bbec8fb3f2c401dd0",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/31_wrong_nominal_child.zil",
+      "git_blob": "665d13badf66ed5f7ed10ec1cfeeed1c02f3b9f8",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/32_recursive_drop.zil",
+      "git_blob": "c1d1cb86270fd9d7a781ebb321dff25b11cbcb10",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/33_partial_refill.zil",
+      "git_blob": "32a91859520892c59257226ddc7b50817873a5e0",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/34_replace_complete_child.zil",
+      "git_blob": "c3f2fa89e063e5b6268bd66b25192ac2177119d5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/35_failed_rhs_keeps_old.zil",
+      "git_blob": "41d9d945e8b5115cb69e3754ecd5b01fb8da7883",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/36_failed_rhs_no_rollback.zil",
+      "git_blob": "46fefa02e43b21ac2f0f673b83b6d9d58e4b9d84",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/37_layout_actual_values.zil",
+      "git_blob": "ff3d102e28d0235ce979645a1f3f353ce9b8602b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/38_raw_metadata_control.zil",
+      "git_blob": "c0400b7df753f9eb19d71dacc80b96f2f5009a7e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_independent_fixtures/MANIFEST.json",
+      "git_blob": "c86248a75b0a6b06f941026a124a53c446442084",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_machine.rs",
+      "git_blob": "dc0f5e3b207239e4340af9f8ee5b30a2180278d3",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_source.rs",
+      "git_blob": "d7b5d126a53925cf265fc8ca8ffcabfd086cc033",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl206_verify.rs",
+      "git_blob": "781d292127ae704e61b0319ee13428a00997e340",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl214_source.rs",
+      "git_blob": "4e4500a53b3f75dc2873cc1dc9f7e3df73f439d6",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl215_capture.rs",
+      "git_blob": "500ca7c0796fc379fbc1f27ed32d954e0b4c7066",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl216_machine.rs",
+      "git_blob": "60354bfcdd8c03178d4f1ceaf460fb72e8ee9ae2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl216_raw.rs",
+      "git_blob": "ea4909ab048ff24b0d7edbbc509ef968852b7210",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl218_factory_budget.rs",
+      "git_blob": "b325b49774b896c6925a12eee6b8bd68181b00dc",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl218_factory_types.rs",
+      "git_blob": "b84724f83b47a12e2ea39803fa8b9e3260e86b07",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl219_budget.rs",
+      "git_blob": "d71917bac24c70a1cf8d4f356489d58ff60b717a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl219_ct_boundary.rs",
+      "git_blob": "a80e81fa99695b7611c31f2bf2a62103f934e0d2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl219_selection.rs",
+      "git_blob": "ab4207a72cb85dbfd5eb3d1f2abcb84951fe20cf",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl220_factory_source.rs",
+      "git_blob": "4a23ff5495ccac73b31e2bba1e21484480d9f852",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl221_factory_verify.rs",
+      "git_blob": "ea98a06061cbe21e4b0f5996a8c436a675b8b707",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl222_224_composition.rs",
+      "git_blob": "3c9ba16672b76042631224069f85a44312e306be",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl222_generation.rs",
+      "git_blob": "2ebdb5cfdc879f0757d63d980d50e123d2ff8f9c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl222_review_regressions.rs",
+      "git_blob": "8ab9736d660eb5c5db03c75fd4578127a146a457",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl223_budget.rs",
+      "git_blob": "20b13360da649ba6295fe31eddb14c91be9ca355",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl223_product_store.rs",
+      "git_blob": "9436df94732bab66dd66e9b6462c88fe6181f3dd",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl224_shared_product.rs",
+      "git_blob": "5fc9698b4147b048684cb465217c165670f1745f",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl225_budget.rs",
+      "git_blob": "f294188f9f2b5b559b605c1ae6a4fd22cfde315b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl225_machine.rs",
+      "git_blob": "c6c4485bc82f150f529810dfa8a3573547972008",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl225_product_store_capture.rs",
+      "git_blob": "ca15441a0c1f78673acbdc46775447fa1f7c79de",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl226_budget.rs",
+      "git_blob": "36911ad34826d9a7b72307073b9a943a4cb2ef47",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl226_shared_product_capture.rs",
+      "git_blob": "1a1f4d3e67d3fd3830738d7c4f0072d5c08f5f99",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl228_consumer.rs",
+      "git_blob": "a2f51686636b37c60e60d22859b9cc81dcb24c38",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl228_generation.rs",
+      "git_blob": "eab48f2c275565b21b9175fccccbc9915f88c22e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl229_nominal_shadow.rs",
+      "git_blob": "a693b3dff4a04a672630f3aedb1f6f89f354456c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl229_where_copy.rs",
+      "git_blob": "f686335c5fe723de364e45e6f78be1367e0dd184",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl230_generation.rs",
+      "git_blob": "240e7fa63033c8835784584a2de544cbbcdf4100",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl231_where_traits.rs",
+      "git_blob": "07efe215af769bebfb318ca45182494506870e61",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/llvm_api208.rs",
+      "git_blob": "369e71c9530dddb553a098353dd51c39d0e112ce",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/llvm_api_disabled208.rs",
+      "git_blob": "0d32fa2a338d35266001a1a7acc7e97821a2a888",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/mainline_app.rs",
+      "git_blob": "82c5407857696cde06c1f1ec1465bbf33fe3b3b3",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/mainline_composition.rs",
+      "git_blob": "8e61af4b071849a9e1e70de5dfca4b49074833d2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/mainline_stream.rs",
+      "git_blob": "36d127dcc8ca8cd8e42aefe83b8aa21fda2361fc",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/object_cache212.rs",
+      "git_blob": "1368cda832e7a884cced4146fed8b8dcc0422312",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/perf206_codegen.rs",
+      "git_blob": "997ba553fc014a1ed807c96a55ca68a375446e6a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/projects.rs",
+      "git_blob": "db2c120894bfe13ba5f780799cb2bc916e6991a6",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/ranges.rs",
+      "git_blob": "b4457fc6d2ed431be346f23ba87f28407cfa555c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/receiver_regression.rs",
+      "git_blob": "f87a6e156d50361d10010a844162036bde0a6cab",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review042.rs",
+      "git_blob": "650fe71c75c5823ac1ff528572c11ef94a7305a4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review045_loans.rs",
+      "git_blob": "b325fa20128578acf0b06cfe0dafa517732156da",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review090_slices.rs",
+      "git_blob": "be91fa5d56d7b6ec50182f13b105fcc46c2883cf",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review092_external_abi.rs",
+      "git_blob": "9ea34d7d8aa4aa9599686e8a99d95bd31841a8bf",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review096_byte_storage_boundaries.rs",
+      "git_blob": "5f5ac19d9f3716f5865ff5f81e6a5114a62075c6",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review173_composition.rs",
+      "git_blob": "ff647ef0ea5b9b73945ad4ab3f688978e415a8d8",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review173_package_fields.rs",
+      "git_blob": "632abbbd44eaef7e00177fac035c921085071169",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review174_store_fields.rs",
+      "git_blob": "d64f9659be03fedcdd25c1a41c4c0bdd63f72e40",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review175_by176.rs",
+      "git_blob": "7e6b8a38fe070db67e358f2bd095f531bd2fb4ea",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review176_by175.rs",
+      "git_blob": "7d0ebec7cb7762cd55475c18de6bc166149c4396",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review177_composition.rs",
+      "git_blob": "0d175614fe84192438131eb0b1831f7b50b3cdf4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review177_public.rs",
+      "git_blob": "33341f0c5d4bd788b9a64184986b32b4f5a94e7b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review178_definitions.rs",
+      "git_blob": "19f8687a476d0819495beef627b670fd609987ab",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review179_borrows.rs",
+      "git_blob": "15522fa7fe97dbc23e3e42249cbd9656ff96d01e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review180_by179.rs",
+      "git_blob": "c29301c772fd75e04b41ba2869185067d5cf9277",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review181_by179.rs",
+      "git_blob": "79bbf06f1378bbb4a9d4f00f0578f98c5e84fad4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review181_projection.rs",
+      "git_blob": "7f3e982f9a579c59273e27bf684e568084d25b34",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review182_capture_boundaries.rs",
+      "git_blob": "6c17f1306adc8738eb345dd0fef617571ed78043",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review183_owned_boundaries.rs",
+      "git_blob": "0b88773e1baf2052570d0b66abb6fbc9404dff86",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review184_storage.rs",
+      "git_blob": "906124309db23786c55efe82fdfd1241f5385f6e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review185_lending_transport.rs",
+      "git_blob": "f8fc4e62828889caced82b5f2f1175b75ef5881e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review186_field_origins.rs",
+      "git_blob": "8ec0701b56192b2ca5ae9cc38bfd9455da4d0856",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review186_provenance.rs",
+      "git_blob": "90c555ff4bab171637cfe5a7e3368e93cede6bb8",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review187_sources.rs",
+      "git_blob": "822d5f4e3cf53d04299ad9759e28886eda1c6406",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review188_composition.rs",
+      "git_blob": "d616e6b7f5506c602e77d005dddf268a4d84f368",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review188_depth_stages.rs",
+      "git_blob": "d1fd06e26b9fc9b96c6db7b2d784811c9c1ccbf0",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review189_call_arguments.rs",
+      "git_blob": "d4c0d159e070bd806f5f519804d62474ecd89949",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review190_by193.rs",
+      "git_blob": "4e91a84638807bb873e94a49c35df1f42d03ec68",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review192_field_composition.rs",
+      "git_blob": "8f8597b1d737dedcf3e5aa25312ed466e3a239c8",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review193_slice_composition.rs",
+      "git_blob": "e4c144d5a2e2b5de5b6633b5a68507316d20e679",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review194_composition.rs",
+      "git_blob": "84d1c3853c8dde0a33ff9b00bad40d21d3ef6658",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review195_by193.rs",
+      "git_blob": "7533bf7bbbc1a8119c9fe7186cb581c1ff09836b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review196_by197.rs",
+      "git_blob": "8ba37d48a8f7cdc082b3f5c8b9408b1e2ad22033",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review197_state_identity.rs",
+      "git_blob": "bfe1dbeb2cf1b840fbbe6b740cdec705fa924f42",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review199_by197.rs",
+      "git_blob": "2cc062707c25e46dcbe25cd970c28f0c4a446567",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review222_independent.rs",
+      "git_blob": "5e9658c078e5c7d701b439c7b119282acf0a2b2b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review223_boundaries.rs",
+      "git_blob": "225d01a117e09defaac43cd8dfb0226ca7c28ea9",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review223_fixtures/ORACLE.json",
+      "git_blob": "59bf0fbd018843fec5c28c25a2cd1b330e431552",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review223_fixtures/entry_error.zil",
+      "git_blob": "aaa793730b8ae5fd5cd085aeedeeed6783bb2f02",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review223_fixtures/heterogeneous.zil",
+      "git_blob": "324256569fa9c6c4f764f9080251561c6e821d78",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review223_fixtures/mutable-product-original.wire",
+      "git_blob": "b02d142128a99b7ace60a5b7fcc6bdf2bb9e968e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review223_fixtures/mutable_control.zil",
+      "git_blob": "a8cec9e5e6b18000e0ed160b2cc7541bc376d369",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review223_fixtures/unit_protocols.zil",
+      "git_blob": "38a3b677637c92e0564ec3ef52dc90a35fe2175d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review223_machine.rs",
+      "git_blob": "5b59f89def793aac4455cafc6c98cd20264d8d45",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review223_replay.rs",
+      "git_blob": "fcd8ca2de56c7b35d0035c67f13ccda862b61152",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review224_independent.rs",
+      "git_blob": "1f38ae8c1b495bab6a0430a70c9999a203be7d7e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review225226_capture.rs",
+      "git_blob": "9479b3e5a914b4ce75b2b84ac05447d08896696b",
+      "availability": "scheduled independent review restore"
+    },
+    {
+      "path": "crates/zil-driver/tests/review228_consumer_patterns.rs",
+      "git_blob": "87fc70f19056295ff0a3a6a4cfe63bb48efa6e83",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review228_consumer_reserved.rs",
+      "git_blob": "885ac0b18970f11b42a1b7dbec7b889fd23c7435",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review228_consumer_shadow.rs",
+      "git_blob": "2600470f1570b01fb753c558f7a52714742bf747",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review228_hygiene.rs",
+      "git_blob": "50ab7529649585838fcdbce5daa4c509b2cd2a48",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review229_independent.rs",
+      "git_blob": "08edda11ebba1656445e204a9f1884bb7b520200",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review229_joint.rs",
+      "git_blob": "f9ce378eaa989853bcc65f597c4a2de6c5e8174f",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-driver/tests/review230_independent.rs",
+      "git_blob": "b7775a3cea5623c4d81cfc2b98a785d10e691d55",
+      "availability": "scheduled independent review restore"
+    },
+    {
+      "path": "crates/zil-driver/tests/review231_independent.rs",
+      "git_blob": "130080594ed458632de761fec4c32bd6c7399d69",
+      "availability": "scheduled independent review restore"
+    },
+    {
+      "path": "crates/zil-driver/tests/shared_addresses.rs",
+      "git_blob": "64001ca31d6afda7f54496d346443fe4884b90d3",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/Cargo.toml",
+      "git_blob": "159afad934bf1b7827a250d69d3d139a8f1ac710",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/ct_selection.rs",
+      "git_blob": "60e29e51fa912cd82faf1e31e11be168f1f7e497",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/enums.rs",
+      "git_blob": "9158b2888a04417e090c1caee4ba4e1e1798e7e7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/foreign.rs",
+      "git_blob": "f96d852bf50090173efabaf41ecb3c9377a5ee3e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_alias.rs",
+      "git_blob": "ab3bb5bf49e4f5b25fbb449581a23d69190e259a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_aliases.rs",
+      "git_blob": "bd4adacf8814ed707698a418ff5a0d5683737381",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_budget.rs",
+      "git_blob": "9d3db5ad9d1fe042075ec0ae9918245874cec1cf",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_bytes.rs",
+      "git_blob": "986f7018734ca3cd10d72ea384c64c4158550723",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_callable.rs",
+      "git_blob": "949cdbd0cdca8e6cb160bb56c67c638c27aea257",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_check.rs",
+      "git_blob": "4d28e10dbfed29605cc75991b6129665d93a499c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_check_enum.rs",
+      "git_blob": "039ddea83413737f66fd2a0426c2ae00b1f04895",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_copy.rs",
+      "git_blob": "f5de31b645b6a5b6c453bd87e5830514b610f88b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_enum.rs",
+      "git_blob": "5e89806f1ae03402131e1d2646f76db28ad66577",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_factory.rs",
+      "git_blob": "d20e667c9a2e341ed6712e5726d89861af38c83b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_helper_graph.rs",
+      "git_blob": "3edf13c54811960948e4a44fdd026c94bc760a55",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_loop_control.rs",
+      "git_blob": "bb96d99f3f0294469161324d280044de77160bbf",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_places.rs",
+      "git_blob": "859a4ad24e38cad272ac7f615ee35294398c10d3",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_state.rs",
+      "git_blob": "bddd849058f9f4ce153769b4c7ff0d56091da0bd",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_store.rs",
+      "git_blob": "12513704196742cbafc1e34d2e450af4f190492c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_store_templates.rs",
+      "git_blob": "929b064d377dcad8665a008c3e6f90be4e887cf0",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_trait_bounds.rs",
+      "git_blob": "71891d7c28277681c82453ea13c97aece7745528",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_where.rs",
+      "git_blob": "a8db37edccaa2db42c0aa138a32b474b4eecec8f",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/generics.rs",
+      "git_blob": "0efc5aa423cdc5e8fbedd4a5673c163f329a6940",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/lib.rs",
+      "git_blob": "5cc34b292b57ba2ff19e88bcb38dbc115b74e192",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/mapping.rs",
+      "git_blob": "c04617df05e4a63ff9ad6487d67dbc895163a723",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/modules.rs",
+      "git_blob": "5c972b8defc55cd9b61bbee79bb272b90c54eb07",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/receivers.rs",
+      "git_blob": "cedda433862931be48c318465e4968bed80f04ce",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/records.rs",
+      "git_blob": "34f9dec54a09337efafd4f29906aeb6d99ca883f",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/resources.rs",
+      "git_blob": "b038a058ac49bb1b559885c6b9512faa0b695f48",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/src/static_traits.rs",
+      "git_blob": "580a1650f3b9b0734efd05a5216b505ef2cb24f2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/attributes.rs",
+      "git_blob": "4e70d2a6dad1d3e7d01f912d4625ead8b86dc21a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/generics.rs",
+      "git_blob": "5e6ce37470eb7c6f83b92eab8235f28c67305196",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl090_slice_formation.rs",
+      "git_blob": "a44a84bbab9c920575d5ac9132fba6652c952773",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl094_generic_places.rs",
+      "git_blob": "da06efca517398d81159cf0b7149d91c9ae58796",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl173_store_names.rs",
+      "git_blob": "f83277072e3693c6fab457bfa038b4cc6bc28615",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl177_store_at_names.rs",
+      "git_blob": "1d269ffd1fb2ec8c565e86c8b948ece90a838ec9",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl202_store_templates.rs",
+      "git_blob": "856a51f792eb6c781ae65115016b4a4e190b8211",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl203_consumer.rs",
+      "git_blob": "36dd0f563b0694dc5b78bb72f18bd7a38a666c57",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl203_fixtures/01_same_factory_distinct_modes.zil",
+      "git_blob": "238fbc6c17f9e58c13ee800caf0971318134d78b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl203_fixtures/02_once_repeated.zil",
+      "git_blob": "c13fd4de0129a42632dccfb07df48fa6181ed79d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl203_fixtures/03_reversed_declared_modes.zil",
+      "git_blob": "70d242f75ada67b16d6b595c3b406f6f9f49ff1b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl203_fixtures/04_mode_cleanup_markers.zil",
+      "git_blob": "a7688ca683fa1c48e96157cffc2c8fc2324ea983",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl203_fixtures/05_independent_error_side.zil",
+      "git_blob": "c64e14cdf85330a861960d2206b87c295ba0b0b3",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl203_state_bindings.rs",
+      "git_blob": "1f4c5b4ed557f3d5b736571d73ba1bfb8115325d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl205_fixtures/00_original_state_and_replacement.zil",
+      "git_blob": "86bddb673f2000fbaafc128a1fb8ace7ff3745de",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl205_fixtures/01_mixed_unused_copy_alias.zil",
+      "git_blob": "54a5badc3d7a25e37272fe84e8144e1969c7bc16",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl205_fixtures/02_single_state_unused_copy_alias.zil",
+      "git_blob": "7ccc8a2cfa23c1bdd7e5a2cba769d22c5371f300",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl205_fixtures/03_mixed_unused_copy_alias_last_use.zil",
+      "git_blob": "9f809250656a237f490bd662016eb0b6fad7634a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl205_state_replace.rs",
+      "git_blob": "0c29f490ff4147357b1c5bc23abef1fcdda94a94",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl218_factory.rs",
+      "git_blob": "73a12af0894159869669107012f933c48a473afb",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/impl219_preflight.rs",
+      "git_blob": "2ec289381a211ac6f35b129341df3e36a126e5ed",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/normalization.rs",
+      "git_blob": "2cf419234285d7b4618c3f1faf568339bde8b268",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-expand/tests/surface_13.rs",
+      "git_blob": "70ccb219be8651db74ab8aedd934d785cfb50c8e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ide/Cargo.toml",
+      "git_blob": "835e5b337f06fec842c3b1a317de22b7b1e9d70b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ide/examples/diagnostics.rs",
+      "git_blob": "3d043a9a94f62fe428d26b06f2ed0c3ace5d9885",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ide/src/lib.rs",
+      "git_blob": "d51299428cef151faf1b4e970349299d2c7ad2a5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ir/Cargo.toml",
+      "git_blob": "087d7c512b74a88e16f1e91e44a80e8203d96d74",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ir/src/lib.rs",
+      "git_blob": "f899af92b437e135efec5a53520cb5a906dea0ee",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ir/src/program.rs",
+      "git_blob": "a93ce68090ee74b554c834984ee2966ed1a8d9e2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ir/src/wire.rs",
+      "git_blob": "0cc342b364016660a99ae58229a28e4b0a7db1c2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ir/src/wire/flow_tests.rs",
+      "git_blob": "6b2a0c3d0e8d6dd8231cd39597672452ca4ac41b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ir/src/wire/owned_carrier_tests.rs",
+      "git_blob": "9d1324800895dd3094f80174087a6f4482da5fd4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ir/src/wire/state_field_tests.rs",
+      "git_blob": "22d085b314c705915c4dcd118fb31bedac6a04b6",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ir/src/wire/store_tests.rs",
+      "git_blob": "8db2256f885baf89d81b65adc65ac21e85a8c5ae",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ir/src/wire/tests.rs",
+      "git_blob": "153fadb4557f3a19dbb080cb63f79288d386d3b7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ir/src/wire/type_stack_tests.rs",
+      "git_blob": "ed9888958621997d0d16126e161d50aaefb7a73c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ir/tests/impl092_slice_wire.rs",
+      "git_blob": "8e7a42891893d24ab5b7848aa4693eb0d29fe4fa",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ir/tests/impl096_byte_buffer_wire.rs",
+      "git_blob": "09e57a39ad1312d8bf2bc32f364c0dc95f8f4049",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-ir/tests/review092_slice_transport.rs",
+      "git_blob": "387036cebfcdbc006de7e8f5481cc534dfa91cbc",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/Cargo.toml",
+      "git_blob": "82c02038cf5f99d7edfe8b232ea7a4e10bba5037",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/build.rs",
+      "git_blob": "7e5eb23771b8c5dc03f2a609016ff9970443e5a7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/src/lib.rs",
+      "git_blob": "939a25f5ef3e8007a5d3504479de8da18bb1c070",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/src/model.rs",
+      "git_blob": "9572aaae60e9204dd9980c07a92e8fe5c90c8a92",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/src/native.rs",
+      "git_blob": "d76e28ff84f68a63a1fb8ff456c0a298a21fa827",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/src/native/builder.rs",
+      "git_blob": "549f31a97eb18b2f3587a7ded144e0d1a72c6a4f",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/src/preflight.rs",
+      "git_blob": "881e636c5942345c5658cc2064821301817a500e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/tests/allocation211.rs",
+      "git_blob": "bba66b698e76687ec16c2db280c4356aade37574",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/tests/builder210.rs",
+      "git_blob": "e6c6d61417abb7028a0a2a66a83cc616c69f6034",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/tests/disabled.rs",
+      "git_blob": "422134dcdaf5c6334961bb258dfc7e3fc2bc80c3",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/tests/machine210.rs",
+      "git_blob": "ed641c40e8c1dcad6496eda98406974a1e611ed8",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/tests/native.rs",
+      "git_blob": "727d3890bad9110a0bc7a10fbd505e3632ec0177",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/tests/native211.rs",
+      "git_blob": "29c453605bb47ad0b3f1c3bec25ebbc117a7c850",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-llvm-api/tests/support210/mod.rs",
+      "git_blob": "db79dcefa96fb23d6a5bd47e88ab8b8647a436e7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-lower/Cargo.toml",
+      "git_blob": "9b737603e458bf4f8a69b37f746ca420a6524f0e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-lower/src/lib.rs",
+      "git_blob": "7eb9de189b51c82473b8ad91517997fa967c1847",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/Cargo.toml",
+      "git_blob": "45f7d601308d982e4bae74e6ae49e2fdf61209ae",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/LICENSE-UNICODE",
+      "git_blob": "56da58912807030b451a4700687d5bd02c72d6ed",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/ast.rs",
+      "git_blob": "73c10950301ad29a2d9ad62e4edcb9d55f03ed1b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/attributes/config.rs",
+      "git_blob": "bad9d02d756c2c117b1d00d231594fcbe1a58171",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/attributes/mod.rs",
+      "git_blob": "de86b7ad01f2ea0b050624fb1ac796e04784dcf8",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/attributes/registry.rs",
+      "git_blob": "ca866f35ee704f4508ad815a3fca4ed88bf2e6ca",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/format.rs",
+      "git_blob": "b558334774fc820defa352addd6de1d46e28c57d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/lexer.rs",
+      "git_blob": "3da52fc9e9574de0e9d9aa0564bd8a3b88b566ba",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/lib.rs",
+      "git_blob": "e76d49329cba8a57083fce53f05c84490ccf2ff1",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/parser/expr.rs",
+      "git_blob": "c82caa076ee35da44f182af31244866a753c4804",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/parser/items.rs",
+      "git_blob": "39c2871750ff20a3769123aa656a9aa48feb8676",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/parser/mod.rs",
+      "git_blob": "9b43e2a20b1136e8f5a57ffde979f1ebe3f10dd5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/parser/stmt.rs",
+      "git_blob": "a8834441f72c85454ddd207cc4e87caf71de0f31",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/parser/types.rs",
+      "git_blob": "584f48e8288b2e7268a44d5f92f11a26814d5e79",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/token.rs",
+      "git_blob": "ca5e618a6a59dfc646182779abdbea15d32e0aad",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/src/unicode.rs",
+      "git_blob": "33855ce17e96537554986e1fc3ef3b6917a38c28",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/tests/attributes.rs",
+      "git_blob": "98fec402f4280de6ed9cf2a6f40ba82088e53d6d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/tests/closure_syntax.rs",
+      "git_blob": "c35feaecb5cecfcce978c9f7176e0c92a798fdc6",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/tests/formatting.rs",
+      "git_blob": "65d78eeb7680022573d2280fadc83a0d186d51f3",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/tests/imports.rs",
+      "git_blob": "dd6554ba016c1cfc2279d09fa542c1e7b55c5b38",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/tests/surface_13.rs",
+      "git_blob": "2aaa2cba8e592c0770a27d823a6035ca2af4d05c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/tools/generate_attributes.py",
+      "git_blob": "3a3fe84586eac5265250f0cdfd7a3f09e225114f",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-syntax/tools/generate_unicode.py",
+      "git_blob": "a7a66b420d6e13e4731b6d18c120c041f8019c5a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/Cargo.toml",
+      "git_blob": "643bc07ecbcf9d9a13119dbe7c33dd16a5e51a01",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/addresses.rs",
+      "git_blob": "7132501add24ae96708477d39d16e385a48f2c37",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/aggregates.rs",
+      "git_blob": "cd5f8caedd7e011a65f6e2c302f022acb760f299",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/byte_buffer.rs",
+      "git_blob": "6163b2a8280af68c5c6906edca1b0167c3e900ed",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/callable_fields.rs",
+      "git_blob": "8ae32d2c674d680de4c62ca95683618ae5b781b7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/closures.rs",
+      "git_blob": "5dfa504544b4844036af34fbf5908a8fa21a6868",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/closures/methods.rs",
+      "git_blob": "675456debe1de8ff0401f3203c04bc4b2b7583be",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/closures/package_effects.rs",
+      "git_blob": "bcaa3b310f4feaa4b57b02885d3e6ec25ad932d6",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/closures/patterns.rs",
+      "git_blob": "28e5c8d35b7e29b90ffef5e26369feb38113e816",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/closures/slots.rs",
+      "git_blob": "d4dec733572cbc7158e76a87a3a6bf546452b108",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/conditions.rs",
+      "git_blob": "b38c3a5f8cb6b493524b3d8a1b2c4e2496ea4351",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/dynamic_store.rs",
+      "git_blob": "38adc836e6280bc1a5f868c50244d3b491c798b8",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/enums.rs",
+      "git_blob": "8d604dfd4b78facbefda9611a7e4047690f7ac0a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/errors.rs",
+      "git_blob": "56b3d92cc8056321a43cf11d0ec0bbf1e83ca1db",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/foreign.rs",
+      "git_blob": "f2f81f376880c02f5c40bd32da9973fd46da1309",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/functions.rs",
+      "git_blob": "9e60d0fdcfe636b86d9c9beb2b23fd1087760f16",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/helper_flow.rs",
+      "git_blob": "859f819f0ac730439a4aefe829978cecaf3be964",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/helper_plan.rs",
+      "git_blob": "22daeadd8afa936563e1050fb592008f07ee0b70",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/helpers.rs",
+      "git_blob": "24168c464e60318e8b54579c06df5b73055e42af",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/inference.rs",
+      "git_blob": "b7cf29ad7f3679a11853bf811482e6b780965b92",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/lending.rs",
+      "git_blob": "0f6bbb5d531a1c339987727e19debe2bce1cdc37",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/lib.rs",
+      "git_blob": "25b2d56089220b46de7df9f5b008f2ae402a1bf4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/managed_slots.rs",
+      "git_blob": "e6c8db4a16e60c736127a3ad8d3466871a3b0915",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/names.rs",
+      "git_blob": "0b692f9884548a2b82c1d375b94ecb229d4ffe64",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/owning_factory.rs",
+      "git_blob": "375bbe2b89a376b223e0a314e0bfc0f985b9cf20",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/packages.rs",
+      "git_blob": "f07ea90bb5bb389246d37b8af5cd37bdcfa01e1b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/packages/product.rs",
+      "git_blob": "8d37ecad8c77137c0ea2be7d53e84ab528e8c084",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/program.rs",
+      "git_blob": "38b774890bd3005d9f5e73c1ba070638afe31b13",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/resource_effects.rs",
+      "git_blob": "cf4c5934af64e7f57c0bcd60374daf3ee2ef42d7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/resource_effects_worklist_tests.rs",
+      "git_blob": "e266bc550dcb16d77d040f07eafce084da109040",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/resources.rs",
+      "git_blob": "cbd4dfcdecfb5b46b274d9e741991b8f55ed4e2d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/retained.rs",
+      "git_blob": "1187e11786ecb5246433dedad39c63eee9b9c8c1",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/state_origins.rs",
+      "git_blob": "17e4bdf116c9098034abddc4b5134f04a33f91e1",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-types/src/store_templates.rs",
+      "git_blob": "12931ee447acad749dbf069f1eaf1d323d7534a2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/Cargo.toml",
+      "git_blob": "c4d16ca4f436175d2a0fd296b61257f5b1eb8fb5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/borrows.rs",
+      "git_blob": "4a95fe4665831f72ae21eb220793c78d62b1f84a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/borrows/buffer_effects.rs",
+      "git_blob": "247269a37786fd29c2c1a08ccc087868eb0fd2e4",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/borrows/captures.rs",
+      "git_blob": "cbc78a64b61e3c386fad1e0f348a508fbb15c730",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/borrows/loans.rs",
+      "git_blob": "bfaae52a9b171378a2a250b0d081bd43b114a74b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/borrows/roots.rs",
+      "git_blob": "236c4c7a44b96d42813745b2107a6395e2367230",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/byte_buffers.rs",
+      "git_blob": "706654cf5b2312d54a36d47968eaaa9614972174",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/c_layout.rs",
+      "git_blob": "80efd994a26796549ee96873e0fbc0a981a2a995",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/cleanup.rs",
+      "git_blob": "081339b11134dd298e316108595e9c7be025dab8",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/closure_tests.rs",
+      "git_blob": "69925828b5a550f80e06bc90064a584f19c0b65e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/closures.rs",
+      "git_blob": "102bf7097fd4a0626ceb8a864032e68793542c8b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/ct_program.rs",
+      "git_blob": "bc6587ea1aa5afe8fc10488dc94b8ec4ab3ad203",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/dynamic_store.rs",
+      "git_blob": "8155bb9f151c261edf7c447fcb71587c292fcbf2",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/dynamic_store/tests.rs",
+      "git_blob": "62abf6038fb243ca454c8c5836be7523d907cab6",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/error_scope_tests.rs",
+      "git_blob": "dc09f23c56846985860b95a9342cfd5cfb0a996a",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/errors.rs",
+      "git_blob": "e45e0f0ea3c46e17a5b119d5206c14007bd25c87",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/foreign.rs",
+      "git_blob": "35aa5d8db5a7280d1c7e44a067853193092bd86e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/helper_flow.rs",
+      "git_blob": "0c036357c5ca8a1cfa4d2040361d9bdc3a5687a1",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/helper_tests.rs",
+      "git_blob": "46656f18b0dc9e07b4065d37dae9ce6ce4b3ea6b",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/helpers.rs",
+      "git_blob": "a9dd0b621fd62422159239f0754c782358a945ca",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/lib.rs",
+      "git_blob": "28ef5a3546ba8ce930240a0eef9cb4f4d2de1bcb",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/native_values.rs",
+      "git_blob": "7acee51e3768714310e5971748c12c3f72d7a25c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/package_tests.rs",
+      "git_blob": "d892dd358e0d50d116c172cfcbee2f10b053fd12",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/package_tests/captures.rs",
+      "git_blob": "dd753141652160c84dc6a7824c2ad36f9156fed5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/package_tests/fields.rs",
+      "git_blob": "c6e51a0891e39d1f087b738a1de6dec4fd3c31fd",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/packages.rs",
+      "git_blob": "7c207fd7a472756287448b15538f1b7b450db42d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/resource_closure_tests.rs",
+      "git_blob": "78bb85327a69fe9e2870b0479eda973cbb335126",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/resource_tests.rs",
+      "git_blob": "6c8a0d14c318968b2a4f2e75d258c6dff9078115",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/resources.rs",
+      "git_blob": "6956b4b7023eabf138f0ebc62630b8664b7d25ef",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/resources/arrays.rs",
+      "git_blob": "62036c47ce2ca53a8f231d87191018c9e054ca53",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/resources/frontier_tests.rs",
+      "git_blob": "aaadc71c378783b93e6b5e672a34ae54617dfb5d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/resources/product.rs",
+      "git_blob": "9965ee6b28bb9e3c6486a4b92f8edea2db117b5d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/retained.rs",
+      "git_blob": "39650180e58436694b712568fbea3ef91709ddaa",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/retained_tests.rs",
+      "git_blob": "02979b92d9ec00cb7d304fcceec40b45afa79da5",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/slices.rs",
+      "git_blob": "67c9d6cf20f87abf59efe41a8de08c5f2cb2d06d",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/src/tests.rs",
+      "git_blob": "434f2734fc0aba84b7968a180f1403232aea97a7",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/tests/impl082_bytes_ffi.rs",
+      "git_blob": "a577809c382d83171514d137284e5cba82000dfe",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/tests/impl086_static_foreign.rs",
+      "git_blob": "092656f72fa4859c58ebe7b43eb189e37d93ae90",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/tests/impl091_slices.rs",
+      "git_blob": "d01db9685ddb75936aa8398e5c8d574514c5b32c",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/tests/impl095_byte_buffers.rs",
+      "git_blob": "ec3965731ebe46736823e7700cc66626c6dc7f8e",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/tests/impl099_owned_bytes.rs",
+      "git_blob": "6a39da4561704e9f500d09adc458418060fd4759",
+      "availability": "exact at recovered production"
+    },
+    {
+      "path": "crates/zil-verify/tests/impl124_signed_shifts.rs",
+      "git_blob": "a3051167a8544ed91ca234613287dd20b7989688",
+      "availability": "exact at recovered production"
+    }
+  ]
+}

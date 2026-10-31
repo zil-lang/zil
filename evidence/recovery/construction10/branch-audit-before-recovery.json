@@ -1,0 +1,276 @@
+{
+  "schema_version": 1,
+  "task": "zil-construction10-research-branch-containment-audit",
+  "generated_at_utc": "2026-10-31 03:59:18 UTC",
+  "repository": "zil-lang/zil",
+  "mode": "read-only; no refs changed",
+  "rule": "A temporary tip is eligible only if exact-SHA compare(base=retained_sha, head=temporary_tip) has ahead_by=0 and merge_base=temporary_tip. Open-PR absence is not containment evidence.",
+  "retained_targets": [
+    {
+      "ref": "refs/heads/research/compile-performance",
+      "sha": "e7b492c6e04128e6106bbf29c0d6c7b381556d77"
+    },
+    {
+      "ref": "refs/heads/research/compile7-20261031",
+      "sha": "a894f8476cd043314113ba40b4a492deaf281895"
+    }
+  ],
+  "comparisons": [
+    {
+      "ref": "research/cp21-invalidate",
+      "tip": "8c4fa27f677b992e6d5590493a4ea530b95ae46d",
+      "container_ref": "research/compile7-20261031",
+      "container_sha": "a894f8476cd043314113ba40b4a492deaf281895",
+      "status": "diverged",
+      "ahead_by": 1,
+      "behind_by": 10,
+      "merge_base": "485301e1f1dcdfb0b4e24f6249355104243c3fe3"
+    },
+    {
+      "ref": "research/cp21-invalidate",
+      "tip": "8c4fa27f677b992e6d5590493a4ea530b95ae46d",
+      "container_ref": "research/compile-performance",
+      "container_sha": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+      "status": "diverged",
+      "ahead_by": 1,
+      "behind_by": 6,
+      "merge_base": "485301e1f1dcdfb0b4e24f6249355104243c3fe3"
+    },
+    {
+      "ref": "research/cp22-parse-cache",
+      "tip": "74142bc822c57b1246c9bf328c019fd364ee150a",
+      "container_ref": "research/compile7-20261031",
+      "container_sha": "a894f8476cd043314113ba40b4a492deaf281895",
+      "status": "diverged",
+      "ahead_by": 1,
+      "behind_by": 10,
+      "merge_base": "485301e1f1dcdfb0b4e24f6249355104243c3fe3"
+    },
+    {
+      "ref": "research/cp22-parse-cache",
+      "tip": "74142bc822c57b1246c9bf328c019fd364ee150a",
+      "container_ref": "research/compile-performance",
+      "container_sha": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+      "status": "diverged",
+      "ahead_by": 1,
+      "behind_by": 6,
+      "merge_base": "485301e1f1dcdfb0b4e24f6249355104243c3fe3"
+    },
+    {
+      "ref": "research/cp23-query-read",
+      "tip": "1cb27ac6b907aeef28b8a472d15ee1859b9959c1",
+      "container_ref": "research/compile7-20261031",
+      "container_sha": "a894f8476cd043314113ba40b4a492deaf281895",
+      "status": "diverged",
+      "ahead_by": 1,
+      "behind_by": 10,
+      "merge_base": "485301e1f1dcdfb0b4e24f6249355104243c3fe3"
+    },
+    {
+      "ref": "research/cp23-query-read",
+      "tip": "1cb27ac6b907aeef28b8a472d15ee1859b9959c1",
+      "container_ref": "research/compile-performance",
+      "container_sha": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+      "status": "diverged",
+      "ahead_by": 1,
+      "behind_by": 6,
+      "merge_base": "485301e1f1dcdfb0b4e24f6249355104243c3fe3"
+    },
+    {
+      "ref": "research/cp26-parse-publication",
+      "tip": "7e7f8083af9361de17793c602bfaa7117e6f47b9",
+      "container_ref": "research/compile7-20261031",
+      "container_sha": "a894f8476cd043314113ba40b4a492deaf281895",
+      "status": "diverged",
+      "ahead_by": 3,
+      "behind_by": 10,
+      "merge_base": "485301e1f1dcdfb0b4e24f6249355104243c3fe3"
+    },
+    {
+      "ref": "research/cp26-parse-publication",
+      "tip": "7e7f8083af9361de17793c602bfaa7117e6f47b9",
+      "container_ref": "research/compile-performance",
+      "container_sha": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+      "status": "diverged",
+      "ahead_by": 3,
+      "behind_by": 6,
+      "merge_base": "485301e1f1dcdfb0b4e24f6249355104243c3fe3"
+    },
+    {
+      "ref": "research/cp27-temp-ownership",
+      "tip": "79bb5348fe426a62aecaae808321f70966cbc24c",
+      "container_ref": "research/compile7-20261031",
+      "container_sha": "a894f8476cd043314113ba40b4a492deaf281895",
+      "status": "diverged",
+      "ahead_by": 4,
+      "behind_by": 10,
+      "merge_base": "485301e1f1dcdfb0b4e24f6249355104243c3fe3"
+    },
+    {
+      "ref": "research/cp27-temp-ownership",
+      "tip": "79bb5348fe426a62aecaae808321f70966cbc24c",
+      "container_ref": "research/compile-performance",
+      "container_sha": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+      "status": "diverged",
+      "ahead_by": 4,
+      "behind_by": 6,
+      "merge_base": "485301e1f1dcdfb0b4e24f6249355104243c3fe3"
+    },
+    {
+      "ref": "research/cp29-types-memo",
+      "tip": "11d88c78037a77d2c188a6684cdaa0300f60b7b9",
+      "container_ref": "research/compile7-20261031",
+      "container_sha": "a894f8476cd043314113ba40b4a492deaf281895",
+      "status": "diverged",
+      "ahead_by": 1,
+      "behind_by": 3,
+      "merge_base": "360f2c142aed54a65ad4232ae7ef655b8a3fcc5b"
+    },
+    {
+      "ref": "research/cp29-types-memo",
+      "tip": "11d88c78037a77d2c188a6684cdaa0300f60b7b9",
+      "container_ref": "research/compile-performance",
+      "container_sha": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+      "status": "ahead",
+      "ahead_by": 2,
+      "behind_by": 0,
+      "merge_base": "e7b492c6e04128e6106bbf29c0d6c7b381556d77"
+    },
+    {
+      "ref": "research/cp30-published-read",
+      "tip": "df13bc96536c7f775d7227256e45db7fc9e178b2",
+      "container_ref": "research/compile7-20261031",
+      "container_sha": "a894f8476cd043314113ba40b4a492deaf281895",
+      "status": "diverged",
+      "ahead_by": 1,
+      "behind_by": 3,
+      "merge_base": "360f2c142aed54a65ad4232ae7ef655b8a3fcc5b"
+    },
+    {
+      "ref": "research/cp30-published-read",
+      "tip": "df13bc96536c7f775d7227256e45db7fc9e178b2",
+      "container_ref": "research/compile-performance",
+      "container_sha": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+      "status": "ahead",
+      "ahead_by": 2,
+      "behind_by": 0,
+      "merge_base": "e7b492c6e04128e6106bbf29c0d6c7b381556d77"
+    },
+    {
+      "ref": "research/cp32-bounded-type-retention",
+      "tip": "b9ccf36aac5720886c9e68b3a812b4f61f841626",
+      "container_ref": "research/compile7-20261031",
+      "container_sha": "a894f8476cd043314113ba40b4a492deaf281895",
+      "status": "diverged",
+      "ahead_by": 2,
+      "behind_by": 3,
+      "merge_base": "360f2c142aed54a65ad4232ae7ef655b8a3fcc5b"
+    },
+    {
+      "ref": "research/cp32-bounded-type-retention",
+      "tip": "b9ccf36aac5720886c9e68b3a812b4f61f841626",
+      "container_ref": "research/compile-performance",
+      "container_sha": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+      "status": "ahead",
+      "ahead_by": 3,
+      "behind_by": 0,
+      "merge_base": "e7b492c6e04128e6106bbf29c0d6c7b381556d77"
+    },
+    {
+      "ref": "research/cp33-parse-budget-receipts",
+      "tip": "675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17",
+      "container_ref": "research/compile7-20261031",
+      "container_sha": "a894f8476cd043314113ba40b4a492deaf281895",
+      "status": "diverged",
+      "ahead_by": 1,
+      "behind_by": 3,
+      "merge_base": "360f2c142aed54a65ad4232ae7ef655b8a3fcc5b"
+    },
+    {
+      "ref": "research/cp33-parse-budget-receipts",
+      "tip": "675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17",
+      "container_ref": "research/compile-performance",
+      "container_sha": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+      "status": "ahead",
+      "ahead_by": 2,
+      "behind_by": 0,
+      "merge_base": "e7b492c6e04128e6106bbf29c0d6c7b381556d77"
+    },
+    {
+      "ref": "research/cp34-streaming-fingerprint",
+      "tip": "9fe23d7180b41830f599128324c769deac37211d",
+      "container_ref": "research/compile7-20261031",
+      "container_sha": "a894f8476cd043314113ba40b4a492deaf281895",
+      "status": "diverged",
+      "ahead_by": 1,
+      "behind_by": 3,
+      "merge_base": "360f2c142aed54a65ad4232ae7ef655b8a3fcc5b"
+    },
+    {
+      "ref": "research/cp34-streaming-fingerprint",
+      "tip": "9fe23d7180b41830f599128324c769deac37211d",
+      "container_ref": "research/compile-performance",
+      "container_sha": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+      "status": "ahead",
+      "ahead_by": 2,
+      "behind_by": 0,
+      "merge_base": "e7b492c6e04128e6106bbf29c0d6c7b381556d77"
+    },
+    {
+      "ref": "research/cp35-shared-verify-input",
+      "tip": "de0eefdc38e1a25129f219d2a7c7933922790e13",
+      "container_ref": "research/compile7-20261031",
+      "container_sha": "a894f8476cd043314113ba40b4a492deaf281895",
+      "status": "diverged",
+      "ahead_by": 1,
+      "behind_by": 3,
+      "merge_base": "360f2c142aed54a65ad4232ae7ef655b8a3fcc5b"
+    },
+    {
+      "ref": "research/cp35-shared-verify-input",
+      "tip": "de0eefdc38e1a25129f219d2a7c7933922790e13",
+      "container_ref": "research/compile-performance",
+      "container_sha": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+      "status": "ahead",
+      "ahead_by": 2,
+      "behind_by": 0,
+      "merge_base": "e7b492c6e04128e6106bbf29c0d6c7b381556d77"
+    }
+  ],
+  "open_pull_requests": [
+    {
+      "number": 12,
+      "head_ref": "impl/226-shared-product-capture",
+      "head_sha": "c8dd71a4b75ed7731fca8372a3a055f017991eb3"
+    },
+    {
+      "number": 10,
+      "head_ref": "impl/225-product-store-capture",
+      "head_sha": "8ea37c2de56cf65f1448e4fa647671f4459ad148"
+    }
+  ],
+  "result": {
+    "comparisons": 22,
+    "eligible_exact_refs": [],
+    "retained_temporary_refs": [
+      "refs/heads/research/cp21-invalidate",
+      "refs/heads/research/cp22-parse-cache",
+      "refs/heads/research/cp23-query-read",
+      "refs/heads/research/cp26-parse-publication",
+      "refs/heads/research/cp27-temp-ownership",
+      "refs/heads/research/cp29-types-memo",
+      "refs/heads/research/cp30-published-read",
+      "refs/heads/research/cp32-bounded-type-retention",
+      "refs/heads/research/cp33-parse-budget-receipts",
+      "refs/heads/research/cp34-streaming-fingerprint",
+      "refs/heads/research/cp35-shared-verify-input"
+    ],
+    "reason": "All 22 exact comparisons have ahead_by>0; none of the 11 temporary tips is an ancestor of either retained target.",
+    "research_open_prs": 0,
+    "preserve_additionally": [
+      "refs/heads/research/incremental-compilation",
+      "refs/heads/task/cp25-reactive-session"
+    ],
+    "limitations": "No content-equivalence or squash claim; no remote branch was deleted or changed. Retained target SHAs and temporary SHAs are snapshot observations, not leases for later deletion."
+  }
+}

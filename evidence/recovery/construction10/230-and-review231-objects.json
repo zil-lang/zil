@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "status": "OriginalObjectsRecoveredByHash",
+  "scope": "230 production and author tests, preserved 228 source migration, 231 independent test revisions; supporting bases and trees",
+  "original_code230": "a233f79957aa1c9ce79ed0897970469c6f9ae3ba",
+  "original_delivery230": "bf9ac9d85b928c0c879582c637e30d4d61086776",
+  "original_review231_commit": "d1bc0d1c503cb45433396c2587af42e97f1a45f1",
+  "original_production_candidate": "2c8acce8f01dfb46830a31b6eaf52ef786ed73a1",
+  "original_expected_commit_trees": {
+    "a233f79957aa1c9ce79ed0897970469c6f9ae3ba": "d360e1aa71de31627f96015ed16acfabf869e3c5",
+    "bf9ac9d85b928c0c879582c637e30d4d61086776": "ecb80974ad406940d28f11833b0f664b388c79a2",
+    "d1bc0d1c503cb45433396c2587af42e97f1a45f1": "dcd36e34e02c69ae3240837dd8c92b7c8ac4020a",
+    "2c8acce8f01dfb46830a31b6eaf52ef786ed73a1": "95fceda9470f43c80c4c15b76b8878930a7b8ca5"
+  },
+  "executed_tests": "NotRunDuringRecovery",
+  "limitations": [
+    "This records exact objects recovered and hash verified; it does not claim complete commit/tree closure or restored archive blobs.",
+    "Original author status is preserved as historical evidence, not a fresh execution.",
+    "The two example sources are exact members of a Git-hash-verified original report archive; their original commit tree membership awaits expected-tree crosscheck."
+  ],
+  "objects": [
+    {
+      "type": "blob",
+      "sha": "5980f2b05f47a7cdf95e33e95c82846f4dc53e66",
+      "bytes": 19568,
+      "file": "objects/5980f2b05f47a7cdf95e33e95c82846f4dc53e66",
+      "git_hash_verified": true,
+      "role": "upstream_base",
+      "retrieval": "GitHub exact SHA; byte hash verified; no source rewriting"
+    },
+    {
+      "type": "blob",
+      "sha": "0340b16ca71fb7f003cdebc21eb5c4037e8a856f",
+      "bytes": 10670,
+      "file": "objects/0340b16ca71fb7f003cdebc21eb5c4037e8a856f",
+      "git_hash_verified": true,
+      "role": "upstream_base",
+      "retrieval": "GitHub exact SHA; byte hash verified; no source rewriting"
+    },
+    {
+      "type": "blob",
+      "sha": "86ecbd60e6f4e837f5f86ab44b4e6a7dd93313b2",
+      "bytes": 20051,
+      "file": "objects/86ecbd60e6f4e837f5f86ab44b4e6a7dd93313b2",
+      "git_hash_verified": true,
+      "role": "upstream_base",
+      "retrieval": "GitHub exact SHA; byte hash verified; no source rewriting"
+    },
+    {
+      "type": "blob",
+      "sha": "1623e2ae328d202c80d515539010b3b4eec9f720",
+      "bytes": 13943,
+      "file": "objects/1623e2ae328d202c80d515539010b3b4eec9f720",
+      "git_hash_verified": true,
+      "role": "upstream_base",
+      "retrieval": "GitHub exact SHA; byte hash verified; no source rewriting"
+    },
+    {
+      "type": "tree",
+      "sha": "5cad5e35d03c16291e4cd45adbef8c769b5cab54",
+      "bytes": 349,
+      "file": "objects/5cad5e35d03c16291e4cd45adbef8c769b5cab54",
+      "git_hash_verified": true,
+      "role": "upstream_base",
+      "retrieval": "GitHub exact SHA; byte hash verified; no source rewriting"
+    },
+    {
+      "type": "tree",
+      "sha": "7e859b3806879adcfd682a0cd0bba50c4984b099",
+      "bytes": 12435,
+      "file": "objects/7e859b3806879adcfd682a0cd0bba50c4984b099",
+      "git_hash_verified": true,
+      "role": "upstream_base",
+      "retrieval": "GitHub exact SHA; byte hash verified; no source rewriting"
+    },
+    {
+      "type": "blob",
+      "sha": "f1becf839873b99f7f359e634fde4b397e83cd6e",
+      "bytes": 23952,
+      "file": "objects/f1becf839873b99f7f359e634fde4b397e83cd6e",
+      "git_hash_verified": true,
+      "role": "production230",
+      "repository_path": "crates/zil-driver/src/ct_selection/hygiene.rs",
+      "partial_pack_object_number": 53,
+      "partial_pack_offset": 16370,
+      "delta_base": {
+        "sha": "5980f2b05f47a7cdf95e33e95c82846f4dc53e66"
+      },
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "blob",
+      "sha": "89a2eed87b78937e0f1f73979ec734b99a0e3ed0",
+      "bytes": 12044,
+      "file": "objects/89a2eed87b78937e0f1f73979ec734b99a0e3ed0",
+      "git_hash_verified": true,
+      "role": "production230",
+      "repository_path": "crates/zil-driver/src/ct_selection/hygiene_types.rs",
+      "partial_pack_object_number": 54,
+      "partial_pack_offset": 17870,
+      "delta_base": {
+        "sha": "0340b16ca71fb7f003cdebc21eb5c4037e8a856f"
+      },
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "blob",
+      "sha": "fba1fcf218a89778fadd007b10cb524ec5f37d01",
+      "bytes": 20552,
+      "file": "objects/fba1fcf218a89778fadd007b10cb524ec5f37d01",
+      "git_hash_verified": true,
+      "role": "production230",
+      "repository_path": "crates/zil-driver/src/ct_selection/materialize.rs",
+      "partial_pack_object_number": 55,
+      "partial_pack_offset": 18352,
+      "delta_base": {
+        "sha": "86ecbd60e6f4e837f5f86ab44b4e6a7dd93313b2"
+      },
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "blob",
+      "sha": "240e7fa63033c8835784584a2de544cbbcdf4100",
+      "bytes": 13853,
+      "file": "objects/240e7fa63033c8835784584a2de544cbbcdf4100",
+      "git_hash_verified": true,
+      "role": "author_test230",
+      "repository_path": "crates/zil-driver/tests/impl230_generation.rs",
+      "partial_pack_object_number": 68,
+      "partial_pack_offset": 29326,
+      "delta_base": null,
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "blob",
+      "sha": "b44e7c7462d9f29c01b3b08cc582789edd2ce708",
+      "bytes": 16028,
+      "file": "objects/b44e7c7462d9f29c01b3b08cc582789edd2ce708",
+      "git_hash_verified": true,
+      "role": "independent_review231_initial30176f55f",
+      "repository_path": "crates/zil-driver/tests/review231_independent.rs",
+      "partial_pack_object_number": 73,
+      "partial_pack_offset": 47260,
+      "delta_base": {
+        "offset": 32828
+      },
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "blob",
+      "sha": "130080594ed458632de761fec4c32bd6c7399d69",
+      "bytes": 15924,
+      "file": "objects/130080594ed458632de761fec4c32bd6c7399d69",
+      "git_hash_verified": true,
+      "role": "independent_review231_finald1bc0d1c",
+      "repository_path": "crates/zil-driver/tests/review231_independent.rs",
+      "partial_pack_object_number": 74,
+      "partial_pack_offset": 50969,
+      "delta_base": {
+        "offset": 47260
+      },
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "blob",
+      "sha": "eab48f2c275565b21b9175fccccbc9915f88c22e",
+      "bytes": 14260,
+      "file": "objects/eab48f2c275565b21b9175fccccbc9915f88c22e",
+      "git_hash_verified": true,
+      "role": "legacy_source_migration230",
+      "repository_path": "crates/zil-driver/tests/impl228_generation.rs",
+      "partial_pack_object_number": 66,
+      "partial_pack_offset": 28838,
+      "delta_base": {
+        "sha": "1623e2ae328d202c80d515539010b3b4eec9f720"
+      },
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "tree",
+      "sha": "9375c70786100431dfaf46756f575e28401d4d92",
+      "bytes": 349,
+      "file": "objects/9375c70786100431dfaf46756f575e28401d4d92",
+      "git_hash_verified": true,
+      "role": "expected_tree",
+      "repository_path": "crates/zil-driver/src",
+      "partial_pack_object_number": 51,
+      "partial_pack_offset": 16063,
+      "delta_base": {
+        "sha": "5cad5e35d03c16291e4cd45adbef8c769b5cab54"
+      },
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "tree",
+      "sha": "f7f961e6c3100877e45c6b283628a7e5bfedd6d9",
+      "bytes": 282,
+      "file": "objects/f7f961e6c3100877e45c6b283628a7e5bfedd6d9",
+      "git_hash_verified": true,
+      "role": "expected_tree",
+      "repository_path": "crates/zil-driver/src/ct_selection",
+      "partial_pack_object_number": 52,
+      "partial_pack_offset": 16126,
+      "delta_base": null,
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "tree",
+      "sha": "c3a6bcd1e5a6c0b9b0209fae47aab8233d62390d",
+      "bytes": 12947,
+      "file": "objects/c3a6bcd1e5a6c0b9b0209fae47aab8233d62390d",
+      "git_hash_verified": true,
+      "role": "expected_tree",
+      "repository_path": "crates/zil-driver/tests",
+      "partial_pack_object_number": 56,
+      "partial_pack_offset": 18555,
+      "delta_base": {
+        "sha": "7e859b3806879adcfd682a0cd0bba50c4984b099"
+      },
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "tree",
+      "sha": "3a65b3accc0017804a161ce467bbc31bfe309f45",
+      "bytes": 532,
+      "file": "objects/3a65b3accc0017804a161ce467bbc31bfe309f45",
+      "git_hash_verified": true,
+      "role": "expected_tree",
+      "repository_path": "evidence/impl/230",
+      "partial_pack_object_number": 99,
+      "partial_pack_offset": 80118,
+      "delta_base": null,
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "blob",
+      "sha": "f97cc8033a4328f7393f442a237e286de93dba5a",
+      "bytes": 820,
+      "file": "objects/f97cc8033a4328f7393f442a237e286de93dba5a",
+      "git_hash_verified": true,
+      "role": "original_author_record",
+      "repository_path": "evidence/impl/230/ATTEMPT1.json",
+      "partial_pack_object_number": 100,
+      "partial_pack_offset": 80527,
+      "delta_base": null,
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "blob",
+      "sha": "8eb341fe4bdc56e1dc08d4ac6b9776784ab7b2fc",
+      "bytes": 4481,
+      "file": "objects/8eb341fe4bdc56e1dc08d4ac6b9776784ab7b2fc",
+      "git_hash_verified": true,
+      "role": "original_author_record",
+      "repository_path": "evidence/impl/230/AUTHOR.json",
+      "partial_pack_object_number": 101,
+      "partial_pack_offset": 80970,
+      "delta_base": null,
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "blob",
+      "sha": "4a2320ab4a758cb2ddc2e966355fb2ffbc6130eb",
+      "bytes": 2306,
+      "file": "objects/4a2320ab4a758cb2ddc2e966355fb2ffbc6130eb",
+      "git_hash_verified": true,
+      "role": "original_author_record",
+      "repository_path": "evidence/impl/230/NATIVE.json",
+      "partial_pack_object_number": 102,
+      "partial_pack_offset": 82493,
+      "delta_base": null,
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "blob",
+      "sha": "e35e8d4dc5240fab08c093dd6269fca801baebf3",
+      "bytes": 828,
+      "file": "objects/e35e8d4dc5240fab08c093dd6269fca801baebf3",
+      "git_hash_verified": true,
+      "role": "original_author_record",
+      "repository_path": "evidence/impl/230/REPORT-ARCHIVES.json",
+      "partial_pack_object_number": 103,
+      "partial_pack_offset": 82815,
+      "delta_base": null,
+      "origin": "Original complete pack object or exact pack delta reconstruction, not code rewrite"
+    },
+    {
+      "type": "blob",
+      "sha": "95e09dd399fccfd20f20ef8954da25bb3a496c78",
+      "bytes": 697,
+      "file": "objects/95e09dd399fccfd20f20ef8954da25bb3a496c78",
+      "role": "archived_exact_source230",
+      "repository_path": "examples/mainline/ct_enums230/events.zil",
+      "source_archive": "fac2bb7813efe389a7b179194eca608ad40ed651",
+      "source_archive_git_hash_verified": true,
+      "source_archive_member": "run2/enums230-28/events/source.zil",
+      "git_hash_computed": true,
+      "expected_tree_crosscheck": "Pending; not yet represented as independently verified original tree membership"
+    },
+    {
+      "type": "blob",
+      "sha": "2b976990c515641aa267d91a0b2ec45309f014c7",
+      "bytes": 606,
+      "file": "objects/2b976990c515641aa267d91a0b2ec45309f014c7",
+      "role": "archived_exact_source230",
+      "repository_path": "examples/mainline/ct_enums230/events_plain.zil",
+      "source_archive": "fac2bb7813efe389a7b179194eca608ad40ed651",
+      "source_archive_git_hash_verified": true,
+      "source_archive_member": "run2/enums230-28/events-plain/source.zil",
+      "git_hash_computed": true,
+      "expected_tree_crosscheck": "Pending; not yet represented as independently verified original tree membership"
+    },
+    {
+      "type": "tree",
+      "sha": "0f19440d802335524d2692eccb9c8bb47dba2078",
+      "bytes": 82,
+      "file": "objects/0f19440d802335524d2692eccb9c8bb47dba2078",
+      "role": "archived_source_tree_candidate230",
+      "repository_path": "examples/mainline/ct_enums230",
+      "git_hash_computed": true,
+      "expected_tree_crosscheck": "Pending; computed from original archived sources and known include_str paths"
+    }
+  ]
+}
