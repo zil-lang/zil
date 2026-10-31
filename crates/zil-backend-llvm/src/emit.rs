@@ -14,8 +14,8 @@ use zil_llvm_api::model as m;
 use zil_base::{CompileResult, Diagnostic, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::{
     BinaryOp, CallableKind, ClosureDefinition, ClosureId, Constant, FunctionId, Instruction,
-    InstructionKind, LirModule, LocalId, ResourceDefinition, ScalarLayout, Terminator, Type,
-    TypedFunction, UnaryOp, ValueId,
+    InstructionKind, LirModule, LirView, LocalId, ResourceDefinition, ScalarLayout, Terminator,
+    Type, TypedFunction, UnaryOp, ValueId,
 };
 use zil_verify::VerifiedModule;
 
@@ -40,6 +40,14 @@ pub(crate) fn lower_with_options(
     lir: &LirModule,
     options: &EmitOptions,
 ) -> CompileResult<m::Module> {
+    lower_view_with_options(verified, &lir.as_view(), options)
+}
+
+pub(crate) fn lower_view_with_options(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &EmitOptions,
+) -> CompileResult<m::Module> {
     bind_lir(verified, lir)?;
     let functions = lir
         .functions
@@ -51,12 +59,12 @@ pub(crate) fn lower_with_options(
         .iter()
         .map(|closure| (closure.id, closure))
         .collect::<BTreeMap<_, _>>();
-    let wrapper = entry_wrapper(&functions, options.entry, &lir.resources)?;
+    let wrapper = entry_wrapper(&functions, options.entry, lir.resources)?;
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     let mut intrinsics = BTreeSet::new();
     // Finish each function before retaining it: no whole-project Event buffer.
     let mut body = Vec::with_capacity(lir.functions.len());
-    for function in &lir.functions {
+    for function in lir.functions {
         if function.foreign.is_some() {
             if matches!(options.entry, EntryPoint::ReturnValue(_))
                 && function
@@ -71,7 +79,7 @@ pub(crate) fn lower_with_options(
                 );
             }
             body.extend(
-                foreign::declaration(function, &lir.target)?
+                foreign::declaration(function, lir.target)?
                     .into_items()
                     .map_err(machine_error)?,
             );
@@ -80,10 +88,10 @@ pub(crate) fn lower_with_options(
         body.extend(
             FunctionEmitter {
                 function,
-                target: &lir.target,
+                target: lir.target,
                 functions: &functions,
                 closures: &closures,
-                resources: &lir.resources,
+                resources: lir.resources,
                 intrinsics: &mut intrinsics,
                 text: m::Code::new(),
                 temporary: 0,
@@ -96,7 +104,7 @@ pub(crate) fn lower_with_options(
         );
     }
     let mut text = m::Code::new();
-    for closure in &lir.closures {
+    for closure in lir.closures {
         let mut fields = closure
             .captures
             .iter()
@@ -115,10 +123,10 @@ pub(crate) fn lower_with_options(
         ));
     }
     text.append(resource_closures::drop_functions(
-        &lir.closures,
-        &lir.resources,
+        lir.closures,
+        lir.resources,
     )?);
-    for function in &lir.functions {
+    for function in lir.functions {
         for block in &function.blocks {
             for instruction in &block.instructions {
                 if let InstructionKind::Constant(Constant::WideString(units)) = &instruction.kind {
@@ -304,7 +312,13 @@ fn machine_error(message: String) -> Vec<Diagnostic> {
     )]
 }
 
-fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
+// Exact immutable aliasing proves equality, not authority. For independently
+// allocated public raw inputs, compare every element as before.
+fn same_slice<T: PartialEq>(a: &[T], b: &[T]) -> bool {
+    std::ptr::eq(a, b) || a == b
+}
+
+fn bind_lir(verified: &VerifiedModule, lir: &LirView<'_>) -> CompileResult<()> {
     let module = verified.module();
     let layouts = vec![
         ScalarLayout {
@@ -355,11 +369,11 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
         || lir.schema_version != module.schema_version
         || lir.module_id != module.module_id
         || lir.verified_fingerprint != verified.fingerprint()
-        || lir.target != module.target
-        || lir.functions != module.functions
-        || lir.closures != module.closures
-        || lir.resources != module.resources
-        || lir.layouts != layouts
+        || *lir.target != module.target
+        || !same_slice(lir.functions, &module.functions)
+        || !same_slice(lir.closures, &module.closures)
+        || !same_slice(lir.resources, &module.resources)
+        || lir.layouts.as_ref() != layouts
     {
         return invalid(
             "E-CODEGEN-UNBOUND-LIR",
@@ -373,7 +387,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
             None,
         );
     }
-    for closure in &lir.closures {
+    for closure in lir.closures {
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
@@ -389,9 +403,9 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                     // The exact VerifiedModule binding above carries the
                     // independently checked owning Store capture contract.
                     // Borrowed descriptions do not gain an owning ABI here.
-                    || (resources::supported_type(ty, &lir.resources)
+                    || (resources::supported_type(ty, lir.resources)
                         && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
-                    || packages::supported_capture_type(ty, &lir.resources)
+                    || packages::supported_capture_type(ty, lir.resources)
             })
             || !closure.parameters.iter().all(|ty| {
                 ty.is_copy_value()
@@ -402,24 +416,24 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
             return unsupported("LLVM finite resource closure representation", None);
         }
     }
-    for function in &lir.functions {
+    for function in lir.functions {
         if !(function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
-            || resources::supported_type(&function.return_type, &lir.resources)
-            || packages::supported_value_type(&function.return_type, &lir.resources)
-            || errors::supported_type(&function.return_type, &lir.resources)
-            || arrays::supported_type(&function.return_type, &lir.resources)
+            || resources::supported_type(&function.return_type, lir.resources)
+            || packages::supported_value_type(&function.return_type, lir.resources)
+            || errors::supported_type(&function.return_type, lir.resources)
+            || arrays::supported_type(&function.return_type, lir.resources)
             || (matches!(function.return_type, Type::Closure(_))
                 && function.callable_return_contract.is_some()))
             || function.parameters.iter().any(|id| {
                 let ty = &function.locals[id.0 as usize].ty;
                 !(ty.is_copy_value()
                     || ty.is_scalar_or_address()
-                    || resources::supported_type(ty, &lir.resources)
-                    || packages::supported_value_type(ty, &lir.resources)
-                    || errors::supported_type(ty, &lir.resources)
-                    || arrays::supported_type(ty, &lir.resources)
-                    || callable_parameter_type(ty, &lir.closures))
+                    || resources::supported_type(ty, lir.resources)
+                    || packages::supported_value_type(ty, lir.resources)
+                    || errors::supported_type(ty, lir.resources)
+                    || arrays::supported_type(ty, lir.resources)
+                    || callable_parameter_type(ty, lir.closures))
             })
         {
             return unsupported("LLVM scalar function signature", Some(function.span));
@@ -430,16 +444,16 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
             .map(|local| &local.ty)
             .chain(function.values.iter())
         {
-            let concrete_closure = callable_parameter_type(ty, &lir.closures);
+            let concrete_closure = callable_parameter_type(ty, lir.closures);
             if !ty.is_copy_value()
                 && !concrete_closure
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_package_address()
-                && !resources::supported_type(ty, &lir.resources)
-                && !packages::supported_value_type(ty, &lir.resources)
-                && !errors::supported_type(ty, &lir.resources)
-                && !arrays::supported_type(ty, &lir.resources)
+                && !resources::supported_type(ty, lir.resources)
+                && !packages::supported_value_type(ty, lir.resources)
+                && !errors::supported_type(ty, lir.resources)
+                && !arrays::supported_type(ty, lir.resources)
             {
                 return unsupported(
                     format!("LLVM representation for {}", ty.name()),

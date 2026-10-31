@@ -34,7 +34,7 @@
 //! }
 //! ```
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, fmt, sync::Arc};
 use zil_base::{
     CompileResult, Diagnostic, Fingerprint, Limits, Phase, RULE_VERSION, SCHEMA_VERSION, Span,
     TargetProfile,
@@ -74,18 +74,62 @@ pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_byt
 
 /// A checked, immutable scalar/readonly-closure CFG, including independently
 /// reconstructed local shared-address provenance and lifetime constraints.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct VerifiedModule {
-    module: TypedModule,
-    plan: CandidatePlan,
+    inputs: VerifiedInputs,
     fingerprint: Fingerprint,
+}
+
+// Keep the owned entry allocation-free. Shared entries retain the exact raw
+// snapshot checked on this call; the owner itself carries no prior proof.
+#[derive(Clone)]
+#[allow(clippy::large_enum_variant)]
+enum VerifiedInputs {
+    Owned {
+        module: TypedModule,
+        plan: CandidatePlan,
+    },
+    SharedModule {
+        module: Arc<TypedModule>,
+        plan: Arc<CandidatePlan>,
+    },
+    SharedProgram {
+        program: Arc<TypedProgram>,
+        plan: Arc<CandidatePlan>,
+    },
+}
+impl VerifiedInputs {
+    fn module(&self) -> &TypedModule {
+        match self {
+            Self::Owned { module, .. } => module,
+            Self::SharedModule { module, .. } => module,
+            Self::SharedProgram { program, .. } => &program.module,
+        }
+    }
+    fn plan(&self) -> &CandidatePlan {
+        match self {
+            Self::Owned { plan, .. } => plan,
+            Self::SharedModule { plan, .. } | Self::SharedProgram { plan, .. } => plan,
+        }
+    }
+}
+impl fmt::Debug for VerifiedModule {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Preserve the existing view, including for a shared program owner:
+        // its interfaces are not checked or exposed by this module wrapper.
+        f.debug_struct("VerifiedModule")
+            .field("module", self.module())
+            .field("plan", self.plan())
+            .field("fingerprint", &self.fingerprint)
+            .finish()
+    }
 }
 impl VerifiedModule {
     pub fn module(&self) -> &TypedModule {
-        &self.module
+        self.inputs.module()
     }
     pub fn plan(&self) -> &CandidatePlan {
-        &self.plan
+        self.inputs.plan()
     }
     pub fn fingerprint(&self) -> Fingerprint {
         self.fingerprint
@@ -93,7 +137,7 @@ impl VerifiedModule {
     /// Only contracts from this independently checked immutable snapshot are
     /// available to an interface publisher or public caller.
     pub fn callable_contract(&self, function: FunctionId) -> Option<&CallableParameterContract> {
-        self.module
+        self.module()
             .functions
             .get(function.0 as usize)?
             .callable_contract
@@ -104,7 +148,7 @@ impl VerifiedModule {
         &self,
         function: FunctionId,
     ) -> Option<&CallableReturnContract> {
-        self.module
+        self.module()
             .functions
             .get(function.0 as usize)?
             .callable_return_contract
@@ -114,8 +158,8 @@ impl VerifiedModule {
     /// Derived from the checked snapshot, never from a raw interface claim.
     /// Scalar returns have an empty set; an unknown FunctionId returns None.
     pub fn result_origins(&self, function: FunctionId) -> Option<Vec<u32>> {
-        let f = self.module.functions.get(function.0 as usize)?;
-        let plan = self.plan.functions.get(function.0 as usize)?;
+        let f = self.module().functions.get(function.0 as usize)?;
+        let plan = self.plan().functions.get(function.0 as usize)?;
         if !matches!(f.return_type, Type::Address { .. }) {
             return Some(Vec::new());
         }
@@ -189,10 +233,53 @@ pub fn verify_module(
     expected_target: &TargetProfile,
     limits: &Limits,
 ) -> CompileResult<VerifiedModule> {
-    match check_module(&module, &plan, expected_target, limits) {
+    verify_inputs(
+        VerifiedInputs::Owned { module, plan },
+        expected_target,
+        limits,
+    )
+}
+
+/// Independently verify immutable shared raw inputs on every call. An existing
+/// Arc, candidate fingerprint, or earlier successful call is not a proof.
+pub fn verify_shared_module(
+    module: Arc<TypedModule>,
+    plan: Arc<CandidatePlan>,
+    expected_target: &TargetProfile,
+    limits: &Limits,
+) -> CompileResult<VerifiedModule> {
+    verify_inputs(
+        VerifiedInputs::SharedModule { module, plan },
+        expected_target,
+        limits,
+    )
+}
+
+/// Check only the module embedded in an immutable shared raw program. This
+/// grants the same module-only authority as verify_module: program interfaces
+/// and root mappings remain untrusted and are not exposed by VerifiedModule.
+/// The complete module checks run on every call with the current target/limits.
+pub fn verify_shared_program_module(
+    program: Arc<TypedProgram>,
+    plan: Arc<CandidatePlan>,
+    expected_target: &TargetProfile,
+    limits: &Limits,
+) -> CompileResult<VerifiedModule> {
+    verify_inputs(
+        VerifiedInputs::SharedProgram { program, plan },
+        expected_target,
+        limits,
+    )
+}
+
+fn verify_inputs(
+    inputs: VerifiedInputs,
+    expected_target: &TargetProfile,
+    limits: &Limits,
+) -> CompileResult<VerifiedModule> {
+    match check_module(inputs.module(), inputs.plan(), expected_target, limits) {
         Ok(fingerprint) => Ok(VerifiedModule {
-            module,
-            plan,
+            inputs,
             fingerprint,
         }),
         Err(diagnostic) => Err(vec![diagnostic]),

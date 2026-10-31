@@ -1,6 +1,7 @@
 //! Preflight for LLVMBuilder inputs. This checks machine types, symbols, SSA,
 //! CFG and supported operation shapes; it does NOT prove ZIL memory safety.
 use super::model::*;
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 type Result<T> = std::result::Result<T, String>;
@@ -48,6 +49,9 @@ fn alignment(a: u32) -> Result<()> {
 struct World<'a> {
     named: BTreeMap<&'a str, &'a Vec<Ty>>,
     symbols: BTreeMap<&'a str, &'a Item>,
+    // Request-local successful DAG summaries, including maximum nesting height.
+    // A shallow success alone cannot authorize a deeper use of the same type.
+    valid_named: RefCell<BTreeMap<String, usize>>,
 }
 impl<'a> World<'a> {
     fn ty(
@@ -56,28 +60,30 @@ impl<'a> World<'a> {
         allow_void: bool,
         stack: &mut BTreeSet<String>,
         depth: usize,
-    ) -> Result<()> {
+    ) -> Result<usize> {
         if depth > 128 {
             return fail("machine type nesting exceeds supported limit");
         }
-        match t {
-            Ty::Void if allow_void => {}
+        let height = match t {
+            Ty::Void if allow_void => 0,
             Ty::Void => return fail("void is not a stored/parameter machine type"),
-            Ty::Int(1 | 8 | 16 | 32 | 64) | Ty::Ptr => {}
+            Ty::Int(1 | 8 | 16 | 32 | 64) | Ty::Ptr => 0,
             Ty::Int(_) => return fail("unsupported machine integer width"),
             Ty::Array(n, element) => {
                 if *n > u32::MAX as u64 {
                     return fail("machine array length exceeds current profile");
                 }
-                self.ty(element, false, stack, depth + 1)?;
+                1 + self.ty(element, false, stack, depth + 1)?
             }
             Ty::Struct(fields) => {
                 if fields.len() > u32::MAX as usize {
                     return fail("too many struct fields");
                 }
+                let mut height = 0;
                 for f in fields {
-                    self.ty(f, false, stack, depth + 1)?;
+                    height = height.max(1 + self.ty(f, false, stack, depth + 1)?);
                 }
+                height
             }
             Ty::Named(name) => {
                 if !identifier(name) {
@@ -90,16 +96,27 @@ impl<'a> World<'a> {
                 if !stack.insert(name.clone()) {
                     return fail("recursive inline machine layout");
                 }
-                for f in fields.iter() {
-                    self.ty(f, false, stack, depth + 1)?;
+                if let Some(&height) = self.valid_named.borrow().get(name)
+                    && height <= 128 - depth
+                {
+                    stack.remove(name);
+                    return Ok(height);
                 }
+                // Insufficient height allowance follows the original ordered
+                // DFS, preserving its first error. Failed paths never publish.
+                let mut height = 0;
+                for f in fields.iter() {
+                    height = height.max(1 + self.ty(f, false, stack, depth + 1)?);
+                }
+                self.valid_named.borrow_mut().insert(name.clone(), height);
                 stack.remove(name);
+                height
             }
-        }
-        Ok(())
+        };
+        Ok(height)
     }
     fn check_ty(&self, t: &Ty, void: bool) -> Result<()> {
-        self.ty(t, void, &mut BTreeSet::new(), 0)
+        self.ty(t, void, &mut BTreeSet::new(), 0).map(|_| ())
     }
     fn fields<'b>(&'b self, t: &'b Ty) -> Result<&'b [Ty]> {
         match t {
@@ -735,6 +752,7 @@ pub(crate) fn validate(module: &Module) -> Result<Schedule> {
     let mut world = World {
         named: BTreeMap::new(),
         symbols: BTreeMap::new(),
+        valid_named: RefCell::new(BTreeMap::new()),
     };
     for item in &module.items {
         match item {
@@ -782,4 +800,141 @@ pub(crate) fn validate(module: &Module) -> Result<Schedule> {
         }
     }
     Ok(Schedule { functions })
+}
+
+#[cfg(test)]
+mod named_layout_tests {
+    use super::*;
+    impl World<'_> {
+        fn legacy_ty(
+            &self,
+            t: &Ty,
+            allow_void: bool,
+            stack: &mut BTreeSet<String>,
+            depth: usize,
+        ) -> Result<()> {
+            if depth > 128 {
+                return fail("machine type nesting exceeds supported limit");
+            }
+            match t {
+                Ty::Void if allow_void => {}
+                Ty::Void => return fail("void is not a stored/parameter machine type"),
+                Ty::Int(1 | 8 | 16 | 32 | 64) | Ty::Ptr => {}
+                Ty::Int(_) => return fail("unsupported machine integer width"),
+                Ty::Array(n, element) => {
+                    if *n > u32::MAX as u64 {
+                        return fail("machine array length exceeds current profile");
+                    }
+                    self.legacy_ty(element, false, stack, depth + 1)?;
+                }
+                Ty::Struct(fields) => {
+                    if fields.len() > u32::MAX as usize {
+                        return fail("too many struct fields");
+                    }
+                    for f in fields {
+                        self.legacy_ty(f, false, stack, depth + 1)?;
+                    }
+                }
+                Ty::Named(name) => {
+                    if !identifier(name) {
+                        return fail("invalid named machine type");
+                    }
+                    let fields = self
+                        .named
+                        .get(name.as_str())
+                        .ok_or_else(|| format!("undefined type {name}"))?;
+                    if !stack.insert(name.clone()) {
+                        return fail("recursive inline machine layout");
+                    }
+                    for f in fields.iter() {
+                        self.legacy_ty(f, false, stack, depth + 1)?;
+                    }
+                    stack.remove(name);
+                }
+            }
+            Ok(())
+        }
+    }
+    fn world(definitions: &[(String, Vec<Ty>)]) -> World<'_> {
+        World {
+            named: definitions
+                .iter()
+                .map(|(name, fields)| (name.as_str(), fields))
+                .collect(),
+            symbols: BTreeMap::new(),
+            valid_named: RefCell::new(BTreeMap::new()),
+        }
+    }
+    fn diamond(count: usize) -> Vec<(String, Vec<Ty>)> {
+        (0..count)
+            .map(|i| {
+                (
+                    format!("T{i}"),
+                    if i == 0 {
+                        vec![Ty::Int(32)]
+                    } else {
+                        vec![
+                            Ty::Named(format!("T{}", i - 1)),
+                            Ty::Named(format!("T{}", i - 1)),
+                        ]
+                    },
+                )
+            })
+            .collect()
+    }
+    #[test]
+    fn shared_layout_dag_is_bounded_by_nodes_and_depth_not_expanded_paths() {
+        let definitions = diamond(120);
+        let world = world(&definitions);
+        // The old DFS would visit more than 2^119 paths for this bounded input.
+        world.check_ty(&Ty::Named("T119".into()), false).unwrap();
+        assert_eq!(world.valid_named.borrow().len(), 120);
+        for i in 0..120 {
+            world.check_ty(&Ty::Named(format!("T{i}")), false).unwrap();
+        }
+        assert_eq!(world.valid_named.borrow().len(), 120);
+    }
+    #[test]
+    fn cached_shallow_success_never_hides_deeper_failure_or_first_error() {
+        let definitions = diamond(5);
+        let world = world(&definitions);
+        let named = Ty::Named("T4".into());
+        world.check_ty(&named, false).unwrap();
+        for depth in [0, 1, 123, 124, 125, 128, 129] {
+            let old = world.legacy_ty(&named, false, &mut BTreeSet::new(), depth);
+            let current = world
+                .ty(&named, false, &mut BTreeSet::new(), depth)
+                .map(|_| ());
+            assert_eq!(current, old, "depth {depth}");
+        }
+        let mut active = BTreeSet::from(["T4".into()]);
+        assert_eq!(
+            world.ty(&named, false, &mut active, 0).unwrap_err(),
+            "recursive inline machine layout"
+        );
+    }
+    #[test]
+    fn cyclic_missing_void_and_width_neighbors_match_original_dfs() {
+        for bad in [
+            Ty::Named("Missing".into()),
+            Ty::Named("T2".into()),
+            Ty::Void,
+            Ty::Int(7),
+            Ty::Named("bad name".into()),
+            Ty::Array(u64::MAX, Box::new(Ty::Int(8))),
+        ] {
+            for position in [0, 1] {
+                let mut definitions = diamond(5);
+                definitions[2].1[position] = bad.clone();
+                let world = world(&definitions);
+                for i in [0, 1, 4, 2, 3, 4] {
+                    let ty = Ty::Named(format!("T{i}"));
+                    assert_eq!(
+                        world.check_ty(&ty, false),
+                        world.legacy_ty(&ty, false, &mut BTreeSet::new(), 0)
+                    );
+                }
+            }
+        }
+    }
 }

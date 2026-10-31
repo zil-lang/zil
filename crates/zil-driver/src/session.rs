@@ -7,14 +7,14 @@ use std::sync::Arc;
 use std::time::Instant;
 use zil_backend_llvm::{BuildOptions, EmitOptions, EntryPoint};
 use zil_base::{
-    CompileResult, Diagnostic, Fingerprint, Phase, RULE_VERSION, ResultCategory, SCHEMA_VERSION,
-    SourceUnit,
+    CompileResult, Diagnostic, Fingerprint, Limits, Phase, RULE_VERSION, ResultCategory,
+    SCHEMA_VERSION, SourceUnit,
 };
 use zil_db::{
     ArtifactCache, CacheRead, CacheWriteError, Database, Dependency, FingerprintKind, QueryKey,
     QuerySnapshot, ResultFingerprints,
 };
-use zil_ir::{CandidatePlan, CoreModule, Type, TypedModule};
+use zil_ir::{CandidatePlan, CoreModule, Type, TypedModule, TypedProgram};
 use zil_syntax::ParseResult;
 
 /// Only unverified, immutable data can be retained across requests. There is no
@@ -29,6 +29,46 @@ pub(super) enum RawSnapshot {
     Project(Arc<super::project::ExpandedProject>),
     ProjectCore(Arc<zil_ir::CoreProgram>),
     ProjectTyped(Arc<zil_ir::TypedProgram>),
+}
+/// Shared raw ownership never carries verification authority. Each request
+/// independently checks the embedded module with its current limits and target.
+pub(super) enum TypedInput {
+    Module(Arc<TypedModule>),
+    Program(Arc<TypedProgram>),
+}
+impl TypedInput {
+    fn module(&self) -> &TypedModule {
+        match self {
+            Self::Module(m) => m,
+            Self::Program(p) => &p.module,
+        }
+    }
+    fn program(&self) -> Option<&TypedProgram> {
+        match self {
+            Self::Module(_) => None,
+            Self::Program(p) => Some(p),
+        }
+    }
+    fn verify(
+        &self,
+        candidate: Arc<CandidatePlan>,
+        options: &CompileOptions,
+    ) -> CompileResult<zil_verify::VerifiedModule> {
+        match self {
+            Self::Module(m) => zil_verify::verify_shared_module(
+                m.clone(),
+                candidate,
+                &options.target,
+                &options.limits,
+            ),
+            Self::Program(p) => zil_verify::verify_shared_program_module(
+                p.clone(),
+                candidate,
+                &options.target,
+                &options.limits,
+            ),
+        }
+    }
 }
 impl RawSnapshot {
     /// Identity of a deterministic, private, process-local construction. This is
@@ -73,6 +113,8 @@ pub struct CompilationSession {
     pub(super) database: Database,
     pub(super) raw: BTreeMap<QueryKey, RawSnapshot>,
     pub(super) capacity: usize,
+    recency: BTreeMap<QueryKey, u64>,
+    clock: u64,
 }
 impl Default for CompilationSession {
     fn default() -> Self {
@@ -85,17 +127,33 @@ impl CompilationSession {
             database: Database::default(),
             raw: BTreeMap::new(),
             capacity: capacity.max(8),
+            recency: BTreeMap::new(),
+            clock: 0,
         }
     }
     pub fn clear(&mut self) {
         self.database.clear();
         self.raw.clear();
+        self.recency.clear();
+        self.clock = 0;
     }
     pub fn cached_query_count(&self) -> usize {
         self.raw.len()
     }
     pub fn active_query_count(&self) -> usize {
         self.database.active_count()
+    }
+    /// Successful syntax is independent of preceding modules' consumption.
+    /// Insufficient receipts use the original quota-specific query/parser so
+    /// the first error, source span and partial work remain unchanged.
+    pub(super) fn parse_key(&self, source: &SourceUnit, options: &CompileOptions) -> QueryKey {
+        let key = parse_identity(source, options);
+        if matches!(self.raw.get(&key), Some(RawSnapshot::Parse(parsed)) if !parsed.fits_limits(&options.limits))
+        {
+            query_key(source, options, Phase::Parse, false)
+        } else {
+            key
+        }
     }
     pub fn compile_path(&mut self, path: &Path, options: &CompileOptions) -> CompileReport {
         self.compile_project_path(path, options)
@@ -115,16 +173,42 @@ impl CompilationSession {
         options: &CompileOptions,
         observer: &mut dyn FnMut(&QueryEvent),
     ) -> CompileReport {
-        if self.raw.len() > self.capacity {
-            self.clear();
-        }
         let start = Instant::now();
         let mut report = CompileReport::new(source);
         if let Err(errors) = self.pipeline(source, options, &mut report, observer) {
             report.fail(errors);
         }
+        self.trim_history();
         report.seconds = start.elapsed().as_secs_f64();
         report
+    }
+
+    fn touch(&mut self, key: &QueryKey) {
+        self.clock = self.clock.saturating_add(1);
+        self.recency.insert(key.clone(), self.clock);
+    }
+
+    /// Bound retained raw snapshots without deleting the current query graph.
+    /// Dependency metadata is retained only while reachable from a raw root.
+    /// Eviction occurs between requests, never while borrowed inputs execute.
+    pub(super) fn trim_history(&mut self) {
+        if self.raw.len() <= self.capacity {
+            return;
+        }
+        let mut oldest = self
+            .recency
+            .iter()
+            .map(|(key, &age)| (age, key.clone()))
+            .collect::<Vec<_>>();
+        oldest.sort_unstable();
+        for (_, key) in oldest.into_iter().take(self.raw.len() - self.capacity) {
+            self.raw.remove(&key);
+            self.recency.remove(&key);
+        }
+        // The driver closes/aborts every query before a request returns. If a
+        // future path violates that invariant, preserve state rather than GC an
+        // in-progress dependency; active-query controls detect that defect.
+        self.database.retain_reachable(self.raw.keys());
     }
 
     pub(super) fn query(
@@ -149,6 +233,7 @@ impl CompilationSession {
                 .check(key.phase)
                 .map_err(|error| vec![error])?;
             report.cache_hit = true;
+            self.touch(&key);
             return Ok((raw, snapshot));
         }
         self.database
@@ -196,6 +281,7 @@ impl CompilationSession {
                 digest.0.to_vec(),
             )
             .map_err(|error| vec![error])?;
+        self.touch(&key);
         self.raw.insert(key, raw.clone());
         Ok((raw, snapshot))
     }
@@ -226,13 +312,13 @@ impl CompilationSession {
             )]);
         }
         let artifacts = ArtifactPlan::new(source, options)?;
-        let parse_key = query_key(source, options, Phase::Parse, false);
-        disk_source(source, options, report, &parse_key)?;
+        let identity = query_key(source, options, Phase::Parse, false);
+        disk_source(source, options, report, &identity)?;
         // These immutable identities describe this request, not a proof. Reuse
         // them vertically instead of rehashing source bytes for every phase.
         let target = options.target.fingerprint();
-        let key =
-            |phase, depends_on_target| phase_key(&parse_key, phase, depends_on_target, target);
+        let key = |phase, depends_on_target| phase_key(&identity, phase, depends_on_target, target);
+        let parse_key = self.parse_key(source, options);
         let (parsed, parse_snapshot) =
             self.query(parse_key.clone(), &[], options, report, observer, || {
                 let parsed = zil_syntax::parse_with_limits(source, &options.limits);
@@ -363,10 +449,9 @@ impl CompilationSession {
             options,
             report,
             observer,
-            &typed,
+            TypedInput::Module(typed),
             typed_snapshot,
             artifacts,
-            None,
         )
     }
 
@@ -376,10 +461,9 @@ impl CompilationSession {
         options: &CompileOptions,
         report: &mut CompileReport,
         observer: &mut dyn FnMut(&QueryEvent),
-        typed: &TypedModule,
+        typed: TypedInput,
         typed_snapshot: Arc<QuerySnapshot>,
         artifacts: ArtifactPlan,
-        project: Option<&zil_ir::TypedProgram>,
     ) -> CompileResult<()> {
         // Types and Analyze depend on the same complete request identity. The
         // cached raw result is still independently checked below on every call.
@@ -392,7 +476,7 @@ impl CompilationSession {
             report,
             observer,
             || {
-                zil_analyze::analyze(typed, &options.limits)
+                zil_analyze::analyze(typed.module(), &options.limits)
                     .map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
             },
         )?;
@@ -413,18 +497,14 @@ impl CompilationSession {
             .check(Phase::Verify)
             .map_err(|error| vec![error])?;
         report.verification_runs += 1;
-        let verified = zil_verify::verify_module(
-            typed.clone(),
-            (*candidate).clone(),
-            &options.target,
-            &options.limits,
-        );
+        let verified = typed.verify(candidate, options);
         event(Phase::Verify, QueryDisposition::Executed, report, observer);
         options
             .cancellation
             .check(Phase::Verify)
             .map_err(|error| vec![error])?;
         let verified = verified?;
+        let project = typed.program();
         report.phase = Phase::Verify;
         super::contracts::publish(&verified, &mut report.scalar_interfaces)?;
         if project.is_some() {
@@ -442,7 +522,7 @@ impl CompilationSession {
         if options.stop_after == Stage::Verify {
             return Ok(());
         }
-        let lir = zil_lower::lower(&verified)?;
+        let lir = zil_lower::lower_view(&verified)?;
         event(Phase::Lower, QueryDisposition::Executed, report, observer);
         options
             .cancellation
@@ -518,9 +598,10 @@ impl CompilationSession {
         // itself is a single external build step; this API does not claim to
         // interrupt a linker already running. Outputs stay in a private directory
         // until the last cancellation check and all fallible dumps have finished.
-        let artifact = zil_backend_llvm::build_with_cancellation(&verified, &lir, &build, &|| {
-            options.cancellation.check(Phase::Link).is_err()
-        })?;
+        let artifact =
+            zil_backend_llvm::build_view_with_cancellation(&verified, &lir, &build, &|| {
+                options.cancellation.check(Phase::Link).is_err()
+            })?;
         event(Phase::Link, QueryDisposition::Executed, report, observer);
         if let Err(error) = options.cancellation.check(Phase::Link) {
             return Err(vec![error]);
@@ -560,6 +641,15 @@ pub(super) fn query_key(
     phase: Phase,
     target_dependent: bool,
 ) -> QueryKey {
+    query_key_with_limits(source, options, phase, target_dependent, &options.limits)
+}
+fn query_key_with_limits(
+    source: &SourceUnit,
+    options: &CompileOptions,
+    phase: Phase,
+    target_dependent: bool,
+    limits: &Limits,
+) -> QueryKey {
     let mut input = b"ZIL-DRIVER-SOURCE-2\0".to_vec();
     input.extend_from_slice(&source.file_id.0.to_le_bytes());
     input.extend_from_slice(&source.module_id.0.to_le_bytes());
@@ -571,7 +661,6 @@ pub(super) fn query_key(
         env!("CARGO_PKG_VERSION")
     )
     .into_bytes();
-    let limits = &options.limits;
     for value in [
         limits.max_source_bytes as u64,
         limits.max_tokens as u64,
@@ -599,6 +688,16 @@ pub(super) fn query_key(
             Fingerprint::ZERO
         },
     }
+}
+fn parse_identity(source: &SourceUnit, options: &CompileOptions) -> QueryKey {
+    let mut neutral = options.limits.clone();
+    neutral.max_tokens = 0;
+    neutral.max_nodes = 0;
+    let mut key = query_key_with_limits(source, options, Phase::Parse, false, &neutral);
+    let mut rules = b"ZIL-PARSE-RECEIPT-CP33-v1\0".to_vec();
+    rules.extend_from_slice(&key.rules.0);
+    key.rules = Fingerprint::of(&rules);
+    key
 }
 pub(super) fn phase_key(
     identity: &QueryKey,
@@ -825,5 +924,109 @@ mod construction_identity150_tests {
             base,
             raw.digest(&query_key(&source, &changed, Phase::Parse, false), &[])
         );
+    }
+}
+
+#[cfg(test)]
+mod bounded_history_tests {
+    use super::*;
+    use zil_base::{FileId, ModuleId};
+
+    fn project(n: u32) -> ProjectSources {
+        ProjectSources {
+            root: ModuleId(0),
+            paths: BTreeMap::new(),
+            modules: (0..n)
+                .map(|i| {
+                    SourceUnit::new(
+                        FileId(i),
+                        ModuleId(i),
+                        format!("history-{i}.zil"),
+                        format!("fn f{i}()->i32 {{ return {i}; }}"),
+                    )
+                })
+                .collect(),
+        }
+    }
+    fn success(report: &CompileReport) {
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    fn equivalent(a: &CompileReport, b: &CompileReport) {
+        assert_eq!(a.status, b.status);
+        assert_eq!(a.phase, b.phase);
+        assert_eq!(a.diagnostics, b.diagnostics);
+        assert_eq!(a.scalar_interfaces, b.scalar_interfaces);
+        assert_eq!(a.input_fingerprint, b.input_fingerprint);
+        assert_eq!(a.verification_runs, b.verification_runs);
+    }
+    #[test]
+    fn large_current_projects_reuse_semantics_across_the_old_capacity_cliff() {
+        for n in [28, 29, 40, 128] {
+            for capacity in [8, 32] {
+                let p = project(n);
+                let options = CompileOptions::default();
+                let mut session = CompilationSession::with_capacity(capacity);
+                success(&session.compile_project(&p, &options));
+                for _ in 0..3 {
+                    let warm = session.compile_project(&p, &options);
+                    success(&warm);
+                    for phase in [Phase::Expand, Phase::Ct, Phase::Types, Phase::Analyze] {
+                        assert!(
+                            warm.query_events.iter().any(|event| event.phase == phase
+                                && event.disposition == QueryDisposition::Reused),
+                            "n={n} capacity={capacity} phase={phase:?}"
+                        );
+                    }
+                    assert!(session.raw.len() <= capacity);
+                    assert_eq!(session.raw.len(), session.recency.len());
+                    assert_eq!(session.database.len(), n as usize + 4);
+                    assert_eq!(session.active_query_count(), 0);
+                }
+            }
+        }
+    }
+    #[test]
+    fn edits_errors_cancellation_and_eviction_match_fresh_without_growing_history() {
+        let mut p = project(40);
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::with_capacity(8);
+        for edit in 0..48 {
+            p.modules[0].text = format!("fn f0()->i32 {{ return {edit} + 0; }}");
+            let current = session.compile_project(&p, &options);
+            success(&current);
+            equivalent(
+                &current,
+                &CompilationSession::default().compile_project(&p, &options),
+            );
+            assert!(session.raw.len() <= 8);
+            // Roots include only this request's late Parse and semantic stages;
+            // previous source epochs are not immortal dependency receipts.
+            assert_eq!(session.database.len(), 44);
+            let mut invalid = p.clone();
+            invalid.modules[1].text = "fn f1()->i32 { return true; }".into();
+            let rejected = session.compile_project(&invalid, &options);
+            assert_ne!(rejected.status, ResultCategory::Success);
+            equivalent(
+                &rejected,
+                &CompilationSession::default().compile_project(&invalid, &options),
+            );
+            let cancelled = CompileOptions::default();
+            cancelled.cancellation.cancel();
+            let stopped = session.compile_project(&p, &cancelled);
+            assert_eq!(stopped.status, ResultCategory::Cancelled);
+            assert_eq!(session.active_query_count(), 0);
+            assert!(session.raw.len() <= 8);
+        }
+        session.clear();
+        assert!(session.database.is_empty());
+        assert!(session.raw.is_empty());
+        assert!(session.recency.is_empty());
+        success(&session.compile_project(&p, &CompileOptions::default()));
     }
 }

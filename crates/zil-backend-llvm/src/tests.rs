@@ -988,6 +988,10 @@ fn tampered_lir_is_rejected_before_invoking_tools_or_creating_outputs() {
         options.clang = directory.0.join("no-such-compiler");
         options.emit.entry = EntryPoint::ReturnValue(FunctionId(0));
         let errors = build(&verified, &mutant, &options).unwrap_err();
+        let view_errors =
+            build_view_with_cancellation(&verified, &mutant.as_view(), &options, &|| false)
+                .unwrap_err();
+        assert_eq!(errors, view_errors);
         assert_eq!(errors[0].code, "E-CODEGEN-UNBOUND-LIR");
         assert_eq!(errors[0].category, ResultCategory::SafeReject);
         assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 0);
@@ -1466,4 +1470,30 @@ fn changing_any_lir_closure_claim_is_rejected_before_tools_or_output() {
         assert_eq!(errors[0].category, ResultCategory::SafeReject);
         assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 0);
     }
+}
+
+#[test]
+fn borrowed_lir_aliases_bind_length_and_the_current_capability() {
+    let verified = checked_simple(returning(Constant::I64(1024)));
+    let original = lir(&verified);
+    let mut view = original.as_view();
+    view.functions = verified.module().functions.as_slice();
+    let options = EmitOptions::default();
+    assert_eq!(
+        crate::emit::lower_view_with_options(&verified, &view, &options).unwrap(),
+        crate::emit::lower_with_options(&verified, &original, &options).unwrap()
+    );
+    view.functions = &verified.module().functions[..0];
+    assert_eq!(view.functions.as_ptr(), verified.module().functions.as_ptr());
+    assert_eq!(
+        crate::emit::lower_view_with_options(&verified, &view, &options).unwrap_err()[0].code,
+        "E-CODEGEN-UNBOUND-LIR"
+    );
+    let other = checked_simple(returning(Constant::I64(99)));
+    view.functions = verified.module().functions.as_slice();
+    view.verified_fingerprint = other.fingerprint();
+    assert_eq!(
+        crate::emit::lower_view_with_options(&other, &view, &options).unwrap_err()[0].code,
+        "E-CODEGEN-UNBOUND-LIR"
+    );
 }

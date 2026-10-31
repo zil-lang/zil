@@ -3,7 +3,9 @@
 use crate::EntryPoint;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{FileId, Fingerprint};
+#[cfg(test)]
 use zil_ir::LirModule;
+use zil_ir::LirView;
 use zil_llvm_api::model::{Item, Module};
 
 pub(crate) struct Plan {
@@ -17,7 +19,16 @@ struct Definition {
     refs: BTreeSet<String>,
 }
 
+#[cfg(test)]
 pub(crate) fn partition(module: Module, lir: &LirModule, entry: EntryPoint, count: usize) -> Plan {
+    partition_view(module, &lir.as_view(), entry, count)
+}
+pub(crate) fn partition_view(
+    module: Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    count: usize,
+) -> Plan {
     let fallback = |module, reason| Plan {
         units: vec![module],
         fallback: Some(reason),
@@ -75,7 +86,7 @@ pub(crate) fn partition(module: Module, lir: &LirModule, entry: EntryPoint, coun
     let mut sets = Sets((0..defs.len()).collect());
     let mut files = BTreeMap::<FileId, usize>::new();
     let mut source_ids = Vec::new();
-    for function in &lir.functions {
+    for function in lir.functions {
         if function.foreign.is_some() {
             continue;
         }

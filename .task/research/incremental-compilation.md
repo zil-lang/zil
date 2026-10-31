@@ -18,5 +18,13 @@
 
 ## 往来
 
+## 第二阶段：持续推进组合实现与完整计量
+
+用户明确要求本轮持续推进至候选收敛与端到端验证，不以首个补丁完成作为停点。基线为 `5d7c1eeb2b74052eb239e19529dc5a943c6622a3`；规范身份保持上述值。
+
+追加写集：`crates/zil-db/src/**`、`crates/zil-driver/src/session.rs`、`crates/zil-driver/src/project.rs`、`crates/zil-driver/src/lib.rs`、`crates/zil-driver/tests/**`、`crates/zil-ir/src/lib.rs`、`crates/zil-ir/tests/**`、`crates/zil-verify/src/lib.rs`、`crates/zil-syntax/src/**`、`crates/zil-syntax/tests/**`、`crates/zil-llvm-api/src/preflight.rs`、`crates/zil-lower/src/lib.rs`、`crates/zil-backend-llvm/src/**`、`crates/zil-expand/src/lib.rs`、`crates/zil-expand/src/ct_selection.rs`、`crates/zil-expand/src/receivers.rs`，以及本专项工具、文档和证据。不得改变语言接受集、逻辑额度、原始指纹编码、公共Wire或产品阈值。
+
+先组合CP34流式编码与CP35共享核验输入的可审计部分，修复Session全清策略，继续减少热路径重复求值。每候选记录隔离效果、失败、资源边界与fresh对照，最终在完整CLI与连续Session中分别计量；性能没有证据的候选不直接算收益。
+
 - 2026-10-31：从远端 main 建立专项；首片优先消除未用外部声明对所有 CGU 的失效放大。当前 Session 容量断崖、整项目语义重做及核验/Lower 重复成本已定位，后续依纵向路线继续。
 - 2026-10-31：首片实现 `665a0a06dc36a94f19e9ee8bbcd87fab321c6423` 已推送；限定64测试通过，后端Clippy通过。按独审意见收紧错误拒绝断言，最终功能审核绑定 `8fb69d61b41a241806e7021de93a27ce7e213f7b` 为Pass。200次完整CLI screen和200次native均通过；收益限于声明失效控制，保留private编辑约1.1%不利点估计，未宣称产品突破。长期专项继续Doing，main未集成。

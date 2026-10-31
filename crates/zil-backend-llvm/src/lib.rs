@@ -34,7 +34,7 @@ use zil_ir::FunctionId;
 
 pub use build::{
     BuildArtifact, BuildOptions, CodegenOptions, CodegenSummary, NativeBackend, Optimization,
-    WindowsLinkOptions, build, build_with_cancellation,
+    WindowsLinkOptions, build, build_view_with_cancellation, build_with_cancellation,
 };
 pub use emit::{emit, emit_with_options};
 
