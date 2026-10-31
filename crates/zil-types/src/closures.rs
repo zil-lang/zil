@@ -1543,10 +1543,19 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             ));
         };
         if ty.is_package_address() {
-            return Err(unsupported(
-                span,
-                "Store element address capture requires a separate retained element-window contract",
-            ));
+            let Type::Address {
+                mutable: false,
+                inner,
+            } = ty
+            else {
+                return Err(unsupported(
+                    span,
+                    "mutable Product capture is not implemented",
+                ));
+            };
+            // This is shape admission, not origin authority. Analyze and Verify
+            // independently exclude dynamic Store and unknown incoming roots.
+            packages::product::validate(inner, self.work_left, self.limits.max_call_depth, span)?;
         }
         if ty.is_shared_resource_head_address() {
             return Err(unsupported(
@@ -1654,6 +1663,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             }
             Type::Address { mutable, inner } if inner.is_copy_value() => {
                 (inner.as_ref(), Some(*mutable))
+            }
+            Type::Address {
+                mutable: false,
+                inner,
+            } if matches!(inner.as_ref(), Type::Package { .. }) => {
+                // Complete Product qualification was charged above. Capturing
+                // the address keeps a loan; it never creates an owning slot.
+                (inner.as_ref(), Some(false))
             }
             _ => {
                 return Err(unsupported(
