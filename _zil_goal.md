@@ -180,3 +180,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-31 施工10并行接续
 
 从aaeb67f12接续，230有限Unit/Tuple enum生成与231既有名义trait where正规化按独立写集施工；225/226先核精确来源、独审与最新集成回归再合入。227普通defer仍需注册/必须执行/清理顺序完整合同，不能用FnOnce最多一次代替必须执行。B0/181与完整1.4/ZUI/Rust产品门保持原状态。
+
+## 2026-10-31 施工10验收225/226/230/231
+
+四片有限能力经三位非作者绑定P2 `75d08022213a5da96e1968d7fe7d1d1e341b5907` 审查，PR14合入实际M `9e7072b1ebdc6900c7370863c27c7432953bd830`。PR/main runs 41184530698/41186163758 各25步骤通过，默认2976/0/0、reference2933/0/0，零过滤；原首轮Fail与恢复边界完整保留。source/schema/Wire27、默认预算及产品门不改。见docs/LANGUAGE-CONSTRUCTION10.md和新final-summary。下一优先默认只读Product捕获及227注册/必须执行合同；完整1.4/ZUI、B0/181、四目标产品和原生Windows状态保持，未合编译研究支线保留。
