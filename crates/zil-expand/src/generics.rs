@@ -176,7 +176,7 @@ fn specialize_with_budget<'a>(
     budget: Budget<'a>,
 ) -> R<Module> {
     let mut engine = Engine::with_budget(module, limits, pattern_types, budget)?;
-    if !engine.callable_nominal_collision {
+    if !engine.nominal_binder_collision {
         return engine.run(module);
     }
     // Generated aggregates no longer carry the original generic declaration.
@@ -184,10 +184,10 @@ fn specialize_with_budget<'a>(
     // before substituting a caller binder into those aggregate fields.
     let protected = super::modules::protect_alias_nominals(module, &mut engine.budget)?;
     let mut engine = Engine::with_budget(&protected, limits, pattern_types, engine.budget)?;
-    if engine.callable_nominal_collision {
+    if engine.nominal_binder_collision {
         return Err(error(
             module.span,
-            "callable binder still collides with a nominal identity after scoped normalization",
+            "type binder still collides with a nominal identity after scoped normalization",
         ));
     }
     engine.run(&protected)
@@ -207,7 +207,7 @@ struct Engine<'a> {
     inferred_state_values: BTreeSet<String>,
     has_store_templates: bool,
     has_single_state_values: bool,
-    callable_nominal_collision: bool,
+    nominal_binder_collision: bool,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
     instances: BTreeMap<(String, Vec<String>), String>,
@@ -272,7 +272,7 @@ impl<'a> Engine<'a> {
             inferred_state_values: BTreeSet::new(),
             has_store_templates: false,
             has_single_state_values: false,
-            callable_nominal_collision: false,
+            nominal_binder_collision: false,
             signatures: BTreeMap::new(),
             foreign_signatures: BTreeMap::new(),
             instances: BTreeMap::new(),
@@ -346,12 +346,21 @@ impl<'a> Engine<'a> {
                 // This parameter/name was already charged by item preflight.
                 // Borrow the existing nominal index; do not add a global scan,
                 // name copy or a hygiene pass to the noncolliding old path.
-                if callable
-                    .as_ref()
-                    .is_some_and(|bounds| bounds.contains_generic(&parameter.name))
-                    && engine.nominals.contains_key(&parameter.name)
-                {
-                    engine.callable_nominal_collision = true;
+                if engine.nominals.contains_key(&parameter.name) {
+                    if callable
+                        .as_ref()
+                        .is_some_and(|bounds| bounds.contains_generic(&parameter.name))
+                    {
+                        // Preserve the already-accounted callable protection path.
+                        engine.nominal_binder_collision = true;
+                    } else if matches!(parameter.kind, GenericParamKind::Type(_)) {
+                        // Ordinary type binders need the same nominal isolation.
+                        // Do not inspect a symbolic body against an ambiguously
+                        // named nominal table: the caller first protects the
+                        // fully prepaid AST, then validates that scoped module.
+                        engine.nominal_binder_collision = true;
+                        return Ok(engine);
+                    }
                 }
                 if !seen.insert(&parameter.name) {
                     return Err(error(parameter.span, "duplicate type parameter"));
