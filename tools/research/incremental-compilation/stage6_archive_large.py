@@ -86,17 +86,25 @@ def roots_for(kind, repo, research):
             '.github/workflows/verify-main.yml', 'tools/ci/research_disk_space.py',
             'changes/research-ci-disk-recovery.md',
         ]]
-    elif kind == 'llvm-entry':
-        plan_path = repo / 'evidence/research/incremental-compilation/stage6/llvm-entry-plan.json'
+    elif kind == 'screen-cache-cleanup':
+        roots = sorted(stage.glob('archived-rust-incremental-cleanup-*'))
+        tools = []
+    elif kind == 'ci-main-412093':
+        roots = [stage / ('github-41209327141-' + name) for name in [
+            'run.json', 'jobs.json', 'artifacts.json', 'logs.zip',
+        ]]
+        tools = []
+    elif kind in ['llvm-entry', 'llvm-lvi', 'llvm-cfg', 'llvm-ssa']:
+        plan_path = repo / ('evidence/research/incremental-compilation/stage6/' + kind + '-plan.json')
         plan = json.loads(plan_path.read_text())
         roots = [research / name for name in plan['research_roots']]
-        tools = ['jump_threading_plugin']
+        tools = plan.get('tools', ['jump_threading_plugin'])
         extra_sources = [plan_path] + [repo / name for name in plan['repo_extra_sources']]
         external_sources = [(row['logical_path'], Path(row['path'])) for row in plan['external_sources']]
         for row in plan['tool_source_inventory']:
             path = repo / row['path']
             require(path.is_file() and path.stat().st_size == row['bytes']
-                    and sha(path) == row['sha256'], 'frozen v1 tool source differs: ' + row['path'])
+                    and sha(path) == row['sha256'], 'frozen tool source differs: ' + row['path'])
     elif kind == 'scalar-screens':
         roots = sorted(p for p in stage.iterdir() if p.name.startswith('scalar-screen-'))
         roots.append(stage / 'scalar-screens.log')
@@ -161,7 +169,7 @@ def reason_for(path, header, size):
     if path.is_symlink():
         return 'symlink-target-recorded-without-dereference'
     # Native stdin and actual perf samples are evidence, regardless of suffix.
-    if path.name in ['input.bin', 'expected.bin', 'perf.data']:
+    if path.name in ['input.bin', 'perf.data'] or path.name.endswith('expected.bin'):
         return None
     if '__pycache__' in path.parts or path.suffix == '.pyc':
         return 'generated-python-bytecode'
@@ -295,6 +303,14 @@ def add_path(bundle, name, path, size, key):
 def collect(args):
     require(not args.out.exists(), 'output directory already exists')
     roots = roots_for(args.kind, args.repo, args.research)
+    planned_omissions = {}
+    planned_preservation = set()
+    if args.kind in ['llvm-entry', 'llvm-lvi', 'llvm-cfg', 'llvm-ssa']:
+        plan_path = args.repo / ('evidence/research/incremental-compilation/stage6/' + args.kind + '-plan.json')
+        plan = json.loads(plan_path.read_text())
+        planned_omissions = plan.get('omission_paths', {})
+        planned_preservation = set(plan.get('preserve_paths', []))
+        require(not planned_preservation.intersection(planned_omissions), 'conflicting planned dispositions')
     args.out.mkdir(parents=True)
     print(json.dumps({'phase': 'start', 'kind': args.kind, 'pid': os.getpid()}), flush=True)
     write_json(args.out / 'ROOTS.json', [{'prefix': name, 'source_path': str(path)} for name, path in roots])
@@ -324,6 +340,11 @@ def collect(args):
             require((before.st_size, before.st_mtime_ns, before.st_mode) ==
                     (after.st_size, after.st_mtime_ns, after.st_mode), 'input changed during capture')
             reason = reason_for(path, header, before.st_size)
+            if name in planned_omissions:
+                reason = planned_omissions[name]
+            if name in planned_preservation:
+                require(not path.is_symlink(), 'planned payload preservation requires a regular file')
+                reason = None
             row = {'path': name, 'source_path': str(path), 'bytes': before.st_size,
                    'mode': stat.S_IMODE(before.st_mode), 'sha256': key,
                    'sha256_scope': 'symlink-target-text' if path.is_symlink() else 'file-bytes'}
@@ -374,6 +395,9 @@ def collect(args):
                   'Frozen ac4 upstream integration scoped correctness and 888 matching DB unit-test repair, independent review and retained fixture/CI failures. Exact review/worktree/target trees and active API/plugin/runtime/SSA work are excluded. The later in-progress CI run is not a pass or an archived completed run. Includes identity-bound old Rust-cache cleanup receipts.' if args.kind == 'integration-correctness' else
                   'CI disk recovery only: original 41207249551 ENOSPC failure, empty downloaded logs, author/reviewer controls, root-discovered sudo-parent and umask corrections, and actual uploaded cleanup receipt from still-in-progress 41209327141. Receipt Pass is not a whole-CI or compiler-test Pass.' if args.kind == 'ci-disk' else
                   'Frozen independent entry-preserving JumpThreading v1: original/entry clone, native DSOs, ac4 API pair and two independent reviews with all failure epochs. Preserves cache ZIP controls, native input/oracle bytes and official-baseline perf; these are not final combined or formal end-to-end performance results. SDK/archive and reproducible source trees have explicit SHA-bound receipt exclusions; active SSA/LVI/CFG/runtime work is excluded.' if args.kind == 'llvm-entry' else
+                  'Exact 36 old-screen Rust incremental-cache cleanup after full SHA comparison with frozen archive identities. Preserves initial schema-check failure before any deletion and complete verification/deletion receipts. No source/test/target or old evidence package deletion.' if args.kind == 'screen-cache-cleanup' else
+                  'Completed successful official CI run 41209327141 on exact head 2e8f8c1f6e4bcb92d829cfa91cc4582c230f1e3e: raw run/jobs/artifact-list metadata and full downloaded logs ZIP. This is not CI acceptance of later combined toolchains, new research workflow or current HEAD. Prior in-progress receipts remain frozen separately.' if args.kind == 'ci-main-412093' else
+                  'Frozen isolated ' + args.kind + ' candidate sources, licenses, functional diagnostics, failure epochs and independent reviews. No combined-toolchain, final runtime or formal performance acceptance. Selected compiled artifacts are identity-inventoried; original input/oracle/perf bytes are retained.' if args.kind in ['llvm-lvi', 'llvm-cfg', 'llvm-ssa'] else
                   'Two complete scalar screening windows, 160 requests each; two-block screening only.' if args.kind == 'scalar-screens' else
                   'Frozen pass/SLP/perf diagnostics and ca79 profiles. Initial instrumentation failures, invalid SLP setter ablation, adaptive NotRun cases and perf permission failures remain distinct; no formal exclusive timing claim. Active jump-threading plugin candidates and SDK/build targets are outside scope.' if args.kind == 'diagnostics' else
                   'Syntax author/reviewer correctness, failed initial fixtures, fixed controls and root build identities. Exact source checkouts/shared targets are outside scope; commit/source receipts retain their identities. Formal syntax Session windows are separate.' if args.kind == 'syntax-correctness' else
@@ -460,7 +484,7 @@ def verify(root, destination=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--kind', choices=['session', 'session-review', 'syntax-session', 'syntax-session-review', 'integration-correctness', 'ci-disk', 'llvm-entry', 'scalar-screens', 'scalar-correctness', 'diagnostics', 'syntax-correctness'])
+    parser.add_argument('--kind', choices=['session', 'session-review', 'syntax-session', 'syntax-session-review', 'integration-correctness', 'ci-disk', 'ci-main-412093', 'screen-cache-cleanup', 'llvm-entry', 'llvm-lvi', 'llvm-cfg', 'llvm-ssa', 'scalar-screens', 'scalar-correctness', 'diagnostics', 'syntax-correctness'])
     parser.add_argument('--repo', type=Path, default=Path.cwd())
     parser.add_argument('--research', type=Path, default=Path('/workspace/.zil-env/research'))
     parser.add_argument('--out', type=Path)
