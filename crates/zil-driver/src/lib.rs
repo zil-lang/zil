@@ -18,7 +18,8 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 pub use zil_backend_llvm::{
-    CodegenOptions, CodegenSummary, NativeBackend, Optimization, WindowsLinkOptions,
+    CodegenOptions, CodegenSummary, FunctionMerging, NativeBackend, Optimization,
+    WindowsLinkOptions,
 };
 use zil_base::{
     CompileResult, Diagnostic, FileId, Fingerprint, Limits, ModuleId, Phase, ResultCategory,
@@ -73,6 +74,8 @@ pub struct CompileOptions {
     pub closed_executable: bool,
     /// Explicit O2 partitioning with bounded cross-unit body imports.
     pub incremental_o2: bool,
+    /// O2 function-merging policy, with address-preserving reference controls.
+    pub function_merging: FunctionMerging,
     pub codegen: CodegenOptions,
     pub windows: Option<zil_backend_llvm::WindowsLinkOptions>,
     pub target: TargetProfile,
@@ -98,6 +101,7 @@ impl Default for CompileOptions {
             optimization: zil_backend_llvm::Optimization::O0,
             closed_executable: false,
             incremental_o2: false,
+            function_merging: FunctionMerging::Disabled,
             codegen: CodegenOptions::default(),
             windows: None,
             target: TargetProfile::host_llvm(),

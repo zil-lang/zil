@@ -597,16 +597,83 @@ fn large_file_chunks_preserve_owned_closures_drop_and_function_addresses() {
     source += "fn late()->i32{let t=make(66);let f=move()=>t.code;let p:fn(i32)->i32=padding0;return f()+p(0)-67;}\nfn main()->i32{return early()+late();}\n";
     d.write("main.zil", &source);
     let mut o = d.options(8, Optimization::O0);
-    for (backend, closed, optimization, incremental) in [
-        (NativeBackend::LlvmApi, false, Optimization::O0, false),
-        (NativeBackend::LlvmApi, true, Optimization::O0, false),
-        (NativeBackend::Clang, true, Optimization::O0, false),
-        (NativeBackend::LlvmApi, false, Optimization::O2, true),
-        (NativeBackend::LlvmApi, true, Optimization::O2, true),
-        (NativeBackend::Clang, true, Optimization::O2, true),
+    use zil_driver::FunctionMerging::{AfterOptimization, BeforeAndAfter, Disabled};
+    for (backend, closed, optimization, incremental, merging) in [
+        (
+            NativeBackend::LlvmApi,
+            false,
+            Optimization::O0,
+            false,
+            Disabled,
+        ),
+        (
+            NativeBackend::LlvmApi,
+            true,
+            Optimization::O0,
+            false,
+            Disabled,
+        ),
+        (
+            NativeBackend::Clang,
+            true,
+            Optimization::O0,
+            false,
+            Disabled,
+        ),
+        (
+            NativeBackend::LlvmApi,
+            false,
+            Optimization::O2,
+            true,
+            Disabled,
+        ),
+        (
+            NativeBackend::LlvmApi,
+            true,
+            Optimization::O2,
+            true,
+            Disabled,
+        ),
+        (NativeBackend::Clang, true, Optimization::O2, true, Disabled),
+        (
+            NativeBackend::LlvmApi,
+            false,
+            Optimization::O2,
+            true,
+            AfterOptimization,
+        ),
+        (
+            NativeBackend::LlvmApi,
+            true,
+            Optimization::O2,
+            true,
+            AfterOptimization,
+        ),
+        (
+            NativeBackend::LlvmApi,
+            false,
+            Optimization::O2,
+            true,
+            BeforeAndAfter,
+        ),
+        (
+            NativeBackend::LlvmApi,
+            true,
+            Optimization::O2,
+            true,
+            BeforeAndAfter,
+        ),
+        (
+            NativeBackend::Clang,
+            true,
+            Optimization::O2,
+            true,
+            AfterOptimization,
+        ),
     ] {
         o.optimization = optimization;
         o.incremental_o2 = incremental;
+        o.function_merging = merging;
         o.object_cache = Some(d.0.join("objects"));
         o.closed_executable = closed;
         o.backend = backend;
@@ -687,4 +754,102 @@ fn explicit_closed_build_preserves_native_behavior_and_separates_cache_identity(
         globals(&report.artifacts["executable"]).contains("zil.fn."),
         "cross-unit definitions must remain available"
     );
+}
+
+#[test]
+fn function_merging_pipeline_changes_actual_cache_keys_and_keeps_failure_transactional() {
+    use zil_driver::FunctionMerging;
+    let d = Dir::new();
+    d.source();
+    let mut options = d.options(8, Optimization::O2);
+    let policies = [
+        FunctionMerging::Disabled,
+        FunctionMerging::AfterOptimization,
+        FunctionMerging::BeforeAndAfter,
+    ];
+    let mut first_keys = Vec::<Vec<String>>::new();
+    for round in 0..2 {
+        for policy in policies {
+            options.function_merging = policy;
+            let report = d.build(&options);
+            success(&report, 42);
+            let native = report.native_codegen.as_ref().unwrap();
+            assert!(native.actual_units > 1);
+            assert_eq!(
+                native.object_cache.hits,
+                if round == 0 { 0 } else { native.actual_units }
+            );
+            assert_eq!(
+                native.object_cache.misses,
+                if round == 0 { native.actual_units } else { 0 }
+            );
+            let keys = native
+                .object_reports
+                .iter()
+                .map(|r| {
+                    r.split("\"action_key\":\"")
+                        .nth(1)
+                        .unwrap()
+                        .split('"')
+                        .next()
+                        .unwrap()
+                        .to_owned()
+                })
+                .collect::<Vec<_>>();
+            assert!(
+                native
+                    .object_reports
+                    .iter()
+                    .all(|r| r.contains("\"pipeline\":")
+                        && r.contains(match policy {
+                            FunctionMerging::Disabled => "default<O2>",
+                            FunctionMerging::AfterOptimization =>
+                                "default<O2>|merge-functions=after|aliases=false",
+                            FunctionMerging::BeforeAndAfter =>
+                                "mergefunc,default<O2>|merge-functions=after|aliases=false",
+                        }))
+            );
+            if round == 0 {
+                assert!(
+                    first_keys
+                        .iter()
+                        .all(|prior| keys.iter().all(|key| !prior.contains(key)))
+                );
+                first_keys.push(keys);
+            } else {
+                assert!(
+                    first_keys.contains(&keys),
+                    "switching back must reuse that policy's original keys"
+                );
+            }
+        }
+    }
+    let executable = fs::read(options.output.as_ref().unwrap()).unwrap();
+    let before = entries(&d.0.join("objects"))
+        .into_iter()
+        .map(|p| {
+            let bytes = fs::read(&p).unwrap();
+            (p, bytes)
+        })
+        .collect::<Vec<_>>();
+    d.write(
+        "main.zil",
+        "import a\nimport b\nfn main()->i32{return a.get(1)+b.get();}",
+    );
+    let bad = d.build(&options);
+    assert_eq!(bad.status, ResultCategory::SafeReject);
+    assert_eq!(bad.phase, Phase::Types);
+    assert!(bad.native_codegen.is_none());
+    assert_eq!(
+        fs::read(options.output.as_ref().unwrap()).unwrap(),
+        executable
+    );
+    let after = entries(&d.0.join("objects"))
+        .into_iter()
+        .map(|p| {
+            let bytes = fs::read(&p).unwrap();
+            (p, bytes)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(before, after);
 }

@@ -29,6 +29,7 @@ mod machine_cgu;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
 mod object_cache;
 pub use object_cache::{ObjectCacheSummary, PendingObjectCache, installed_compiler_identity};
+pub use zil_llvm_api::FunctionMerging;
 
 use zil_ir::FunctionId;
 
