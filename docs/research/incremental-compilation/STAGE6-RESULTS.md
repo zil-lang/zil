@@ -12,6 +12,8 @@ GitHub运行`41206406105`真实失败：此前撤回反向DB实现时没有同�
 
 ac4与888的release CLI逐字相同，SHA256均为`0d0e05f4b3ba14c298fef7907c8a6ec23f40f01351509c90afea63c1289246e1`；这个事实不把旧ffe4性能窗升级为新整合结果。新benchmark仍须单独绑定实际二进制和LLVM库。归档收件时root报告后续`412072…` CI仍进行中，其未冻结记录不在本包，也不计Pass。静态merge材料、失败CI原log、DB修复前测试以及清理旧Rust缓存的逐文件身份和中断/恢复收据见`integration-correctness`包；工作树、target与仍活跃的API/plugin/runtime/SSA研究未打包。
 
+随后取得的磁盘恢复证据没有把CI失败隐去：`41207249551`在888上因runner日志写入ENOSPC失败，下载的failed.log为空、logs.zip仅22字节且无条目，不能从这些空日志推定源码测试结果。root又发现初版清理步骤由sudo创建父目录造成后续普通用户不可写，以及umask导致root收据可能不可读；最终改为普通用户先创建父目录，并仅将该JSON显式设为0644。原作者/独审的同用户控制不覆盖sudo跨UID，两次修订与控制失败均原样归档。`41209327141`的真实预构建清理收据已上传，空闲空间从11624448000增至33555800064字节（10.826→31.251GiB）；这只证明清理和收据上传成功。收件时整次CI仍进行中，不计全CI Pass。见`ci-disk`包。
+
 ## 已经作出的取舍
 
 | 路线 | 本轮实际进展 | 已冻结结果与当前边界 |
@@ -185,7 +187,11 @@ ca79另一次冻结profile共549样本，157包含JT，152包含共同重算链�
 
 由此形成的入口保留JumpThreading插件属于隔离研究：必须处理两侧LVI失效、可合并性、循环/迭代、WeakTrackingVH与Lazy DTU删除，不能写成“一行安全替换”。**插件完整CLI、默认/closed、资源与opaque运行质量、Rust比较的正式矩阵均待测；当前生产LLVM API与新的主分支整合身份没有借用上述profile或功能计时成为胜出结论。**
 
-下一步计划把入口修复放入单对象替换形成的真实LLVM库，沿原LLVM API路径加载，并保持上游class/layout。隔离opt插件只提供研究对照，不能独自证明这条实际路径已经完成。最终需要同时冻结新组合编译器、实际加载库、pipeline与缓存身份，再做完整矩阵；这些工作尚不能写成成功结果。
+随后v1已完成单对象替换形成的两套真实LLVM库及ac4 API对照，保持上游class/header/layout；不是只依靠opt包装器。原版重编译与入口修复两臂都绑定61个组件输入、81个未改ScalarOpts成员、实际DSO/依赖和加载器身份。ac4两编译器仅额外加入私有pipeline/cache身份串，LLVMRunPasses实际pipeline不变；它们仍属于ac4，不因888测试修复而改标。
+
+两个独审层次分开保留：plugin/wrapper的初版发布与错误协议曾判Fail，修复后重新核对逐键原子ZIP发布、原生失败、launch/timeout及损坏bundle；多键发布没有虚构为整体原子。真实native独审另执行45个C API请求、12个成功ZIL构建加1个当前类型拒绝，共105次native调用；13个真实源码请求都绑定实际编译器PID所加载DSO，缓存namespace、编辑/恢复/损坏恢复、当前Verify和producer边界分别核对。原版重编译在14个IR案例上与安装版相同，避免把“版本字符串相同”当完整基线。
+
+这些是限定正确性进展，功能窗里的耗时不是正式端到端收益；完整EH传播、sanitizer/profile域及广泛运行质量并未验收。源码工具以09f1提交冻结，全部初始失败与修复、两独审、原input/oracle/ZIP/perf和精确来源见`llvm-entry`包。旧四次perf仍是官方baseline，不标成entry测量。后续SSA/LVI/CFG及组合候选另有身份，最终仍需冻结新组合编译器、实际加载库、pipeline与缓存身份再测完整矩阵。
 
 ## 原始表与失败记录索引
 
@@ -209,6 +215,9 @@ ca79另一次冻结profile共549样本，157包含JT，152包含共同重算链�
 | [syntax-session](../../../evidence/research/incremental-compilation/stage6/syntax-session) | `research/stage6/session-syntax-{isolation,vs-3d6}/`逐请求rows/stdout/process/源码/控制，以及准备、独占窗口和构建身份；两窗共1680请求 |
 | [syntax-session-review](../../../evidence/research/incremental-compilation/stage6/syntax-session-review) | `research/stage6-syntax-session-review/{recomputed.json,review.md,request-audit.jsonl,control-audit.jsonl,inventory.json,recompute.py}`；全部140时间/RSS单元及配对区间，首次review schema错误脚本/log保留 |
 | [integration-correctness](../../../evidence/research/incremental-compilation/stage6/integration-correctness) | `research/stage6/integration-checks/`的75项、Clippy/fmt、ac4/888身份与真实CI失败；`stage6-integration-review/`的3项/29报告对、夹具失败和DB补审；upstream四静态文件；旧Rust缓存清理中断/完成收据 |
+| [ci-disk](../../../evidence/research/incremental-compilation/stage6/ci-disk) | `research/stage6/ci-disk-recovery*/`全部作者/独审、sudo父目录及umask修订；412072原始失败/空日志；412093真实清理JSON/ZIP，整次CI未计Pass |
+| [llvm-entry](../../../evidence/research/incremental-compilation/stage6/llvm-entry) | v1 generated/native源码与patch、原版/entry DSO及ac4 API pair身份；完整plugin失败/修复/opaque/resource控制；`stage6-jt-review`与`stage6-native-jt-review`；42原ZIP、2input/2oracle与旧baseline四perf |
+
 
 ## 待完成的确认，不预填结果
 
@@ -217,7 +226,7 @@ ca79另一次冻结profile共549样本，157包含JT，152包含共同重算链�
 | 最终整合身份的Session | ffe4两窗已完成；不得自动改标为新身份 | 新main/LLVM变动是否影响既有编辑收益、常驻内存及错误/取消/预算控制 |
 | 合入f257后的生产CLI与Rust同工作负载矩阵 | ac4/888限定源码与CLI已冻结；最终候选和实际LLVM工具链须独立绑定，矩阵待测 | 默认与closed、冷/暖/前后编辑/恢复，全部形状和失败；同等级优化下是否缩小O2差距 |
 | opaque与真实项目运行质量矩阵 | 待正式结果 | 正确输出之外的吞吐、代码尺寸和资源行为；导入上限/SLP/Merge等策略是否损失运行性能 |
-| 入口保留JumpThreading库候选 | 隔离plugin已有研究用途；真实API库路径及正式矩阵待测 | 原版clone/内建等价、class/layout及实际加载库身份、LLVM验证、入口/循环/资源控制，以及完整请求和运行质量能否复现收益 |
+| 入口保留JumpThreading库候选 | v1真实API库路径及限定独审已完成；最终组合正式矩阵待测 | 原版clone/内建等价、class/layout及实际加载库身份、LLVM验证、入口/循环/资源控制，以及完整请求和运行质量能否复现收益 |
 | 稳定语义owner与更细Types/CT/函数依赖 | 尚未完成 | 真正减少实际语义工作，并保留当前源码、ID、查找、规则和预算有效性，而非只改缓存计数 |
 
 四目标仍分别判断：已完成的安全证据是限定源码/错误/恢复和独立Verify控制，不是整语言最终安全验收；运行性能仍需上述质量矩阵；本轮没有以语法便利替代性能证明；编译方面已取得若干分布上的实际改善、容量扩展和具体热点定位，也完整保留了回退与撤回。最终突破结论必须落到新身份、完整用户请求及可接受运行质量上。

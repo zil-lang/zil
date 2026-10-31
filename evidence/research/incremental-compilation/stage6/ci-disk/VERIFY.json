@@ -1,0 +1,9 @@
+{
+  "kind": "ci-disk",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 49,
+  "omitted_paths": 0,
+  "unique_blobs": 42,
+  "identity_sha256": "8907d0a3e55559a2541344018c90bcbf7992a9cbe1b541cec808353c02943a93",
+  "verified_utc": "2026-10-31T14:22:38.384355+00:00"
+}

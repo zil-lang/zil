@@ -1,0 +1,54 @@
+[
+  {
+    "prefix": "research/stage6/ci-disk-recovery",
+    "source_path": "/workspace/.zil-env/research/stage6/ci-disk-recovery"
+  },
+  {
+    "prefix": "research/stage6/ci-disk-recovery-review",
+    "source_path": "/workspace/.zil-env/research/stage6/ci-disk-recovery-review"
+  },
+  {
+    "prefix": "research/stage6/github-41207249551-annotations.json",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41207249551-annotations.json"
+  },
+  {
+    "prefix": "research/stage6/github-41207249551-checks.json",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41207249551-checks.json"
+  },
+  {
+    "prefix": "research/stage6/github-41207249551-jobs.json",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41207249551-jobs.json"
+  },
+  {
+    "prefix": "research/stage6/github-41207249551-failed.log",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41207249551-failed.log"
+  },
+  {
+    "prefix": "research/stage6/github-41207249551-logs.zip",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41207249551-logs.zip"
+  },
+  {
+    "prefix": "research/stage6/ci-disk-recovery-41209327141.json",
+    "source_path": "/workspace/.zil-env/research/stage6/ci-disk-recovery-41209327141.json"
+  },
+  {
+    "prefix": "research/stage6/ci-disk-recovery-41209327141.zip",
+    "source_path": "/workspace/.zil-env/research/stage6/ci-disk-recovery-41209327141.zip"
+  },
+  {
+    "prefix": "collection-source/.github/workflows/verify-main.yml",
+    "source_path": "/workspace/zil/.github/workflows/verify-main.yml"
+  },
+  {
+    "prefix": "collection-source/tools/ci/research_disk_space.py",
+    "source_path": "/workspace/zil/tools/ci/research_disk_space.py"
+  },
+  {
+    "prefix": "collection-source/changes/research-ci-disk-recovery.md",
+    "source_path": "/workspace/zil/changes/research-ci-disk-recovery.md"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

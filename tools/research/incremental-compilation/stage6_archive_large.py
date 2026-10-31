@@ -46,6 +46,7 @@ def write_json(path, value):
 def roots_for(kind, repo, research):
     stage = research / 'stage6'
     extra_sources = []
+    external_sources = []
     if kind == 'session':
         roots = sorted(p for p in stage.iterdir() if p.name.startswith('session-'))
         roots.append(stage / 'final_vs_3d6-prepare.log')
@@ -74,6 +75,28 @@ def roots_for(kind, repo, research):
         roots += sorted(stage.glob('old-rust-cache-cleanup-2-*'))
         roots.append(stage / 'remaining-old-rust-cache-scan.json')
         tools = []
+    elif kind == 'ci-disk':
+        roots = [stage / 'ci-disk-recovery', stage / 'ci-disk-recovery-review']
+        roots += [stage / ('github-41207249551-' + name) for name in [
+            'annotations.json', 'checks.json', 'jobs.json', 'failed.log', 'logs.zip',
+        ]]
+        roots += [stage / ('ci-disk-recovery-41209327141.' + suffix) for suffix in ['json', 'zip']]
+        tools = []
+        extra_sources = [repo / name for name in [
+            '.github/workflows/verify-main.yml', 'tools/ci/research_disk_space.py',
+            'changes/research-ci-disk-recovery.md',
+        ]]
+    elif kind == 'llvm-entry':
+        plan_path = repo / 'evidence/research/incremental-compilation/stage6/llvm-entry-plan.json'
+        plan = json.loads(plan_path.read_text())
+        roots = [research / name for name in plan['research_roots']]
+        tools = ['jump_threading_plugin']
+        extra_sources = [plan_path] + [repo / name for name in plan['repo_extra_sources']]
+        external_sources = [(row['logical_path'], Path(row['path'])) for row in plan['external_sources']]
+        for row in plan['tool_source_inventory']:
+            path = repo / row['path']
+            require(path.is_file() and path.stat().st_size == row['bytes']
+                    and sha(path) == row['sha256'], 'frozen v1 tool source differs: ' + row['path'])
     elif kind == 'scalar-screens':
         roots = sorted(p for p in stage.iterdir() if p.name.startswith('scalar-screen-'))
         roots.append(stage / 'scalar-screens.log')
@@ -112,6 +135,7 @@ def roots_for(kind, repo, research):
     result += [('collection-source/tools/research/incremental-compilation/' + name,
                 repo / 'tools/research/incremental-compilation' / name) for name in tools]
     result += [('collection-source/' + str(path.relative_to(repo)), path) for path in extra_sources]
+    result += external_sources
     result.append(('collection-source/tools/research/incremental-compilation/' + Path(__file__).name,
                    Path(__file__).resolve()))
     require(all(path.exists() for _, path in result), 'missing selected source tool')
@@ -137,7 +161,7 @@ def reason_for(path, header, size):
     if path.is_symlink():
         return 'symlink-target-recorded-without-dereference'
     # Native stdin and actual perf samples are evidence, regardless of suffix.
-    if path.name in ['input.bin', 'perf.data']:
+    if path.name in ['input.bin', 'expected.bin', 'perf.data']:
         return None
     if '__pycache__' in path.parts or path.suffix == '.pyc':
         return 'generated-python-bytecode'
@@ -348,6 +372,8 @@ def collect(args):
                   'Two completed six-block AST Session windows: ccf1 versus ffe4 isolation and 3d6 versus ffe4 combination. Frozen raw controls, requests, exclusive-window receipts and original build/source identities. Collection HEAD is a later compiler and does not relabel these measurements.' if args.kind == 'syntax-session' else
                   'Independent audit of both frozen AST Session windows, complete source/request inventory, fixed paired bootstrap, Parse/Verify/object/native controls and preserved reviewer schema-error attempt.' if args.kind == 'syntax-session-review' else
                   'Frozen ac4 upstream integration scoped correctness and 888 matching DB unit-test repair, independent review and retained fixture/CI failures. Exact review/worktree/target trees and active API/plugin/runtime/SSA work are excluded. The later in-progress CI run is not a pass or an archived completed run. Includes identity-bound old Rust-cache cleanup receipts.' if args.kind == 'integration-correctness' else
+                  'CI disk recovery only: original 41207249551 ENOSPC failure, empty downloaded logs, author/reviewer controls, root-discovered sudo-parent and umask corrections, and actual uploaded cleanup receipt from still-in-progress 41209327141. Receipt Pass is not a whole-CI or compiler-test Pass.' if args.kind == 'ci-disk' else
+                  'Frozen independent entry-preserving JumpThreading v1: original/entry clone, native DSOs, ac4 API pair and two independent reviews with all failure epochs. Preserves cache ZIP controls, native input/oracle bytes and official-baseline perf; these are not final combined or formal end-to-end performance results. SDK/archive and reproducible source trees have explicit SHA-bound receipt exclusions; active SSA/LVI/CFG/runtime work is excluded.' if args.kind == 'llvm-entry' else
                   'Two complete scalar screening windows, 160 requests each; two-block screening only.' if args.kind == 'scalar-screens' else
                   'Frozen pass/SLP/perf diagnostics and ca79 profiles. Initial instrumentation failures, invalid SLP setter ablation, adaptive NotRun cases and perf permission failures remain distinct; no formal exclusive timing claim. Active jump-threading plugin candidates and SDK/build targets are outside scope.' if args.kind == 'diagnostics' else
                   'Syntax author/reviewer correctness, failed initial fixtures, fixed controls and root build identities. Exact source checkouts/shared targets are outside scope; commit/source receipts retain their identities. Formal syntax Session windows are separate.' if args.kind == 'syntax-correctness' else
@@ -434,7 +460,7 @@ def verify(root, destination=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--kind', choices=['session', 'session-review', 'syntax-session', 'syntax-session-review', 'integration-correctness', 'scalar-screens', 'scalar-correctness', 'diagnostics', 'syntax-correctness'])
+    parser.add_argument('--kind', choices=['session', 'session-review', 'syntax-session', 'syntax-session-review', 'integration-correctness', 'ci-disk', 'llvm-entry', 'scalar-screens', 'scalar-correctness', 'diagnostics', 'syntax-correctness'])
     parser.add_argument('--repo', type=Path, default=Path.cwd())
     parser.add_argument('--research', type=Path, default=Path('/workspace/.zil-env/research'))
     parser.add_argument('--out', type=Path)

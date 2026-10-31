@@ -1,0 +1,266 @@
+[
+  {
+    "prefix": "research/stage6/jump-threading-api-author.md",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-api-author.md"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-api-entry-build.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-api-entry-build.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-api-entry-prepare.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-api-entry-prepare.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-api-original-build.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-api-original-build.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-api-original-prepare.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-api-original-prepare.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-api-pair",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-api-pair"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-capture-build.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-capture-build.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-capture-prepare.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-capture-prepare.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-native-build-receipt.md",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-native-build-receipt.md"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-native-entry",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-native-entry"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-native-original",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-native-original"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-native-source",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-native-source"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-opaque-controls",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-opaque-controls"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-opaque-controls-v2",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-opaque-controls-v2"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-opaque-controls-v2.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-opaque-controls-v2.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-opaque-controls.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-opaque-controls.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-perf-default-after",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-perf-default-after"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-perf-default-after-attempt2",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-perf-default-after-attempt2"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-perf-default-after-attempt3",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-perf-default-after-attempt3"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-perf-default-after-attempt4",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-perf-default-after-attempt4"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-perf-receipt.md",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-perf-receipt.md"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-pipelines",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-pipelines"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-pipelines.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-pipelines.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-build",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-build"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-build-setup.md",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-build-setup.md"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-clone",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-clone"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-clone-prepare.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-clone-prepare.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-small-controls",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-small-controls"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-real-controls",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-real-controls"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-resource-source-controls",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-resource-source-controls"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-resource-source-controls-v2",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-resource-source-controls-v2"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-resource-source-controls-v3",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-resource-source-controls-v3"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-resource-source-controls-v3.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-resource-source-controls-v3.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-screen-tool-smoke",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-screen-tool-smoke"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-screen-tool-smoke.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-screen-tool-smoke.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-source",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-source"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-source-controls-receipt.md",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-source-controls-receipt.md"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-static.md",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-static.md"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-symbols.md",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-symbols.md"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-tag-object.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-tag-object.json"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-tag.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-tag.json"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-api-original-snapshot/RESEARCH.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-api-original-snapshot/RESEARCH.json"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-api-original-snapshot/RESEARCH.patch",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-api-original-snapshot/RESEARCH.patch"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-api-original-snapshot/SOURCE-ORIGINALS.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-api-original-snapshot/SOURCE-ORIGINALS.json"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-api-entry-snapshot/RESEARCH.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-api-entry-snapshot/RESEARCH.json"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-api-entry-snapshot/RESEARCH.patch",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-api-entry-snapshot/RESEARCH.patch"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-api-entry-snapshot/SOURCE-ORIGINALS.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-api-entry-snapshot/SOURCE-ORIGINALS.json"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-capture-snapshot/RESEARCH.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-capture-snapshot/RESEARCH.json"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-capture-snapshot/RESEARCH.patch",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-capture-snapshot/RESEARCH.patch"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-sdk/headers-receipt.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-sdk/headers-receipt.json"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-sdk/headers-receipt.initial-failure.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-sdk/headers-receipt.initial-failure.json"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-sdk/download.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-sdk/download.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-sdk/extract.log",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-sdk/extract.log"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-headers/apt-llvm-Packages.gz",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-headers/apt-llvm-Packages.gz"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-headers/apt-llvm-pool.html",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-headers/apt-llvm-pool.html"
+  },
+  {
+    "prefix": "research/stage6-jt-review",
+    "source_path": "/workspace/.zil-env/research/stage6-jt-review"
+  },
+  {
+    "prefix": "research/stage6-native-jt-review",
+    "source_path": "/workspace/.zil-env/research/stage6-native-jt-review"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/jump_threading_plugin",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/jump_threading_plugin"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/llvm-entry-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/llvm-entry-plan.json"
+  },
+  {
+    "prefix": "collection-source/changes/research-entry-preserving-jump-threading.md",
+    "source_path": "/workspace/zil/changes/research-entry-preserving-jump-threading.md"
+  },
+  {
+    "prefix": "collection-source/changes/research-jump-threading-native-toolchain.md",
+    "source_path": "/workspace/zil/changes/research-jump-threading-native-toolchain.md"
+  },
+  {
+    "prefix": "collection-source/tools/llvm/release-linux-x86_64.json",
+    "source_path": "/workspace/zil/tools/llvm/release-linux-x86_64.json"
+  },
+  {
+    "prefix": "collection-source/tools/llvm/install.py",
+    "source_path": "/workspace/zil/tools/llvm/install.py"
+  },
+  {
+    "prefix": "collection-source/tools/llvm/version.txt",
+    "source_path": "/workspace/zil/tools/llvm/version.txt"
+  },
+  {
+    "prefix": "external-build-inputs/llvm-23.1.4/install-receipt.json",
+    "source_path": "/workspace/.zil-env/llvm-23.1.4/install-receipt.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

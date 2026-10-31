@@ -1,0 +1,12 @@
+{
+  "kind": "ci-disk",
+  "summary": [
+    {
+      "class": "retained-raw-evidence",
+      "files": 49,
+      "bytes": 744963
+    }
+  ],
+  "selected_paths": 49,
+  "unique_blobs": 42
+}
