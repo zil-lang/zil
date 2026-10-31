@@ -133,6 +133,7 @@ fn linkage(link: m::Linkage) -> c_int {
     // LLVMLinkage from llvmorg-23.1.4/llvm/include/llvm-c/Core.h.
     match link {
         m::Linkage::External => 0,
+        m::Linkage::AvailableExternally => 1,
         m::Linkage::Internal => 8,
         m::Linkage::Private => 9,
     }

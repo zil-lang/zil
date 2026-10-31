@@ -78,3 +78,11 @@
 - Rust同负载最终8192函数：默认O0冷构建比0.660、早期私有编辑0.833、后期私有编辑0.626；默认O2早期编辑仍4.072倍，显式closed为1.500倍。最终预检隔离窗口O2无改动完整请求1025.708→910.377 ms，预检232.243→115.835 ms；同时保留512函数/O2无改动约4.1%回退及所有不利单元，不叠乘不同窗口历史收益。
 - 旧076图切割的局部收益不稳定，080依赖传播及旧CP13封闭构建有可复用部分；zit只验证其稳定依赖/相等屏障等机制，并复现无环图误报cycle的反例，不宣称当前编译器已集成zit或取得其性能收益。完整归因、Rust差距和未完成路线见docs/research/incremental-compilation/ALGORITHM-ATTRIBUTION.md。
 - 最新结论入口为docs/research/incremental-compilation/README.md与DISTRIBUTION-RESULTS.md；两个完整表列出全部877单元，证据在stage5与stage5-followup。既有CURRENT/RESULTS及历史证据保持原身份。工单继续Doing，持久化函数级语义增量、完整链接动作模型仍未完成；不自行合入main或改变父任务、产品门。
+
+## 第六阶段：重新验证图切割、适配zit并推进O2/语义增量
+
+用户明确要求不得沿用旧分布结论停止研究，须修复适配并实施可用思路，继续追赶Rust O2与增量。基线3d6babe17ee9d0a2f62d123063fb7af6a0886612；规范hash保持既有值。复用当前专项分支/主工作树，按互斥写集并行子任务，root统一提交，作者与独审分离。
+
+追加研究写集tools/research/incremental-compilation/stage6_algorithms/**、docs/research/incremental-compilation/STAGE6*、evidence/research/incremental-compilation/stage6/**及各research提案。生产候选分配：O2稳定分区/导入由o2_graph_implementation持有backend machine_cgu/build与llvm-api必要内部表示；zit_incremental_implementation持有zil-db与driver/session；semantic_incremental持有zil-analyze并与session作者协调接入；root持有driver/lib/project、CLI及相应测试。公共Wire/schema、Cargo.lock、默认额度、Verify独立性与产品门保持；新增策略先显式声明，不靠降优化级别制造速度收益。旧076资源联合关系和CGU图严格分清，修复zit适配不重标原JS场景的设计为通用bug。
+
+每个候选先提案与真实正反例，限定测试与独审绑定源码；最终资源独占交错计量，记录完整请求、运行行为/质量、RSS、缓存失效及不利结果。handoff历史完整性检查仍因精简恢复历史/旧记录缺失为Fail，不重标全库历史验收状态；已审核现行生产与专项Doing记录继续授权当前研究。

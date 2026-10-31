@@ -21,7 +21,7 @@ struct Definition {
 
 #[cfg(test)]
 pub(crate) fn partition(module: Module, lir: &LirModule, entry: EntryPoint, count: usize) -> Plan {
-    partition_view(module, &lir.as_view(), entry, count, false)
+    partition_view(module, &lir.as_view(), entry, count, false, false)
 }
 pub(crate) fn partition_view(
     module: Module,
@@ -29,6 +29,7 @@ pub(crate) fn partition_view(
     entry: EntryPoint,
     count: usize,
     split_large_files: bool,
+    import_small_functions: bool,
 ) -> Plan {
     let fallback = |module, reason| Plan {
         units: vec![module],
@@ -87,7 +88,7 @@ pub(crate) fn partition_view(
     let mut sets = Sets((0..defs.len()).collect());
     // File boundaries are not linkage boundaries. Fixed-size O0 chunks make
     // body-only edits local without moving unaffected chunks as the body grows.
-    // O2 retains file grouping so this does not remove within-file inlining.
+    // The explicit O2 strategy also imports optimizer-only bodies below.
     const FUNCTIONS_PER_CHUNK: usize = 256;
     let mut files = BTreeMap::<(FileId, usize), usize>::new();
     let mut ordinals = BTreeMap::<FileId, usize>::new();
@@ -184,21 +185,89 @@ pub(crate) fn partition_view(
             return fallback(module, "invalid machine declaration prelude");
         }
     }
-    // Only signatures needed across unit boundaries get copied. Definitions are moved.
-    let mut prototypes = BTreeMap::new();
-    for (id, d) in defs.iter().enumerate() {
-        for symbol in &d.refs {
-            if let Some(&dependency) = names.get(symbol.as_str())
-                && owners[dependency] != owners[id]
-            {
-                prototypes.entry(dependency).or_insert_with(|| {
-                    match &module.items[defs[dependency].index] {
-                        Item::Function(f) => Item::Function(f.declaration()),
-                        Item::Global(g) => Item::Global(g.declaration()),
-                        Item::NamedType(..) => unreachable!(),
-                    }
-                });
+    // Bodies imported for optimization never acquire ownership. Their original
+    // symbols keep a unique emitted definition and their complete dependency
+    // closure becomes part of this unit's normal validation and cache identity.
+    const IMPORT_FUNCTION_COST: usize = 64;
+    const IMPORT_UNIT_COST: usize = 65_536;
+    let mut imports = BTreeMap::<usize, BTreeSet<usize>>::new();
+    if import_small_functions {
+        let source_functions = lir
+            .functions
+            .iter()
+            .filter(|f| f.foreign.is_none())
+            .map(|f| format!("zil.fn.{}", f.id.0))
+            .collect::<BTreeSet<_>>();
+        for (&owner, definitions) in &members {
+            let mut pending = definitions
+                .iter()
+                .flat_map(|&id| defs[id].refs.iter())
+                .filter_map(|name| names.get(name.as_str()).copied())
+                .collect::<BTreeSet<_>>();
+            let mut seen = BTreeSet::new();
+            let mut imported = BTreeSet::new();
+            let mut remaining = IMPORT_UNIT_COST;
+            while let Some(id) = pending.pop_first() {
+                if owners[id] == owner
+                    || !seen.insert(id)
+                    || !source_functions.contains(&defs[id].name)
+                {
+                    continue;
+                }
+                let Item::Function(function) = &module.items[defs[id].index] else {
+                    continue;
+                };
+                let cost = function.cost();
+                if function.linkage != zil_llvm_api::model::Linkage::External
+                    || cost > IMPORT_FUNCTION_COST
+                    || cost > remaining
+                    || defs[id]
+                        .refs
+                        .iter()
+                        .any(|name| names.get(name.as_str()).is_some_and(|&id| defs[id].local))
+                {
+                    continue;
+                }
+                remaining -= cost;
+                imported.insert(id);
+                pending.extend(
+                    defs[id]
+                        .refs
+                        .iter()
+                        .filter_map(|name| names.get(name.as_str()).copied()),
+                );
             }
+            imports.insert(owner, imported);
+        }
+    }
+    let mut prototypes = BTreeMap::new();
+    let mut imported_bodies = BTreeMap::new();
+    for (&owner, definitions) in &members {
+        let imported = imports.entry(owner).or_default();
+        for &id in definitions.iter().chain(imported.iter()) {
+            for symbol in &defs[id].refs {
+                if let Some(&dependency) = names.get(symbol.as_str())
+                    && owners[dependency] != owner
+                    && !imported.contains(&dependency)
+                {
+                    prototypes.entry(dependency).or_insert_with(|| {
+                        match &module.items[defs[dependency].index] {
+                            Item::Function(f) => Item::Function(f.declaration()),
+                            Item::Global(g) => Item::Global(g.declaration()),
+                            Item::NamedType(..) => unreachable!(),
+                        }
+                    });
+                }
+            }
+        }
+        for &id in imported.iter() {
+            imported_bodies.entry(id).or_insert_with(|| {
+                let Item::Function(mut function) = module.items[defs[id].index].clone() else {
+                    unreachable!()
+                };
+                function.linkage = zil_llvm_api::model::Linkage::AvailableExternally;
+                Item::Function(function)
+            });
         }
     }
     let mut original = module.items.into_iter().map(Some).collect::<Vec<_>>();
@@ -208,8 +277,10 @@ pub(crate) fn partition_view(
         .collect::<Vec<_>>();
     let mut units = Vec::with_capacity(members.len());
     for (owner, definitions) in members {
+        let imported = &imports[&owner];
         let referenced = definitions
             .iter()
+            .chain(imported.iter())
             .flat_map(|&id| defs[id].refs.iter())
             .collect::<BTreeSet<_>>();
         let mut items = prelude
@@ -222,7 +293,7 @@ pub(crate) fn partition_view(
             .cloned()
             .collect::<Vec<_>>();
         let mut needed = BTreeSet::new();
-        for &id in &definitions {
+        for &id in definitions.iter().chain(imported.iter()) {
             needed.extend(
                 defs[id]
                     .refs
@@ -231,11 +302,12 @@ pub(crate) fn partition_view(
             );
         }
         for id in needed {
-            if owners[id] != owner {
+            if owners[id] != owner && !imported.contains(&id) {
                 debug_assert!(!defs[id].local);
                 items.push(prototypes[&id].clone());
             }
         }
+        items.extend(imported.iter().map(|id| imported_bodies[id].clone()));
         items.extend(definitions.iter().map(|&id| {
             original[defs[id].index]
                 .take()
@@ -268,6 +340,7 @@ pub(crate) fn internalize_closed_executable(units: &mut [Module], lir: &LirView<
         for item in &module.items {
             if let Item::Function(function) = item
                 && function.blocks.is_some()
+                && function.linkage != zil_llvm_api::model::Linkage::AvailableExternally
                 && candidates.contains(&function.name)
                 && owners.insert(function.name.as_str(), unit).is_some()
             {
@@ -422,7 +495,14 @@ mod tests {
             alignment: 4,
         }));
         let module = m(items);
-        let split = partition_view(module.clone(), &source.as_view(), EntryPoint::None, 8, true);
+        let split = partition_view(
+            module.clone(),
+            &source.as_view(),
+            EntryPoint::None,
+            8,
+            true,
+            false,
+        );
         assert_eq!(split.units.len(), 2);
         let shared = split
             .units
@@ -435,9 +515,115 @@ mod tests {
         for unit in &split.units {
             zil_llvm_api::validate_module(unit).unwrap();
         }
-        let original = partition_view(module, &source.as_view(), EntryPoint::None, 8, false);
+        let original = partition_view(module, &source.as_view(), EntryPoint::None, 8, false, false);
         assert_eq!(original.units.len(), 1);
     }
+    #[test]
+    fn o2_imports_follow_transitive_bodies_and_keep_unique_emitted_owners() {
+        let source = candidate_lir(&(0..600).collect::<Vec<_>>());
+        let mut items = (0..600)
+            .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
+            .collect::<Vec<_>>();
+        items[0] = f("zil.fn.0", Ty::Ptr, Val::Global("zil.fn.256".into()));
+        items[256] = f("zil.fn.256", Ty::Ptr, Val::Global("zil.fn.512".into()));
+        let plan = partition_view(
+            m(items.clone()),
+            &source.as_view(),
+            EntryPoint::None,
+            8,
+            true,
+            true,
+        );
+        assert_eq!(plan.units.len(), 3);
+        for unit in &plan.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+        }
+        let first = &plan.units[0];
+        assert_eq!(function_linkage(first, "zil.fn.0"), Linkage::External);
+        assert_eq!(
+            function_linkage(first, "zil.fn.256"),
+            Linkage::AvailableExternally
+        );
+        assert_eq!(
+            function_linkage(first, "zil.fn.512"),
+            Linkage::AvailableExternally
+        );
+        for id in 0..600 {
+            assert_eq!(plan.units.iter().flat_map(|u| &u.items).filter(|item| matches!(item, Item::Function(f) if f.name == format!("zil.fn.{id}") && f.blocks.is_some() && f.linkage != Linkage::AvailableExternally)).count(), 1);
+        }
+        // Imported bodies affect exactly the units which consume them; unrelated
+        // owner units retain the same machine cache input.
+        items[512] = f("zil.fn.512", Ty::Int(32), Val::Int(9));
+        let edited = partition_view(m(items), &source.as_view(), EntryPoint::None, 8, true, true);
+        assert_ne!(plan.units[0].items, edited.units[0].items);
+        assert_ne!(plan.units[1].items, edited.units[1].items);
+        assert_ne!(plan.units[2].items, edited.units[2].items);
+        let mut closed = plan.units;
+        let changed = internalize_closed_executable(&mut closed, &source.as_view());
+        assert!(changed > 0);
+        assert_eq!(
+            function_linkage(&closed[0], "zil.fn.256"),
+            Linkage::AvailableExternally
+        );
+        assert_eq!(
+            function_linkage(&closed[1], "zil.fn.256"),
+            Linkage::External
+        );
+        for unit in &closed {
+            zil_llvm_api::validate_module(unit).unwrap();
+        }
+    }
+
+    #[test]
+    fn o2_imports_preserve_local_identity_and_import_external_global_declarations() {
+        let source = candidate_lir(&(0..600).collect::<Vec<_>>());
+        let mut items = (0..600)
+            .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
+            .collect::<Vec<_>>();
+        items[0] = f("zil.fn.0", Ty::Ptr, Val::Global("zil.fn.256".into()));
+        items[256] = f("zil.fn.256", Ty::Ptr, Val::Global("hidden".into()));
+        items.push(Item::Global(Global {
+            name: "hidden".into(),
+            linkage: Linkage::Private,
+            ty: Ty::Int(32),
+            initializer: Some(Val::Int(7)),
+            constant: false,
+            unnamed_addr: false,
+            alignment: 4,
+        }));
+        let plan = partition_view(
+            m(items.clone()),
+            &source.as_view(),
+            EntryPoint::None,
+            8,
+            true,
+            true,
+        );
+        assert_eq!(
+            function_linkage(&plan.units[0], "zil.fn.256"),
+            Linkage::External
+        );
+        assert!(!definitions(&plan.units[0]).contains("zil.fn.256"));
+        let Item::Global(global) = items.last_mut().unwrap() else {
+            panic!()
+        };
+        global.linkage = Linkage::External;
+        let plan = partition_view(m(items), &source.as_view(), EntryPoint::None, 8, true, true);
+        assert_eq!(
+            function_linkage(&plan.units[0], "zil.fn.256"),
+            Linkage::AvailableExternally
+        );
+        assert!(
+            plan.units[0]
+                .items
+                .iter()
+                .any(|item| matches!(item, Item::Global(g) if g.name == "hidden"))
+        );
+        for unit in &plan.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+        }
+    }
+
     #[test]
     fn local_identity_and_global_initializers_are_colocated_once() {
         let mut hidden = f("hidden", Ty::Int(32), Val::Int(3));

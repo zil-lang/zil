@@ -872,6 +872,9 @@ pub(crate) fn validate(module: &Module) -> Result<Schedule> {
         match item {
             Item::NamedType(n, _) => world.check_ty(&Ty::Named(n.clone()), false)?,
             Item::Global(g) => {
+                if g.linkage == Linkage::AvailableExternally {
+                    return fail("available-externally globals are not supported");
+                }
                 world.check_ty(&g.ty, false)?;
                 alignment(g.alignment)?;
                 if let Some(v) = &g.initializer {
@@ -891,7 +894,9 @@ pub(crate) fn validate(module: &Module) -> Result<Schedule> {
                     world.check_ty(&p.ty, false)?;
                     attrs(&p.attrs, Some(&p.ty))?;
                 }
-                if f.blocks.is_none() && f.linkage.is_local() {
+                if f.blocks.is_none()
+                    && (f.linkage.is_local() || f.linkage == Linkage::AvailableExternally)
+                {
                     return fail("local function without definition");
                 }
                 functions.insert(f.name.clone(), function(&world, f)?);

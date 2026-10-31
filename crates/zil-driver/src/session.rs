@@ -119,6 +119,7 @@ pub struct CompilationSession {
     pub(super) capacity: usize,
     recency: BTreeMap<QueryKey, u64>,
     clock: u64,
+    analysis: zil_analyze::AnalysisSession,
 }
 impl Default for CompilationSession {
     fn default() -> Self {
@@ -133,6 +134,7 @@ impl CompilationSession {
             capacity: capacity.max(8),
             recency: BTreeMap::new(),
             clock: 0,
+            analysis: zil_analyze::AnalysisSession::default(),
         }
     }
     pub fn clear(&mut self) {
@@ -140,6 +142,7 @@ impl CompilationSession {
         self.raw.clear();
         self.recency.clear();
         self.clock = 0;
+        self.analysis.clear();
     }
     pub fn cached_query_count(&self) -> usize {
         self.raw.len()
@@ -588,17 +591,28 @@ impl CompilationSession {
         // cached raw result is still independently checked below on every call.
         let mut analysis_key = typed_snapshot.key.clone();
         analysis_key.phase = Phase::Analyze;
-        let (candidate, _) = self.query(
+        // A completed subquery is still raw data. Commit its replacement epoch
+        // only if the enclosing driver query survives publication/cancellation.
+        let mut analysis = std::mem::take(&mut self.analysis);
+        let checkpoint = analysis.clone();
+        let queried = self.query(
             analysis_key,
             std::slice::from_ref(&typed_snapshot),
             options,
             report,
             observer,
             || {
-                zil_analyze::analyze(typed.module(), &options.limits)
+                analysis
+                    .analyze(typed.module(), &options.limits)
                     .map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
             },
-        )?;
+        );
+        self.analysis = if queried.is_ok() {
+            analysis
+        } else {
+            checkpoint
+        };
+        let (candidate, _) = queried?;
         let RawSnapshot::Candidate(candidate) = candidate else {
             return Err(infra(
                 "E-QUERY-KIND",
@@ -703,6 +717,7 @@ impl CompilationSession {
         build.backend = options.backend;
         build.optimization = options.optimization;
         build.closed_executable = options.closed_executable;
+        build.incremental_o2 = options.incremental_o2;
         build.codegen = options.codegen;
         build.object_cache = options.object_cache.clone();
         build.windows = options.windows.clone();
@@ -1228,5 +1243,112 @@ mod bounded_history_tests {
         );
         assert_eq!(session.raw.len(), session.recency.len());
         assert!(session.raw.len() <= 8);
+    }
+
+    #[test]
+    fn reactive_initialization_queries_survive_real_private_and_public_source_edits() {
+        let mut p = project(40);
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::with_capacity(8);
+        success(&session.compile_project(&p, &options));
+        p.modules[0].text = "fn f0()->i32 { return 123; }".into();
+        let edited = session.compile_project(&p, &options);
+        success(&edited);
+        equivalent(
+            &edited,
+            &CompilationSession::default().compile_project(&p, &options),
+        );
+        assert_eq!(session.analysis.last_stats().reused_functions, 40);
+        assert_eq!(session.analysis.last_stats().executed_functions, 0);
+
+        // An inserted declaration shifts later whole-program IDs. Initialization
+        // identity follows the actual local semantic input instead of that ID.
+        p.modules[0].text = "fn inserted()->i32 {return 9;} fn f0()->i32 {return 123;}".into();
+        let inserted = session.compile_project(&p, &options);
+        success(&inserted);
+        equivalent(
+            &inserted,
+            &CompilationSession::default().compile_project(&p, &options),
+        );
+        assert_eq!(session.analysis.last_stats().reused_functions, 41);
+        assert_eq!(session.analysis.last_stats().executed_functions, 0);
+
+        p.modules[0].text = "pub fn f0(x:i32)->i32 {return x;}".into();
+        let public = session.compile_project(&p, &options);
+        success(&public);
+        equivalent(
+            &public,
+            &CompilationSession::default().compile_project(&p, &options),
+        );
+        assert!(session.analysis.last_stats().reused_functions >= 39);
+        assert!(session.analysis.last_stats().executed_functions > 0);
+        p.modules[0].text = "fn f0()->i32 {return true;}".into();
+        let rejected = session.compile_project(&p, &options);
+        assert_ne!(rejected.status, ResultCategory::Success);
+        equivalent(
+            &rejected,
+            &CompilationSession::default().compile_project(&p, &options),
+        );
+        session.clear();
+        assert_eq!(session.analysis.last_stats().retained_queries, 0);
+    }
+
+    #[test]
+    fn cancellation_after_analysis_rolls_back_the_subquery_epoch() {
+        let mut p = project(4);
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::default();
+        success(&session.compile_project(&p, &options));
+        let prior = session.analysis.last_stats();
+        p.modules[0].text = "pub fn f0(x:i32)->i32 {return x;}".into();
+        let cancelled = CompileOptions::default();
+        let stopped = session.compile_project_with_observer(&p, &cancelled, &mut |event| {
+            if event.phase == Phase::Analyze {
+                cancelled.cancellation.cancel();
+            }
+        });
+        assert_eq!(stopped.status, ResultCategory::Cancelled);
+        assert_eq!(session.analysis.last_stats(), prior);
+        assert_eq!(session.active_query_count(), 0);
+        let resumed = session.compile_project(&p, &options);
+        success(&resumed);
+        equivalent(
+            &resumed,
+            &CompilationSession::default().compile_project(&p, &options),
+        );
+        assert!(session.analysis.last_stats().executed_functions > 0);
+    }
+
+    #[test]
+    fn real_source_subquery_hits_replay_the_exact_current_budget_boundary() {
+        let p = project(4);
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::default();
+        success(&session.compile_project(&p, &options));
+        let mut low = 0;
+        let mut high = options.limits.max_analysis_steps;
+        while high - low > 1 {
+            let middle = low + (high - low) / 2;
+            let mut limited = CompileOptions::default();
+            limited.limits.max_analysis_steps = middle;
+            let result = CompilationSession::default().compile_project(&p, &limited);
+            if result.status == ResultCategory::Success {
+                high = middle;
+            } else {
+                assert_eq!(result.status, ResultCategory::ResourceLimit);
+                low = middle;
+            }
+        }
+        for limit in [high, high - 1, high] {
+            let mut limited = CompileOptions::default();
+            limited.limits.max_analysis_steps = limit;
+            let current = session.compile_project(&p, &limited);
+            equivalent(
+                &current,
+                &CompilationSession::default().compile_project(&p, &limited),
+            );
+            assert_eq!(current.status == ResultCategory::Success, limit == high);
+            assert_eq!(session.active_query_count(), 0);
+        }
     }
 }

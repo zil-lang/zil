@@ -68,6 +68,8 @@ pub struct CompileOptions {
     pub optimization: zil_backend_llvm::Optimization,
     /// Explicit Linux build without generated ZIL symbol exports; default false.
     pub closed_executable: bool,
+    /// Explicit O2 partitioning with bounded cross-unit body imports.
+    pub incremental_o2: bool,
     pub codegen: CodegenOptions,
     pub windows: Option<zil_backend_llvm::WindowsLinkOptions>,
     pub target: TargetProfile,
@@ -91,6 +93,7 @@ impl Default for CompileOptions {
             clang: None,
             optimization: zil_backend_llvm::Optimization::O0,
             closed_executable: false,
+            incremental_o2: false,
             codegen: CodegenOptions::default(),
             windows: None,
             target: TargetProfile::host_llvm(),

@@ -63,16 +63,19 @@ impl From<&str> for Ty {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Linkage {
     External,
+    /// Optimizer-only body; the canonical definition is emitted by another unit.
+    AvailableExternally,
     Internal,
     Private,
 }
 impl Linkage {
     pub fn is_local(self) -> bool {
-        self != Self::External
+        matches!(self, Self::Internal | Self::Private)
     }
     fn prefix(self) -> &'static str {
         match self {
             Self::External => "",
+            Self::AvailableExternally => "available_externally ",
             Self::Internal => "internal ",
             Self::Private => "private ",
         }
