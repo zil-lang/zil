@@ -1,0 +1,6 @@
+2026-10-31T10:54:38Z
+Filesystem     1024-blocks     Used Available Capacity Mounted on
+/dev/root         75085112 74017712   1051016      99% /
+5316644	/home/runner/work/_temp/target
+3322600	/home/runner/work/_temp/native-evidence
+ad4ea2b5fdb0d9ad9595fe8ce4a28a777d1a0af9eb5ea129b28eb1f39f99c2ce  /home/runner/work/_temp/receipts/workspace.log
