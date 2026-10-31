@@ -8,53 +8,53 @@
     "task_root": ".task",
     "current_is_main": true
   },
-  "current_head": "3a1aca37a53c310da961c0a54d9c59f7aa35f50b",
-  "main_head": "3a1aca37a53c310da961c0a54d9c59f7aa35f50b",
-  "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-  "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1",
+  "current_head": "115f4f81e58b6262e3f80234953310158f8b0785",
+  "main_head": "115f4f81e58b6262e3f80234953310158f8b0785",
+  "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+  "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
   "worktrees": [
     {
       "branch": "refs/heads/main",
-      "head": "3a1aca37a53c310da961c0a54d9c59f7aa35f50b",
+      "head": "115f4f81e58b6262e3f80234953310158f8b0785",
       "is_main": true
     },
     {
-      "branch": "refs/heads/task/228",
-      "head": "1082b50ec3221ccf0550255fb1a6675500266055",
+      "branch": "refs/heads/impl/230-restored",
+      "head": "14163219c503a6ee959aa52beddfc2c6d1d862b4",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/229",
-      "head": "026ea29beb8d83c382ad04bd417606679769afa3",
+      "branch": "refs/heads/impl/231-restored",
+      "head": "8c970275931ed9b7735b3a1dfb5be0cf9f32ab0b",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/228-consumer",
-      "head": "2890f226fdc2328248b341de4cdcaeb49871b0a0",
+      "branch": "refs/heads/integration/construction10",
+      "head": "6475a91f8c8f7b31693cab71973048b0de850072",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/228-229",
-      "head": "3a1aca37a53c310da961c0a54d9c59f7aa35f50b",
+      "branch": "refs/heads/review/construction10-225226",
+      "head": "e169322703ee11b035fa56a21856a10c841aebdc",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/228-review",
-      "head": "790bd52ea703abd5936120d22725900848b1b663",
+      "branch": "refs/heads/review/construction10-230",
+      "head": "d8a57152775df948f3e34331181f28579127444e",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/229-review",
-      "head": "0a46926fb8172a507e4d9d72d12120f934ee9e91",
+      "branch": "refs/heads/review/construction10-231",
+      "head": "680fafa6f3e376d57cbe1084cbb6e359c2beaaf0",
       "is_main": false
     }
   ],
   "measured": {
-    "source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
+    "source_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
     "draft_gate": "NotRun",
     "full_language_gate": "NotSatisfied",
     "product_gate": "NotRun",
-    "result_path": "evidence/integration/221/RESULT.json"
+    "result_path": "evidence/integration/construction10/RESULT.json"
   },
   "tasks": [
     {
@@ -62,7 +62,7 @@
       "path": ".task/B0.md",
       "status": "Doing",
       "baseline": "c9ee2e81de661bb0789ac6a0c6a130d864c4d5a9",
-      "record_sha256": "f4df5be044940300c3c0a03e82a6367ca30331d73e616db75cc7f2fa174de86a",
+      "record_sha256": "0e27b99702396d808c15b1c8cb64c8df91962090b0f40e63af846b25b1eb4dc0",
       "committed": true,
       "evidence": [
         {
@@ -78,8 +78,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": []
     },
@@ -88,7 +88,7 @@
       "path": ".task/T01.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "2dea4cdfe08de7976c3ac19da26d61e04cd972f48a4d62580324592c9429489d",
+      "record_sha256": "9db94d1b15d724d6d8c7c460294a360644f651e93d70ca7d4f41055f845c76c8",
       "committed": true,
       "evidence": [
         {
@@ -101,8 +101,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": [
         "B0"
@@ -113,7 +113,7 @@
       "path": ".task/T02.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "2dc003000a26f0addf69678510191f1fd2fa433828682810be4f3d58cabc6178",
+      "record_sha256": "5da5d0e9e599bc28fcb270554db9cbcbf80fcddbd28d5cb3d247ea66f02628e1",
       "committed": true,
       "evidence": [
         {
@@ -123,8 +123,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": [
         "B0"
@@ -135,14 +135,14 @@
       "path": ".task/T03.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "a11d1280bd8d83c242915b8a8c95d606e6890f83cf0dbefecd695be78b081c43",
+      "record_sha256": "8186a43a85e5fd941b148dfe638e7faec91293d48439455d58703bb67790da20",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": [
         "T01",
@@ -155,7 +155,7 @@
       "path": ".task/T04.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "034f6059a9a1bc1434efd4d6d093dd5d98054ef14702a0a8624cace8be04b4fa",
+      "record_sha256": "f464dbadbef0b5866fa2930eb4edc313c943b5391cbacbeffc48e32e0901b147",
       "committed": true,
       "evidence": [
         {
@@ -168,8 +168,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": [
         "B0"
@@ -180,7 +180,7 @@
       "path": ".task/T05.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "d083ad7b074d363f9b1a4e2422f3a0a29b6f6e17b841ac0f9a828ee1546421d9",
+      "record_sha256": "24411a466fc2dbba083c21f5881beb9625dfa254e0673293e57976389126f93f",
       "committed": true,
       "evidence": [
         {
@@ -190,8 +190,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": [
         "B0"
@@ -202,14 +202,14 @@
       "path": ".task/T06.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "d88855e0ff5334a2c91c3a459208d0276818cdb0723a21fdeb08fe8fb6dfe646",
+      "record_sha256": "676b804d574f2aa7a6a1accc1f910a1ef693fc168342797144581a26a746d397",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": [
         "T02",
@@ -221,14 +221,14 @@
       "path": ".task/T07.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "4d0859e94a06d2124e590fef1b876f42c6ecb4e0c3376fc7a4b10144d5b7cc55",
+      "record_sha256": "5e232d3f3089b6fc4e7bf18774f457ee166af3dc4248b03779fc5d788febf220",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": [
         "T05"
@@ -239,14 +239,14 @@
       "path": ".task/T08.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "f2cdfe0952bd1117ec1e1f6e6809c02aee134004197c33b7187d14fbe5bfa4a6",
+      "record_sha256": "9870d614de55ca85e9991a9fb6a4eab045982b82ea7abfec1392eac95453e718",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": [
         "W1"
@@ -257,14 +257,14 @@
       "path": ".task/T09.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "106c2e84f4af2ab9892ac6373eae498ed45e0b620d6e8b61f9d7ae2243d65ed9",
+      "record_sha256": "3647a3404e729d026d43d2482c3c9fed08ecde5e368123aca40636af9c0d986d",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": [
         "W1",
@@ -276,14 +276,14 @@
       "path": ".task/W1.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "de81de7b9a98d6fd691262c385f3b6c8e0fec8e5ab9779091b9dfb4874fb1f92",
+      "record_sha256": "86cc1448343dbb388c566759c556b112ff7324adb6ef5497b9df9c5496ee0d54",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": [
         "T01",
@@ -299,14 +299,14 @@
       "path": ".task/W2.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "f4be6feb6455a62e5bb9660c3ad96b8db24aedb2717384f9c3e147974450b6bc",
+      "record_sha256": "6279193920c72ff6a35fd115261b1b2a23350b6c41e179eea4bb37b92203424b",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": [
         "W1",
@@ -319,14 +319,14 @@
       "path": ".task/W3.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "1bfed66f013986a76db253747aade9229d8b73f5f70410074c4b74f120a2e32e",
+      "record_sha256": "54829a88926f240f6e0551c4367e9a6a4593288f02e4ee31a4624a3a87c35bbc",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": [
         "T09",
@@ -338,14 +338,14 @@
       "path": ".task/W4.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "9977910e8616a8b8f004edc40a0d208e73b29079d48e4ec0165cbe34b7367998",
+      "record_sha256": "3efacaa8727b71b4114cba0668f9d6f9b687deba31826d5354d2d7ab9312f5ce",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "blocked_by": [
         "W2",
@@ -1132,8 +1132,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5629,8 +5629,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5659,8 +5659,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5686,8 +5686,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5711,8 +5711,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5737,8 +5737,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5762,8 +5762,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5789,8 +5789,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5814,8 +5814,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5840,8 +5840,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5867,8 +5867,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5890,8 +5890,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5912,8 +5912,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5937,8 +5937,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5963,8 +5963,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5987,8 +5987,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6011,8 +6011,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6038,8 +6038,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6068,8 +6068,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6090,7 +6090,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/161/completion.json"
+          "path": "evidence/impl/161/completion.json",
+          "sha256": "abcbeb94b13e2a5940a3d8948b4c1a7c48c4413ec0930d98004be70382cbcf3a",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6120,7 +6123,10 @@
         "implementation_commit": "84af56e5185abc2fa1ac2e62f3395638fe0c3788",
         "evidence": [
           {
-            "path": "evidence/reviews/161/review.json"
+            "path": "evidence/reviews/161/review.json",
+            "sha256": "ee27507f8a172d6be3d28589c26657d50d84f352e27768473e100950b292f91c",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6134,7 +6140,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/162/completion.json"
+          "path": "evidence/impl/162/completion.json",
+          "sha256": "60521181916681e641466b9802d1206aa2b5ffbb88ea092140e94091fee54cc8",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6166,7 +6175,10 @@
         "implementation_commit": "ee2e8b04de7829491f8168eb54ccceedab72f57d",
         "evidence": [
           {
-            "path": "evidence/reviews/162/review.json"
+            "path": "evidence/reviews/162/review.json",
+            "sha256": "47b59399376d7fac38fa8c6eae6982e76c8e5165447aefa9427df44dce799583",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6180,7 +6192,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/163/completion.json"
+          "path": "evidence/impl/163/completion.json",
+          "sha256": "d8e51a27f207d42e4a2fc6d5469250374b54b1115be09276835b6fe511158e51",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6214,7 +6229,10 @@
         "implementation_commit": "f5a5b532b3410474495a43780c63d4a0dc1fbcf3",
         "evidence": [
           {
-            "path": "evidence/reviews/163/handoff-binding.json"
+            "path": "evidence/reviews/163/handoff-binding.json",
+            "sha256": "c7ce011acdb172ae96ff7bd2dbd49af77421be91f7b2d65dfacc7ea3dd4b9948",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6228,7 +6246,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/164/completion.json"
+          "path": "evidence/impl/164/completion.json",
+          "sha256": "91c5c62e6dc51da6a6230920c8c8b74f5ee5f7145e1e80c84c3e6100fc23138b",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6260,7 +6281,10 @@
         "implementation_commit": "712a9602797891083fe3f549381e1e12ab34dd02",
         "evidence": [
           {
-            "path": "evidence/reviews/164/review.json"
+            "path": "evidence/reviews/164/review.json",
+            "sha256": "dc08648c6f96ff6e33f861295e6031f233afd376222fae8338e625242e22d7ca",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6274,7 +6298,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/165/completion.json"
+          "path": "evidence/impl/165/completion.json",
+          "sha256": "17483dd4bd55c86a63b98f600a363c69f36927ad846a5941efef2259adb7643d",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6298,7 +6325,10 @@
         "implementation_commit": "a821e945143e19b23a0fff8896bd80759f582652",
         "evidence": [
           {
-            "path": "evidence/reviews/165/handoff-binding.json"
+            "path": "evidence/reviews/165/handoff-binding.json",
+            "sha256": "c1d8a7830e7ef77b1350638700ae80db34f460a9b5a2e3a281617ee8ffc426c7",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6312,7 +6342,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/169/acceptance.json"
+          "path": "evidence/impl/169/acceptance.json",
+          "sha256": "7eb32d1c7aad3cd32805b807d9336ab4e33be2c55caa99c268e9ac91683f82a8",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6364,7 +6397,10 @@
         "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
         "evidence": [
           {
-            "path": "evidence/reviews/166/final-binding.json"
+            "path": "evidence/reviews/166/final-binding.json",
+            "sha256": "45fe935b1dc5678a990bc1211f5b0fc0ff6926f468e16563495ed84be2ae78ee",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6378,7 +6414,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/169/acceptance.json"
+          "path": "evidence/impl/169/acceptance.json",
+          "sha256": "7eb32d1c7aad3cd32805b807d9336ab4e33be2c55caa99c268e9ac91683f82a8",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6428,7 +6467,10 @@
         "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
         "evidence": [
           {
-            "path": "evidence/reviews/167/final-binding.json"
+            "path": "evidence/reviews/167/final-binding.json",
+            "sha256": "8eea706789695ddba7da90ac57c3f32e6d7aa5c10511b77a5d287296e40ceafb",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6442,7 +6484,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/169/acceptance.json"
+          "path": "evidence/impl/169/acceptance.json",
+          "sha256": "7eb32d1c7aad3cd32805b807d9336ab4e33be2c55caa99c268e9ac91683f82a8",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6498,7 +6543,10 @@
         "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
         "evidence": [
           {
-            "path": "evidence/reviews/168/final-binding.json"
+            "path": "evidence/reviews/168/final-binding.json",
+            "sha256": "ac71a951c029d9c588d8227ea2857ef12b8c5ddc855c909de8e76b040eab92d4",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6512,7 +6560,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/169/acceptance.json"
+          "path": "evidence/impl/169/acceptance.json",
+          "sha256": "7eb32d1c7aad3cd32805b807d9336ab4e33be2c55caa99c268e9ac91683f82a8",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6562,7 +6613,10 @@
         "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
         "evidence": [
           {
-            "path": "evidence/reviews/169/final/INTEGRATION-REVIEW.json"
+            "path": "evidence/reviews/169/final/INTEGRATION-REVIEW.json",
+            "sha256": "be7b4281fb366613738831a325d2cdbff70f14fb16d51f26ca0e89e2a098c677",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6576,10 +6630,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/170/focused-01/command.json"
+          "path": "evidence/impl/170/focused-01/command.json",
+          "sha256": "c358ea1c497ff3ee35e3369b2d93831b7d43f906ead7afd18af203acef4e7f18",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/170/review.json"
+          "path": "evidence/reviews/170/review.json",
+          "sha256": "770516287bdcf7001ebd05139aad4069555dae0163f26a4acac9ebc7605c351b",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6623,7 +6683,10 @@
         "implementation_commit": "ec233ed4bcb827c0a9388f3641ffb410bc4effb6",
         "evidence": [
           {
-            "path": "evidence/reviews/170/review.json"
+            "path": "evidence/reviews/170/review.json",
+            "sha256": "770516287bdcf7001ebd05139aad4069555dae0163f26a4acac9ebc7605c351b",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6637,10 +6700,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/171/limited-09/command.json"
+          "path": "evidence/impl/171/limited-09/command.json",
+          "sha256": "406444d891aed4042e32361a92eb173be93fb5d800d87eaa1a7c8ae15198d3d6",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/171/REVIEW.json"
+          "path": "evidence/reviews/171/REVIEW.json",
+          "sha256": "3fd4ce3ba3d7e28531260a8712d770b7b3e185986ee8930c4d251ff46d7fdc19",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6688,7 +6757,10 @@
         "implementation_commit": "2d5214b0a65a688f86736abdcf54625b5427ae9b",
         "evidence": [
           {
-            "path": "evidence/reviews/171/REVIEW.json"
+            "path": "evidence/reviews/171/REVIEW.json",
+            "sha256": "3fd4ce3ba3d7e28531260a8712d770b7b3e185986ee8930c4d251ff46d7fdc19",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6702,10 +6774,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/172/consumer/summary.json"
+          "path": "evidence/impl/172/consumer/summary.json",
+          "sha256": "224617d02ceb135718763c71ab47a61da707586e837a3eb95bd25caceda37e33",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/172/HANDOFF.json"
+          "path": "evidence/reviews/172/HANDOFF.json",
+          "sha256": "c4e2db9020fca9ef23e86404928155936756feb5571573d484bd15de22de3152",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6765,7 +6843,10 @@
         "implementation_commit": "69882483d6b29bee8d831386325da739ac915fd4",
         "evidence": [
           {
-            "path": "evidence/reviews/172/HANDOFF.json"
+            "path": "evidence/reviews/172/HANDOFF.json",
+            "sha256": "c4e2db9020fca9ef23e86404928155936756feb5571573d484bd15de22de3152",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6779,10 +6860,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/173/acceptance.json"
+          "path": "evidence/impl/173/acceptance.json",
+          "sha256": "4866ef6c8ae76ca236f09523d77d4ecee44c9e4d7571285c56521befaa4e877d",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/173/integration/REVIEW.json"
+          "path": "evidence/reviews/173/integration/REVIEW.json",
+          "sha256": "5c876ff2ca8363bd2521f9d153ee8ab511ed1f54eb45c4a7813cb784668bcefb",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6842,13 +6929,22 @@
         "implementation_commit": "6a623edef1e8d928b5b11091a50f9319fbe6fd59",
         "evidence": [
           {
-            "path": "evidence/reviews/173/integration/REVIEW.json"
+            "path": "evidence/reviews/173/integration/REVIEW.json",
+            "sha256": "5c876ff2ca8363bd2521f9d153ee8ab511ed1f54eb45c4a7813cb784668bcefb",
+            "location": "main",
+            "passing": true
           },
           {
-            "path": "evidence/reviews/173/public/REVIEW.json"
+            "path": "evidence/reviews/173/public/REVIEW.json",
+            "sha256": "820e5e06e053c98f797bbcd04622ac19c4bdc2d2a5f6f11b0d017cf44faf1fd8",
+            "location": "main",
+            "passing": true
           },
           {
-            "path": "evidence/reviews/173/wire-stack/REVIEW.json"
+            "path": "evidence/reviews/173/wire-stack/REVIEW.json",
+            "sha256": "e9e98145bd80ab52625d60c12cd19e3b795e99bda507b0bf276dbf9cd8c2b794",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6862,10 +6958,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/174/author-summary.json"
+          "path": "evidence/impl/174/author-summary.json",
+          "sha256": "4908f4a4fd44cfd8d002170d862fa77c23b7748a6e31f325a9185aa2bd1d22ca",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/174/REVIEW.json"
+          "path": "evidence/reviews/174/REVIEW.json",
+          "sha256": "e9a12e18bc4ca982339760b976e2e426b196d1833d268ff4a8722b7bc7f271a0",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6907,7 +7009,10 @@
         "implementation_commit": "9a878f2f91aae4efd4b851eeb8979cacc21ffdd1",
         "evidence": [
           {
-            "path": "evidence/reviews/174/REVIEW.json"
+            "path": "evidence/reviews/174/REVIEW.json",
+            "sha256": "e9a12e18bc4ca982339760b976e2e426b196d1833d268ff4a8722b7bc7f271a0",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6921,10 +7026,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/177/acceptance-handoff.json"
+          "path": "evidence/impl/177/acceptance-handoff.json",
+          "sha256": "dc5f29c300b68a5a797535a60f7867d21823ab738f70865cf8f18a400f6514b3",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/175/REVIEW.json"
+          "path": "evidence/reviews/175/REVIEW.json",
+          "sha256": "fef1fce773e6e277549c27dc297757fc06fa087c9e086df71413b3c0c7fadb39",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -6971,7 +7082,10 @@
         "implementation_commit": "579d49a76ad2aaef8b1c007289255dd1c4c7a54f",
         "evidence": [
           {
-            "path": "evidence/reviews/175/REVIEW.json"
+            "path": "evidence/reviews/175/REVIEW.json",
+            "sha256": "fef1fce773e6e277549c27dc297757fc06fa087c9e086df71413b3c0c7fadb39",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -6985,10 +7099,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/177/acceptance-handoff.json"
+          "path": "evidence/impl/177/acceptance-handoff.json",
+          "sha256": "dc5f29c300b68a5a797535a60f7867d21823ab738f70865cf8f18a400f6514b3",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/176/REVIEW.json"
+          "path": "evidence/reviews/176/REVIEW.json",
+          "sha256": "2f83c8593aed81b1ea8f296fd3674fca3a0ba872348ce00ddcf2936cd3aa30c1",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7059,7 +7179,10 @@
         "implementation_commit": "dfd9ca572b3d9d04a0b3a142e75df98cd1896b29",
         "evidence": [
           {
-            "path": "evidence/reviews/176/REVIEW.json"
+            "path": "evidence/reviews/176/REVIEW.json",
+            "sha256": "2f83c8593aed81b1ea8f296fd3674fca3a0ba872348ce00ddcf2936cd3aa30c1",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7073,15 +7196,21 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/177/acceptance-handoff.json"
+          "path": "evidence/impl/177/acceptance-handoff.json",
+          "sha256": "dc5f29c300b68a5a797535a60f7867d21823ab738f70865cf8f18a400f6514b3",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/177/composition/REVIEW.json"
+          "path": "evidence/reviews/177/composition/REVIEW.json",
+          "sha256": "7a6b55f3c2f30c1be83cdb910e3cbec9f175c455d84aceef9e8d8e6eb5eb5074",
+          "location": "main",
+          "passing": true
         },
         {
           "path": "evidence/reviews/177/public/REVIEW.json",
           "sha256": "6f443e365794997c809d8b171c8b401e103f68d556931a408d1ec4949a61eed7",
-          "location": "implementation_commit",
+          "location": "main",
           "passing": true
         }
       ],
@@ -7134,7 +7263,10 @@
         "implementation_commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
         "evidence": [
           {
-            "path": "evidence/reviews/177/composition/REVIEW.json"
+            "path": "evidence/reviews/177/composition/REVIEW.json",
+            "sha256": "7a6b55f3c2f30c1be83cdb910e3cbec9f175c455d84aceef9e8d8e6eb5eb5074",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7148,10 +7280,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/178/acceptance-handoff.json"
+          "path": "evidence/impl/178/acceptance-handoff.json",
+          "sha256": "6101b21abaa9bfea2c3f444f942c297469df7edd98297bb9b4c08e27b3a853d3",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/178/review.json"
+          "path": "evidence/reviews/178/review.json",
+          "sha256": "a61c81ebb59b8aed3eedf69a5242614bc2c661d2950840338bb404ba601ae533",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7179,7 +7317,10 @@
         "implementation_commit": "24402e17e1e248fb88a9a69fc5ec961388005e72",
         "evidence": [
           {
-            "path": "evidence/reviews/178/review.json"
+            "path": "evidence/reviews/178/review.json",
+            "sha256": "a61c81ebb59b8aed3eedf69a5242614bc2c661d2950840338bb404ba601ae533",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7193,10 +7334,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/179/acceptance-handoff.json"
+          "path": "evidence/impl/179/acceptance-handoff.json",
+          "sha256": "0eda86c4cf383e5590592675ac24739fa93577f872bd406cb45aa1d9ab6a446f",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/179/REVIEW.json"
+          "path": "evidence/reviews/179/REVIEW.json",
+          "sha256": "18f0795fc46cb7a5d29e56d21f1b22d94b2438b557e015214b492b0383dc5c6c",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7230,7 +7377,10 @@
         "implementation_commit": "204fea481d8770bf53f2e81324830b4f375d954e",
         "evidence": [
           {
-            "path": "evidence/reviews/179/REVIEW.json"
+            "path": "evidence/reviews/179/REVIEW.json",
+            "sha256": "18f0795fc46cb7a5d29e56d21f1b22d94b2438b557e015214b492b0383dc5c6c",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7244,10 +7394,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/180/author-result.json"
+          "path": "evidence/impl/180/author-result.json",
+          "sha256": "d71b2383baad6d61311d0a1e7f7fbc829203a96ff51cf29a44e059a960539df4",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/180/acceptance-handoff.json"
+          "path": "evidence/reviews/180/acceptance-handoff.json",
+          "sha256": "5ef5954009bd815cf37c3a03fe0afe30e1e571db0383364ba4c8d092ff39315e",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7283,7 +7439,10 @@
         "implementation_commit": "74254d8da12004519ca342b1c0602a5a90831c44",
         "evidence": [
           {
-            "path": "evidence/reviews/180/acceptance-handoff.json"
+            "path": "evidence/reviews/180/acceptance-handoff.json",
+            "sha256": "5ef5954009bd815cf37c3a03fe0afe30e1e571db0383364ba4c8d092ff39315e",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7299,8 +7458,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -7366,17 +7525,26 @@
         {
           "path": "evidence/impl/182/author-result.json",
           "sha256": "699ddd2b24f8fa148b0627fe64cdcdb7d2be1ecb7c081593b80ddc67dbb6f98e",
-          "location": "implementation_commit",
+          "location": "main",
           "passing": true
         },
         {
-          "path": "evidence/impl/182/repair/author-result.json"
+          "path": "evidence/impl/182/repair/author-result.json",
+          "sha256": "27f5af41a24de6e29698fd511c6896544b82558bc6f8e37abdb86ed26dd1e656",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/impl/182/repair/review-integration-fixtures.json"
+          "path": "evidence/impl/182/repair/review-integration-fixtures.json",
+          "sha256": "bf2649c805ce032af39e1cfc6abee12b2c057d417ea51c3d9f13c63118a4d807",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/impl/182/repair/review-stale-store175.json"
+          "path": "evidence/impl/182/repair/review-stale-store175.json",
+          "sha256": "0dfc7700b77f9b6064d024380984a10338765ae298fd7bbf1908648c3171c239",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7417,7 +7585,10 @@
         "implementation_commit": "ebaddd7faf7b83b257b873e8544af0fef13e670a",
         "evidence": [
           {
-            "path": "evidence/reviews/182/repair/review.json"
+            "path": "evidence/reviews/182/repair/review.json",
+            "sha256": "1e5dd02ea55cf342e7d84dcf954599444e13285c54da5b0fbd653b7b9c938218",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7431,7 +7602,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/183/author-result.json"
+          "path": "evidence/impl/183/author-result.json",
+          "sha256": "ce752ff96bbe9e52befd1d7e81a182a4655555b11782d288f8047e2feb1667f9",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7476,7 +7650,10 @@
         "implementation_commit": "19f58c16ed800b0cee5a8afcc11908925920cd63",
         "evidence": [
           {
-            "path": "evidence/impl/183/review-by182/review.json"
+            "path": "evidence/impl/183/review-by182/review.json",
+            "sha256": "4156bd7919aae0e938ad633113f78bd7160a168ddecda27f0e53f5a242a315d9",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7490,7 +7667,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/184/root/REVIEW.json"
+          "path": "evidence/reviews/184/root/REVIEW.json",
+          "sha256": "b34fa23427348025dae0f672f07815c1c0400aa3799446558f3688807ec14d6d",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7541,7 +7721,10 @@
         "implementation_commit": "b1461dc39bd920770885b27796068a560e1e6a2a",
         "evidence": [
           {
-            "path": "evidence/reviews/184/root/REVIEW.json"
+            "path": "evidence/reviews/184/root/REVIEW.json",
+            "sha256": "b34fa23427348025dae0f672f07815c1c0400aa3799446558f3688807ec14d6d",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7557,7 +7740,7 @@
         {
           "path": "evidence/impl/185/SUMMARY.json",
           "sha256": "26ac44a6df8e5d0154ac9e0ee51c6e5f4647688223d729d908a7c611b335720e",
-          "location": "implementation_commit",
+          "location": "main",
           "passing": true
         }
       ],
@@ -7596,10 +7779,16 @@
         "implementation_commit": "3c18ce7884351f1f234b36f38e31c9dad1450e3d",
         "evidence": [
           {
-            "path": "evidence/reviews/185/REVIEW.json"
+            "path": "evidence/reviews/185/REVIEW.json",
+            "sha256": "49490d2375c8270a954bd0c1e317e0d5e661f5f305512922cb60f701aa91c3ba",
+            "location": "main",
+            "passing": true
           },
           {
-            "path": "evidence/reviews/185/METADATA-FOLLOWUP.json"
+            "path": "evidence/reviews/185/METADATA-FOLLOWUP.json",
+            "sha256": "f9877b8a27aa52dc842e40dfc65919c24c7af90a8df91f0ce4ba7d9445420a47",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7613,13 +7802,22 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/186/field-provenance/author-result.json"
+          "path": "evidence/impl/186/field-provenance/author-result.json",
+          "sha256": "a33792a8b3485c5a454584a1d5cc25fd535f977ce24d6cc276b2b1abe69eac4d",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/186/root/REVIEW.json"
+          "path": "evidence/reviews/186/root/REVIEW.json",
+          "sha256": "4c5f5efb01334236d7ccbbb2a13418b54e22d1f7912f9d3f281e81db9704f777",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/186/by178/REVIEW.json"
+          "path": "evidence/reviews/186/by178/REVIEW.json",
+          "sha256": "5c040af3d24228c1def1d1e84851da8b4ddf16366dd04fb603ea70c49932ebb7",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7648,7 +7846,10 @@
         "implementation_commit": "0fb8aaaeeef058ddd6420e4fc8981c3f957ea330",
         "evidence": [
           {
-            "path": "evidence/reviews/186/root/REVIEW.json"
+            "path": "evidence/reviews/186/root/REVIEW.json",
+            "sha256": "4c5f5efb01334236d7ccbbb2a13418b54e22d1f7912f9d3f281e81db9704f777",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7662,10 +7863,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/187/author-result.json"
+          "path": "evidence/impl/187/author-result.json",
+          "sha256": "c181d5aa800e267458d78de2be41bb208077716d9fdff0539bf78b2bea440d16",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/187/root/REVIEW.json"
+          "path": "evidence/reviews/187/root/REVIEW.json",
+          "sha256": "d2847abd1b0602da1536ea5e5f00c5b0eae0321f2a65f65529cad2023b97dc13",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7703,7 +7910,10 @@
         "implementation_commit": "472b3ce052b850ef51fbfa3f8d818c51e080a112",
         "evidence": [
           {
-            "path": "evidence/reviews/187/root/REVIEW.json"
+            "path": "evidence/reviews/187/root/REVIEW.json",
+            "sha256": "d2847abd1b0602da1536ea5e5f00c5b0eae0321f2a65f65529cad2023b97dc13",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7717,13 +7927,22 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/188/author-result.json"
+          "path": "evidence/impl/188/author-result.json",
+          "sha256": "62e1a114f39c223e6edd522c0158cbb53e9bb06617a33c8f4f8c6b2d44a5ba79",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/188/root/REVIEW.json"
+          "path": "evidence/reviews/188/root/REVIEW.json",
+          "sha256": "7b036703fb2ebed262d7d133fd671a8aeace3cfa9fea314807b20f67e14709a9",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/impl/181/188189-composition/RESULT.json"
+          "path": "evidence/impl/181/188189-composition/RESULT.json",
+          "sha256": "2e0ad116885e6e5b8eb6622b933a18b5f27a27633313dcda6e1511c126422cfa",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7758,7 +7977,10 @@
         "implementation_commit": "49c60f0cb663c67310f722b2e2d8d563693c2c84",
         "evidence": [
           {
-            "path": "evidence/reviews/188/root/REVIEW.json"
+            "path": "evidence/reviews/188/root/REVIEW.json",
+            "sha256": "7b036703fb2ebed262d7d133fd671a8aeace3cfa9fea314807b20f67e14709a9",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7772,10 +7994,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/189/root/REVIEW.json"
+          "path": "evidence/reviews/189/root/REVIEW.json",
+          "sha256": "dc631a90b828070d504f5efd8478a1ae42b2229c571488239df11b169d5c7f7e",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/impl/181/188189-composition/RESULT.json"
+          "path": "evidence/impl/181/188189-composition/RESULT.json",
+          "sha256": "2e0ad116885e6e5b8eb6622b933a18b5f27a27633313dcda6e1511c126422cfa",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7817,7 +8045,10 @@
         "implementation_commit": "bfe60582c46526a75349d4eefd3c60fde8f327e6",
         "evidence": [
           {
-            "path": "evidence/reviews/189/root/REVIEW.json"
+            "path": "evidence/reviews/189/root/REVIEW.json",
+            "sha256": "dc631a90b828070d504f5efd8478a1ae42b2229c571488239df11b169d5c7f7e",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7831,7 +8062,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/190/by193/review-final.json"
+          "path": "evidence/reviews/190/by193/review-final.json",
+          "sha256": "af9b4589d46229058c87691eedb7ce854a00a38bd0f9cd25673d588219c365f5",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7873,7 +8107,10 @@
         "implementation_commit": "7491c212d392b12bb90f735b90f535066fa00a47",
         "evidence": [
           {
-            "path": "evidence/reviews/190/by193/review-final.json"
+            "path": "evidence/reviews/190/by193/review-final.json",
+            "sha256": "af9b4589d46229058c87691eedb7ce854a00a38bd0f9cd25673d588219c365f5",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7887,16 +8124,22 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/191/SUMMARY.json"
+          "path": "evidence/impl/191/SUMMARY.json",
+          "sha256": "cc061e517fc8a18185263480cddbb08e069d9aac517a80ac7820c9eafedc3a35",
+          "location": "main",
+          "passing": true
         },
         {
           "path": "evidence/reviews/191-baseline/REVIEW.json",
           "sha256": "70534c5277b276bc7ab9301903f369a4b5c86581bf57716ff833f79456b614b0",
-          "location": "implementation_commit",
+          "location": "main",
           "passing": true
         },
         {
-          "path": "evidence/reviews/191/final-by193/REVIEW.json"
+          "path": "evidence/reviews/191/final-by193/REVIEW.json",
+          "sha256": "5a22474fa111022e3b1f3dbddfedefcc9983a7a87dfb610bf5db816fd6987e4a",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7938,7 +8181,10 @@
         "implementation_commit": "06daaaed653e045a55a005ff6ff41eb2e9a1c60c",
         "evidence": [
           {
-            "path": "evidence/reviews/191/final-by193/REVIEW.json"
+            "path": "evidence/reviews/191/final-by193/REVIEW.json",
+            "sha256": "5a22474fa111022e3b1f3dbddfedefcc9983a7a87dfb610bf5db816fd6987e4a",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -7952,7 +8198,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/192/root/REVIEW.json"
+          "path": "evidence/reviews/192/root/REVIEW.json",
+          "sha256": "a8325b94370cbdf7176ebcb16b536b593a9402b9a2e436b2f3d059c1cc437e04",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -7986,7 +8235,10 @@
         "implementation_commit": "9cf4d846698ef4c21711da73ecf5db44c9799df1",
         "evidence": [
           {
-            "path": "evidence/reviews/192/root/REVIEW.json"
+            "path": "evidence/reviews/192/root/REVIEW.json",
+            "sha256": "a8325b94370cbdf7176ebcb16b536b593a9402b9a2e436b2f3d059c1cc437e04",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8000,7 +8252,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/193/root/REVIEW.json"
+          "path": "evidence/reviews/193/root/REVIEW.json",
+          "sha256": "3f6f219b0e4c08253d9feea88399bb6bbbd76fc851c3d6d303ba2020fc59a44c",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8040,7 +8295,10 @@
         "implementation_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
         "evidence": [
           {
-            "path": "evidence/reviews/193/root/REVIEW.json"
+            "path": "evidence/reviews/193/root/REVIEW.json",
+            "sha256": "3f6f219b0e4c08253d9feea88399bb6bbbd76fc851c3d6d303ba2020fc59a44c",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8054,7 +8312,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/194/root/REVIEW.json"
+          "path": "evidence/reviews/194/root/REVIEW.json",
+          "sha256": "0317a03940fdf57a324e242161c687f5ed47259f3de2337da3e717f3ddcd95dc",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8087,7 +8348,10 @@
         "implementation_commit": "13df78f532f63874b61d56dc6067884dbac0fe9d",
         "evidence": [
           {
-            "path": "evidence/reviews/194/root/REVIEW.json"
+            "path": "evidence/reviews/194/root/REVIEW.json",
+            "sha256": "0317a03940fdf57a324e242161c687f5ed47259f3de2337da3e717f3ddcd95dc",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8101,7 +8365,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/195/by193/REVIEW.json"
+          "path": "evidence/reviews/195/by193/REVIEW.json",
+          "sha256": "d7c866ce3f172a94c2538dff46c802714cfe474f45dd6d76897fd031a0c29d9a",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8131,7 +8398,10 @@
         "implementation_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
         "evidence": [
           {
-            "path": "evidence/reviews/195/by193/REVIEW.json"
+            "path": "evidence/reviews/195/by193/REVIEW.json",
+            "sha256": "d7c866ce3f172a94c2538dff46c802714cfe474f45dd6d76897fd031a0c29d9a",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8145,10 +8415,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/196/by197/REVIEW.json"
+          "path": "evidence/reviews/196/by197/REVIEW.json",
+          "sha256": "e0dd93849f2b0a93d1fa3ff1acf03f0b7a0cedcfaff688b84ded15453f5caf8b",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/196/final/RESULT.json"
+          "path": "evidence/integration/196/final/RESULT.json",
+          "sha256": "70cfcd70a5c6351be4bd27afb08e84cfe70086bf9cb90a1395af8a50332bfaa0",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8218,7 +8494,10 @@
         "implementation_commit": "bcb00f550aaea48a56c888245a8a3c6a7422a926",
         "evidence": [
           {
-            "path": "evidence/reviews/196/by197/REVIEW.json"
+            "path": "evidence/reviews/196/by197/REVIEW.json",
+            "sha256": "e0dd93849f2b0a93d1fa3ff1acf03f0b7a0cedcfaff688b84ded15453f5caf8b",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8232,7 +8511,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/197/root/REVIEW.json"
+          "path": "evidence/reviews/197/root/REVIEW.json",
+          "sha256": "05c3dfc127f89e17bcb3dbe34901afb82957c7a8eb5d996aec5f0f202d29bcc7",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8264,7 +8546,10 @@
         "implementation_commit": "959545dd466b673ec9746633b62d77a504777256",
         "evidence": [
           {
-            "path": "evidence/reviews/197/root/REVIEW.json"
+            "path": "evidence/reviews/197/root/REVIEW.json",
+            "sha256": "05c3dfc127f89e17bcb3dbe34901afb82957c7a8eb5d996aec5f0f202d29bcc7",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8278,7 +8563,10 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/198/root/REVIEW-02.json"
+          "path": "evidence/reviews/198/root/REVIEW-02.json",
+          "sha256": "026cc01e4e5c5eb5f724cf065520065cc4bcca619235e6dd9801851581356344",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8303,7 +8591,10 @@
         "implementation_commit": "de6052f0506a677d0166695ff3a928891db8f625",
         "evidence": [
           {
-            "path": "evidence/reviews/198/root/REVIEW-02.json"
+            "path": "evidence/reviews/198/root/REVIEW-02.json",
+            "sha256": "026cc01e4e5c5eb5f724cf065520065cc4bcca619235e6dd9801851581356344",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8317,10 +8608,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/199/by197/FREEZE.json"
+          "path": "evidence/reviews/199/by197/FREEZE.json",
+          "sha256": "a054ba63a633d6581926eabd393f060b676c9dea631a83713514db7ec4961e2a",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/199/by197/REVIEW.json"
+          "path": "evidence/reviews/199/by197/REVIEW.json",
+          "sha256": "f82fda2ebfd1bf1dbcdc257ecd3979e9e75dd59930113d0713b5945e741e34ae",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8351,10 +8648,16 @@
         "implementation_commit": "fff8ed85a10bb977cd7d71fa5d3a134b96107f0c",
         "evidence": [
           {
-            "path": "evidence/reviews/199/by197/FREEZE.json"
+            "path": "evidence/reviews/199/by197/FREEZE.json",
+            "sha256": "a054ba63a633d6581926eabd393f060b676c9dea631a83713514db7ec4961e2a",
+            "location": "main",
+            "passing": true
           },
           {
-            "path": "evidence/reviews/199/by197/REVIEW.json"
+            "path": "evidence/reviews/199/by197/REVIEW.json",
+            "sha256": "f82fda2ebfd1bf1dbcdc257ecd3979e9e75dd59930113d0713b5945e741e34ae",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8368,10 +8671,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/200/by197/REVIEW.json"
+          "path": "evidence/reviews/200/by197/REVIEW.json",
+          "sha256": "6b98e5e2695be9672d839327a0669b0c435bc243d9e6bcb7614b45644e892b65",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/200/final/RESULT.json"
+          "path": "evidence/integration/200/final/RESULT.json",
+          "sha256": "f041d3a31e62d687e59a329097f6784cb8c3fcb5270131b95a98506c912a08c2",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8411,7 +8720,10 @@
         "implementation_commit": "d6013e23c0f18c6cad368f5b97cdbef65f5011ce",
         "evidence": [
           {
-            "path": "evidence/reviews/200/by197/REVIEW.json"
+            "path": "evidence/reviews/200/by197/REVIEW.json",
+            "sha256": "6b98e5e2695be9672d839327a0669b0c435bc243d9e6bcb7614b45644e892b65",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8425,10 +8737,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/201/by197/REVIEW.json"
+          "path": "evidence/reviews/201/by197/REVIEW.json",
+          "sha256": "f5300a2c202ff074efa15a5dad71c4638136a29496f36860ecd301e33ab7f077",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/201/final/RESULT.json"
+          "path": "evidence/integration/201/final/RESULT.json",
+          "sha256": "2c132a17b3e8620db54e4d068f6dc72670afb14c05f47dafa2cebfbc6e3a6a6c",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8494,7 +8812,10 @@
         "implementation_commit": "7d690f67d76d665bf2e383ffab2c071d05685ecd",
         "evidence": [
           {
-            "path": "evidence/reviews/201/by197/REVIEW.json"
+            "path": "evidence/reviews/201/by197/REVIEW.json",
+            "sha256": "f5300a2c202ff074efa15a5dad71c4638136a29496f36860ecd301e33ab7f077",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8508,10 +8829,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/202/by197/REVIEW.json"
+          "path": "evidence/reviews/202/by197/REVIEW.json",
+          "sha256": "a76f947480e508ec54da21489fe4251907d290e466ac0478b092c95ff96e24b3",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/202/final/RESULT.json"
+          "path": "evidence/integration/202/final/RESULT.json",
+          "sha256": "5c7de6113c23c02d1595d6b8544a76e63a4a2f020133f6db016ad0fdd2cafda7",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8589,7 +8916,10 @@
         "implementation_commit": "b73ba8a764ee605c1ba8e3a651eb2c6baece8197",
         "evidence": [
           {
-            "path": "evidence/reviews/202/by197/REVIEW.json"
+            "path": "evidence/reviews/202/by197/REVIEW.json",
+            "sha256": "a76f947480e508ec54da21489fe4251907d290e466ac0478b092c95ff96e24b3",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8603,10 +8933,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/reviews/203/by197/FINAL_REVIEW.json"
+          "path": "evidence/reviews/203/by197/FINAL_REVIEW.json",
+          "sha256": "7bfc35f544a2c89d8e0e19501c3d97d28337764fd53bdd2c90c1bed7c657999e",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/203/final/RESULT.json"
+          "path": "evidence/integration/203/final/RESULT.json",
+          "sha256": "f8be220c62ffcfa1a81795961d430856bb6fbbb309326cddc79dd2bbd77aea62",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8696,10 +9032,16 @@
         "implementation_commit": "2e58ed38825fb87970982c93e0a674067a0f75a5",
         "evidence": [
           {
-            "path": "evidence/reviews/203/by197/FINAL_REVIEW.json"
+            "path": "evidence/reviews/203/by197/FINAL_REVIEW.json",
+            "sha256": "7bfc35f544a2c89d8e0e19501c3d97d28337764fd53bdd2c90c1bed7c657999e",
+            "location": "main",
+            "passing": true
           },
           {
-            "path": "evidence/reviews/203/by197/REVIEW.json"
+            "path": "evidence/reviews/203/by197/REVIEW.json",
+            "sha256": "31f24e842a2c2ceb30c20108f3cfb05fbcf87b3dafb7442e486a43cc9ad05466",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8713,10 +9055,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/integration/204/final/RESULT.json"
+          "path": "evidence/integration/204/final/RESULT.json",
+          "sha256": "99fa28d9decf728e94430ec9ec20ea109ff1ce04fee305a39b288a9615c68328",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/204/by197/REVIEW.json"
+          "path": "evidence/reviews/204/by197/REVIEW.json",
+          "sha256": "ab7ea412450322186c90cc34cb5402eb7ff00e5b2e978579c81d56fb1d795d75",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8770,7 +9118,10 @@
         "implementation_commit": "85f01d622d9c31bffe165e5720bbf09658af5084",
         "evidence": [
           {
-            "path": "evidence/reviews/204/by197/REVIEW.json"
+            "path": "evidence/reviews/204/by197/REVIEW.json",
+            "sha256": "ab7ea412450322186c90cc34cb5402eb7ff00e5b2e978579c81d56fb1d795d75",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8784,10 +9135,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/integration/205/final/RESULT.json"
+          "path": "evidence/integration/205/final/RESULT.json",
+          "sha256": "985e0ba8b5dcdc6114ca81fad1aa3dc05c19d64daeb371f2101166bbf38aadcd",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/205/by197/REVIEW.json"
+          "path": "evidence/reviews/205/by197/REVIEW.json",
+          "sha256": "b47c48214bc50a97017e8e8b2ccbae16caf442e46ad6ba0ed85cd15b045552bd",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8845,7 +9202,10 @@
         "implementation_commit": "2db3c090088dc3882a7566efe60f6cf6d81cc666",
         "evidence": [
           {
-            "path": "evidence/reviews/205/by197/REVIEW.json"
+            "path": "evidence/reviews/205/by197/REVIEW.json",
+            "sha256": "b47c48214bc50a97017e8e8b2ccbae16caf442e46ad6ba0ed85cd15b045552bd",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8859,10 +9219,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/integration/206/final/RESULT.json"
+          "path": "evidence/integration/206/final/RESULT.json",
+          "sha256": "48e5a57e521cb46d8b044b621359f6341e1038e39cc9ee521772833c9407c75d",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/206/by197/REVIEW.json"
+          "path": "evidence/reviews/206/by197/REVIEW.json",
+          "sha256": "3744613482514c2dcc4679b1aa6e8654a437c4106a6e024c828437ca40819e21",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -8912,7 +9278,10 @@
         "implementation_commit": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
         "evidence": [
           {
-            "path": "evidence/reviews/206/by197/REVIEW.json"
+            "path": "evidence/reviews/206/by197/REVIEW.json",
+            "sha256": "3744613482514c2dcc4679b1aa6e8654a437c4106a6e024c828437ca40819e21",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -8928,8 +9297,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -8961,8 +9330,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -8994,8 +9363,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9021,8 +9390,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9047,8 +9416,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9078,10 +9447,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/integration/217/RESULT.json"
+          "path": "evidence/integration/217/RESULT.json",
+          "sha256": "f6f21ce843d00e41d10a9ab113d4831a34a24dec3058db74059cb8cad654a231",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
+          "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json",
+          "sha256": "f2eedfda47ebb70517fbe3b614c1e42f6ab577e31aec22852395b67b546f5e67",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -9115,7 +9490,10 @@
         "implementation_commit": "9219be40ff0aa2d7e2902cd0a6da151bd44b3cb4",
         "evidence": [
           {
-            "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
+            "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json",
+            "sha256": "f2eedfda47ebb70517fbe3b614c1e42f6ab577e31aec22852395b67b546f5e67",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -9129,10 +9507,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/integration/217/RESULT.json"
+          "path": "evidence/integration/217/RESULT.json",
+          "sha256": "f6f21ce843d00e41d10a9ab113d4831a34a24dec3058db74059cb8cad654a231",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
+          "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json",
+          "sha256": "f2eedfda47ebb70517fbe3b614c1e42f6ab577e31aec22852395b67b546f5e67",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -9161,7 +9545,10 @@
         "implementation_commit": "9219be40ff0aa2d7e2902cd0a6da151bd44b3cb4",
         "evidence": [
           {
-            "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
+            "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json",
+            "sha256": "f2eedfda47ebb70517fbe3b614c1e42f6ab577e31aec22852395b67b546f5e67",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -9175,10 +9562,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/integration/217/RESULT.json"
+          "path": "evidence/integration/217/RESULT.json",
+          "sha256": "f6f21ce843d00e41d10a9ab113d4831a34a24dec3058db74059cb8cad654a231",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
+          "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json",
+          "sha256": "f2eedfda47ebb70517fbe3b614c1e42f6ab577e31aec22852395b67b546f5e67",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -9206,7 +9599,10 @@
         "implementation_commit": "9219be40ff0aa2d7e2902cd0a6da151bd44b3cb4",
         "evidence": [
           {
-            "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
+            "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json",
+            "sha256": "f2eedfda47ebb70517fbe3b614c1e42f6ab577e31aec22852395b67b546f5e67",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -9220,10 +9616,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/integration/217/RESULT.json"
+          "path": "evidence/integration/217/RESULT.json",
+          "sha256": "f6f21ce843d00e41d10a9ab113d4831a34a24dec3058db74059cb8cad654a231",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
+          "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json",
+          "sha256": "f2eedfda47ebb70517fbe3b614c1e42f6ab577e31aec22852395b67b546f5e67",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -9259,7 +9661,10 @@
         "implementation_commit": "9219be40ff0aa2d7e2902cd0a6da151bd44b3cb4",
         "evidence": [
           {
-            "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
+            "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json",
+            "sha256": "f2eedfda47ebb70517fbe3b614c1e42f6ab577e31aec22852395b67b546f5e67",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -9273,10 +9678,16 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/integration/217/RESULT.json"
+          "path": "evidence/integration/217/RESULT.json",
+          "sha256": "f6f21ce843d00e41d10a9ab113d4831a34a24dec3058db74059cb8cad654a231",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
+          "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json",
+          "sha256": "f2eedfda47ebb70517fbe3b614c1e42f6ab577e31aec22852395b67b546f5e67",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -9301,7 +9712,10 @@
         "implementation_commit": "9219be40ff0aa2d7e2902cd0a6da151bd44b3cb4",
         "evidence": [
           {
-            "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
+            "path": "evidence/reviews/217/by_branch_audit/SUPPLEMENT.json",
+            "sha256": "f2eedfda47ebb70517fbe3b614c1e42f6ab577e31aec22852395b67b546f5e67",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -9315,16 +9729,28 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/integration/221/RESULT.json"
+          "path": "evidence/integration/221/RESULT.json",
+          "sha256": "97265e8efa255433b5d54f8eb494a7159483177d4c1a411a0e668e9c300370a6",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/221/ci41057841800/RESULT.json"
+          "path": "evidence/integration/221/ci41057841800/RESULT.json",
+          "sha256": "bd424e63c312414dce2e3d25e4a07362f471fd5c95b535e7bad0213d772488ce",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/221/readiness-final/READINESS.json"
+          "path": "evidence/integration/221/readiness-final/READINESS.json",
+          "sha256": "73cfb5e470186e2d5cea025da80462bbfab513674abfdfb5bfc5dfc988a046b8",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-218.json"
+          "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-218.json",
+          "sha256": "2a38792027cbae78b45882f5b84a82f569045ec13dbce0e8bb0e3845933f82a0",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -9369,7 +9795,10 @@
         "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
         "evidence": [
           {
-            "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-218.json"
+            "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-218.json",
+            "sha256": "2a38792027cbae78b45882f5b84a82f569045ec13dbce0e8bb0e3845933f82a0",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -9383,16 +9812,28 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/integration/221/RESULT.json"
+          "path": "evidence/integration/221/RESULT.json",
+          "sha256": "97265e8efa255433b5d54f8eb494a7159483177d4c1a411a0e668e9c300370a6",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/221/ci41057841800/RESULT.json"
+          "path": "evidence/integration/221/ci41057841800/RESULT.json",
+          "sha256": "bd424e63c312414dce2e3d25e4a07362f471fd5c95b535e7bad0213d772488ce",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/221/readiness-final/READINESS.json"
+          "path": "evidence/integration/221/readiness-final/READINESS.json",
+          "sha256": "73cfb5e470186e2d5cea025da80462bbfab513674abfdfb5bfc5dfc988a046b8",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/219/by_root/REVIEW.json"
+          "path": "evidence/reviews/219/by_root/REVIEW.json",
+          "sha256": "15815a45c80a5638fe337e112c229859c89b2976816bca833b483b1d52bc77f9",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -9428,7 +9869,10 @@
         "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
         "evidence": [
           {
-            "path": "evidence/reviews/219/by_root/REVIEW.json"
+            "path": "evidence/reviews/219/by_root/REVIEW.json",
+            "sha256": "15815a45c80a5638fe337e112c229859c89b2976816bca833b483b1d52bc77f9",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -9442,16 +9886,28 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/integration/221/RESULT.json"
+          "path": "evidence/integration/221/RESULT.json",
+          "sha256": "97265e8efa255433b5d54f8eb494a7159483177d4c1a411a0e668e9c300370a6",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/221/ci41057841800/RESULT.json"
+          "path": "evidence/integration/221/ci41057841800/RESULT.json",
+          "sha256": "bd424e63c312414dce2e3d25e4a07362f471fd5c95b535e7bad0213d772488ce",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/221/readiness-final/READINESS.json"
+          "path": "evidence/integration/221/readiness-final/READINESS.json",
+          "sha256": "73cfb5e470186e2d5cea025da80462bbfab513674abfdfb5bfc5dfc988a046b8",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-220.json"
+          "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-220.json",
+          "sha256": "4ca0cd79c42642dadab03dcd083581bd2d7032b0f00b5f0a8dc2d9b3fda16fb2",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -9482,7 +9938,10 @@
         "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
         "evidence": [
           {
-            "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-220.json"
+            "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-220.json",
+            "sha256": "4ca0cd79c42642dadab03dcd083581bd2d7032b0f00b5f0a8dc2d9b3fda16fb2",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -9496,16 +9955,28 @@
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/integration/221/RESULT.json"
+          "path": "evidence/integration/221/RESULT.json",
+          "sha256": "97265e8efa255433b5d54f8eb494a7159483177d4c1a411a0e668e9c300370a6",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/221/ci41057841800/RESULT.json"
+          "path": "evidence/integration/221/ci41057841800/RESULT.json",
+          "sha256": "bd424e63c312414dce2e3d25e4a07362f471fd5c95b535e7bad0213d772488ce",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/221/readiness-final/READINESS.json"
+          "path": "evidence/integration/221/readiness-final/READINESS.json",
+          "sha256": "73cfb5e470186e2d5cea025da80462bbfab513674abfdfb5bfc5dfc988a046b8",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-221.json"
+          "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-221.json",
+          "sha256": "379c6c18386dad83409c3796a539d8066268a897590b53f58f513b044cc4f202",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -9532,7 +10003,10 @@
         "implementation_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
         "evidence": [
           {
-            "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-221.json"
+            "path": "evidence/reviews/218-221/by_language_parallel/REVIEW-221.json",
+            "sha256": "379c6c18386dad83409c3796a539d8066268a897590b53f58f513b044cc4f202",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -9548,17 +10022,26 @@
         {
           "path": "evidence/integration/222-224/local/RESULT.json",
           "sha256": "4b8ae8683bfd66d231e6e9868e8fb481eb47a065090c853e219398c8916350f9",
-          "location": "implementation_commit",
+          "location": "main",
           "passing": true
         },
         {
-          "path": "evidence/reviews/222-224/REVIEW-222.json"
+          "path": "evidence/reviews/222-224/REVIEW-222.json",
+          "sha256": "8f756eedf0430ee7a9cdc68ecae04accb26e15a325a443467ae159558a3bfe53",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/222-224/ci41088376020/RESULT.json"
+          "path": "evidence/integration/222-224/ci41088376020/RESULT.json",
+          "sha256": "d553f0b4511e0060a57ad7fd6c47883f0fd564b3fa953a36088bd1d801cf368c",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/222-224/ci41106864272/RESULT.json"
+          "path": "evidence/integration/222-224/ci41106864272/RESULT.json",
+          "sha256": "872accf244e4aeb10e7f09ce8cd842fff99f66c4c6a7aa9e816e20782d9fcb7c",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -9588,7 +10071,10 @@
         "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
         "evidence": [
           {
-            "path": "evidence/reviews/222-224/REVIEW-222.json"
+            "path": "evidence/reviews/222-224/REVIEW-222.json",
+            "sha256": "8f756eedf0430ee7a9cdc68ecae04accb26e15a325a443467ae159558a3bfe53",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -9604,17 +10090,26 @@
         {
           "path": "evidence/integration/222-224/local/RESULT.json",
           "sha256": "4b8ae8683bfd66d231e6e9868e8fb481eb47a065090c853e219398c8916350f9",
-          "location": "implementation_commit",
+          "location": "main",
           "passing": true
         },
         {
-          "path": "evidence/reviews/222-224/REVIEW-223.json"
+          "path": "evidence/reviews/222-224/REVIEW-223.json",
+          "sha256": "86e64a8053830bcb8882b763290d590a7fd804379cff267a750a90b5d8a34b13",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/222-224/ci41088376020/RESULT.json"
+          "path": "evidence/integration/222-224/ci41088376020/RESULT.json",
+          "sha256": "d553f0b4511e0060a57ad7fd6c47883f0fd564b3fa953a36088bd1d801cf368c",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/222-224/ci41106864272/RESULT.json"
+          "path": "evidence/integration/222-224/ci41106864272/RESULT.json",
+          "sha256": "872accf244e4aeb10e7f09ce8cd842fff99f66c4c6a7aa9e816e20782d9fcb7c",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -9654,7 +10149,10 @@
         "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
         "evidence": [
           {
-            "path": "evidence/reviews/222-224/REVIEW-223.json"
+            "path": "evidence/reviews/222-224/REVIEW-223.json",
+            "sha256": "86e64a8053830bcb8882b763290d590a7fd804379cff267a750a90b5d8a34b13",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -9670,17 +10168,26 @@
         {
           "path": "evidence/integration/222-224/local/RESULT.json",
           "sha256": "4b8ae8683bfd66d231e6e9868e8fb481eb47a065090c853e219398c8916350f9",
-          "location": "implementation_commit",
+          "location": "main",
           "passing": true
         },
         {
-          "path": "evidence/reviews/222-224/REVIEW-224.json"
+          "path": "evidence/reviews/222-224/REVIEW-224.json",
+          "sha256": "06db282a57f8c098b4d6b0c5391c3ff302318c988a80210bd297fbd87be4afa2",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/222-224/ci41088376020/RESULT.json"
+          "path": "evidence/integration/222-224/ci41088376020/RESULT.json",
+          "sha256": "d553f0b4511e0060a57ad7fd6c47883f0fd564b3fa953a36088bd1d801cf368c",
+          "location": "main",
+          "passing": true
         },
         {
-          "path": "evidence/integration/222-224/ci41106864272/RESULT.json"
+          "path": "evidence/integration/222-224/ci41106864272/RESULT.json",
+          "sha256": "872accf244e4aeb10e7f09ce8cd842fff99f66c4c6a7aa9e816e20782d9fcb7c",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -9721,7 +10228,10 @@
         "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
         "evidence": [
           {
-            "path": "evidence/reviews/222-224/REVIEW-224.json"
+            "path": "evidence/reviews/222-224/REVIEW-224.json",
+            "sha256": "06db282a57f8c098b4d6b0c5391c3ff302318c988a80210bd297fbd87be4afa2",
+            "location": "main",
+            "passing": true
           }
         ]
       }
@@ -9729,20 +10239,35 @@
     {
       "id": "225",
       "path": ".task/impl/225.md",
-      "status": "待验",
+      "status": "已合入",
       "baseline": "42ce8081a2aa5722a14fea53f23f819f46685a60",
-      "record_sha256": "4d1c7d862199d45a2d83d768fe0557e9764b9c59ce3cf2c5994f1e4ffaa8e782",
+      "record_sha256": "555abc120738dcc44fda6db11a936fcb414fed8395ee4a8eba2da553da789ef0",
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/225/AUTHOR.json"
+          "path": "evidence/integration/construction10/RESULT.json",
+          "sha256": "b23543cc99bd2365dc3ec2aa79c3f7e180d96253b31c61ff879210a1a644dbd7",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/reviews/225/construction10/FINAL.json",
+          "sha256": "4bf9006daa25848c5db25e655984db1e43da99b4a6b5a584a299ee04c3ed4635",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/reviews/225/construction10/MAIN-CONTINUITY.json",
+          "sha256": "e66f03f662cecf98195e1aa1b8e340ebf192833f204dbd6615011650e1551eab",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
-        "source": "current",
-        "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "source": "implementation_commit",
+        "revision": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9755,26 +10280,54 @@
         "evidence/impl/225/**"
       ],
       "implementation_author": "zil施工8/current-assistant",
-      "implementation_commit": "8ea37c2de56cf65f1448e4fa647671f4459ad148",
-      "integration_commit": null
+      "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+      "integration_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+      "review": {
+        "reviewer": "zil施工10/branch_audit",
+        "verdict": "Pass",
+        "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+        "evidence": [
+          {
+            "path": "evidence/reviews/225/construction10/FINAL.json",
+            "sha256": "4bf9006daa25848c5db25e655984db1e43da99b4a6b5a584a299ee04c3ed4635",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
     },
     {
       "id": "226",
       "path": ".task/impl/226.md",
-      "status": "待验",
+      "status": "已合入",
       "baseline": "42ce8081a2aa5722a14fea53f23f819f46685a60",
-      "record_sha256": "6ad05e11667467c980d0abaef52466e3d3b617d34b4f5b9537ec0b398f1f5a54",
+      "record_sha256": "8896793079db698887d03e366ba8115c5144a00f4a59b89ceec62c509b5fcbac",
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/226/AUTHOR.json"
+          "path": "evidence/integration/construction10/RESULT.json",
+          "sha256": "b23543cc99bd2365dc3ec2aa79c3f7e180d96253b31c61ff879210a1a644dbd7",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/reviews/226/construction10/FINAL.json",
+          "sha256": "8a7381b232c3480d9c4afa67483bc3887c8835be045646227760c1d12021fb55",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/reviews/225/construction10/MAIN-CONTINUITY.json",
+          "sha256": "e66f03f662cecf98195e1aa1b8e340ebf192833f204dbd6615011650e1551eab",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
-        "source": "current",
-        "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "source": "implementation_commit",
+        "revision": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9795,8 +10348,21 @@
         "evidence/impl/226/**"
       ],
       "implementation_author": "zil施工8/current-assistant",
-      "implementation_commit": "1748b767c3fd3ab1408c84ce8a9dc0f2ae34b8cd",
-      "integration_commit": null
+      "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+      "integration_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+      "review": {
+        "reviewer": "zil施工10/branch_audit",
+        "verdict": "Pass",
+        "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+        "evidence": [
+          {
+            "path": "evidence/reviews/226/construction10/FINAL.json",
+            "sha256": "8a7381b232c3480d9c4afa67483bc3887c8835be045646227760c1d12021fb55",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
     },
     {
       "id": "227",
@@ -9809,8 +10375,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
-        "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1"
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9965,6 +10531,130 @@
           }
         ]
       }
+    },
+    {
+      "id": "230",
+      "path": ".task/impl/230.md",
+      "status": "已合入",
+      "baseline": "aaeb67f12b5638677332132e28df86fa23cde3d8",
+      "record_sha256": "1de2895b8b6dda67ad7d27605146452f1191afcd35dfcd17e182da996bc3eefd",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/integration/construction10/RESULT.json",
+          "sha256": "b23543cc99bd2365dc3ec2aa79c3f7e180d96253b31c61ff879210a1a644dbd7",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/reviews/230/FINAL.json",
+          "sha256": "07672de305fde7de98c0a9c25a47b959ec3389888bdd5392eb354bafc010aa97",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/reviews/230/MAIN-CONTINUITY.json",
+          "sha256": "c77d9ea5045aff3cbec8aad8a170c9f998cb7d87a24765cefb1f64e0cc013521",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-driver/src/ct_selection/materialize.rs",
+        "crates/zil-driver/src/ct_selection/hygiene_types.rs",
+        "crates/zil-driver/src/ct_selection/hygiene.rs",
+        "crates/zil-driver/tests/impl230*",
+        "crates/zil-driver/tests/impl228_generation.rs (original enum rejection migration only)",
+        "examples/mainline/ct_enums230/**",
+        "evidence/impl/230/**"
+      ],
+      "implementation_author": "/root/continuity_audit",
+      "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+      "integration_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+      "review": {
+        "reviewer": "/root/defer_design",
+        "verdict": "Pass",
+        "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+        "evidence": [
+          {
+            "path": "evidence/reviews/230/FINAL.json",
+            "sha256": "07672de305fde7de98c0a9c25a47b959ec3389888bdd5392eb354bafc010aa97",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "231",
+      "path": ".task/impl/231.md",
+      "status": "已合入",
+      "baseline": "aaeb67f12b5638677332132e28df86fa23cde3d8",
+      "record_sha256": "b3a10ba8244ef6beafe29e8651cbce94066eb5de9bdb7b93116f537794284983",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/integration/construction10/RESULT.json",
+          "sha256": "b23543cc99bd2365dc3ec2aa79c3f7e180d96253b31c61ff879210a1a644dbd7",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/reviews/231/attempt2/FINAL.json",
+          "sha256": "a13307d3d16aec734dcb289cd46f90326476d9599588d8c066f20e5721d7b42d",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/reviews/231/attempt2/MAIN-CONTINUITY.json",
+          "sha256": "db30f0c409d1467334802ba72f057a714e83804e91c287d98975ad3617921dfd",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-expand/src/generic_where.rs",
+        "crates/zil-expand/src/modules.rs",
+        "crates/zil-expand/src/generic_trait_bounds.rs (existing declaration access and named module-reserved-trait repair)",
+        "crates/zil-expand/src/generics.rs (necessary naming integration only)",
+        "crates/zil-driver/tests/impl231*",
+        "crates/zil-expand/tests/impl231*",
+        "crates/zil-driver/tests/impl229_where_copy.rs (Marker acceptance migration only)",
+        "crates/zil-driver/tests/review229_independent.rs (Marker acceptance migration only)",
+        "examples/mainline/where_traits231/**",
+        "evidence/impl/231/**",
+        "crates/zil-driver/tests/review229_joint.rs (existing Marker acceptance migration only; first full CI failure 41182685056)"
+      ],
+      "implementation_author": "/root/defer_design",
+      "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+      "integration_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+      "review": {
+        "reviewer": "/root/continuity_audit",
+        "verdict": "Pass",
+        "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+        "evidence": [
+          {
+            "path": "evidence/reviews/231/attempt2/FINAL.json",
+            "sha256": "a13307d3d16aec734dcb289cd46f90326476d9599588d8c066f20e5721d7b42d",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
     }
   ],
   "next": [
@@ -10092,16 +10782,6 @@
       "id": "212",
       "status": "施工",
       "authoritative_task": ".task/impl/212.md"
-    },
-    {
-      "id": "225",
-      "status": "待验",
-      "authoritative_task": ".task/impl/225.md"
-    },
-    {
-      "id": "226",
-      "status": "待验",
-      "authoritative_task": ".task/impl/226.md"
     },
     {
       "id": "227",
@@ -14607,18 +15287,6 @@
       "reason": "Task specification snapshot differs from its implementation commit."
     },
     {
-      "id": "161",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/161/completion.json"
-    },
-    {
-      "id": "161",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/161/review.json"
-    },
-    {
-      "id": "161",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
       "id": "162",
       "reason": "Historical normative input does not match its committed registry: _zil_design.md"
     },
@@ -14633,18 +15301,6 @@
     {
       "id": "162",
       "reason": "Task specification snapshot differs from its implementation commit."
-    },
-    {
-      "id": "162",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/162/completion.json"
-    },
-    {
-      "id": "162",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/162/review.json"
-    },
-    {
-      "id": "162",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
     },
     {
       "id": "163",
@@ -14663,18 +15319,6 @@
       "reason": "Task specification snapshot differs from its implementation commit."
     },
     {
-      "id": "163",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/163/completion.json"
-    },
-    {
-      "id": "163",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/163/handoff-binding.json"
-    },
-    {
-      "id": "163",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
       "id": "164",
       "reason": "Historical normative input does not match its committed registry: _zil_design.md"
     },
@@ -14691,18 +15335,6 @@
       "reason": "Task specification snapshot differs from its implementation commit."
     },
     {
-      "id": "164",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/164/completion.json"
-    },
-    {
-      "id": "164",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/164/review.json"
-    },
-    {
-      "id": "164",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
       "id": "165",
       "reason": "Historical normative input does not match its committed registry: _zil_design.md"
     },
@@ -14717,634 +15349,10 @@
     {
       "id": "165",
       "reason": "Task specification snapshot differs from its implementation commit."
-    },
-    {
-      "id": "165",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/165/completion.json"
-    },
-    {
-      "id": "165",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/165/handoff-binding.json"
-    },
-    {
-      "id": "165",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "166",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/169/acceptance.json"
-    },
-    {
-      "id": "166",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/166/final-binding.json"
-    },
-    {
-      "id": "166",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "167",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/169/acceptance.json"
-    },
-    {
-      "id": "167",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/167/final-binding.json"
-    },
-    {
-      "id": "167",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "168",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/169/acceptance.json"
-    },
-    {
-      "id": "168",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/168/final-binding.json"
-    },
-    {
-      "id": "168",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "169",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/169/acceptance.json"
-    },
-    {
-      "id": "169",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/169/final/INTEGRATION-REVIEW.json"
-    },
-    {
-      "id": "169",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "170",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/170/focused-01/command.json"
-    },
-    {
-      "id": "170",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/170/review.json"
-    },
-    {
-      "id": "170",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/170/review.json"
-    },
-    {
-      "id": "170",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "171",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/171/limited-09/command.json"
-    },
-    {
-      "id": "171",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/171/REVIEW.json"
-    },
-    {
-      "id": "171",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/171/REVIEW.json"
-    },
-    {
-      "id": "171",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "172",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/172/consumer/summary.json"
-    },
-    {
-      "id": "172",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/172/HANDOFF.json"
-    },
-    {
-      "id": "172",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/172/HANDOFF.json"
-    },
-    {
-      "id": "172",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "173",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/173/acceptance.json"
-    },
-    {
-      "id": "173",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/173/integration/REVIEW.json"
-    },
-    {
-      "id": "173",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/173/integration/REVIEW.json"
-    },
-    {
-      "id": "173",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/173/public/REVIEW.json"
-    },
-    {
-      "id": "173",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/173/wire-stack/REVIEW.json"
-    },
-    {
-      "id": "173",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "174",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/174/author-summary.json"
-    },
-    {
-      "id": "174",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/174/REVIEW.json"
-    },
-    {
-      "id": "174",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/174/REVIEW.json"
-    },
-    {
-      "id": "174",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "175",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/177/acceptance-handoff.json"
-    },
-    {
-      "id": "175",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/175/REVIEW.json"
-    },
-    {
-      "id": "175",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/175/REVIEW.json"
-    },
-    {
-      "id": "175",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "176",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/177/acceptance-handoff.json"
-    },
-    {
-      "id": "176",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/176/REVIEW.json"
-    },
-    {
-      "id": "176",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/176/REVIEW.json"
-    },
-    {
-      "id": "176",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "177",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/177/acceptance-handoff.json"
-    },
-    {
-      "id": "177",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/177/composition/REVIEW.json"
-    },
-    {
-      "id": "177",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/177/composition/REVIEW.json"
-    },
-    {
-      "id": "177",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "178",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/178/acceptance-handoff.json"
-    },
-    {
-      "id": "178",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/178/review.json"
-    },
-    {
-      "id": "178",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/178/review.json"
-    },
-    {
-      "id": "178",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "179",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/179/acceptance-handoff.json"
-    },
-    {
-      "id": "179",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/179/REVIEW.json"
-    },
-    {
-      "id": "179",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/179/REVIEW.json"
-    },
-    {
-      "id": "179",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "180",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/180/author-result.json"
-    },
-    {
-      "id": "180",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/180/acceptance-handoff.json"
-    },
-    {
-      "id": "180",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/180/acceptance-handoff.json"
-    },
-    {
-      "id": "180",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
     },
     {
       "id": "181",
       "reason": "Task specification snapshot is stale."
-    },
-    {
-      "id": "182",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/182/repair/author-result.json"
-    },
-    {
-      "id": "182",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/182/repair/review-integration-fixtures.json"
-    },
-    {
-      "id": "182",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/182/repair/review-stale-store175.json"
-    },
-    {
-      "id": "182",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/182/repair/review.json"
-    },
-    {
-      "id": "182",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "183",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/183/author-result.json"
-    },
-    {
-      "id": "183",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/183/review-by182/review.json"
-    },
-    {
-      "id": "183",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "184",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/184/root/REVIEW.json"
-    },
-    {
-      "id": "184",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/184/root/REVIEW.json"
-    },
-    {
-      "id": "184",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "185",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/185/REVIEW.json"
-    },
-    {
-      "id": "185",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/185/METADATA-FOLLOWUP.json"
-    },
-    {
-      "id": "185",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "186",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/186/field-provenance/author-result.json"
-    },
-    {
-      "id": "186",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/186/root/REVIEW.json"
-    },
-    {
-      "id": "186",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/186/by178/REVIEW.json"
-    },
-    {
-      "id": "186",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/186/root/REVIEW.json"
-    },
-    {
-      "id": "186",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "187",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/187/author-result.json"
-    },
-    {
-      "id": "187",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/187/root/REVIEW.json"
-    },
-    {
-      "id": "187",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/187/root/REVIEW.json"
-    },
-    {
-      "id": "187",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "188",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/188/author-result.json"
-    },
-    {
-      "id": "188",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/188/root/REVIEW.json"
-    },
-    {
-      "id": "188",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/181/188189-composition/RESULT.json"
-    },
-    {
-      "id": "188",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/188/root/REVIEW.json"
-    },
-    {
-      "id": "188",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "189",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/189/root/REVIEW.json"
-    },
-    {
-      "id": "189",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/181/188189-composition/RESULT.json"
-    },
-    {
-      "id": "189",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/189/root/REVIEW.json"
-    },
-    {
-      "id": "189",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "190",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/190/by193/review-final.json"
-    },
-    {
-      "id": "190",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/190/by193/review-final.json"
-    },
-    {
-      "id": "190",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "191",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/191/SUMMARY.json"
-    },
-    {
-      "id": "191",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/191/final-by193/REVIEW.json"
-    },
-    {
-      "id": "191",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/191/final-by193/REVIEW.json"
-    },
-    {
-      "id": "191",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "192",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/192/root/REVIEW.json"
-    },
-    {
-      "id": "192",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/192/root/REVIEW.json"
-    },
-    {
-      "id": "192",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "193",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/193/root/REVIEW.json"
-    },
-    {
-      "id": "193",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/193/root/REVIEW.json"
-    },
-    {
-      "id": "193",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "194",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/194/root/REVIEW.json"
-    },
-    {
-      "id": "194",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/194/root/REVIEW.json"
-    },
-    {
-      "id": "194",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "195",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/195/by193/REVIEW.json"
-    },
-    {
-      "id": "195",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/195/by193/REVIEW.json"
-    },
-    {
-      "id": "195",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "196",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/196/by197/REVIEW.json"
-    },
-    {
-      "id": "196",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/196/final/RESULT.json"
-    },
-    {
-      "id": "196",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/196/by197/REVIEW.json"
-    },
-    {
-      "id": "196",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "197",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/197/root/REVIEW.json"
-    },
-    {
-      "id": "197",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/197/root/REVIEW.json"
-    },
-    {
-      "id": "197",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "198",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/198/root/REVIEW-02.json"
-    },
-    {
-      "id": "198",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/198/root/REVIEW-02.json"
-    },
-    {
-      "id": "198",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "199",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/199/by197/FREEZE.json"
-    },
-    {
-      "id": "199",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/199/by197/REVIEW.json"
-    },
-    {
-      "id": "199",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/199/by197/FREEZE.json"
-    },
-    {
-      "id": "199",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/199/by197/REVIEW.json"
-    },
-    {
-      "id": "199",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "200",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/200/by197/REVIEW.json"
-    },
-    {
-      "id": "200",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/200/final/RESULT.json"
-    },
-    {
-      "id": "200",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/200/by197/REVIEW.json"
-    },
-    {
-      "id": "200",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "201",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/201/by197/REVIEW.json"
-    },
-    {
-      "id": "201",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/201/final/RESULT.json"
-    },
-    {
-      "id": "201",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/201/by197/REVIEW.json"
-    },
-    {
-      "id": "201",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "202",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/202/by197/REVIEW.json"
-    },
-    {
-      "id": "202",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/202/final/RESULT.json"
-    },
-    {
-      "id": "202",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/202/by197/REVIEW.json"
-    },
-    {
-      "id": "202",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "203",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/203/by197/FINAL_REVIEW.json"
-    },
-    {
-      "id": "203",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/203/final/RESULT.json"
-    },
-    {
-      "id": "203",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/203/by197/FINAL_REVIEW.json"
-    },
-    {
-      "id": "203",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/203/by197/REVIEW.json"
-    },
-    {
-      "id": "203",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "204",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/204/final/RESULT.json"
-    },
-    {
-      "id": "204",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/204/by197/REVIEW.json"
-    },
-    {
-      "id": "204",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/204/by197/REVIEW.json"
-    },
-    {
-      "id": "204",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "205",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/205/final/RESULT.json"
-    },
-    {
-      "id": "205",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/205/by197/REVIEW.json"
-    },
-    {
-      "id": "205",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/205/by197/REVIEW.json"
-    },
-    {
-      "id": "205",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "206",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/206/final/RESULT.json"
-    },
-    {
-      "id": "206",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/206/by197/REVIEW.json"
-    },
-    {
-      "id": "206",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/206/by197/REVIEW.json"
-    },
-    {
-      "id": "206",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
     },
     {
       "id": "208",
@@ -15367,272 +15375,8 @@
       "reason": "Task specification snapshot is stale."
     },
     {
-      "id": "213",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/217/RESULT.json"
-    },
-    {
-      "id": "213",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
-    },
-    {
-      "id": "213",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
-    },
-    {
-      "id": "213",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "214",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/217/RESULT.json"
-    },
-    {
-      "id": "214",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
-    },
-    {
-      "id": "214",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
-    },
-    {
-      "id": "214",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "215",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/217/RESULT.json"
-    },
-    {
-      "id": "215",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
-    },
-    {
-      "id": "215",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
-    },
-    {
-      "id": "215",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "216",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/217/RESULT.json"
-    },
-    {
-      "id": "216",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
-    },
-    {
-      "id": "216",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
-    },
-    {
-      "id": "216",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "217",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/217/RESULT.json"
-    },
-    {
-      "id": "217",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
-    },
-    {
-      "id": "217",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/217/by_branch_audit/SUPPLEMENT.json"
-    },
-    {
-      "id": "217",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "218",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/221/RESULT.json"
-    },
-    {
-      "id": "218",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/221/ci41057841800/RESULT.json"
-    },
-    {
-      "id": "218",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/221/readiness-final/READINESS.json"
-    },
-    {
-      "id": "218",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/218-221/by_language_parallel/REVIEW-218.json"
-    },
-    {
-      "id": "218",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/218-221/by_language_parallel/REVIEW-218.json"
-    },
-    {
-      "id": "218",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "219",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/221/RESULT.json"
-    },
-    {
-      "id": "219",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/221/ci41057841800/RESULT.json"
-    },
-    {
-      "id": "219",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/221/readiness-final/READINESS.json"
-    },
-    {
-      "id": "219",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/219/by_root/REVIEW.json"
-    },
-    {
-      "id": "219",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/219/by_root/REVIEW.json"
-    },
-    {
-      "id": "219",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "220",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/221/RESULT.json"
-    },
-    {
-      "id": "220",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/221/ci41057841800/RESULT.json"
-    },
-    {
-      "id": "220",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/221/readiness-final/READINESS.json"
-    },
-    {
-      "id": "220",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/218-221/by_language_parallel/REVIEW-220.json"
-    },
-    {
-      "id": "220",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/218-221/by_language_parallel/REVIEW-220.json"
-    },
-    {
-      "id": "220",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "221",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/221/RESULT.json"
-    },
-    {
-      "id": "221",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/221/ci41057841800/RESULT.json"
-    },
-    {
-      "id": "221",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/221/readiness-final/READINESS.json"
-    },
-    {
-      "id": "221",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/218-221/by_language_parallel/REVIEW-221.json"
-    },
-    {
-      "id": "221",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/218-221/by_language_parallel/REVIEW-221.json"
-    },
-    {
-      "id": "221",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "222",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/222-224/REVIEW-222.json"
-    },
-    {
-      "id": "222",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/222-224/ci41088376020/RESULT.json"
-    },
-    {
-      "id": "222",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/222-224/ci41106864272/RESULT.json"
-    },
-    {
-      "id": "222",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/222-224/REVIEW-222.json"
-    },
-    {
-      "id": "222",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "223",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/222-224/REVIEW-223.json"
-    },
-    {
-      "id": "223",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/222-224/ci41088376020/RESULT.json"
-    },
-    {
-      "id": "223",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/222-224/ci41106864272/RESULT.json"
-    },
-    {
-      "id": "223",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/222-224/REVIEW-223.json"
-    },
-    {
-      "id": "223",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "224",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/222-224/REVIEW-224.json"
-    },
-    {
-      "id": "224",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/222-224/ci41088376020/RESULT.json"
-    },
-    {
-      "id": "224",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/222-224/ci41106864272/RESULT.json"
-    },
-    {
-      "id": "224",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/reviews/222-224/REVIEW-224.json"
-    },
-    {
-      "id": "224",
-      "reason": "No review evidence matches the recorded reviewer and implementation commit."
-    },
-    {
-      "id": "225",
-      "reason": "Task specification snapshot is stale."
-    },
-    {
-      "id": "225",
-      "reason": "implementation_commit must identify an existing complete commit."
-    },
-    {
-      "id": "225",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/225/AUTHOR.json"
-    },
-    {
-      "id": "226",
-      "reason": "Task specification snapshot is stale."
-    },
-    {
-      "id": "226",
-      "reason": "implementation_commit must identify an existing complete commit."
-    },
-    {
-      "id": "226",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/226/AUTHOR.json"
-    },
-    {
       "id": "227",
       "reason": "Task specification snapshot is stale."
-    },
-    {
-      "id": "measured",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/221/RESULT.json"
     }
   ]
 }

@@ -492,5 +492,23 @@
     ],
     "research_branches": "Retained: unmerged unique commits remain."
   },
-  "metadata_scope": "Tested main identity is M. Subsequent task, review and evidence commits retain identical compiler/test/tool/normative inputs; their HEAD is not claimed as another full test execution."
+  "metadata_scope": "Tested main identity is M. Subsequent task, review and evidence commits retain identical compiler/test/tool/normative inputs; their HEAD is not claimed as another full test execution.",
+  "handoff_record_integrity": {
+    "status": "Fail",
+    "checked_commit": "115f4f81e58b6262e3f80234953310158f8b0785",
+    "errors": 1145,
+    "warnings": 0,
+    "baseline_errors_unchanged": true,
+    "added_errors": 0,
+    "removed_errors": 0,
+    "four_accepted_task_errors": 0,
+    "receipt": "evidence/integration/construction10/closeout/RESULT.json"
+  },
+  "check_plan": {
+    "status": "Pass",
+    "checked_commit": "115f4f81e58b6262e3f80234953310158f8b0785",
+    "tasks": 14,
+    "negative_self_tests": 7,
+    "receipt": "evidence/integration/construction10/closeout/check-plan.stdout"
+  }
 }

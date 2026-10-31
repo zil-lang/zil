@@ -42,5 +42,9 @@
     "main_ci_run": 41061704505,
     "main_ci_gate": "Pass",
     "handoff_closeout_receipt": "evidence/integration/221/closeout/RESULT.json"
-  }
+  },
+  "handoff_closeout_receipt": "evidence/integration/construction10/closeout/RESULT.json",
+  "handoff_record_integrity": "Fail",
+  "handoff_historical_errors": 1145,
+  "current_four_task_record_errors": 0
 }
