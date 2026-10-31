@@ -73,6 +73,9 @@ pub struct CompilationSession {
     pub(super) database: Database,
     pub(super) raw: BTreeMap<QueryKey, RawSnapshot>,
     pub(super) capacity: usize,
+    pub(super) type_memo_enabled: bool,
+    pub(super) type_memo: Arc<zil_types::ProgramMemo>,
+    pub(super) type_memo_stats: zil_types::ProgramMemoStats,
 }
 impl Default for CompilationSession {
     fn default() -> Self {
@@ -85,11 +88,40 @@ impl CompilationSession {
             database: Database::default(),
             raw: BTreeMap::new(),
             capacity: capacity.max(8),
+            type_memo_enabled: true,
+            type_memo: Arc::default(),
+            type_memo_stats: zil_types::ProgramMemoStats::default(),
+        }
+    }
+    /// One-shot drivers have no later request that could reuse a body epoch.
+    pub fn without_type_memo() -> Self {
+        let mut session = Self::default();
+        session.set_type_memo_enabled(false);
+        session
+    }
+    pub fn set_type_memo_enabled(&mut self, enabled: bool) {
+        self.type_memo_enabled = enabled;
+        if !enabled {
+            self.type_memo = Arc::default();
+            self.type_memo_stats = zil_types::ProgramMemoStats::default();
         }
     }
     pub fn clear(&mut self) {
+        self.clear_queries();
+        self.type_memo = Arc::default();
+        self.type_memo_stats = zil_types::ProgramMemoStats::default();
+    }
+    pub(super) fn clear_queries(&mut self) {
         self.database.clear();
         self.raw.clear();
+    }
+    /// Actual body reuse in the most recent project request, separate from
+    /// whole-query hits. No disk checkpoint or verifier authority is implied.
+    pub fn type_memo_stats(&self) -> zil_types::ProgramMemoStats {
+        self.type_memo_stats
+    }
+    pub fn retained_type_memo_stats(&self) -> zil_types::ProgramMemoStats {
+        self.type_memo.stats()
     }
     pub fn cached_query_count(&self) -> usize {
         self.raw.len()
@@ -131,8 +163,11 @@ impl CompilationSession {
         trace: &TimingTrace,
     ) -> CompileReport {
         let mut request = trace.scope("compile_source", "request");
+        self.type_memo_stats = zil_types::ProgramMemoStats::default();
         if self.raw.len() > self.capacity {
-            request.trace().value("session_eviction", || self.clear());
+            request
+                .trace()
+                .value("session_eviction", || self.clear_queries());
         }
         let start = Instant::now();
         let mut report = CompileReport::new(source);

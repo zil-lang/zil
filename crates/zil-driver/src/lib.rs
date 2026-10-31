@@ -270,7 +270,7 @@ pub fn compile_source(source: &SourceUnit, options: &CompileOptions) -> CompileR
     CompilationSession::default().compile_source(source, options)
 }
 pub fn compile_path(path: &Path, options: &CompileOptions) -> CompileReport {
-    CompilationSession::default().compile_path(path, options)
+    CompilationSession::without_type_memo().compile_path(path, options)
 }
 // Keep a requested diagnostic capability explicit even for library callers.
 fn check_timing_support(options: &CompileOptions) -> CompileResult<()> {

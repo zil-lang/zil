@@ -119,6 +119,85 @@ pub(super) struct State {
     instructions: usize,
 }
 
+/// Private counter receipt for successful ordinary scalar bodies. A receipt is
+/// never a verification capability and is not deserializable.
+#[derive(Clone, Copy)]
+pub(super) struct MemoUsage {
+    blocks: usize,
+    locals: usize,
+    values: usize,
+    instructions: usize,
+    work: usize,
+    nodes: usize,
+}
+impl State {
+    pub(super) fn memo_counters(&self) -> MemoUsage {
+        MemoUsage {
+            blocks: self.blocks,
+            locals: self.locals,
+            values: self.values,
+            instructions: self.instructions,
+            work: self.work_left,
+            nodes: self.nodes_left,
+        }
+    }
+    pub(super) fn memo_usage(&self, before: MemoUsage) -> MemoUsage {
+        MemoUsage {
+            blocks: self.blocks - before.blocks,
+            locals: self.locals - before.locals,
+            values: self.values - before.values,
+            instructions: self.instructions - before.instructions,
+            work: before.work - self.work_left,
+            nodes: before.nodes - self.nodes_left,
+        }
+    }
+    /// Check every balance before updating any. If a successful old body no
+    /// longer fits, the original Builder runs to reproduce the first error/span.
+    pub(super) fn replay_memo(&mut self, usage: MemoUsage) -> bool {
+        let Some(blocks) = self
+            .blocks
+            .checked_add(usage.blocks)
+            .filter(|n| *n <= self.limits.max_blocks)
+        else {
+            return false;
+        };
+        let Some(locals) = self
+            .locals
+            .checked_add(usage.locals)
+            .filter(|n| *n <= self.limits.max_locals)
+        else {
+            return false;
+        };
+        let Some(values) = self
+            .values
+            .checked_add(usage.values)
+            .filter(|n| *n <= self.limits.max_values)
+        else {
+            return false;
+        };
+        let Some(instructions) = self
+            .instructions
+            .checked_add(usage.instructions)
+            .filter(|n| *n <= self.limits.max_instructions)
+        else {
+            return false;
+        };
+        let Some(work) = self.work_left.checked_sub(usage.work) else {
+            return false;
+        };
+        let Some(nodes) = self.nodes_left.checked_sub(usage.nodes) else {
+            return false;
+        };
+        self.blocks = blocks;
+        self.locals = locals;
+        self.values = values;
+        self.instructions = instructions;
+        self.work_left = work;
+        self.nodes_left = nodes;
+        true
+    }
+}
+
 impl State {
     pub(super) fn factory_self_contained(&mut self, id: ClosureId, span: Span) -> R<()> {
         retained::self_contained(&self.pending, id, &mut self.work_left, span)

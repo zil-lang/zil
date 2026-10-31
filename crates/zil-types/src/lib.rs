@@ -23,6 +23,7 @@ mod names;
 mod owning_factory;
 mod packages;
 mod program;
+mod program_memo;
 mod resource_effects;
 mod resources;
 mod retained;
@@ -31,9 +32,12 @@ mod store_templates;
 pub use inference::{
     infer_program_closures, infer_program_closures_borrowed, infer_source_closures,
 };
-pub use program::{check_program, resolve_program_shapes, resolve_program_shapes_borrowed};
+pub use program::{
+    check_program, check_program_with_memo, resolve_program_shapes, resolve_program_shapes_borrowed,
+};
+pub use program_memo::{ProgramMemo, ProgramMemoStats};
 type R<T> = Result<T, Diagnostic>;
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 struct Signature {
     id: Option<FunctionId>,
     // Effective type bindings; state_parameter keeps their distinct owning source.
