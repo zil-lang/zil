@@ -2,7 +2,15 @@
 
 本轮已经把旧图算法、修复适配后的 zit、生产 DB、跨进程语义候选、标量发射、ThinLTO、MergeFunctions 和 SLP 分别实施或实际消融。结果支持继续减少真实前端工作、改善机器输入，并攻克已定位的 LLVM 热点；同时淘汰了没有净收益的反向 DB 和灾难性退化的 early/closed 合并组合。当前证据尚不能宣布通用编译速度突破、默认 O2 全面追平 Rust，或运行质量已经全面相当。
 
-本页是**已冻结结果稿**，不是最终组合交付验收。专项正在吸收 main 的 `f257…` 更新，方向是合入专项分支，不是把专项合入 main；最终生产身份和相应完整矩阵将另行冻结。下面每个数字仍属于原来的源码、工具、ELF、输入和窗口，不能重标为合并后的新二进制，也不能相乘成为“累计提速”。README 入口暂不切换。测量定义见 [STAGE6-PROTOCOL.md](STAGE6-PROTOCOL.md)。
+本页是**已冻结结果稿**，不是最终组合交付验收。专项已以 `ac4ebb9e5…` 合入 main 的 `f2572502…` 更新，并以 `888af53a0…` 补齐撤回 DB 后的配套测试；方向是合入专项分支，不是把专项合入 main。整合后的限定正确性身份已冻结，最终 LLVM 工具链组合和相应完整矩阵仍将另行绑定。下面每个数字仍属于原来的源码、工具、ELF、输入和窗口，不能重标为合并后的新二进制，也不能相乘成为“累计提速”。README 入口暂不切换。测量定义见 [STAGE6-PROTOCOL.md](STAGE6-PROTOCOL.md)。
+
+## 主分支整合与DB配套测试修复
+
+`ac4ebb9e5fe668b160cbc4b1fe30db735858fdce`保留上游f257的规则与实现，只在Expand冲突文件作手工整合。root限定检查通过75项测试、七个指定crate的llvm-api/all-targets Clippy与workspace fmt；这不是全workspace测试验收。独立复核在精确ac4源码上增加3项组合测试，比较29对完整warm/fresh报告，并完成4次LLVM API O2原生执行。拒绝后的restore可能重新Parse多份文件，不能把成功编辑的“一份Parse”保证推广到失败epoch；四个初始审计夹具/假设失败及修正均保留。
+
+GitHub运行`41206406105`真实失败：此前撤回反向DB实现时没有同时恢复其私有单元测试，遗留测试仍调用已撤回API。原75项及独审3项没有编译zil-db的`cfg(test)`，未覆盖这一问题，不能将旧限定Pass重新解释为完整CI通过。`888af53a0a7389d10a508250059db6b631c61e4a`将DB测试逐字恢复到3d6配套版本，保持生产DB不变；default/reference各13项（13个唯一测试、26次执行）及DB Clippy通过。补审核对源码和root日志，明确独立重跑次数为0，没有把日志检查算作新测试。
+
+ac4与888的release CLI逐字相同，SHA256均为`0d0e05f4b3ba14c298fef7907c8a6ec23f40f01351509c90afea63c1289246e1`；这个事实不把旧ffe4性能窗升级为新整合结果。新benchmark仍须单独绑定实际二进制和LLVM库。归档收件时root报告后续`412072…` CI仍进行中，其未冻结记录不在本包，也不计Pass。静态merge材料、失败CI原log、DB修复前测试以及清理旧Rust缓存的逐文件身份和中断/恢复收据见`integration-correctness`包；工作树、target与仍活跃的API/plugin/runtime/SSA研究未打包。
 
 ## 已经作出的取舍
 
@@ -200,13 +208,14 @@ ca79另一次冻结profile共549样本，157包含JT，152包含共同重算链�
 | [syntax-correctness](../../../evidence/research/incremental-compilation/stage6/syntax-correctness) | `stage6-project-syntax/`作者失败/修复和root身份；`stage6-syntax-review/`独审；baseline SOURCE/release。root Clippy/fmt字段明确是attestation而非原始log |
 | [syntax-session](../../../evidence/research/incremental-compilation/stage6/syntax-session) | `research/stage6/session-syntax-{isolation,vs-3d6}/`逐请求rows/stdout/process/源码/控制，以及准备、独占窗口和构建身份；两窗共1680请求 |
 | [syntax-session-review](../../../evidence/research/incremental-compilation/stage6/syntax-session-review) | `research/stage6-syntax-session-review/{recomputed.json,review.md,request-audit.jsonl,control-audit.jsonl,inventory.json,recompute.py}`；全部140时间/RSS单元及配对区间，首次review schema错误脚本/log保留 |
+| [integration-correctness](../../../evidence/research/incremental-compilation/stage6/integration-correctness) | `research/stage6/integration-checks/`的75项、Clippy/fmt、ac4/888身份与真实CI失败；`stage6-integration-review/`的3项/29报告对、夹具失败和DB补审；upstream四静态文件；旧Rust缓存清理中断/完成收据 |
 
 ## 待完成的确认，不预填结果
 
 | 新窗口/工作 | 本稿状态 | 完成后必须回答的问题 |
 |---|---|---|
 | 最终整合身份的Session | ffe4两窗已完成；不得自动改标为新身份 | 新main/LLVM变动是否影响既有编辑收益、常驻内存及错误/取消/预算控制 |
-| 合入f257后的生产CLI与Rust同工作负载矩阵 | 最终组合二进制及实际LLVM工具链身份尚需新建，结果待测 | 默认与closed、冷/暖/前后编辑/恢复，全部形状和失败；同等级优化下是否缩小O2差距 |
+| 合入f257后的生产CLI与Rust同工作负载矩阵 | ac4/888限定源码与CLI已冻结；最终候选和实际LLVM工具链须独立绑定，矩阵待测 | 默认与closed、冷/暖/前后编辑/恢复，全部形状和失败；同等级优化下是否缩小O2差距 |
 | opaque与真实项目运行质量矩阵 | 待正式结果 | 正确输出之外的吞吐、代码尺寸和资源行为；导入上限/SLP/Merge等策略是否损失运行性能 |
 | 入口保留JumpThreading库候选 | 隔离plugin已有研究用途；真实API库路径及正式矩阵待测 | 原版clone/内建等价、class/layout及实际加载库身份、LLVM验证、入口/循环/资源控制，以及完整请求和运行质量能否复现收益 |
 | 稳定语义owner与更细Types/CT/函数依赖 | 尚未完成 | 真正减少实际语义工作，并保留当前源码、ID、查找、规则和预算有效性，而非只改缓存计数 |
