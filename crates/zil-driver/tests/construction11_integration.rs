@@ -102,8 +102,23 @@ fn cross_module_trait_use_keeps_the_product_capture_loan_active() {
         "let moved = item\n    let value = callback() + callback()",
     );
     assert_ne!(source, MAIN);
-    let report = CompilationSession::default()
-        .compile_project(&project(&source), &CompileOptions::default());
+    let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join(format!(
+            "construction11-active-loan-reject-{}",
+            std::process::id()
+        ));
+    fs::create_dir_all(&root).unwrap();
+    for (name, text) in [("main", source.as_str()), ("rules", RULES), ("data", DATA)] {
+        fs::write(root.join(format!("{name}.zil")), text).unwrap();
+    }
+    let options = CompileOptions {
+        emit_dir: Some(root.join("phases")),
+        ..CompileOptions::default()
+    };
+    let report = CompilationSession::default().compile_project(&project(&source), &options);
+    fs::write(root.join("report.json"), report.to_json()).unwrap();
     assert_eq!(
         report.status,
         ResultCategory::SafeReject,
