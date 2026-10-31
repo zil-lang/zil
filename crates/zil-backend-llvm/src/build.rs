@@ -99,7 +99,7 @@ pub struct BuildOptions {
     pub optimization: Optimization,
     /// Explicit Linux executable without generated ZIL symbol exports.
     pub closed_executable: bool,
-    /// Explicit stable O2 chunks with optimizer-only cross-unit body imports.
+    /// Explicit stable O2 chunks with complete direct-call implementation copies.
     pub incremental_o2: bool,
     /// Explicit O2 pass policy; default preserves the reference pipeline.
     pub function_merging: FunctionMerging,
