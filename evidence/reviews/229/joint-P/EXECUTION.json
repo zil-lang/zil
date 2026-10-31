@@ -1,0 +1,44 @@
+{
+  "implementation_commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "commands": [
+    {
+      "name": "original-defect",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "review229_independent",
+        "record_shadowing_has_a_preserved_inline_control",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 4.913317045997246
+    },
+    {
+      "name": "composition",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "review229_joint",
+        "--",
+        "--test-threads=2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.38893552900117356
+    }
+  ]
+}
