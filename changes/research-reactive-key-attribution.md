@@ -214,3 +214,7 @@ If the default is restored, the final binary is a new identity: existing ca79
 combination timings must remain labeled as that candidate, not silently relabeled
 as final-default measurements. A rollback needs scoped correctness checks, but
 this report requests no additional timing matrix.
+
+## CI closure of the rollback
+
+Run 41206406105 on ac4 exposed that ccf1 restored lib.rs but left the experimental private test module referencing removed reverse-index types and fields. Restore tests.rs exactly from the same 3d6 baseline; the experimental implementation and its tests remain in ee786e7fd and archived research evidence. This repairs the test/implementation pairing, without disabling surviving tests or changing runtime DB behavior. Preserve the failed CI log and recheck the DB test target, both feature modes, and all-target Clippy before rerunning CI.
