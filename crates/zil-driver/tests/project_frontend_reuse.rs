@@ -216,10 +216,7 @@ fn stage_stops_artifacts_disk_sources_and_filesystem_discovery_keep_original_pat
             &CompilationSession::default().compile_project(&case.project, &options),
         );
         assert_eq!(warm.verification_runs, 0);
-        assert_eq!(
-            parses(&warm, QueryDisposition::Executed) == 0,
-            stage >= Stage::Types
-        );
+        assert_eq!(parses(&warm, QueryDisposition::Executed), 0);
     }
     for disk in [false, true] {
         let mut session = CompilationSession::with_capacity(8);
@@ -232,7 +229,7 @@ fn stage_stops_artifacts_disk_sources_and_filesystem_discovery_keep_original_pat
         }
         let report = session.compile_project(&case.project, &options);
         successful(&report);
-        assert!(parses(&report, QueryDisposition::Executed) > 0);
+        assert_eq!(parses(&report, QueryDisposition::Executed), 0);
         if !disk {
             let recorded = report
                 .artifacts
@@ -247,10 +244,10 @@ fn stage_stops_artifacts_disk_sources_and_filesystem_discovery_keep_original_pat
         }
     }
     let mut session = CompilationSession::with_capacity(8);
-    for _ in 0..2 {
+    for warm in [false, true] {
         let report = session.compile_path(&case.dir.join("m0.zil"), &CompileOptions::default());
         successful(&report);
-        assert!(parses(&report, QueryDisposition::Executed) > 0);
+        assert_eq!(parses(&report, QueryDisposition::Executed) == 0, warm);
     }
     fs::create_dir(case.dir.join("m1")).unwrap();
     fs::write(

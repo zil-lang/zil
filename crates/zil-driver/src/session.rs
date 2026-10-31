@@ -165,6 +165,59 @@ impl CompilationSession {
             key
         }
     }
+
+    /// Borrow one matching project's syntax without borrowing its much larger
+    /// semantic owner. The owner remains subject to the normal raw LRU, and its
+    /// successful query receipt must still be present before it lends syntax.
+    pub(super) fn retained_project_syntax(
+        &self,
+        root: &SourceUnit,
+    ) -> Option<Arc<super::project::ProjectSyntax>> {
+        let (key, syntax) = self
+            .raw
+            .iter()
+            .filter_map(|(key, raw)| {
+                let RawSnapshot::Project(project) = raw else {
+                    return None;
+                };
+                let (file, module, path) = &project.syntax.root;
+                (*file == root.file_id && *module == root.module_id && *path == root.path)
+                    .then_some((key, &project.syntax))
+            })
+            .max_by_key(|(key, _)| self.recency.get(*key))?;
+        self.database.read(key).ok()??;
+        Some(syntax.clone())
+    }
+
+    /// Return a current Parse key and, when available, an immutable successful
+    /// input. Even a borrowed input must pass the active-query guard and its
+    /// current remaining token/node receipt; all other axes remain in the key.
+    pub(super) fn project_parse_input(
+        &self,
+        source: &SourceUnit,
+        options: &CompileOptions,
+        syntax: Option<&super::project::ProjectSyntax>,
+    ) -> CompileResult<(QueryKey, Option<Arc<ParseResult>>)> {
+        options
+            .cancellation
+            .check(Phase::Parse)
+            .map_err(|error| vec![error])?;
+        let key = self.parse_key(source, options);
+        let published = self.database.read(&key).map_err(|error| vec![error])?;
+        let cached = if published.is_some() {
+            match self.raw.get(&key) {
+                Some(RawSnapshot::Parse(parsed)) => Some(parsed),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let parsed = cached
+            .or_else(|| syntax.and_then(|syntax| syntax.entries.get(&key)))
+            .filter(|parsed| parsed.fits_limits(&options.limits))
+            .cloned();
+        Ok((key, parsed))
+    }
     pub fn compile_path(&mut self, path: &Path, options: &CompileOptions) -> CompileReport {
         self.compile_project_path(path, options)
     }
@@ -1166,6 +1219,14 @@ mod bounded_history_tests {
                 _ => None,
             })
             .unwrap();
+        let old_core = session
+            .raw
+            .values()
+            .find_map(|raw| match raw {
+                RawSnapshot::Project(program) => Some(Arc::downgrade(program)),
+                _ => None,
+            })
+            .unwrap();
         success(&session.compile_project(&project, &options));
         assert!(
             old.upgrade().is_some(),
@@ -1178,6 +1239,10 @@ mod bounded_history_tests {
                 assert!(
                     old.upgrade().is_none(),
                     "obsolete semantic owners were retained"
+                );
+                assert!(
+                    old_core.upgrade().is_none(),
+                    "lending syntax retained the obsolete Core owner"
                 );
                 observed = true;
             }

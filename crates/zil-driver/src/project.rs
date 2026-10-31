@@ -28,6 +28,24 @@ pub(super) struct ExpandedProject {
     core: CoreProgram,
     maps: Vec<SourceMap>,
     selection: super::ct_selection::Receipt,
+    pub(super) syntax: Arc<ProjectSyntax>,
+}
+
+/// Syntax belongs to an existing whole-project raw owner, not an independent
+/// unbounded history. A new request may borrow this index without keeping the
+/// old Core/Typed owners alive. Unchanged modules share their original Arcs.
+#[derive(Debug)]
+pub(super) struct ProjectSyntax {
+    pub(super) root: (FileId, ModuleId, String),
+    pub(super) entries: BTreeMap<QueryKey, Arc<ParseResult>>,
+}
+
+/// Discovery has already done the real parsing work, outside project_pipeline.
+/// Preserve its origin so lending newly parsed syntax is not reported as reuse.
+#[derive(Debug)]
+struct LoadedSyntax {
+    parsed: Arc<ParseResult>,
+    reused: bool,
 }
 
 pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> CompileReport {
@@ -60,7 +78,7 @@ impl CompilationSession {
         project: &ProjectSources,
         options: &CompileOptions,
         observer: &mut dyn FnMut(&QueryEvent),
-        loaded_syntax: Option<&[Arc<ParseResult>]>,
+        loaded_syntax: Option<&[LoadedSyntax]>,
     ) -> CompileReport {
         let start = Instant::now();
         let fallback = SourceUnit::new(FileId(0), project.root, "<project>", "");
@@ -87,8 +105,8 @@ impl CompilationSession {
     ) -> CompileReport {
         let start = Instant::now();
         // Discovery may borrow immutable syntax from the previous request.
-        // Request-end eviction bounds retained raw ownership; borrowed Parse
-        // inputs never carry verification authority or form another cache.
+        // Request-end eviction bounds retained raw owners, including the syntax
+        // indexes owned by complete projects. Borrowing grants no authority.
         let mut project = ProjectSources {
             root: ModuleId(0),
             modules: vec![SourceUnit::new(
@@ -137,7 +155,7 @@ impl CompilationSession {
         options: &CompileOptions,
         report: &mut CompileReport,
         observer: &mut dyn FnMut(&QueryEvent),
-        loaded_syntax: Option<&[Arc<ParseResult>]>,
+        loaded_syntax: Option<&[LoadedSyntax]>,
     ) -> CompileResult<()> {
         options
             .cancellation
@@ -162,6 +180,12 @@ impl CompilationSession {
             .collect();
         let identity = project_key(root, options, fingerprint, Phase::Parse, false);
         let target = options.target.fingerprint();
+        // Only borrow syntax: prepare_project must still release obsolete large
+        // semantic owners before the first current Parse query executes.
+        let retained_syntax = loaded_syntax
+            .is_none()
+            .then(|| self.retained_project_syntax(root))
+            .flatten();
         self.prepare_project(&identity, target, project.modules.len());
         let key = |phase, depends_on_target| phase_key(&identity, phase, depends_on_target, target);
         let mut semantic = super::semantic_cache::Store::new(options, &key(Phase::Types, true));
@@ -273,19 +297,29 @@ impl CompilationSession {
             // Tokens also bound front-end work across all modules. This is a
             // conservative project quota, including trivia and EOF tokens.
             parse_options.limits.max_tokens = remaining.max_tokens.min(remaining.max_nodes);
-            let (raw, snapshot) = self.query(
-                self.parse_key(source, &parse_options),
+            let loaded = loaded_syntax.map(|syntax| &syntax[index]);
+            let (parse_key, borrowed) = if loaded.is_none() {
+                self.project_parse_input(source, &parse_options, retained_syntax.as_deref())?
+            } else {
+                (self.parse_key(source, &parse_options), None)
+            };
+            let reused = loaded.map_or(borrowed.is_some(), |syntax| syntax.reused);
+            let (raw, snapshot) = self.query_with_disposition(
+                parse_key,
                 &[],
                 options,
                 report,
                 observer,
                 || {
-                    if let Some(parsed) = loaded_syntax {
+                    if let Some(syntax) = loaded {
                         // load_sources parsed these immutable bytes with the
                         // same per-file remaining token/node/depth budgets.
                         // Its byte budget was charged when reading each file;
                         // validate_sources has independently checked the total.
-                        return Ok(RawSnapshot::Parse(parsed[index].clone()));
+                        return Ok(RawSnapshot::Parse(syntax.parsed.clone()));
+                    }
+                    if let Some(parsed) = borrowed {
+                        return Ok(RawSnapshot::Parse(parsed));
                     }
                     let result = zil_syntax::parse_with_limits(source, &parse_options.limits);
                     if !result.diagnostics.is_empty() {
@@ -293,7 +327,13 @@ impl CompilationSession {
                     }
                     Ok(RawSnapshot::Parse(Arc::new(result)))
                 },
+                if reused {
+                    QueryDisposition::Reused
+                } else {
+                    QueryDisposition::Executed
+                },
             )?;
+            report.cache_hit |= reused;
             let RawSnapshot::Parse(result) = raw else {
                 return Err(infra(
                     "E-QUERY-KIND",
@@ -362,6 +402,14 @@ impl CompilationSession {
                         .map_or_else(super::ct_selection::Receipt::default, |selected| {
                             selected.receipt
                         }),
+                    syntax: Arc::new(ProjectSyntax {
+                        root: (root.file_id, root.module_id, root.path.clone()),
+                        entries: dependencies
+                            .iter()
+                            .zip(&parsed)
+                            .map(|(snapshot, parsed)| (snapshot.key.clone(), parsed.clone()))
+                            .collect(),
+                    }),
                 })))
             },
         )?;
@@ -831,7 +879,7 @@ fn load_sources(
     path: &Path,
     options: &CompileOptions,
     session: &CompilationSession,
-) -> CompileResult<Vec<Arc<ParseResult>>> {
+) -> CompileResult<Vec<LoadedSyntax>> {
     options
         .cancellation
         .check(Phase::Driver)
@@ -846,6 +894,7 @@ fn load_sources(
         return Err(limit(Phase::Parse, "project module budget exceeded"));
     }
     project.modules[0] = read_source(&root_path, options)?;
+    let retained_syntax = session.retained_project_syntax(&project.modules[0]);
     take(
         &mut remaining.max_source_bytes,
         project.modules[0].text.len(),
@@ -879,15 +928,12 @@ fn load_sources(
         let mut query_options = options.clone();
         query_options.limits.max_tokens = parse_limits.max_tokens;
         query_options.limits.max_nodes = remaining.max_nodes;
-        let key = session.parse_key(&project.modules[index], &query_options);
-        let cached = if session.database.read(&key).map_err(|e| vec![e])?.is_some() {
-            match session.raw.get(&key) {
-                Some(RawSnapshot::Parse(p)) => Some(p.clone()),
-                _ => None,
-            }
-        } else {
-            None
-        };
+        let (_, cached) = session.project_parse_input(
+            &project.modules[index],
+            &query_options,
+            retained_syntax.as_deref(),
+        )?;
+        let reused = cached.is_some();
         let parsed = cached.unwrap_or_else(|| {
             Arc::new(zil_syntax::parse_with_limits(
                 &project.modules[index],
@@ -951,7 +997,7 @@ fn load_sources(
             };
             project.paths.insert(import.path.clone(), id);
         }
-        syntax.push(parsed);
+        syntax.push(LoadedSyntax { parsed, reused });
         index += 1;
     }
     Ok(syntax)
@@ -985,6 +1031,14 @@ mod discovery158_tests {
         path: &Path,
         options: &CompileOptions,
     ) -> CompileResult<Vec<Arc<ParseResult>>> {
+        discover_loaded(session, path, options)
+            .map(|syntax| syntax.into_iter().map(|syntax| syntax.parsed).collect())
+    }
+    fn discover_loaded(
+        session: &CompilationSession,
+        path: &Path,
+        options: &CompileOptions,
+    ) -> CompileResult<Vec<LoadedSyntax>> {
         let mut p = ProjectSources {
             root: ModuleId(0),
             modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "placeholder", "")],
@@ -1020,6 +1074,79 @@ mod discovery158_tests {
         let changed = discover(&session, &path, &options).unwrap();
         assert!(Arc::ptr_eq(&syntax[0], &changed[0]));
         assert!(!Arc::ptr_eq(&syntax[1], &changed[1]));
+    }
+    #[test]
+    fn evicted_syntax_is_really_shared_without_retaining_old_semantic_owners() {
+        let dir = Dir::new();
+        let path = dir.0.join("main.zil");
+        let mut main = String::new();
+        for i in 1..40 {
+            main += &format!("import m{i}\n");
+            fs::write(
+                dir.0.join(format!("m{i}.zil")),
+                format!("pub fn answer()->i32{{return {i};}}"),
+            )
+            .unwrap();
+        }
+        main += "fn main()->i32{return m1.answer();}";
+        fs::write(&path, main).unwrap();
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::with_capacity(8);
+        let cold = session.compile_path(&path, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        assert!(session.cached_query_count() <= 8);
+        let old_project = session
+            .raw
+            .values()
+            .find_map(|raw| match raw {
+                RawSnapshot::Project(project) => Some(Arc::downgrade(project)),
+                _ => None,
+            })
+            .unwrap();
+        let before = discover_loaded(&session, &path, &options).unwrap();
+        assert_eq!(before.len(), 40);
+        assert!(before.iter().all(|syntax| syntax.reused));
+        // The first modules have no individual raw owners after capacity trim.
+        assert!(!session.raw.values().any(
+            |raw| matches!(raw, RawSnapshot::Parse(parsed) if Arc::ptr_eq(parsed, &before[1].parsed))
+        ));
+        let changed_old = Arc::downgrade(&before[1].parsed);
+        fs::write(dir.0.join("m1.zil"), "pub fn answer()->i32{return 123;}").unwrap();
+        let after = discover_loaded(&session, &path, &options).unwrap();
+        for (index, (old, new)) in before.iter().zip(&after).enumerate() {
+            assert_eq!(new.reused, index != 1);
+            assert_eq!(Arc::ptr_eq(&old.parsed, &new.parsed), index != 1);
+        }
+        drop(before);
+        drop(after);
+        // Discovery itself did not mutate or replace a published project.
+        assert!(old_project.upgrade().is_some());
+        let edited = session.compile_path(&path, &options);
+        assert_eq!(
+            edited.status,
+            ResultCategory::Success,
+            "{}",
+            edited.to_json()
+        );
+        assert_eq!(edited.verification_runs, 1);
+        assert_eq!(
+            edited
+                .query_events
+                .iter()
+                .filter(|event| event.phase == Phase::Parse
+                    && event.disposition == QueryDisposition::Executed)
+                .count(),
+            1
+        );
+        assert!(old_project.upgrade().is_none());
+        assert!(changed_old.upgrade().is_none());
+        assert!(session.cached_query_count() <= 8);
+        assert_eq!(session.active_query_count(), 0);
+        let retained = discover(&session, &path, &options).unwrap();
+        let current = Arc::downgrade(&retained[0]);
+        drop(retained);
+        session.clear();
+        assert!(current.upgrade().is_none());
     }
     #[test]
     fn cached_syntax_cannot_hide_lower_quotas_syntax_errors_or_ambiguous_entries() {
