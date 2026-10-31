@@ -1,0 +1,12 @@
+    Finished `test` profile [unoptimized] target(s) in 0.04s
+     Running tests/project_frontend_reuse.rs (/workspace/.zil-env/target/debug/deps/project_frontend_reuse-82d89ad44939a74f)
+
+running 5 tests
+test same_complete_input_reuses_frontend_after_parse_eviction_and_verifies_now ... ok
+test replayed_phase_order_keeps_observer_cancellation_and_recovery ... ok
+test stage_stops_artifacts_disk_sources_and_filesystem_discovery_keep_original_path ... ok
+test reused_frontend_builds_current_native_output_and_preserves_link_cancellation ... ok
+test changed_source_identity_rules_limits_and_target_match_fresh ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+

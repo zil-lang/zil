@@ -1,0 +1,51 @@
+CLI modules=32 check block=1/5
+CLI modules=32 check block=2/5
+CLI modules=32 check block=3/5
+CLI modules=32 check block=4/5
+CLI modules=32 check block=5/5
+CLI modules=32 build block=1/5
+CLI modules=32 build block=2/5
+CLI modules=32 build block=3/5
+CLI modules=32 build block=4/5
+CLI modules=32 build block=5/5
+CLI modules=128 check block=1/5
+CLI modules=128 check block=2/5
+CLI modules=128 check block=3/5
+CLI modules=128 check block=4/5
+CLI modules=128 check block=5/5
+CLI modules=128 build block=1/5
+CLI modules=128 build block=2/5
+CLI modules=128 build block=3/5
+CLI modules=128 build block=4/5
+CLI modules=128 build block=5/5
+Session modules=32 capacity=32 check block=1/5
+Session modules=32 capacity=32 check block=2/5
+Session modules=32 capacity=32 check block=3/5
+Session modules=32 capacity=32 check block=4/5
+Session modules=32 capacity=32 check block=5/5
+Session modules=128 capacity=32 check block=1/5
+Session modules=128 capacity=32 check block=2/5
+Session modules=128 capacity=32 check block=3/5
+Session modules=128 capacity=32 check block=4/5
+Session modules=128 capacity=32 check block=5/5
+Session modules=512 capacity=32 check block=1/5
+Session modules=512 capacity=32 check block=2/5
+Session modules=512 capacity=32 check block=3/5
+Session modules=512 capacity=32 check block=4/5
+Session modules=512 capacity=32 check block=5/5
+Session modules=128 capacity=8192 check block=1/5
+Session modules=128 capacity=8192 check block=2/5
+Session modules=128 capacity=8192 check block=3/5
+Session modules=128 capacity=8192 check block=4/5
+Session modules=128 capacity=8192 check block=5/5
+Session modules=32 capacity=32 build block=1/5
+Session modules=32 capacity=32 build block=2/5
+Session modules=32 capacity=32 build block=3/5
+Session modules=32 capacity=32 build block=4/5
+Session modules=32 capacity=32 build block=5/5
+Session modules=128 capacity=32 build block=1/5
+Session modules=128 capacity=32 build block=2/5
+Session modules=128 capacity=32 build block=3/5
+Session modules=128 capacity=32 build block=4/5
+Session modules=128 capacity=32 build block=5/5
+Complete: 1560 measured requests

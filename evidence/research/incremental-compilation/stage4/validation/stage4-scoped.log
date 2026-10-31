@@ -1,0 +1,637 @@
+    Finished `test` profile [unoptimized] target(s) in 0.05s
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_backend_llvm-3136df6a873984eb)
+
+running 42 tests
+test cgu::tests::duplicate_definitions_are_not_erased_to_make_invalid_ir_link ... ok
+test cgu::tests::global_initializer_and_function_value_uses_keep_exact_declarations ... ok
+test cgu::tests::mutual_recursion_keeps_cross_unit_prototypes_and_no_self_declaration ... ok
+test cgu::tests::foreign_declarations_and_header_are_retained_without_body_rewriting ... ok
+test cgu::tests::symbol_scan_ignores_strings_and_comments_and_fails_closed ... ok
+test cgu::tests::original_function_and_global_bodies_are_not_rewritten ... ok
+test cgu::tests::union_find_is_transitive_and_deterministic ... ok
+test cgu::tests::shared_private_storage_and_internal_function_addresses_are_never_cloned ... ok
+test cgu::tests::sparse_declarations_follow_direct_uses_not_transitive_callees ... ok
+test cgu::tests::unknown_top_level_and_incomplete_definitions_fall_back ... ok
+test cgu::tests::unsupported_alias_linkage_and_block_addresses_keep_original_module ... ok
+test machine_cgu::tests::local_component_falls_back_without_copying_and_duplicates_remain_invalid ... ok
+test machine_cgu::tests::filtering_cannot_hide_invalid_unused_declarations_or_cross_unit_collisions ... ok
+test machine_cgu::tests::external_uses_import_only_immediate_declarations ... ok
+test machine_cgu::tests::foreign_addresses_and_global_initializers_keep_only_consumed_declarations ... ok
+test machine_cgu::tests::local_identity_and_global_initializers_are_colocated_once ... ok
+test object_cache::tests::entry_roundtrip_corruption_key_and_length_are_checked ... ok
+test object_cache::tests::installed_tool_identity_fallback_detects_changed_content ... ok
+test object_cache::tests::key_binds_all_machine_changes_but_not_authorization_comment ... ok
+test object_cache::tests::pending_objects_are_not_stored_until_success_commit ... ok
+test object_cache::tests::unwritable_cache_cannot_revoke_success ... ok
+test object_cache::tests::symlink_and_group_writable_cache_roots_are_rejected ... ok
+test object_cache::tests::concurrent_writers_only_publish_complete_entries ... ok
+test tests::changing_any_lir_closure_claim_is_rejected_before_tools_or_output ... ok
+test tests::borrowed_lir_aliases_bind_length_and_the_current_capability ... ok
+test tests::bytes083_native_unsigned_result_and_untrusted_byte_layout_are_independent ... ok
+test tests::empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi ... ok
+test tests::error_union_nested_in_enum_preserves_wide_and_unit_payload_layout ... ok
+test tests::error_projection_tag_mismatch_traps_including_unit_payload ... ok
+test tests::missing_tool_and_invalid_entry_fail_without_a_native_artifact ... ok
+test tests::native_entry_never_enters_an_environment_function_even_when_empty ... ok
+test tests::loop_and_branch_execute_mutable_local_dataflow ... ok
+test tests::nonzero_cfg_entry_is_selected_by_the_native_prologue ... ok
+test tests::ordinary_main_uses_real_process_exit_status_and_unit_returns_zero ... ok
+test tests::native_harness_observes_full_signed_results_at_both_optimization_levels ... ok
+test tests::recursion_and_direct_calls_use_identity_symbols_not_source_names ... ok
+test tests::runtime_closure_environments_are_independent_copies_and_repeatable ... ok
+test tests::tampered_lir_is_rejected_before_invoking_tools_or_creating_outputs ... ok
+test tests::unit_parameters_loads_stores_calls_and_returns_are_erased_after_verification ... ok
+test tests::integer_arithmetic_comparisons_and_explicit_wrapping_execute ... ok
+test tests::synchronous_error_main_maps_both_tags_and_erased_success_at_o0_o2 ... ok
+test tests::checked_integer_failures_trap_in_native_code_before_printing ... ok
+
+test result: ok. 42 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
+
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_db-43877e21f1283294)
+
+running 13 tests
+test cache::tests::incomplete_temp_files_are_not_committed_candidates ... ok
+test cache::tests::oversized_reads_and_writes_are_bounded ... ok
+test cache::tests::cancellation_after_real_temporary_write_cannot_publish_or_leave_partial_file ... ok
+test cache::tests::each_corruption_class_is_untrusted_and_can_be_rebuilt ... ok
+test tests::cancellation_is_shared_and_deadlines_do_not_require_background_threads ... ok
+test tests::absent_invalidation_preserves_active_queries_revision_and_published_identity ... ok
+test tests::collection_does_not_interrupt_an_active_query ... ok
+test tests::collecting_raw_roots_keeps_transitive_receipts_and_current_invalidation ... ok
+test tests::dependency_cycles_and_active_ancestors_cannot_be_observed_or_published ... ok
+test tests::failed_new_publications_cannot_create_forward_edges_or_replace_old_snapshots ... ok
+test tests::stale_input_and_cancelled_publication_abort_the_active_record ... ok
+test tests::all_fingerprint_kinds_control_the_actual_transitive_invalidation_set ... ok
+test tests::absent_producers_match_legacy_scanning_on_reachable_dags_and_after_eviction ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.58s
+
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_driver-fa1548cfe1f00883)
+
+running 34 tests
+test artifacts::tests::second_native_rename_failure_restores_both_previous_outputs ... ok
+test artifacts::tests::later_validation_rechecks_files_parent_directories_and_aliases ... ok
+test ct_program::tests::ct202_collector_bounds_unused_template_names_before_whole_program_copy ... ok
+test ct_program::tests::ct_reachable_pattern_trees_are_bounded_before_clone ... ok
+test artifacts::tests::one_parent_resolution_matches_the_uncached_resolver ... ok
+test ct_program::tests::ct202_collector_rejects_bare_template_and_indirect_wrapper_before_execution ... ok
+test ct_program::tests::ct122_original_teardown_is_bounded_before_query_copy ... ok
+test project::discovery158_tests::cached_syntax_cannot_hide_lower_quotas_syntax_errors_or_ambiguous_entries ... ok
+test project::discovery158_tests::capacity_eviction_keeps_lent_syntax_valid_without_caching_authority ... ok
+test project::discovery158_tests::discovery_cancellation_and_active_query_guards_still_apply ... ok
+test project::discovery158_tests::discovery_reuses_exact_published_syntax_arcs_but_reads_edited_bytes ... ok
+test session::bounded_history_tests::frontend_reuse_requires_reachable_receipts_and_never_supplies_authority ... ok
+test session::construction_identity150_tests::construction_identity_binds_every_query_axis_and_all_limits ... ok
+test session::construction_identity150_tests::construction_identity_binds_order_count_upstream_key_and_observation ... ok
+test tests::artifact_preflight_detects_hard_links_and_parent_symlink_aliases ... ok
+test tests::artifact_preflight_protects_source_from_every_phase_dump_and_native_destination ... ok
+test tests::artifact_preflight_rejects_dump_native_collisions_before_any_write ... ok
+test tests::cache_changed_source_limits_build_inputs_and_file_identity_cannot_reuse_stale_snapshots ... ok
+test tests::cache_disk_corruption_is_rebuilt_and_never_substitutes_for_phase_execution ... ok
+test tests::cache_session_reuses_raw_phases_but_always_runs_independent_verification ... ok
+test tests::cache_tampered_raw_typed_snapshot_is_rejected_by_a_new_verifier_run ... ok
+test tests::cache_target_change_reuses_frontend_and_rechecks_target_dependent_phases ... ok
+test session::bounded_history_tests::large_edits_release_obsolete_owners_before_constructing_the_new_epoch ... ok
+test tests::cancellation_after_native_link_removes_the_unpublished_executable ... ok
+test tests::cancellation_after_native_link_preserves_both_previous_successful_outputs ... ok
+test tests::cancellation_before_start_and_after_cache_hit_cannot_report_success ... ok
+test tests::cancellation_during_a_phase_aborts_publication_and_next_request_recovers ... ok
+test tests::explicit_main_contract_has_the_frozen_types_diagnostics ... ok
+test tests::native_entry_cannot_select_a_synthesized_closure_with_or_without_captures ... ok
+test tests::source_ct_keeps_original_core_and_propagates_ct_errors ... ok
+test tests::unsupported_profile_and_invalid_source_have_explicit_categories ... ok
+test session::bounded_history_tests::large_current_projects_reuse_semantics_across_the_old_capacity_cliff ... ok
+test tests::late_artifact_failure_preserves_both_previous_native_outputs ... ok
+test session::bounded_history_tests::edits_errors_cancellation_and_eviction_match_fresh_without_growing_history ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.46s
+
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_expand-d484ca1eff99bd99)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_ir-601477dc999eefd3)
+
+running 36 tests
+test wire::flow_tests::distributed_calls_and_edges_obey_cumulative_contract_limits ... ok
+test wire::flow_tests::flow_roundtrip_keeps_backedges_zero_calls_and_both_exits ... ok
+test wire::flow_tests::joint_roles_and_event_order_are_transport_identity_not_layout_aliases ... ok
+test wire::flow_tests::unknown_flow_variants_and_untrusted_lengths_fail_before_allocation ... ok
+test wire::flow_tests::each_flow_field_and_representation_changes_contract_identity ... ok
+test wire::owned_carrier_tests::schema19_owned_claims_fingerprint_binds_every_operand_and_flag ... ok
+test wire::owned_carrier_tests::schema19_owned_claims_reject_noncanonical_flags_and_array_allocation_bombs ... ok
+test wire::state_field_tests::shared_package_shape_does_not_grant_copy_or_general_pointee_support ... ok
+test wire::state_field_tests::window_fingerprints_bind_each_index_operand_and_mutability ... ok
+test wire::store_tests::current_wire_rejects_all_old_versions_and_next_unknown_version ... ok
+test wire::store_tests::shared_head_shape_does_not_expand_general_pointees_or_sealed_heads ... ok
+test wire::state_field_tests::new_window_instructions_match_manual_bytes_and_all_truncations_fail ... ok
+test wire::store_tests::store_fingerprint_binds_each_operand_and_full_element_type ... ok
+test wire::store_tests::store_type_has_distinct_tag_and_nested_metadata_is_bounded_both_ways ... ok
+test wire::owned_carrier_tests::schema19_owned_claims_roundtrip_with_distinct_fixed_opcodes ... ok
+test wire::tests::borrowed_callable_operation_binds_requested_mode_and_real_address ... ok
+test wire::tests::byte_count_node_depth_and_execution_quotas_precede_allocation ... ok
+test wire::store_tests::store_raw_ops_have_fixed_tags_and_reject_every_truncated_prefix ... ok
+test wire::tests::bytes083_scalar_ct_current_wire_preserves_byte_conversion_and_all_prefixes_reject ... ok
+test wire::tests::ct_roundtrip_is_stable_and_preserves_raw_claims ... ok
+test wire::tests::forbidden_ops_and_dependencies_survive_as_untrusted_data ... ok
+test wire::tests::every_truncated_ct_prefix_is_rejected_without_panicking ... ok
+test wire::tests::module_and_candidate_roundtrip_and_every_partial_record_rejects ... ok
+test wire::tests::concrete_helper_contract_roundtrips_and_binds_each_claim ... ok
+test wire::tests::raw_cache_keeps_resource_claims_without_endorsing_them ... ok
+test wire::tests::rejects_trailing_bytes_noncanonical_bool_and_unknown_type ... ok
+test wire::tests::rejects_unknown_opcode_version_and_missing_typed_claims ... ok
+test wire::tests::package_capture_view_current_wire_preserves_indices_end_kind_and_fingerprints ... ok
+test wire::tests::error_cleanup_raw_contract_roundtrips_and_binds_each_claim ... ok
+test wire::tests::shared_address_operations_and_raw_hold_claims_roundtrip ... ok
+test wire::type_stack_tests::default_type_depth_boundary_is_a_result_on_the_normal_test_stack ... ok
+test wire::type_stack_tests::independently_encoded_258_level_input_rejects_before_host_stack_exhaustion ... ok
+test wire::type_stack_tests::type_nodes_keep_the_exact_preexisting_collection_and_child_charge ... ok
+test wire::tests::resource_closure_operations_bind_wire_and_fingerprint ... ok
+test wire::tests::resource_raw_fields_roundtrip_bind_fingerprint_and_reject_old_wire ... ok
+test wire::tests::package_wire_preserves_untrusted_shape_and_binds_all_field_operations ... ok
+
+test result: ok. 36 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_llvm_api-02316412a50cfef5)
+
+running 3 tests
+test preflight::named_layout_tests::cached_shallow_success_never_hides_deeper_failure_or_first_error ... ok
+test preflight::named_layout_tests::cyclic_missing_void_and_width_neighbors_match_original_dfs ... ok
+test preflight::named_layout_tests::shared_layout_dag_is_bounded_by_nodes_and_depth_not_expanded_paths ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_lower-0b6ccc37e4dcdd44)
+
+running 3 tests
+test tests::verified_but_unimplemented_target_is_explicitly_unsupported ... ok
+test tests::preserves_the_exact_checked_cfg_and_target_identity ... ok
+test tests::preserves_the_verified_environment_table_and_closure_operands_exactly ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_syntax-f4950cd48172b638)
+
+running 17 tests
+test lexer::tests::lossless_utf8_nested_comments_crlf ... ok
+test lexer::tests::malformed_tokens_preserve_their_spans ... ok
+test lexer::tests::tuple_indices_do_not_become_float_literals ... ok
+test lexer::tests::byte_suffix_preserves_radix_and_separator_validation ... ok
+test lexer::tests::xid_is_not_alphabetic_approximation ... ok
+test parser::tests::finite_contract_dsl_accepts_give_and_paths ... ok
+test parser::tests::closures_pipelines_and_compile_time_forms ... ok
+test parser::tests::control_heads_slices_and_type_arrows_have_one_parse ... ok
+test parser::tests::malformed_source_recovers_to_later_item ... ok
+test parser::tests::frozen_parse_rejections_are_specific ... ok
+test parser::tests::nesting_limits_are_resource_limits ... ok
+test parser::tests::nested_type_closers_do_not_change_shift_tokens ... ok
+test parser::tests::newlines_are_logical_and_do_not_back_join ... ok
+test parser::tests::real_function_body_and_pratt_precedence ... ok
+test parser::tests::syntax_islands_preserve_trivia_inside_each_delimiter ... ok
+test parser::tests::receivers_records_and_function_types ... ok
+test parser::tests::chains_are_bounded_before_recursive_ast_drop ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_verify-c59aee014cb4882b)
+
+running 266 tests
+test borrows::frontier_tests::frontier_checks_target_and_budget_before_index_use ... ok
+test c_layout::tests::x64_native_record_sizes_include_internal_and_tail_padding ... ok
+test closure_tests::capture_and_callee_ssa_operands_cannot_escape_bounds_or_dominance ... ok
+test borrows::frontier_tests::frontier_coalesces_many_leaf_updates_before_revisiting_the_caller ... ok
+test closure_tests::capture_fields_require_exact_count_order_and_types ... ok
+test closure_tests::closure_calls_check_the_actual_callee_and_arguments ... ok
+test closure_tests::closure_proof_rejects_false_call_permissions_resources_and_unsupported_kinds ... ok
+test closure_tests::closure_table_and_operands_participate_in_hashes_and_work_limits ... ok
+test closure_tests::closures_never_become_scalars_for_arithmetic_comparison_or_ct ... ok
+test closure_tests::old_wire_version_is_rejected_even_for_scalar_bytes ... ok
+test closure_tests::ordinary_call_cannot_skip_hidden_environment ... ok
+test closure_tests::orphaned_and_crossed_entry_identities_are_rejected ... ok
+test closure_tests::read_capture_requires_the_current_entry_environment ... ok
+test closure_tests::signature_claims_are_compared_to_the_real_entry ... ok
+test dynamic_store::tests::actual_zero_stride_rejects_after_the_manages_package_requirement ... ok
+test dynamic_store::tests::concrete_capture_alignment_and_appended_live_flags_determine_stride ... ok
+test dynamic_store::tests::direct_and_package_hidden_store_capture_do_not_enter_the_layout_graph ... ok
+test dynamic_store::tests::early_resource_admission_bounds_capture_shape_and_layout_arithmetic ... ok
+test dynamic_store::tests::impl203_bad_second_capture_root_never_hides_behind_a_valid_first ... ok
+test dynamic_store::tests::impl203_heterogeneous_results_are_copy_and_preflighted_before_recursion ... ok
+test dynamic_store::tests::impl203_two_actual_layout_roots_include_each_environment_and_flags ... ok
+test dynamic_store::tests::impl203_two_root_qualification_has_an_exact_fresh_work_boundary ... ok
+test dynamic_store::tests::impl204_callable_types_cannot_hide_in_copy_leaf_fields_or_resource_heads ... ok
+test dynamic_store::tests::impl204_copy_result_restriction_follows_actual_owned_closure_children ... ok
+test dynamic_store::tests::impl204_direct_and_package_capture_layouts_keep_every_store_flag ... ok
+test dynamic_store::tests::impl204_fixed_store_head_never_bypasses_canonical_or_leaf_checks ... ok
+test dynamic_store::tests::impl204_owning_store_qualification_has_an_exact_fresh_work_boundary ... ok
+test dynamic_store::tests::one_or_two_type_bindings_keep_both_fields_and_reject_extra_fields ... ok
+test dynamic_store::tests::raw_cycles_and_missing_closure_ids_reject_before_recursive_layout ... ok
+test dynamic_store::tests::zero_payload_package_capture_still_has_actual_environment_live_flags ... ok
+test error_scope_tests::a_loop_may_reactivate_one_syntactic_scope_after_closing_it ... ok
+test error_scope_tests::cfg_join_must_agree_on_scope_stack_and_live_storage_owners ... ok
+test error_scope_tests::error_and_success_values_return_as_ordinary_checked_data ... ok
+test error_scope_tests::error_cleanup_cannot_claim_success_unknown_tag_or_abort_as_propagation ... ok
+test error_scope_tests::error_injection_requires_the_selected_payload_and_union_result_type ... ok
+test closure_tests::concrete_copy_environment_and_wire_reverification_succeed ... ok
+test error_scope_tests::error_operands_still_require_valid_ids_and_definition_dominance ... ok
+test error_scope_tests::error_operations_cannot_treat_an_integer_as_a_union ... ok
+test error_scope_tests::error_return_does_not_waive_reverse_successful_construction_order ... ok
+test error_scope_tests::error_return_rejects_unsubmitted_owned_ssa_even_without_any_local_debt ... ok
+test error_scope_tests::error_return_preserves_independent_resource_cleanup_and_duplicate_checks ... ok
+test error_scope_tests::error_scope_wire_input_is_rechecked_after_roundtrip_and_mutation ... ok
+test error_scope_tests::error_tag_is_boolean_and_projection_checks_payload_type ... ok
+test error_scope_tests::error_types_and_error_instructions_require_a_complete_root_scope ... ok
+test error_scope_tests::incomplete_resource_payload_cannot_be_turned_into_complete_teardown_debt ... ok
+test error_scope_tests::explicit_break_and_continue_close_the_body_and_retain_the_outer_scope ... ok
+test error_scope_tests::local_writes_after_storage_death_cannot_reopen_a_closed_scope ... ok
+test error_scope_tests::loop_exit_kinds_require_a_jump_and_must_retain_the_function_root ... ok
+test error_scope_tests::owned_success_payload_requires_an_explicit_result_mode ... ok
+test error_scope_tests::nested_scope_storage_must_die_before_its_exit ... ok
+test error_scope_tests::parameter_storage_belongs_to_the_root_without_reinitializing_it ... ok
+test error_scope_tests::return_and_executable_instructions_cannot_skip_root_closure ... ok
+test borrows::frontier_tests::frontier_facts_equal_full_scan_for_recursion_and_disconnected_components ... ok
+test error_scope_tests::scoped_pure_ct_is_admitted_without_adding_error_unions_to_ct ... ok
+test error_scope_tests::sparse_scope_ids_are_opaque_but_unreachable_scope_claims_are_rejected ... ok
+test error_scope_tests::scope_local_contract_and_whole_function_ssa_contract_remain_distinct ... ok
+test error_scope_tests::storage_reactivation_or_death_without_active_storage_is_rejected ... ok
+test error_scope_tests::transferred_return_result_cannot_be_aliased_and_cleaned_again ... ok
+test error_scope_tests::wrong_scope_exit_duplicate_scope_and_scope_reentry_are_rejected ... ok
+test helper_tests::borrowed_consume_and_unavailable_mode_are_rejected ... ok
+test helper_tests::borrowed_environment_cannot_be_dropped_or_loaded_as_value ... ok
+test error_scope_tests::synchronous_error_return_cleans_owned_closure_environments_exactly_once ... ok
+test helper_tests::borrowed_owned_fn_calls_twice_and_exports_checked_contract_raw_wire ... ok
+test helper_tests::borrowed_environment_cannot_hide_dead_capture_storage ... ok
+test helper_tests::caller_cannot_drop_owned_environment_before_its_borrowed_call ... ok
+test helper_tests::caller_keeps_owned_environment_after_helper_then_cleans_once ... ok
+test helper_tests::captured_exclusive_window_rejects_target_access_during_environment_borrow ... ok
+test helper_tests::consumed_owned_parameter_cannot_be_recalled_or_leaked ... ok
+test helper_tests::conditional_zero_call_cleanup_and_one_call_consume_are_both_verified ... ok
+test helper_tests::copy_environment_can_be_explicitly_moved_into_consume_adapter ... ok
+test helper_tests::copy_error_return_paths_keep_distinct_one_and_two_call_traces ... ok
+test helper_tests::exclusive_borrow_calls_fnmut_and_actual_fn_adapter_without_mutable_binding ... ok
+test helper_tests::finite_contract_cannot_hide_a_reachable_cycle ... ok
+test helper_tests::fnmut_address_capture_is_consumed_or_ended_under_fnonce_bound ... ok
+test helper_tests::dropped_hold_call_or_write_bounds_are_rejected_independently ... ok
+test helper_tests::callback_claim_limits_are_paid_before_fingerprinting_and_no_partial_pass ... ok
+test helper_tests::future_public_helper_use_prevents_package_move_through_captured_description ... ok
+test helper_tests::forged_count_mode_parameter_identity_cleanup_and_duplicate_traces_fail ... ok
+test helper_tests::helper_call_keeps_address_capture_windows_and_borrowed_position ... ok
+test helper_tests::helper_forwarding_does_not_guess_an_empty_nested_contract ... ok
+test helper_tests::helper_contract_node_quotas_are_resource_limits_before_identity_checks ... ok
+test helper_tests::helper_resource_result_is_not_silently_treated_as_a_copy_result ... ok
+test helper_tests::missing_contract_never_grants_helper_authority ... ok
+test helper_tests::helper_extra_borrowed_parameters_need_a_complete_public_effect_contract ... ok
+test helper_tests::owned_repeatable_fn_borrowed_calls_then_one_cleanup ... ok
+test helper_tests::package_field_description_may_end_at_last_public_helper_use ... ok
+test helper_tests::owned_consume_adapters_call_once_or_drop_uncalled_environment ... ok
+test helper_tests::plan_hold_cannot_erase_the_capture_behind_an_environment_borrow ... ok
+test helper_tests::position_move_while_borrowed_environment_has_future_call_is_rejected ... ok
+test helper_tests::uncalled_owned_environment_cleanup_cannot_be_omitted_on_one_return ... ok
+test helper_tests::unrelated_function_cannot_forge_a_callback_contract ... ok
+test helper_tests::public_helper_caller_needs_no_private_effect_rows_after_full_raw_wire_verification ... ok
+test package_tests::callable_package_field_relabel_requires_a_real_closure_definition ... ok
+test package_tests::branch_join_retains_all_package_field_description_origins ... ok
+test package_tests::captures::binding_after_prefix_unreachable_and_nonentry_are_rejected ... ok
+test package_tests::captures::capture_bind_has_no_result_and_claimed_initialization_is_untrusted ... ok
+test package_tests::captures::bindings_reject_wrong_indices_types_and_orphan_environment ... ok
+test package_tests::captures::complete_package_factory_input_and_owned_cleanup_contract_are_checked ... ok
+test helper_tests::longer_call_sequence_is_checked_in_full_without_truncation ... ok
+test package_tests::captures::consume_whole_moved_view_can_end_but_exclusive_cannot_return_it ... ok
+test package_tests::captures::end_must_match_binding_and_cannot_be_followed_by_direct_or_desc_access ... ok
+test package_tests::captures::ended_nested_description_alias_is_rejected_even_when_outer_mode_is_exclusive ... ok
+test package_tests::captures::exclusive_error_return_must_also_preserve_full_environment ... ok
+test package_tests::captures::exclusive_loop_restores_persistent_fields_without_rebinding_entry ... ok
+test borrows::frontier_tests::frontier_solves_reverse_chain_with_linear_revisits ... ok
+test package_tests::captures::capture_responsibility_budget_has_exact_n_and_n_minus_one_boundary ... ok
+test package_tests::captures::every_error_branch_and_join_must_restore_exclusive_fields ... ok
+test package_tests::captures::package_capture_cannot_be_implicitly_copied_or_taken_without_view ... ok
+test package_tests::captures::mixed_capture_indices_keep_distinct_package_roots_and_managed_debts ... ok
+test package_tests::captures::exclusive_whole_transfer_restore_and_explicit_replace_preserve_environment ... ok
+test package_tests::captures::package_capture_needs_unused_binding_contiguous_prefix_and_no_entry_edges ... ok
+test package_tests::captures::package_view_addresses_and_immutable_rebinding_remain_closed ... ok
+test package_tests::captures::stale_capture_description_cannot_revive_after_replace ... ok
+test package_tests::captures::shared_package_desc_cannot_write_through_callee_or_nested_closure ... ok
+test package_tests::captures::trap_after_partial_exclusive_update_has_no_return_cleanup_promise ... ok
+test package_tests::captures::unique_binding_rejects_duplicate_capture_and_duplicate_view ... ok
+test package_tests::captures::view_activity_must_agree_at_a_cfg_join ... ok
+test package_tests::captures::shared_mode_rejects_copy_field_payload_and_responsibility_writes ... ok
+test package_tests::complete_package_copy_field_and_cleanup_pass_raw_and_wire ... ok
+test package_tests::complete_package_requires_strict_scope_even_without_error_operations ... ok
+test package_tests::captures::package_captures_are_owned_readonly_repeatable_or_consuming ... ok
+test package_tests::description_alias_in_local_storage_still_blocks_package_move ... ok
+test package_tests::captures::view_ordinary_storage_reset_duplicate_end_and_missing_end_are_rejected ... ok
+test package_tests::conditional_whole_move_preserves_other_edges_cleanup_responsibility ... ok
+test package_tests::construction_checks_arity_field_order_operands_and_result_shape ... ok
+test package_tests::fields::conditional_field_cleanup_is_idempotent_without_ending_the_shell ... ok
+test package_tests::descriptions_of_distinct_packages_do_not_block_unrelated_moves ... ok
+test package_tests::fields::copy_fields_cannot_be_taken_or_dropped_as_managed_values ... ok
+test package_tests::fields::field_accesses_require_active_lexical_storage_even_with_initialized_claims ... ok
+test package_tests::fields::existing_normal_return_debt_scan_is_charged_at_the_exact_budget_boundary ... ok
+test package_tests::failed_preparation_cleans_only_independent_completed_temporaries_in_reverse_order ... ok
+test package_tests::fields::even_an_empty_package_shell_requires_final_cleanup ... ok
+test package_tests::fields::let_parameter_can_transfer_a_field_but_cannot_refill_or_change_copy_content ... ok
+test package_tests::fields::field_transfer_keeps_input_provenance_at_create_returns ... ok
+test package_tests::fields::field_replacement_does_not_change_shell_cleanup_order ... ok
+test package_tests::fields::live_field_overwrite_and_reused_ssa_are_rejected ... ok
+test package_tests::fields::field_operations_recheck_local_kind_index_and_operand_presence ... ok
+test package_tests::fields::loop_cannot_redefine_unconsumed_rhs_or_omit_old_field_cleanup ... ok
+test package_tests::fields::live_moved_join_requires_conditional_old_cleanup_before_refill ... ok
+test package_tests::fields::loop_replacement_gets_fresh_instances_without_retargeting_old_descriptions ... ok
+test package_tests::fields::neither_field_drop_nor_store_can_reactivate_an_uninitialized_or_ended_shell ... ok
+test package_tests::fields::merged_description_origins_block_only_their_actual_fields ... ok
+test package_tests::fields::old_description_cannot_be_redirected_by_same_slot_replacement_or_refill ... ok
+test package_tests::fields::partial_package_cannot_manufacture_a_complete_ssa_or_escape_by_return ... ok
+test package_tests::fields::partial_shell_keeps_copy_fields_and_sibling_descriptions_available ... ok
+test package_tests::fields::no_package_scalar_controls_charge_resource_frontier_setup_exactly ... ok
+test package_tests::fields::old_description_alias_and_captured_description_keep_the_precise_field ... ok
+test package_tests::fields::repeated_take_and_description_of_a_missing_field_are_rejected ... ok
+test package_tests::fields::responsibility_pass_does_not_rescan_unrelated_nominal_resource_definitions ... ok
+test package_tests::fields::per_field_responsibility_states_and_scans_consume_the_work_budget ... ok
+test package_tests::fields::store_rejects_a_different_but_individually_valid_nominal_resource ... ok
+test package_tests::fields::take_refill_and_complete_return_pass_both_boundaries ... ok
+test package_tests::fields::result_shape_and_exact_store_type_are_rechecked ... ok
+test package_tests::owning_error_union_local_relabeling_still_requires_actual_injection ... ok
+test package_tests::fields::rhs_error_cleans_prepared_temporary_and_remaining_package_responsibility ... ok
+test package_tests::package_array_relabel_cannot_replace_required_owned_array_operations ... ok
+test package_tests::package_candidate_identity_and_work_limits_remain_independent ... ok
+test package_tests::later_argument_error_cleans_staged_package_and_keeps_unstored_debt_visible ... ok
+test package_tests::ordinary_call_consumes_and_returns_the_complete_package_once ... ok
+test package_tests::package_cannot_hide_inside_copy_containers_or_indirect_signatures ... ok
+test package_tests::package_cannot_use_resource_result_modes_or_resource_operations ... ok
+test package_tests::package_capture_requires_views_and_closure_package_signatures_remain_closed ... ok
+test package_tests::package_cleanup_cannot_be_omitted_or_duplicated ... ok
+test package_tests::package_construction_consumes_each_managed_input_once ... ok
+test package_tests::package_field_description_blocks_whole_move_until_last_use ... ok
+test package_tests::package_field_metadata_and_nominal_lookup_pay_for_repeated_admission ... ok
+test package_tests::package_field_descriptions_never_follow_rebuilt_storage ... ok
+test package_tests::package_cleanup_must_preserve_other_local_construction_order ... ok
+test package_tests::package_function_reference_cannot_erase_ordinary_move_contract ... ok
+test package_tests::package_fields_reject_noncopy_and_nested_owners ... ok
+test package_tests::package_load_cannot_copy_the_owner ... ok
+test package_tests::package_field_description_capture_retains_owner_and_allows_move_after_last_call ... ok
+test package_tests::package_manages_fields_require_matching_nominal_resources ... ok
+test package_tests::package_parameter_field_description_and_cleanup_are_checked ... ok
+test package_tests::package_names_field_names_and_manages_admission_are_checked ... ok
+test package_tests::projection_and_cleanup_require_real_package_storage ... ok
+test package_tests::package_ssa_cannot_be_lost_after_the_root_storage_scope_closes ... ok
+test package_tests::shared_package_window_relabel_cannot_turn_a_stored_owner_into_an_address ... ok
+test package_tests::projection_or_second_move_after_conditional_transfer_is_rejected ... ok
+test package_tests::package_loop_reactivation_must_discharge_each_previous_iteration ... ok
+test package_tests::whole_package_return_uses_ordinary_value_mode ... ok
+test package_tests::whole_move_may_follow_the_last_field_description_use ... ok
+test package_tests::projections_reject_owning_copy_wrong_kind_index_and_local ... ok
+test resource_closure_tests::description_environment_cannot_outlive_or_follow_moved_target ... ok
+test resource_closure_tests::consume_can_give_one_field_and_settle_the_remaining_fields ... ok
+test resource_closure_tests::closure_debts_cannot_be_lost_or_cleared_twice ... ok
+test resource_closure_tests::a_consuming_environment_ssa_is_not_reusable_even_without_owned_fields ... ok
+test resource_closure_tests::owned_captures_cannot_be_copied_or_called_by_value ... ok
+test resource_closure_tests::owned_fn_repeated_shared_reads_and_uncalled_drop_are_valid ... ok
+test resource_closure_tests::one_conditional_consume_keeps_other_edge_cleanup_live ... ok
+test resource_tests::a_description_cannot_revive_when_its_old_head_slot_is_reinitialized ... ok
+test resource_closure_tests::take_capture_requires_consuming_entry_and_cannot_lose_moved_ssa ... ok
+test resource_closure_tests::owned_writes_require_mutable_entry_borrowed_target_writes_do_not ... ok
+test resource_tests::backedge_to_entry_does_not_recreate_owned_parameters ... ok
+test resource_tests::create_cannot_launder_incoming_responsibility_but_give_can_transfer_it ... ok
+test resource_tests::cleanup_order_comes_from_store_order_not_local_number ... ok
+test resource_tests::conditional_give_keeps_a_real_cleanup_obligation_on_the_other_edge ... ok
+test resource_tests::descriptions_cannot_survive_cleanup_or_give ... ok
+test resource_tests::duplicate_cleanup_and_duplicate_ssa_transfer_are_rejected ... ok
+test resource_closure_tests::direct_and_transitive_write_effects_are_reconstructed_from_callee_body ... ok
+test resource_tests::finite_resource_description_reads_and_cleans_once ... ok
+test resource_tests::fresh_constructor_can_be_returned_and_wire_stays_untrusted ... ok
+test resource_tests::giving_an_owner_and_its_description_in_one_call_is_rejected ... ok
+test resource_tests::managed_load_and_incomplete_constructor_are_rejected ... ok
+test resource_tests::each_loop_activation_must_discharge_before_reusing_its_static_slots ... ok
+test resource_tests::missing_cleanup_before_storage_dead_is_rejected ... ok
+test resource_tests::ordinary_call_and_function_pointer_pay_teardown_table_search ... ok
+test resource_tests::resource_registry_growth_charges_each_type_and_constructor_use ... ok
+test resource_tests::process_abort_is_not_a_normal_cleanup_exit ... ok
+test resource_tests::resource_types_and_work_are_bounded_before_untrusted_hashing ... ok
+test resource_tests::normal_return_checks_local_and_unstored_ssa_responsibilities ... ok
+test resource_tests::unregistered_resource_and_payload_mismatch_are_rejected ... ok
+test resource_tests::two_description_parameters_may_alias_for_sequential_short_operations ... ok
+test resources::frontier_tests::every_concrete_closure_call_has_its_entry_dependency ... ok
+test resource_tests::teardown_binding_is_checked_and_ordinary_entries_are_rejected ... ok
+test resources::frontier_tests::public_helper_contract_cuts_the_private_effect_dependency ... ok
+test resources::frontier_tests::forward_star_disconnected_duplicate_and_recursive_effect_graphs ... ok
+test resources::frontier_tests::transitive_owned_write_is_rejected_after_convergence_and_borrowed_write_is_legal ... ok
+test resources::frontier_tests::unreachable_call_does_not_create_a_summary_consumer ... ok
+test retained_tests::callable_return_contract_is_bounded_and_changes_all_candidate_identity ... ok
+test resources::frontier_tests::module_budget_boundary_and_fresh_request_are_exact ... ok
+test retained_tests::owning_factory_raw_and_wire_direct_store_companion_cannot_hide_another_callback ... ok
+test retained_tests::owning_factory_raw_and_wire_do_not_open_root_lending_results ... ok
+test retained_tests::owning_factory_raw_and_wire_input_mode_can_be_consuming_adaptation ... ok
+test retained_tests::owning_factory_raw_and_wire_keep_per_value_responsibility ... ok
+test retained_tests::owning_factory_raw_and_wire_reject_hidden_companion_callback ... ok
+test retained_tests::owning_factory_raw_and_wire_reject_recursive_or_deep_borrowed_inputs ... ok
+test retained_tests::owning_factory_raw_and_wire_reject_same_result_identity_or_extra_input ... ok
+test retained_tests::owning_factory_raw_and_wire_require_exact_return_contract ... ok
+test resources::frontier_tests::reverse_chain_revisits_only_affected_predecessors ... ok
+test retained_tests::current_wire_accepts_current_version_and_rejects_other_versions_and_every_truncation ... ok
+test retained_tests::owning_factory_raw_and_wire_transfer_or_clean_input_without_helper_contract ... ok
+test retained_tests::raw_factory_bodies_keep_exact_contracts_when_hidden_identity_is_shared ... ok
+test retained_tests::raw_factory_cannot_hide_external_input_effects_behind_empty_contract ... ok
+test retained_tests::raw_and_wire_factories_transfer_owned_and_empty_environments ... ok
+test retained_tests::raw_factory_resource_multiplicity_and_caller_cleanup_are_not_trusted ... ok
+test retained_tests::raw_self_contained_contract_rejects_borrowed_captures ... ok
+test tests::accepts_checked_arithmetic_initialization_and_readonly_snapshot ... ok
+test tests::accepts_diamond_with_all_paths_initialized ... ok
+test tests::accepts_loop_fixed_point_and_rejects_budget_exhaustion ... ok
+test tests::branch_without_store_cannot_fake_join_initialization ... ok
+test tests::branch_without_store_is_rejected_even_with_honest_plan ... ok
+test tests::checks_direct_call_signature_and_parameter_initialization ... ok
+test tests::ct_checks_types_order_and_budget ... ok
+test tests::ct_forbidden_operations_and_raw_dependency_flags_fail_closed ... ok
+test tests::decoded_candidate_facts_are_rechecked_even_with_correct_identity ... ok
+test tests::decoded_type_claims_never_bypass_ct_verification ... ok
+test retained_tests::raw_return_contract_cannot_forge_identity_kind_dependencies_or_cleanup ... ok
+test tests::malformed_parameter_id_is_diagnostic_not_panic ... ok
+test tests::raw_ct_cannot_evade_value_or_check_work_quotas ... ok
+test tests::metadata_cost_is_bounded_before_module_fingerprinting ... ok
+test tests::refuses_nonempty_responsibility_certificates ... ok
+test tests::rejects_duplicate_and_missing_value_definitions ... ok
+test tests::rejects_false_initialization_claim ... ok
+test tests::rejects_forged_target_and_stale_plan ... ok
+test tests::rejects_immutable_reassignment ... ok
+test tests::rejects_non_boolean_branch_and_missing_target ... ok
+test tests::rejects_nondominating_branch_value_at_merge ... ok
+test tests::rejects_operand_before_its_definition ... ok
+test tests::rejects_unchecked_arithmetic_profile ... ok
+test tests::rejects_uninitialized_read_even_with_matching_boundary_sets ... ok
+test tests::rejects_wrong_return_type ... ok
+test tests::unknown_semantics_are_unsupported ... ok
+test tests::unreachable_cannot_be_used_as_a_runtime_escape ... ok
+test retained_tests::owning_factory_verify_and_wire_have_exact_fresh_budget_boundaries ... ok
+test resources::frontier_tests::all_small_dependency_graphs_match_complete_reference_rows ... ok
+
+test result: ok. 266 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+   Compiling zil-driver v0.1.0 (/workspace/zil/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.88s
+     Running tests/cp33_parse_budget.rs (/workspace/.zil-env/target/debug/deps/cp33_parse_budget-e8769d55adb2149e)
+
+running 6 tests
+test current_import_resolution_and_failed_edits_never_use_stale_results ... ok
+test preceding_trivia_and_public_signature_edits_only_parse_changed_files ... ok
+test source_position_context_and_nonreceipt_limits_stay_in_identity ... ok
+test single_source_receipts_fall_back_for_attribute_nodes_and_eof_tokens ... ok
+test cancellation_and_small_capacity_keep_fresh_verification_and_query_cleanup ... ok
+test current_project_quota_and_depth_failures_match_fresh_first_diagnostics ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/cp34_fingerprint_sources.rs (/workspace/.zil-env/target/debug/deps/cp34_fingerprint_sources-40e39240c340159e)
+
+running 2 tests
+test actual_project_typed_output_matches_the_frozen_encoder ... ok
+test source_modules_match_frozen_identity_and_each_request_verifies ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/cp35_shared_verify.rs (/workspace/.zil-env/target/debug/deps/cp35_shared_verify-d28ea258a2c5caf1)
+
+running 7 tests
+test module_and_plan_clone_on_write_cannot_change_a_checked_snapshot ... ok
+test malformed_raw_neighbors_keep_complete_owned_diagnostics ... ok
+test shared_program_preserves_aliases_without_granting_interface_authority ... ok
+test repeated_shared_inputs_obey_current_limits_and_target ... ok
+test single_and_project_sessions_run_fresh_verify_after_reuse_and_cancellation ... ok
+test owned_and_shared_real_source_results_and_lowering_are_equal ... ok
+test filesystem_session_shares_raw_inputs_and_runs_fresh_verify_and_native ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/impl083_bytes_native.rs (/workspace/.zil-env/target/debug/deps/impl083_bytes_native-33ee7c77ac3e2346)
+
+running 7 tests
+test bytes083_ct_conversion_and_unsigned_operator_boundaries_fail_before_publication ... ok
+test bytes083_runtime_traps_and_byte_entry_are_observed_in_real_native_code ... ok
+test bytes083_controlled_short_writes_and_no_progress_errors_preserve_prefix ... ok
+test bytes083_streaming_normalization_preserves_nul_high_bits_and_chunk_edges ... ok
+test bytes083_real_pipe_eof_and_resource_close_match_rust ... ok
+test bytes083_unsigned_operations_cover_all_65536_pairs_at_o0_and_o2 ... ok
+test bytes083_copy_capture_address_mutations_survive_every_exit_and_loop_order ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.04s
+
+     Running tests/impl120_field_backing_native.rs (/workspace/.zil-env/target/debug/deps/impl120_field_backing_native-9805000189c6121e)
+
+running 4 tests
+test four_modules_keep_helper_returns_and_owned_field_state ... ok
+test disjoint_exclusive_fields_and_helper_apart_are_real_native_accesses ... ok
+test owned_fnmut_and_partial_fnonce_error_release_actual_fields ... ok
+test live_sibling_survives_take_refill_replace_and_growth_with_exact_cleanup ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+
+     Running tests/impl228_consumer.rs (/workspace/.zil-env/target/debug/deps/impl228_consumer-37c0071d80db6bf3)
+
+running 7 tests
+test paired_sources_change_only_the_requested_declaration_forms ... ok
+test generated_event_shapes_keep_distinct_nominal_identities ... ok
+test trailing_copy_bound_cannot_duplicate_an_owning_event_resource ... ok
+test combined_event_consumer ... ok
+test where_event_consumer ... ok
+test plain_event_consumer ... ok
+test generated_event_consumer ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+     Running tests/impl228_generation.rs (/workspace/.zil-env/target/debug/deps/impl228_generation-e6dc0bebaa7ed20a)
+
+running 7 tests
+test declaration_reserved_names_cannot_escape_through_alpha_renaming ... ok
+test duplicate_nominals_visibility_and_unchecked_types_still_reject ... ok
+test generated_function_names_follow_the_ordinary_function_rule ... ok
+test unsupported_declaration_kinds_and_configready_remain_closed ... ok
+test declarations_aliases_defaults_and_namespaces_reach_independent_verify ... ok
+test generated_type_tables_share_request_limits_and_warm_cache_charges ... ok
+test generated_and_plain_declarations_execute_at_o0_and_o2 ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.73s
+
+     Running tests/impl229_where_copy.rs (/workspace/.zil-env/target/debug/deps/impl229_where_copy-40f22dc4c280e64b)
+
+running 6 tests
+test project_path_uses_the_same_where_checks ... ok
+test unsupported_clauses_are_not_erased_and_unused_bodies_are_checked ... ok
+test ordinary_where_sources_reach_the_independent_verifier ... ok
+test old_source_budget_controls ... ok
+test where_aliases_and_specialization_share_exact_fresh_and_warm_limits ... ok
+test inline_where_duplicate_and_project_programs_execute_at_o0_and_o2 ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+     Running tests/narrow_constants.rs (/workspace/.zil-env/target/debug/deps/narrow_constants-f68defb6baf0d0af)
+
+running 2 tests
+test byte_stream_preserves_success_exit_and_all_bytes_at_o0_o2 ... ok
+test negative_return_paths_survive_o2_and_warm_machine_cache ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+     Running tests/object_cache212.rs (/workspace/.zil-env/target/debug/deps/object_cache212-8eb14ab05887cf5f)
+
+running 12 tests
+test cancellation_after_backend_success_does_not_commit_object_cache ... ok
+test cache_directory_failure_is_a_visible_bypass_not_a_build_failure ... ok
+test concurrent_requests_share_only_complete_native_objects ... ok
+test cold_warm_private_public_edits_preserve_current_verify_and_output ... ok
+test corrupt_and_truncated_entries_rebuild_without_changed_native_bytes ... ok
+test diagnostic_fingerprint_change_does_not_pollute_machine_keys ... ok
+test linker_failure_discards_pending_objects_and_preserves_previous_output ... ok
+test current_checked_overflow_still_traps_on_cache_hits ... ok
+test unsafe_or_invalid_current_source_never_reuses_a_success_capability ... ok
+test optimization_and_units_invalidate_but_job_count_does_not ... ok
+test unused_foreign_declarations_do_not_invalidate_independent_objects ... ok
+test owned_state_store_and_callbacks_match_on_cold_and_warm_o0_o2 ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.56s
+
+     Running tests/project_frontend_reuse.rs (/workspace/.zil-env/target/debug/deps/project_frontend_reuse-82d89ad44939a74f)
+
+running 6 tests
+test replayed_phase_order_keeps_observer_cancellation_and_recovery ... ok
+test same_complete_input_reuses_frontend_after_parse_eviction_and_verifies_now ... ok
+test reused_frontend_builds_current_native_output_and_preserves_link_cancellation ... ok
+test changed_source_identity_rules_limits_and_target_match_fresh ... ok
+test stage_stops_artifacts_disk_sources_and_filesystem_discovery_keep_original_path ... ok
+test real_resources_generics_ct_and_products_reuse_evicted_frontends ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.31s
+
+     Running tests/cp34_fingerprint.rs (/workspace/.zil-env/target/debug/deps/cp34_fingerprint-c2d443c6037b70b2)
+
+running 4 tests
+test callable_public_fingerprints_keep_the_original_vec_contracts ... ok
+test frozen_oracle_is_the_original_encoder_not_the_new_sink ... ok
+test every_raw_encoding_variant_matches_the_frozen_vec_oracle ... ok
+test sha_blocks_and_stream_buffer_boundaries_preserve_exact_bytes ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/builder210.rs (/workspace/.zil-env/target/debug/deps/builder210-b1133c668ea28dd4)
+
+running 9 tests
+test direct_backend_rejects_disabled_text_adapter ... ok
+test cancellation_at_each_native_boundary ... ok
+test invalid_module_never_reaches_assert_prone_builder ... ok
+test direct_target_not_host_and_optimization_modes ... ok
+test separate_contexts_have_deterministic_objects ... ok
+test target_mismatch_is_explicit ... ok
+test direct_loop_forward_block_phi_executes_o0_o2 ... ok
+test direct_aggregates_global_function_table_and_indirect_call_execute ... ok
+test signed_and_unsigned_spellings_of_integer_bits_are_identical_at_all_widths ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.90s
+
+     Running tests/cp33_parse_receipts.rs (/workspace/.zil-env/target/debug/deps/cp33_parse_receipts-b8ea67634cc52f56)
+
+running 2 tests
+test recovered_or_invalid_syntax_never_supplies_a_success_receipt ... ok
+test successful_receipts_cover_parser_and_attribute_node_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    Finished `dev` profile [unoptimized] target(s) in 0.07s

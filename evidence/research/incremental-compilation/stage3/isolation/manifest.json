@@ -1,0 +1,80 @@
+{
+  "scope": "Frozen scoped CLI + Session A/B screen, optionally direct rustc reference.\n\nNot the formal product gate. Includes per-process startup and actual source reads\nfor CLI, current Verify for every successful ZIL request, link/publication for\nbuild. Native semantic checks run outside timing. CPU affinity is fixed. CLI wall time covers launch through wait4; CPU time and maximum RSS come from\nthe same child wait, without a separate timing executable.\n",
+  "baseline_source": "5cf1c417f5cbdc0895e5edceb3053d9d4da490c6",
+  "candidate_source": "5e0613cc4d09bc99dcd1fba00a371eed691f8a37",
+  "compilers": {
+    "baseline": {
+      "path": "/workspace/.zil-env/research/target-stage2/release/zil",
+      "sha256": "64fd64caaec0cd1d543aa25ba2da05e12b4d925c730295871f10c003cde5f84d"
+    },
+    "candidate": {
+      "path": "/workspace/.zil-env/research/target-stage3/release/zil",
+      "sha256": "a8d87bd7331dec961ebd777c117177495c5a8055d7bdfb59bcf12dc0c9361df1"
+    },
+    "rust": {
+      "path": "/workspace/.zil-env/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+      "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+    }
+  },
+  "probes": {
+    "baseline": {
+      "path": "/workspace/.zil-env/research/stage2-corrected-probe",
+      "sha256": "14afde2ec51600c50b2ed95ae8239f4f0caea3f9f2a82cde480582d2e341c0b9"
+    },
+    "candidate": {
+      "path": "/workspace/.zil-env/research/stage3-candidate-probe",
+      "sha256": "bd0d5614c5cf8c1f362406b16691cd5363105755ece5a75fb5ee516be7bd390a"
+    }
+  },
+  "cpus": [
+    0,
+    1
+  ],
+  "blocks": 5,
+  "cli_modules": [
+    32,
+    128
+  ],
+  "functions_per_leaf": 8,
+  "session_cases": [
+    [
+      32,
+      32,
+      "check"
+    ],
+    [
+      128,
+      32,
+      "check"
+    ],
+    [
+      512,
+      32,
+      "check"
+    ],
+    [
+      128,
+      8192,
+      "check"
+    ],
+    [
+      32,
+      32,
+      "build"
+    ],
+    [
+      128,
+      32,
+      "build"
+    ]
+  ],
+  "requests": [
+    "cold",
+    "unchanged",
+    "private1",
+    "private2",
+    "restore"
+  ],
+  "rust_reference": "direct rustc, O0, overflow checks, 8 CGU, persistent -C incremental per run; metadata check is not Cargo check",
+  "measurement": "median of within-block paired means; observed per-run RSS; no OS-cache flush or thermal reset"
+}

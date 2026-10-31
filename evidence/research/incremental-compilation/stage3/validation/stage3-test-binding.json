@@ -1,0 +1,115 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "verdict": "Pass",
+  "implementation_commit": "5e0613cc4d09bc99dcd1fba00a371eed691f8a37",
+  "prior_reviewed_commit": "a4bec09fbaff29a353ad21571e183166de0968dc",
+  "scope": "Read-only supplementary test and source-identity binding; inherits prior scoped correctness review, no new benchmark or test execution",
+  "created_utc": "2026-10-31T04:38:32.235360+00:00",
+  "blocking_findings": [],
+  "changed_files": [
+    "crates/zil-driver/tests/project_frontend_reuse.rs",
+    "docs/research/incremental-compilation/FRONTEND-REUSE.md"
+  ],
+  "production_source_identical": true,
+  "original_five_integration_tests_byte_identical_prefix": true,
+  "new_test_review": [
+    "Real syntax parser breadth-first traversal builds explicit ProjectSources from eight repository corpora and their reachable imports; no hand-authored stage IR. Paths resolve relative to the example root, appropriate for these concrete fixtures.",
+    "Twelve padding modules are appended after all real source modules, with capacity eight. Four project/analysis owners plus most-recent Parse entries mean original consumer Parse owners are evicted. Every warm request asserts zero Parse Executed; cold asserts some executed.",
+    "For each of eight inputs and O0/O2: filesystem/text-clang reference must succeed with one independent Verify and expected native exit (2 for ct_selection219, otherwise 0). API explicit-project cold/warm each must succeed with one Verify; native exit/stdout/stderr exactly equal the reference.",
+    "48 build/native invocations are asserted by the completed nested loops in this single test (8 x 2 x 3). This is an assertion-based aggregate; no per-invocation reports or native stdout artifacts are preserved by this test.",
+    "Original five tests are unchanged; new coverage adds resources, generics, CT selection/types, byte I/O and Product behavior without weakening existing rejection/cancellation/budget assertions."
+  ],
+  "constructor_log_audit": {
+    "scoped_passed": 493,
+    "scoped_groups": 23,
+    "zero_test_groups": 1,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 0,
+    "frontend_integration_count": 6,
+    "new_real_corpus_test_named_pass": true,
+    "clippy": "Committed verify_scoped.sh ends with nine-package all-targets Clippy and -D warnings; aggregate log reaches Finished dev. Separate final-clippy log also reaches Finished dev.",
+    "format": "stage3-final-fmt.log is empty (SHA recorded), consistent with reported successful format check; empty output alone does not encode a process exit status. Reviewer did not rerun fmt.",
+    "execution_source": "Constructor-produced logs inspected read-only; reviewer did not rerun these 493 tests or the additional real-corpus test."
+  },
+  "source_sha256": {
+    "crates/zil-driver/tests/project_frontend_reuse.rs": "50324cdfb74eca8e234e2d5d96454166e34ed0fd541a1fad0d15adaeceda2dcd",
+    "docs/research/incremental-compilation/FRONTEND-REUSE.md": "7000b0418517183611499a8da99f286ea1f167ba7c85443383f98e078998e4c5",
+    "crates/zil-driver/src/session.rs": "ad987d0080c316bee123307c0e27f475767e46936880a34119b25e84b0a884df",
+    "crates/zil-driver/src/project.rs": "02ee2d292b71616c1631301b51d1e763e2c658faaa2c091efb47ffa189aeabec",
+    "tools/research/incremental-compilation/verify_scoped.sh": "7a5fe3128f31a87f1b0ed75fb9515c592d043730e430abc2babb81dad1b02164"
+  },
+  "corpus_source_sha256": {
+    "byte_io/main.zil": {
+      "examples/mainline/byte_io/main.zil": "e52ef18e5502b5f1523913f2a28dbbbcf7d1d4934e23247e481c4219edf6833e",
+      "examples/mainline/byte_io/io.zil": "6d8fbe85c350ccc396f18cd18fe6708ebada4b3014d7baaa128d877f44e19dc8"
+    },
+    "resource_closures/main.zil": {
+      "examples/mainline/resource_closures/main.zil": "76ebf368ce2308e03c14e77fc5c1ad63a9010c834571a9967dd5db8f92b7d9f3",
+      "examples/mainline/resource_closures/io.zil": "ff0523cbcc596d96efafd5361c91d7482ca52e9f8eee8ca611a486045328d89d",
+      "examples/mainline/resource_closures/token.zil": "7a534ea7ca872638c3601660d5018d7fae5aef37e56582590fa322e1ef5b7d02"
+    },
+    "generic_store178/main.zil": {
+      "examples/mainline/generic_store178/main.zil": "607cf8fab4602b0365098cf129abe43a05024b39b59f2e5e2ac403778326b16d",
+      "examples/mainline/generic_store178/model.zil": "933262df36c796ace58c974620f36348c747c0a654b34db2da87c74d9b78a65b",
+      "examples/mainline/generic_store178/collection.zil": "19e0a2fa65ee8f05bdcd4853bc79a83945c1db63ea3cf0ca25b5e82a2c0c5e45",
+      "examples/mainline/generic_store178/state.zil": "3e0a1e610398e65adbdf46db88cc05a41e5a5e825a3608f071a517b0f8792ef9"
+    },
+    "mixed_capture182/main.zil": {
+      "examples/mainline/mixed_capture182/main.zil": "a1885dacaf8c2edfe16e2a60296103195097101a03f6c313a70a49a974e993e6",
+      "examples/mainline/mixed_capture182/model.zil": "95e0ec80b8def45d3b413f99292b348f533b704e28f4dc77f348c205fde7f83a",
+      "examples/mainline/mixed_capture182/operations.zil": "357e23749846ccd12439967360bdd81fb4be95ed600e26e6e518fac94712491d",
+      "examples/mainline/mixed_capture182/visits.zil": "082e1832d8a86ec5edcfb00e0931de94a63db8729d629eaa0ab1ab4c4123d318"
+    },
+    "ct_selection219/main.zil": {
+      "examples/mainline/ct_selection219/main.zil": "0055a0570fc5f108555385b75925e6f14c42f50ed42bf4ffc64cde2ecfb9ea15",
+      "examples/mainline/ct_selection219/config.zil": "32643488c062b87a06a51944bdfe18919464d02ef229656f135421a9cec72e7d",
+      "examples/mainline/ct_selection219/io.zil": "64c44b46c1fb746257c9602ceed05785eec97d4b4f1ff8bbd390e7bc432802be"
+    },
+    "ct_types228/arrays_defaults.zil": {
+      "examples/mainline/ct_types228/arrays_defaults.zil": "f99e0c533ccbc97871c8512702e0b809020c18861504adba3b69868c83e2e515"
+    },
+    "where_copy229/main.zil": {
+      "examples/mainline/where_copy229/main.zil": "dde10b603afd31e9f800f8db6853505aad51441361856d9e703c902e46c6295a",
+      "examples/mainline/where_copy229/helper.zil": "28f1f78bf48939a9f422d41fbd1715eccace249b77fe7b4f403c6773962acc8d",
+      "examples/mainline/where_copy229/model.zil": "c681b170ab9feb72501b72497d13bd4e822c7082bc610d88625d8385326016ac"
+    },
+    "shared_product224/main.zil": {
+      "examples/mainline/shared_product224/main.zil": "62f67d4a4f30af1e538d8fd61b4dc8d88d0747f87ededbace7b4deed8196f54a"
+    }
+  },
+  "artifact_inventory": {
+    "stage3-final-scoped.log": {
+      "sha256": "06cb42bbf1452ffb2a455a77d31bed156f5a1b6b738a4b679f74daf3d324968e",
+      "bytes": 48230
+    },
+    "stage3-final-clippy.log": {
+      "sha256": "19b19bbff96077f5719a08b51d1fc1e07d2355b42063a5033c368f888bc8d6ad",
+      "bytes": 126
+    },
+    "stage3-final-fmt.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "stage3-real-sources.log": {
+      "sha256": "5b09f72bd228ae4392933280f2f287d88250e73521739927ef1110e59fcb4d9a",
+      "bytes": 853
+    },
+    "stage3-review.json": {
+      "sha256": "3197e4cc04cf1c85ef6649e698a0cbf1299cccd7014d2ec2a6117dc1c2f6f205",
+      "bytes": 8888
+    },
+    "stage3-review.md": {
+      "sha256": "26166ce8395f7cecf09236ccd182de9ba2235007fd87ab633b9716b4b3ad30aa",
+      "bytes": 4344
+    }
+  },
+  "prior_review_sha256": "3197e4cc04cf1c85ef6649e698a0cbf1299cccd7014d2ec2a6117dc1c2f6f205",
+  "working_tree_clean_at_binding": true,
+  "limitations": [
+    "Not formal full-suite/product/performance acceptance. Prior a4bec09 independent six-test execution remains bound to that exact commit; source identity proves its production coverage transfers.",
+    "New real-corpus evidence uses actual native execution with test assertions, rather than separately retained per-request raw reports.",
+    "No CPU-intensive verification was run during this binding. Historical stage-2 measurements and reviewer receipts remain unchanged."
+  ]
+}

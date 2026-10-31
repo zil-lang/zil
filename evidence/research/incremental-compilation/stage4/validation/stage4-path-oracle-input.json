@@ -1,0 +1,8 @@
+{
+  "candidate": "9fe5f55e64c7d537b9d585d3d40e42c9e248308e",
+  "baseline": "5e0613cc4d09bc99dcd1fba00a371eed691f8a37",
+  "destination_function_unchanged_sha256": "8c319184ee8ead1cefb8f1f6b9f97883917b8086a238e58143b83ee0b5807e63",
+  "candidate_functions_source_sha256": "1010489ae83ece928836b16aba344e9dd8cb9200f372b15efbf7daadf3b933f9",
+  "baseline_identity_source_sha256": "00a9ec7b1f0c55ca0d41cfbf945fd5f56d3f04d7d2729a1373549a361ac2e155",
+  "description": "Standalone external harness, candidate destination/cache/identity copied from exact commit and old identity copied from baseline; only FileIdentity derives Debug/PartialEq/Eq added for comparison; production source unchanged."
+}

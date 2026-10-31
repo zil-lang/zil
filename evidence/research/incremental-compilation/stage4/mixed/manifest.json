@@ -1,0 +1,106 @@
+{
+  "scope": "Scoped existing-source O0/O2 CLI A/B check; no product-gate claim.",
+  "blocks": 5,
+  "cpus": [
+    0,
+    1
+  ],
+  "source_commit": "9fe5f55e64c7d537b9d585d3d40e42c9e248308e",
+  "compilers": {
+    "baseline": {
+      "path": "/workspace/.zil-env/research/target-slice1-baseline/release/zil",
+      "sha256": "794c53ba6f71e4e752872e8797e23fda622bb9ba9dfd0d286e24609f5729bccf"
+    },
+    "candidate": {
+      "path": "/workspace/.zil-env/research/target-stage4/release/zil",
+      "sha256": "44516ae10d3446998aadecd7cfc8006c34b8902b553ddd93faff49fa04a91643"
+    }
+  },
+  "cases": [
+    {
+      "path": "byte_io/main.zil",
+      "stdin_hex": "68656c6c6f2c205a696c210a0080",
+      "files": {
+        "byte_io/arithmetic.zil": "49885e7cbaad45d523179b87ecb0f738be5253a80161b295f9301d4df4d4ebac",
+        "byte_io/errors.zil": "2b4873620b414eac6c5c4584cd0f6d893cd375585eb37744a1bb07a3ea3a1f7a",
+        "byte_io/io.zil": "6d8fbe85c350ccc396f18cd18fe6708ebada4b3014d7baaa128d877f44e19dc8",
+        "byte_io/main.zil": "e52ef18e5502b5f1523913f2a28dbbbcf7d1d4934e23247e481c4219edf6833e",
+        "byte_io/partial.zil": "8caf4b7982a25622af4c89ee0fe20b6cda5612574d9b3bcf14dc5b2400825849",
+        "byte_io/pipe.zil": "13da411be349ca81401d9f9407ffc0e40902a434b336c3a33eb54920faac581e"
+      }
+    },
+    {
+      "path": "resource_closures/main.zil",
+      "stdin_hex": "44",
+      "files": {
+        "resource_closures/io.zil": "ff0523cbcc596d96efafd5361c91d7482ca52e9f8eee8ca611a486045328d89d",
+        "resource_closures/main.zil": "76ebf368ce2308e03c14e77fc5c1ad63a9010c834571a9967dd5db8f92b7d9f3",
+        "resource_closures/token.zil": "7a534ea7ca872638c3601660d5018d7fae5aef37e56582590fa322e1ef5b7d02"
+      }
+    },
+    {
+      "path": "generic_store178/main.zil",
+      "stdin_hex": "32",
+      "files": {
+        "generic_store178/collection.zil": "19e0a2fa65ee8f05bdcd4853bc79a83945c1db63ea3cf0ca25b5e82a2c0c5e45",
+        "generic_store178/main.zil": "607cf8fab4602b0365098cf129abe43a05024b39b59f2e5e2ac403778326b16d",
+        "generic_store178/model.zil": "933262df36c796ace58c974620f36348c747c0a654b34db2da87c74d9b78a65b",
+        "generic_store178/state.zil": "3e0a1e610398e65adbdf46db88cc05a41e5a5e825a3608f071a517b0f8792ef9"
+      }
+    },
+    {
+      "path": "mixed_capture182/main.zil",
+      "stdin_hex": "32",
+      "files": {
+        "mixed_capture182/main.zil": "a1885dacaf8c2edfe16e2a60296103195097101a03f6c313a70a49a974e993e6",
+        "mixed_capture182/model.zil": "95e0ec80b8def45d3b413f99292b348f533b704e28f4dc77f348c205fde7f83a",
+        "mixed_capture182/operations.zil": "357e23749846ccd12439967360bdd81fb4be95ed600e26e6e518fac94712491d",
+        "mixed_capture182/visits.zil": "082e1832d8a86ec5edcfb00e0931de94a63db8729d629eaa0ab1ab4c4123d318"
+      }
+    },
+    {
+      "path": "ct_selection219/main.zil",
+      "stdin_hex": "32",
+      "files": {
+        "ct_selection219/config.zil": "32643488c062b87a06a51944bdfe18919464d02ef229656f135421a9cec72e7d",
+        "ct_selection219/config_wide.zil": "26f1106983ac3ede7ab154f71c4f198aaa6f5bd14f1cb027d9b31ec9f2bcd7b4",
+        "ct_selection219/io.zil": "64c44b46c1fb746257c9602ceed05785eec97d4b4f1ff8bbd390e7bc432802be",
+        "ct_selection219/main.zil": "0055a0570fc5f108555385b75925e6f14c42f50ed42bf4ffc64cde2ecfb9ea15"
+      }
+    },
+    {
+      "path": "ct_types228/arrays_defaults.zil",
+      "stdin_hex": "",
+      "files": {
+        "ct_types228/arrays_defaults.zil": "f99e0c533ccbc97871c8512702e0b809020c18861504adba3b69868c83e2e515",
+        "ct_types228/arrays_defaults_plain.zil": "148db124f52498ad2e753574c0916a13e3f368f15d105ae1c22c8178a51cb806"
+      }
+    },
+    {
+      "path": "where_copy229/main.zil",
+      "stdin_hex": "",
+      "files": {
+        "where_copy229/helper.zil": "28f1f78bf48939a9f422d41fbd1715eccace249b77fe7b4f403c6773962acc8d",
+        "where_copy229/main.zil": "dde10b603afd31e9f800f8db6853505aad51441361856d9e703c902e46c6295a",
+        "where_copy229/model.zil": "c681b170ab9feb72501b72497d13bd4e822c7082bc610d88625d8385326016ac"
+      }
+    },
+    {
+      "path": "shared_product224/main.zil",
+      "stdin_hex": "",
+      "files": {
+        "shared_product224/active_move_reject.zil": "3cc17648bb38120fb2fcd233142deecdbc61adbcd867fb8a6ee17a191295e025",
+        "shared_product224/allocation.zil": "c142688fe8cea3f8a90dfd90f4c5bbb6917213b8b6322d2c5ffaf9ec1780d33d",
+        "shared_product224/child-nll-control.zil": "ee559334aea2155013e494d19c7704d553570cc3cb0503d971b5994cfdd150b1",
+        "shared_product224/main.zil": "62f67d4a4f30af1e538d8fd61b4dc8d88d0747f87ededbace7b4deed8196f54a"
+      }
+    }
+  ],
+  "flags": [
+    "build",
+    "--opt",
+    "O0/O2",
+    "--json"
+  ],
+  "timing": "full subprocess wall; native executions outside timer; no object cache; median paired block means"
+}

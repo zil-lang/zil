@@ -1,0 +1,10 @@
+    Finished `test` profile [unoptimized] target(s) in 0.03s
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_driver-fa1548cfe1f00883)
+
+running 3 tests
+test artifacts::tests::second_native_rename_failure_restores_both_previous_outputs ... ok
+test artifacts::tests::later_validation_rechecks_files_parent_directories_and_aliases ... ok
+test artifacts::tests::one_parent_resolution_matches_the_uncached_resolver ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out; finished in 0.00s
+

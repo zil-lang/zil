@@ -1,0 +1,52 @@
+{
+  "purpose": "Post-measurement reproducibility control: identical probe source and retained rlibs must reproduce original measured ELF; no measurements repeated.",
+  "source_commit": "9fe5f55e64c7d537b9d585d3d40e42c9e248308e",
+  "sources": {
+    "tools/research/incremental-compilation/session_probe.rs": "0ef4fdf5405a16377fb19dba19cba26fc351b15e22f01c3d11baffcf630561e3",
+    "tools/research/incremental-compilation/build_probe.py": "4f454a81f32ff47e67b716ee588b5df1a560b2faa9a0e8f7636ed150579c6ff2"
+  },
+  "builds": [
+    {
+      "command": [
+        "python3",
+        "tools/research/incremental-compilation/build_probe.py",
+        "--target",
+        "/workspace/.zil-env/research/target-slice1-baseline",
+        "--out",
+        "/tmp/stage4-main-baseline-probe-reproduced"
+      ],
+      "original_path": "/workspace/.zil-env/research/stage4-main-baseline-probe",
+      "original_sha256": "792836032c61be2b40b455e61001cc37df84027d95d1c14ca69d352c852ed77b",
+      "reproduced_sha256": "792836032c61be2b40b455e61001cc37df84027d95d1c14ca69d352c852ed77b",
+      "identical": true
+    },
+    {
+      "command": [
+        "python3",
+        "tools/research/incremental-compilation/build_probe.py",
+        "--target",
+        "/workspace/.zil-env/research/target-stage3",
+        "--out",
+        "/tmp/stage4-stage3-baseline-probe-reproduced"
+      ],
+      "original_path": "/workspace/.zil-env/research/stage4-stage3-baseline-probe",
+      "original_sha256": "f134d63ea11262b494a30ab69a329d31abf5698fd5eb404c9647db4d6f970ada",
+      "reproduced_sha256": "f134d63ea11262b494a30ab69a329d31abf5698fd5eb404c9647db4d6f970ada",
+      "identical": true
+    },
+    {
+      "command": [
+        "python3",
+        "tools/research/incremental-compilation/build_probe.py",
+        "--target",
+        "/workspace/.zil-env/research/target-stage4",
+        "--out",
+        "/tmp/stage4-candidate-probe-reproduced"
+      ],
+      "original_path": "/workspace/.zil-env/research/stage4-candidate-probe",
+      "original_sha256": "765efd156a0c44d94073cee975c618e7a9d54e6988c35c52d4449281dc5551e3",
+      "reproduced_sha256": "765efd156a0c44d94073cee975c618e7a9d54e6988c35c52d4449281dc5551e3",
+      "identical": true
+    }
+  ]
+}
