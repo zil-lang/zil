@@ -301,14 +301,13 @@ impl materialize::Materializer<'_, '_> {
             self.locals.pop();
             self.iterations.pop();
             result?;
-            let imports = self
-                .context
-                .program
-                .modules
-                .iter()
-                .find(|module| module.core.module_id == self.module)
-                .map_or(&[][..], |module| module.imports.as_slice());
-            super::hygiene::items(&mut selected, self.module, serial, self.budget, imports)?;
+            super::hygiene::items(
+                &mut selected,
+                self.module,
+                serial,
+                self.budget,
+                &self.context.program,
+            )?;
             for item in selected {
                 self.budget.node(item.span, depth + 1)?;
                 output.push(item);
