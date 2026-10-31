@@ -94,6 +94,58 @@ const MAIN: &str = "import rules;import data;fn read<T>(x:&T)->i32 where T:((rul
 const RULES: &str = "pub trait Code{fn code(self:&Self)->i32;}";
 const DATA: &str = "import rules;pub struct Payload{n:i32}impl rules.Code for Payload{fn code(self:&Self)->i32=>self.n}pub fn make()->Payload=>Payload{n:13}";
 
+const LIB_MAIN: &str =
+    "import rules;import data;fn main()->i32{let value=data.make(42);return rules.read(&value)-42}";
+const LIB_RULES: &str =
+    "pub trait Read{fn value(self:&Self)->i32;}pub fn read<T>(x:&T)->i32 where T:Read=>x.value()";
+const LIB_DATA: &str = "import rules;pub struct Item{n:i32}impl rules.Read for Item{fn value(self:&Self)->i32=>self.n}pub fn make(n:i32)->Item=>Item{n:n}";
+
+#[test]
+fn generic_trait_library_depends_on_each_actual_implementation_without_source_back_imports() {
+    // This is the exact non-author counterexample for 41d136fa. The trait
+    // library must not import a future client's concrete implementation.
+    for (label, rules) in [
+        ("library-where", LIB_RULES.to_string()),
+        (
+            "library-inline",
+            LIB_RULES.replace("read<T>(x:&T)->i32 where T:Read", "read<T:Read>(x:&T)->i32"),
+        ),
+    ] {
+        native(
+            label,
+            &[("main", LIB_MAIN), ("rules", &rules), ("data", LIB_DATA)],
+            b"",
+        );
+    }
+    let main = "import rules;import data;import other;import helpers;fn main()->i32{let a=data.make(17);let b=other.make(24);return helpers.read(&a)+helpers.read(&b)-42}";
+    let helper = "import rules;pub fn read<T>(x:&T)->i32 where T:rules.Read=>x.value()";
+    let other = LIB_DATA.replace("=>self.n", "=>self.n+1");
+    native(
+        "two-implementations",
+        &[
+            ("main", main),
+            ("rules", LIB_RULES),
+            ("data", LIB_DATA),
+            ("other", &other),
+            ("helpers", helper),
+        ],
+        b"",
+    );
+    // A generated public-method dependency cannot expose the concrete owner's
+    // private inherent method to an otherwise valid generic body.
+    let illegal = LIB_RULES.replace("=>x.value()", "=>x.secret()");
+    let with_private = format!("{LIB_DATA}\nimpl Item{{fn secret(self:&Self)->i32=>.n}}");
+    rejected(
+        "library-private-method",
+        &[
+            ("main", LIB_MAIN),
+            ("rules", &illegal),
+            ("data", &with_private),
+        ],
+        "E-GENERIC-ARGUMENT",
+    );
+}
+
 #[test]
 fn original_three_module_where_and_inline_inputs_reach_independent_verify() {
     let inline = MAIN.replace(
@@ -427,6 +479,14 @@ fn new_imported_trait_work_has_exact_cold_warm_and_fresh_boundaries() {
         ("operations", OPERATIONS),
         ("counters", COUNTERS),
     ]);
+    budget_boundary("counter", input);
+    budget_boundary(
+        "trait-library",
+        project(&[("main", LIB_MAIN), ("rules", LIB_RULES), ("data", LIB_DATA)]),
+    );
+}
+
+fn budget_boundary(label: &str, input: ProjectSources) {
     let (mut low, mut high) = (1, 1_000_000);
     while low < high {
         let middle = low + (high - low) / 2;
@@ -458,7 +518,7 @@ fn new_imported_trait_work_has_exact_cold_warm_and_fresh_boundaries() {
         );
     }
     fs::write(
-        directory("budget").join("result.json"),
+        directory("budget").join(format!("{label}.json")),
         format!("{{\"minimum_analysis_steps\":{low},\"cold_warm_fresh\":\"Pass\"}}\n"),
     )
     .unwrap();
