@@ -1,0 +1,26 @@
+[
+  {
+    "path": "attempt1-raw.tar.gz",
+    "bytes": 444704,
+    "sha256": "30ed360a4055b74664764d5041caa3e2fab9458ed1654486f310e17837c73b58",
+    "files": 481
+  },
+  {
+    "path": "attempt2-raw.tar.gz",
+    "bytes": 451845,
+    "sha256": "375711094d89c52706869a0806ff6a710eecfde9f5999f11607d7436284d13da",
+    "files": 492
+  },
+  {
+    "path": "attempt3-raw.tar.gz",
+    "bytes": 12013,
+    "sha256": "c4643aaeb1490593cec9f3d968f36bcaa09ff285935b441d91d5826571c5d73b",
+    "files": 23
+  },
+  {
+    "path": "fixed-raw.tar.gz",
+    "bytes": 483121,
+    "sha256": "bf2150cdfe22ba6bca06d402722bfc59463da11cd5b27e7c2e0119348e6f3913",
+    "files": 542
+  }
+]

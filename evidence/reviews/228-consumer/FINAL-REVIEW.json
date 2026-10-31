@@ -1,0 +1,322 @@
+{
+  "schema_version": 1,
+  "status": "Pass within the explicitly limited independent consumer scope",
+  "common_candidate_P": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "actual_execution_checkout": "be50e75f5c7646d79138efd7ba3dc54c2439e26d",
+  "production_matches_P": true,
+  "driver_src_tree": "5cad5e35d03c16291e4cd45adbef8c769b5cab54",
+  "expand_src_tree": "01c3690f47779962a87665e725353cffd361eb33",
+  "tests": {
+    "frozen_consumer_tests_passed": 7,
+    "reserved_function_regression_tests_passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "whole_workspace_run": false
+  },
+  "native_builds": 8,
+  "native_executions": 24,
+  "platform": "x86_64-unknown-linux-gnu",
+  "backend": "llvm-api",
+  "llvm_version": "23.1.4",
+  "input_kind": "builder",
+  "fallback": null,
+  "verify_before_after": true,
+  "reserved_name_replay": {
+    "source_forms": [
+      "ordinary",
+      "pure generated functions",
+      "mixed generated types and functions"
+    ],
+    "before_checkout": "05bb51561670c343b9b28c44442cdae45ba4d0fb",
+    "before_outcomes": "ordinary SafeReject@expand; pure and mixed wrongly Success@verify; one regression test failed and its raw evidence is retained",
+    "after_outcomes": "All three SafeReject@expand / E-BYTE-BUFFER-NAME, verification_runs=0",
+    "test_and_fixture_bytes_unchanged_between_before_and_after": true
+  },
+  "previous_results": "All original baseline Unsupported reports, original 229 shadow false acceptances, the reviewer rejection-category assertion error, repaired intermediate results, and reserved-function false acceptances remain under their original exact execution identities. No earlier record was overwritten.",
+  "budget_scope": "No new budget minimum claim; old shared-extraction costs remain historical. Final formal budget acceptance belongs to root independent review.",
+  "cli_scope": "No final-P CLI rerun. Original combined CLI evidence remains bound to original c465+6253.",
+  "product_scope": "Real two-module fixed-layout event adapter sources, including generated nominal types and where Copy combined. This does not establish complete ZUI, full Type/Syntax, whole-language acceptance, Windows execution, allocation failure handling, or Rust performance superiority.",
+  "fixture_bindings": [
+    {
+      "path": "examples/mainline/generated_events228/plain/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/plain/events.zil",
+      "sha256": "76e56021048041c2ccbde0d045b166ce72c3dc39d54695aa4fbe34eab823b280",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/events.zil",
+      "sha256": "ec806958a5bd7498436d8fad2a7edf2ddbcceb47830372e1eb493db80f290b02",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/events.zil",
+      "sha256": "3cf1f38e502ff90d09aeaf1229c91dc7fa6f645402963e55c5d7d5ecf1c2fb47",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/combined/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/combined/events.zil",
+      "sha256": "5b3bd05203f0fcda74e2c77ad022e2f92b0505bbdffb4851f09e4b8e44ecf4f4",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/reserved_function_plain.zil",
+      "sha256": "5ff05ce63b5c809092fbe1cce874da929f9b8498d9f334afcaf547aa823a4b43",
+      "same_as_original_failure_input": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/reserved_function_pure.zil",
+      "sha256": "ba5ed5a8422068966281b711646caf8ea6c040c93b6c077c7fb610eccd981ce5",
+      "same_as_original_failure_input": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/reserved_function_mixed.zil",
+      "sha256": "a69d61a6b82a695edc9094926c5f0399218c254fb29f41f2cfc6590a10c2e798",
+      "same_as_original_failure_input": true
+    }
+  ],
+  "production_bindings": [
+    {
+      "path": "crates/zil-driver/src/ct_selection/generation.rs",
+      "blob": "3231501643b03beb17739a9efe9151a6ca186c39",
+      "sha256": "78fa77dc3665140eb31ec4f03683954a46a2b89c0201e8a75ed2652247e78fc8",
+      "exact_author_bytes": "c1578e319d606d745835a7c3c609a3bb738b3c15"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/hygiene.rs",
+      "blob": "5980f2b05f47a7cdf95e33e95c82846f4dc53e66",
+      "sha256": "8ee852d42e4a2b2ef31f987c48ae3bf916f17fa5e5209f759688e4c6bf4c2b5b",
+      "exact_author_bytes": "c1578e319d606d745835a7c3c609a3bb738b3c15"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/hygiene_types.rs",
+      "blob": "0340b16ca71fb7f003cdebc21eb5c4037e8a856f",
+      "sha256": "73ca0eca5c8baf152d36e5be7b8a485368a21a60d73e3cac889b741bb165a4f6",
+      "exact_author_bytes": "c1578e319d606d745835a7c3c609a3bb738b3c15"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/materialize.rs",
+      "blob": "86ecbd60e6f4e837f5f86ab44b4e6a7dd93313b2",
+      "sha256": "d57c9378a0fda617cbb2a85d578a5c123c15fb6bef9b838fb1018238db4da56f",
+      "exact_author_bytes": "c1578e319d606d745835a7c3c609a3bb738b3c15"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_alias.rs",
+      "blob": "ab3bb5bf49e4f5b25fbb449581a23d69190e259a",
+      "sha256": "005c44998e8714c8799f43344442aa7678128e5136808d6f5753b57f3de0b9b2",
+      "exact_author_bytes": "d8c71880928c2e0497ffe078834382503960256b"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_where.rs",
+      "blob": "7693cc031c3b7bad0b9016970d9635f0c412e45f",
+      "sha256": "b0b56e70e08dc75a3aa5cc43f31eacdbe4b5ca3e6a653955d1389e108dff9af4",
+      "exact_author_bytes": "d8c71880928c2e0497ffe078834382503960256b"
+    },
+    {
+      "path": "crates/zil-expand/src/generics.rs",
+      "blob": "0efc5aa423cdc5e8fbedd4a5673c163f329a6940",
+      "sha256": "a7a997c7ca9e90a44eb130deaaee8eff210e271339cd88723717ab9d460b8477",
+      "exact_author_bytes": "d8c71880928c2e0497ffe078834382503960256b"
+    },
+    {
+      "path": "crates/zil-expand/src/lib.rs",
+      "blob": "5cc34b292b57ba2ff19e88bcb38dbc115b74e192",
+      "sha256": "d93438fa3a65562d099ac9e40fbbb5951f46f08656bd805ba306c91914c53eee",
+      "exact_author_bytes": "c1578e319d606d745835a7c3c609a3bb738b3c15"
+    }
+  ],
+  "executions": [
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-combined-O0-96-0",
+      "stdin_byte": 48,
+      "stdout_hex": "4a",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-combined-O0-96-0",
+      "stdin_byte": 49,
+      "stdout_hex": "57",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-combined-O0-96-0",
+      "stdin_byte": 120,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 7
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-combined-O2-96-1",
+      "stdin_byte": 48,
+      "stdout_hex": "4a",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-combined-O2-96-1",
+      "stdin_byte": 49,
+      "stdout_hex": "57",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-combined-O2-96-1",
+      "stdin_byte": 120,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 7
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-generated-O0-96-2",
+      "stdin_byte": 48,
+      "stdout_hex": "4a",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-generated-O0-96-2",
+      "stdin_byte": 49,
+      "stdout_hex": "57",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-generated-O0-96-2",
+      "stdin_byte": 120,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 7
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-generated-O2-96-3",
+      "stdin_byte": 48,
+      "stdout_hex": "4a",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-generated-O2-96-3",
+      "stdin_byte": 49,
+      "stdout_hex": "57",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-generated-O2-96-3",
+      "stdin_byte": 120,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 7
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-plain-O0-96-6",
+      "stdin_byte": 48,
+      "stdout_hex": "4a",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-plain-O0-96-6",
+      "stdin_byte": 49,
+      "stdout_hex": "57",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-plain-O0-96-6",
+      "stdin_byte": 120,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 7
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-plain-O2-96-7",
+      "stdin_byte": 48,
+      "stdout_hex": "4a",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-plain-O2-96-7",
+      "stdin_byte": 49,
+      "stdout_hex": "57",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-plain-O2-96-7",
+      "stdin_byte": 120,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 7
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-where-O0-96-10",
+      "stdin_byte": 48,
+      "stdout_hex": "4a",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-where-O0-96-10",
+      "stdin_byte": 49,
+      "stdout_hex": "57",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-where-O0-96-10",
+      "stdin_byte": 120,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 7
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-where-O2-96-11",
+      "stdin_byte": 48,
+      "stdout_hex": "4a",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-where-O2-96-11",
+      "stdin_byte": 49,
+      "stdout_hex": "57",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 0
+    },
+    {
+      "case": "evidence/reviews/228-consumer/final-P/native/consumer228-where-O2-96-11",
+      "stdin_byte": 120,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "exit_code_asserted_by_passing_test": 7
+    }
+  ],
+  "raw_archive": {
+    "path": "final-P/native.tar.xz",
+    "sha256": "77dfd6cf9f51a3fb8a2a470025e59ad35054e2a8fad7ca465d3a76aecd66376f",
+    "files": 236,
+    "bytes": 66860
+  }
+}

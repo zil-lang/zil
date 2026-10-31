@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "checkout": "806aed69045d92f3161ad5abab3b1ebd6b432b76",
+  "production_candidate": "75f22dda0f80b49aeba16bc64b39249211d5e7ac",
+  "utc": "2026-10-31T00:48:27.051300+00:00",
+  "rows": [
+    {
+      "test": "builtin_type_names_and_value_names_are_not_captured_by_binders",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl103_generic_aliases",
+        "builtin_type_names_and_value_names_are_not_captured_by_binders",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_code": 0
+    },
+    {
+      "test": "expansion_preserves_exact_work_node_and_depth_boundaries",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl103_generic_aliases",
+        "expansion_preserves_exact_work_node_and_depth_boundaries",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_code": 0
+    },
+    {
+      "test": "uninstantiated_templates_do_not_gain_numeric_member_or_forged_capabilities",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl194_copy_callable",
+        "uninstantiated_templates_do_not_gain_numeric_member_or_forged_capabilities",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_code": 0
+    },
+    {
+      "test": "plain_event_consumer",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl228_consumer",
+        "plain_event_consumer",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_code": 0
+    }
+  ]
+}

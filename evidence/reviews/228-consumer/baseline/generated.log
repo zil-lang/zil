@@ -1,0 +1,20 @@
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+     Running tests/impl228_consumer.rs (/workspace/scratch/e9af9764d083/targets/consumer/debug/deps/impl228_consumer-12206911d29295af)
+
+running 1 test
+
+thread 'generated_event_consumer' (10) panicked at crates/zil-driver/tests/impl228_consumer.rs:124:9:
+assertion `left == right` failed: generated/O0: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"#for currently generates ordinary functions and statements, not Type/Syntax or declaration-kind extensions","span":{"file":1,"start":98,"end":126},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/baseline/native/consumer228-generated-O0-9-0/phases/syntax.txt"},"input_fingerprint":"efcc0e0d961fd9afbda2d6dea4d7fbc1e51d991db657d92d1a762205660b709b","seconds":0.012684611,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"events.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test generated_event_consumer ... FAILED
+
+failures:
+
+failures:
+    generated_event_consumer
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-driver --test impl228_consumer`

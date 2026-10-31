@@ -1,0 +1,186 @@
+{
+  "archive": "raw.tar.xz",
+  "sha256": "17d684ff816854fb7954ef6d325fbd69904d1e5456c4025679620e6f025af263",
+  "files": [
+    {
+      "path": "raw/impl229-old-costs-30-0/costs.csv",
+      "size": 28,
+      "mode": 420,
+      "sha256": "64185ec93ad27ec44eff0ad000d901cc3c49eac7177434f3959a19eac904d082"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-inline-59/costs.csv",
+      "size": 15,
+      "mode": 420,
+      "sha256": "b5905a32fa9bf2c0fc0961da1fa8daab6fd7a273d0872c4d8a58421ac830619f"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-inline-59/false-0.json",
+      "size": 442,
+      "mode": 420,
+      "sha256": "f32db1c6f5abdaef374240ac8105db2f0418607a36f0c744aedf84c43c355cfe"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-inline-59/false-1.json",
+      "size": 437,
+      "mode": 420,
+      "sha256": "c2c1096f4970d22e06b11913bb03dcba5e52fb9b7494458def2dc41ff229482f"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-inline-59/false-2.json",
+      "size": 613,
+      "mode": 420,
+      "sha256": "c9b989b1fcc8f2bd4ae8e05b94fe480e84a134bbffd527d48aa9292f9995ebf4"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-inline-59/false-3.json",
+      "size": 437,
+      "mode": 420,
+      "sha256": "7436235eaa5d9940148b4ef94f52467cedacfb87c643626d68a6cc97586489f6"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-inline-59/source.zil",
+      "size": 97,
+      "mode": 420,
+      "sha256": "8ebaaf103767dc512e16afb0bc32eb74cc7d87c6688aabe7bfc0b2eb89c35a00"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-inline-59/true-0.json",
+      "size": 442,
+      "mode": 420,
+      "sha256": "3fa46c459410fe6d4bc135b1c8e3a1039048b29dd308c9d33aaf01bae1ad70c7"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-inline-59/true-1.json",
+      "size": 437,
+      "mode": 420,
+      "sha256": "b1e490ca7734d8115a8e255442a4427203d728b433e08d382bb7357bff6ce5ca"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-inline-59/true-2.json",
+      "size": 614,
+      "mode": 420,
+      "sha256": "57add4ae37b742a8e22db42363c1485070ceb7d11b7ac3235dba054a4115f3e5"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-inline-59/true-3.json",
+      "size": 437,
+      "mode": 420,
+      "sha256": "80fe5737eec6a9b990236b54151209453c7b130ee9057a3e4a14c5f229f93d29"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-where-59/costs.csv",
+      "size": 14,
+      "mode": 420,
+      "sha256": "bedae3b9189d8bb3409f52a9cd0764241c963edbc6be48498f09ddce16c92f05"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-where-59/false-0.json",
+      "size": 442,
+      "mode": 420,
+      "sha256": "96fc46b3db53c698b2b7976bb2d2c6641eaa59d9a0919d3ebda199f3ada43bae"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-where-59/false-1.json",
+      "size": 437,
+      "mode": 420,
+      "sha256": "8dce0c612033fb5cbc966e73f4dbfe6332fdfb68898ad13e4f19d3f5b62db7d8"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-where-59/false-2.json",
+      "size": 612,
+      "mode": 420,
+      "sha256": "778a009523d583b96f9538be50ec05e44ec7f95ef3b9ccc1c91b30472d2f46da"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-where-59/false-3.json",
+      "size": 437,
+      "mode": 420,
+      "sha256": "5757b91f8653892bbf980678e973fe76baf919b6e5a48db2226390bec2941d0c"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-where-59/source.zil",
+      "size": 105,
+      "mode": 420,
+      "sha256": "539a0ee0ca53e121532f130a391b0ba47ed4329836fad867d552d21ec66f41b1"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-where-59/true-0.json",
+      "size": 442,
+      "mode": 420,
+      "sha256": "12680b1ef97d9e02f8da9ebf702081379e15cd8dc69c9846fab21cace706764a"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-where-59/true-1.json",
+      "size": 437,
+      "mode": 420,
+      "sha256": "6b5f16570f86ee620cb93ed12f188f9f1da74e94a7cb90f569135624ca51b1ca"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-where-59/true-2.json",
+      "size": 614,
+      "mode": 420,
+      "sha256": "b309554d379bdf0b6fc6f451fa6e33ac7792464f6f789420f8674aa4de291a89"
+    },
+    {
+      "path": "raw/impl229-shadow-budget-where-59/true-3.json",
+      "size": 437,
+      "mode": 420,
+      "sha256": "2a88323577ffee65414d1ffad6f0e219eea03d53775ac6882b6e80afa3d3185b"
+    },
+    {
+      "path": "raw/impl229-where-costs-35-0/costs.csv",
+      "size": 15,
+      "mode": 420,
+      "sha256": "1e59a56fb6397c8d3135ea5311984037369f047091609663ad55f8292ff333a3"
+    },
+    {
+      "path": "raw/impl229-where-costs-35-0/false-0.json",
+      "size": 613,
+      "mode": 420,
+      "sha256": "608c45ec6abbd23f2f4977ff836242117bdbe219d44f5101ebcc2fead46d0835"
+    },
+    {
+      "path": "raw/impl229-where-costs-35-0/false-1.json",
+      "size": 602,
+      "mode": 420,
+      "sha256": "084960cc38db812c2f04fd90a5544d8394199bd2393d9a716ec680d1390fd7db"
+    },
+    {
+      "path": "raw/impl229-where-costs-35-0/false-2.json",
+      "size": 612,
+      "mode": 420,
+      "sha256": "b4ea1e725b6956fbcab2734f6e71d6f2b139d2fbfd35bcdd8603531d179632f1"
+    },
+    {
+      "path": "raw/impl229-where-costs-35-0/false-3.json",
+      "size": 601,
+      "mode": 420,
+      "sha256": "1391987b184f46e049e7564a111f41216d68a9a55aaff86877c9ae4198378c9c"
+    },
+    {
+      "path": "raw/impl229-where-costs-35-0/true-0.json",
+      "size": 613,
+      "mode": 420,
+      "sha256": "5a07d1ccfbc62db473046e63658bce4dfb59d941f809eaaf002a6951b0d33747"
+    },
+    {
+      "path": "raw/impl229-where-costs-35-0/true-1.json",
+      "size": 602,
+      "mode": 420,
+      "sha256": "ba43d3d8e22ebfecb8c10b536a516f1d445cf5fe02fd3bafcd6343506dac5b72"
+    },
+    {
+      "path": "raw/impl229-where-costs-35-0/true-2.json",
+      "size": 613,
+      "mode": 420,
+      "sha256": "d90604a29c4653af7ca3ac369359ac464afe819277890a068c910bdcc690de13"
+    },
+    {
+      "path": "raw/impl229-where-costs-35-0/true-3.json",
+      "size": 602,
+      "mode": 420,
+      "sha256": "18d9452254191386a5a17a073276eb3b85be0a21a1987f0eac572c5ba8f70e96"
+    }
+  ]
+}

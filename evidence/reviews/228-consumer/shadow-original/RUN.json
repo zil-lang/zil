@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "utc": "2026-10-31T00:57:52.932794+00:00",
+  "checkout": "dc18850ca64e8bbe523634f6abadbd869761e982",
+  "production_candidate_228": "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+  "production_candidate_229": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "review228_consumer_shadow",
+    "--",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "environment": {
+    "CARGO_HOME": "/workspace/scratch/e9af9764d083/cargo-consumer",
+    "CARGO_TARGET_DIR": "/workspace/scratch/e9af9764d083/targets/consumer",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_INCREMENTAL": "0",
+    "ZIL_CLANG": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "LD_LIBRARY_PATH": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native"
+  },
+  "exit_code": 101,
+  "expectation": "Each unused generic body must SafeReject at Expand; prior candidate is independently measured without rewriting its result.",
+  "reports": [
+    {
+      "path": "evidence/reviews/228-consumer/shadow-original/native/shadow229-inline-29/compile.json",
+      "source_sha256": "63ac75a4c9d41a5e1880e3e2dd22ba3989701d6f5a72e423a99b68d1c23f71d2",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": []
+    },
+    {
+      "path": "evidence/reviews/228-consumer/shadow-original/native/shadow229-unbounded-29/compile.json",
+      "source_sha256": "04aa2bdac5cb485b94fa6dbac7d429baf4f8a738a531db2099ebbcfe28c81d9b",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": []
+    },
+    {
+      "path": "evidence/reviews/228-consumer/shadow-original/native/shadow229-where-29/compile.json",
+      "source_sha256": "f2a8deaed84e0ba4c9f690ff47ebb9f26f73083c907fe11fb40d7c4fb7798895",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": []
+    }
+  ],
+  "native_executions": 0
+}

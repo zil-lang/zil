@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "archive": "native.tar.xz",
+  "archive_size": 6672,
+  "archive_sha256": "ed53518a36c4f1f5297fae17030a6715a58694bc51cd911eedc437599d4cbed6",
+  "verified_all_member_bytes_modes_sizes": true,
+  "files": [
+    {
+      "path": "reserved228-mixed-29/compile.json",
+      "size": 1898,
+      "mode": 420,
+      "sha256": "8748b1586171efd319933ec5dd0bb83ddce5853f0b24f635cf22f88447b4d7a3"
+    },
+    {
+      "path": "reserved228-mixed-29/phases/candidate.txt",
+      "size": 3310,
+      "mode": 420,
+      "sha256": "3baa97e492a7f1351c093f419873aa06493c96ec8a43a20b4ec4e9f7e2294e7f"
+    },
+    {
+      "path": "reserved228-mixed-29/phases/core.txt",
+      "size": 11135,
+      "mode": 420,
+      "sha256": "4dbf6256d817ad896b2c7e8f9889676a86296b2a8d5ed8256f82c5b44beb9b4b"
+    },
+    {
+      "path": "reserved228-mixed-29/phases/ct-core.txt",
+      "size": 11135,
+      "mode": 420,
+      "sha256": "4dbf6256d817ad896b2c7e8f9889676a86296b2a8d5ed8256f82c5b44beb9b4b"
+    },
+    {
+      "path": "reserved228-mixed-29/phases/selection.json",
+      "size": 212,
+      "mode": 420,
+      "sha256": "4e75c3761112b2f265b17121306ab772c3fb9778312fdcb861b94ecc7ba6a9e5"
+    },
+    {
+      "path": "reserved228-mixed-29/phases/source-map.txt",
+      "size": 7258,
+      "mode": 420,
+      "sha256": "d2381f5ebf1b1bd4df2d872817b468204d6d7aa4855438abd7282e6fa7e9510c"
+    },
+    {
+      "path": "reserved228-mixed-29/phases/syntax.txt",
+      "size": 30219,
+      "mode": 420,
+      "sha256": "bf39c8609c47589af6d034f64d82cbc1037a73615c6a8e1c0eefd52a52b45c27"
+    },
+    {
+      "path": "reserved228-mixed-29/phases/typed.txt",
+      "size": 15560,
+      "mode": 420,
+      "sha256": "047a1afcfee3a2d7eaf0575e24eca87c4dfee31982ed2cfbb54ff9fbb266b794"
+    },
+    {
+      "path": "reserved228-mixed-29/phases/verified.txt",
+      "size": 15637,
+      "mode": 420,
+      "sha256": "b6eb9f30a97b413c574aee8985456d1fe33fb3dc4e61873edb633ee5f6336959"
+    },
+    {
+      "path": "reserved228-mixed-29/source.zil",
+      "size": 107,
+      "mode": 420,
+      "sha256": "a69d61a6b82a695edc9094926c5f0399218c254fb29f41f2cfc6590a10c2e798"
+    },
+    {
+      "path": "reserved228-plain-29/compile.json",
+      "size": 802,
+      "mode": 420,
+      "sha256": "9c3067cdbb295524dc3b9f600dba37223d16f299591806675c206056499c45d1"
+    },
+    {
+      "path": "reserved228-plain-29/phases/syntax.txt",
+      "size": 16120,
+      "mode": 420,
+      "sha256": "7f334995488710813961d0c986b3de4334c96cf61dfe35611db462edacb1ac1b"
+    },
+    {
+      "path": "reserved228-plain-29/source.zil",
+      "size": 67,
+      "mode": 420,
+      "sha256": "5ff05ce63b5c809092fbe1cce874da929f9b8498d9f334afcaf547aa823a4b43"
+    },
+    {
+      "path": "reserved228-pure-29/compile.json",
+      "size": 1890,
+      "mode": 420,
+      "sha256": "3f99762049c71f1477beb94562479f98f953801fba56f8e8f30ae214e883b345"
+    },
+    {
+      "path": "reserved228-pure-29/phases/candidate.txt",
+      "size": 3302,
+      "mode": 420,
+      "sha256": "8240d2e02fa36310138c69f3504f3dd491a32a878de4acfe031174456536f9b7"
+    },
+    {
+      "path": "reserved228-pure-29/phases/core.txt",
+      "size": 10333,
+      "mode": 420,
+      "sha256": "e9daa79b8cdc0244d9fa9dbc4f936cb50ce9a32d320583fbbb160730df346f1e"
+    },
+    {
+      "path": "reserved228-pure-29/phases/ct-core.txt",
+      "size": 10333,
+      "mode": 420,
+      "sha256": "e9daa79b8cdc0244d9fa9dbc4f936cb50ce9a32d320583fbbb160730df346f1e"
+    },
+    {
+      "path": "reserved228-pure-29/phases/selection.json",
+      "size": 212,
+      "mode": 420,
+      "sha256": "ede6f14f4238215718d5f6752a489beb3439b69ca64f30eafc0f9b89e98fbf07"
+    },
+    {
+      "path": "reserved228-pure-29/phases/source-map.txt",
+      "size": 6796,
+      "mode": 420,
+      "sha256": "3dafe0a6dc8f4e7dcad120ef0dc48641898d691f97ee653ea14b37b9ae4e2d61"
+    },
+    {
+      "path": "reserved228-pure-29/phases/syntax.txt",
+      "size": 25369,
+      "mode": 420,
+      "sha256": "df75a5d550796b4804e3aed0b379c831f04dddb49cd6e8c79143d5ba036883a1"
+    },
+    {
+      "path": "reserved228-pure-29/phases/typed.txt",
+      "size": 15548,
+      "mode": 420,
+      "sha256": "5251a19004f973386845754bb4e87d985858c8130db3cc1320615df50c1e95dc"
+    },
+    {
+      "path": "reserved228-pure-29/phases/verified.txt",
+      "size": 15625,
+      "mode": 420,
+      "sha256": "968c717f2a426fbfa5200aaf2b4cfedf6057889e11c0f3e5c0d74f0718863674"
+    },
+    {
+      "path": "reserved228-pure-29/source.zil",
+      "size": 92,
+      "mode": 420,
+      "sha256": "ba5ed5a8422068966281b711646caf8ea6c040c93b6c077c7fb610eccd981ce5"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "source_commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "commands": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 2.4704062938690186
+    },
+    {
+      "name": "affected",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl222_generation",
+        "--test",
+        "impl222_review_regressions",
+        "--test",
+        "impl222_224_composition",
+        "--test",
+        "impl228_generation",
+        "--test",
+        "impl229_where_copy",
+        "--test",
+        "impl229_nominal_shadow"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 11.085238933563232
+    }
+  ],
+  "status": "Pass"
+}

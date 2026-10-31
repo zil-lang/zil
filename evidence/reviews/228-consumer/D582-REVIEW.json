@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "status": "Scoped consumer checks passed; final slice acceptance remains with root and separate reserved-function-name defect is awaiting repair.",
+  "consumer_execution_checkout": "d5822a5a15ce20643a087e59bd01d59647e97cd6",
+  "shadow_oracle_execution_checkout": "c591b12af4088b41137f504711ed20b0a7b460dd",
+  "production_unchanged_between_execution_checkouts": true,
+  "consumer_tests_passed": 7,
+  "alias_pattern_tests_passed": 1,
+  "shadow_oracle_tests_passed": 3,
+  "native_builds": 8,
+  "native_executions": 24,
+  "native_inputs": [
+    {
+      "stdin": "0",
+      "stdout": "J",
+      "exit_code": 0
+    },
+    {
+      "stdin": "1",
+      "stdout": "W",
+      "exit_code": 0
+    },
+    {
+      "stdin": "x",
+      "stdout": "",
+      "exit_code": 7
+    }
+  ],
+  "backend": "llvm-api",
+  "input_kind": "builder",
+  "fallback": null,
+  "verify_before_after": true,
+  "original_shadow_outcomes": "Original c465+6253: all three shadow definitions returned Success@verify; original independent tests failed and remain preserved in shadow-original.",
+  "first_repair_test_outcome": "repair-replay had 8 passing tests and 3 failing review assertions because the reviewer incorrectly demanded SafeReject. All three actual shadow reports already returned Unsupported@expand. Exact failure logs are preserved.",
+  "oracle_correction": "Each exact original shadow source now matches a control differing only in the unused struct name: Unsupported / Expand / E-UNSUPPORTED, zero verification runs, no executable. No production file changed to obtain this result.",
+  "budgets": "No new budget minima measured in this replay. Historical shared-extraction minima 2044 work / 407 nodes / 6 depth are kept under their original candidates, not relabeled as final validation.",
+  "cli": "The original c465+6253 CLI runs remain historical; no repaired CLI run was claimed.",
+  "pending": "Root reported a separate generated-private-function reserved-name defect in 228 after these checks; do not treat this record as overall acceptance. Await final repair and replay the authorized consumer scope.",
+  "fixture_source_bindings": [
+    {
+      "path": "examples/mainline/generated_events228/plain/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "equal_to_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/plain/events.zil",
+      "sha256": "76e56021048041c2ccbde0d045b166ce72c3dc39d54695aa4fbe34eab823b280",
+      "equal_to_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "equal_to_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/events.zil",
+      "sha256": "ec806958a5bd7498436d8fad2a7edf2ddbcceb47830372e1eb493db80f290b02",
+      "equal_to_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "equal_to_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/events.zil",
+      "sha256": "3cf1f38e502ff90d09aeaf1229c91dc7fa6f645402963e55c5d7d5ecf1c2fb47",
+      "equal_to_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/combined/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "equal_to_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/combined/events.zil",
+      "sha256": "5b3bd05203f0fcda74e2c77ad022e2f92b0505bbdffb4851f09e4b8e44ecf4f4",
+      "equal_to_original_baseline": true
+    }
+  ],
+  "production_bindings": [
+    {
+      "path": "crates/zil-driver/src/ct_selection/generation.rs",
+      "blob": "3231501643b03beb17739a9efe9151a6ca186c39",
+      "sha256": "78fa77dc3665140eb31ec4f03683954a46a2b89c0201e8a75ed2652247e78fc8",
+      "exact_bytes_from": "2122c2258c2ebca0eb1c28d33bbf536a92e1e48c"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/hygiene.rs",
+      "blob": "58a14a8081a38e1bef64f2fce5477ea77439f6c5",
+      "sha256": "86812d2df26ac4d6cdd80d16d654ac4ba88ebe77d91fc6f8856fe855d3abf801",
+      "exact_bytes_from": "2122c2258c2ebca0eb1c28d33bbf536a92e1e48c"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/materialize.rs",
+      "blob": "86ecbd60e6f4e837f5f86ab44b4e6a7dd93313b2",
+      "sha256": "d57c9378a0fda617cbb2a85d578a5c123c15fb6bef9b838fb1018238db4da56f",
+      "exact_bytes_from": "2122c2258c2ebca0eb1c28d33bbf536a92e1e48c"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_alias.rs",
+      "blob": "ab3bb5bf49e4f5b25fbb449581a23d69190e259a",
+      "sha256": "005c44998e8714c8799f43344442aa7678128e5136808d6f5753b57f3de0b9b2",
+      "exact_bytes_from": "d8c71880928c2e0497ffe078834382503960256b"
+    },
+    {
+      "path": "crates/zil-expand/src/generics.rs",
+      "blob": "0efc5aa423cdc5e8fbedd4a5673c163f329a6940",
+      "sha256": "a7a997c7ca9e90a44eb130deaaee8eff210e271339cd88723717ab9d460b8477",
+      "exact_bytes_from": "d8c71880928c2e0497ffe078834382503960256b"
+    }
+  ],
+  "merge_provenance": {
+    "228_merge": "1429cfed4",
+    "229_merge": "d5822a5a15ce20643a087e59bd01d59647e97cd6",
+    "resolution": "Both --no-ff merges retain exact author histories. Duplicate cherry-pick ancestry caused conflicts. 228 generation/hygiene/materialize use entire 2122 files; 229 generic_alias/generics use entire d8 files. A duplicated shared helper from the automatic merge was removed by selecting the exact existing author file, without handwritten semantics.",
+    "parent_approval": "Root approved exact-byte author selection before final test."
+  }
+}

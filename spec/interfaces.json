@@ -32,7 +32,7 @@
       "state": "ContractToImplement",
       "representation": "Untrusted hygienic source generation using existing CTIR verification and VM, no Wire change.",
       "budget": "Cumulative CT and generation cost, charged before growth including warm reuse.",
-      "declarations": "Ordinary functions only; type/trait/impl/alias generation remains unimplemented."
+      "declarations": "222 ordinary functions; 228 separately extends finite struct and alias declarations. Other Type/Syntax/trait/impl generation remains unimplemented."
     },
     "product_store_223": {
       "authority": "_zil_design.md §8.2.4",
@@ -57,6 +57,18 @@
       "state": "ContractToImplement",
       "representation": "Existing shared Address<Package> and capture Hold; ordinary origin must not be confused with Store-element origin.",
       "independence": "Every admission must preserve actual parent provenance and Copy/Unit nonescaping boundary; otherwise reject."
+    },
+    "source_type_generation_228": {
+      "authority": "_zil_design.md §16.5",
+      "state": "ContractToImplement",
+      "representation": "Existing untrusted AST for nongeneric method-free struct and ordinary alias, separate type/value hygiene; schema/Wire27 unchanged.",
+      "independence": "Generated declarations retain ordinary reserved-name, nominal identity and semantic checks; immutable ConfigReady and cumulative generation budgets remain."
+    },
+    "where_copy_normalization_229": {
+      "authority": "_zil_design.md §18.1 profile 229",
+      "state": "ContractToImplement",
+      "representation": "Direct ordinary function type-parameter where Copy bounds normalize into existing inline bounds before aliases and specialization.",
+      "independence": "No producer permission or solver extension. Definition and instance checks remain; one remaining budget flows through normalization, aliases and specialization."
     }
   },
   "schemas": [

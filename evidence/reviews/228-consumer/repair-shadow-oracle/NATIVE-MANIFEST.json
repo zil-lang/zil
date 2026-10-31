@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "archive": "native.tar.xz",
+  "archive_size": 3904,
+  "archive_sha256": "b2f6205a89c80b56546ae831f2ea1e76d397d026cb3f0265581b0ec86f8c6f4d",
+  "verification": "Every archived member re-read and compared by bytes SHA-256, size, and mode before expanded originals removed.",
+  "files": [
+    {
+      "path": "shadow229-inline-no-collision-control-30/compile.json",
+      "size": 828,
+      "sha256": "584b0a939a447cb94860f1209e7dfba33b8ca8204aba56ef9a255b8e068d7ef1",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-inline-no-collision-control-30/phases/syntax.txt",
+      "size": 19044,
+      "sha256": "d7711d689ebde64e406acab94aa3d2debd64a13317a2632eee59490b8736dbb3",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-inline-no-collision-control-30/source.zil",
+      "size": 69,
+      "sha256": "d96fba83234a5b70109a12adfc5789554b4fdd62347573a42641f08ec20c467f",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-inline-shadow-30/compile.json",
+      "size": 814,
+      "sha256": "156beebfc2b80282e6a7b9edf1e96f213177cd13f7bb0a16f06ab73a8a2133d2",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-inline-shadow-30/phases/syntax.txt",
+      "size": 19033,
+      "sha256": "4a1db3cbfaa694ce40f50fea4b410db1d5c5a8155dbefcdea33a6cc618f3c30e",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-inline-shadow-30/source.zil",
+      "size": 63,
+      "sha256": "63ac75a4c9d41a5e1880e3e2dd22ba3989701d6f5a72e423a99b68d1c23f71d2",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-no-collision-control-30/compile.json",
+      "size": 831,
+      "sha256": "b83b3b00b49b1adb1e34df5dceb9af501b1e6deaa986535a20d5511b945bbbda",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-no-collision-control-30/phases/syntax.txt",
+      "size": 17720,
+      "sha256": "c4ae77d9bf8ab301b7ba147c87ace11f225e78d03ad3cd0e1ab84a6b814cfb14",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-no-collision-control-30/source.zil",
+      "size": 64,
+      "sha256": "23d2ce9eea1bb2fb48a9f3ba9f726fcd232e6b07b89dce099ba1147592d5f83a",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-shadow-30/compile.json",
+      "size": 817,
+      "sha256": "35372b7ed3876ec4c31f2b00db701faff48e853b451dcaa1f9c26f13be76786c",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-shadow-30/phases/syntax.txt",
+      "size": 17709,
+      "sha256": "d38859a0c926d0da99ae8f757a5770e377b0b3361af6eaf2c000cede0d7bd01d",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-shadow-30/source.zil",
+      "size": 58,
+      "sha256": "04aa2bdac5cb485b94fa6dbac7d429baf4f8a738a531db2099ebbcfe28c81d9b",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-no-collision-control-30/compile.json",
+      "size": 827,
+      "sha256": "8024a0f60ec8f4f2233ba77469db6d468f20ec6fa0a5309ba453d8f7dacd4264",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-no-collision-control-30/phases/syntax.txt",
+      "size": 21194,
+      "sha256": "18ffdff77575da7dcef4890928be81ff3a214f52cac117c55906d5d8c481abeb",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-no-collision-control-30/source.zil",
+      "size": 77,
+      "sha256": "bbfc3db32d4dd073ba470e7dbe48f9121a8c4431422a65b1f98fb5dc83174639",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-shadow-30/compile.json",
+      "size": 813,
+      "sha256": "77604678609f598fc37d0fad785a9530c343fc8631f7331db97bbce61b1b2811",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-shadow-30/phases/syntax.txt",
+      "size": 21183,
+      "sha256": "e996297f867b2de022c36f7d69ad0e5318b442d107363fb1dc774193dfc3ec53",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-shadow-30/source.zil",
+      "size": 71,
+      "sha256": "f2a8deaed84e0ba4c9f690ff47ebb9f26f73083c907fe11fb40d7c4fb7798895",
+      "mode": 420
+    }
+  ]
+}

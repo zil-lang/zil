@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "checkout": "dd7ca488ffed75a138fcc2a7809926f2c325e238",
+  "production_baseline": "45fa541ed11b26f2aadc99a6a574c54b1cbec105",
+  "utc": "2026-10-31T00:46:37.239215+00:00",
+  "expected": "New source acceptance tests fail on old production compiler; preserve original Unsupported as migration baseline, not regressions.",
+  "rows": [
+    {
+      "variant": "generated",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl228_consumer",
+        "generated_event_consumer",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "test_exit_code": 101,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "#for currently generates ordinary functions and statements, not Type/Syntax or declaration-kind extensions",
+          "span": {
+            "file": 1,
+            "start": 98,
+            "end": 126
+          },
+          "notes": []
+        }
+      ],
+      "compile_report": "evidence/reviews/228-consumer/baseline/native/consumer228-generated-O0-9-0/compile.json",
+      "compile_sha256": "7b67c846450db31ac00bc95718577b090d9385ae1e4f8d99ba5e6d579bb64df5"
+    },
+    {
+      "variant": "where",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl228_consumer",
+        "where_event_consumer",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "test_exit_code": 101,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic where/contract solving",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 75
+          },
+          "notes": []
+        }
+      ],
+      "compile_report": "evidence/reviews/228-consumer/baseline/native/consumer228-where-O0-14-0/compile.json",
+      "compile_sha256": "937f1305ecc1680497f4d12616d9cbaab935496f86eb8d370c1013406f56475d"
+    },
+    {
+      "variant": "combined",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl228_consumer",
+        "combined_event_consumer",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "test_exit_code": 101,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "#for currently generates ordinary functions and statements, not Type/Syntax or declaration-kind extensions",
+          "span": {
+            "file": 1,
+            "start": 106,
+            "end": 134
+          },
+          "notes": []
+        }
+      ],
+      "compile_report": "evidence/reviews/228-consumer/baseline/native/consumer228-combined-O0-19-0/compile.json",
+      "compile_sha256": "1946784d220a2f6631c858b758127aa29b62a5f1ec70f9ba24840489532085d1"
+    }
+  ]
+}

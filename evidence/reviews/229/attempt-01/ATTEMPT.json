@@ -1,0 +1,6 @@
+{
+  "implementation_commit": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+  "tests_passed": 4,
+  "tests_failed": 1,
+  "finding": "Original unused T:Copy field access borrowed a same-spelled nominal T member; wrong Success/Verify. Failing raw source and phases retained."
+}

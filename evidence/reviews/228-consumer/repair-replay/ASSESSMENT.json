@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "status": "Mixed: original consumers and patterns passed; three review assertions used an incorrect rejection-category expectation.",
+  "checkout": "d5822a5a15ce20643a087e59bd01d59647e97cd6",
+  "consumer_tests_passed": 7,
+  "pattern_tests_passed": 1,
+  "shadow_tests_failed": 3,
+  "failure_cause": "Reviewer hard-coded SafeReject before checking the existing category of unsupported symbolic field access. All three actual reports are Unsupported at Expand with E-UNSUPPORTED and verification_runs=0; no erroneous acceptance remains in these reports. The next run will use explicit no-collision controls to verify the exact category.",
+  "original_failed_acceptances_preserved_at": "../shadow-original",
+  "native_builds": 8,
+  "native_executions": 24,
+  "budget_claim": "No new minimum-budget measurement in this replay; prior measured shared-extraction thresholds remain historical only."
+}

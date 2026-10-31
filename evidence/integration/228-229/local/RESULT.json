@@ -1,0 +1,74 @@
+{
+  "status": "Pass",
+  "scope": "Root affected integration gates; not complete workspace or product acceptance",
+  "implementation_commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "implementation_author": "/root",
+  "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
+  "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1",
+  "source_trees": {
+    "driver": "5cad5e35d03c16291e4cd45adbef8c769b5cab54",
+    "expand": "01c3690f47779962a87665e725353cffd361eb33"
+  },
+  "formatting_exit_code": 0,
+  "tests": {
+    "passed": 26,
+    "failed": 0,
+    "ignored": 0
+  },
+  "commands": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 2.4704062938690186
+    },
+    {
+      "name": "affected",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl222_generation",
+        "--test",
+        "impl222_review_regressions",
+        "--test",
+        "impl222_224_composition",
+        "--test",
+        "impl228_generation",
+        "--test",
+        "impl229_where_copy",
+        "--test",
+        "impl229_nominal_shadow"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 11.085238933563232
+    }
+  ],
+  "raw": "candidate/raw.tar.xz",
+  "manifest": "candidate/MANIFEST.json",
+  "prior_affected_replay": {
+    "source_commit": "ff6c23e1f20eceb9a8259e1a863356845ea247f8",
+    "raw": "pre-final/raw.tar.xz",
+    "note": "Earlier 10 checks overlap with these 26; do not add as unique coverage."
+  },
+  "old_expectation_migration": {
+    "source": "#for(i in 0..1){struct S{x:i32}}fn main()->i32=>0",
+    "source_bytes_unchanged": true,
+    "old": "Unsupported generated type declaration",
+    "new": "Success within the finite 228 profile",
+    "test": "crates/zil-driver/tests/impl222_generation.rs"
+  },
+  "remaining_gate": "Full GitHub workspace, reference, native consumers, quality and migration gates; main acceptance not yet claimed"
+}

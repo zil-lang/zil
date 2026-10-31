@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "checkout": "dd23ab5ce306b456893130c8124948b49e451485",
+  "production_candidate_228": "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+  "utc": "2026-10-31T00:54:25.214444+00:00",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "review228_consumer_patterns",
+    "--",
+    "--nocapture"
+  ],
+  "exit_code": 0,
+  "reports": [
+    {
+      "path": "evidence/reviews/228-consumer/pattern-original/native/pattern228-generated-28/compile.json",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": []
+    },
+    {
+      "path": "evidence/reviews/228-consumer/pattern-original/native/pattern228-plain-28/compile.json",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": []
+    }
+  ]
+}

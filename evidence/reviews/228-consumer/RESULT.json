@@ -1,0 +1,227 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/environment_recovery",
+  "status": "Pass",
+  "scope": "Independent event consumers, ordinary handwritten controls and nearest nominal/Copy rejection controls; not full language acceptance.",
+  "review_checkout": "85fd4511a9ba9a2c84531f8b902ea70a45deaf26",
+  "production_candidates": [
+    "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+    "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4"
+  ],
+  "production_file_identity": [
+    {
+      "path": "crates/zil-driver/src/ct_selection/generation.rs",
+      "candidate": "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+      "sha256": "c3820993adf80052e37f326c049ee7eba197cf1b30fc4283a74084bd81c56c7d",
+      "byte_equal": true
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/hygiene.rs",
+      "candidate": "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+      "sha256": "abdbc5a19c94b3020d93511325b31929738ec16c969fd92cf9a2f67204150216",
+      "byte_equal": true
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/hygiene_types.rs",
+      "candidate": "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+      "sha256": "ca90476ba5c169a2f40b75068d2427818c4fe782005de0840f177ef301b07854",
+      "byte_equal": true
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/materialize.rs",
+      "candidate": "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+      "sha256": "68abf65c96cf2ffd3b904993a9d3f2b30957dd447b58329e62b6d8a918769870",
+      "byte_equal": true
+    },
+    {
+      "path": "crates/zil-expand/src/generic_alias.rs",
+      "candidate": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+      "sha256": "005c44998e8714c8799f43344442aa7678128e5136808d6f5753b57f3de0b9b2",
+      "byte_equal": true
+    },
+    {
+      "path": "crates/zil-expand/src/generic_where.rs",
+      "candidate": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+      "sha256": "b0b56e70e08dc75a3aa5cc43f31eacdbe4b5ca3e6a653955d1389e108dff9af4",
+      "byte_equal": true
+    },
+    {
+      "path": "crates/zil-expand/src/generics.rs",
+      "candidate": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+      "sha256": "22bec949b72c5f121a4f49a616c9e4d9cbb1014f088c0463ce62a86c247e56f4",
+      "byte_equal": true
+    },
+    {
+      "path": "crates/zil-expand/src/lib.rs",
+      "candidate": "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4",
+      "sha256": "6b598c52c205abc6ee2b2e5dc7b80f45ad9f52368449c261483d3b7d3d5dc7cd",
+      "byte_equal": true
+    }
+  ],
+  "frozen_source_identity": [
+    {
+      "path": "examples/mainline/generated_events228/combined/events.zil",
+      "sha256": "5b3bd05203f0fcda74e2c77ad022e2f92b0505bbdffb4851f09e4b8e44ecf4f4",
+      "equal_to_frozen_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/combined/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "equal_to_frozen_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/events.zil",
+      "sha256": "ec806958a5bd7498436d8fad2a7edf2ddbcceb47830372e1eb493db80f290b02",
+      "equal_to_frozen_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "equal_to_frozen_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/plain/events.zil",
+      "sha256": "76e56021048041c2ccbde0d045b166ce72c3dc39d54695aa4fbe34eab823b280",
+      "equal_to_frozen_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/plain/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "equal_to_frozen_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/events.zil",
+      "sha256": "3cf1f38e502ff90d09aeaf1229c91dc7fa6f645402963e55c5d7d5ecf1c2fb47",
+      "equal_to_frozen_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "equal_to_frozen_baseline": true
+    }
+  ],
+  "tests": {
+    "passed": 7,
+    "failed": 0,
+    "ignored": 0
+  },
+  "api_native_builds": 8,
+  "api_native_executions": 24,
+  "source_rejection_controls": [
+    {
+      "path": "combined/native/consumer228-nominal-generated-74-5/compile.json",
+      "status": "SafeReject",
+      "phase": "types",
+      "sha256": "3b5c8ec346c64db878a7f758d42ea2d037951a9ecebb67d0f3138462af6f7cb2",
+      "diagnostics": [
+        {
+          "code": "E-TYPE-MISMATCH",
+          "message": "expected Record { name: \"@module1:$module1_$ctfor222$1$1$0$Event\", fields: [(\"kind\", I32)] }, found Record { name: \"@module1:$module1_$ctfor222$1$0$0$Event\", fields: [(\"kind\", I32)] }"
+        }
+      ]
+    },
+    {
+      "path": "combined/native/consumer228-nominal-plain-74-4/compile.json",
+      "status": "SafeReject",
+      "phase": "types",
+      "sha256": "b6035a0e3c90465017ea9a7301ac5ee46f35cfc0076035480ff2dbab431f7b96",
+      "diagnostics": [
+        {
+          "code": "E-TYPE-MISMATCH",
+          "message": "expected Record { name: \"@module1:$module1_Touch\", fields: [(\"kind\", I32)] }, found Record { name: \"@module1:$module1_Pointer\", fields: [(\"kind\", I32)] }"
+        }
+      ]
+    },
+    {
+      "path": "combined/native/consumer228-resource-inline-74-8/compile.json",
+      "status": "SafeReject",
+      "phase": "expand",
+      "sha256": "9ecdfdf77b15f47ffb8df6990e7209bf0683d0a45f00d849b7481be288c39f06",
+      "diagnostics": [
+        {
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Copy bound fields require a finite ordinary Copy Value"
+        }
+      ]
+    },
+    {
+      "path": "combined/native/consumer228-resource-where-74-9/compile.json",
+      "status": "SafeReject",
+      "phase": "expand",
+      "sha256": "11be4889a6961e308cfafe0de882e0c6b2f7c0b539d414c4db9cae8765c73170",
+      "diagnostics": [
+        {
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Copy bound fields require a finite ordinary Copy Value"
+        }
+      ]
+    }
+  ],
+  "cli_native_builds": 2,
+  "cli_native_executions": 6,
+  "cli_native_reports": [
+    {
+      "path": "combined-cli/native/O0/build.stdout",
+      "sha256": "b61d4771c5c5c866b5b247425c41723553c0ba6585c7b6df3049950c472d2b43",
+      "backend": "llvm-api",
+      "fallback": null,
+      "actual_units": 1
+    },
+    {
+      "path": "combined-cli/native/O2/build.stdout",
+      "sha256": "7dec54ef8c76b83dadcde2cf5a2539ae2473af7258935bf0890ae430201f66b0",
+      "backend": "llvm-api",
+      "fallback": null,
+      "actual_units": 1
+    }
+  ],
+  "llvm_ir_body_comparisons": [
+    {
+      "left": "plain",
+      "right": "where",
+      "optimization": "O0",
+      "full_file_equal": false,
+      "excluded_exact_line_prefix": "; verified-fingerprint: ",
+      "all_other_bytes_equal": true,
+      "body_sha256": "9edb428de5579e9da2524b878833a135880e87fd306751dae2fe9d52cd8e719f"
+    },
+    {
+      "left": "generated",
+      "right": "combined",
+      "optimization": "O0",
+      "full_file_equal": false,
+      "excluded_exact_line_prefix": "; verified-fingerprint: ",
+      "all_other_bytes_equal": true,
+      "body_sha256": "47bda4dfce6d096473f3da6facdbd3028224832af3c7074207158d988b955cd0"
+    },
+    {
+      "left": "plain",
+      "right": "where",
+      "optimization": "O2",
+      "full_file_equal": false,
+      "excluded_exact_line_prefix": "; verified-fingerprint: ",
+      "all_other_bytes_equal": true,
+      "body_sha256": "9edb428de5579e9da2524b878833a135880e87fd306751dae2fe9d52cd8e719f"
+    },
+    {
+      "left": "generated",
+      "right": "combined",
+      "optimization": "O2",
+      "full_file_equal": false,
+      "excluded_exact_line_prefix": "; verified-fingerprint: ",
+      "all_other_bytes_equal": true,
+      "body_sha256": "47bda4dfce6d096473f3da6facdbd3028224832af3c7074207158d988b955cd0"
+    }
+  ],
+  "original_unsupported_preserved": "baseline/UNSUPPORTED.json",
+  "shared_reserved_name_review": "RESERVED-NAMES-REVIEW.json",
+  "overlap_policy": "Baseline, extraction and only228 repeats are historical controls; not added to the final 8 API builds / 24 API executions or 2 CLI builds / 6 CLI executions.",
+  "not_claimed": [
+    "complete ZUI",
+    "complete Type/Syntax or emit",
+    "general where or trait solving",
+    "allocation-failure behavior for these allocation-free packets",
+    "native Windows",
+    "Rust performance or full four-goal acceptance"
+  ]
+}

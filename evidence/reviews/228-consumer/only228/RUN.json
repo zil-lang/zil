@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "checkout": "f70644c61e50632d8cb023af2c0af4ec56e9d096",
+  "production_candidate": "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+  "utc": "2026-10-31T00:49:25.005561+00:00",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "impl228_consumer",
+    "generated_event_consumer",
+    "--",
+    "--exact",
+    "--nocapture"
+  ],
+  "exit_code": 0
+}
