@@ -1,0 +1,9 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review234/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.35s
+     Running tests/review234_full_width.rs (target/debug/deps/review234_full_width-e85e8c2f096750cf)
+
+running 1 test
+test all_i32_and_i64_return_bits_match_independent_oracle_cold_and_warm ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
