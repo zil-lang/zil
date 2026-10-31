@@ -104,3 +104,5 @@ DB六区组独立消融完成，未证明净提速；真实driver的内容版本
 JumpThreading插件限定正确性控制通过后，继续评估单对象工具链落地：在隔离官方23.1.4 PIC archives副本中，仅替换保持原类布局的JumpThreading.cpp.o并重链私有libLLVM；由独立prefix与显式研究pipeline/cache身份区分，实际加载库必须核对。旧SDK、LLVM安装、已冻二进制与缓存不得覆盖。此候选仍属于研究工具链，先限定正确性/独审及实际API完整请求验证；不把opt包装器时间直接作为生产后端结论。
 
 上游主分支已推进f2572502beb76eb86e9254dea855404e4998a64d，专项PR发生Expand接口冲突。按主线已批准的232/233/234语义导入主分支到专项，唯一手工解决同时保留共享声明索引和跨模块trait所需完整模块/imports。旧阶段规范hash和已冻二进制证据不改写；合并后记录新规范身份并做限定组合控制与新HEAD远端CI，不自行合入main。
+
+CI闭环追加写集：.github/workflows/verify-main.yml（以实际现有主验证workflow文件名为准）、tools/ci/research_disk_space.py及其限定测试、changes/research-ci-disk-recovery.md。41206406105先发现DB撤回时tests.rs未同步，888af53逐字恢复配套3d6测试（13唯一/26执行）且release ELF逐字不变；随后41207249551被runner ENOSPC硬终止，未取得全量测试结论。仅在GitHub托管Linux临时运行器准备阶段清理固定白名单的未使用预装工具链，先记录容量/路径并立刻上传收据；不得删源码/测试/原始验证证据，不改测试集合/命令、预算或产品门。原两次失败保留，新完整CI另绑定。

@@ -25,6 +25,20 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Reclaim unused hosted-runner toolchain space
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/receipts"
+          sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_TEMP,GITHUB_WORKSPACE python3 tools/ci/research_disk_space.py --apply
+      - name: Preserve pre-build disk recovery receipt
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-main-${{ github.run_id }}-${{ github.run_attempt }}-disk-recovery
+          path: ${{ runner.temp }}/receipts/disk-space-before-build.json
+          retention-days: 30
+          if-no-files-found: error
       - name: Install the supported LLVM API toolchain
         shell: bash
         run: |
