@@ -1,0 +1,20 @@
+    Checking zil-driver v0.1.0 (/workspace/zil/crates/zil-driver)
+    Checking zil-llvm-api v0.1.0 (/workspace/zil/crates/zil-llvm-api)
+    Checking zil-backend-llvm v0.1.0 (/workspace/zil/crates/zil-backend-llvm)
+    Checking zil-expand v0.1.0 (/workspace/zil/crates/zil-expand)
+    Checking zil-verify v0.1.0 (/workspace/zil/crates/zil-verify)
+    Checking zil-syntax v0.1.0 (/workspace/zil/crates/zil-syntax)
+    Checking zil-lower v0.1.0 (/workspace/zil/crates/zil-lower)
+    Checking zil-ir v0.1.0 (/workspace/zil/crates/zil-ir)
+error: calling `as_bytes` after slicing a string
+   --> crates/zil-ir/tests/cp34_fingerprint.rs:375:29
+    |
+375 |             Fingerprint::of(source[begin..end].as_bytes()).to_hex(),
+    |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `&source.as_bytes()[begin..end]`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#sliced_string_as_bytes
+    = note: `-D clippy::sliced-string-as-bytes` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::sliced_string_as_bytes)]`
+
+error: could not compile `zil-ir` (test "cp34_fingerprint") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

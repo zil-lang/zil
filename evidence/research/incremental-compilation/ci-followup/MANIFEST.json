@@ -1,0 +1,25 @@
+{
+  "scope": "Test-only formatting and equivalent byte slicing; production implementation remains 5cf1c417",
+  "files": [
+    {
+      "path": "final-format-retry.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "final-format.log",
+      "sha256": "2f29b9fb4736b760cc93e76c1939611352a84e4cf3c7eb5221ef3b4fc6d9629a"
+    },
+    {
+      "path": "final-target-clippy-retry.log",
+      "sha256": "ea9cd6598d9e1a89cfc18037c63d6429a4098bc1e0075ed793ca475ed6b2740a"
+    },
+    {
+      "path": "final-target-clippy.log",
+      "sha256": "992526ff3550e26e5622da75dfaa20f002623ed88506020bb4082e46a49aaf77"
+    },
+    {
+      "path": "final-test-style-tests.log",
+      "sha256": "d90da89906d6831dd6084deffcde20f3d533a75845351111950739907269c9f9"
+    }
+  ]
+}
