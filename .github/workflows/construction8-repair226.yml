@@ -1,0 +1,41 @@
+name: Publish exact 226 diagnostic repair
+on:
+  push:
+    branches: [chore/construction8-resume]
+    paths: [.github/workflows/construction8-repair226.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 1748b767c3fd3ab1408c84ce8a9dc0f2ae34b8cd
+          fetch-depth: 0
+          persist-credentials: true
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,hashlib,json,lzma,pathlib,subprocess
+          encoded='/Td6WFoAAATm1rRGAgAhARwAAAAQz1jM4AN9AkZdAC2ewEczfOFnZGP77xSZ2EcG4E5n9mcflfh86GU4KUnC1MeioDmyOWQ2BPRL9oOlYe8bXvnKJKHLVECg1al/kAd2O14qWfIsAeDJYId1VSCMEuGIY4E6nB+aGpEax129cKcN3FmXzj8fa2kqsUHOIk9A6pTkeR5h1ofi6qBL49FFA63XwkaQGWrdCTaUzdynsH7jk/GoHBeJQipg2i2dX0rqxVd3ZQHeA287r0JEAon74c3O6MLbe0DZnT2MX+CPg8wXx2roSrsP0teNF87K6gkh2bqqwdIY3x7WTaObH9y4fqyCR4SGJRBNoU0ea5HfZ9Jda/zSNmO2oGKJIQaMZhNoONOd1kKoeUye00JjFk+VaO/zikUm/n8+GG48vTHnzfciJ7OCSLXZWOFYhAvB/lGgbeUAc4s+i4fjehHl7756YPYxU8oeoXL4x21LaYBBL3HVmETIlR1UOV5gfDVtX+0TPTJWrHtjtSJAFNZ7UTeD/nSbKZsGQTSE2dZ6b17A3VSMTyZ2SorGS1uRz3JPH63oq67yKwgtTDWs3lRit/hZEbMNNX6TmvPTNoPJOStEDUnTM3wTY8Hp41Ow9DODakeDSNdSWgdXT3YroCemks4qY3KDOEXBM99OcwAugnoj8PVe9hDHZeV0K15wPjBnXuDrtEoIn+mTjQM/9EZNS8SyO9tOvHdJM6HGMb/5A4lVUdPh5Y3n1ApyWRP9Sf4c5ZrTOkmEY6nCb0odMQBxrx3xCbdmsMqZedWeD5IQZgDrEETpsD9wjQAAAN9T+0UmrKMmAAHiBP4GAACy1W0PscRn+wIAAAAABFla'
+          records=json.loads(lzma.decompress(base64.b64decode(encoded,validate=True)))
+          base='1748b767c3fd3ab1408c84ce8a9dc0f2ae34b8cd';assert len(records)==1
+          record=records[0];assert '\nparent '+base+'\n' in record['raw']
+          for path,before,ops,after in record['edits']:
+              assert path=='crates/zil-driver/tests/impl175_store_views.rs'
+              p=pathlib.Path(path);old=p.read_bytes();assert hashlib.sha256(old).hexdigest()==before
+              lines=old.decode().splitlines(keepends=True)
+              for start,end,text in reversed(ops):lines[start:end]=[text]
+              data=''.join(lines).encode();assert hashlib.sha256(data).hexdigest()==after;p.write_bytes(data)
+          subprocess.run(['git','add','--all'],check=True)
+          tree=subprocess.check_output(['git','write-tree'],text=True).strip();assert record['raw'].startswith('tree '+tree+'\n')
+          sha=subprocess.check_output(['git','hash-object','-t','commit','-w','--stdin'],input=record['raw'],text=True).strip()
+          assert sha==record['sha']=='b4eef0b533d088829abfc7785bc716c48c89d889'
+          ref='refs/heads/impl/226-shared-product-capture'
+          assert subprocess.check_output(['git','ls-remote','origin',ref],text=True).split()[0]==base
+          subprocess.run(['git','push','--force-with-lease='+ref+':'+base,'origin',sha+':'+ref],check=True)
+          print('Published exact test-only diagnostic repair',sha)
+          PY
