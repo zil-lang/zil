@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root/environment_recovery",
+  "reviewer_role": "Original independent consumer reviewer; not an implementation author for 228 or 229 production code.",
+  "implementation_commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "actual_execution_checkout": "be50e75f5c7646d79138efd7ba3dc54c2439e26d",
+  "scope": {
+    "kind": "Limited independent consumer acceptance",
+    "original_scope_qualifier": "Pass within the explicitly limited independent consumer scope",
+    "product_scope": "Real two-module fixed-layout event adapter sources, including generated nominal types and where Copy combined. This does not establish complete ZUI, full Type/Syntax, whole-language acceptance, Windows execution, allocation failure handling, or Rust performance superiority.",
+    "budget_scope": "No new budget minimum claim; old shared-extraction costs remain historical. Final formal budget acceptance belongs to root independent review.",
+    "cli_scope": "No final-P CLI rerun. Original combined CLI evidence remains bound to original c465+6253.",
+    "whole_workspace_run": false
+  },
+  "original_path": "evidence/reviews/228-consumer/FINAL-REVIEW.json",
+  "original_sha256": "dcf07fe318fd1ef8816ea07df21ade55936e870741cf59ae0942d0059de8d467",
+  "original_bytes": 12497,
+  "original_status": "Pass within the explicitly limited independent consumer scope",
+  "original_source_commit": "91a94afdf187b6889a0f44bd47822b5cacd0e4b4",
+  "adaptation": {
+    "kind": "Schema-only separation of the existing passing outcome and its limited scope",
+    "description": "The original final review recorded a passing result with the scope qualifier inside status. This wrapper writes the exact passing token in status and verdict and preserves the qualifier and limitations under scope. It does not change the original review bytes, outcomes, execution identity, counts, fixtures, archived native evidence, or acceptance scope.",
+    "new_execution": false,
+    "language_tests_rerun": false,
+    "new_native_builds": 0,
+    "new_native_executions": 0,
+    "original_review_bytes_unchanged": true
+  },
+  "tests": {
+    "frozen_consumer_tests_passed": 7,
+    "reserved_function_regression_tests_passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "whole_workspace_run": false,
+    "total_passed": 8
+  },
+  "native_builds": 8,
+  "native_executions": 24,
+  "platform": "x86_64-unknown-linux-gnu",
+  "backend": "llvm-api",
+  "llvm_version": "23.1.4",
+  "input_kind": "builder",
+  "fallback": null,
+  "verify_before_after": true,
+  "production_matches_P": true,
+  "driver_src_tree": "5cad5e35d03c16291e4cd45adbef8c769b5cab54",
+  "expand_src_tree": "01c3690f47779962a87665e725353cffd361eb33",
+  "fixture_bindings": [
+    {
+      "path": "examples/mainline/generated_events228/plain/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/plain/events.zil",
+      "sha256": "76e56021048041c2ccbde0d045b166ce72c3dc39d54695aa4fbe34eab823b280",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/events.zil",
+      "sha256": "ec806958a5bd7498436d8fad2a7edf2ddbcceb47830372e1eb493db80f290b02",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/events.zil",
+      "sha256": "3cf1f38e502ff90d09aeaf1229c91dc7fa6f645402963e55c5d7d5ecf1c2fb47",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/combined/main.zil",
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/combined/events.zil",
+      "sha256": "5b3bd05203f0fcda74e2c77ad022e2f92b0505bbdffb4851f09e4b8e44ecf4f4",
+      "same_as_original_baseline": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/reserved_function_plain.zil",
+      "sha256": "5ff05ce63b5c809092fbe1cce874da929f9b8498d9f334afcaf547aa823a4b43",
+      "same_as_original_failure_input": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/reserved_function_pure.zil",
+      "sha256": "ba5ed5a8422068966281b711646caf8ea6c040c93b6c077c7fb610eccd981ce5",
+      "same_as_original_failure_input": true
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/reserved_function_mixed.zil",
+      "sha256": "a69d61a6b82a695edc9094926c5f0399218c254fb29f41f2cfc6590a10c2e798",
+      "same_as_original_failure_input": true
+    }
+  ],
+  "native_archive": {
+    "path": "evidence/reviews/228-consumer/final-P/native.tar.xz",
+    "sha256": "77dfd6cf9f51a3fb8a2a470025e59ad35054e2a8fad7ca465d3a76aecd66376f",
+    "files": 236,
+    "bytes": 66860,
+    "original_relative_path": "final-P/native.tar.xz"
+  },
+  "reserved_name_replay": {
+    "source_forms": [
+      "ordinary",
+      "pure generated functions",
+      "mixed generated types and functions"
+    ],
+    "before_checkout": "05bb51561670c343b9b28c44442cdae45ba4d0fb",
+    "before_outcomes": "ordinary SafeReject@expand; pure and mixed wrongly Success@verify; one regression test failed and its raw evidence is retained",
+    "after_outcomes": "All three SafeReject@expand / E-BYTE-BUFFER-NAME, verification_runs=0",
+    "test_and_fixture_bytes_unchanged_between_before_and_after": true
+  },
+  "previous_results": "All original baseline Unsupported reports, original 229 shadow false acceptances, the reviewer rejection-category assertion error, repaired intermediate results, and reserved-function false acceptances remain under their original exact execution identities. No earlier record was overwritten.",
+  "binding_verification": {
+    "method": "Read original JSON, fixture blobs, and native archive with git show at original_source_commit; verify SHA-256 and recorded archive length without executing language tests or native programs.",
+    "fixture_files_verified": 11,
+    "native_archive_sha256_verified": true,
+    "original_sha256_verified": true
+  }
+}

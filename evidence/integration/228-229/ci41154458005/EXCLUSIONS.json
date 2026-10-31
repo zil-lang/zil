@@ -1,0 +1,10 @@
+[
+  {
+    "sha256": "5280434973bf98014b87ddf520c6b6b33f6ddc4092f68767dd0477802cca3531",
+    "reason": "Rebuildable Python bytecode cache; corresponding original audit source is archived. Not compiler execution evidence."
+  },
+  {
+    "sha256": "6542e85402994800f6da0432a18541b907bcd31bf8147f67216cdb8a9a83385e",
+    "reason": "Contains signed file-transfer URL / private download_url transport metadata. Transport-only scratch material, not compiler evidence; content intentionally excluded."
+  }
+]

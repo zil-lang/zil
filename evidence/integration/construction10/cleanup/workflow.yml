@@ -1,0 +1,52 @@
+name: Construction10 verified merged branch cleanup
+on:
+  push:
+    branches: ['chore/construction10-cleanup']
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: construction10-verified-cleanup
+  cancel-in-progress: false
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Configure the already authorized workflow Git credential helper
+        run: gh auth setup-git --hostname github.com
+      - name: Verify reviewed script and every deletion precondition without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum --check .construction10-cleanup/script.sha256
+          python3 .construction10-cleanup/cleanup.py --manifest .construction10-cleanup/manifest.json --receipt cleanup-dry-run.json
+      - name: Delete only the exact tips already merged into freshly verified main
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          r = json.load(open('cleanup-dry-run.json'))
+          assert r['status'] == 'DryRunValidated'
+          assert r['exit_code'] == 0 and r['mutation_attempted'] is False
+          PY
+          python3 .construction10-cleanup/cleanup.py --manifest .construction10-cleanup/manifest.json --receipt cleanup-execute.json --execute
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ always() }}
+        with:
+          name: construction10-cleanup-${{ github.run_id }}
+          path: |
+            cleanup-dry-run.json
+            cleanup-execute.json
+            .construction10-cleanup/manifest.json
+            .construction10-cleanup/script.sha256
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30

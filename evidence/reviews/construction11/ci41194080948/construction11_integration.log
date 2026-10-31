@@ -1,0 +1,7 @@
+     Running tests/construction11_integration.rs (/home/runner/work/_temp/target/debug/deps/construction11_integration-03b2ee5681de22cd)
+
+running 2 tests
+test cross_module_trait_use_keeps_the_product_capture_loan_active ... ok
+test shared_product_callback_calls_trait_library_then_releases_owner ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s

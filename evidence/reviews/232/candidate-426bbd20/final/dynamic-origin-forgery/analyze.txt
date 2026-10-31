@@ -1,0 +1,20 @@
+Err(
+    [
+        Diagnostic {
+            phase: Analyze,
+            category: Unsupported,
+            code: "E-UNSUPPORTED",
+            message: "shared Product capture requires proven ordinary local Product origins",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 462,
+                    end: 483,
+                },
+            ),
+            notes: [],
+        },
+    ],
+)

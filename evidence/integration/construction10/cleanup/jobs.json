@@ -1,0 +1,97 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 124498392480,
+      "run_id": 41187879812,
+      "workflow_name": "Construction10 verified merged branch cleanup",
+      "head_branch": "chore/construction10-cleanup",
+      "run_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/41187879812",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOVXdqJM8AAAAc_K61oA",
+      "head_sha": "acccc78fe1b4719fe7598f8ea5d64812e1e9ff5c",
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/jobs/124498392480",
+      "html_url": "https://github.com/zil-lang/zil/actions/runs/41187879812/job/124498392480",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-31T09:14:30Z",
+      "started_at": "2026-10-31T09:14:32Z",
+      "completed_at": "2026-10-31T09:14:59Z",
+      "name": "cleanup",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-31T09:14:32Z",
+          "completed_at": "2026-10-31T09:14:33Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-31T09:14:33Z",
+          "completed_at": "2026-10-31T09:14:50Z"
+        },
+        {
+          "name": "Configure the already authorized workflow Git credential helper",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-31T09:14:50Z",
+          "completed_at": "2026-10-31T09:14:50Z"
+        },
+        {
+          "name": "Verify reviewed script and every deletion precondition without mutation",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-31T09:14:50Z",
+          "completed_at": "2026-10-31T09:14:53Z"
+        },
+        {
+          "name": "Delete only the exact tips already merged into freshly verified main",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-31T09:14:53Z",
+          "completed_at": "2026-10-31T09:14:56Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-31T09:14:56Z",
+          "completed_at": "2026-10-31T09:14:58Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-31T09:14:58Z",
+          "completed_at": "2026-10-31T09:14:58Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-31T09:14:58Z",
+          "completed_at": "2026-10-31T09:14:58Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/zil-lang/zil/check-runs/124498392480",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000000091,
+      "runner_name": "GitHub Actions 1000000091",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

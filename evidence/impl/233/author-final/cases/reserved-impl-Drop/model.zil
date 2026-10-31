@@ -1,0 +1,1 @@
+pub trait Drop{}pub struct Payload{n:i32}impl Drop for Payload{}

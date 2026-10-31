@@ -1,0 +1,28 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/994319f2ba02/zil-233/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-233/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 4.28s
+     Running tests/impl233_modules.rs (target/debug/deps/impl233_modules-8f0286d80acc0af6)
+
+running 9 tests
+test original_single_module_and_drop_work_budgets_remain_exact ... ok
+test privacy_local_self_and_nominal_identity_remain_required ... ok
+test imported_impls_check_uncalled_method_sets_signatures_and_collisions ... ok
+test original_three_module_where_and_inline_inputs_reach_independent_verify ... ok
+test static_trait_declarations_cannot_hide_reserved_capabilities_after_module_renaming ... ok
+test new_imported_trait_work_has_exact_cold_warm_and_fresh_boundaries ... ok
+test resource_implementations_keep_shared_heads_and_original_drop_responsibility ... ok
+test public_imported_traits_export_checked_shared_mutable_static_and_value_methods ... ok
+
+thread 'generic_trait_library_depends_on_each_actual_implementation_without_source_back_imports' (97) panicked at crates/zil-driver/tests/impl233_modules.rs:79:5:
+{"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-TERMINATOR","message":"expected a semicolon, logical newline, or closing brace after the complete statement","span":{"file":2,"start":129,"end":133},"notes":[]}],"artifacts":{},"input_fingerprint":"be3f341512150ea5e6e28b2c24df9faeb3c5307d590feee2394bf1a282f55f2c","seconds":0.001672579,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"rules.zil","2":"data.zil"},"scalar_interfaces":[]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test generic_trait_library_depends_on_each_actual_implementation_without_source_back_imports ... FAILED
+
+failures:
+
+failures:
+    generic_trait_library_depends_on_each_actual_implementation_without_source_back_imports
+
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+error: test failed, to rerun pass `-p zil-driver --test impl233_modules`

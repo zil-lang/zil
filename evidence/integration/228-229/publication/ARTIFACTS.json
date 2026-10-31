@@ -1,0 +1,23 @@
+{
+  "artifacts": [
+    {
+      "id": 13024656937,
+      "name": "construction9-publication-41154384915",
+      "size_in_bytes": 1532,
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13024656937",
+      "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13024656937/zip",
+      "expired": false,
+      "created_at": "2026-10-31T01:15:11Z",
+      "expires_at": "2026-11-30T01:15:10Z",
+      "updated_at": "2026-10-31T01:15:11Z",
+      "digest": "sha256:aa3e0988752d1db837a2be9721aaa4155e9b51320bd7ec8b3e6cd2e8e4636294",
+      "workflow_run": {
+        "id": 41154384915,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "task/228-transport",
+        "head_sha": "cfa425410f864f997cb7cfd3295d07e745344130"
+      }
+    }
+  ]
+}

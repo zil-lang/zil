@@ -1,0 +1,42 @@
+{
+  "status": "Pass",
+  "scope": "Exact source object restoration and concurrent documentation preservation; no compiler score substitution",
+  "files": [
+    {
+      "source": "source-recovery-pr11/SELF-CONTAINED.json",
+      "path": "SELF-CONTAINED.json",
+      "sha256": "42e8d0a7db053a629bd5854acfa0bbf2257f6176dab86b97a26d8a79989d6065",
+      "size": 3176
+    },
+    {
+      "source": "source-recovery-pr11/IMPORT.json",
+      "path": "IMPORT.json",
+      "sha256": "377ba70f4e84af66dec940b9483492ec1ba31733c2062cd5eb0f9eb42bab0b08",
+      "size": 2311
+    },
+    {
+      "source": "commit-recovery-main-e60f9e2/RECOVERY-RESULT.json",
+      "path": "MAIN-RECOVERY.json",
+      "sha256": "94bee4c98b570873614c3fcb24c568f02c895853fed52dab0dafabce99a9e68f",
+      "size": 5553
+    },
+    {
+      "source": "commit-recovery-main-e60f9e2/COMMIT-RAW-VERIFICATION.json",
+      "path": "MAIN-COMMIT-RAW.json",
+      "sha256": "b91f7d9dde55324e0ce9757727a9d44fa9493f989c79f8fc15fb9259f5f955f8",
+      "size": 2546
+    },
+    {
+      "source": "commit-recovery-main-e463b7e/RECOVERY-RESULT.json",
+      "path": "CONCURRENT-DOCS-RECOVERY.json",
+      "sha256": "373f145c0aa8534d153e190f69845551037b6c140c6012599739088b095e8157",
+      "size": 8776
+    },
+    {
+      "source": "commit-recovery-main-e463b7e/RAW-VERIFICATION.json",
+      "path": "CONCURRENT-DOCS-RAW.json",
+      "sha256": "1c325ef5cce9f8efc534201c6f47de28d998c09cd71f8bee884994b7818b91a7",
+      "size": 5133
+    }
+  ]
+}

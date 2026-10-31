@@ -8,7 +8,9 @@ use zil_syntax::ast::*;
 
 type R<T> = Result<T, Diagnostic>;
 type Names = BTreeSet<String>;
-type Functions = BTreeMap<String, (ModuleId, String)>;
+// The flag distinguishes source declarations from actual specialization output;
+// a spelling prefix alone is not evidence of an instantiated function.
+type Functions = BTreeMap<String, (ModuleId, String, bool)>;
 
 #[derive(Clone)]
 struct Symbol {
@@ -282,7 +284,7 @@ fn normalize(
                 let canonical = format!("$module{}_{}", module.id.0, name);
                 budget.text(&canonical, item.span)?;
                 if function {
-                    functions.insert(canonical.clone(), (module.id, name.to_owned()));
+                    functions.insert(canonical.clone(), (module.id, name.to_owned(), true));
                 }
                 symbols.insert(
                     name.to_owned(),
@@ -346,6 +348,7 @@ fn normalize(
             )
         })
         .collect::<Vec<_>>();
+    let mut has_project_trait_impl = false;
     for item in &specialized.items {
         budget.item(item)?;
         let position = *files.get(&item.span.file).ok_or_else(|| {
@@ -355,16 +358,45 @@ fn normalize(
                 "instantiated declaration lost its definition source",
             )
         })?;
+        has_project_trait_impl |= project_traits::is_external_impl(item, modules[position].id);
         if let ItemKind::Function(f) = &item.kind {
             // An instance stays in its template's defining module. Publicness
             // is inherited from that declaration, never from the consumer.
-            functions
-                .entry(f.name.clone())
-                .or_insert((modules[position].id, f.name.clone()));
+            functions.entry(f.name.clone()).or_insert((
+                modules[position].id,
+                f.name.clone(),
+                false,
+            ));
         }
         output[position].0.items.push(item.clone());
     }
+    let method_owners = if has_project_trait_impl {
+        project_traits::method_owners(&specialized, modules, &files, &mut budget)?
+    } else {
+        BTreeMap::new()
+    };
     for (module, edges) in &mut output {
+        if !method_owners.is_empty() {
+            for item in &module.items {
+                budget.node(item.span, 0)?;
+                let ItemKind::Function(function) = &item.kind else {
+                    continue;
+                };
+                budget.text(&function.name, item.span)?;
+                if functions
+                    .get(&function.name)
+                    .is_some_and(|(_, _, original)| !original)
+                {
+                    project_traits::instance_dependencies(
+                        item,
+                        &method_owners,
+                        module.id,
+                        edges,
+                        &mut budget,
+                    )?;
+                }
+            }
+        }
         let mut visitor = Visitor {
             default_nominal: None,
             mode: Mode::Restore {
@@ -513,7 +545,7 @@ impl Visitor<'_, '_, '_> {
                 }
             }
             Mode::Restore { functions, .. } => {
-                if let Some((_, original)) = functions.get(name) {
+                if let Some((_, original, _)) = functions.get(name) {
                     self.budget.text(original, span)?;
                     *name = original.clone();
                 }
@@ -632,6 +664,22 @@ impl Visitor<'_, '_, '_> {
                         for bound in bounds {
                             self.ty(bound, &types, depth + 1)?;
                         }
+                    }
+                }
+                // A where bound has the same lexical/module identity as an
+                // inline bound. Resolve it before combining modules; leaving
+                // source spellings here would lose privacy and nominal identity.
+                for clause in &mut f.where_clause {
+                    self.budget.node(clause.span, depth + 1)?;
+                    match &mut clause.subject {
+                        BoundSubject::Type(subject) => self.ty(subject, &types, depth + 1)?,
+                        BoundSubject::Lifetime(name) => self.budget.text(name, clause.span)?,
+                    }
+                    for bound in &mut clause.bounds {
+                        self.ty(bound, &types, depth + 1)?;
+                    }
+                    if let Some(name) = &clause.lifetime_bound {
+                        self.budget.text(name, clause.span)?;
                     }
                 }
                 for p in &mut f.params {
@@ -912,7 +960,7 @@ impl Visitor<'_, '_, '_> {
         }
         if let (Mode::Restore { functions, edges }, ExprKind::Name(name)) =
             (&mut self.mode, &e.kind)
-            && let Some((owner, local)) = functions.get(name)
+            && let Some((owner, local, _)) = functions.get(name)
         {
             self.budget.text(local, e.span)?;
             e.kind = if *owner == self.module {

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "reviewer": "zil\u65bd\u5de510/branch_audit",
+  "scope": "Independent read-only verification of the actual cleanup script/workflow, official run, raw receipts and fresh remote absence.",
+  "run_id": 41187879812,
+  "workflow_commit": "acccc78fe1b4719fe7598f8ea5d64812e1e9ff5c",
+  "validated_main": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
+  "official_steps_success": 8,
+  "dry_run_steps": 22,
+  "execute_steps": 29,
+  "accepted_main_and_four_tips_ancestor_checks_pass": true,
+  "CI_and_ref_snapshots_rechecked_before_delete": true,
+  "single_atomic_push_four_full_SHA_leases": true,
+  "all_four_refs_independently_observed_absent": true,
+  "remaining_remote_branches": 20,
+  "dry_run_sha256": "b59312d654dbe25c421b31b571c506886db53a916614905247689eecee6b70ab",
+  "execute_sha256": "f473bc2e6b18234ad9e09879a374b601ad5151db283654978a8dc9fb6bddd2d8",
+  "recording_note": "Integrator records the reviewer report after its read-only verification; this is not a reviewer-authored Git commit.",
+  "reviewer_mutations_performed": false
+}

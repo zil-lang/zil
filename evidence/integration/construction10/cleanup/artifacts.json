@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 13037966541,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzNzk2NjU0MQ==",
+      "name": "construction10-cleanup-41187879812",
+      "size_in_bytes": 7233,
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13037966541",
+      "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13037966541/zip",
+      "expired": false,
+      "digest": "sha256:4c86a5298f26598b5a759b8975064768b2f1a3b6abbc295c9f6abe12310c8c1c",
+      "created_at": "2026-10-31T09:14:57Z",
+      "updated_at": "2026-10-31T09:14:57Z",
+      "expires_at": "2026-11-30T09:14:57Z",
+      "workflow_run": {
+        "id": 41187879812,
+        "repository_id": 1433889316,
+        "head_repository_id": 1433889316,
+        "head_branch": "chore/construction10-cleanup",
+        "head_sha": "acccc78fe1b4719fe7598f8ea5d64812e1e9ff5c"
+      }
+    }
+  ]
+}

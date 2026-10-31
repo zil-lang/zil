@@ -1,0 +1,11 @@
+{
+  "status": "Pass",
+  "exact_imported_commit": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
+  "bytes": 280,
+  "author_timezone_minutes": 480,
+  "committer_timezone_minutes": 480,
+  "encoding_header": "",
+  "message_trailing_newlines": 0,
+  "source": "GitHub git/commits response; candidates accepted only on exact object SHA match",
+  "prior_plus0000_only_attempt": "Failed without importing any object"
+}

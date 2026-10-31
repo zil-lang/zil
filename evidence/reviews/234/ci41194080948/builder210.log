@@ -1,0 +1,14 @@
+     Running tests/builder210.rs (/home/runner/work/_temp/target/debug/deps/builder210-1b7c7d507441e66e)
+
+running 9 tests
+test cancellation_at_each_native_boundary ... ok
+test direct_backend_rejects_disabled_text_adapter ... ok
+test direct_aggregates_global_function_table_and_indirect_call_execute ... ok
+test direct_loop_forward_block_phi_executes_o0_o2 ... ok
+test invalid_module_never_reaches_assert_prone_builder ... ok
+test direct_target_not_host_and_optimization_modes ... ok
+test separate_contexts_have_deterministic_objects ... ok
+test target_mismatch_is_explicit ... ok
+test signed_and_unsigned_spellings_of_integer_bits_are_identical_at_all_widths ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s

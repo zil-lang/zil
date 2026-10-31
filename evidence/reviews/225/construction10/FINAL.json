@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "slice": "225",
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "zil施工10/branch_audit",
+  "implementation_author": "zil施工8/current-assistant",
+  "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+  "original_remote_tip": "8ea37c2de56cf65f1448e4fa647671f4459ad148",
+  "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+  "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
+  "authority_task": ".task/impl/225.md",
+  "authority_snapshot_commit": "f1492652cb6497a33f39e615fd398456ce09253a",
+  "independence": "Reviewer did not author or modify 225/226 production. Reviewer recovered exact original objects, authored independent tests and independently inspected the executed CI receipts. Original failures and the explicit unsupported boundary remain preserved.",
+  "scope": "Complete finite ordinary Product elements in self-contained owning Store captures; canonical Store, complete type qualification, legacy/new budgets and exact cleanup remain enforced.",
+  "blocking_findings": [],
+  "static_review": [
+    "Types, Analyze and Verify independently admit complete finite ordinary Product elements while scanning full nested types, including Managed user-resource heads, for forbidden hidden callable/address/Store forms.",
+    "Analyze preserves the legacy flat path and charges the Product traversal before expanding its work; Verify retains independent canonical sealed Store and nonzero target-layout checks.",
+    "The surrounding owned-closure graph still enforces capture positions, live flags, cleanup prefixes and Fn/FnMut/FnOnce result restrictions; no schema, opcode or ABI extension was introduced."
+  ],
+  "source_provenance": "evidence/reviews/225/construction10/PROVENANCE-P2.json",
+  "execution_evidence": "evidence/reviews/225/construction10/ci41184530698/RESULT.json",
+  "ci": {
+    "run_id": 41184530698,
+    "job_id": 124488604160,
+    "run_attempt": 1,
+    "ci_candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
+    "actual_checkout_commit": "045dc75cec6eaa4de52951e075c52fd809fb6b3c",
+    "all_steps_success": true,
+    "workspace": {
+      "passed": 2976,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "reference": {
+      "passed": 2933,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "independent_slice_each_backend": {
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "independent_native_api": 10,
+    "independent_native_clang_reference": 10
+  },
+  "independent_test_path": "crates/zil-driver/tests/review225226_capture.rs",
+  "independent_test_blob": "96a696f917dac46010ad3e107163d3f2ce13e261",
+  "first_failure_preserved": {
+    "run_id": 41182685056,
+    "status": "Fail",
+    "actual_checkout_commit": "015cb5d4e6c7794de616e0a933520cd3dfa886f7",
+    "original_test_blob": "9479b3e5a914b4ce75b2b84ac05447d08896696b",
+    "slice_original_result": {
+      "passed": 6,
+      "failed": 2
+    },
+    "evidence": "evidence/reviews/225/construction10/ci41182685056/FAILURE.json",
+    "failure_json_sha256": "387d77ae8995da3054bb1996303d5bcf1c48137fa989d945ca0a814a2e0bc138",
+    "correction": "evidence/reviews/225/construction10/CORRECTION.json",
+    "production_not_changed_for_fixture_correction": true,
+    "original_single_environment_input_retained_as_explicit_unsupported": true,
+    "raw_locator_fixed_without_weakening_rejection": true
+  },
+  "boundaries": {
+    "full_language_1_4": "NotSatisfied",
+    "B0": "Doing",
+    "Rust_product_gates": "NotRun",
+    "native_Windows": "NotRun",
+    "main_ci_replay": "Pending integration owner",
+    "default_plain_Product_readonly_capture": "Unfinished",
+    "parameter_and_outer_capture_origins": "Unsupported in delivered subset",
+    "mixed_owning_Store_and_external_shared_Hold_in_one_environment": "Unsupported by existing self-contained boundary"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "status": "SafeReject",
+  "phase": "types",
+  "diagnostics": [
+    {
+      "phase": "types",
+      "category": "SafeReject",
+      "code": "E-RECEIVER-NONE",
+      "message": "leading-dot member requires a lexical method receiver",
+      "span": {
+        "file": 2,
+        "start": 82,
+        "end": 84
+      },
+      "notes": []
+    }
+  ],
+  "artifacts": {
+    "core": "/home/runner/work/_temp/native-evidence/workspace/review231-35480/native-O0-project/phases/core.txt",
+    "source-map": "/home/runner/work/_temp/native-evidence/workspace/review231-35480/native-O0-project/phases/source-map.txt",
+    "syntax": "/home/runner/work/_temp/native-evidence/workspace/review231-35480/native-O0-project/phases/syntax.txt"
+  },
+  "input_fingerprint": "54fdd9ec47bd19ae421f96379347a6545f8355a783fb7fa5c063eeac6a909766",
+  "seconds": 0.011812473,
+  "cache_hit": false,
+  "commands": [],
+  "native_codegen": null,
+  "disk_cache": "disabled",
+  "query_events": [
+    {
+      "phase": "parse",
+      "disposition": "executed"
+    },
+    {
+      "phase": "parse",
+      "disposition": "executed"
+    },
+    {
+      "phase": "parse",
+      "disposition": "executed"
+    },
+    {
+      "phase": "expand",
+      "disposition": "executed"
+    },
+    {
+      "phase": "ct",
+      "disposition": "executed"
+    }
+  ],
+  "verification_runs": 0,
+  "source_files": {
+    "0": "main.zil",
+    "1": "rules.zil",
+    "2": "data.zil"
+  },
+  "scalar_interfaces": []
+}

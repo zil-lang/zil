@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "task": "231",
+  "parent_task": "B0",
+  "reviewer": "/root/continuity_audit",
+  "implementation_author": "/root/defer_design",
+  "verdict": "NotRun",
+  "record_kind": "IndependentStaticReviewPreparation",
+  "implementation_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+  "integration_candidate": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+  "test_commit": "6e8fedac2af340ef2c09f134dd8a4d319b004bfb",
+  "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+  "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
+  "identity_checks": {
+    "authority_main_tree": "/workspace/scratch/b2d4304a481d/z10-restored-main",
+    "authority_main_head": "64ce5cbef4624111b98bd3d48e8eb3325b8cd71c",
+    "authority_task_sha256": "8251fca0a83b660855eb7c5a8d3049f3801d42c689ad2187053360599ecfd46f",
+    "production_crates_tree": "ba5930e9b42315e08b6b10050d8e18efa7be2301",
+    "integration_crates_tree": "a5b4a535053b6bf6478b95a975eed848a0846ffd",
+    "production_to_integration_crate_changes": [
+      "crates/zil-driver/tests/review225226_capture.rs",
+      "crates/zil-driver/tests/review230_independent.rs",
+      "crates/zil-driver/tests/review231_independent.rs"
+    ],
+    "review_test_path": "crates/zil-driver/tests/review231_independent.rs",
+    "review_test_blob": "130080594ed458632de761fec4c32bd6c7399d69",
+    "production_files": [
+      {
+        "path": "crates/zil-expand/src/generic_where.rs",
+        "production_blob": "a8db37edccaa2db42c0aa138a32b474b4eecec8f",
+        "worktree_blob": "a8db37edccaa2db42c0aa138a32b474b4eecec8f",
+        "static_read": true
+      },
+      {
+        "path": "crates/zil-expand/src/modules.rs",
+        "production_blob": "5c972b8defc55cd9b61bbee79bb272b90c54eb07",
+        "worktree_blob": "5c972b8defc55cd9b61bbee79bb272b90c54eb07",
+        "static_read": true
+      },
+      {
+        "path": "crates/zil-expand/src/generic_trait_bounds.rs",
+        "production_blob": "71891d7c28277681c82453ea13c97aece7745528",
+        "worktree_blob": "71891d7c28277681c82453ea13c97aece7745528",
+        "static_read": true
+      },
+      {
+        "path": "crates/zil-expand/src/generics.rs",
+        "production_blob": "0efc5aa423cdc5e8fbedd4a5673c163f329a6940",
+        "worktree_blob": "0efc5aa423cdc5e8fbedd4a5673c163f329a6940",
+        "static_read": true
+      }
+    ]
+  },
+  "static_findings": [
+    {
+      "topic": "ordinary bound authority",
+      "observation": "Normalization restricts where subjects to directly declared ordinary type binders. It reuses Index::declaration before aliases and feeds nominal obligations back to existing generic checking; no new impl or field/callable/Copy permission is introduced."
+    },
+    {
+      "topic": "module identity and privacy",
+      "observation": "The module visitor resolves each where subject and bound with the same local type-binder set used for inline bounds. Index declaration and impl matching retain the complete canonical identity."
+    },
+    {
+      "topic": "reserved-name repair",
+      "observation": "Only a dollar-module prefix followed by nonempty decimal digits and an underscore is stripped for the reserved-name exclusion; full names remain declaration/impl keys. Similar ordinary names are not split arbitrarily."
+    },
+    {
+      "topic": "grouped nominal equivalence",
+      "observation": "trait_bounds::plain uses grouped traversal for nominal bounds. Direct built-in Copy retains the existing 229 syntax boundary, and projected/compound subjects remain excluded."
+    },
+    {
+      "topic": "budget prepayment",
+      "observation": "The module clone is prepaid. The lazy new Index is preceded by item/name/type traversal; nominal bounds and deduplication scans spend the same request budget. Actual boundary measurements remain pending."
+    },
+    {
+      "topic": "duplicates",
+      "observation": "Copy repetitions are collapsed. Nominal repetitions remain visible to existing duplicate-bound checks, including inline plus where occurrences."
+    },
+    {
+      "topic": "recovery examples",
+      "observation": "The three module example sources have new explicit identities and matching recorded byte/SHA256/Git hashes. They exercise real aliased module identity and generic shared-parameter forwarding; no historical thresholds are adopted."
+    }
+  ],
+  "independent_probe_definitions": [
+    "independent_grouped_bounds_and_cross_subject_clause_order",
+    "independent_module_identity_alias_privacy_and_binder_boundaries",
+    "independent_reserved_capabilities_and_similar_ordinary_trait_names",
+    "independent_raw_ast_prefixes_only_apply_the_reserved_name_exclusion",
+    "independent_native_grouped_module_and_generated_enum_consumers",
+    "independent_module_where_budget_boundary_survives_cache_replay"
+  ],
+  "expected_native_coverage": {
+    "execution_status": "NotRun",
+    "source_families": [
+      "grouped_where_and_cross_subject_order",
+      "inline_equivalent",
+      "real_three_module_identity",
+      "generated_enum_and_grouped_where_composition"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "intended_builds_and_runs_per_backend": 8,
+    "backends": [
+      "llvm-api",
+      "clang-reference"
+    ],
+    "required_observations": [
+      "one Verify run before native code",
+      "LLVM API builder and verify_before_after true where applicable",
+      "no backend fallback",
+      "actual exit code zero",
+      "actual empty stdout and stderr"
+    ]
+  },
+  "budget_review": {
+    "execution_status": "NotRun",
+    "independent_axes": [
+      "max_nodes",
+      "max_analysis_steps"
+    ],
+    "required_sequence": [
+      "fresh boundary N",
+      "shared session N",
+      "warm N",
+      "N-1 ResourceLimit",
+      "recovered warm N",
+      "fresh N"
+    ],
+    "new_module_example_prior_thresholds_reused": false,
+    "observed_minima": null
+  },
+  "new_example_sources": [
+    {
+      "path": "examples/mainline/where_traits231/main.zil",
+      "name": "main.zil",
+      "bytes": 205,
+      "git_blob_sha": "e6ce0a8716510e1ac0719617ca214b8bd97b596d",
+      "sha256": "dd34dc971783ad44cbb5495bcb95034c2179b5a6350265633cec2498c0fce6a2"
+    },
+    {
+      "path": "examples/mainline/where_traits231/model.zil",
+      "name": "model.zil",
+      "bytes": 162,
+      "git_blob_sha": "c79d377b76cc65d8b9db1be23230b29dc22bcbd8",
+      "sha256": "898fbb884e355b208cf50d4031086c5f529f2d59d97ba5a6b13fd621631e5bfe"
+    },
+    {
+      "path": "examples/mainline/where_traits231/helper.zil",
+      "name": "helper.zil",
+      "bytes": 137,
+      "git_blob_sha": "1521db649b84db55b25867abffbad4cabc3c502e",
+      "sha256": "613760489edb385d8477b5c23eab726cb97c3e03967165c824d0263578879a35"
+    }
+  ],
+  "live_handoff_record_check": {
+    "scope": "Live handoff record integrity; not language correctness, review quality or full task acceptance.",
+    "status": "Fail",
+    "exit_code": 1,
+    "global_error_count": 1400,
+    "active_231_errors": [],
+    "stdout_sha256": "3e3c1392a2f6237b3b44b7f7af9519551295e122b49d0c17ec93b5b09c306df4",
+    "interpretation": "Record-integrity result only; not compiler correctness or an acceptance verdict. Historical Fail is retained."
+  },
+  "runtime_evidence": {
+    "status": "NotRun",
+    "cargo_commands_executed_by_reviewer": [],
+    "ci_run": null,
+    "ci_checkout": null,
+    "test_results": null,
+    "machine_results": null,
+    "artifact_checksums": null
+  },
+  "signoff_requirements": [
+    "Root supplies original full CI logs and artifacts for the new candidate.",
+    "Verify actual checkout/tree identity and nonzero selection of all six independent probes.",
+    "Inspect actual source reports, rejection phases, native results, and fresh/warm budget boundaries.",
+    "Preserve any original failure and classify it before correction or rerun.",
+    "Only then issue a separate final review JSON binding the exact production candidate."
+  ],
+  "scope_boundary": {
+    "231_non_author_review": true,
+    "230_authorship_disclosed": "Reviewer authored slice 230; this record does not independently accept 230.",
+    "complete_language": "NotSatisfied",
+    "product_gates": "NotRun",
+    "parent_B0": "Doing"
+  },
+  "conclusion": "Static preparation completed. No additional blocking issue was identified in this read-only review; this is not execution evidence or approval."
+}

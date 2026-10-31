@@ -1,0 +1,1 @@
+trait Marker{}#for(n in [1]){type Count=i32;fn bad<T>(x:T)->T where T:Copy+Marker=>x;}fn main()->i32=>0

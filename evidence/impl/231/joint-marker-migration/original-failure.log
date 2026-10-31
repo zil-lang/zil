@@ -1,0 +1,21 @@
+     Running tests/review229_joint.rs (/home/runner/work/_temp/target/debug/deps/review229_joint-d7e9250dc190cb26)
+
+running 2 tests
+test generated_types_do_not_grant_where_binders_members_or_numeric_rights ... FAILED
+test generated_array_alias_and_shadowing_where_helper_execute_at_o0_and_o2 ... ok
+
+failures:
+
+---- generated_types_do_not_grant_where_binders_members_or_numeric_rights stdout ----
+
+thread 'generated_types_do_not_grant_where_binders_members_or_numeric_rights' (35429) panicked at crates/zil-driver/tests/review229_joint.rs:45:9:
+invalid-bound: {"status":"Success","phase":"verify","diagnostics":[],"artifacts":{"candidate":"/home/runner/work/_temp/native-evidence/workspace/review229-joint-35427/invalid-bound/phases/candidate.txt","core":"/home/runner/work/_temp/native-evidence/workspace/review229-joint-35427/invalid-bound/phases/core.txt","ct-core":"/home/runner/work/_temp/native-evidence/workspace/review229-joint-35427/invalid-bound/phases/ct-core.txt","selection":"/home/runner/work/_temp/native-evidence/workspace/review229-joint-35427/invalid-bound/phases/selection.json","source-map":"/home/runner/work/_temp/native-evidence/workspace/review229-joint-35427/invalid-bound/phases/source-map.txt","syntax":"/home/runner/work/_temp/native-evidence/workspace/review229-joint-35427/invalid-bound/phases/syntax.txt","typed":"/home/runner/work/_temp/native-evidence/workspace/review229-joint-35427/invalid-bound/phases/typed.txt","verified":"/home/runner/work/_temp/native-evidence/workspace/review229-joint-35427/invalid-bound/phases/verified.txt"},"input_fingerprint":"be6f9b832966249ac0c14e11970ec8f9980fc2bb145f056c177909a00f4a284b","seconds":0.012797109,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"review229-joint.zil"},"scalar_interfaces":[]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    generated_types_do_not_grant_where_binders_members_or_numeric_rights
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+error: test failed, to rerun pass `-p zil-driver --test review229_joint`

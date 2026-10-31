@@ -1,0 +1,18 @@
+{
+  "head": "4d12fe3c9c6b307426099ae53b056c19e9122183",
+  "exit_code": 1,
+  "materialization": "Full tracked working tree; sparse-checkout disable completed successfully before this command.",
+  "stdout": "stdout.json.gz",
+  "stderr": "stderr.log",
+  "status": "Fail",
+  "errors": 1145,
+  "warnings": 0,
+  "new_task_errors": {
+    "225": [],
+    "226": [],
+    "230": [],
+    "231": []
+  },
+  "stdout_sha256": "93a8c483016329cdd6271a0060a1b2bcbc30c9dbee8000e2f603f25a09e8d671",
+  "scope": "Record-integrity baseline only; the global Fail is not a compiler test verdict, and current four pending slices have zero baseline errors."
+}

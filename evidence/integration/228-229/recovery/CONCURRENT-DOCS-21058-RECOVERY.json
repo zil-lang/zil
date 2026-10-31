@@ -1,0 +1,243 @@
+{
+  "utc": "2026-10-31T02:01:41.989372+00:00",
+  "status": "Pass",
+  "exact_previous_main": "e463b7eec0b25e931d8ba58253ae31efaec4b4b4",
+  "exact_new_main": "21058d0e331de764e3a1b9123c3e1edf5e55a1aa",
+  "exact_new_tree": "88582e2ee29f3a9aaa28aa92deda219ebd910500",
+  "exact_commit_chain": [
+    {
+      "sha": "2eedbb29d8ceee326c698d9b4cae051aa344b29c",
+      "parent": "e463b7eec0b25e931d8ba58253ae31efaec4b4b4",
+      "tree": "99aec1bf7e9be8eae05d39facacf50b14b2b3b19",
+      "changed_paths": [
+        "evidence/impl/225/OUTER-CLI.json"
+      ]
+    },
+    {
+      "sha": "c0102d73471cdd82ea2cbceb347e5aaf269221e1",
+      "parent": "2eedbb29d8ceee326c698d9b4cae051aa344b29c",
+      "tree": "b3ba921cc119a4f7aad323fa83e7478c512b291c",
+      "changed_paths": [
+        "evidence/integration/225-226/CI225.json"
+      ]
+    },
+    {
+      "sha": "23f949d19d1e5b96c28b90248d2b82c1769880ca",
+      "parent": "c0102d73471cdd82ea2cbceb347e5aaf269221e1",
+      "tree": "7b75212b0257776790cf7bf6db39cd975f6abec5",
+      "changed_paths": [
+        "docs/log/zil施工8.md"
+      ]
+    },
+    {
+      "sha": "21058d0e331de764e3a1b9123c3e1edf5e55a1aa",
+      "parent": "23f949d19d1e5b96c28b90248d2b82c1769880ca",
+      "tree": "88582e2ee29f3a9aaa28aa92deda219ebd910500",
+      "changed_paths": [
+        "docs/LANGUAGE-225-227.md"
+      ]
+    }
+  ],
+  "raw_objects": [
+    {
+      "sha": "21058d0e331de764e3a1b9123c3e1edf5e55a1aa",
+      "type": "commit",
+      "bytes": 288,
+      "sha256": "dae9a0fd0b39751c39a65b78eaa2f948c35de9750dc3ebde3ee2b83ceeaf209e",
+      "author_timezone": "+0800",
+      "committer_timezone": "+0800",
+      "added_message_trailing_lf": false
+    },
+    {
+      "sha": "23f949d19d1e5b96c28b90248d2b82c1769880ca",
+      "type": "commit",
+      "bytes": 271,
+      "sha256": "e2c21bc8cf2a7799d4bc8456fdb999cebf0f3e6ce6762ccc616792bb0dfbbc9e",
+      "author_timezone": "+0800",
+      "committer_timezone": "+0800",
+      "added_message_trailing_lf": false
+    },
+    {
+      "sha": "2eedbb29d8ceee326c698d9b4cae051aa344b29c",
+      "type": "commit",
+      "bytes": 278,
+      "sha256": "4c069ea26ad2964cdb7d1a83f1f7c6079088b0a136b8ac73b6e07f13df86db7b",
+      "author_timezone": "+0800",
+      "committer_timezone": "+0800",
+      "added_message_trailing_lf": false
+    },
+    {
+      "sha": "c0102d73471cdd82ea2cbceb347e5aaf269221e1",
+      "type": "commit",
+      "bytes": 274,
+      "sha256": "3cfec62f316e378421c5e8440a3080745c5a59affacad9374ccb3a436bcd2b29",
+      "author_timezone": "+0800",
+      "committer_timezone": "+0800",
+      "added_message_trailing_lf": false
+    },
+    {
+      "sha": "40751420fd35242f7216f576d7dfe81951dde7f8",
+      "type": "tree",
+      "bytes": 1800,
+      "sha256": "ddc869dc065add15b323d8892485a08e0d156d5e0267ccbf5863e61a551955ce"
+    },
+    {
+      "sha": "4d4473061d4047278ce369637889966a800072e3",
+      "type": "tree",
+      "bytes": 3151,
+      "sha256": "8cc87f2cdfcccd9bba244cd44d8552dc8a2a8c107d024636c06d5760a67d436d"
+    },
+    {
+      "sha": "509036b4c26b13533097dd32bba379b10544b1b3",
+      "type": "tree",
+      "bytes": 41,
+      "sha256": "dc6acbb571b9a9dfac1a7b96b4e0ef2dab1dea633a1e646ee94ef3ea4d8d4975"
+    },
+    {
+      "sha": "5ac71cf1f66dd01cbf9406ac75afb58f839ae509",
+      "type": "tree",
+      "bytes": 42,
+      "sha256": "ccfc4ae229f0f180e62bbaf4a9a4f19e1a2870a3376127ccc822278ff9f00838"
+    },
+    {
+      "sha": "7b75212b0257776790cf7bf6db39cd975f6abec5",
+      "type": "tree",
+      "bytes": 1137,
+      "sha256": "19fc49de079b689f853e1038837f5b82f79a50214ac5489edbde0e8522fe2e9c"
+    },
+    {
+      "sha": "801dfa1bfcfe8789f59b2d9ab6c9cb2488613197",
+      "type": "tree",
+      "bytes": 559,
+      "sha256": "c6f62f76e7a9898c82ca5f83d7e74cb1d61b4f3157cdb719d0e3cce28fb2bc3d"
+    },
+    {
+      "sha": "88582e2ee29f3a9aaa28aa92deda219ebd910500",
+      "type": "tree",
+      "bytes": 1137,
+      "sha256": "fae4fab0e36bc5f077833737b26a034cf7b26f098d82beb39b7348de847f0a37"
+    },
+    {
+      "sha": "99aec1bf7e9be8eae05d39facacf50b14b2b3b19",
+      "type": "tree",
+      "bytes": 1137,
+      "sha256": "0909bc70d7ff237084b5c51e2ae31461492733c1719f5dc904a2c89b51479a80"
+    },
+    {
+      "sha": "9a2e697431288ebfcd8870cfb2327f158bb90e07",
+      "type": "tree",
+      "bytes": 38,
+      "sha256": "dde75355dcfddc91134ed9e53ff76709cdffd461e1482798e266fe8b3ef417ee"
+    },
+    {
+      "sha": "a52b623b337d0b29e6152b84834d4e63bab2a530",
+      "type": "tree",
+      "bytes": 3198,
+      "sha256": "99514dae5a087a1a8162ee0fe11fa43b89bd475a5ba114609b080431135f777e"
+    },
+    {
+      "sha": "b3ba921cc119a4f7aad323fa83e7478c512b291c",
+      "type": "tree",
+      "bytes": 1137,
+      "sha256": "73f227b6b955cf8cbb92ee039372e8d0cf110e08f0afd1cd7a64589d1bf7e2e8"
+    },
+    {
+      "sha": "bf6178a691aaa6533fad08be0c381739916f6ef9",
+      "type": "tree",
+      "bytes": 559,
+      "sha256": "8ab7b6dc603383fe297e6f86ad890432a2fc6ef205e3d4465b40a3b6a050e80e"
+    },
+    {
+      "sha": "dde391830e5ac4a4d7862ff22635817f11020096",
+      "type": "tree",
+      "bytes": 492,
+      "sha256": "8384f1f911e08f6ba24ea8db756681b46d0f0191b266a3e58a53f0901615aa1e"
+    },
+    {
+      "sha": "43fe76dab7eb2a1f00b22ad873da307f9ffe3e6d",
+      "type": "blob",
+      "bytes": 484,
+      "sha256": "624d4a2144b272eb3870436ffbf5b6eda1a54dfa26f76e6f069ce09916a89c9f"
+    },
+    {
+      "sha": "7a6231d30840cf7e897898d9f36be07fd8aa1339",
+      "type": "blob",
+      "bytes": 5793,
+      "sha256": "419147b11a3a23d16daea63ccaa5784accc806409a7f26fbd010a0d795e425a9"
+    },
+    {
+      "sha": "9d52a6edda04613fb3d5d5b5be7eba398ec72005",
+      "type": "blob",
+      "bytes": 2744,
+      "sha256": "8b0bfddb33cc1e36ab852b903cf947d02b4604f8a2c13d01a082df21c58206cf"
+    },
+    {
+      "sha": "fb69267b267380ce115936579aa55114eb2cc3b2",
+      "type": "blob",
+      "bytes": 2856,
+      "sha256": "396605f53a1a75ac74259045fc1c2e13978bfda67dece5f6332961de6ed80cc0"
+    }
+  ],
+  "raw_object_bytes": 27416,
+  "changed_paths": [
+    "docs/LANGUAGE-225-227.md",
+    "docs/log/zil施工8.md",
+    "evidence/impl/225/OUTER-CLI.json",
+    "evidence/integration/225-226/CI225.json"
+  ],
+  "production_trees": {
+    "crates": {
+      "before": "21bdc454a5c7947cb7899ddd9321f91c6bf7fb77",
+      "after": "21bdc454a5c7947cb7899ddd9321f91c6bf7fb77",
+      "equal": true
+    },
+    "crates/zil-driver/src": {
+      "before": "5cad5e35d03c16291e4cd45adbef8c769b5cab54",
+      "after": "5cad5e35d03c16291e4cd45adbef8c769b5cab54",
+      "equal": true
+    },
+    "crates/zil-expand/src": {
+      "before": "01c3690f47779962a87665e725353cffd361eb33",
+      "after": "01c3690f47779962a87665e725353cffd361eb33",
+      "equal": true
+    }
+  },
+  "all_protected_ci_paths_identical": true,
+  "protected_ci_paths": [
+    "crates",
+    "Cargo.toml",
+    "Cargo.lock",
+    "build.rs",
+    "rust-toolchain",
+    "rust-toolchain.toml",
+    ".cargo",
+    "tools",
+    ".github",
+    "policy",
+    "stdlib",
+    "std",
+    "spec",
+    "_zil_design.md",
+    "examples",
+    "conformance",
+    "validation",
+    "tests",
+    "benches",
+    "data/normative-inputs.json"
+  ],
+  "isolated_connectivity": {
+    "exit_code": 0,
+    "no_alternates": true,
+    "no_remote": true,
+    "log": "isolated-connectivity.log",
+    "base_complete_pack_previously_hash_verified": true,
+    "all_new_raw_objects_individually_hash_verified": true
+  },
+  "updated_ref": "refs/remotes/origin/main",
+  "compare_and_swap_from": "e463b7eec0b25e931d8ba58253ae31efaec4b4b4",
+  "local_heads_unchanged": true,
+  "tracked_worktree_status_unchanged": true,
+  "source_alternates_untouched": true,
+  "source_zip_untouched": true,
+  "remote_operations": 0
+}

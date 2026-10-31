@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "task": "225",
+  "evidence_level": "AuthorExecutedNotIndependentReview",
+  "implementation_commit": "5f47ffa58f5e8cb7bb03ac94675e9bc6bed3b9a0",
+  "production_implementation_commit": "bd802f3a6a59e5e83c9b5c7ebf188371fef6cc0c",
+  "baseline": "42ce8081a2aa5722a14fea53f23f819f46685a60",
+  "contract_commit": "5be89dfb36b1f927524008526ae647f3c4a03e59",
+  "spec_sha256": "f88ccd11ed50392508c5742ab108706889434a0aa492046e5559aca1b3578983",
+  "normative_sha256": "9eb72e7e8508a34f0978952ed96fc9b7bdd40362b608b88c4a93be2ab950fdde",
+  "toolchain": {"rust": "1.99.1", "llvm": "23.1.4", "host": "Linux x86_64", "native_backend": "LlvmApiBuilder", "fallback": false},
+  "targeted": {
+    "command": "cargo test --locked --offline -p zil-driver --features llvm-api --test impl225_budget --test impl225_machine --test impl225_product_store_capture --test impl204_source --test impl204_budget --test impl204_review --test impl204_analyze_capture --test impl214_source --test impl223_product_store --test impl223_budget --test impl224_shared_product --no-fail-fast",
+    "exit": 0, "passed": 107, "failed": 0, "ignored": 0,
+    "new_tests": 12, "compatibility_tests": 95,
+    "log_sha256": "a725075ae26c1bfd6fda6f43ec90ff7c32147d15872ef39a4b5f0c89d7a4582d",
+    "overlap": "Earlier iterations overlap and are not added to this total."
+  },
+  "clippy": {"scope": "zil-driver impl225_budget, impl225_machine, impl225_product_store_capture and impl223_product_store with llvm-api; -D warnings", "exit": 0, "log_sha256": "9f890595422580c0a10c0c9828e8388701e9937abde3ea3a7f24ce005e11e43f"},
+  "native_fault_matrix": {"builds": 6, "executions": 34, "actual_injected_failures": 22, "optimizations": ["O0", "O2"], "modes": ["FnMut", "FnOnce", "uninvoked"], "all_final_live_allocations": 0, "oracle": "Exact exit/stdout/allocation calls/frees/failures; all inspected objects are emitted by LLVM API builder."},
+  "budgets": {
+    "legacy_flat_baseline": {"Types": 835, "Analyze": 7129, "Verify": 12161},
+    "legacy_flat_candidate": {"Types": 835, "Analyze": 7129, "Verify": 12161},
+    "nested_candidate": {"Types": 3889, "Analyze": 36339, "Verify": 56097},
+    "checks": ["N success", "N-1 ResourceLimit only", "fresh N success"],
+    "baseline_log_sha256": "19b33bb8eed53fae842881e64d70b06957fdecda90d1c75150975c4053411274"
+  },
+  "baseline_acceptance": {"new_source_on_old_main": "Unsupported", "new_source_log_sha256": "0129f687aae8be3fa7408758d3aa33b192a072b6398bb8e9805e48851c6298ef", "original_223_negative_test": "Pass", "original_test_log_sha256": "57695ef108ec6c48a85c807050dbb31173b9e8ab5a92b3218d2a1c045172e350"},
+  "migration": "The exact original 223 captured-product-store source is promoted from Unsupported to Success by the new contract; other original negatives and historical manifests remain unchanged.",
+  "historical_failures": [
+    {"kind": "Expected assertion migration", "result": "Original 223 negative assertion failed after intentional admission", "log_sha256": "48094c344b50d801ff6751f7c11cc4ee1b1932f784dfb0fa549e57c7b8db9024"},
+    {"kind": "Author test-quality repair", "result": "Canonical raw/Wire test now uses a valid source-derived control plan and refreshed fingerprint, requiring the specific canonical diagnostic rather than malformed-plan rejection."},
+    {"kind": "Author test compilation/attack construction/Clippy iterations", "result": "Retained as author iteration failures, not independently discovered production defects."}
+  ],
+  "independent_code_review": {"reviewer": "chatgpt-codex-connector[bot]", "reviewed_commit": "bd802f3a6a59e5e83c9b5c7ebf188371fef6cc0c", "status": "CompletedNoMajorFindings", "receipt_comment": 6536927660, "execution_receipt": "NotProvided", "strengthened_test_followup": "NotYetReviewed"},
+  "full_ci": "Pending exact PR-head execution; this receipt is not full CI acceptance.",
+  "artifacts": "Native phase/object/execution outputs are generated under ZIL_TEST_REPORT_DIR. Full PR CI archives them using the unchanged verify-main workflow. Author raw logs remain in the recovery package until separately published; hashes alone are not proof of execution.",
+  "remaining": ["independent review of final head", "full workspace/reference/native/Clippy CI", "general captured Product internal Store and arbitrary ownership", "full 1.4", "Rust product gates", "native Windows"],
+  "status": "AuthorPassPendingIntegration"
+}

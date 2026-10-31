@@ -1,0 +1,632 @@
+{
+  "schema_version": 1,
+  "operation": "Lossless packaging of existing CI audit and receipts; no compiler test rerun or alteration of receipt identity, counts or conclusions.",
+  "source_result_sha256": "d841771bf649b1a9fff53fd769142f83022509d24ffddc991e0053db8b40aa0e",
+  "source_audit_directory": "/workspace/scratch/e9af9764d083/ci-audit-41154458005",
+  "standalone_original_bytes": [
+    {
+      "path": "RESULT.json",
+      "bytes": 16386,
+      "mode": 420,
+      "sha256": "d841771bf649b1a9fff53fd769142f83022509d24ffddc991e0053db8b40aa0e"
+    },
+    {
+      "path": "workspace.zip",
+      "bytes": 3432695,
+      "mode": 420,
+      "sha256": "de6e48ac1f6e41f81ea0e14972ecc7cf8e4ee51ac9786c1b21c4e3f4d2e58e34",
+      "api_artifact_id": 13024558252,
+      "api_digest": "sha256:de6e48ac1f6e41f81ea0e14972ecc7cf8e4ee51ac9786c1b21c4e3f4d2e58e34"
+    },
+    {
+      "path": "reference.zip",
+      "bytes": 3372605,
+      "mode": 420,
+      "sha256": "55a4077e8e6836346a4fa27d0f9ef563f3e3a1384aef9e65c2311a5d8420fc34",
+      "api_artifact_id": 13025092302,
+      "api_digest": "sha256:55a4077e8e6836346a4fa27d0f9ef563f3e3a1384aef9e65c2311a5d8420fc34"
+    }
+  ],
+  "archives": [
+    {
+      "path": "audit.tar.xz",
+      "bytes": 178288,
+      "sha256": "5cda7cf9cc5803c3f4452ddce0df079722615f6ea251da0ff9c06fb65a2d8fab",
+      "members_verified": 26,
+      "verification": "Completed archive reread: exact membership, original uncompressed bytes, SHA256 and mode. No extraction.",
+      "files": [
+        {
+          "path": "RESULT.json",
+          "bytes": 16386,
+          "mode": 420,
+          "sha256": "d841771bf649b1a9fff53fd769142f83022509d24ffddc991e0053db8b40aa0e"
+        },
+        {
+          "path": "artifacts-final.json",
+          "bytes": 4060,
+          "mode": 420,
+          "sha256": "7430f06b7e5e93710083bb683234ba9089b76d1e7fc9dda872be36adab21f879"
+        },
+        {
+          "path": "artifacts-workspace-observed.json",
+          "bytes": 1641,
+          "mode": 420,
+          "sha256": "b570f1e3b6caa6f6e625ca1d1b6b6189a80976cfc24507f4b1ebe8b97c6204fd"
+        },
+        {
+          "path": "audit-parser-attempt-01.json",
+          "bytes": 470,
+          "mode": 420,
+          "sha256": "85537b3098ab47e2fdc6a40fc774dc825b42561afeea98d34df121bfed3d8dd4"
+        },
+        {
+          "path": "audit_final.py",
+          "bytes": 8507,
+          "mode": 420,
+          "sha256": "2ffbd9330a4ef72fef5e337ee54c2c43bded5d0b284801fbaedf766759afe264"
+        },
+        {
+          "path": "audit_receipts.py",
+          "bytes": 7685,
+          "mode": 420,
+          "sha256": "4e070ebfc871de86cd84505d0c98f4c9399c6944fe2317713fa4488941c618ae"
+        },
+        {
+          "path": "compare_phases.py",
+          "bytes": 3401,
+          "mode": 420,
+          "sha256": "6988a18d05f1ffa43ee60d983e527ba6fb8720f04e9056a91a0dd68683817090"
+        },
+        {
+          "path": "download_receipt.py",
+          "bytes": 1255,
+          "mode": 420,
+          "sha256": "bb4787a19ce80cae1ecc1cbfdc6d915fe5147d993914168f5bab84c86bb84cf7"
+        },
+        {
+          "path": "feature-count-differences.json",
+          "bytes": 16171,
+          "mode": 420,
+          "sha256": "6075bc1ce716ceb2e3387eb0da0457e4f56df012a52a68e2f07aed52fcd75780"
+        },
+        {
+          "path": "final-audit.json",
+          "bytes": 54682,
+          "mode": 420,
+          "sha256": "a80afb9ea5be79b3b00433f7018e46ceedd1abe191b1b2c87a6ce998dda48e0e"
+        },
+        {
+          "path": "job.log",
+          "bytes": 961695,
+          "mode": 420,
+          "sha256": "dfcfb88fcd293d335e543fe2b143afc1bf29fc4599228b677f1df1d58cdf64c8"
+        },
+        {
+          "path": "jobs-final.json",
+          "bytes": 7978,
+          "mode": 420,
+          "sha256": "838742e176fc24e66bb8833bb7f9cf035d76af33521fbecf8a8ee5b2b3ff5e7e"
+        },
+        {
+          "path": "jobs-observed-01.json",
+          "bytes": 4317,
+          "mode": 420,
+          "sha256": "96d5005fc6ba53f2fc9754e44db020cd5dcd3ec6771883ffbd9d50fd55490022"
+        },
+        {
+          "path": "merge-git-object.json",
+          "bytes": 2752,
+          "mode": 420,
+          "sha256": "9ae8a328fc594cc7f1b4b57288fd4bdbf7a89f4f81aa9992c664a6980c09a0ee"
+        },
+        {
+          "path": "merge-root-tree.json",
+          "bytes": 8211,
+          "mode": 420,
+          "sha256": "416a5d2a7a6dce811b094c44653c854261667810f8f50f435e1dbdebec9ecd83"
+        },
+        {
+          "path": "observations.json",
+          "bytes": 1511,
+          "mode": 420,
+          "sha256": "bc70cec7d7e40be9ed4f204a3ae0ca407f6e4c0d4288013125f9d22ad769c4ed"
+        },
+        {
+          "path": "reference-audit.json",
+          "bytes": 380420,
+          "mode": 420,
+          "sha256": "f42c79aa51598398b117c08fd343c0f25c200469219b381886c7beabf82f072e"
+        },
+        {
+          "path": "reference.transfer.json",
+          "bytes": 324,
+          "mode": 420,
+          "sha256": "9c8a1a0230dc7a23d3bc9c523f18eb50a9a1f87606ecd324087fb727ccad37e8"
+        },
+        {
+          "path": "run-final.json",
+          "bytes": 13444,
+          "mode": 420,
+          "sha256": "1ffb1960a6eccba3b7aa0eacbd90a5183bcf2dc4c2682c91e82e41c93793ca3d"
+        },
+        {
+          "path": "run-observed-01.json",
+          "bytes": 13441,
+          "mode": 420,
+          "sha256": "3bba803502da055647a12d4268208e751149b9a58d50602340c217f860f9dc9a"
+        },
+        {
+          "path": "source-subtree-binding.json",
+          "bytes": 2499,
+          "mode": 420,
+          "sha256": "5f76463c8ba0a5c335d84959cfef52c1144bc45c035ae35f23026af30dfd233b"
+        },
+        {
+          "path": "steps-observed-02.json",
+          "bytes": 3570,
+          "mode": 420,
+          "sha256": "668c3a294dd76d26c07a17f72ef20f2defff5d62e4e1d11dc7336dc433a32c45"
+        },
+        {
+          "path": "workflow-audit.json",
+          "bytes": 11387,
+          "mode": 420,
+          "sha256": "08bf7baec02c9ef06a3bb040ce4dc9d886fffb3b731582cddeab7d13095d565f"
+        },
+        {
+          "path": "workflow-binding-head.json",
+          "bytes": 2143,
+          "mode": 420,
+          "sha256": "9b78eacbd5034d9ebbcf84de3f17739eef362cdcfa93472b009175faedc043c0"
+        },
+        {
+          "path": "workspace-audit.json",
+          "bytes": 380752,
+          "mode": 420,
+          "sha256": "2c128c7e38bd04865f6a19291bb83eee2641ab0abc51f6efc31a832d27781de3"
+        },
+        {
+          "path": "workspace.transfer.json",
+          "bytes": 324,
+          "mode": 420,
+          "sha256": "da186a12004d35fb9f8175c9c752db4b96b98e7161a585766db2422560f8e127"
+        }
+      ]
+    },
+    {
+      "path": "final-receipts.tar.xz",
+      "bytes": 4072876,
+      "sha256": "8865fe3cf81168ded04718ba3849fa08ca29ccf852b6c20edd76700bb7e5e65b",
+      "members_verified": 45,
+      "verification": "Completed archive reread: exact membership, original uncompressed bytes, SHA256 and mode. No extraction.",
+      "files": [
+        {
+          "path": "receipts/bundle-verify.log",
+          "type": "file",
+          "bytes": 1616,
+          "mode": 420,
+          "sha256": "b117d84719088aee6243435fbd5d7dda529d4398d9b1a9f0294b1d27c6d2be98",
+          "zip_crc32": "d996d16e",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/clippy.log",
+          "type": "file",
+          "bytes": 1190,
+          "mode": 420,
+          "sha256": "5bc4a7c177d4ae729be85352324ee158048b99cf94e4a908c2f95ff1650fa783",
+          "zip_crc32": "46056e11",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/commit.txt",
+          "type": "file",
+          "bytes": 41,
+          "mode": 420,
+          "sha256": "82f17430af79a08b6db5cb314a7b7cba8742be296e8dae3b1f6ec39a35adceec",
+          "zip_crc32": "b8bdf802",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/consumer209.json",
+          "type": "file",
+          "bytes": 76486,
+          "mode": 420,
+          "sha256": "78f764b8590abdc795f5b5a79afdb4d960769b2a63307ee49f8ee23e439cdf52",
+          "zip_crc32": "9820b7dd",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/fmt.log",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/llvm-api-toolchain.json",
+          "type": "file",
+          "bytes": 1397,
+          "mode": 420,
+          "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71",
+          "zip_crc32": "27146e60",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/llvm-install.json",
+          "type": "file",
+          "bytes": 35125,
+          "mode": 420,
+          "sha256": "3f6c76204650629e7aa5e67a9388afc252ef8da0fad1efdd6e694186200afced",
+          "zip_crc32": "cedb6886",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/migration-runner.log",
+          "type": "file",
+          "bytes": 107,
+          "mode": 420,
+          "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53",
+          "zip_crc32": "5377f0d6",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/reference-native-manifest.json",
+          "type": "file",
+          "bytes": 12315591,
+          "mode": 420,
+          "sha256": "4a21313bd5ff3d876016f540539af87d354dd291271187b3895ec8da7d385ff2",
+          "zip_crc32": "21c67168",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/reference-resources-after.log",
+          "type": "file",
+          "bytes": 388,
+          "mode": 420,
+          "sha256": "6b5974146a5461133e958a037e7adc535c57ebae1ee09f7772e87af5d55395e7",
+          "zip_crc32": "011e8d64",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/reference-resources-before.log",
+          "type": "file",
+          "bytes": 220,
+          "mode": 420,
+          "sha256": "5f8ef9ac3e0ca31a05c28975c4dc1dc56469bde7c3ba8de57dc74a50517e23a8",
+          "zip_crc32": "6dd3fa2c",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/reference.log",
+          "type": "file",
+          "bytes": 298652,
+          "mode": 420,
+          "sha256": "17c3d519353d5dae7d1097c64920a03b63ccc4773b327cc3808beb7c4581bbfe",
+          "zip_crc32": "1769821a",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/source-tree.txt",
+          "type": "file",
+          "bytes": 11527647,
+          "mode": 420,
+          "sha256": "ed03cd3bf3e57140a4c8005c073e74fb9937aa6d10c15a95867c99530db6ba4c",
+          "zip_crc32": "b116506f",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/text-reference.log",
+          "type": "file",
+          "bytes": 3931,
+          "mode": 420,
+          "sha256": "502d5b06dd8c982c65ebe9e59643b09bba74059f914ac4eedd62830b663a006b",
+          "zip_crc32": "052a04ce",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/toolchain.txt",
+          "type": "file",
+          "bytes": 404,
+          "mode": 420,
+          "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0",
+          "zip_crc32": "edc2d404",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/workspace-native-manifest.json",
+          "type": "file",
+          "bytes": 12795202,
+          "mode": 420,
+          "sha256": "ab8fb636f4f0fe0246245c8399d33015aeff3bab4900cddf07cf31226fac150e",
+          "zip_crc32": "188c69c5",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/workspace-resources-after.log",
+          "type": "file",
+          "bytes": 344,
+          "mode": 420,
+          "sha256": "e1375c442625b269378a01c0673303d3c81354ba824a6eb29c2970753f42f824",
+          "zip_crc32": "73b413c9",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/workspace-resources-before.log",
+          "type": "file",
+          "bytes": 144,
+          "mode": 420,
+          "sha256": "fa4e3deaa6f1e39710ef76c5dcb4729e6b404589a19c49da71b4f84393cf57c6",
+          "zip_crc32": "81c62a25",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "receipts/workspace.log",
+          "type": "file",
+          "bytes": 296665,
+          "mode": 420,
+          "sha256": "ffb623869b0e6cf5b0752cb9a845dc50baa1d6bb788c253d8825f8734b4d7d03",
+          "zip_crc32": "71e43f7c",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/install-receipt.json",
+          "type": "file",
+          "bytes": 35125,
+          "mode": 420,
+          "sha256": "3f6c76204650629e7aa5e67a9388afc252ef8da0fad1efdd6e694186200afced",
+          "zip_crc32": "cedb6886",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/archive-list.stderr",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/archive-list.stdout",
+          "type": "file",
+          "bytes": 730699,
+          "mode": 420,
+          "sha256": "c0f15d62ca82a2b556612368658809b0dad14fc948da7c13dd19458f7ddae32b",
+          "zip_crc32": "86168d93",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/clang-version.stderr",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/clang-version.stdout",
+          "type": "file",
+          "bytes": 208,
+          "mode": 420,
+          "sha256": "5bd7f7a8c744b29dd95c839285591392ae41ed1c6cc3ad6a5b5957ed493a936f",
+          "zip_crc32": "3f8d2c37",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/component-libraries.stderr",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/component-libraries.stdout",
+          "type": "file",
+          "bytes": 3681,
+          "mode": 420,
+          "sha256": "cd513d07781e5679e8a875a8662c9fd277703f9fb4a9243b32e60bc04bdd1412",
+          "zip_crc32": "8f06869e",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/dependencies.stderr",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/dependencies.stdout",
+          "type": "file",
+          "bytes": 818,
+          "mode": 420,
+          "sha256": "59c644a7e79cf53d1f96626b0f1b34f745402b492ced7c535864c4224cb80209",
+          "zip_crc32": "d4b9ee6f",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/dynamic-section.stderr",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/dynamic-section.stdout",
+          "type": "file",
+          "bytes": 2013,
+          "mode": 420,
+          "sha256": "455e21f2fb87cb96858d505df6a29e1d5b0dbd88b012fd8d589ad896d6cccac8",
+          "zip_crc32": "07fba24e",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/extract.stderr",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/extract.stdout",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/link-dso.stderr",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/link-dso.stdout",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/lld-link-version.stderr",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/lld-link-version.stdout",
+          "type": "file",
+          "bytes": 91,
+          "mode": 420,
+          "sha256": "8c0455ba6d118efcd627d1b661b9012d90307a536deb4d2e836fca76695697e1",
+          "zip_crc32": "76701ba5",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/llvm-config-version.stderr",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/llvm-config-version.stdout",
+          "type": "file",
+          "bytes": 7,
+          "mode": 420,
+          "sha256": "78f2ccd8940c1e6bc812b09fdb7d917a66342d0b4991219e5dd7afc73bc46b36",
+          "zip_crc32": "7f3461a4",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/llvm-version.stderr",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/llvm-version.stdout",
+          "type": "file",
+          "bytes": 7,
+          "mode": 420,
+          "sha256": "78f2ccd8940c1e6bc812b09fdb7d917a66342d0b4991219e5dd7afc73bc46b36",
+          "zip_crc32": "7f3461a4",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/llvm.map",
+          "type": "file",
+          "bytes": 26,
+          "mode": 420,
+          "sha256": "7e6c6fb86f956727d860bfe92be44d248413de3e382ae51dba9fc796d0553454",
+          "zip_crc32": "f054bd68",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/opt-version.stderr",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/opt-version.stdout",
+          "type": "file",
+          "bytes": 128,
+          "mode": 420,
+          "sha256": "f2ae903d148f9d3724def28584308fbdcb76c98cde4258f6e696ff83e8454e6e",
+          "zip_crc32": "3eee788b",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/system-libraries.stderr",
+          "type": "file",
+          "bytes": 0,
+          "mode": 420,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "zip_crc32": "00000000",
+          "zip_external_mode": 33188
+        },
+        {
+          "path": "llvm-23.1.4/installation-logs/system-libraries.stdout",
+          "type": "file",
+          "bytes": 61,
+          "mode": 420,
+          "sha256": "510cd326ef7cd383cd610d12e255217c203f0d0ed8a055bfb9dbc7be055c8b62",
+          "zip_crc32": "2d03c833",
+          "zip_external_mode": 33188
+        }
+      ]
+    }
+  ],
+  "source_final_zip": {
+    "sha256": "c86ccc4453fb67d001190f63ce41a1f7c427df4d591f3043994f68f1fdfdad6b",
+    "bytes": 274967249,
+    "api_artifact_id": 13024694207,
+    "api_digest": "sha256:c86ccc4453fb67d001190f63ce41a1f7c427df4d591f3043994f68f1fdfdad6b",
+    "source_members": 46,
+    "included_members": 45,
+    "excluded_history_bundle": {
+      "path": "receipts/repository.bundle",
+      "reason": "Explicitly excluded history bundle; retained in original audited final ZIP. Bundle member was not decompressed, extracted, or added to the repackaged receipts.",
+      "bytes": 271258946,
+      "mode": 420,
+      "zip_crc32": "8c593848"
+    }
+  },
+  "excluded_scratch_metadata": "EXCLUSIONS.json contains only original SHA256 and exclusion reason; no private transfer payload.",
+  "result_unchanged": true,
+  "phase_zips_unchanged": true,
+  "new_compiler_tests_executed": false,
+  "source_files_modified": false,
+  "git_commit_created": false
+}

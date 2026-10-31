@@ -1,0 +1,107 @@
+{
+  "status": "Fail",
+  "scope": "Actual live handoff record integrity; distinct from accepted finite language profiles and compiler CI.",
+  "checked_commit": "3a1aca37a53c310da961c0a54d9c59f7aa35f50b",
+  "command": [
+    "node",
+    "tools/handoff.mjs"
+  ],
+  "cwd": "/workspace/scratch/e9af9764d083/zil",
+  "exit_code": 1,
+  "error_count": 1379,
+  "warning_count": 0,
+  "task_228_229": {
+    "status": "Pass",
+    "errors": [],
+    "states": {
+      "228": "已合入",
+      "229": "已合入"
+    }
+  },
+  "comparisons": [
+    {
+      "label": "baseline-6ba",
+      "source_head": "6ba0b04ee8b9cac3ead187b2aa9f03c91c217e49",
+      "source_sha256": "1fbc1f12b752b283815f2f14f00705a54a459377c75b2325607f87a7e7e9c4ee",
+      "source_error_count": 1372,
+      "current_error_count": 1379,
+      "added_count": 7,
+      "removed_count": 0,
+      "added": [
+        {
+          "id": "225",
+          "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/225/AUTHOR.json",
+          "count": 1
+        },
+        {
+          "id": "225",
+          "reason": "Task specification snapshot is stale.",
+          "count": 1
+        },
+        {
+          "id": "225",
+          "reason": "implementation_commit must identify an existing complete commit.",
+          "count": 1
+        },
+        {
+          "id": "226",
+          "reason": "Evidence is missing, empty, or uncommitted: evidence/impl/226/AUTHOR.json",
+          "count": 1
+        },
+        {
+          "id": "226",
+          "reason": "Task specification snapshot is stale.",
+          "count": 1
+        },
+        {
+          "id": "226",
+          "reason": "implementation_commit must identify an existing complete commit.",
+          "count": 1
+        },
+        {
+          "id": "227",
+          "reason": "Task specification snapshot is stale.",
+          "count": 1
+        }
+      ],
+      "removed": []
+    },
+    {
+      "label": "preclose-M",
+      "source_head": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+      "source_sha256": "45ed2ead96d5941f3c7ade69e4dc83c381642afee369663df67d5eb65ac33336",
+      "source_error_count": 1379,
+      "current_error_count": 1379,
+      "added_count": 0,
+      "removed_count": 0,
+      "added": [],
+      "removed": []
+    },
+    {
+      "label": "initial-D",
+      "source_head": "91a94afdf187b6889a0f44bd47822b5cacd0e4b4",
+      "source_sha256": "625b22719659f8ee5c3ba96bd30dc356af8e3d34eb79f2d0a5afc2683be558c1",
+      "source_error_count": 1381,
+      "current_error_count": 1379,
+      "added_count": 0,
+      "removed_count": 2,
+      "added": [],
+      "removed": [
+        {
+          "id": "228",
+          "reason": "Evidence has no passing outcome: evidence/reviews/228-consumer/FINAL-REVIEW.json",
+          "count": 1
+        },
+        {
+          "id": "229",
+          "reason": "Evidence has no passing outcome: evidence/reviews/228-consumer/FINAL-REVIEW.json",
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "stdout_sha256": "9b86ade764549083ef67896bf304abc1ed04e188f8b4bebf8a0abd185d776a69",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "portable_snapshot_sha256": "6f347168ae520e69ed9216b5493e5fb45ef0db9784a34325ab33ff3c48b55cbd",
+  "identity_note": "Snapshot records the committed metadata candidate above, not the later commit containing this snapshot."
+}

@@ -279,7 +279,8 @@ fn owning_package_captures_borrow_the_actual_environment_field() {
         ordinary
             .diagnostics
             .iter()
-            .any(|d| d.message.contains("Package capture requires explicit move")),
+            .any(|d| d.code == "E-UNSUPPORTED"
+                && d.message == "mutable Product capture is not implemented"),
         "{}",
         ordinary.to_json()
     );

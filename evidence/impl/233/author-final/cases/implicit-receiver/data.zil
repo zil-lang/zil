@@ -1,0 +1,1 @@
+import rules;pub struct Payload{n:i32}impl rules.Code for Payload{fn code()->i32=>.n}pub fn make()->Payload=>Payload{n:13}

@@ -1,0 +1,42 @@
+{
+  "scope": "Construction plan consistency only; not compiler, language-safety or product acceptance.",
+  "ok": true,
+  "tasks": 14,
+  "protocol_case_requirements": 63,
+  "conformance_sources": 93,
+  "registered_artifacts": 23,
+  "unordered_task_pairs_checked": 21,
+  "ready_tasks": [],
+  "errors": [],
+  "warnings": [],
+  "self_tests": [
+    {
+      "name": "dependency cycle",
+      "rejected": true
+    },
+    {
+      "name": "missing artifact owner",
+      "rejected": true
+    },
+    {
+      "name": "parallel write conflict",
+      "rejected": true
+    },
+    {
+      "name": "Ready without baseline",
+      "rejected": true
+    },
+    {
+      "name": "zero execution minimum",
+      "rejected": true
+    },
+    {
+      "name": "unmapped protocol case",
+      "rejected": true
+    },
+    {
+      "name": "Done without actual results",
+      "rejected": true
+    }
+  ]
+}

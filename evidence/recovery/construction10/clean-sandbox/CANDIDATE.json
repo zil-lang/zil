@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "scope": "Independent complete candidate source recovery only; no new compiler tests executed",
+  "candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
+  "sandbox": "/workspace/scratch/b2d4304a481d/zil-sandbox10",
+  "own_object_store": true,
+  "alternates": false,
+  "strict_fsck_exit": 0,
+  "clean_worktree": true,
+  "compiler_target": "new independent empty target on next build",
+  "main_acceptance": "Pending actual merged main CI",
+  "command_log": "attempt-2-commands.json",
+  "original_failure": "attempt-1.json"
+}

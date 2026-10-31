@@ -1,0 +1,121 @@
+{
+  "status": "Original commit bytes verified; historical tree closure incomplete",
+  "commits": [
+    {
+      "sha": "2dcb7bc3c05c8f7c02757c73dfd5188fd057480b",
+      "raw_commit": "tree 5dd2236bf0db856ea729a58ee5984115f9fd45e1\nparent ee4763261e716d895ffdb7c27deb5165f5b37b34\nparent d1bc0d1c503cb45433396c2587af42e97f1a45f1\nauthor ZIL construction10 <construction10@zil.invalid> 1793419517 -0700\ncommitter ZIL construction10 <construction10@zil.invalid> 1793419517 -0700\n\nMerge commit 'd1bc0d1c503cb45433396c2587af42e97f1a45f1' into integration/construction10\n"
+    },
+    {
+      "sha": "ee4763261e716d895ffdb7c27deb5165f5b37b34",
+      "raw_commit": "tree d61bf1fde21e8ff2341ada75248b4c20faa4eec8\nparent 2c8acce8f01dfb46830a31b6eaf52ef786ed73a1\nparent fc637de661cb89d2e8bff4b841ee7f6ce163c7f3\nauthor ZIL construction10 <construction10@zil.invalid> 1793419516 -0700\ncommitter ZIL construction10 <construction10@zil.invalid> 1793419516 -0700\n\nMerge commit 'fc637de661cb89d2e8bff4b841ee7f6ce163c7f3' into integration/construction10\n"
+    },
+    {
+      "sha": "fc637de661cb89d2e8bff4b841ee7f6ce163c7f3",
+      "raw_commit": "tree d61bf1fde21e8ff2341ada75248b4c20faa4eec8\nparent 2c8acce8f01dfb46830a31b6eaf52ef786ed73a1\nauthor ZIL construction10 <construction10@zil.invalid> 1793419516 -0700\ncommitter ZIL construction10 <construction10@zil.invalid> 1793419516 -0700\n\ntest: add independent generated enum review probes for 230\n"
+    },
+    {
+      "sha": "d1bc0d1c503cb45433396c2587af42e97f1a45f1",
+      "raw_commit": "tree dcd36e34e02c69ae3240837dd8c92b7c8ac4020a\nparent 30176f55ffee3fddb509f95b34686fa52e2664f7\nauthor Codex <codex@openai.com> 1793419234 -0700\ncommitter Codex <codex@openai.com> 1793419234 -0700\n\nreview231: correct reserved module label in independent fixtures\n"
+    },
+    {
+      "sha": "30176f55ffee3fddb509f95b34686fa52e2664f7",
+      "raw_commit": "tree 4edfc87ddcde7669b01dae27f0c4837c4c284219\nparent 2c8acce8f01dfb46830a31b6eaf52ef786ed73a1\nauthor Codex <codex@openai.com> 1793419096 -0700\ncommitter Codex <codex@openai.com> 1793419096 -0700\n\nreview231: add independent identity, grouped-bound and module-budget probes\n"
+    },
+    {
+      "sha": "2c8acce8f01dfb46830a31b6eaf52ef786ed73a1",
+      "raw_commit": "tree 95fceda9470f43c80c4c15b76b8878930a7b8ca5\nparent e72844706fbef56d1f94c8b7129274ee371e5862\nparent e6785afdc27348ea2bc28ab3b5a82cc837a53d37\nauthor ZIL construction10 <construction10@zil.invalid> 1793418993 -0700\ncommitter ZIL construction10 <construction10@zil.invalid> 1793418993 -0700\n\nMerge commit 'e6785afdc27348ea2bc28ab3b5a82cc837a53d37' into integration/construction10\n"
+    },
+    {
+      "sha": "e72844706fbef56d1f94c8b7129274ee371e5862",
+      "raw_commit": "tree d94031fa7a9f3897e5d43aac62dd9afd01517afc\nparent e77052321231d9f30533101a4b90cb811dc823e0\nparent bf9ac9d85b928c0c879582c637e30d4d61086776\nauthor ZIL construction10 <construction10@zil.invalid> 1793418993 -0700\ncommitter ZIL construction10 <construction10@zil.invalid> 1793418993 -0700\n\nMerge commit 'bf9ac9d85b928c0c879582c637e30d4d61086776' into integration/construction10\n"
+    },
+    {
+      "sha": "e77052321231d9f30533101a4b90cb811dc823e0",
+      "raw_commit": "tree 93097f23038ed044c6e8b5e704fd9d77e250520a\nparent 02f0e3e31db3544aa4c7f37abe39e158841b0882\nparent 8735406ddf1a9ae06a5b60c8ad9340a01b0cfc85\nauthor ZIL construction10 <construction10@zil.invalid> 1793418993 -0700\ncommitter ZIL construction10 <construction10@zil.invalid> 1793418993 -0700\n\nMerge commit '8735406ddf1a9ae06a5b60c8ad9340a01b0cfc85' into integration/construction10\n"
+    },
+    {
+      "sha": "8735406ddf1a9ae06a5b60c8ad9340a01b0cfc85",
+      "raw_commit": "tree 1eae2bff39bd174b1d8b8696b72048e016cddee9\nparent 1771b86ae3371a58838778a23de0e2167f5dff39\nauthor zil-construction10-review <construction10-review@zil.invalid> 1793418958 -0700\ncommitter zil-construction10-review <construction10-review@zil.invalid> 1793418958 -0700\n\ntest: combine owned Product Store and shared Product in one environment\n"
+    },
+    {
+      "sha": "e6785afdc27348ea2bc28ab3b5a82cc837a53d37",
+      "raw_commit": "tree 1bc41e290ce6c67d72797019e3f954373727cc4e\nparent d274151a186954bd6d370e03a2dc84cd4b2243de\nauthor Codex <codex@openai.com> 1793418877 -0700\ncommitter Codex <codex@openai.com> 1793418877 -0700\n\ndocs: preserve 231 validation receipts and storage-blocked gates\n"
+    },
+    {
+      "sha": "d274151a186954bd6d370e03a2dc84cd4b2243de",
+      "raw_commit": "tree debdff71a936c4be944c201ea2af37be0aec5ec8\nparent 9e0fb79977bbeab49b130b09700906d9f7df3690\nauthor Codex <codex@openai.com> 1793418802 -0700\ncommitter Codex <codex@openai.com> 1793418802 -0700\n\nfix: preserve nominal bound identity, grouping and prepaid indexes (231)\n"
+    },
+    {
+      "sha": "9e0fb79977bbeab49b130b09700906d9f7df3690",
+      "raw_commit": "tree 496c286dc6e5d53c97cb188fcdd83e074be75023\nparent 4ed6609f6117af2252418db9dcc3092d83a76e96\nparent 02f0e3e31db3544aa4c7f37abe39e158841b0882\nauthor Codex <codex@openai.com> 1793418474 -0700\ncommitter Codex <codex@openai.com> 1793418474 -0700\n\nmerge: absorb frozen 231 reserved module trait repair contract\n"
+    },
+    {
+      "sha": "02f0e3e31db3544aa4c7f37abe39e158841b0882",
+      "raw_commit": "tree 2107ec782ac8a8cf0d4de173c930338f60176138\nparent 7ccbfc5082d6ddbe93baf5c428f614089692d509\nauthor ZIL construction10 <construction10@zil.invalid> 1793418404 -0700\ncommitter ZIL construction10 <construction10@zil.invalid> 1793418404 -0700\n\nplan: freeze module reserved-trait repair found by 231\n"
+    },
+    {
+      "sha": "bf9ac9d85b928c0c879582c637e30d4d61086776",
+      "raw_commit": "tree ecb80974ad406940d28f11833b0f664b388c79a2\nparent a233f79957aa1c9ce79ed0897970469c6f9ae3ba\nauthor Codex <codex@openai.com> 1793418383 -0700\ncommitter Codex <codex@openai.com> 1793418383 -0700\n\nevidence230: record scoped native, wire and budget results with original failures\n"
+    },
+    {
+      "sha": "4ed6609f6117af2252418db9dcc3092d83a76e96",
+      "raw_commit": "tree c532b8717c2275f213773f54b5dca062dce37f31\nparent 65f55a05ecfcaeb9e15b7dd61b2602a5313792c4\nauthor Codex <codex@openai.com> 1793418335 -0700\ncommitter Codex <codex@openai.com> 1793418335 -0700\n\ntest: preserve 231 alias boundary and expose module reserved-bound failure\n"
+    },
+    {
+      "sha": "a233f79957aa1c9ce79ed0897970469c6f9ae3ba",
+      "raw_commit": "tree d360e1aa71de31627f96015ed16acfabf869e3c5\nparent 03e72fcdbceeca3fe48db647b73bca13603c4633\nauthor Codex <codex@openai.com> 1793418310 -0700\ncommitter Codex <codex@openai.com> 1793418310 -0700\n\ntest230: correct event source and record existing reserved-name boundary\n"
+    },
+    {
+      "sha": "1771b86ae3371a58838778a23de0e2167f5dff39",
+      "raw_commit": "tree 27bad2129454d6cee31eb43bf06416a48bd29d7d\nparent 0dbf1f97d075642d71fb535d8b2dd6c596db9d4b\nauthor zil-construction10-review <construction10-review@zil.invalid> 1793418265 -0700\ncommitter zil-construction10-review <construction10-review@zil.invalid> 1793418265 -0700\n\ntest: independently challenge Product capture origins and nested Store heads\n"
+    },
+    {
+      "sha": "65f55a05ecfcaeb9e15b7dd61b2602a5313792c4",
+      "raw_commit": "tree 823e2f1a7c0bb10678e25bc50e13b63bbd0dd866\nparent 7ccbfc5082d6ddbe93baf5c428f614089692d509\nauthor Codex <codex@openai.com> 1793418255 -0700\ncommitter Codex <codex@openai.com> 1793418255 -0700\n\nfeat: normalize finite nominal trait where clauses (231 candidate)\n"
+    },
+    {
+      "sha": "03e72fcdbceeca3fe48db647b73bca13603c4633",
+      "raw_commit": "tree c419340013835ba7e41f7f6c9def5b533c7db120\nparent 7ccbfc5082d6ddbe93baf5c428f614089692d509\nauthor Codex <codex@openai.com> 1793418227 -0700\ncommitter Codex <codex@openai.com> 1793418227 -0700\n\nimpl230: stage generated enum candidate and retain first failing probes\n"
+    },
+    {
+      "sha": "0dbf1f97d075642d71fb535d8b2dd6c596db9d4b",
+      "raw_commit": "tree 71e8e375e3cc6473f2c82c6cfaa9c508960b93ba\nparent 03cb16a7180f89b2082d047911d807bcf9ca33ed\nparent c8dd71a4b75ed7731fca8372a3a055f017991eb3\nauthor zil-construction10-review <construction10-review@zil.invalid> 1793418179 -0700\ncommitter zil-construction10-review <construction10-review@zil.invalid> 1793418179 -0700\n\ntest: combine exact stage 226 for independent review\n"
+    },
+    {
+      "sha": "03cb16a7180f89b2082d047911d807bcf9ca33ed",
+      "raw_commit": "tree ef0e7127bc45f22585218e79da67bec824e070fd\nparent 7ccbfc5082d6ddbe93baf5c428f614089692d509\nparent 8ea37c2de56cf65f1448e4fa647671f4459ad148\nauthor zil-construction10-review <construction10-review@zil.invalid> 1793418179 -0700\ncommitter zil-construction10-review <construction10-review@zil.invalid> 1793418179 -0700\n\ntest: combine exact stage 225 for independent review\n"
+    },
+    {
+      "sha": "7ccbfc5082d6ddbe93baf5c428f614089692d509",
+      "raw_commit": "tree 71a7a00702bf7de5131a90d2c9eb24da4858cf8a\nparent aaeb67f12b5638677332132e28df86fa23cde3d8\nauthor ZIL construction10 <construction10@zil.invalid> 1793417953 -0700\ncommitter ZIL construction10 <construction10@zil.invalid> 1793417953 -0700\n\nplan: freeze generated enums and nominal where slices 230-231\n"
+    },
+    {
+      "sha": "c8dd71a4b75ed7731fca8372a3a055f017991eb3",
+      "raw_commit": "tree 53878b4d1f89ee0c2a27c139cb128fb0378f2dba\nparent b4eef0b533d088829abfc7785bc716c48c89d889\nauthor cicin <dsscicin@163.com> 1793411664 +0800\ncommitter cicin <dsscicin@163.com> 1793411664 +0800\n\ntest: preserve original full CI failure and exact 226 diagnostic-only repair"
+    },
+    {
+      "sha": "b4eef0b533d088829abfc7785bc716c48c89d889",
+      "raw_commit": "tree 2bf341b98b6fd6a4c21e5adbe4fb925e0f17caaa\nparent 1748b767c3fd3ab1408c84ce8a9dc0f2ae34b8cd\nauthor zil-construction8 <construction8@zil.invalid> 1793411380 +0000\ncommitter zil-construction8 <construction8@zil.invalid> 1793411380 +0000\n\ntest: preserve Store capture rejection at its actual origin-check phase\n"
+    },
+    {
+      "sha": "1748b767c3fd3ab1408c84ce8a9dc0f2ae34b8cd",
+      "raw_commit": "tree 4380670fca1e399cc77a8b049c91ac37254cb18f\nparent 35b97d2bece94a884bfc6b6edd474081f6105e3a\nauthor cicin <dsscicin@163.com> 1793409511 +0800\ncommitter cicin <dsscicin@163.com> 1793409511 +0800\n\ntest: bind stage 226 local-origin author evidence to exact source"
+    },
+    {
+      "sha": "8ea37c2de56cf65f1448e4fa647671f4459ad148",
+      "raw_commit": "tree 3c351e61e68fce51bed475639ff3db65940be90e\nparent 5f47ffa58f5e8cb7bb03ac94675e9bc6bed3b9a0\nauthor cicin <dsscicin@163.com> 1793409388 +0800\ncommitter cicin <dsscicin@163.com> 1793409388 +0800\n\ntest: bind stage 225 author results to exact strengthened source"
+    },
+    {
+      "sha": "35b97d2bece94a884bfc6b6edd474081f6105e3a",
+      "raw_commit": "tree 9e70047c40fa45a3b2449e64d7f8fe82d301d6b4\nparent 5be89dfb36b1f927524008526ae647f3c4a03e59\nauthor zil-construction8 <construction8@zil.invalid> 1793409302 +0000\ncommitter zil-construction8 <construction8@zil.invalid> 1793409302 +0000\n\nfeat: check local shared Product origins before synchronous capture (226)\n"
+    },
+    {
+      "sha": "5f47ffa58f5e8cb7bb03ac94675e9bc6bed3b9a0",
+      "raw_commit": "tree e01948cc938fd1472f085690f4ba6db237030852\nparent bd802f3a6a59e5e83c9b5c7ebf188371fef6cc0c\nauthor zil-construction8 <construction8@zil.invalid> 1793408804 +0000\ncommitter zil-construction8 <construction8@zil.invalid> 1793408804 +0000\n\ntest: require canonical rejection rather than malformed candidate (225)\n"
+    },
+    {
+      "sha": "bd802f3a6a59e5e83c9b5c7ebf188371fef6cc0c",
+      "raw_commit": "tree 8ab755bfb474711eaee8e408f0cf514e6ad166e0\nparent 5be89dfb36b1f927524008526ae647f3c4a03e59\nauthor zil-construction8 <construction8@zil.invalid> 1793408148 +0000\ncommitter zil-construction8 <construction8@zil.invalid> 1793408148 +0000\n\nfeat: admit complete Product elements in owned Store captures (225)\n"
+    }
+  ]
+}

@@ -1,0 +1,307 @@
+{
+  "schema_version": 1,
+  "task": "230",
+  "status": "PendingSecondFullCI",
+  "verdict": null,
+  "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+  "ci_candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
+  "previous_implementation_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+  "reviewer": "/root/defer_design",
+  "implementation_author": "/root/continuity_audit",
+  "independent_of_implementation_author": true,
+  "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+  "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
+  "prepared_at_utc": "2026-10-31T08:25:20.269958+00:00",
+  "authority": {
+    "task_blob": "c59330a95d78c42278002089751e0e1eec842e94",
+    "task_status": "待验",
+    "review_write_set": [
+      "crates/zil-driver/tests/review230*",
+      "evidence/reviews/230/**"
+    ],
+    "candidate_freeze_blob": "f7934f66d9951d4210b110f82220612f2dab0c98"
+  },
+  "identity_checks": {
+    "production_source_trees": [
+      {
+        "commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+        "file_count": 186,
+        "entry_sha256": "718fbb2d0271f5381c2995a4fd7d216007214f2b2506c6273d0b768e87c1ef5c",
+        "crates_tree": "ba5930e9b42315e08b6b10050d8e18efa7be2301"
+      },
+      {
+        "commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+        "file_count": 186,
+        "entry_sha256": "718fbb2d0271f5381c2995a4fd7d216007214f2b2506c6273d0b768e87c1ef5c",
+        "crates_tree": "cc67ae136dce0c6d8ad17ffdbaa25ae574c6c9ca"
+      },
+      {
+        "commit": "f1492652cb6497a33f39e615fd398456ce09253a",
+        "file_count": 186,
+        "entry_sha256": "718fbb2d0271f5381c2995a4fd7d216007214f2b2506c6273d0b768e87c1ef5c",
+        "crates_tree": "cc67ae136dce0c6d8ad17ffdbaa25ae574c6c9ca"
+      }
+    ],
+    "source_entry_digest_method": "SHA256 of newline-joined git ls-tree -r <commit> -- crates records containing /src/ in their path, followed by one newline. Includes mode, type, blob and path.",
+    "unchanged_git_objects_across_P1_P2_I2": {
+      "Cargo.lock": "9107f4a982d037b5736d62c8906f58b40805f431",
+      ".github/workflows/verify-main.yml": "5d49b5b44e404ce8b55efce71a3d50be7350a2b7",
+      "validation/product-gates.json": "14d352d66503ba948a55b673ccb913ffb3e5842e",
+      "tools/llvm": "987e1bc754a40595b7f8f1cb24b038bffff09c72",
+      "spec": "a6f9b01d089a525999a362d1e51aa56f6897cff7",
+      "_zil_design.md": "a0221f0f38840249c5a2106efbd8b858bac427f0",
+      "Cargo.toml": "d0e906f4852161e0d6e487124a633f5e0c094e8d",
+      "rust-toolchain.toml": "58eef2ccd48f957feeada49b17ad1e3fd667bf8c"
+    },
+    "reviewed_230_bindings": [
+      {
+        "path": "crates/zil-driver/src/ct_selection/hygiene.rs",
+        "git_blob": "f1becf839873b99f7f359e634fde4b397e83cd6e",
+        "sha256": "e867d390af163e3b259f525db1cda2f47e1294dc40d2934cda190152fd1faf2e",
+        "identical_at_P2_and_I2": true
+      },
+      {
+        "path": "crates/zil-driver/src/ct_selection/hygiene_types.rs",
+        "git_blob": "89a2eed87b78937e0f1f73979ec734b99a0e3ed0",
+        "sha256": "a2c0d9d66d2b1ce3df60fb6ff81e3305cf813439e0f5561e8af2b7e2d4601894",
+        "identical_at_P2_and_I2": true
+      },
+      {
+        "path": "crates/zil-driver/src/ct_selection/materialize.rs",
+        "git_blob": "fba1fcf218a89778fadd007b10cb524ec5f37d01",
+        "sha256": "43086af25c2f51101daaeeae511084a4de4fbf97cee57f047d23c2d56f904b39",
+        "identical_at_P2_and_I2": true
+      },
+      {
+        "path": "crates/zil-driver/tests/impl230_generation.rs",
+        "git_blob": "240e7fa63033c8835784584a2de544cbbcdf4100",
+        "sha256": "60692f47d5a5f692d40dfd8b3fdb738ea4121b1e812de9e50b9bb5c704ca6379",
+        "identical_at_P2_and_I2": true
+      },
+      {
+        "path": "crates/zil-driver/tests/review230_independent.rs",
+        "git_blob": "b7775a3cea5623c4d81cfc2b98a785d10e691d55",
+        "sha256": "f2b24b94c42acddac6417bce1633c2aa2ba46f87c96ba82aa42e60a08f2046b3",
+        "identical_at_P2_and_I2": true
+      },
+      {
+        "path": "examples/mainline/ct_enums230/events.zil",
+        "git_blob": "95e09dd399fccfd20f20ef8954da25bb3a496c78",
+        "sha256": "7a15bb9bbdc0ea8db4b8e0da5a9a6299df36b7ea393a99c98dea9a9ca922708d",
+        "identical_at_P2_and_I2": true
+      },
+      {
+        "path": "examples/mainline/ct_enums230/events_plain.zil",
+        "git_blob": "2b976990c515641aa267d91a0b2ec45309f014c7",
+        "sha256": "bdd03f5f0b492c3c173d4da832639aaa5fb6a046979cea94b5ba0aa6abfca7bb",
+        "identical_at_P2_and_I2": true
+      }
+    ],
+    "normative_input_bytes": [
+      {
+        "path": "_zil_design.md",
+        "git_blob": "a0221f0f38840249c5a2106efbd8b858bac427f0",
+        "sha256": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a"
+      },
+      {
+        "path": "policy/dependencies.json",
+        "git_blob": "c2752f1c83cb6b72b8e91f65f600c327e9661834",
+        "sha256": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7"
+      },
+      {
+        "path": "spec/attributes.json",
+        "git_blob": "94c9170704e0d733c77da52d8d5e2f70c9b35a53",
+        "sha256": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa"
+      },
+      {
+        "path": "spec/diagnostics.json",
+        "git_blob": "5f01908a7a8cf2c99233a1eede5efc9dad73f101",
+        "sha256": "76d7b0eda1addd47ad03d81fa083d2d016c2ec7eeb46297ee868ae3d59131cb8"
+      },
+      {
+        "path": "spec/grammar.ebnf",
+        "git_blob": "8a136721bf16241c371e3c3362fa2377f2ec1bb9",
+        "sha256": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b"
+      },
+      {
+        "path": "spec/interfaces.json",
+        "git_blob": "eb3eaefbc0d22d5ddaa828d631e6ce5943d8ff74",
+        "sha256": "56e86dfd63bc28516e389a9220eef87f8396373b0bbd1d91992b41d1a7faaf07"
+      },
+      {
+        "path": "validation/product-gates.json",
+        "git_blob": "14d352d66503ba948a55b673ccb913ffb3e5842e",
+        "sha256": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+      }
+    ],
+    "normative_hash_independently_recomputed": true,
+    "spec_hash_independently_recomputed": true,
+    "P1_is_ancestor_of_P2": true,
+    "P2_is_ancestor_of_I2": true,
+    "I2_expected_full_ls_tree_sha256": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5",
+    "I2_expected_full_ls_tree_entries": 87508,
+    "P1_to_P2_source_or_test_changes": [
+      "crates/zil-driver/tests/review225226_capture.rs",
+      "crates/zil-driver/tests/review229_joint.rs",
+      "crates/zil-driver/tests/review230_independent.rs",
+      "crates/zil-driver/tests/review231_independent.rs"
+    ],
+    "P2_to_I2_changes": [
+      ".task/impl/225.md",
+      ".task/impl/226.md",
+      ".task/impl/230.md",
+      ".task/impl/231.md",
+      "evidence/integration/construction10/attempt-2/FREEZE.json",
+      "evidence/reviews/230/FIRST-RUN-REFERENCE-OBSERVATIONS.json"
+    ],
+    "independent_test_inventory": {
+      "crates/zil-driver/tests/review225226_capture.rs": {
+        "blob": "96a696f917dac46010ad3e107163d3f2ce13e261",
+        "count": 9,
+        "names": [
+          "two_nonempty_same_type_stores_preserve_payloads_and_cleanup",
+          "callable_hidden_in_managed_resource_head_is_not_capture_authority",
+          "mixed_ordinary_and_dynamic_branch_origins_are_rejected",
+          "raw_one_branch_store_injection_cannot_reuse_ordinary_origin_plan",
+          "child_take_and_replacement_wait_for_last_actual_callback_use",
+          "ordinary_branch_union_keeps_each_possible_owner_live",
+          "zero_storage_ordinary_product_capture_does_not_need_store_layout",
+          "owned_store_environment_does_not_acquire_external_shared_product_hold",
+          "separate_local_environments_preserve_owned_store_and_shared_product_responsibilities"
+        ]
+      },
+      "crates/zil-driver/tests/review230_independent.rs": {
+        "blob": "b7775a3cea5623c4d81cfc2b98a785d10e691d55",
+        "count": 9,
+        "names": [
+          "forward_payload_alias_variant_spelling_and_pattern_binder_are_independent",
+          "qualified_import_and_same_spelled_generated_enum_keep_separate_identities",
+          "transparent_aliases_do_not_merge_distinct_generation_rounds",
+          "same_layout_generated_public_enums_remain_nominal_between_modules",
+          "generic_type_binder_shadows_alias_and_does_not_leak_to_later_functions",
+          "address_payloads_and_recursive_alias_payloads_keep_ordinary_rejections",
+          "payload_constant_substitution_rechecks_changed_source_in_a_warm_session",
+          "variant_payload_visits_share_request_limits_with_cold_and_warm_replay",
+          "ordinary_expansion_and_generated_sources_execute_at_o0_and_o2"
+        ]
+      },
+      "crates/zil-driver/tests/review231_independent.rs": {
+        "blob": "33b9c08e1fe2eefc12e0d6ce101ba14276674532",
+        "count": 8,
+        "names": [
+          "independent_grouped_bounds_and_cross_subject_clause_order",
+          "independent_cross_module_impl_matches_existing_inline_boundary",
+          "independent_module_identity_alias_privacy_and_binder_boundaries",
+          "independent_reserved_capabilities_and_similar_ordinary_trait_names",
+          "independent_raw_ast_prefixes_only_apply_the_reserved_name_exclusion",
+          "independent_enum_payload_inference_keeps_inline_equivalence",
+          "independent_native_grouped_module_and_generated_enum_consumers",
+          "independent_module_where_budget_boundary_survives_cache_replay"
+        ]
+      }
+    },
+    "independent_total": 26
+  },
+  "static_review": {
+    "status": "PreviouslyInspectedSourceIdentityReconfirmed",
+    "prior_record": "evidence/reviews/230/RESTORED-PENDING.json",
+    "prior_record_commit": "b47a9a16ea5591293f647fb970828718cd53588a",
+    "coverage": [
+      "Finite active-iteration guard and full-batch nominal prebinding.",
+      "Constructor/type/pattern renaming keeps module qualifiers and generic binders separate.",
+      "Ordinary enum Copy/layout/visibility rules remain delegated to existing semantic checks.",
+      "Variant payload/name traversal is charged before materialization allocations.",
+      "Raw/Wire verification reconstructs positive candidates and rejects actual instruction forgeries."
+    ],
+    "reason_static_review_can_carry": "All 230 production and test blobs are identical to the independently inspected first candidate; all crate production sources and normative bytes are also unchanged."
+  },
+  "execution": {
+    "second_run_id": null,
+    "actual_checkout": null,
+    "toolchain_receipts": null,
+    "default": null,
+    "reference": null,
+    "integration_gates": null,
+    "local_cargo_executed": false
+  },
+  "pending_acceptance_obligations": [
+    {
+      "id": "checkout-and-toolchain",
+      "required": "Actual second-run checkout and source-tree receipt bind I2; Rust 1.99.1 and LLVM/Clang 23.1.4 actual toolchain receipts match required gate.",
+      "status": "AwaitingReceipts"
+    },
+    {
+      "id": "independent-default",
+      "required": "All nine immutable b777 independent test names actually execute; saved inputs/reports match canonical source and expected semantic outcomes.",
+      "status": "AwaitingReceipts"
+    },
+    {
+      "id": "independent-reference",
+      "required": "The same nine independent tests actually execute under reference feature configuration; source/report semantics match default execution.",
+      "status": "AwaitingReceipts"
+    },
+    {
+      "id": "native-default",
+      "required": "Eight independent generated/ordinary forward/qualified consumers actually execute at O0/O2 with LLVM API, no fallback, verify once, exit 0 and empty stdout/stderr.",
+      "status": "AwaitingReceipts"
+    },
+    {
+      "id": "native-reference",
+      "required": "Eight independent counterparts actually execute at O0/O2 using explicit Clang backend, no fallback, verify once, exit 0 and empty stdout/stderr.",
+      "status": "AwaitingReceipts"
+    },
+    {
+      "id": "cold-and-warm-budget",
+      "required": "Exact independent input is charged for nodes and work. N succeeds cold/fresh/warm, N-1 returns ResourceLimit without executable, later N recovers. Observe new minima rather than copying old results.",
+      "status": "AwaitingReceipts"
+    },
+    {
+      "id": "payload-cache-invalidation",
+      "required": "Warm valid/valid/short-array/valid sequence rejects changed source with types E-ARRAY-LENGTH and restores valid cache hit.",
+      "status": "AwaitingReceipts"
+    },
+    {
+      "id": "nominal-and-boundary-rejections",
+      "required": "Cross-round and cross-module nominal mismatches; generic binder shadow; missing module member; address and recursive alias payloads retain actual semantic rejection before verification.",
+      "status": "AwaitingReceipts"
+    },
+    {
+      "id": "author-and-raw-wire",
+      "required": "Author six-test suite and positive raw/Wire reconstruction execute; three actual enum instruction mutations each fail raw and Wire with E-VERIFY-ENUM.",
+      "status": "AwaitingReceipts"
+    },
+    {
+      "id": "complete-required-gates",
+      "required": "Inspect complete default/reference counts, selected suites, formatting/Clippy and applicable integration gates; a green job label alone is insufficient. Preserve first failures and classify any new failures.",
+      "status": "AwaitingReceipts"
+    },
+    {
+      "id": "artifact-integrity",
+      "required": "Rehash downloaded archives and relevant runner manifest entries; compare every saved source and native output used by the review.",
+      "status": "AwaitingReceipts"
+    }
+  ],
+  "prior_runs_preserved": {
+    "run": 41182685056,
+    "default_observation_commit": "8855ef79b07db14b6540f1e1ebc5ef357dd1d971",
+    "reference_observation_commit": "72c2997f53d48d46913a2bfaf8334e6baaf4a99c",
+    "default_complete_workspace": {
+      "passed": 2967,
+      "failed": 6,
+      "ignored": 0
+    },
+    "reference_complete_workspace": {
+      "passed": 2924,
+      "failed": 6,
+      "ignored": 0
+    },
+    "old_scoped_success_does_not_replace_second_run": true
+  },
+  "scope_limits": [
+    "This review concerns finite generated ordinary enums under slice 230; it does not declare B0 Done or all language goals satisfied.",
+    "Original 230 example bytes were recovered from the preserved archive; unavailable original examples-tree membership remains unproved.",
+    "No new native Windows or Rust product/performance gate claim is made.",
+    "A final review JSON will require actual evidence and bind P2; this pending file is not Pass."
+  ],
+  "production_or_test_edits": false
+}

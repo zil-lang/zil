@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "slice": "226",
+  "reviewer": "zil施工10/branch_audit",
+  "implementation_author": "zil施工8/current-assistant",
+  "verdict": "NotRun",
+  "status": "ReferenceScopedPassAwaitFreshFormalCI",
+  "implementation_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+  "original_remote_tip": "c8dd71a4b75ed7731fca8372a3a055f017991eb3",
+  "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+  "normative_hash_from_authoritative_task": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
+  "authority_task": ".task/impl/226.md",
+  "authority_snapshot_commit": "64ce5cbef4624111b98bd3d48e8eb3325b8cd71c",
+  "independence": "Reviewer did not author the 225/226 production changes. Exact original-object recovery and independent test authorship do not substitute for execution evidence.",
+  "ci_candidate": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+  "ci": {
+    "pull_request": 14,
+    "run_id": 41182685056,
+    "job_id": 124483160069,
+    "actual_checkout_commit": "015cb5d4e6c7794de616e0a933520cd3dfa886f7",
+    "independent_log_inspection": "First review suite inspected:6 passed,2 failed; preserved original failure, corrected source awaits retest",
+    "artifact_download_owner": "root",
+    "verified_suite_results": {
+      "passed": 6,
+      "failed": 2,
+      "ignored": 0,
+      "test_blob": "9479b3e5a914b4ce75b2b84ac05447d08896696b"
+    },
+    "verified_native_executions": 8
+  },
+  "independent_tests": {
+    "path": "crates/zil-driver/tests/review225226_capture.rs",
+    "restored_test_commit": "7877b92e47b43bf9a1118f27796282ccc9346495",
+    "original_test_commit_before_reset": "8735406ddf1a9ae06a5b60c8ad9340a01b0cfc85",
+    "blob": "9479b3e5a914b4ce75b2b84ac05447d08896696b",
+    "cases": [
+      {
+        "name": "two_nonempty_same_type_stores_preserve_payloads_and_cleanup",
+        "purpose": "Two actual nonempty same-type captured Stores keep independent payloads and cleanup responsibilities",
+        "positive_source_raw_wire": 1,
+        "native_oracles": [
+          {
+            "optimizations": [
+              "O0",
+              "O2"
+            ],
+            "stdout": "AB",
+            "exit": 0
+          }
+        ]
+      },
+      {
+        "name": "callable_hidden_in_managed_resource_head_is_not_capture_authority",
+        "purpose": "Callable hidden in a Managed user-resource head cannot acquire owning-capture authority",
+        "positive_source_raw_wire": 1,
+        "mutated_analyze_raw_wire_rejection": "cannot hide",
+        "source_owning_capture": "Unsupported and no executable"
+      },
+      {
+        "name": "mixed_ordinary_and_dynamic_branch_origins_are_rejected",
+        "purpose": "One ordinary and one dynamic-Store branch origin cannot be accepted as all-ordinary roots",
+        "positive_source_raw_wire": 1,
+        "source_analyze_rejection": "ordinary local Product origins"
+      },
+      {
+        "name": "raw_one_branch_store_injection_cannot_reuse_ordinary_origin_plan",
+        "purpose": "Inject one dominating same-type Store address into an ordinary branch without reusing frontend origin authority",
+        "positive_source_raw_wire": 1,
+        "mutated_analyze_raw_wire_rejection": "ordinary local Product origins",
+        "candidate_fingerprint_refreshed": true,
+        "plan_diagnostic_rejection_not_accepted": true
+      },
+      {
+        "name": "child_take_and_replacement_wait_for_last_actual_callback_use",
+        "purpose": "Child take/replacement succeeds after actual last callback use and conflicts before it",
+        "positive_source_raw_wire": 2,
+        "source_negative_cases": 2,
+        "negative_category": "SafeReject",
+        "negative_code": "E-BORROW-CONFLICT",
+        "native_oracles": [
+          {
+            "case": "take",
+            "optimizations": [
+              "O0",
+              "O2"
+            ],
+            "stdout": "A",
+            "exit": 0
+          },
+          {
+            "case": "replace",
+            "optimizations": [
+              "O0",
+              "O2"
+            ],
+            "stdout": "AB",
+            "exit": 0
+          }
+        ]
+      },
+      {
+        "name": "ordinary_branch_union_keeps_each_possible_owner_live",
+        "purpose": "A two-ordinary-owner conditional union retains both possible parent responsibilities",
+        "positive_source_raw_wire": 2,
+        "source_negative_cases": 2,
+        "negative_category": "SafeReject",
+        "negative_code": "E-BORROW-CONFLICT"
+      },
+      {
+        "name": "zero_storage_ordinary_product_capture_does_not_need_store_layout",
+        "purpose": "Shared ordinary Product capture does not inherit the owned Store nonzero-layout condition",
+        "positive_source_raw_wire": 1,
+        "native_oracles": [
+          {
+            "optimizations": [
+              "O0",
+              "O2"
+            ],
+            "stdout": "",
+            "exit": 0
+          }
+        ]
+      },
+      {
+        "name": "one_environment_keeps_owned_store_and_shared_product_responsibilities_separate",
+        "purpose": "One environment owns Store<Product> and borrows a separate Product; transfer of the borrowed owner is valid only after last use",
+        "positive_source_raw_wire": 1,
+        "source_negative_cases": 1,
+        "negative_category": "SafeReject",
+        "negative_code": "E-BORROW-CONFLICT",
+        "native_oracles": [
+          {
+            "optimizations": [
+              "O0",
+              "O2"
+            ],
+            "stdout": "AB",
+            "exit": 0
+          }
+        ]
+      }
+    ],
+    "counts_are_static_plan_only": true,
+    "planned_rust_tests": 8,
+    "planned_positive_source_raw_wire_controls": 10,
+    "planned_native_executions_per_backend_suite": 10,
+    "invalid_inputs_reach_native": false,
+    "corrected_test_blob": "96a696f917dac46010ad3e107163d3f2ce13e261",
+    "corrected_planned_rust_tests": 9,
+    "original_cases_snapshot_only": true
+  },
+  "static_review": {
+    "result": "No confirmed blocking finding in reviewed scope; executable evidence remains pending",
+    "notes": [
+      "Types admits immutable Address<Package> shape without conferring origin authority; ordinary default Product readonly capture is outside this delivered subset.",
+      "Analyze and Verify independently reconstruct actual roots after their respective whole-module fixed points. All roots must be actual ordinary local Product owners, including the complete parent type; Store, incoming parameter and outer-capture roots remain closed.",
+      "Existing loan liveness, initialization and cleanup checks remain applicable to the actual owners; Lower and LLVM consume the same VerifiedModule and reuse existing pointer representation without adding ownership or alias promises."
+    ],
+    "original_changed_production_blobs": [
+      {
+        "slice": "226",
+        "path": "crates/zil-analyze/src/budget.rs",
+        "original_blob": "63663b46f5640897a4ccfb9c15b187c00a282b5d",
+        "production_blob": "63663b46f5640897a4ccfb9c15b187c00a282b5d",
+        "equal": true
+      },
+      {
+        "slice": "226",
+        "path": "crates/zil-analyze/src/holds.rs",
+        "original_blob": "52b63d9968f0e1ec2eb3e2838c22a6ec2cb54873",
+        "production_blob": "52b63d9968f0e1ec2eb3e2838c22a6ec2cb54873",
+        "equal": true
+      },
+      {
+        "slice": "226",
+        "path": "crates/zil-backend-llvm/src/emit.rs",
+        "original_blob": "4a5121e933d52c6457fdde6beee2398cfe3740d0",
+        "production_blob": "4a5121e933d52c6457fdde6beee2398cfe3740d0",
+        "equal": true
+      },
+      {
+        "slice": "226",
+        "path": "crates/zil-lower/src/lib.rs",
+        "original_blob": "7eb9de189b51c82473b8ad91517997fa967c1847",
+        "production_blob": "7eb9de189b51c82473b8ad91517997fa967c1847",
+        "equal": true
+      },
+      {
+        "slice": "226",
+        "path": "crates/zil-types/src/closures.rs",
+        "original_blob": "5dfa504544b4844036af34fbf5908a8fa21a6868",
+        "production_blob": "5dfa504544b4844036af34fbf5908a8fa21a6868",
+        "equal": true
+      },
+      {
+        "slice": "226",
+        "path": "crates/zil-verify/src/borrows.rs",
+        "original_blob": "4a95fe4665831f72ae21eb220793c78d62b1f84a",
+        "production_blob": "4a95fe4665831f72ae21eb220793c78d62b1f84a",
+        "equal": true
+      },
+      {
+        "slice": "226",
+        "path": "crates/zil-verify/src/closures.rs",
+        "original_blob": "102bf7097fd4a0626ceb8a864032e68793542c8b",
+        "production_blob": "102bf7097fd4a0626ceb8a864032e68793542c8b",
+        "equal": true
+      }
+    ]
+  },
+  "ancestry_and_source_provenance": "evidence/reviews/225/construction10/PROVENANCE.json",
+  "execution_boundary": {
+    "local_attempts_before_reset": [
+      {
+        "outcome": "Cargo exit 101, OS28 in zil-types compilation; zero tests executed"
+      },
+      {
+        "outcome": "Cargo exit 101, OS28 in zil-expand object output; zero tests executed"
+      }
+    ],
+    "lost_local_logs": "Original OS28 logs were lost with the sandbox reset; only previously observed outcomes survive. No replacement raw logs are fabricated.",
+    "historical_green_ci_is_current_evidence": false,
+    "historical_reference_runs": [
+      41154544248,
+      41157538721
+    ],
+    "preserved_historical_failure_run": 41154731186
+  },
+  "handoff_observation": {
+    "command": "node tools/handoff.mjs --check",
+    "current_head": "7877b92e47b43bf9a1118f27796282ccc9346495",
+    "main_head": "64ce5cbef4624111b98bd3d48e8eb3325b8cd71c",
+    "status": "Fail",
+    "errors": 1400,
+    "warnings": 0,
+    "scope": "Existing incomplete historical records and sparse evidence; no checker changes or global Pass claim"
+  },
+  "remaining_work": [
+    "Independently read the fresh run checkout identity, full relevant suite logs and shared receipts",
+    "Verify 225/226 positive and source/raw/Wire negative controls actually executed",
+    "Verify O0/O2 backend identity, no fallback, exact stdout/exit and actual cleanup receipts",
+    "Issue a final verdict bound to the exact production commit after evidence inspection"
+  ],
+  "limitations": [
+    "No claim of full language 1.4, ZUI, general async/escape support or Rust product-gate completion",
+    "Review scope is only the 225/226 delivered contracts; formal parent-task and integration status remain root-owned"
+  ],
+  "correction": "evidence/reviews/225/construction10/CORRECTION.json",
+  "reference_result": "evidence/reviews/225/construction10/reference-correction/RESULT.json"
+}

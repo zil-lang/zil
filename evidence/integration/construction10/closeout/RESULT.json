@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "status": "Fail",
+  "scope": "Live handoff record integrity; not compiler CI or language acceptance.",
+  "checked_commit": "115f4f81e58b6262e3f80234953310158f8b0785",
+  "baseline_commit": "4d12fe3c9c6b307426099ae53b056c19e9122183",
+  "commands": [
+    {
+      "name": "check-plan",
+      "argv": [
+        "python3",
+        "tools/check-plan.py",
+        "--self-test"
+      ],
+      "checked_commit": "115f4f81e58b6262e3f80234953310158f8b0785",
+      "started_at": "2026-10-31T09:10:10.391242+00:00",
+      "completed_at": "2026-10-31T09:10:10.465205+00:00",
+      "exit_code": 0
+    },
+    {
+      "name": "handoff",
+      "argv": [
+        "node",
+        "tools/handoff.mjs"
+      ],
+      "checked_commit": "115f4f81e58b6262e3f80234953310158f8b0785",
+      "started_at": "2026-10-31T09:10:10.465317+00:00",
+      "completed_at": "2026-10-31T09:10:17.001550+00:00",
+      "exit_code": 1
+    }
+  ],
+  "errors": 1145,
+  "warnings": 0,
+  "baseline_errors": 1145,
+  "added_errors": [],
+  "removed_errors": [],
+  "new_task_errors": {
+    "225": [],
+    "226": [],
+    "230": [],
+    "231": []
+  },
+  "four_task_records_pass": true,
+  "global_record_integrity_pass": false,
+  "check_plan_pass": true,
+  "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+  "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
+  "file_hashes": {
+    "check-plan.stdout": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916",
+    "handoff.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "handoff.stdout": "9e93d343af25498aa860a345c5f6c1e0ede51091c712c7573fab91351ae5789c",
+    "check-plan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "scope": "Exact Git object publication; not compiler or main acceptance",
+  "transport_commit": "cfa425410f864f997cb7cfd3295d07e745344130",
+  "transport_tree": "e453aad10757621499b161920cd1835e7182b1b6",
+  "run_id": 41154384915,
+  "run_url": "https://github.com/zil-lang/zil/actions/runs/41154384915",
+  "job_id": 124397859333,
+  "bundle_sha256": "6c15db812d6d7e5debe61d28b28787bd2272a5c37f836e55727979a38b7c9e6b",
+  "bundle_size": 10505682,
+  "targets": [
+    {
+      "branch": "task/228",
+      "sha": "1082b50ec3221ccf0550255fb1a6675500266055"
+    },
+    {
+      "branch": "task/229",
+      "sha": "026ea29beb8d83c382ad04bd417606679769afa3"
+    },
+    {
+      "branch": "task/228-consumer",
+      "sha": "2890f226fdc2328248b341de4cdcaeb49871b0a0"
+    },
+    {
+      "branch": "task/228-229",
+      "sha": "faf7c8e2c713d81cedaf2b2a74a738045f093cd0"
+    }
+  ],
+  "non_force_atomic": true,
+  "read_back_matches_manifest": true,
+  "raw_receipt": "publication-receipt.json",
+  "artifact_zip": "publication-receipt.zip",
+  "archive_sha256": "aa3e0988752d1db837a2be9721aaa4155e9b51320bd7ec8b3e6cd2e8e4636294",
+  "archive_independently_downloaded_and_verified": true,
+  "full_import_log": "publication-job.log.gz",
+  "note": "Only the four named task branches were published; main was not written by the transport job."
+}

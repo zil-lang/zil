@@ -8,6 +8,7 @@ mod foreign;
 mod generics;
 mod mapping;
 mod modules;
+mod project_traits;
 mod receivers;
 mod records;
 mod resources;
@@ -131,6 +132,8 @@ pub struct ExpandedModule {
     // Compiler-generated ordinary imports, never safety capabilities.
     generated_imports: Vec<CoreImport>,
     generated_exports: Vec<NodeId>,
+    imported_public_traits: BTreeSet<String>,
+    project_trait_work: usize,
 }
 
 type ProjectDefaults = BTreeMap<(String, String), (zil_base::ModuleId, String)>;
@@ -169,7 +172,7 @@ pub fn expand_program_module_with_limits(
     let specialized = generics::specialize(module, limits)?;
     let module = &specialized;
     let expanded = expand_inner(source, module, true)?;
-    let exports = source_exports(module, &expanded.core);
+    let exports = source_exports(module, &expanded.core, &expanded.imported_public_traits);
     Ok((
         ProgramModule {
             core: expanded.core,
@@ -183,8 +186,13 @@ pub fn expand_program_module_with_limits(
 /// Export ordinary functions and declared public methods. A method's
 /// visibility comes from its declaration and public nominal owner, never from
 /// seeing a same-spelled method in a downstream module. Trait signatures in a
-/// public local trait are public through their public concrete implementation.
-fn source_exports(module: &s::Module, core: &CoreModule) -> Vec<NodeId> {
+/// public local or checked imported trait are public through their public
+/// concrete implementation.
+fn source_exports(
+    module: &s::Module,
+    core: &CoreModule,
+    imported_public_traits: &BTreeSet<String>,
+) -> Vec<NodeId> {
     let public_nominals: std::collections::BTreeSet<_> = module
         .items
         .iter()
@@ -246,7 +254,10 @@ fn source_exports(module: &s::Module, core: &CoreModule) -> Vec<NodeId> {
                     .trait_type
                     .as_ref()
                     .and_then(type_path)
-                    .is_some_and(|name| public_traits.contains(name.as_str()));
+                    .is_some_and(|name| {
+                        public_traits.contains(name.as_str())
+                            || imported_public_traits.contains(&name)
+                    });
                 for member in &i.members {
                     if (if i.trait_type.is_some() {
                         public_trait
@@ -274,7 +285,8 @@ pub fn expand_program_with_limits(
     limits: &Limits,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
     let specialized = modules::specialize(sources, syntax, imports, limits)?;
-    let declarations = declaration_index(specialized.iter().map(|(m, _)| m));
+    let project_modules: Vec<_> = specialized.iter().map(|(module, _)| module).collect();
+    let declarations = declaration_index(project_modules.iter().copied());
     let mut result = Vec::new();
     let mut remaining = limits.clone();
     let mut defaults = ProjectDefaults::new();
@@ -314,16 +326,30 @@ pub fn expand_program_with_limits(
             }
         }
     }
-    for (source, (module, imports)) in sources.iter().zip(&specialized) {
+    for ((source, (module, module_imports)), source_imports) in
+        sources.iter().zip(&specialized).zip(imports)
+    {
         let expanded = expand_inner_project(
             source,
             module,
             true,
             sources,
-            &declarations,
+            (&declarations, &project_modules, source_imports),
             &remaining,
             Some(&defaults),
         )?;
+        // New project trait work shares the project's remaining allowance; a
+        // later implementation module does not receive those steps again.
+        remaining.max_analysis_steps = remaining
+            .max_analysis_steps
+            .checked_sub(expanded.project_trait_work)
+            .ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Expand,
+                    "project trait work budget exceeded",
+                    Some(module.span),
+                )]
+            })?;
         remaining.max_nodes = remaining
             .max_nodes
             .checked_sub(expanded.source_map.entries.len())
@@ -350,9 +376,9 @@ pub fn expand_program_with_limits(
                     Some(module.span),
                 )]
             })?;
-        let mut exports = source_exports(module, &expanded.core);
+        let mut exports = source_exports(module, &expanded.core, &expanded.imported_public_traits);
         exports.extend(expanded.generated_exports);
-        let mut resolved_imports = imports.clone();
+        let mut resolved_imports = module_imports.clone();
         resolved_imports.extend(expanded.generated_imports);
         result.push((
             ProgramModule {
@@ -377,7 +403,7 @@ fn expand_inner(
         module,
         imports_resolved,
         std::slice::from_ref(source),
-        &declarations,
+        (&declarations, &[module], &[]),
         &Limits::default(),
         None,
     )
@@ -402,10 +428,11 @@ fn expand_inner_project(
     module: &s::Module,
     imports_resolved: bool,
     sources: &[SourceUnit],
-    declarations: &Declarations<'_>,
+    project: (&Declarations<'_>, &[&s::Module], &[CoreImport]),
     limits: &Limits,
     project_defaults: Option<&ProjectDefaults>,
 ) -> CompileResult<ExpandedModule> {
+    let (declarations, project_modules, imports) = project;
     let mut e = Expander::new(
         module.id,
         imports_resolved,
@@ -419,7 +446,7 @@ fn expand_inner_project(
         }
     }
     e.collect_resource_drops(module);
-    e.collect_static_traits(module, limits);
+    e.collect_static_traits(module, project_modules, imports, limits);
     // A public default is a declaration: check its body even when a particular
     // consumer explicitly supplies that field. Private/local defaults retain
     // their existing lazy lowering.
@@ -455,6 +482,8 @@ fn expand_inner_project(
         source_map: e.source_map,
         generated_imports: e.generated_imports.into_values().collect(),
         generated_exports: e.generated_exports,
+        imported_public_traits: e.imported_public_traits,
+        project_trait_work: e.project_trait_work,
     })
 }
 struct Expander<'a> {
@@ -475,6 +504,8 @@ struct Expander<'a> {
     declarations: &'a Declarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
+    imported_public_traits: BTreeSet<String>,
+    project_trait_work: usize,
     static_traits: BTreeSet<String>,
     static_trait_impls: BTreeSet<Span>,
     source_map: SourceMap,
@@ -512,6 +543,8 @@ impl<'a> Expander<'a> {
             declarations,
             default_helpers: BTreeMap::new(),
             traits: BTreeMap::new(),
+            imported_public_traits: BTreeSet::new(),
+            project_trait_work: 0,
             static_traits: BTreeSet::new(),
             static_trait_impls: BTreeSet::new(),
             source_map: SourceMap::new(module_id),

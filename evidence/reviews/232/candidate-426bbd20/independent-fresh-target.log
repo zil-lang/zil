@@ -1,0 +1,41 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-verify)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-llvm-api)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-syntax)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-backend-llvm)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-types)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-ct)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 21.39s
+     Running tests/review232_independent.rs (target-review232-426bbd20/debug/deps/review232_independent-fc9e01a38ecd2418)
+
+running 7 tests
+test parameter_outer_capture_and_escaping_environment_remain_closed ... ok
+test live_default_capture_blocks_intersecting_move_take_and_replace ... ok
+
+thread 'raw_and_wire_same_type_other_owner_does_not_inherit_loan_permission' (276) panicked at crates/zil-driver/tests/review232_independent.rs:229:10:
+invalid source provenance must be rejected
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test raw_and_wire_same_type_other_owner_does_not_inherit_loan_permission ... FAILED
+test raw_and_wire_dynamic_store_source_cannot_impersonate_default_local_capture ... ok
+
+thread 'two_roots_and_shadowed_names_preserve_actual_storage' (277) panicked at crates/zil-driver/tests/review232_independent.rs:52:78:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Types, category: SafeReject, code: "E-NAME-DUPLICATE", message: "duplicate local owner", span: Some(Span { file: FileId(0), start: 325, end: 390 }), notes: [] }]
+test two_roots_and_shadowed_names_preserve_actual_storage ... FAILED
+test default_flat_and_recursive_capture_keep_owner_and_clean_once ... ok
+test whole_consumption_and_uncalled_shared_environment_keep_cleanup ... ok
+
+failures:
+
+failures:
+    raw_and_wire_same_type_other_owner_does_not_inherit_loan_permission
+    two_roots_and_shadowed_names_preserve_actual_storage
+
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+
+error: test failed, to rerun pass `-p zil-driver --test review232_independent`

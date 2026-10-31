@@ -535,6 +535,7 @@ fn check(
 struct Facts {
     values: Vec<Roots>,
     inputs: Vec<State>,
+    product_captures: bool,
 }
 
 fn reconstruct(
@@ -554,12 +555,14 @@ fn reconstruct(
         return Ok(Facts {
             values: vec![vec![]; v],
             inputs: vec![],
+            product_captures: false,
         });
     }
     reserve(budget, &[n, 2])?;
     let mut values = vec![Roots::new(); v];
     let mut inputs = vec![State::new(); n];
     let mut outputs = vec![State::new(); n];
+    let mut product_captures = false;
     loop {
         let mut changed = false;
         for (b, block) in f.blocks.iter().enumerate() {
@@ -698,6 +701,8 @@ fn reconstruct(
                         InstructionKind::MakeClosure { captures, .. } => {
                             for capture in captures {
                                 budget.spend(1)?;
+                                product_captures |=
+                                    f.values[capture.0 as usize].is_package_address();
                                 if !descriptor_origins
                                     && let Type::Closure(id) = f.values[capture.0 as usize]
                                 {
@@ -730,7 +735,11 @@ fn reconstruct(
             break;
         }
     }
-    Ok(Facts { values, inputs })
+    Ok(Facts {
+        values,
+        inputs,
+        product_captures,
+    })
 }
 
 // The verifier reconstructs its own dependency graph and uses a separate
@@ -911,6 +920,57 @@ pub(super) fn check_module(
         .zip(graphs)
         .zip(&facts)
     {
+        if facts.product_captures {
+            // Origins are the kernel's final private facts, reconstructed after
+            // the whole-module return frontier. Candidate Hold rows are not read.
+            budget.spend(function.blocks.len())?;
+            for (block, live) in function.blocks.iter().zip(&graph.reachable) {
+                if !live {
+                    continue;
+                }
+                budget.spend(block.instructions.len())?;
+                for instruction in &block.instructions {
+                    let InstructionKind::MakeClosure { captures, .. } = &instruction.kind else {
+                        continue;
+                    };
+                    budget.spend(captures.len())?;
+                    for capture in captures {
+                        if !function.values[capture.0 as usize].is_package_address() {
+                            continue;
+                        }
+                        let roots = &facts.values[capture.0 as usize];
+                        budget.spend(roots.len())?;
+                        if roots.is_empty() {
+                            return Err(unsupported(
+                                "shared Product capture requires proven ordinary local Product origins",
+                                Some(instruction.span),
+                            ));
+                        }
+                        for root in roots {
+                            let Root::Local(local) = root else {
+                                return Err(unsupported(
+                                    "shared Product capture requires proven ordinary local Product origins",
+                                    Some(instruction.span),
+                                ));
+                            };
+                            let actual = &function.locals[local.0 as usize].ty;
+                            if !matches!(actual, Type::Package { .. }) {
+                                return Err(unsupported(
+                                    "shared Product capture requires proven ordinary local Product origins",
+                                    Some(instruction.span),
+                                ));
+                            }
+                            packages::check_shared_product_type(
+                                module,
+                                actual,
+                                Some(instruction.span),
+                                budget,
+                            )?;
+                        }
+                    }
+                }
+            }
+        }
         let mut lending_sources = std::collections::BTreeSet::new();
         for (block, reachable) in function.blocks.iter().zip(&graph.reachable) {
             if !reachable {

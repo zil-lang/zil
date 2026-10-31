@@ -1,0 +1,7 @@
+{
+  "status": "InfrastructureFailure",
+  "operation": "fetch main ref into new repository",
+  "error": "Git refused to fetch into the checked-out unborn main branch",
+  "source_changed": false,
+  "compiler_tests_run": 0
+}

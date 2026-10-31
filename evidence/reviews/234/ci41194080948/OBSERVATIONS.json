@@ -1,0 +1,2534 @@
+{
+  "review234": [
+    {
+      "case": "review234-Clang-O0-36136-0",
+      "compiles": [
+        {
+          "report": "review234-Clang-O0-36136-0/compile-false.json",
+          "backend": "clang",
+          "optimization": "O0",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "review234-Clang-O0-36136-0/compile-true.json",
+          "backend": "clang",
+          "optimization": "O0",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "warm": false,
+          "index": 0,
+          "input_hex": "",
+          "i32": -2147483648,
+          "i64": -9223372036854775808,
+          "expected_hex": "000000800000000000000080",
+          "actual_hex": "000000800000000000000080",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 1,
+          "input_hex": "00",
+          "i32": -257,
+          "i64": -4294967297,
+          "expected_hex": "fffefffffffffffffeffffff",
+          "actual_hex": "fffefffffffffffffeffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 2,
+          "input_hex": "01",
+          "i32": -256,
+          "i64": -4294967296,
+          "expected_hex": "00ffffff00000000ffffffff",
+          "actual_hex": "00ffffff00000000ffffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 3,
+          "input_hex": "02",
+          "i32": -1,
+          "i64": -1,
+          "expected_hex": "ffffffffffffffffffffffff",
+          "actual_hex": "ffffffffffffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 4,
+          "input_hex": "03",
+          "i32": 2147483647,
+          "i64": 9223372036854775807,
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "actual_hex": "ffffff7fffffffffffffff7f",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 5,
+          "input_hex": "04",
+          "i32": -2147483392,
+          "i64": -9223372036854775552,
+          "expected_hex": "000100800001000000000080",
+          "actual_hex": "000100800001000000000080",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 6,
+          "input_hex": "ff",
+          "i32": -2,
+          "i64": -2,
+          "expected_hex": "fefffffffeffffffffffffff",
+          "actual_hex": "fefffffffeffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 0,
+          "input_hex": "",
+          "i32": -2147483648,
+          "i64": -9223372036854775808,
+          "expected_hex": "000000800000000000000080",
+          "actual_hex": "000000800000000000000080",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 1,
+          "input_hex": "00",
+          "i32": -257,
+          "i64": -4294967297,
+          "expected_hex": "fffefffffffffffffeffffff",
+          "actual_hex": "fffefffffffffffffeffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 2,
+          "input_hex": "01",
+          "i32": -256,
+          "i64": -4294967296,
+          "expected_hex": "00ffffff00000000ffffffff",
+          "actual_hex": "00ffffff00000000ffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 3,
+          "input_hex": "02",
+          "i32": -1,
+          "i64": -1,
+          "expected_hex": "ffffffffffffffffffffffff",
+          "actual_hex": "ffffffffffffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 4,
+          "input_hex": "03",
+          "i32": 2147483647,
+          "i64": 9223372036854775807,
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "actual_hex": "ffffff7fffffffffffffff7f",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 5,
+          "input_hex": "04",
+          "i32": -2147483392,
+          "i64": -9223372036854775552,
+          "expected_hex": "000100800001000000000080",
+          "actual_hex": "000100800001000000000080",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 6,
+          "input_hex": "ff",
+          "i32": -2,
+          "i64": -2,
+          "expected_hex": "fefffffffeffffffffffffff",
+          "actual_hex": "fefffffffeffffffffffffff",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "case": "review234-Clang-O2-36136-1",
+      "compiles": [
+        {
+          "report": "review234-Clang-O2-36136-1/compile-false.json",
+          "backend": "clang",
+          "optimization": "O2",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "review234-Clang-O2-36136-1/compile-true.json",
+          "backend": "clang",
+          "optimization": "O2",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "warm": false,
+          "index": 0,
+          "input_hex": "",
+          "i32": -2147483648,
+          "i64": -9223372036854775808,
+          "expected_hex": "000000800000000000000080",
+          "actual_hex": "000000800000000000000080",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 1,
+          "input_hex": "00",
+          "i32": -257,
+          "i64": -4294967297,
+          "expected_hex": "fffefffffffffffffeffffff",
+          "actual_hex": "fffefffffffffffffeffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 2,
+          "input_hex": "01",
+          "i32": -256,
+          "i64": -4294967296,
+          "expected_hex": "00ffffff00000000ffffffff",
+          "actual_hex": "00ffffff00000000ffffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 3,
+          "input_hex": "02",
+          "i32": -1,
+          "i64": -1,
+          "expected_hex": "ffffffffffffffffffffffff",
+          "actual_hex": "ffffffffffffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 4,
+          "input_hex": "03",
+          "i32": 2147483647,
+          "i64": 9223372036854775807,
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "actual_hex": "ffffff7fffffffffffffff7f",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 5,
+          "input_hex": "04",
+          "i32": -2147483392,
+          "i64": -9223372036854775552,
+          "expected_hex": "000100800001000000000080",
+          "actual_hex": "000100800001000000000080",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 6,
+          "input_hex": "ff",
+          "i32": -2,
+          "i64": -2,
+          "expected_hex": "fefffffffeffffffffffffff",
+          "actual_hex": "fefffffffeffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 0,
+          "input_hex": "",
+          "i32": -2147483648,
+          "i64": -9223372036854775808,
+          "expected_hex": "000000800000000000000080",
+          "actual_hex": "000000800000000000000080",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 1,
+          "input_hex": "00",
+          "i32": -257,
+          "i64": -4294967297,
+          "expected_hex": "fffefffffffffffffeffffff",
+          "actual_hex": "fffefffffffffffffeffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 2,
+          "input_hex": "01",
+          "i32": -256,
+          "i64": -4294967296,
+          "expected_hex": "00ffffff00000000ffffffff",
+          "actual_hex": "00ffffff00000000ffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 3,
+          "input_hex": "02",
+          "i32": -1,
+          "i64": -1,
+          "expected_hex": "ffffffffffffffffffffffff",
+          "actual_hex": "ffffffffffffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 4,
+          "input_hex": "03",
+          "i32": 2147483647,
+          "i64": 9223372036854775807,
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "actual_hex": "ffffff7fffffffffffffff7f",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 5,
+          "input_hex": "04",
+          "i32": -2147483392,
+          "i64": -9223372036854775552,
+          "expected_hex": "000100800001000000000080",
+          "actual_hex": "000100800001000000000080",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 6,
+          "input_hex": "ff",
+          "i32": -2,
+          "i64": -2,
+          "expected_hex": "fefffffffeffffffffffffff",
+          "actual_hex": "fefffffffeffffffffffffff",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "case": "review234-LlvmApi-O0-36136-2",
+      "compiles": [
+        {
+          "report": "review234-LlvmApi-O0-36136-2/compile-false.json",
+          "backend": "llvm-api",
+          "optimization": "O0",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O0>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 2912,
+              "input_kind": "builder",
+              "preflight_ns": 562203,
+              "builder_ns": 502404,
+              "parse_ns": 0,
+              "optimize_ns": 133278,
+              "emit_ns": 1808270,
+              "total_ns": 3430385,
+              "cache": {
+                "state": "miss",
+                "action_key": "c524eb67fb6709aefae210e1c41b2e2ed2b533792e854f6a26011ea2f3eed7d4",
+                "corrupt": false,
+                "key_ns": 806115,
+                "lookup_ns": 13500,
+                "current_preflight_ns": 0
+              }
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 806115,
+            "lookup_ns": 13500,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "review234-LlvmApi-O0-36136-2/compile-true.json",
+          "backend": "llvm-api",
+          "optimization": "O0",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "input_kind": "object-cache",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "object_bytes": 2912,
+              "cache": {
+                "state": "hit",
+                "action_key": "c524eb67fb6709aefae210e1c41b2e2ed2b533792e854f6a26011ea2f3eed7d4",
+                "corrupt": false,
+                "key_ns": 824442,
+                "lookup_ns": 131796,
+                "current_preflight_ns": 580641
+              },
+              "llvm_verification_this_request": false,
+              "producer_verified_before_after": true,
+              "preflight_ns": 580641,
+              "builder_ns": 0,
+              "parse_ns": 0,
+              "optimize_ns": 0,
+              "emit_ns": 0,
+              "total_ns": 1536879
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 1,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 824442,
+            "lookup_ns": 131796,
+            "current_preflight_ns": 580641,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "warm": false,
+          "index": 0,
+          "input_hex": "",
+          "i32": -2147483648,
+          "i64": -9223372036854775808,
+          "expected_hex": "000000800000000000000080",
+          "actual_hex": "000000800000000000000080",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 1,
+          "input_hex": "00",
+          "i32": -257,
+          "i64": -4294967297,
+          "expected_hex": "fffefffffffffffffeffffff",
+          "actual_hex": "fffefffffffffffffeffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 2,
+          "input_hex": "01",
+          "i32": -256,
+          "i64": -4294967296,
+          "expected_hex": "00ffffff00000000ffffffff",
+          "actual_hex": "00ffffff00000000ffffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 3,
+          "input_hex": "02",
+          "i32": -1,
+          "i64": -1,
+          "expected_hex": "ffffffffffffffffffffffff",
+          "actual_hex": "ffffffffffffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 4,
+          "input_hex": "03",
+          "i32": 2147483647,
+          "i64": 9223372036854775807,
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "actual_hex": "ffffff7fffffffffffffff7f",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 5,
+          "input_hex": "04",
+          "i32": -2147483392,
+          "i64": -9223372036854775552,
+          "expected_hex": "000100800001000000000080",
+          "actual_hex": "000100800001000000000080",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 6,
+          "input_hex": "ff",
+          "i32": -2,
+          "i64": -2,
+          "expected_hex": "fefffffffeffffffffffffff",
+          "actual_hex": "fefffffffeffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 0,
+          "input_hex": "",
+          "i32": -2147483648,
+          "i64": -9223372036854775808,
+          "expected_hex": "000000800000000000000080",
+          "actual_hex": "000000800000000000000080",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 1,
+          "input_hex": "00",
+          "i32": -257,
+          "i64": -4294967297,
+          "expected_hex": "fffefffffffffffffeffffff",
+          "actual_hex": "fffefffffffffffffeffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 2,
+          "input_hex": "01",
+          "i32": -256,
+          "i64": -4294967296,
+          "expected_hex": "00ffffff00000000ffffffff",
+          "actual_hex": "00ffffff00000000ffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 3,
+          "input_hex": "02",
+          "i32": -1,
+          "i64": -1,
+          "expected_hex": "ffffffffffffffffffffffff",
+          "actual_hex": "ffffffffffffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 4,
+          "input_hex": "03",
+          "i32": 2147483647,
+          "i64": 9223372036854775807,
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "actual_hex": "ffffff7fffffffffffffff7f",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 5,
+          "input_hex": "04",
+          "i32": -2147483392,
+          "i64": -9223372036854775552,
+          "expected_hex": "000100800001000000000080",
+          "actual_hex": "000100800001000000000080",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 6,
+          "input_hex": "ff",
+          "i32": -2,
+          "i64": -2,
+          "expected_hex": "fefffffffeffffffffffffff",
+          "actual_hex": "fefffffffeffffffffffffff",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "case": "review234-LlvmApi-O2-36136-3",
+      "compiles": [
+        {
+          "report": "review234-LlvmApi-O2-36136-3/compile-false.json",
+          "backend": "llvm-api",
+          "optimization": "O2",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 1776,
+              "input_kind": "builder",
+              "preflight_ns": 562033,
+              "builder_ns": 339343,
+              "parse_ns": 0,
+              "optimize_ns": 3549832,
+              "emit_ns": 3523603,
+              "total_ns": 8156750,
+              "cache": {
+                "state": "miss",
+                "action_key": "efa29f0b4b013b56cab3a720e0b6566dda274e6ca04fd9050304c00aabde86e9",
+                "corrupt": false,
+                "key_ns": 826985,
+                "lookup_ns": 14271,
+                "current_preflight_ns": 0
+              }
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 826985,
+            "lookup_ns": 14271,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "review234-LlvmApi-O2-36136-3/compile-true.json",
+          "backend": "llvm-api",
+          "optimization": "O2",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "input_kind": "object-cache",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "object_bytes": 1776,
+              "cache": {
+                "state": "hit",
+                "action_key": "efa29f0b4b013b56cab3a720e0b6566dda274e6ca04fd9050304c00aabde86e9",
+                "corrupt": false,
+                "key_ns": 824412,
+                "lookup_ns": 91526,
+                "current_preflight_ns": 599429
+              },
+              "llvm_verification_this_request": false,
+              "producer_verified_before_after": true,
+              "preflight_ns": 599429,
+              "builder_ns": 0,
+              "parse_ns": 0,
+              "optimize_ns": 0,
+              "emit_ns": 0,
+              "total_ns": 1515367
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 1,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 824412,
+            "lookup_ns": 91526,
+            "current_preflight_ns": 599429,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "warm": false,
+          "index": 0,
+          "input_hex": "",
+          "i32": -2147483648,
+          "i64": -9223372036854775808,
+          "expected_hex": "000000800000000000000080",
+          "actual_hex": "000000800000000000000080",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 1,
+          "input_hex": "00",
+          "i32": -257,
+          "i64": -4294967297,
+          "expected_hex": "fffefffffffffffffeffffff",
+          "actual_hex": "fffefffffffffffffeffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 2,
+          "input_hex": "01",
+          "i32": -256,
+          "i64": -4294967296,
+          "expected_hex": "00ffffff00000000ffffffff",
+          "actual_hex": "00ffffff00000000ffffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 3,
+          "input_hex": "02",
+          "i32": -1,
+          "i64": -1,
+          "expected_hex": "ffffffffffffffffffffffff",
+          "actual_hex": "ffffffffffffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 4,
+          "input_hex": "03",
+          "i32": 2147483647,
+          "i64": 9223372036854775807,
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "actual_hex": "ffffff7fffffffffffffff7f",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 5,
+          "input_hex": "04",
+          "i32": -2147483392,
+          "i64": -9223372036854775552,
+          "expected_hex": "000100800001000000000080",
+          "actual_hex": "000100800001000000000080",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 6,
+          "input_hex": "ff",
+          "i32": -2,
+          "i64": -2,
+          "expected_hex": "fefffffffeffffffffffffff",
+          "actual_hex": "fefffffffeffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 0,
+          "input_hex": "",
+          "i32": -2147483648,
+          "i64": -9223372036854775808,
+          "expected_hex": "000000800000000000000080",
+          "actual_hex": "000000800000000000000080",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 1,
+          "input_hex": "00",
+          "i32": -257,
+          "i64": -4294967297,
+          "expected_hex": "fffefffffffffffffeffffff",
+          "actual_hex": "fffefffffffffffffeffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 2,
+          "input_hex": "01",
+          "i32": -256,
+          "i64": -4294967296,
+          "expected_hex": "00ffffff00000000ffffffff",
+          "actual_hex": "00ffffff00000000ffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 3,
+          "input_hex": "02",
+          "i32": -1,
+          "i64": -1,
+          "expected_hex": "ffffffffffffffffffffffff",
+          "actual_hex": "ffffffffffffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 4,
+          "input_hex": "03",
+          "i32": 2147483647,
+          "i64": 9223372036854775807,
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "actual_hex": "ffffff7fffffffffffffff7f",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 5,
+          "input_hex": "04",
+          "i32": -2147483392,
+          "i64": -9223372036854775552,
+          "expected_hex": "000100800001000000000080",
+          "actual_hex": "000100800001000000000080",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 6,
+          "input_hex": "ff",
+          "i32": -2,
+          "i64": -2,
+          "expected_hex": "fefffffffeffffffffffffff",
+          "actual_hex": "fefffffffeffffffffffffff",
+          "exit": 0
+        }
+      ]
+    }
+  ],
+  "impl234": [
+    {
+      "case": "zil-impl234-narrow-31694-0",
+      "fixture": "byte_stream",
+      "fixture_identification": "report source path for byte stream; emitted subtraction-loop CFG for negative fixtures, not runtime results",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-31694-0/compile-0.json",
+          "backend": "clang",
+          "optimization": "O0",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "zil-impl234-narrow-31694-0/compile-1.json",
+          "backend": "clang",
+          "optimization": "O0",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "index": 0,
+          "warm": false,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 1,
+          "warm": false,
+          "input_bytes": 14,
+          "input_sha256": "dc2293aaea821fa185630e950723c830dcba57bd5b360c6b6db9369be155affe",
+          "stdout_sha256": "986baf20646a3eccdc164156d7fd7f0343c86c836d1022f8724b0be77cfefb19",
+          "exit": 0
+        },
+        {
+          "index": 2,
+          "warm": false,
+          "input_bytes": 600,
+          "input_sha256": "76a84342bca6ff861fa896af855f7ddd2fd99c3dc78ed6e5c293b9689f1718e6",
+          "stdout_sha256": "17743786152fb4b24abc62ef287b2e48608c1385b4c42969a0a1f855bd8498ff",
+          "exit": 0
+        },
+        {
+          "index": 3,
+          "warm": true,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 4,
+          "warm": true,
+          "input_bytes": 14,
+          "input_sha256": "dc2293aaea821fa185630e950723c830dcba57bd5b360c6b6db9369be155affe",
+          "stdout_sha256": "986baf20646a3eccdc164156d7fd7f0343c86c836d1022f8724b0be77cfefb19",
+          "exit": 0
+        },
+        {
+          "index": 5,
+          "warm": true,
+          "input_bytes": 600,
+          "input_sha256": "76a84342bca6ff861fa896af855f7ddd2fd99c3dc78ed6e5c293b9689f1718e6",
+          "stdout_sha256": "17743786152fb4b24abc62ef287b2e48608c1385b4c42969a0a1f855bd8498ff",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-31694-1",
+      "fixture": "negative_loop",
+      "fixture_identification": "report source path for byte stream; emitted subtraction-loop CFG for negative fixtures, not runtime results",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-31694-1/compile-0.json",
+          "backend": "clang",
+          "optimization": "O0",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "zil-impl234-narrow-31694-1/compile-1.json",
+          "backend": "clang",
+          "optimization": "O0",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "index": 0,
+          "warm": false,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 1,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 2,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 3,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 4,
+          "warm": true,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 5,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 6,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 7,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-31694-10",
+      "fixture": "negative_branch",
+      "fixture_identification": "report source path for byte stream; emitted subtraction-loop CFG for negative fixtures, not runtime results",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-31694-10/compile-0.json",
+          "backend": "llvm-api",
+          "optimization": "O0",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O0>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 1208,
+              "input_kind": "builder",
+              "preflight_ns": 196321,
+              "builder_ns": 138645,
+              "parse_ns": 0,
+              "optimize_ns": 125616,
+              "emit_ns": 1300047,
+              "total_ns": 1941338,
+              "cache": {
+                "state": "miss",
+                "action_key": "a54ea5fca954a2cc42bad9e5bf5398c058d5261ac19afc22b32a342baf98b909",
+                "corrupt": false,
+                "key_ns": 206055,
+                "lookup_ns": 15192,
+                "current_preflight_ns": 0
+              }
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 206055,
+            "lookup_ns": 15192,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "zil-impl234-narrow-31694-10/compile-1.json",
+          "backend": "llvm-api",
+          "optimization": "O0",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "input_kind": "object-cache",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "object_bytes": 1208,
+              "cache": {
+                "state": "hit",
+                "action_key": "a54ea5fca954a2cc42bad9e5bf5398c058d5261ac19afc22b32a342baf98b909",
+                "corrupt": false,
+                "key_ns": 207087,
+                "lookup_ns": 86778,
+                "current_preflight_ns": 197052
+              },
+              "llvm_verification_this_request": false,
+              "producer_verified_before_after": true,
+              "preflight_ns": 197052,
+              "builder_ns": 0,
+              "parse_ns": 0,
+              "optimize_ns": 0,
+              "emit_ns": 0,
+              "total_ns": 490917
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 1,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 207087,
+            "lookup_ns": 86778,
+            "current_preflight_ns": 197052,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "index": 0,
+          "warm": false,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 1,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 2,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 255
+        },
+        {
+          "index": 3,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 4,
+          "warm": true,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 5,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 6,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 255
+        },
+        {
+          "index": 7,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-31694-11",
+      "fixture": "negative_branch",
+      "fixture_identification": "report source path for byte stream; emitted subtraction-loop CFG for negative fixtures, not runtime results",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-31694-11/compile-0.json",
+          "backend": "llvm-api",
+          "optimization": "O2",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 824,
+              "input_kind": "builder",
+              "preflight_ns": 188009,
+              "builder_ns": 126498,
+              "parse_ns": 0,
+              "optimize_ns": 1227480,
+              "emit_ns": 1940426,
+              "total_ns": 3655939,
+              "cache": {
+                "state": "miss",
+                "action_key": "ef12238d2cc19c66c0e41e7f2643d138c2025b56e794955f1153ee0e43e91fca",
+                "corrupt": false,
+                "key_ns": 220637,
+                "lookup_ns": 25568,
+                "current_preflight_ns": 0
+              }
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 220637,
+            "lookup_ns": 25568,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "zil-impl234-narrow-31694-11/compile-1.json",
+          "backend": "llvm-api",
+          "optimization": "O2",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "input_kind": "object-cache",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "object_bytes": 824,
+              "cache": {
+                "state": "hit",
+                "action_key": "ef12238d2cc19c66c0e41e7f2643d138c2025b56e794955f1153ee0e43e91fca",
+                "corrupt": false,
+                "key_ns": 139306,
+                "lookup_ns": 55052,
+                "current_preflight_ns": 145306
+              },
+              "llvm_verification_this_request": false,
+              "producer_verified_before_after": true,
+              "preflight_ns": 145306,
+              "builder_ns": 0,
+              "parse_ns": 0,
+              "optimize_ns": 0,
+              "emit_ns": 0,
+              "total_ns": 339664
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 1,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 139306,
+            "lookup_ns": 55052,
+            "current_preflight_ns": 145306,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "index": 0,
+          "warm": false,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 1,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 2,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 255
+        },
+        {
+          "index": 3,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 4,
+          "warm": true,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 5,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 6,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 255
+        },
+        {
+          "index": 7,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-31694-2",
+      "fixture": "negative_loop",
+      "fixture_identification": "report source path for byte stream; emitted subtraction-loop CFG for negative fixtures, not runtime results",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-31694-2/compile-0.json",
+          "backend": "clang",
+          "optimization": "O2",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "zil-impl234-narrow-31694-2/compile-1.json",
+          "backend": "clang",
+          "optimization": "O2",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "index": 0,
+          "warm": false,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 1,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 2,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 3,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 4,
+          "warm": true,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 5,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 6,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 7,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-31694-3",
+      "fixture": "byte_stream",
+      "fixture_identification": "report source path for byte stream; emitted subtraction-loop CFG for negative fixtures, not runtime results",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-31694-3/compile-0.json",
+          "backend": "clang",
+          "optimization": "O2",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "zil-impl234-narrow-31694-3/compile-1.json",
+          "backend": "clang",
+          "optimization": "O2",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "index": 0,
+          "warm": false,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 1,
+          "warm": false,
+          "input_bytes": 14,
+          "input_sha256": "dc2293aaea821fa185630e950723c830dcba57bd5b360c6b6db9369be155affe",
+          "stdout_sha256": "986baf20646a3eccdc164156d7fd7f0343c86c836d1022f8724b0be77cfefb19",
+          "exit": 0
+        },
+        {
+          "index": 2,
+          "warm": false,
+          "input_bytes": 600,
+          "input_sha256": "76a84342bca6ff861fa896af855f7ddd2fd99c3dc78ed6e5c293b9689f1718e6",
+          "stdout_sha256": "17743786152fb4b24abc62ef287b2e48608c1385b4c42969a0a1f855bd8498ff",
+          "exit": 0
+        },
+        {
+          "index": 3,
+          "warm": true,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 4,
+          "warm": true,
+          "input_bytes": 14,
+          "input_sha256": "dc2293aaea821fa185630e950723c830dcba57bd5b360c6b6db9369be155affe",
+          "stdout_sha256": "986baf20646a3eccdc164156d7fd7f0343c86c836d1022f8724b0be77cfefb19",
+          "exit": 0
+        },
+        {
+          "index": 5,
+          "warm": true,
+          "input_bytes": 600,
+          "input_sha256": "76a84342bca6ff861fa896af855f7ddd2fd99c3dc78ed6e5c293b9689f1718e6",
+          "stdout_sha256": "17743786152fb4b24abc62ef287b2e48608c1385b4c42969a0a1f855bd8498ff",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-31694-4",
+      "fixture": "negative_loop",
+      "fixture_identification": "report source path for byte stream; emitted subtraction-loop CFG for negative fixtures, not runtime results",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-31694-4/compile-0.json",
+          "backend": "llvm-api",
+          "optimization": "O0",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O0>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 1224,
+              "input_kind": "builder",
+              "preflight_ns": 236390,
+              "builder_ns": 291793,
+              "parse_ns": 0,
+              "optimize_ns": 168850,
+              "emit_ns": 1929690,
+              "total_ns": 3099734,
+              "cache": {
+                "state": "miss",
+                "action_key": "577e2f23ddcd0b767fcc689601be47cdded9556056bc7dad3499562718320b46",
+                "corrupt": false,
+                "key_ns": 250912,
+                "lookup_ns": 15092,
+                "current_preflight_ns": 0
+              }
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 250912,
+            "lookup_ns": 15092,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "zil-impl234-narrow-31694-4/compile-1.json",
+          "backend": "llvm-api",
+          "optimization": "O0",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "input_kind": "object-cache",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "object_bytes": 1224,
+              "cache": {
+                "state": "hit",
+                "action_key": "577e2f23ddcd0b767fcc689601be47cdded9556056bc7dad3499562718320b46",
+                "corrupt": false,
+                "key_ns": 269390,
+                "lookup_ns": 130123,
+                "current_preflight_ns": 233557
+              },
+              "llvm_verification_this_request": false,
+              "producer_verified_before_after": true,
+              "preflight_ns": 233557,
+              "builder_ns": 0,
+              "parse_ns": 0,
+              "optimize_ns": 0,
+              "emit_ns": 0,
+              "total_ns": 633070
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 1,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 269390,
+            "lookup_ns": 130123,
+            "current_preflight_ns": 233557,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "index": 0,
+          "warm": false,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 1,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 2,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 3,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 4,
+          "warm": true,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 5,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 6,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 7,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-31694-5",
+      "fixture": "negative_loop",
+      "fixture_identification": "report source path for byte stream; emitted subtraction-loop CFG for negative fixtures, not runtime results",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-31694-5/compile-0.json",
+          "backend": "llvm-api",
+          "optimization": "O2",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 800,
+              "input_kind": "builder",
+              "preflight_ns": 223612,
+              "builder_ns": 141480,
+              "parse_ns": 0,
+              "optimize_ns": 2323374,
+              "emit_ns": 2365416,
+              "total_ns": 5229711,
+              "cache": {
+                "state": "miss",
+                "action_key": "120c0233fede1f7bb589fd26b01c70aee69b437bd5f3e2375424b8a9f037a286",
+                "corrupt": false,
+                "key_ns": 252254,
+                "lookup_ns": 16625,
+                "current_preflight_ns": 0
+              }
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 252254,
+            "lookup_ns": 16625,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "zil-impl234-narrow-31694-5/compile-1.json",
+          "backend": "llvm-api",
+          "optimization": "O2",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "input_kind": "object-cache",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "object_bytes": 800,
+              "cache": {
+                "state": "hit",
+                "action_key": "120c0233fede1f7bb589fd26b01c70aee69b437bd5f3e2375424b8a9f037a286",
+                "corrupt": false,
+                "key_ns": 263791,
+                "lookup_ns": 78547,
+                "current_preflight_ns": 292664
+              },
+              "llvm_verification_this_request": false,
+              "producer_verified_before_after": true,
+              "preflight_ns": 292664,
+              "builder_ns": 0,
+              "parse_ns": 0,
+              "optimize_ns": 0,
+              "emit_ns": 0,
+              "total_ns": 635002
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 1,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 263791,
+            "lookup_ns": 78547,
+            "current_preflight_ns": 292664,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "index": 0,
+          "warm": false,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 1,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 2,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 3,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 4,
+          "warm": true,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 5,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 6,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 7,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-31694-6",
+      "fixture": "negative_branch",
+      "fixture_identification": "report source path for byte stream; emitted subtraction-loop CFG for negative fixtures, not runtime results",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-31694-6/compile-0.json",
+          "backend": "clang",
+          "optimization": "O0",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "zil-impl234-narrow-31694-6/compile-1.json",
+          "backend": "clang",
+          "optimization": "O0",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "index": 0,
+          "warm": false,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 1,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 2,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 255
+        },
+        {
+          "index": 3,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 4,
+          "warm": true,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 5,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 6,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 255
+        },
+        {
+          "index": 7,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-31694-7",
+      "fixture": "byte_stream",
+      "fixture_identification": "report source path for byte stream; emitted subtraction-loop CFG for negative fixtures, not runtime results",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-31694-7/compile-0.json",
+          "backend": "llvm-api",
+          "optimization": "O0",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O0>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 10208,
+              "input_kind": "builder",
+              "preflight_ns": 1435548,
+              "builder_ns": 884621,
+              "parse_ns": 0,
+              "optimize_ns": 88231,
+              "emit_ns": 7065433,
+              "total_ns": 9746006,
+              "cache": {
+                "state": "miss",
+                "action_key": "6924ab2fe87d2ba7a1b89216e453ef1ef71619b8f37e2bfad39493d038549e58",
+                "corrupt": false,
+                "key_ns": 2406347,
+                "lookup_ns": 16484,
+                "current_preflight_ns": 0
+              }
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 2406347,
+            "lookup_ns": 16484,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "zil-impl234-narrow-31694-7/compile-1.json",
+          "backend": "llvm-api",
+          "optimization": "O0",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "input_kind": "object-cache",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "object_bytes": 10208,
+              "cache": {
+                "state": "hit",
+                "action_key": "6924ab2fe87d2ba7a1b89216e453ef1ef71619b8f37e2bfad39493d038549e58",
+                "corrupt": false,
+                "key_ns": 2447888,
+                "lookup_ns": 556695,
+                "current_preflight_ns": 1340577
+              },
+              "llvm_verification_this_request": false,
+              "producer_verified_before_after": true,
+              "preflight_ns": 1340577,
+              "builder_ns": 0,
+              "parse_ns": 0,
+              "optimize_ns": 0,
+              "emit_ns": 0,
+              "total_ns": 4345160
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 1,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 2447888,
+            "lookup_ns": 556695,
+            "current_preflight_ns": 1340577,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "index": 0,
+          "warm": false,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 1,
+          "warm": false,
+          "input_bytes": 14,
+          "input_sha256": "dc2293aaea821fa185630e950723c830dcba57bd5b360c6b6db9369be155affe",
+          "stdout_sha256": "986baf20646a3eccdc164156d7fd7f0343c86c836d1022f8724b0be77cfefb19",
+          "exit": 0
+        },
+        {
+          "index": 2,
+          "warm": false,
+          "input_bytes": 600,
+          "input_sha256": "76a84342bca6ff861fa896af855f7ddd2fd99c3dc78ed6e5c293b9689f1718e6",
+          "stdout_sha256": "17743786152fb4b24abc62ef287b2e48608c1385b4c42969a0a1f855bd8498ff",
+          "exit": 0
+        },
+        {
+          "index": 3,
+          "warm": true,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 4,
+          "warm": true,
+          "input_bytes": 14,
+          "input_sha256": "dc2293aaea821fa185630e950723c830dcba57bd5b360c6b6db9369be155affe",
+          "stdout_sha256": "986baf20646a3eccdc164156d7fd7f0343c86c836d1022f8724b0be77cfefb19",
+          "exit": 0
+        },
+        {
+          "index": 5,
+          "warm": true,
+          "input_bytes": 600,
+          "input_sha256": "76a84342bca6ff861fa896af855f7ddd2fd99c3dc78ed6e5c293b9689f1718e6",
+          "stdout_sha256": "17743786152fb4b24abc62ef287b2e48608c1385b4c42969a0a1f855bd8498ff",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-31694-8",
+      "fixture": "negative_branch",
+      "fixture_identification": "report source path for byte stream; emitted subtraction-loop CFG for negative fixtures, not runtime results",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-31694-8/compile-0.json",
+          "backend": "clang",
+          "optimization": "O2",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "zil-impl234-narrow-31694-8/compile-1.json",
+          "backend": "clang",
+          "optimization": "O2",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "index": 0,
+          "warm": false,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 1,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 2,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 255
+        },
+        {
+          "index": 3,
+          "warm": false,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 4,
+          "warm": true,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "index": 5,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 6,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 255
+        },
+        {
+          "index": 7,
+          "warm": true,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-31694-9",
+      "fixture": "byte_stream",
+      "fixture_identification": "report source path for byte stream; emitted subtraction-loop CFG for negative fixtures, not runtime results",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-31694-9/compile-0.json",
+          "backend": "llvm-api",
+          "optimization": "O2",
+          "warm": false,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "cpu": "x86-64",
+              "features": "",
+              "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+              "pipeline": "default<O2>",
+              "relocation": "PIC",
+              "code_model": "default",
+              "verify_before_after": true,
+              "object_bytes": 4688,
+              "input_kind": "builder",
+              "preflight_ns": 1348338,
+              "builder_ns": 863349,
+              "parse_ns": 0,
+              "optimize_ns": 44796879,
+              "emit_ns": 16295764,
+              "total_ns": 63693007,
+              "cache": {
+                "state": "miss",
+                "action_key": "7d37ac5478ff060b53f951663b9ca5dc25fba663ddf4875ad57d522280753b5f",
+                "corrupt": false,
+                "key_ns": 2277085,
+                "lookup_ns": 17015,
+                "current_preflight_ns": 0
+              }
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 2277085,
+            "lookup_ns": 17015,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          }
+        },
+        {
+          "report": "zil-impl234-narrow-31694-9/compile-1.json",
+          "backend": "llvm-api",
+          "optimization": "O2",
+          "warm": true,
+          "verification_runs": 1,
+          "fallback": null,
+          "object_reports": [
+            {
+              "backend": "llvm-api",
+              "input_kind": "object-cache",
+              "llvm_version": "23.1.4",
+              "triple": "x86_64-unknown-linux-gnu",
+              "object_bytes": 4688,
+              "cache": {
+                "state": "hit",
+                "action_key": "7d37ac5478ff060b53f951663b9ca5dc25fba663ddf4875ad57d522280753b5f",
+                "corrupt": false,
+                "key_ns": 2322252,
+                "lookup_ns": 280296,
+                "current_preflight_ns": 1526412
+              },
+              "llvm_verification_this_request": false,
+              "producer_verified_before_after": true,
+              "preflight_ns": 1526412,
+              "builder_ns": 0,
+              "parse_ns": 0,
+              "optimize_ns": 0,
+              "emit_ns": 0,
+              "total_ns": 4128960
+            }
+          ],
+          "object_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 1,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 2322252,
+            "lookup_ns": 280296,
+            "current_preflight_ns": 1526412,
+            "disabled_reason": null
+          }
+        }
+      ],
+      "observations": [
+        {
+          "index": 0,
+          "warm": false,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 1,
+          "warm": false,
+          "input_bytes": 14,
+          "input_sha256": "dc2293aaea821fa185630e950723c830dcba57bd5b360c6b6db9369be155affe",
+          "stdout_sha256": "986baf20646a3eccdc164156d7fd7f0343c86c836d1022f8724b0be77cfefb19",
+          "exit": 0
+        },
+        {
+          "index": 2,
+          "warm": false,
+          "input_bytes": 600,
+          "input_sha256": "76a84342bca6ff861fa896af855f7ddd2fd99c3dc78ed6e5c293b9689f1718e6",
+          "stdout_sha256": "17743786152fb4b24abc62ef287b2e48608c1385b4c42969a0a1f855bd8498ff",
+          "exit": 0
+        },
+        {
+          "index": 3,
+          "warm": true,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "index": 4,
+          "warm": true,
+          "input_bytes": 14,
+          "input_sha256": "dc2293aaea821fa185630e950723c830dcba57bd5b360c6b6db9369be155affe",
+          "stdout_sha256": "986baf20646a3eccdc164156d7fd7f0343c86c836d1022f8724b0be77cfefb19",
+          "exit": 0
+        },
+        {
+          "index": 5,
+          "warm": true,
+          "input_bytes": 600,
+          "input_sha256": "76a84342bca6ff861fa896af855f7ddd2fd99c3dc78ed6e5c293b9689f1718e6",
+          "stdout_sha256": "17743786152fb4b24abc62ef287b2e48608c1385b4c42969a0a1f855bd8498ff",
+          "exit": 0
+        }
+      ]
+    }
+  ]
+}

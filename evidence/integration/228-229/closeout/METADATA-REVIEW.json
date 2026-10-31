@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "review_kind": "Independent review of root-authored closeout metadata and its final documentation-only increment",
+  "reviewer": "/root/scope_audit",
+  "metadata_author": "/root",
+  "verdict": "Pass",
+  "status": "Pass",
+  "created_at_utc": "2026-10-31T02:04:09.153429+00:00",
+  "scope": "Facts, receipt identities, authorship separation, counts, boundaries and metadata consistency only. This is not a new CI result, compiler test result, whole-language acceptance or global handoff Pass.",
+  "implementation_review_roles": "This reviewer authored implementation slice 228 and independently reviewed 229. The separate /root/mainline_recovery review remains the non-author implementation verdict for 228; this metadata receipt does not replace it.",
+  "reviewed_head": "21058d0e331de764e3a1b9123c3e1edf5e55a1aa",
+  "reviewed_head_tree": "88582e2ee29f3a9aaa28aa92deda219ebd910500",
+  "metadata_files_were_uncommitted_at_review": true,
+  "future_metadata_commit_identity": "Not asserted; the parent integrator will commit these reviewed bytes after this receipt.",
+  "prior_review": {
+    "head": "e463b7eec0b25e931d8ba58253ae31efaec4b4b4",
+    "verdict": "Pass after two wording corrections",
+    "static_identity_and_field_checks": 53,
+    "checks_passed": 53,
+    "checks_are_not_compiler_tests": true,
+    "full_check_set_repeated_for_increment": false,
+    "scope": "Six metadata files and ACCEPTANCE.json on e463; P/R/PR-checkout/M identities, CI receipt hashes/counts, cross-review independence, original and review commit ancestry, exact documentation-only differences and unfinished upper-level states.",
+    "resolved_findings": [
+      {
+        "finding": "The task prose conflated required and actual workflow steps.",
+        "resolution": "Both tasks now state 22 required steps and 25 actual steps, all successful."
+      },
+      {
+        "finding": "Two CI auditors was inaccurate because both original CI receipts name /root/mainline_recovery.",
+        "resolution": "The report now refers to the two CI audit receipts."
+      }
+    ],
+    "historical_waiting_ci_paragraphs": "Preserved with explicit pre-merge-history labels rather than deleted or presented as current status."
+  },
+  "incremental_review": {
+    "from": "e463b7eec0b25e931d8ba58253ae31efaec4b4b4",
+    "to": "21058d0e331de764e3a1b9123c3e1edf5e55a1aa",
+    "verdict": "Pass",
+    "git_changed_paths": [
+      "docs/LANGUAGE-225-227.md",
+      "docs/log/zil施工8.md",
+      "evidence/impl/225/OUTER-CLI.json",
+      "evidence/integration/225-226/CI225.json"
+    ],
+    "latest_main_and_metadata_base_updated_exactly": true,
+    "progress_change_only_latest_main_observed": true,
+    "acceptance_changes_only_metadata_base_and_expanded_protected_paths": true,
+    "task_228_task_229_and_goal_bytes_unchanged_since_prior_review": true,
+    "handoff_and_language_prose": "The e463 to 21058 increment is accurately described as four documentation/evidence paths; PR/main checkout identities and original CI counts remain unchanged.",
+    "parallel_review_correction": {
+      "reported_by": "/root/mainline_recovery",
+      "verified_final_wording": "Only no-where paths unaffected by the nominal-collision defect preserve old behavior and cost; rejection repair and additional collision cost are separately recorded."
+    },
+    "workflow_wording": "Report explicitly distinguishes 22 declared steps plus 3 automatic steps, totaling 25 actual successful steps.",
+    "protected_paths": [
+      "crates",
+      "Cargo.toml",
+      "Cargo.lock",
+      "build.rs",
+      "rust-toolchain",
+      "rust-toolchain.toml",
+      ".cargo",
+      "tools",
+      ".github",
+      "policy",
+      "stdlib",
+      "std",
+      "spec",
+      "_zil_design.md",
+      "examples",
+      "conformance",
+      "validation",
+      "tests",
+      "benches",
+      "data/normative-inputs.json"
+    ],
+    "protected_paths_match_recovery_receipt": true,
+    "read_only_git_diff_quiet_M_to_head_exit": 0,
+    "recovery_receipts": [
+      {
+        "path": "evidence/integration/228-229/recovery/CONCURRENT-DOCS-21058-RECOVERY.json",
+        "sha256": "9ba423210890e75d959dbdddf53e7df4a939e88e42457e9eb09c26c674d78936"
+      },
+      {
+        "path": "evidence/integration/228-229/recovery/CONCURRENT-DOCS-21058-RAW.json",
+        "sha256": "d73c2efa675f9a5151822e83a0c6bef42265ce47d3a8950cf42b31af60ac5650"
+      }
+    ]
+  },
+  "accepted_identity_references": {
+    "implementation_commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+    "integration_commit": "faf7c8e2c713d81cedaf2b2a74a738045f093cd0",
+    "pr_checkout": "ee5333028cb0c959dc6b73e43de000c66e4ace3f",
+    "main_merge_commit": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+    "metadata_base": "21058d0e331de764e3a1b9123c3e1edf5e55a1aa"
+  },
+  "original_ci_receipts": [
+    {
+      "run_id": 41154458005,
+      "path": "evidence/integration/228-229/ci41154458005/RESULT.json",
+      "sha256": "d841771bf649b1a9fff53fd769142f83022509d24ffddc991e0053db8b40aa0e",
+      "original_bytes_preserved": true
+    },
+    {
+      "run_id": 41156023933,
+      "path": "evidence/integration/228-229/ci41156023933/RESULT.json",
+      "sha256": "596a253d8ec451d840657bcf7d8b5cb17688ec1ee107f431818748fdec398f14",
+      "original_bytes_preserved": true
+    }
+  ],
+  "reviewed_metadata_files": [
+    {
+      "path": ".task/impl/228.md",
+      "bytes": 3994,
+      "sha256": "836c521afab00714279f9d42ba7f2f058de801dde8bcc04f969a66e0122bcc59"
+    },
+    {
+      "path": ".task/impl/229.md",
+      "bytes": 3966,
+      "sha256": "f7243cfd0033e08b8b8b7022dce42d7eb8e291f9b9e104e606d1de36f223c9bc"
+    },
+    {
+      "path": "_zil_goal.md",
+      "bytes": 28522,
+      "sha256": "58526f552ec69bae065c888eb7cb016b8da930376e16669f85be6ed53cc54a83"
+    },
+    {
+      "path": "data/construction-progress.json",
+      "bytes": 4952,
+      "sha256": "d35e59693b76014291509a7e4b490d9db49ab91636cdb607ab8375dbb7977aa1"
+    },
+    {
+      "path": "docs/CURRENT-HANDOFF.md",
+      "bytes": 4026,
+      "sha256": "3c0a1e885c5ed456653e3d046ce474cbd723d017d0953904d199b320752aa492"
+    },
+    {
+      "path": "docs/LANGUAGE-228-229.md",
+      "bytes": 10932,
+      "sha256": "2ecbdb61e5190deb4a2fdc3504abe1197bafd02be03cd5d372f67c28a07283ff"
+    },
+    {
+      "path": "evidence/integration/228-229/closeout/ACCEPTANCE.json",
+      "bytes": 2496,
+      "sha256": "f1efac255194395761c7f7e71edd8778e8ef43deff727056d819fe73023d456e"
+    }
+  ],
+  "upper_level_state_preserved": {
+    "B0": "Doing",
+    "181": "施工",
+    "complete_1_4": "NotSatisfied",
+    "complete_ZUI": "NotSatisfied",
+    "Rust_product_gates": "NotRun",
+    "native_Windows": "NotRun"
+  },
+  "handoff_placeholder": {
+    "path": "docs/CURRENT-HANDOFF.md",
+    "token": "HANDOFF_FINAL_SLOT",
+    "assessment": "Valid placeholder for the later actual committed-D check, not a claim that a new handoff check has passed."
+  },
+  "historical_global_handoff_failure_not_relabelled": true,
+  "new_compiler_tests_executed": false,
+  "new_ci_run_executed": false,
+  "new_handoff_check_executed": false,
+  "production_files_modified": false,
+  "original_receipts_modified": false,
+  "only_file_written_by_this_review": "evidence/integration/228-229/closeout/METADATA-REVIEW.json",
+  "remaining_findings": []
+}

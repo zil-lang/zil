@@ -1,0 +1,1283 @@
+{
+  "slice": "233",
+  "reviewer": "/root/handoff_integrity",
+  "implementation_author": "/root/safety_review",
+  "implementation_commit": "6d087050f232e8e8939aff297af0acc89e11bd20",
+  "execution_commit": "06d0b5b2983ccefd4de85c87683ab85eb665f024",
+  "reviewer_test_sha256": "b4354f0c0216d743826e64d48ee1580275b0e29de1cac36412c3e36ea428b1c3",
+  "source_equivalence": {
+    "scope": [
+      "crates/zil-expand/src/lib.rs",
+      "crates/zil-expand/src/static_traits.rs",
+      "crates/zil-expand/src/project_traits.rs",
+      "crates/zil-expand/src/modules.rs",
+      "crates/zil-expand/src/generic_trait_bounds.rs",
+      "crates/zil-expand/src/receivers.rs"
+    ],
+    "different_paths": [],
+    "note": "Execution includes232 source426bbd20 on its disjoint Types write set. Reviewer changed no production code."
+  },
+  "status": "Pass",
+  "scope": "Bounded independent source and native reference review; original authored raw identity and budget probes replayed separately. Official LLVM23 CI remains required.",
+  "prior_failed_implementation": "41d136fa31cc00b5a4b81f3c03092ee31f0d6f00",
+  "prior_fail_receipt": "evidence/reviews/233/candidate-41d136fa/RESULT.json",
+  "result": {
+    "original_independent_groups_replayed": 7,
+    "original_passed": 7,
+    "final_independent_groups": 9,
+    "final_passed": 9,
+    "failed": 0,
+    "ignored": 0,
+    "budget_replay_groups": 2,
+    "raw_identity_replay_groups": 2,
+    "native_unique_programs": 6,
+    "native_executions_final_run": 12,
+    "native_optimizations": [
+      "O0",
+      "O2"
+    ],
+    "native_backend": "Clang 17.0.6",
+    "whole_workspace_run": false,
+    "llvm23_run": false
+  },
+  "commands": [
+    "source /workspace/scratch/994319f2ba02/z11-env.sh; CARGO_BUILD_JOBS=1 CARGO_TARGET_DIR=\"$PWD/.work/target-review233-6d087050\" cargo test --offline --locked -p zil-driver --no-default-features --test review233_independent -- --nocapture",
+    "CARGO_BUILD_JOBS=1 CARGO_TARGET_DIR=\"$PWD/.work/target-review233-6d087050\" cargo test --offline --locked -p zil-driver --no-default-features --test impl233_modules work_ -- --nocapture",
+    "CARGO_BUILD_JOBS=1 CARGO_TARGET_DIR=\"$PWD/.work/target-review233-6d087050\" cargo test --offline --locked -p zil-expand --no-default-features --test impl233_project_traits -- --nocapture"
+  ],
+  "coverage": [
+    "original trait-library helper in trait defining module, where and inline bounds",
+    "reordered source-module vector preserves ModuleId identity",
+    "two implementation modules with same names/layout",
+    "separate fifth-module generic library calls two method bodies differing by100",
+    "generated implementation dependency cannot authorize unimported source trait, with actual-import positive pair",
+    "unused impl receiver/result/method-set/duplicate/field/inherent-collision rejection",
+    "private/missing/unimported traits and foreign Self remain closed",
+    "reserved trait declaration and impl rejection without a generic bound, legal near-name controls",
+    "imported signature nominal identity and same-layout wrong owner",
+    "shared resource receiver with one actual DropA; owning resource receiver closed"
+  ],
+  "repair_review": {
+    "finding": "Initial candidate left specialized generic helper in trait-definition module unable to find public implementation owner, producing E-UNKNOWN-FIELD in the original three-source input.",
+    "change": "Module normalization distinguishes source functions from genuine specialization output. Only real instantiated ASTs gain dependencies from full public trait/local-Self declarations. Trait lookup uses original source import lists, not generated dependency edges.",
+    "independent_result": "Original7 source groups all pass. Actual owner method identities are distinguished by different method bodies. Missing data import still yields Types Unsupported with unavailable trait receiver diagnostic; adding only import data succeeds.",
+    "original_replay_execution_commit": "c50c8aa7206eb5134fbf23fec5a1e6b1dba81638",
+    "same_byte_original_source_comparisons": [
+      {
+        "case_source": "duplicate/data.zil",
+        "sha256": "4ed3947b520b7c5e24d91b3b5f6c8b3ef70e420521fea3dcfbf060dd925cb633"
+      },
+      {
+        "case_source": "duplicate/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "duplicate/rules.zil",
+        "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+      },
+      {
+        "case_source": "extra-method/data.zil",
+        "sha256": "44481ed2b105912acc6e6ce56c69d4910143aaea6cbceaa7b4ca5471e6aee35a"
+      },
+      {
+        "case_source": "extra-method/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "extra-method/rules.zil",
+        "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+      },
+      {
+        "case_source": "field-collision/data.zil",
+        "sha256": "117268a37284a0c96bf3b8db3c3c6e066682800129ed7e77311faa931bc01780"
+      },
+      {
+        "case_source": "field-collision/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "field-collision/rules.zil",
+        "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+      },
+      {
+        "case_source": "foreign-self/data.zil",
+        "sha256": "9e36332e924488b72bcb2e62f5b2fb61a8f6d5f97d814b48500bd9caf27c3892"
+      },
+      {
+        "case_source": "foreign-self/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "foreign-self/rules.zil",
+        "sha256": "4067aeeebff4673daaeeef30597bfdabe3023385bae1ac4c6679bd09f7713ff8"
+      },
+      {
+        "case_source": "inherent-collision/data.zil",
+        "sha256": "b2a1d8d3a61e1a383ec908172d15df6caef7774510b9194927206b2e93f9bb53"
+      },
+      {
+        "case_source": "inherent-collision/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "inherent-collision/rules.zil",
+        "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+      },
+      {
+        "case_source": "lookalike-trait/data.zil",
+        "sha256": "eddf4e95b83351c0ef4bcb400e19c61e18b630a1ab18157e9228120bcc367dc8"
+      },
+      {
+        "case_source": "lookalike-trait/main.zil",
+        "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9"
+      },
+      {
+        "case_source": "lookalike-trait/other.zil",
+        "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440"
+      },
+      {
+        "case_source": "lookalike-trait/rules.zil",
+        "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440"
+      },
+      {
+        "case_source": "missing/data.zil",
+        "sha256": "a6431f5ab94468a5ed18f523c7ac3276b6116650939e2a8058501c51c9bb146e"
+      },
+      {
+        "case_source": "missing/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "missing/rules.zil",
+        "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+      },
+      {
+        "case_source": "missing-trait/data.zil",
+        "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+      },
+      {
+        "case_source": "missing-trait/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "missing-trait/rules.zil",
+        "sha256": "361c435e168a2a6f512e63ffd4906c16b511be94e7ce5862289527ee5b6e0650"
+      },
+      {
+        "case_source": "near-reserved/data.zil",
+        "sha256": "dcaf76a0464501daea13643e48f7cb46a3f2aa64fe1f3875ed3230ce7bd52953"
+      },
+      {
+        "case_source": "near-reserved/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "near-reserved/rules.zil",
+        "sha256": "ec7b5f516fd7e33d2fcc9b443ce2ec3d6ba7596f17980c8d426a37d0a57a491d"
+      },
+      {
+        "case_source": "not-imported/data.zil",
+        "sha256": "48d5d289b0ddef24d07c0f1c8201893dc01cfd591f158f86b8bfb3e2d4f479c4"
+      },
+      {
+        "case_source": "not-imported/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "not-imported/rules.zil",
+        "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+      },
+      {
+        "case_source": "owned-resource-receiver/data.zil",
+        "sha256": "91b476a5dde6abb3c9993b1c0a1496c5cd1e03a57b24f76a830773632039ead9"
+      },
+      {
+        "case_source": "owned-resource-receiver/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "owned-resource-receiver/rules.zil",
+        "sha256": "55e62a58fdc126d121e059595349d26fd4e591f67ea4b22e027b5904cd8d18d1"
+      },
+      {
+        "case_source": "private-trait/data.zil",
+        "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+      },
+      {
+        "case_source": "private-trait/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "private-trait/rules.zil",
+        "sha256": "a4453f07e5c64df9ebed14c26deb61722c6a66336deb258decebb5a3e7270b4f"
+      },
+      {
+        "case_source": "receiver/data.zil",
+        "sha256": "f41760cbe7e4c3fa78ab8696e4dc7bc5f02b19ecea3316ca2ea12b90817296e3"
+      },
+      {
+        "case_source": "receiver/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "receiver/rules.zil",
+        "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+      },
+      {
+        "case_source": "reserved-Copy/data.zil",
+        "sha256": "139318fa29a944e288a2a933158741870ce0fd261db0e9a10ac3cf711105f6ba"
+      },
+      {
+        "case_source": "reserved-Copy/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "reserved-Copy/rules.zil",
+        "sha256": "9f0ed4ddc14ec765a1438d514f3441303d6d89f494945c52a27a31965287ded7"
+      },
+      {
+        "case_source": "reserved-Drop/data.zil",
+        "sha256": "c74b4dfb6a9d7b24a5caba3680465a776c3fc754c4013c56045dde8dc5511a89"
+      },
+      {
+        "case_source": "reserved-Drop/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "reserved-Drop/rules.zil",
+        "sha256": "9b26ef6bd3826b3a9e3a299e89114adcb57c62f1df98f9a61fe8f1b8e4efbbc9"
+      },
+      {
+        "case_source": "reserved-Fn/data.zil",
+        "sha256": "8d0986e3242b37b1e5e93cd20deee3a19b132054cd0f32f8fbc9842f9dd99151"
+      },
+      {
+        "case_source": "reserved-Fn/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "reserved-Fn/rules.zil",
+        "sha256": "a1a9a4f05c818fca6c5de6ea15322bdb9ba14ea79fc9f93f5075daa0b12cb3ec"
+      },
+      {
+        "case_source": "reserved-FnMut/data.zil",
+        "sha256": "e0a66cf9486a0ccaf93a0d2319e30f6a69d8ad5ffb9b7afa4cf8eaf2341102c3"
+      },
+      {
+        "case_source": "reserved-FnMut/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "reserved-FnMut/rules.zil",
+        "sha256": "1d721ce3e1b797d7fdb177d7d1eba7743a2f45dcc882a0ef29dcc792ac1a9a41"
+      },
+      {
+        "case_source": "reserved-FnOnce/data.zil",
+        "sha256": "b56f7151cdd3d8b14f73ee01af9ffa09482c86f93194d8d4594a85af633fce69"
+      },
+      {
+        "case_source": "reserved-FnOnce/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "reserved-FnOnce/rules.zil",
+        "sha256": "b58a65f8659f0a2d8791876e3a3027559232ffe251ba53ceec6f31f43d15cae6"
+      },
+      {
+        "case_source": "reserved-Send/data.zil",
+        "sha256": "d99737e43db56c91fe536673691fa04a3757b3518b64e6dcf5cee18bb53c7ca9"
+      },
+      {
+        "case_source": "reserved-Send/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "reserved-Send/rules.zil",
+        "sha256": "5a698308c07a889034a585306ac0dc3b5fa4d060c21d2a28d129ea70358be0e8"
+      },
+      {
+        "case_source": "reserved-Share/data.zil",
+        "sha256": "1b6c253e3003cc843ad67123799a86523b4681b1a9d940bbf829484fd07704a1"
+      },
+      {
+        "case_source": "reserved-Share/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "reserved-Share/rules.zil",
+        "sha256": "78c1dcd9a8f846f6f6c9f4156f5ad0e4b56a8ded5d356389fcc0ab40b6b77b83"
+      },
+      {
+        "case_source": "reserved-StoreElement/data.zil",
+        "sha256": "0a0b36d3bd37ca6f517aa3c28bfc4c7480f14d098154d4270e9d0aea30b206d9"
+      },
+      {
+        "case_source": "reserved-StoreElement/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "reserved-StoreElement/rules.zil",
+        "sha256": "a5503c39b6270e5ca9812a3d6fe0e24ebc9c97c81572854a7ee1f2bca066799a"
+      },
+      {
+        "case_source": "reserved-Sync/data.zil",
+        "sha256": "eb515201933a504510f53c3b9288b455d661935b8a9b2ae4f677fa39885e8462"
+      },
+      {
+        "case_source": "reserved-Sync/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "reserved-Sync/rules.zil",
+        "sha256": "8dc61105b3d4ba2485f454130b5c5b092504afd1bf07b593b9b020bd393b20e1"
+      },
+      {
+        "case_source": "reserved-Transfer/data.zil",
+        "sha256": "05c8fb9ac6fb6dd6f932aa6ed57001fede58a071db23c3773a93cd7b3896e9cb"
+      },
+      {
+        "case_source": "reserved-Transfer/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "reserved-Transfer/rules.zil",
+        "sha256": "011be6c8d3244d24ab329b329244eeb1550b7b8c5293dc0ff63b33b959cb8532"
+      },
+      {
+        "case_source": "reserved-declaration-Copy/main.zil",
+        "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+      },
+      {
+        "case_source": "reserved-declaration-Copy/rules.zil",
+        "sha256": "9f0ed4ddc14ec765a1438d514f3441303d6d89f494945c52a27a31965287ded7"
+      },
+      {
+        "case_source": "reserved-declaration-Drop/main.zil",
+        "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+      },
+      {
+        "case_source": "reserved-declaration-Drop/rules.zil",
+        "sha256": "9b26ef6bd3826b3a9e3a299e89114adcb57c62f1df98f9a61fe8f1b8e4efbbc9"
+      },
+      {
+        "case_source": "reserved-declaration-Fn/main.zil",
+        "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+      },
+      {
+        "case_source": "reserved-declaration-Fn/rules.zil",
+        "sha256": "a1a9a4f05c818fca6c5de6ea15322bdb9ba14ea79fc9f93f5075daa0b12cb3ec"
+      },
+      {
+        "case_source": "reserved-declaration-FnMut/main.zil",
+        "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+      },
+      {
+        "case_source": "reserved-declaration-FnMut/rules.zil",
+        "sha256": "1d721ce3e1b797d7fdb177d7d1eba7743a2f45dcc882a0ef29dcc792ac1a9a41"
+      },
+      {
+        "case_source": "reserved-declaration-FnOnce/main.zil",
+        "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+      },
+      {
+        "case_source": "reserved-declaration-FnOnce/rules.zil",
+        "sha256": "b58a65f8659f0a2d8791876e3a3027559232ffe251ba53ceec6f31f43d15cae6"
+      },
+      {
+        "case_source": "reserved-declaration-Send/main.zil",
+        "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+      },
+      {
+        "case_source": "reserved-declaration-Send/rules.zil",
+        "sha256": "5a698308c07a889034a585306ac0dc3b5fa4d060c21d2a28d129ea70358be0e8"
+      },
+      {
+        "case_source": "reserved-declaration-Share/main.zil",
+        "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+      },
+      {
+        "case_source": "reserved-declaration-Share/rules.zil",
+        "sha256": "78c1dcd9a8f846f6f6c9f4156f5ad0e4b56a8ded5d356389fcc0ab40b6b77b83"
+      },
+      {
+        "case_source": "reserved-declaration-StoreElement/main.zil",
+        "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+      },
+      {
+        "case_source": "reserved-declaration-StoreElement/rules.zil",
+        "sha256": "a5503c39b6270e5ca9812a3d6fe0e24ebc9c97c81572854a7ee1f2bca066799a"
+      },
+      {
+        "case_source": "reserved-declaration-Sync/main.zil",
+        "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+      },
+      {
+        "case_source": "reserved-declaration-Sync/rules.zil",
+        "sha256": "8dc61105b3d4ba2485f454130b5c5b092504afd1bf07b593b9b020bd393b20e1"
+      },
+      {
+        "case_source": "reserved-declaration-Transfer/main.zil",
+        "sha256": "78a4eaf17b3e9425c87e99c7c39a6b1163deadb3f6d16e7fed4eff7e2c16c182"
+      },
+      {
+        "case_source": "reserved-declaration-Transfer/rules.zil",
+        "sha256": "011be6c8d3244d24ab329b329244eeb1550b7b8c5293dc0ff63b33b959cb8532"
+      },
+      {
+        "case_source": "resource-cleanup-O0/data.zil",
+        "sha256": "91b476a5dde6abb3c9993b1c0a1496c5cd1e03a57b24f76a830773632039ead9"
+      },
+      {
+        "case_source": "resource-cleanup-O0/main.zil",
+        "sha256": "e351e4be0d630b6dfcb9dec99706b3f6d4547e431e183e456a80bbc0740b8289"
+      },
+      {
+        "case_source": "resource-cleanup-O0/rules.zil",
+        "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+      },
+      {
+        "case_source": "resource-cleanup-O2/data.zil",
+        "sha256": "91b476a5dde6abb3c9993b1c0a1496c5cd1e03a57b24f76a830773632039ead9"
+      },
+      {
+        "case_source": "resource-cleanup-O2/main.zil",
+        "sha256": "e351e4be0d630b6dfcb9dec99706b3f6d4547e431e183e456a80bbc0740b8289"
+      },
+      {
+        "case_source": "resource-cleanup-O2/rules.zil",
+        "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+      },
+      {
+        "case_source": "result/data.zil",
+        "sha256": "57ff722c19decfdb8594651c277a3a4b1fc425c4ca8dd48ce692da3ee4d2d99e"
+      },
+      {
+        "case_source": "result/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "result/rules.zil",
+        "sha256": "50dc3455549c5eb7e13039bdc9b6a2fe87b156210c63b140f62f634dd3f1be37"
+      },
+      {
+        "case_source": "signature-owner/data.zil",
+        "sha256": "b63f244ae7e2ca9e5b793938752ded586f67dc3bcd7b248af5149ffc6c8f7374"
+      },
+      {
+        "case_source": "signature-owner/main.zil",
+        "sha256": "e351e4be0d630b6dfcb9dec99706b3f6d4547e431e183e456a80bbc0740b8289"
+      },
+      {
+        "case_source": "signature-owner/rules.zil",
+        "sha256": "f31da7022a22533371e8c2aa1368b2c53a00245d3647ba70f00a98784476f563"
+      },
+      {
+        "case_source": "signature-owner-O0/data.zil",
+        "sha256": "b63f244ae7e2ca9e5b793938752ded586f67dc3bcd7b248af5149ffc6c8f7374"
+      },
+      {
+        "case_source": "signature-owner-O0/main.zil",
+        "sha256": "e351e4be0d630b6dfcb9dec99706b3f6d4547e431e183e456a80bbc0740b8289"
+      },
+      {
+        "case_source": "signature-owner-O0/rules.zil",
+        "sha256": "f31da7022a22533371e8c2aa1368b2c53a00245d3647ba70f00a98784476f563"
+      },
+      {
+        "case_source": "signature-owner-O2/data.zil",
+        "sha256": "b63f244ae7e2ca9e5b793938752ded586f67dc3bcd7b248af5149ffc6c8f7374"
+      },
+      {
+        "case_source": "signature-owner-O2/main.zil",
+        "sha256": "e351e4be0d630b6dfcb9dec99706b3f6d4547e431e183e456a80bbc0740b8289"
+      },
+      {
+        "case_source": "signature-owner-O2/rules.zil",
+        "sha256": "f31da7022a22533371e8c2aa1368b2c53a00245d3647ba70f00a98784476f563"
+      },
+      {
+        "case_source": "signature-same-layout-wrong-owner/data.zil",
+        "sha256": "f058bb7d7eaef9429aa6e33f2778aff5e2d031191026e0a22822efa6e101e8bf"
+      },
+      {
+        "case_source": "signature-same-layout-wrong-owner/main.zil",
+        "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d"
+      },
+      {
+        "case_source": "signature-same-layout-wrong-owner/other.zil",
+        "sha256": "dc3b32408676b359c1f23113a7466638816cf7c4d3ba4a3c14096db497e7b5a2"
+      },
+      {
+        "case_source": "signature-same-layout-wrong-owner/rules.zil",
+        "sha256": "f31da7022a22533371e8c2aa1368b2c53a00245d3647ba70f00a98784476f563"
+      },
+      {
+        "case_source": "split-inline/data.zil",
+        "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+      },
+      {
+        "case_source": "split-inline/main.zil",
+        "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9"
+      },
+      {
+        "case_source": "split-inline/rules.zil",
+        "sha256": "10bb976eea6606dff514f015fb5d65a7b1c6bb428782493997ce89cfe8b13c2f"
+      },
+      {
+        "case_source": "split-inline-O0/data.zil",
+        "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+      },
+      {
+        "case_source": "split-inline-O0/main.zil",
+        "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9"
+      },
+      {
+        "case_source": "split-inline-O0/rules.zil",
+        "sha256": "10bb976eea6606dff514f015fb5d65a7b1c6bb428782493997ce89cfe8b13c2f"
+      },
+      {
+        "case_source": "split-inline-O2/data.zil",
+        "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+      },
+      {
+        "case_source": "split-inline-O2/main.zil",
+        "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9"
+      },
+      {
+        "case_source": "split-inline-O2/rules.zil",
+        "sha256": "10bb976eea6606dff514f015fb5d65a7b1c6bb428782493997ce89cfe8b13c2f"
+      },
+      {
+        "case_source": "split-where/data.zil",
+        "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+      },
+      {
+        "case_source": "split-where/main.zil",
+        "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9"
+      },
+      {
+        "case_source": "split-where/rules.zil",
+        "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440"
+      },
+      {
+        "case_source": "split-where-O0/data.zil",
+        "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+      },
+      {
+        "case_source": "split-where-O0/main.zil",
+        "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9"
+      },
+      {
+        "case_source": "split-where-O0/rules.zil",
+        "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440"
+      },
+      {
+        "case_source": "split-where-O2/data.zil",
+        "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+      },
+      {
+        "case_source": "split-where-O2/main.zil",
+        "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9"
+      },
+      {
+        "case_source": "split-where-O2/rules.zil",
+        "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440"
+      },
+      {
+        "case_source": "two-impl-modules-O0/data.zil",
+        "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+      },
+      {
+        "case_source": "two-impl-modules-O0/main.zil",
+        "sha256": "0ad79657cc85e7dfc9244d7bf5e1839270a2f6045ccb85782e492344eac54697"
+      },
+      {
+        "case_source": "two-impl-modules-O0/rules.zil",
+        "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440"
+      },
+      {
+        "case_source": "two-impl-modules-O0/second.zil",
+        "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+      },
+      {
+        "case_source": "two-impl-modules-O2/data.zil",
+        "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+      },
+      {
+        "case_source": "two-impl-modules-O2/main.zil",
+        "sha256": "0ad79657cc85e7dfc9244d7bf5e1839270a2f6045ccb85782e492344eac54697"
+      },
+      {
+        "case_source": "two-impl-modules-O2/rules.zil",
+        "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440"
+      },
+      {
+        "case_source": "two-impl-modules-O2/second.zil",
+        "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18"
+      }
+    ]
+  },
+  "budgets": {
+    "old_single_scalar": 242,
+    "old_single_drop": 1568,
+    "old_single_ordinary_trait": 1432,
+    "old_same_module_trait_impl_project": 1412,
+    "new_counter_project": 16012,
+    "new_trait_library_project": 2003,
+    "boundary": "N success, N-1 ResourceLimit, N success; new project controls also check cold/warm/fresh request identity and active_query_count0"
+  },
+  "raw_identity_replay": [
+    "hygienic $module1_Read spelling without real import rejected E-MODULE-MEMBER",
+    "only exact $module<digits>_ reserved spelling excluded; near names retain nominal identity"
+  ],
+  "attempt_history": [
+    "original-independent-replay.log:exact mergedc50 original7/0",
+    "extended-independent.log:Rust E0463 old cache failure;0 tests executed; cause not established",
+    "extended-independent-fresh.log:8/1; added reviewer source pair lacked statement terminators and was rejected at Parse; not a compiler defect",
+    "extended-independent-fixture-corrected.log:9/0 after restoring valid separators",
+    "independent-final-bound.log:exact committed06d0b5b independent9/0",
+    "budgets-final-bound.log:2/0",
+    "raw-identity-final-bound.log:2/0"
+  ],
+  "rust_goal_reflection": {
+    "safety": "Finite ordinary-local capture/source-origin and module trait identity boundaries tested; no full-language proof.",
+    "runtime_memory": "Actual O0/O2 result and cleanup behavior only; Rust runtime/RSS comparison unmeasured.",
+    "expression_maintenance": "Local readonly Product captures and independently defined trait libraries now compose in tested native source. General language/maintenance superiority unmeasured.",
+    "compile_cost": "Specified old budget boundaries retained; new boundaries measured without raising limits. Compilation-speed superiority not measured.",
+    "breakthrough": "Finite source composition and concrete false-rejection repair demonstrated; no product-level four-goal breakthrough claim or product gate change."
+  },
+  "reports": [
+    {
+      "case": "actual-source-import-authorizes-ordinary-trait",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "duplicate",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-DUPLICATE"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "extra-method",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-METHOD-SET",
+        "E-TRAIT-METHOD-SET"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "field-collision",
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "codes": [
+        "E-RECEIVER-MEMBER-CONFLICT"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "foreign-self",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNSUPPORTED",
+        "E-UNSUPPORTED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "generated-import-is-not-source-authorization",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNSUPPORTED",
+        "E-UNSUPPORTED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "inherent-collision",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNSUPPORTED",
+        "E-UNSUPPORTED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "lookalike-trait",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-GENERIC-ARGUMENT"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "missing",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-METHOD-SET"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "missing-trait",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-MODULE-MEMBER"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "near-reserved",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "not-imported",
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "codes": [
+        "E-RECEIVER-NONE"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "owned-resource-receiver",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNSUPPORTED",
+        "E-UNSUPPORTED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "private-trait",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-MODULE-PRIVATE"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "receiver",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-SIGNATURE"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reordered-inline",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reordered-where",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-Copy",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-GENERIC-ARGUMENT"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-Drop",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-Fn",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-FnMut",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-FnOnce",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-Send",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-Share",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-StoreElement",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-NAME-DUPLICATE"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-Sync",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-Transfer",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-declaration-Copy",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-GENERIC-ARGUMENT"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-declaration-Drop",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-declaration-Fn",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-declaration-FnMut",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-declaration-FnOnce",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-declaration-Send",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-declaration-Share",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-declaration-StoreElement",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-NAME-DUPLICATE"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-declaration-Sync",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "reserved-declaration-Transfer",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-RESERVED"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "resource-cleanup-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "A",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "resource-cleanup-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "A",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "result",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-SIGNATURE"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "separate-library-distinct-implementations",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "separate-library-distinct-implementations-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "separate-library-distinct-implementations-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "signature-owner",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "signature-owner-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "signature-owner-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "signature-same-layout-wrong-owner",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-TRAIT-SIGNATURE"
+      ],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "split-inline",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "split-inline-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "split-inline-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "split-where",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [],
+      "native": false,
+      "stdout": null,
+      "exit": null
+    },
+    {
+      "case": "split-where-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "split-where-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "two-impl-modules-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "two-impl-modules-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "codes": [],
+      "native": true,
+      "stdout": "",
+      "exit": "Some(0)"
+    }
+  ],
+  "artifact_manifest": "MANIFEST.json",
+  "limitations": [
+    "No formal LLVM23 acceptance",
+    "No invalid source native lowering",
+    "No whole-language or product-gate status change",
+    "Author runs, independent runs and CI replays must not be summed as new coverage"
+  ]
+}

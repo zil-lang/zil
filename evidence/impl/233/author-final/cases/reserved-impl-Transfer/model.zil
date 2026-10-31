@@ -1,0 +1,1 @@
+pub trait Transfer{}pub struct Payload{n:i32}impl Transfer for Payload{}

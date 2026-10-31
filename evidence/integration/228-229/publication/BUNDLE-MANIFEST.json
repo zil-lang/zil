@@ -1,0 +1,172 @@
+{
+  "bundle_sha256": "6c15db812d6d7e5debe61d28b28787bd2272a5c37f836e55727979a38b7c9e6b",
+  "bundle_size": 10505682,
+  "targets": [
+    {
+      "branch": "task/228",
+      "sha": "1082b50ec3221ccf0550255fb1a6675500266055"
+    },
+    {
+      "branch": "task/229",
+      "sha": "026ea29beb8d83c382ad04bd417606679769afa3"
+    },
+    {
+      "branch": "task/228-consumer",
+      "sha": "2890f226fdc2328248b341de4cdcaeb49871b0a0"
+    },
+    {
+      "branch": "task/228-229",
+      "sha": "faf7c8e2c713d81cedaf2b2a74a738045f093cd0"
+    }
+  ],
+  "bundle_files": [
+    {
+      "path": ".construction9/bundle-parts/part-000.bin",
+      "size": 524288,
+      "sha256": "cd1e827b2ccf80e020588a8bb628bbf8d55eb75d280617fbea55958bec3365f4",
+      "encoding": "raw",
+      "git_blob_sha": "f14becace0dcbe44b4c25eedc31c5856bf54f66b"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-001.bin",
+      "size": 524288,
+      "sha256": "f69da89f5c2ccc19c511134aeb723b9b57be8bde8fbffa994f3d8bfb45e4de61",
+      "encoding": "raw",
+      "git_blob_sha": "a580e7801eed34662dfd732165dcf21696d2aa08"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-002.bin",
+      "size": 524288,
+      "sha256": "3f0cdb0cfeb1927a848dff6882f510c99183395c5c6fd75a6cb72f9a08383c94",
+      "encoding": "raw",
+      "git_blob_sha": "2a5c4eed7b9a1087d5ac47d6a08eba8914fe1a23"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-003.bin",
+      "size": 524288,
+      "sha256": "6dddadf840c798693f8b5790f56ebeb43bd7874529c744822e7cfff376a76f8f",
+      "encoding": "raw",
+      "git_blob_sha": "817abeeacaa01f6345eda3c39763ed8263d814e2"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-004.bin",
+      "size": 524288,
+      "sha256": "22755ed678b18b2bfd2a10f6b557b5f4ea1e9488ae42c8f03e6ea8a583bebe76",
+      "encoding": "raw",
+      "git_blob_sha": "a615e5687f9c4d23b848a98dbb206dd073378bb8"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-005.bin",
+      "size": 524288,
+      "sha256": "e565b12ab1c25c7fde695b9cf7211345ac012bfd926ffb194eba9025173fb3db",
+      "encoding": "raw",
+      "git_blob_sha": "a3a2da608cd75bf01d9d5387e3ce9a6e174aed25"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-006.bin",
+      "size": 524288,
+      "sha256": "cfd469352f05154a3665d67855cd2c9f9b03aecd57be5a074dff5218ef3f50f9",
+      "encoding": "raw",
+      "git_blob_sha": "4dc6b0fe43db2d58bd4104c2a4172d497af9f0cb"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-007.bin",
+      "size": 524288,
+      "sha256": "5a272bf5a30c6d288fb31702711b1671d1206a8ebf9713148c83d397ef1ca67d",
+      "encoding": "raw",
+      "git_blob_sha": "50c636d7e1d1f61411eeeb58895cb397876e52ec"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-008.bin",
+      "size": 524288,
+      "sha256": "0f01c2af4be1948bec5eace86a4ce562c514ae0a9ace81d3f6873b16fc438d97",
+      "encoding": "raw",
+      "git_blob_sha": "817ec8120c06f7ead8857241fb05f5c3c4993e25"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-009.bin",
+      "size": 524288,
+      "sha256": "3229551f5a169023d71df1b096777b518aa0fdf1b49690ebacea0d530dd766a3",
+      "encoding": "raw",
+      "git_blob_sha": "101a784d927f00746c65244ee81b816a98452742"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-010.bin",
+      "size": 524288,
+      "sha256": "0824d3dc24c4b02f531307112e262379147bec67d8ff8fdeea9e8110fe0ee6ae",
+      "encoding": "raw",
+      "git_blob_sha": "23a198e25a24de417bee6a1bcb55b9fe11cc3df7"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-011.bin",
+      "size": 524288,
+      "sha256": "dd39029386965e5653c4ef17c43aa4563c2c38677e257b44d3a931c33b1f4d0f",
+      "encoding": "raw",
+      "git_blob_sha": "9335a6dd967522419e7d1e7cdb8c8fda8963e68d"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-012.bin",
+      "size": 524288,
+      "sha256": "efe47c624ef8cd0110afa9b07edac715bbccfc19bccdab86f2cf820b92863921",
+      "encoding": "raw",
+      "git_blob_sha": "2ecefa8f297e6ff05db5791a7a3045c7600670a0"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-013.bin",
+      "size": 524288,
+      "sha256": "da7ebad33275201465a045ad2e69fc10a8ea6a19bf26dd7ac5db15a179d7faa7",
+      "encoding": "raw",
+      "git_blob_sha": "832abe276b893a9cf84c8f4be6ab5205bb9bf414"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-014.bin",
+      "size": 524288,
+      "sha256": "8dd3e5bb7a0cb8970d04e05047c8f44c7e5a412d9884b6f873358adc1b733a8b",
+      "encoding": "raw",
+      "git_blob_sha": "b3fc5f87aafb0b74be6b36b13e7f03b81241cfb8"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-015.bin",
+      "size": 524288,
+      "sha256": "1819d07075c27b4f3c84b38483a892e9f8584a726a532f5be91f1394936ea202",
+      "encoding": "raw",
+      "git_blob_sha": "25bb04aa3d71106187a621856fd272bb575a069f"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-016.bin",
+      "size": 524288,
+      "sha256": "f7238bc285e0035f2f3d49305f7462b5225d9b544f00b4c24fe1d6c4a2837386",
+      "encoding": "raw",
+      "git_blob_sha": "183f78e66dbd34e0041122724b5615bf1275dbca"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-017.bin",
+      "size": 524288,
+      "sha256": "9744055c5268b9847af6298a8e1a3e3bfda0ac28708d98780da958b31acc1ab0",
+      "encoding": "raw",
+      "git_blob_sha": "63805a500afa712414cb81483f62a8e14096bb14"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-018.bin",
+      "size": 524288,
+      "sha256": "8c20e618a4271a4debda5aa675a74b4270ae12bd6559bedf256d30f754d3dffe",
+      "encoding": "raw",
+      "git_blob_sha": "a1e46385d49893d3ae792dc02ad6758be5bd6dbe"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-019.bin",
+      "size": 524288,
+      "sha256": "37f4e3477772545704e8a3f1d10cb5e03b1a7e849875098da70015959456bf3e",
+      "encoding": "raw",
+      "git_blob_sha": "44498cd8f252ce9c1e62c5ee93ff88e8242f9205"
+    },
+    {
+      "path": ".construction9/bundle-parts/part-020.bin",
+      "size": 19922,
+      "sha256": "7075a2152bff02d5057753f740e6b00674dde224789d3b0a66c90e678fa0b4ef",
+      "encoding": "raw",
+      "git_blob_sha": "213c02a5fd21f6a1de709523ec1fde468b7fbfc4"
+    }
+  ],
+  "schema_version": 2
+}

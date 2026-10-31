@@ -1,0 +1,86 @@
+{
+  "status": "Pass",
+  "scope": "Finite language profiles 228 and 229; not complete language or product acceptance",
+  "implementation_commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "integration_commit": "faf7c8e2c713d81cedaf2b2a74a738045f093cd0",
+  "pr_checkout": "ee5333028cb0c959dc6b73e43de000c66e4ace3f",
+  "main_merge_commit": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+  "metadata_base": "21058d0e331de764e3a1b9123c3e1edf5e55a1aa",
+  "pr_ci": {
+    "status": "Pass",
+    "run_id": 41154458005,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41154458005",
+    "actual_checkout": "ee5333028cb0c959dc6b73e43de000c66e4ace3f",
+    "tree": "a72cfaa984e4f4720c0a047084fa24d159646ad9",
+    "workspace": {
+      "passed": 2905,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "reference": {
+      "passed": 2863,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "all_required_steps_success": true,
+    "successful_step_count": 25,
+    "audit_sha256": "d841771bf649b1a9fff53fd769142f83022509d24ffddc991e0053db8b40aa0e",
+    "evidence": "evidence/integration/228-229/ci41154458005/RESULT.json"
+  },
+  "main_ci": {
+    "status": "Pass",
+    "run_id": 41156023933,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41156023933",
+    "actual_checkout": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+    "tree": "bdcc3ce343ff5c1ca495f864c85ff672a5401ac5",
+    "workspace": {
+      "passed": 2905,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "reference": {
+      "passed": 2863,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "all_required_steps_success": true,
+    "successful_step_count": 25,
+    "audit_sha256": "596a253d8ec451d840657bcf7d8b5cb17688ec1ee107f431818748fdec398f14",
+    "evidence": "evidence/integration/228-229/ci41156023933/RESULT.json"
+  },
+  "concurrent_docs_preserved": true,
+  "CI_input_paths_equal_between_M_and_metadata_base": [
+    "crates",
+    "Cargo.toml",
+    "Cargo.lock",
+    "build.rs",
+    "rust-toolchain",
+    "rust-toolchain.toml",
+    ".cargo",
+    "tools",
+    ".github",
+    "policy",
+    "stdlib",
+    "std",
+    "spec",
+    "_zil_design.md",
+    "examples",
+    "conformance",
+    "validation",
+    "tests",
+    "benches",
+    "data/normative-inputs.json"
+  ],
+  "original_failures_and_review_identities_preserved": true,
+  "next_handoff_snapshot": {
+    "checked_commit": "3a1aca37a53c310da961c0a54d9c59f7aa35f50b",
+    "status": "Fail",
+    "errors": 1379,
+    "task_228_229_errors": 0,
+    "evidence": "evidence/integration/228-229/closeout/handoff-final-D2/RESULT.json"
+  }
+}

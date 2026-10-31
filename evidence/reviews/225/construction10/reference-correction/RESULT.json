@@ -1,0 +1,281 @@
+{
+  "schema_version": 1,
+  "status": "ReferenceScopedPass",
+  "formal_ci_status": "Pending",
+  "source_commit": "beba0e4de1d1a96ba8e5e64f95f82c0b52f724b0",
+  "test_blob": "96a696f917dac46010ad3e107163d3f2ce13e261",
+  "source_unchanged_during_test": true,
+  "rust_tests": {
+    "passed": 9,
+    "failed": 0,
+    "ignored": 0
+  },
+  "native_backend": "Clang17 reference, no llvm-api feature",
+  "native_receipts": [
+    {
+      "case": "replace",
+      "backend": "clang",
+      "fallback": null,
+      "expected_stdout": "AB",
+      "stderr_bytes": 0,
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-replace-274-6/source.zil",
+          "sha256": "04ccbf074849f58a54e3bbfbf63c7aa4c83a63ac9f5ddaadc3887064dd203aee"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-replace-274-6/compile.json",
+          "sha256": "4e3622f109ff281aa9853c8864b1b58d4890507664b30485cee396d223d802ce"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-replace-274-6/stdout",
+          "sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-replace-274-6/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "case": "replace",
+      "backend": "clang",
+      "fallback": null,
+      "expected_stdout": "AB",
+      "stderr_bytes": 0,
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-replace-274-7/source.zil",
+          "sha256": "04ccbf074849f58a54e3bbfbf63c7aa4c83a63ac9f5ddaadc3887064dd203aee"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-replace-274-7/compile.json",
+          "sha256": "4b22c983466466b92a99dc14139a737767bd273837e9ea2d450044dce2e2ca12"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-replace-274-7/stdout",
+          "sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-replace-274-7/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "case": "separate-owned-and-shared",
+      "backend": "clang",
+      "fallback": null,
+      "expected_stdout": "AB",
+      "stderr_bytes": 0,
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-separate-owned-and-shared-274-16/source.zil",
+          "sha256": "6c836b8d70e0832d4193e869f96a991e263e9cf82d64bea1494f47ca6f83d9e3"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-separate-owned-and-shared-274-16/compile.json",
+          "sha256": "3fea25cc1b0829b49b690ffc12672328b6fdb50404da7778cbc9c1c62eef0581"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-separate-owned-and-shared-274-16/stdout",
+          "sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-separate-owned-and-shared-274-16/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "case": "separate-owned-and-shared",
+      "backend": "clang",
+      "fallback": null,
+      "expected_stdout": "AB",
+      "stderr_bytes": 0,
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-separate-owned-and-shared-274-17/source.zil",
+          "sha256": "6c836b8d70e0832d4193e869f96a991e263e9cf82d64bea1494f47ca6f83d9e3"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-separate-owned-and-shared-274-17/compile.json",
+          "sha256": "def742e7cda512f72cb2a662c293199eb3369531f56381d319def509c45d7da6"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-separate-owned-and-shared-274-17/stdout",
+          "sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-separate-owned-and-shared-274-17/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "case": "take",
+      "backend": "clang",
+      "fallback": null,
+      "expected_stdout": "A",
+      "stderr_bytes": 0,
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-take-274-3/source.zil",
+          "sha256": "f48dbb0ef7ef978b0ae1127384baab43f54fa1130c132dcfef1ffef48d382ff2"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-take-274-3/compile.json",
+          "sha256": "1f96423adbc3403189b01688e656f61039615a99fca8d696973f1e7e9f83b5b5"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-take-274-3/stdout",
+          "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-take-274-3/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "case": "take",
+      "backend": "clang",
+      "fallback": null,
+      "expected_stdout": "A",
+      "stderr_bytes": 0,
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-take-274-4/source.zil",
+          "sha256": "f48dbb0ef7ef978b0ae1127384baab43f54fa1130c132dcfef1ffef48d382ff2"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-take-274-4/compile.json",
+          "sha256": "1e6982570dfee2939875e082ef661ee38ad2cb2674e6dad14f3621d4ae5865b2"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-take-274-4/stdout",
+          "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-take-274-4/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "case": "two-nonempty",
+      "backend": "clang",
+      "fallback": null,
+      "expected_stdout": "AB",
+      "stderr_bytes": 0,
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-two-nonempty-274-19/source.zil",
+          "sha256": "fc2d2cd29ef87069642041fcfcf88278238b5129e6351d11bf4f5551f412d1d5"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-two-nonempty-274-19/compile.json",
+          "sha256": "65388313fb2bb9484baec99687ca3f358ac99a5228b69fe7dc3eea2af747b5e4"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-two-nonempty-274-19/stdout",
+          "sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-two-nonempty-274-19/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "case": "two-nonempty",
+      "backend": "clang",
+      "fallback": null,
+      "expected_stdout": "AB",
+      "stderr_bytes": 0,
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-two-nonempty-274-20/source.zil",
+          "sha256": "fc2d2cd29ef87069642041fcfcf88278238b5129e6351d11bf4f5551f412d1d5"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-two-nonempty-274-20/compile.json",
+          "sha256": "1538308b92ef2d8f3188c8f11b37e46a56fbbb3dfd479832df1348ce733d7746"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-two-nonempty-274-20/stdout",
+          "sha256": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-two-nonempty-274-20/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "case": "zero-storage-shared",
+      "backend": "clang",
+      "fallback": null,
+      "expected_stdout": "",
+      "stderr_bytes": 0,
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-zero-storage-shared-274-22/source.zil",
+          "sha256": "60f6f3b8bcfc013858c9d00632cf1d145d01e319efdd1d7c2e61997d7f7b6563"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-zero-storage-shared-274-22/compile.json",
+          "sha256": "3916a6d415f573bf6158f932de26c9aca6da0cdd43d5a7b70ac2abe94c9b11a0"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-zero-storage-shared-274-22/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-zero-storage-shared-274-22/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "case": "zero-storage-shared",
+      "backend": "clang",
+      "fallback": null,
+      "expected_stdout": "",
+      "stderr_bytes": 0,
+      "files": [
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-zero-storage-shared-274-23/source.zil",
+          "sha256": "60f6f3b8bcfc013858c9d00632cf1d145d01e319efdd1d7c2e61997d7f7b6563"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-zero-storage-shared-274-23/compile.json",
+          "sha256": "d4628956ebbeec0723561fe5dac9e1dafa18b5c790d04ec85e6288e7d5212110"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-zero-storage-shared-274-23/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "evidence/reviews/225/construction10/reference-correction/native/review225226-zero-storage-shared-274-23/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    }
+  ],
+  "native_count": 10,
+  "raw_control_wire_identical_to_original_ci": {
+    "equal": true,
+    "sha256": "41f8d62ab185b635af7a40a4300f0f2c953fab2bae832721a18e6d4cf5711a1d",
+    "bytes": 14587
+  },
+  "confirmed_original_locator_cause": "The original ordinary branch produces BorrowLocal Value49 -> ReborrowAddress Value50 -> Store. The old selector required Store.value to be an immediate BorrowLocal result, so it found zero. The other arm likewise has Value51 -> ReborrowAddress Value52.",
+  "corrected_selected_producer": "owner=LocalId(8); block=1; instruction=0; result=ValueId(49); window=ValueId(47)",
+  "original_mixed_source_preserved": {
+    "equal_bytes": true,
+    "sha256": "32c69b4e3b42efb0b12d3116b36b8916b5b8fe5e787d664f6f4e7b88fef007f0",
+    "bytes": 631
+  },
+  "raw_attack_assertions": "Reanalyze and independent raw/Wire verification all rejected the one-arm Store origin with the exact marker; E-VERIFY-PLAN errors are excluded by the helper. No invalid input was native-built.",
+  "boundaries": "Reference diagnostic iteration only. The first LLVM23 CI remains Fail; fresh formal LLVM23 CI is required for final review."
+}

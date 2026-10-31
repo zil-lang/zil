@@ -1,0 +1,6 @@
+[
+  {
+    "sha256": "12857c6bcea1a4ac07ad50ac64d149e2d64e95bb8cd92b1b1a3245e38183263f",
+    "reason": "Rebuildable Python bytecode cache; original audit source is archived. Not compiler execution evidence."
+  }
+]

@@ -1,0 +1,1 @@
+pub trait Fn{}pub struct Payload{n:i32}impl Fn for Payload{}

@@ -1,0 +1,1 @@
+import rules;struct Item{n:i32}impl rules.Sync for Item{}

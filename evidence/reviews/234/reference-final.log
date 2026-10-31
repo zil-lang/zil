@@ -1,0 +1,17 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review234/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.26s
+     Running tests/impl234_narrow_constants.rs (target/debug/deps/impl234_narrow_constants-c9ee980455f4fce8)
+
+running 2 tests
+test byte_stream_preserves_success_exit_and_all_bytes_at_o0_o2 ... ok
+test negative_return_paths_survive_o2_and_warm_machine_cache ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+
+     Running tests/review234_full_width.rs (target/debug/deps/review234_full_width-e85e8c2f096750cf)
+
+running 1 test
+test all_i32_and_i64_return_bits_match_independent_oracle_cold_and_warm ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+

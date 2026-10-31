@@ -1,0 +1,71 @@
+{
+  "status": "MixedBaselineObservation",
+  "reviewer": "/root/handoff_integrity",
+  "tested_commit": "387d4e77a4e2123201d998d20ba980ea04ccbdc6",
+  "whole_owner_consumption": {
+    "source_raw_wire": "Success",
+    "backend": "Clang17 reference",
+    "native_executions": 2,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "stdout": "A",
+    "exit": 0
+  },
+  "readonly_then_child_take": {
+    "observed": "Analyze SafeReject E-ANALYZE-IR resource closure: package field take requires that field live on every path",
+    "expected_after_232": "Success; readonly projection must not consume child"
+  },
+  "uncalled_control": "NotReached in this baseline run",
+  "files": [
+    {
+      "path": "evidence/reviews/232/baseline/whole-consume-source.zil",
+      "sha256": "0079bbfcb0b76c42409da5c3dc4e186e0f64a32311357aaf2d523dd495c6189e"
+    },
+    {
+      "path": "evidence/reviews/232/baseline/whole-consume-O0-compile.json",
+      "sha256": "59339af2380f32514c8daeeca3d082ef10429e032f00a8c7fe39996a07402c0c"
+    },
+    {
+      "path": "evidence/reviews/232/baseline/whole-consume-O0-stdout",
+      "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+    },
+    {
+      "path": "evidence/reviews/232/baseline/whole-consume-O0-stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "evidence/reviews/232/baseline/whole-consume-O0-exit.txt",
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "evidence/reviews/232/baseline/whole-consume-O0-source.zil",
+      "sha256": "0079bbfcb0b76c42409da5c3dc4e186e0f64a32311357aaf2d523dd495c6189e"
+    },
+    {
+      "path": "evidence/reviews/232/baseline/whole-consume-O2-compile.json",
+      "sha256": "9a818e03260ddd1f54213979fcca03bf5b3f9343c0cded2be314910b4c22df1e"
+    },
+    {
+      "path": "evidence/reviews/232/baseline/whole-consume-O2-stdout",
+      "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+    },
+    {
+      "path": "evidence/reviews/232/baseline/whole-consume-O2-stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "evidence/reviews/232/baseline/whole-consume-O2-exit.txt",
+      "sha256": "e67403f811c9e0307b56d6067ee62452c96101087926773b09f24f8f923fb7db"
+    },
+    {
+      "path": "evidence/reviews/232/baseline/whole-consume-O2-source.zil",
+      "sha256": "0079bbfcb0b76c42409da5c3dc4e186e0f64a32311357aaf2d523dd495c6189e"
+    },
+    {
+      "path": "evidence/reviews/232/baseline/read-then-take-source.zil",
+      "sha256": "695b846c894e28e7dd4c356e9b9ffbd5e3147f0a1bda7f241c470285c350f681"
+    }
+  ]
+}

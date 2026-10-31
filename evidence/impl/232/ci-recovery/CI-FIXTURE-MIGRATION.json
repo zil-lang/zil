@@ -1,0 +1,984 @@
+{
+  "schema_version": 1,
+  "author": "/root/next_language_slices",
+  "recorded_at": "2026-10-31T11:05:20.231485+00:00",
+  "verdict": "LimitedReferencePass_FormalLlvm23Pending",
+  "baseline_commit": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+  "migration_commit": "507e650d526653ccc79146366e4bb7c30b55ac84",
+  "authorization_commit": "ae7c58f87ab3f8d43c864b142fb56a2535d74079",
+  "production_diff_empty": true,
+  "scope": "Only three explicitly authorized slice232 fixture migrations. No production, schema, ABI, default-budget or language-contract change.",
+  "original_ci": {
+    "run_id": 41194080948,
+    "candidate_commit": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+    "checkout_commit": "89406b33b43fc17fe967b5bb9f629a16cb44b763",
+    "verdict": "Fail",
+    "workspace_counts": {
+      "passed": 3020,
+      "failed": 4,
+      "ignored": 0
+    },
+    "log_sha256": "ad4ea2b5fdb0d9ad9595fe8ce4a28a777d1a0af9eb5ea129b28eb1f39f99c2ce",
+    "excerpts": "ci-failure-excerpts.log"
+  },
+  "local_before": {
+    "commit": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+    "impl192_exact": {
+      "passed": 0,
+      "failed": 1,
+      "filtered_out": 19,
+      "log": "impl192-before.log"
+    },
+    "impl072077": {
+      "passed": 26,
+      "failed": 3,
+      "log": "impl072077-before.log"
+    },
+    "192_cause": "Native explicit move already passed O0/O2. Ordinary mutable remains Unsupported/Types; only the diagnostic expectation was stale."
+  },
+  "source_identity": [
+    {
+      "file": "crates/zil-driver/tests/impl072_packages.rs",
+      "original_body": "fn main()->i32{var p=make();let f=()=>consume(give p.a);return f()}",
+      "full_source_sha256": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1",
+      "definitions_and_body_byte_identical": true,
+      "expected_original_exit": 20
+    },
+    {
+      "file": "crates/zil-driver/tests/impl077_package_captures.rs",
+      "original_body": "fn main()->i32{let p=make();let f=()=>p.a.n;return f()}",
+      "full_source_sha256": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7",
+      "definitions_and_body_byte_identical": true,
+      "expected_original_exit": 20
+    }
+  ],
+  "preserved_assertions": {
+    "077_remaining_four_source_rejection_inputs_and_phases_byte_identical": true,
+    "077_remaining_shared_write_and_unrestored_fnmut_raw_inputs_and_assertions_byte_identical": true,
+    "192_source_native_readonly_overlap_unchanged": true
+  },
+  "raw077": {
+    "control": "fn factory(p:P)->impl Fn()->i32{return move ()=>{let d=p.a;return d.n+p.n}}fn main()->i32{let f=factory(make());let moved=f;return moved()+moved()-42}",
+    "author_assertions": [
+      "valid control Analyze succeeds",
+      "DescribePackageField hits exactly one instruction",
+      "TypedModule changes",
+      "Analyze rejects mutation"
+    ],
+    "independent_three_path_evidence_commit": "e2053a0ed2a48dec7d534816fc916ef14f9ec867",
+    "independent_receipt": "evidence/reviews/232/ci41194080948-077/RESULT.json"
+  },
+  "limited_run": {
+    "source_commit": "507e650d526653ccc79146366e4bb7c30b55ac84",
+    "command": "source /workspace/scratch/994319f2ba02/z11-env.sh; ZIL_TEST_REPORT_DIR=\"$PWD/out/native/ci-fixture-507e650d5\" cargo test --offline --locked -p zil-driver --no-default-features --no-fail-fast --test impl072_packages --test impl077_package_captures --test impl192_copy_fields --test impl192_copy_fields_raw --test impl214_source --test impl225_product_store_capture --test impl225_machine --test impl225_budget --test impl226_shared_product_capture --test impl226_budget --test impl232_readonly_product_capture --test impl232_budget -- --nocapture",
+    "log": "targeted-507e650d5.log",
+    "groups": [
+      {
+        "file": "impl072_packages.rs",
+        "passed": 18,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      {
+        "file": "impl077_package_captures.rs",
+        "passed": 12,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      {
+        "file": "impl192_copy_fields.rs",
+        "passed": 20,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      {
+        "file": "impl192_copy_fields_raw.rs",
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      {
+        "file": "impl214_source.rs",
+        "passed": 20,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      {
+        "file": "impl225_budget.rs",
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      {
+        "file": "impl225_machine.rs",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      {
+        "file": "impl225_product_store_capture.rs",
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      {
+        "file": "impl226_budget.rs",
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      {
+        "file": "impl226_shared_product_capture.rs",
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      {
+        "file": "impl232_budget.rs",
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      {
+        "file": "impl232_readonly_product_capture.rs",
+        "passed": 11,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      }
+    ],
+    "total": {
+      "passed": 111,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    "excluded": "impl225_machine has zero tests under --no-default-features. LLVM API and formal workspace are not credited."
+  },
+  "toolchain": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "native": "Ubuntu clang version 17.0.6",
+    "configuration": "--no-default-features; actual backend clang and no fallback; LLVM API/Builder requires formal CI."
+  },
+  "budgets": {
+    "legacy": [
+      835,
+      7129,
+      12161
+    ],
+    "225_nested": [
+      3889,
+      36339,
+      56097
+    ],
+    "226_shared": [
+      1787,
+      15791,
+      30761
+    ],
+    "232_flat": [
+      1226,
+      7896,
+      16608
+    ],
+    "232_owned": [
+      1762,
+      12234,
+      17419
+    ],
+    "232_recursive": [
+      1788,
+      14756,
+      29096
+    ],
+    "077_existing_types": 1175,
+    "077_existing_analyze": 19310,
+    "214_existing_product_types": 1006,
+    "note": "Legacy/225/226/232 values equal prior recorded values; existing boundary tests and default limits unchanged."
+  },
+  "native_migration_cases": {
+    "source_variants": 3,
+    "executions": 6,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "actual_backend": "clang",
+    "expected_exit": 20,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "note": "Original source return values preserved. Fixed fixture behavior is not a general full-width integer oracle."
+  },
+  "raw_receipts": [
+    {
+      "group": "before192",
+      "case": "fields192-73-0",
+      "source_sha256": "c086c7267551b26167a57eec166a2bdfa1951f8f9b307110a0954d41672f48e9",
+      "raw_report": "raw/before192/fields192-73-0/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "79a2cf95fc125747a8ca993ebcdcaef1c258cc5adafd7a7de5368f0c6913dd96",
+      "optimization": [
+        "-O0"
+      ],
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "variant": "owned",
+      "exit": "Some(0)",
+      "stdout_hex": "",
+      "stderr_hex": ""
+    },
+    {
+      "group": "before192",
+      "case": "fields192-73-1",
+      "source_sha256": "c086c7267551b26167a57eec166a2bdfa1951f8f9b307110a0954d41672f48e9",
+      "raw_report": "raw/before192/fields192-73-1/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "79a2cf95fc125747a8ca993ebcdcaef1c258cc5adafd7a7de5368f0c6913dd96",
+      "optimization": [
+        "-O2"
+      ],
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "variant": "owned",
+      "exit": "Some(0)",
+      "stdout_hex": "",
+      "stderr_hex": ""
+    },
+    {
+      "group": "before192",
+      "case": "fields192-73-2",
+      "source_sha256": "26dc5c16f8c00e7032c048a84a5b9c9e64b81141c7aac47687a740d1f787b2f0",
+      "raw_report": "raw/before192/fields192-73-2/compile.json",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "mutable Product capture is not implemented",
+          "span": {
+            "file": 0,
+            "start": 146,
+            "end": 151
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "349f3a09067b9c65e59dc9f3d023feb32d19b4985958bf0a1f5a9c6f2aa6001a",
+      "optimization": [],
+      "native_codegen": null,
+      "variant": "ordinary-mutable"
+    },
+    {
+      "group": "migration",
+      "case": "migration232-072-owned-original-257-0",
+      "source_sha256": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1",
+      "raw_report": "raw/migration/migration232-072-owned-original-257-0/report.json",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1",
+      "optimization": [],
+      "native_codegen": null
+    },
+    {
+      "group": "migration",
+      "case": "migration232-072-owned-original-257-1",
+      "source_sha256": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1",
+      "raw_report": "raw/migration/migration232-072-owned-original-257-1/report.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1",
+      "optimization": [
+        "-O0"
+      ],
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "exit": "Some(20)",
+      "stdout_hex": "",
+      "stderr_hex": ""
+    },
+    {
+      "group": "migration",
+      "case": "migration232-072-owned-original-257-2",
+      "source_sha256": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1",
+      "raw_report": "raw/migration/migration232-072-owned-original-257-2/report.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1",
+      "optimization": [
+        "-O2"
+      ],
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "exit": "Some(20)",
+      "stdout_hex": "",
+      "stderr_hex": ""
+    },
+    {
+      "group": "migration",
+      "case": "migration232-072-owner-after-creation-257-3",
+      "source_sha256": "165ed7cbb543275cda271be1d8c7535dd53bb26349e061ed5db19aaec2ee342b",
+      "raw_report": "raw/migration/migration232-072-owner-after-creation-257-3/report.json",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 0 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 355,
+            "end": 358
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "165ed7cbb543275cda271be1d8c7535dd53bb26349e061ed5db19aaec2ee342b",
+      "optimization": [],
+      "native_codegen": null
+    },
+    {
+      "group": "migration",
+      "case": "migration232-072-second-call-257-4",
+      "source_sha256": "ed2e039e5c58a2f8a79210fde4fb3ca17a983d9bae21d83440be271351a2179e",
+      "raw_report": "raw/migration/migration232-072-second-call-257-4/report.json",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 1 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 369,
+            "end": 372
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "ed2e039e5c58a2f8a79210fde4fb3ca17a983d9bae21d83440be271351a2179e",
+      "optimization": [],
+      "native_codegen": null
+    },
+    {
+      "group": "migration",
+      "case": "migration232-077-default-mutable-284-9",
+      "source_sha256": "b973f70b1b8a23a18c9264f90218fb3991e798c3c7781b3a755b3afacae3c05d",
+      "raw_report": "raw/migration/migration232-077-default-mutable-284-9/report.json",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "mutable Product capture is not implemented",
+          "span": {
+            "file": 0,
+            "start": 325,
+            "end": 326
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "b973f70b1b8a23a18c9264f90218fb3991e798c3c7781b3a755b3afacae3c05d",
+      "optimization": [],
+      "native_codegen": null
+    },
+    {
+      "group": "migration",
+      "case": "migration232-077-live-field-replace-284-5",
+      "source_sha256": "22f2deb9dcb82d34b35073c99bfad121b55025296865549eced7d6554843004a",
+      "raw_report": "raw/migration/migration232-077-live-field-replace-284-5/report.json",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "write or storage change overlaps a shared address still required by a later use",
+          "span": {
+            "file": 0,
+            "start": 330,
+            "end": 333
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 1,
+      "input_fingerprint": "22f2deb9dcb82d34b35073c99bfad121b55025296865549eced7d6554843004a",
+      "optimization": [],
+      "native_codegen": null
+    },
+    {
+      "group": "migration",
+      "case": "migration232-077-live-field-take-284-4",
+      "source_sha256": "02a019fc5ebdb17e6fb6cb9b27b7e82a6989edd1122da4c628675805ba99c67c",
+      "raw_report": "raw/migration/migration232-077-live-field-take-284-4/report.json",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "write or storage change overlaps a shared address still required by a later use",
+          "span": {
+            "file": 0,
+            "start": 340,
+            "end": 348
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 1,
+      "input_fingerprint": "02a019fc5ebdb17e6fb6cb9b27b7e82a6989edd1122da4c628675805ba99c67c",
+      "optimization": [],
+      "native_codegen": null
+    },
+    {
+      "group": "migration",
+      "case": "migration232-077-live-owner-move-284-3",
+      "source_sha256": "0a519ca50dfe1f0edd22ee1d8d5cb92ce72e2c1f6e7f40e5a819e1b90b2192ef",
+      "raw_report": "raw/migration/migration232-077-live-owner-move-284-3/report.json",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "write or storage change overlaps a shared address still required by a later use",
+          "span": {
+            "file": 0,
+            "start": 340,
+            "end": 341
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 1,
+      "input_fingerprint": "0a519ca50dfe1f0edd22ee1d8d5cb92ce72e2c1f6e7f40e5a819e1b90b2192ef",
+      "optimization": [],
+      "native_codegen": null
+    },
+    {
+      "group": "migration",
+      "case": "migration232-077-move-after-last-use-284-6",
+      "source_sha256": "1cf106087b0dd2ced94ae55aa0894dd9d50549d50da0a354e356801a8d80b601",
+      "raw_report": "raw/migration/migration232-077-move-after-last-use-284-6/report.json",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "1cf106087b0dd2ced94ae55aa0894dd9d50549d50da0a354e356801a8d80b601",
+      "optimization": [],
+      "native_codegen": null
+    },
+    {
+      "group": "migration",
+      "case": "migration232-077-move-after-last-use-284-7",
+      "source_sha256": "1cf106087b0dd2ced94ae55aa0894dd9d50549d50da0a354e356801a8d80b601",
+      "raw_report": "raw/migration/migration232-077-move-after-last-use-284-7/report.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "1cf106087b0dd2ced94ae55aa0894dd9d50549d50da0a354e356801a8d80b601",
+      "optimization": [
+        "-O0"
+      ],
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "exit": "Some(20)",
+      "stdout_hex": "",
+      "stderr_hex": ""
+    },
+    {
+      "group": "migration",
+      "case": "migration232-077-move-after-last-use-284-8",
+      "source_sha256": "1cf106087b0dd2ced94ae55aa0894dd9d50549d50da0a354e356801a8d80b601",
+      "raw_report": "raw/migration/migration232-077-move-after-last-use-284-8/report.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "1cf106087b0dd2ced94ae55aa0894dd9d50549d50da0a354e356801a8d80b601",
+      "optimization": [
+        "-O2"
+      ],
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "exit": "Some(20)",
+      "stdout_hex": "",
+      "stderr_hex": ""
+    },
+    {
+      "group": "migration",
+      "case": "migration232-077-shared-original-284-0",
+      "source_sha256": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7",
+      "raw_report": "raw/migration/migration232-077-shared-original-284-0/report.json",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7",
+      "optimization": [],
+      "native_codegen": null
+    },
+    {
+      "group": "migration",
+      "case": "migration232-077-shared-original-284-1",
+      "source_sha256": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7",
+      "raw_report": "raw/migration/migration232-077-shared-original-284-1/report.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7",
+      "optimization": [
+        "-O0"
+      ],
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "exit": "Some(20)",
+      "stdout_hex": "",
+      "stderr_hex": ""
+    },
+    {
+      "group": "migration",
+      "case": "migration232-077-shared-original-284-2",
+      "source_sha256": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7",
+      "raw_report": "raw/migration/migration232-077-shared-original-284-2/report.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7",
+      "optimization": [
+        "-O2"
+      ],
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "exit": "Some(20)",
+      "stdout_hex": "",
+      "stderr_hex": ""
+    },
+    {
+      "group": "after192",
+      "case": "fields192-313-30",
+      "source_sha256": "c086c7267551b26167a57eec166a2bdfa1951f8f9b307110a0954d41672f48e9",
+      "raw_report": "raw/after192/fields192-313-30/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "79a2cf95fc125747a8ca993ebcdcaef1c258cc5adafd7a7de5368f0c6913dd96",
+      "optimization": [
+        "-O0"
+      ],
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "variant": "owned",
+      "exit": "Some(0)",
+      "stdout_hex": "",
+      "stderr_hex": ""
+    },
+    {
+      "group": "after192",
+      "case": "fields192-313-43",
+      "source_sha256": "c086c7267551b26167a57eec166a2bdfa1951f8f9b307110a0954d41672f48e9",
+      "raw_report": "raw/after192/fields192-313-43/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "79a2cf95fc125747a8ca993ebcdcaef1c258cc5adafd7a7de5368f0c6913dd96",
+      "optimization": [
+        "-O2"
+      ],
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "variant": "owned",
+      "exit": "Some(0)",
+      "stdout_hex": "",
+      "stderr_hex": ""
+    },
+    {
+      "group": "after192",
+      "case": "fields192-313-50",
+      "source_sha256": "26dc5c16f8c00e7032c048a84a5b9c9e64b81141c7aac47687a740d1f787b2f0",
+      "raw_report": "raw/after192/fields192-313-50/compile.json",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "mutable Product capture is not implemented",
+          "span": {
+            "file": 0,
+            "start": 146,
+            "end": 151
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "349f3a09067b9c65e59dc9f3d023feb32d19b4985958bf0a1f5a9c6f2aa6001a",
+      "optimization": [],
+      "native_codegen": null,
+      "variant": "ordinary-mutable"
+    },
+    {
+      "group": "after192",
+      "case": "fields192-313-51",
+      "source_sha256": "901c268f469fcdd1ade9b72bbfaaf3d20e6a4ea6f7483f25814f2c3b907d00fb",
+      "raw_report": "raw/after192/fields192-313-51/compile.json",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-CLOSURE-MUTABILITY",
+          "message": "FnMut call requires a mutable closure position; bind it with var",
+          "span": {
+            "file": 0,
+            "start": 182,
+            "end": 185
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "37b9d764fc20b0ce6c5e7054eb05554c1228d4367e314d190d6e2fa35f8f402c",
+      "optimization": [],
+      "native_codegen": null,
+      "variant": "readonly-binding"
+    },
+    {
+      "group": "after192",
+      "case": "fields192-313-52",
+      "source_sha256": "6d1fa6d70aa4f9ce145051e365d5b9ef6374828009079151d7b3b967a9237baa",
+      "raw_report": "raw/after192/fields192-313-52/compile.json",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 171,
+            "end": 178
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 1,
+      "input_fingerprint": "c7bd5fdccda3cf6d829684b318fd506eddcfd8c2bdad9f2ae0f17e44cf6622f2",
+      "optimization": [],
+      "native_codegen": null,
+      "variant": "overlapping-loan"
+    }
+  ],
+  "phase_archive": {
+    "path": "phase-artifacts.tar.gz",
+    "sha256": "0b6bbdd549653c67d7834cf45e578e31f15ec066b1a98efe985a3ba83143306d",
+    "entries": 173,
+    "bytes": 445014
+  },
+  "rust_goals": {
+    "safety": "Finite capture ownership and active-loan boundaries rechecked; complete language safety not established.",
+    "runtime_memory": "Six exact fixture executions; no comparative Rust time/RSS result.",
+    "expression_maintenance": "Legacy tests reflect existing slice232 contract; this migration introduces no new capability.",
+    "compile_cost": "Existing budgets rechecked, limits unchanged; no compile-performance claim.",
+    "breakthrough": "No new product-level breakthrough from fixture maintenance; full 1.4/ZUI, B0 and product gates unchanged."
+  },
+  "static_and_toolchain_checks": [
+    {
+      "command": [
+        "rustc",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/scratch/60e90d664238/.toolchains/clang-17/usr/lib/llvm-17/bin/clang",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "Ubuntu clang version 17.0.6 (++20231209124227+6009708b4367-1~exp1~20231209124336.77)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/60e90d664238/.toolchains/clang-17/usr/lib/llvm-17/bin\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "rustfmt",
+        "--edition",
+        "2024",
+        "--config",
+        "skip_children=true",
+        "--check",
+        "crates/zil-driver/tests/impl072_packages.rs",
+        "crates/zil-driver/tests/impl077_package_captures.rs",
+        "crates/zil-driver/tests/impl192_copy_fields.rs",
+        "crates/zil-driver/tests/impl232_fixture_support/mod.rs"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+pub struct Stamp{n:i32}pub fn make(n:i32)->Stamp=>Stamp{n:n};pub fn get(x:&Stamp)->i32=>x.n;pub trait Read{fn value(self:&Self,x:Stamp)->i32;}

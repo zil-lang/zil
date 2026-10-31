@@ -1,0 +1,34 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 6.49s
+     Running tests/review233_independent.rs (target/debug/deps/review233_independent-d319a612cef6f2d4)
+
+running 7 tests
+
+thread 'split_trait_impl_uses_definition_module_and_both_bound_spellings' (165) panicked at crates/zil-driver/tests/review233_independent.rs:83:5:
+assertion `left == right` failed: split-where: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-UNKNOWN-FIELD","message":"unknown field value","span":{"file":1,"start":82,"end":89},"notes":[]}],"artifacts":{"core":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-160-1793442372615655647/split-where/phases/core.txt","ct-core":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-160-1793442372615655647/split-where/phases/ct-core.txt","source-map":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-160-1793442372615655647/split-where/phases/source-map.txt","syntax":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-160-1793442372615655647/split-where/phases/syntax.txt"},"input_fingerprint":"d212559beac4d06acab506dc889854c9b43c82aeca25dc8023a1bcfdd823f12c","seconds":0.013335679,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"rules.zil","2":"data.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test split_trait_impl_uses_definition_module_and_both_bound_spellings ... FAILED
+
+thread 'two_local_self_types_and_same_spelling_traits_keep_nominal_identity' (166) panicked at crates/zil-driver/tests/review233_independent.rs:137:9:
+assertion `left == right` failed: two-impl-modules: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-UNKNOWN-FIELD","message":"unknown field value","span":{"file":1,"start":82,"end":89},"notes":[]}],"artifacts":{"core":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-160-1793442372615655647/two-impl-modules-O0/phases/core.txt","ct-core":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-160-1793442372615655647/two-impl-modules-O0/phases/ct-core.txt","source-map":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-160-1793442372615655647/two-impl-modules-O0/phases/source-map.txt","syntax":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-160-1793442372615655647/two-impl-modules-O0/phases/syntax.txt"},"input_fingerprint":"c9a7f5f642f48b39bbbb3a0167b33abb3ee4febed36e4419f21f0099165cd0e1","seconds":0.019462972,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"rules.zil","2":"data.zil","3":"second.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+test two_local_self_types_and_same_spelling_traits_keep_nominal_identity ... FAILED
+test private_missing_unimported_traits_and_foreign_self_stay_closed ... ok
+test uncalled_bad_impls_cannot_escape_signature_method_set_or_collision_checks ... ok
+test renamed_reserved_traits_are_rejected_without_a_generic_bound ... ok
+test shared_resource_receiver_runs_real_drop_and_rejects_owned_receiver ... ok
+test imported_signature_types_preserve_their_real_nominal_owner ... ok
+
+failures:
+
+failures:
+    split_trait_impl_uses_definition_module_and_both_bound_spellings
+    two_local_self_types_and_same_spelling_traits_keep_nominal_identity
+
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+error: test failed, to rerun pass `-p zil-driver --test review233_independent`

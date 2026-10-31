@@ -1,0 +1,119 @@
+[
+  {
+    "argv": [
+      "git",
+      "-C",
+      "/workspace/scratch/b2d4304a481d/zil-sandbox10",
+      "symbolic-ref",
+      "HEAD",
+      "refs/heads/sandbox-bootstrap"
+    ],
+    "exit_code": 0,
+    "seconds": 0.002,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "/workspace/scratch/b2d4304a481d/zil-sandbox10",
+      "-c",
+      "gc.auto=0",
+      "fetch",
+      "--no-tags",
+      "/workspace/scratch/b2d4304a481d/z10-ci/41182685056/final/receipts/repository.bundle",
+      "refs/remotes/origin/main:refs/heads/main",
+      "refs/remotes/origin/integration/construction10:refs/heads/integration/construction10"
+    ],
+    "exit_code": 0,
+    "seconds": 4.081,
+    "stdout": "",
+    "stderr": "From /workspace/scratch/b2d4304a481d/z10-ci/41182685056/final/receipts/repository.bundle\n * [new ref]         origin/main -> main\n * [new ref]         origin/integration/construction10 -> integration/construction10\n"
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "/workspace/scratch/b2d4304a481d/zil-sandbox10",
+      "-c",
+      "gc.auto=0",
+      "fetch",
+      "--no-tags",
+      "/workspace/scratch/b2d4304a481d/z10-publish2/source.bundle",
+      "refs/heads/review/construction10-231:refs/heads/integration/construction10"
+    ],
+    "exit_code": 0,
+    "seconds": 0.095,
+    "stdout": "",
+    "stderr": "From /workspace/scratch/b2d4304a481d/z10-publish2/source.bundle\n   85a09bb06..f1492652c  review/construction10-231 -> integration/construction10\n"
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "/workspace/scratch/b2d4304a481d/zil-sandbox10",
+      "switch",
+      "integration/construction10"
+    ],
+    "exit_code": 0,
+    "seconds": 4.995,
+    "stdout": "",
+    "stderr": "Switched to branch 'integration/construction10'\n"
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "/workspace/scratch/b2d4304a481d/zil-sandbox10",
+      "rev-parse",
+      "HEAD"
+    ],
+    "exit_code": 0,
+    "seconds": 0.002,
+    "stdout": "f1492652cb6497a33f39e615fd398456ce09253a\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "/workspace/scratch/b2d4304a481d/zil-sandbox10",
+      "fsck",
+      "--full",
+      "--strict"
+    ],
+    "exit_code": 0,
+    "seconds": 4.217,
+    "stdout": "dangling commit df13bc96536c7f775d7227256e45db7fc9e178b2\ndangling commit 7e7f8083af9361de17793c602bfaa7117e6f47b9\ndangling commit a894f8476cd043314113ba40b4a492deaf281895\ndangling commit 88d3e426af67e48d0fbc041ec406f35b54b17b60\ndangling commit e739f583b63ba8fa44fa26a937d36afb9cbaea2a\ndangling commit 015cb5d4e6c7794de616e0a933520cd3dfa886f7\ndangling commit 9fe23d7180b41830f599128324c769deac37211d\ndangling commit 8c4fa27f677b992e6d5590493a4ea530b95ae46d\ndangling commit 675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17\ndangling commit 6f7b7679a4fd54df0e0460a7b61c425710ad0953\ndangling commit 1cb27ac6b907aeef28b8a472d15ee1859b9959c1\ndangling commit 97da8e354a59e4d93e8007138180da29b9e0a209\ndangling commit de0eefdc38e1a25129f219d2a7c7933922790e13\ndangling commit 79bb5348fe426a62aecaae808321f70966cbc24c\ndangling commit b9ccf36aac5720886c9e68b3a812b4f61f841626\ndangling commit 12fc97bde3a89de450c0eabebbcf11d512123018\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "/workspace/scratch/b2d4304a481d/zil-sandbox10",
+      "status",
+      "--porcelain"
+    ],
+    "exit_code": 0,
+    "seconds": 0.524,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "/workspace/scratch/b2d4304a481d/zil-sandbox10",
+      "remote",
+      "add",
+      "origin",
+      "https://github.com/zil-lang/zil.git"
+    ],
+    "exit_code": 0,
+    "seconds": 0.003,
+    "stdout": "",
+    "stderr": ""
+  }
+]
