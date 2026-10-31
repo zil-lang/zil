@@ -1,0 +1,19 @@
+{
+  "artifact_id": 13041046925,
+  "file": "workspace-native.zip",
+  "bytes": 199204017,
+  "sha256": "0dc0fe2934e7e105b90e5493a99f304b9784ab24eb2376b41bfed8cd8f417266",
+  "members": 68508,
+  "extracted_members": 7527,
+  "include_top_level_markers": [
+    "232",
+    "233",
+    "234",
+    "construction11",
+    "077",
+    "192",
+    "225",
+    "226"
+  ],
+  "extracted_to": "/workspace/scratch/994319f2ba02/z11-ci41195906918/workspace-native"
+}
