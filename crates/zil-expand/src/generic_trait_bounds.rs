@@ -77,7 +77,7 @@ impl<'a> Index<'a> {
         })
     }
 
-    fn declaration(&self, bound: &TypeRef, budget: &mut Budget<'_>) -> R<&'a TraitDecl> {
+    pub(super) fn declaration(&self, bound: &TypeRef, budget: &mut Budget<'_>) -> R<&'a TraitDecl> {
         budget.ty(bound)?;
         let name = plain(bound).ok_or_else(|| {
             unsupported(
@@ -105,8 +105,22 @@ impl<'a> Index<'a> {
                 "generic or supertrait bound requires the full trait solver",
             ));
         }
+        let capability_name = if let Some(suffix) = name.strip_prefix("$module") {
+            // Only the module normalizer's actual identity prefix is stripped,
+            // and only for the reserved-name exclusion. Declaration lookup,
+            // impl matching and the exported name keep the complete identity.
+            budget.text(name, bound.span)?;
+            suffix
+                .split_once('_')
+                .filter(|(module, _)| {
+                    !module.is_empty() && module.bytes().all(|byte| byte.is_ascii_digit())
+                })
+                .map_or(name, |(_, source)| source)
+        } else {
+            name
+        };
         if matches!(
-            name,
+            capability_name,
             "Copy" | "Transfer" | "Share" | "Send" | "Sync" | "Drop" | "Fn" | "FnMut" | "FnOnce"
         ) {
             return Err(error(
