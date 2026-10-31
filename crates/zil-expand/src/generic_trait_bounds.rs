@@ -105,24 +105,12 @@ impl<'a> Index<'a> {
                 "generic or supertrait bound requires the full trait solver",
             ));
         }
-        let capability_name = if let Some(suffix) = name.strip_prefix("$module") {
-            // Only the module normalizer's actual identity prefix is stripped,
-            // and only for the reserved-name exclusion. Declaration lookup,
-            // impl matching and the exported name keep the complete identity.
+        if name.starts_with("$module") {
+            // The same exact prefix exclusion applies to both static impls and
+            // generic bounds. Charge this path as before sharing the predicate.
             budget.text(name, bound.span)?;
-            suffix
-                .split_once('_')
-                .filter(|(module, _)| {
-                    !module.is_empty() && module.bytes().all(|byte| byte.is_ascii_digit())
-                })
-                .map_or(name, |(_, source)| source)
-        } else {
-            name
-        };
-        if matches!(
-            capability_name,
-            "Copy" | "Transfer" | "Share" | "Send" | "Sync" | "Drop" | "Fn" | "FnMut" | "FnOnce"
-        ) {
+        }
+        if super::super::static_traits::reserved_trait(name) {
             return Err(error(
                 bound.span,
                 "nominal bounds cannot manufacture built-in capabilities",
