@@ -1,0 +1,274 @@
+{
+  "reviewer": "cp25_evidence",
+  "verdict": "Pass",
+  "scope": "Read-only artifact/source audit of author-executed native control; reviewer launched no compiler/native binary",
+  "author_source_commit": "3ba131efdeffe85ba5fccd1c177745d812a6ce61",
+  "control_source_sha256": "5275c621600ba7a50a52b351a26f1f0a0a12a6a26deff6051f5c2c3abbda037f",
+  "control_binary_sha256": "a49631b2e3db6ac88056fd44d8a5fb59d97b0fca3a006bfe66cc5c41122554f2",
+  "receipt_sha256": "86b44f986dda2f532acb074cb5e21a7c841161bc87794c2a87c810c4374fb32a",
+  "manifest_files_verified": 113,
+  "manifest_total_bytes": 2048723,
+  "native_executions_in_author_evidence": 6,
+  "independently_rerun_native_executions": 0,
+  "backend": "clang textual LLVM IR compilation and linking at O0, not LLVM API native backend",
+  "source_oracle": "main computes n=a.get()+b.get(), a returns 1/5/1, b returns 2; io.put(64+n) calls putchar. Expected exits 3/7/3 and stdout C/G/C follow directly from this source.",
+  "requests": [
+    {
+      "step": "cold",
+      "source_leaf_value": 1,
+      "expected_return": 3,
+      "expected_stdout_hex": "43",
+      "arms": {
+        "warm": {
+          "status": "Success",
+          "phase": "link",
+          "verification_runs": 1,
+          "exit": {
+            "actual": 3,
+            "expected": 3
+          },
+          "stdout_hex": "43",
+          "executable_sha256": "d2b56121148ce9304bba160ff5bf217431e0c5f4099c21c997a44ec300a99cb1",
+          "executable_size": 6392,
+          "machine": "ELF64 little-endian x86_64",
+          "native_backend": "clang",
+          "commands": [
+            [
+              "clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "--ld-path=/workspace/scratch/4ab361722127/.toolchain/llvm/bin/ld.lld",
+              "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/native-control/cold/warm/.zil-driver-298-10/.zil-build-298-0/module.ll",
+              "-o",
+              "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/native-control/cold/warm/.zil-driver-298-10/.zil-build-298-0/program"
+            ]
+          ]
+        },
+        "fresh": {
+          "status": "Success",
+          "phase": "link",
+          "verification_runs": 1,
+          "exit": {
+            "actual": 3,
+            "expected": 3
+          },
+          "stdout_hex": "43",
+          "executable_sha256": "d2b56121148ce9304bba160ff5bf217431e0c5f4099c21c997a44ec300a99cb1",
+          "executable_size": 6392,
+          "machine": "ELF64 little-endian x86_64",
+          "native_backend": "clang",
+          "commands": [
+            [
+              "clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "--ld-path=/workspace/scratch/4ab361722127/.toolchain/llvm/bin/ld.lld",
+              "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/native-control/cold/fresh/.zil-driver-298-22/.zil-build-298-1/module.ll",
+              "-o",
+              "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/native-control/cold/fresh/.zil-driver-298-22/.zil-build-298-1/program"
+            ]
+          ]
+        }
+      },
+      "representation_sha256": {
+        "typed": "c2126bbd93174389f720c310a6d65785409e747e7adfa56c2ec0de45cdf74139",
+        "candidate": "347455134d48188b35f6bc95e1a49b06827a1a7bc84aac64873b4fd386e94fc7",
+        "lir": "6f73f734cc749784c7a32e32d24543c2d957ee28939dd4b16e86c573896ecfea",
+        "llvm": "23cb45f24f4b2dc6b47859081b8ae04862d46332ba3b8a54a1094c66a4c9f848",
+        "verified-interfaces": "4f24c4d3db8267efa06871ec3e210f4ee9ba8a9bf5d5394aa7d0be106003f156"
+      },
+      "memo": {
+        "eligible": true,
+        "reused_functions": 0,
+        "checked_functions": 6,
+        "retained_modules": 3,
+        "retained_weight": 30230
+      }
+    },
+    {
+      "step": "private",
+      "source_leaf_value": 5,
+      "expected_return": 7,
+      "expected_stdout_hex": "47",
+      "arms": {
+        "warm": {
+          "status": "Success",
+          "phase": "link",
+          "verification_runs": 1,
+          "exit": {
+            "actual": 7,
+            "expected": 7
+          },
+          "stdout_hex": "47",
+          "executable_sha256": "71506f2d7d0ed48a6c29c26f96c117a4ec411987efe854015103de420a5064ea",
+          "executable_size": 6392,
+          "machine": "ELF64 little-endian x86_64",
+          "native_backend": "clang",
+          "commands": [
+            [
+              "clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "--ld-path=/workspace/scratch/4ab361722127/.toolchain/llvm/bin/ld.lld",
+              "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/native-control/private/warm/.zil-driver-298-34/.zil-build-298-2/module.ll",
+              "-o",
+              "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/native-control/private/warm/.zil-driver-298-34/.zil-build-298-2/program"
+            ]
+          ]
+        },
+        "fresh": {
+          "status": "Success",
+          "phase": "link",
+          "verification_runs": 1,
+          "exit": {
+            "actual": 7,
+            "expected": 7
+          },
+          "stdout_hex": "47",
+          "executable_sha256": "71506f2d7d0ed48a6c29c26f96c117a4ec411987efe854015103de420a5064ea",
+          "executable_size": 6392,
+          "machine": "ELF64 little-endian x86_64",
+          "native_backend": "clang",
+          "commands": [
+            [
+              "clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "--ld-path=/workspace/scratch/4ab361722127/.toolchain/llvm/bin/ld.lld",
+              "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/native-control/private/fresh/.zil-driver-298-46/.zil-build-298-3/module.ll",
+              "-o",
+              "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/native-control/private/fresh/.zil-driver-298-46/.zil-build-298-3/program"
+            ]
+          ]
+        }
+      },
+      "representation_sha256": {
+        "typed": "11dee19cc3669f35de66c03b06a6084613d3cbb1b1906d93a6c75980abaeae28",
+        "candidate": "ac13c5c0f7857f918eeb288e58700725e06d16be717d1083229f52640586d85c",
+        "lir": "c2a76e80c499951cfb32157624699550214c6dfc09d35cc05af1b188793d1bdf",
+        "llvm": "d7e6d6ca309471b5da830f19d867ad0ea1d64f7b86b7dbe6d80f4527de9c285a",
+        "verified-interfaces": "4cd1a8cfcbe65d8c83c8b5bde46d890a39556be4555165a94250d06efddd07db"
+      },
+      "memo": {
+        "eligible": true,
+        "reused_functions": 2,
+        "checked_functions": 4,
+        "retained_modules": 3,
+        "retained_weight": 30230
+      }
+    },
+    {
+      "step": "restore",
+      "source_leaf_value": 1,
+      "expected_return": 3,
+      "expected_stdout_hex": "43",
+      "arms": {
+        "warm": {
+          "status": "Success",
+          "phase": "link",
+          "verification_runs": 1,
+          "exit": {
+            "actual": 3,
+            "expected": 3
+          },
+          "stdout_hex": "43",
+          "executable_sha256": "d2b56121148ce9304bba160ff5bf217431e0c5f4099c21c997a44ec300a99cb1",
+          "executable_size": 6392,
+          "machine": "ELF64 little-endian x86_64",
+          "native_backend": "clang",
+          "commands": [
+            [
+              "clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "--ld-path=/workspace/scratch/4ab361722127/.toolchain/llvm/bin/ld.lld",
+              "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/native-control/restore/warm/.zil-driver-298-58/.zil-build-298-4/module.ll",
+              "-o",
+              "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/native-control/restore/warm/.zil-driver-298-58/.zil-build-298-4/program"
+            ]
+          ]
+        },
+        "fresh": {
+          "status": "Success",
+          "phase": "link",
+          "verification_runs": 1,
+          "exit": {
+            "actual": 3,
+            "expected": 3
+          },
+          "stdout_hex": "43",
+          "executable_sha256": "d2b56121148ce9304bba160ff5bf217431e0c5f4099c21c997a44ec300a99cb1",
+          "executable_size": 6392,
+          "machine": "ELF64 little-endian x86_64",
+          "native_backend": "clang",
+          "commands": [
+            [
+              "clang",
+              "--target=x86_64-unknown-linux-gnu",
+              "-x",
+              "ir",
+              "-O0",
+              "--ld-path=/workspace/scratch/4ab361722127/.toolchain/llvm/bin/ld.lld",
+              "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/native-control/restore/fresh/.zil-driver-298-70/.zil-build-298-5/module.ll",
+              "-o",
+              "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/native-control/restore/fresh/.zil-driver-298-70/.zil-build-298-5/program"
+            ]
+          ]
+        }
+      },
+      "representation_sha256": {
+        "typed": "c2126bbd93174389f720c310a6d65785409e747e7adfa56c2ec0de45cdf74139",
+        "candidate": "347455134d48188b35f6bc95e1a49b06827a1a7bc84aac64873b4fd386e94fc7",
+        "lir": "6f73f734cc749784c7a32e32d24543c2d957ee28939dd4b16e86c573896ecfea",
+        "llvm": "23cb45f24f4b2dc6b47859081b8ae04862d46332ba3b8a54a1094c66a4c9f848",
+        "verified-interfaces": "4f24c4d3db8267efa06871ec3e210f4ee9ba8a9bf5d5394aa7d0be106003f156"
+      },
+      "memo": {
+        "eligible": true,
+        "reused_functions": 2,
+        "checked_functions": 4,
+        "retained_modules": 3,
+        "retained_weight": 30230
+      }
+    }
+  ],
+  "rejected_pair": {
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "expected bool, found i32",
+        "span": {
+          "file": 0,
+          "start": 57,
+          "end": 64
+        },
+        "notes": []
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "artifacts_empty": true,
+    "no_output_published": true
+  },
+  "retained_epoch_evidence": "The frozen control source asserts retained_type_memo_stats unchanged after the rejected edit. Following restore records reused=2/checked=4 and matches fresh IR/native outputs. This review does not rerun the assertion.",
+  "limitations": [
+    "Only this finite scalar/FFI private-edit/restore path at Linux x86_64 O0",
+    "One intermediate signature error; not all native-build failure modes",
+    "This small 3-retained-module native control does not cross the CP32 partial-retention capacity boundary",
+    "No new native execution or performance measurement by reviewer"
+  ],
+  "audit_script_sha256": "2b0cc760ea6362a054c896f8409deca9859ac0dce1e31340701ec192de4f1a10"
+}

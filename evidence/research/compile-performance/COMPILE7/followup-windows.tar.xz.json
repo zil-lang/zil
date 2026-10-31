@@ -1,0 +1,11 @@
+{
+  "at_utc": "2026-10-31T02:01:06.728236+00:00",
+  "archive": "/workspace/scratch/c3607737969d/zil/evidence/research/compile-performance/COMPILE7/followup-windows.tar.xz",
+  "archive_sha256": "13bd36157be78a44ec1c29e4d7216ff370cc65f6cb5ce490d258fc20e6e59bf5",
+  "archive_size": 275368,
+  "files": 898,
+  "source_bytes": 6215706,
+  "every_archived_file_hash_verified": true,
+  "originals_retained": true,
+  "scope": "Complete CP32 and CP33 controls and measurements, all raw stdout/stderr/rows/plans; original protocol and corpus identity retained"
+}

@@ -1,0 +1,32 @@
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+     Running unittests src/lib.rs (/workspace/scratch/c3607737969d/target-cp33/debug/deps/zil_syntax-f4950cd48172b638)
+
+running 17 tests
+test lexer::tests::byte_suffix_preserves_radix_and_separator_validation ... ok
+test lexer::tests::lossless_utf8_nested_comments_crlf ... ok
+test lexer::tests::malformed_tokens_preserve_their_spans ... ok
+test lexer::tests::tuple_indices_do_not_become_float_literals ... ok
+test lexer::tests::xid_is_not_alphabetic_approximation ... ok
+test parser::tests::chains_are_bounded_before_recursive_ast_drop ... ok
+test parser::tests::closures_pipelines_and_compile_time_forms ... ok
+test parser::tests::control_heads_slices_and_type_arrows_have_one_parse ... ok
+test parser::tests::finite_contract_dsl_accepts_give_and_paths ... ok
+test parser::tests::frozen_parse_rejections_are_specific ... ok
+test parser::tests::malformed_source_recovers_to_later_item ... ok
+test parser::tests::nested_type_closers_do_not_change_shift_tokens ... ok
+test parser::tests::nesting_limits_are_resource_limits ... ok
+test parser::tests::newlines_are_logical_and_do_not_back_join ... ok
+test parser::tests::real_function_body_and_pratt_precedence ... ok
+test parser::tests::receivers_records_and_function_types ... ok
+test parser::tests::syntax_islands_preserve_trivia_inside_each_delimiter ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/cp33_parse_receipts.rs (/workspace/scratch/c3607737969d/target-cp33/debug/deps/cp33_parse_receipts-b8ea67634cc52f56)
+
+running 2 tests
+test recovered_or_invalid_syntax_never_supplies_a_success_receipt ... ok
+test successful_receipts_cover_parser_and_attribute_node_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

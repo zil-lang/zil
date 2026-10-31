@@ -40,3 +40,17 @@ CP29五区块完整窗口200序列/1400请求成功，默认容量主混合B/A=1
 写集：crates/zil-syntax/src/lib.rs、parser/mod.rs、attributes/mod.rs；crates/zil-driver/src/session.rs、project.rs；cp33限定syntax/driver测试及说明。ParseUsage记录parser nodes与attribute work的实际需求；仅把两个可回放额度从稳定Parse身份中分离，命中必须fit当前余额，不足回原完整键/原parser保留首错、Span和顺序，其它limits、规则、源/路径/FileId/ModuleId继续绑定。项目仍逐请求收费和解析当前import路径/歧义。不得携入parse_cache.rs、cache codec、磁盘目录、producer hash或fsync，也不新增一层AST保留缓存。
 
 使用原五语料公开编辑、降低额度、属性work、错误优先级、失败/取消、文件增删/歧义、fresh Verify等限定控制；非作者审核后再跑同ee72完整固定窗口。任何原CP22性能数字不回填本切片。
+
+## CP34：TypedModule 指纹的等价流式编码
+
+CP32完整窗口已通过但根初算默认B/A=1.003583、8192=1.060297，仍不采用；CP33正式计量中。静态检查发现TypedModule::fingerprint先把完整模块编码到Vec再做SHA256。根授权incremental_research从ee72fd6独立新worktree实施CP34：仅将相同有序字节流直接送入既有FingerprintBuilder，降低反复身份计算的临时物化；frontend_incremental负责独立源码/等价性审核，根负责完整性能，cp25_evidence复算。
+
+写集限crates/zil-ir/src/lib.rs及cp34限定IR/driver控制与说明；不修改zil-base的SHA256实现，不改变V27标签、任何字段顺序、端序、Span、target JSON、schema、预算、诊断、Verify调用次数或权限。保留原Vec编码作为测试oracle，覆盖全部可达编码变体及实际源产生的TypedModule，核旧新精确指纹。CP33计时结束前仅可编辑，不构建测试。必要时在单次统一sink中缓冲小字段，但须如实计入，不能另增加未经证明的结果缓存。先限定控制/非作者独审再以同基线和同冻结完整会话窗口计量；CPU/内存/冷路径与全序列并列，不能只报编码微基准。
+
+## CP35：fresh Verify 共享不可变输入
+
+CP33完整200序列/1400请求通过，根初算默认B/A=0.975870、8192=0.947398，待非作者复算；正式计时已经停止。静态确认finish_candidate每请求深复制TypedModule/CandidatePlan，而check_module仅借读；根授权frontend_incremental从ee72fd6独立CP35，与CP34互不叠加，cp25_evidence独审。
+
+写集限crates/zil-verify/src/lib.rs、zil-driver/src/session.rs、project.rs及必要有限测试/说明。保留旧owned验证入口，新私有owner可持有已有Arc<TypedModule>或Arc<TypedProgram>与Arc<CandidatePlan>，项目不得先clone内嵌module再包Arc；后续module()/plan()只借读。每次调用原check_module，保持检查与预算/首错顺序、取消点和Verify计数；raw snapshot不得持有Verified权限、成功位或验证票据。共享program入口仅授予module权限，interfaces不得扩大为已验证结果。既有Owned调用不得无端增加Arc分配，wire/schema/哈希/接受规则保持。
+
+限定控制覆盖owned/shared全结果与诊断等价、Arc别名/clone-on-write隔离、实际当前额度、单源/项目/磁盘checkpoint入口、失败/取消与每请求Verify=1；独立审核后使用同冻结完整会话协议，不引用静态工作量作为速度数字。

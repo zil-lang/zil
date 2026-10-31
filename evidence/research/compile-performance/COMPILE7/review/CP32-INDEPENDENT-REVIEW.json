@@ -1,0 +1,92 @@
+{
+  "reviewer": "cp25_evidence",
+  "verdict": "Pass",
+  "verdict_scope": "Non-author correctness and static design review only; no performance/adoption/native verdict",
+  "at_utc": "2026-10-31T01:45:58.400793+00:00",
+  "source_commit": "3ba131efdeffe85ba5fccd1c177745d812a6ce61",
+  "base_commit": "a0f38d2bca8f01fc19ff1f2fa0a42c3983c223b8",
+  "worktree_clean_before_and_after": true,
+  "changed_files_sha256": {
+    "crates/zil-driver/tests/cp32_partial_types_memo.rs": "361ad1feba60491c908378f95b3c2f32c9b771d2b09892a231ff65664c7e61ee",
+    "crates/zil-types/PROGRAM-MEMO.md": "216e897247177b390f677162ce023f2ffe8386d6f6f440bc6dd458e23abeabc1",
+    "crates/zil-types/src/cp32_program_memo_tests.rs": "c2c51119e310228df622e02b34a243408e228f18d1cb4725e775090e6f07e026",
+    "crates/zil-types/src/program.rs": "81c17b6bf8a6b9e41bb978b9b27d5165ad75ac808f8a4317962f49a688238ba0",
+    "crates/zil-types/src/program_memo.rs": "ab13154b4fb1df92f6574c9828304b92f9d805bb4d842f45066bf2436b22a3c1"
+  },
+  "production_change_boundary": [
+    "crates/zil-types/src/program.rs",
+    "crates/zil-types/src/program_memo.rs"
+  ],
+  "findings": [
+    "Complete environment remains mandatory for every partial epoch: exact declaration tables, function declaration identities/foreign fields/modes, module order/imports/root, target, all Limits, caller context. Omitted module declaration changes invalidate reuse globally.",
+    "Environment.weight reuse is sound because its counted target strings, module/table/declaration/import arrays and lengths, foreign strings/noescape lists are all derived from the exact matched identity. Body/local-name storage is counted separately by source_weight.",
+    "Old module eligibility/source+typed weight receipts are trusted only after full exact CoreModule equality and matching complete environment. Source hashes alone never authorize reuse.",
+    "Saturated storage size never skips the rest of a live module eligibility traversal. Unsupported source/typed tail still disables memo; all actual Builders/diagnostics remain authoritative.",
+    "Only FunctionId+MemoUsage receipts exist during checking. Full function snapshots are copied for selected new modules after output is sorted, before lending::populate. Project labels are restored to original Builder names in stored snapshots.",
+    "Full receipt-vector reservations and per-module metadata are included in global structural accounting even for omitted modules. No environment or module snapshots are copied when final selection is empty.",
+    "Stable-order selection can skip oversized entries and continue with later smaller ones. Old entries remain immutable Arc values; using a valid old entry for current output remains sound even if it is omitted from the next epoch.",
+    "Atomic shared-state charge replay and original-Builder fallback on shortage remain unchanged from CP29. The newly constructed epoch is still committed by the driver only after whole request success; lending/analysis/cancellation errors cannot commit it.",
+    "Each production epoch remains capped at 16384 module positions and 64 MiB structural weight, not allocator RSS or all transient memory. Old epoch, new epoch, actual IR and query caches can coexist."
+  ],
+  "controls": {
+    "author_suite_independently_reexecuted": {
+      "total_pass": 17,
+      "new_private_capacity_unit_tests": 3,
+      "prior_cp29_driver_tests": 12,
+      "new_cp32_driver_tests": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_other_unit_tests_not_run": 18
+    },
+    "external_consumer": {
+      "total_pass": 5,
+      "prior_non_author_cp29_tests_relinked_to_cp32": 3,
+      "new_non_author_partial_epoch_tests": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    "new_transition": {
+      "retained_modules": [
+        812,
+        805,
+        812
+      ],
+      "initial_weight": 67091363,
+      "expanded_weight": 67042244,
+      "restored_weight": 67091363,
+      "expanded_reused_functions": 7299,
+      "expanded_new_snapshot_clones": 1,
+      "restored_reused_functions": 7236,
+      "restored_new_snapshot_clones": 64,
+      "all_compared_complete_TypedProgram_to_cold": true
+    },
+    "new_omitted_module": {
+      "file_id": 1024,
+      "visibility_change_reused_functions": 0,
+      "visibility_change_source_modules_reused": 0,
+      "late_error": "E-UNKNOWN-NAME",
+      "span": [
+        424,
+        435
+      ],
+      "cold_warm_diagnostics_identical": true,
+      "prior_epoch_unchanged_and_restore_successful": true
+    }
+  },
+  "no_new_native_or_performance_execution": true,
+  "evidence_sha256": {
+    "CP32-INDEPENDENT-AUTHOR-CONTROLS.json": "a0580821a06d020010bdfb3f2b3920e1838b9e023844a235ca94c85ba12aea93",
+    "CP32-INDEPENDENT-AUTHOR-TYPES.log": "07f5a0ce42903e59605e83bc118137dfa90c4c1bb1b86ff6717d559c109e40ed",
+    "CP32-INDEPENDENT-AUTHOR-DRIVER.log": "b9530db394efc3dfa750aab3345bfaebe6b33f45525e11b00a401c81326d251f",
+    "CP32-INDEPENDENT-CONSUMER-EXECUTION.json": "e79ba49504bc9bfde1615c1b8f7878f8f3b3ffa32e6311a57f25dddd77362938",
+    "CP32-INDEPENDENT-CONSUMER-COMPILE.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "CP32-INDEPENDENT-CONSUMER-TEST.log": "121e40e475f218ad4ac8295f1a90b11ccdab3ca5c96d4806437d708d3dd55ca0",
+    "cp32_independent_consumer.rs": "b45ba8ea5fc94ef590f202c5cf4e8e8805e78543e26ec1f4f54fcc5a8b46da61",
+    "cp29_independent_consumer.rs": "c5f36273f41bc4056df8d45ebadf35641b80b14dedb9bc3ae2c0e2ca4d7bad61"
+  },
+  "limits": [
+    "This 1025-module correctness fixture is not the formal tree1024x8 performance fixture. No timing from correctness runs is scored.",
+    "Original CP29 whole-epoch limit exit point remains undetermined; CP32 review does not retrospectively infer source-weight versus typed-weight cause.",
+    "No general language-coverage or product-gate uplift; later analysis/Verify/native evidence must retain their actual scope."
+  ]
+}

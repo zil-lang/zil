@@ -606,4 +606,8 @@ Doing
 
 2026-10-31 编译7追加派工：CP29完整会话负结果保留；CP32从a0f38d2b隔离继续，研究有界部分保留、延迟快照复制和已验证源权重复用，64MiB与语义/预算/Verify合同不变。写集、作者和独审见COMPILE7-PLAN。
 
+2026-10-31 编译7追加CP34：CP32完整窗口未建立净收益；从ee72fd6独立研究TypedModule指纹等价流式编码，消除完整编码Vec的临时物化。既有SHA256、V27字节序、预算、Verify权限与错误保持；独立作者/审核及完整成本口径见COMPILE7-PLAN。CP33正式窗口中不得构建或测试。
+
+2026-10-31 编译7追加CP35：CP33完整计时停止；从ee72fd6独立研究fresh Verify共享不可变raw输入，保留原check_module及全部权限/预算/错误合同，仅消除输入深复制。CP34/35各自对基线，不混合归因，作者与非作者独审写集见COMPILE7-PLAN。
+
 2026-10-31 编译7追加CP33：源码确认公开编辑改变逐文件剩余token/node额度从而扩大Parse失效；从ee72独立移植纯内存ParseUsage/预算拟合身份，不含旧磁盘memo。作者incremental_research、非作者cp25_evidence，见COMPILE7-PLAN。

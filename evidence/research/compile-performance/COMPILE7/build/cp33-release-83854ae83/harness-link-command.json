@@ -1,0 +1,36 @@
+{
+  "command": [
+    "rustc",
+    "--edition=2024",
+    "-O",
+    "-C",
+    "debuginfo=0",
+    "-C",
+    "panic=abort",
+    "-L",
+    "dependency=/workspace/scratch/c3607737969d/target-cp33/release/deps",
+    "-L",
+    "native=/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "--extern",
+    "zil_driver=/workspace/scratch/c3607737969d/target-cp33/release/libzil_driver.rlib",
+    "--extern",
+    "zil_base=/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_base-e7f463e530140758.rlib",
+    "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/compile7_session.rs",
+    "-o",
+    "/workspace/scratch/c3607737969d/recovery/compile7_tools/session-cp33"
+  ],
+  "returncode": 0,
+  "host_wall_seconds": 15.447795648986357,
+  "stdout": {
+    "path": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/harness-link.stdout",
+    "resolved": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/harness-link.stdout",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "stderr": {
+    "path": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/harness-link.stderr",
+    "resolved": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/harness-link.stderr",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

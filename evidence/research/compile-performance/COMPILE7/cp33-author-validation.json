@@ -1,0 +1,33 @@
+{
+  "candidate": "83854ae83f7fec4fc8f9c22d0751a1fd2725671f",
+  "baseline": "ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8",
+  "crates_tree": "e912a9149e017f93596384f3ba28a247f6a1b979",
+  "author": "incremental_research",
+  "independent_review": "Pending",
+  "source_sha256": {
+    "crates/zil-driver/src/project.rs": "f6b374497419c41877b3f7efd32a88d961c51c86f80d6a1641ae5895078b01f8",
+    "crates/zil-driver/src/session.rs": "693622514f162d41bf27c37283fd348b6bb44101c53ee79d0bb98f012bcd8da4",
+    "crates/zil-driver/tests/cp33_parse_budget.rs": "4c1cf2acae8c5beca68431d42fc2528b11c72aced972dec280b133bbb6042793",
+    "crates/zil-syntax/src/attributes/mod.rs": "ec1f5af8a0809200ff7e429b3069b8c081c0a3d6714d0a3eee6f60a46d717da9",
+    "crates/zil-syntax/src/lib.rs": "b52306036de2ae89edf4f79002563a56787904145d2a965adbc0af638358f64e",
+    "crates/zil-syntax/src/parser/mod.rs": "0c08564b0e738b9b5b40059b45d9dc355465a68d3e134e3405cb0b923bea4049",
+    "crates/zil-syntax/tests/cp33_parse_receipts.rs": "6c682ff8bd50f50be8e2c88f9e42cd5222ef0b7acbc446501199c986c81ac5a2",
+    "docs/research/compile-performance/CP33-PARSE-BUDGET-RECEIPTS.md": "6ebf7552fb813299937d4d1d6140b94913fa530205156ea54e153bb9dc782f8b"
+  },
+  "tests": {
+    "syntax_lib": 17,
+    "syntax_cp33": 2,
+    "driver_lib": 36,
+    "driver_cp33": 6,
+    "failed": 0
+  },
+  "log_sha256": "5929eebedb51f5ae6be73ca5573253fb54800d7fcecb961fe86407e9b34ed407",
+  "commands_sha256": "4c59633e884fc7b9ba84ee0e8b38183937d846c7922a0fdefba7bde9d18eba6a",
+  "handoff": {
+    "exit": 1,
+    "log_sha256": "06a0844c83c2f471ad849edd5905db8af346bf8a0eeeb080c83b3ed787edc530",
+    "scope": "Retained existing sparse-history/handoff limitation; not relabelled Pass"
+  },
+  "performance": "NotRun",
+  "scope": "Author targeted correctness only; no wire/schema or disk parse-cache changes; no mainline integration"
+}

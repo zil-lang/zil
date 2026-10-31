@@ -1,0 +1,109 @@
+{
+  "reviewer": "cp25_evidence",
+  "verdict": "Pass",
+  "verdict_scope": "Non-author correctness and static design review; not performance, native behavior, product gate or default adoption",
+  "at_utc": "2026-10-31T01:50:48.780539+00:00",
+  "source_commit": "83854ae83f7fec4fc8f9c22d0751a1fd2725671f",
+  "base_commit": "ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8",
+  "worktree_clean_before_and_after": true,
+  "changed_files_sha256": {
+    "crates/zil-driver/src/project.rs": "f6b374497419c41877b3f7efd32a88d961c51c86f80d6a1641ae5895078b01f8",
+    "crates/zil-driver/src/session.rs": "693622514f162d41bf27c37283fd348b6bb44101c53ee79d0bb98f012bcd8da4",
+    "crates/zil-driver/tests/cp33_parse_budget.rs": "4c1cf2acae8c5beca68431d42fc2528b11c72aced972dec280b133bbb6042793",
+    "crates/zil-syntax/src/attributes/mod.rs": "ec1f5af8a0809200ff7e429b3069b8c081c0a3d6714d0a3eee6f60a46d717da9",
+    "crates/zil-syntax/src/lib.rs": "b52306036de2ae89edf4f79002563a56787904145d2a965adbc0af638358f64e",
+    "crates/zil-syntax/src/parser/mod.rs": "0c08564b0e738b9b5b40059b45d9dc355465a68d3e134e3405cb0b923bea4049",
+    "crates/zil-syntax/tests/cp33_parse_receipts.rs": "6c682ff8bd50f50be8e2c88f9e42cd5222ef0b7acbc446501199c986c81ac5a2",
+    "docs/research/compile-performance/CP33-PARSE-BUDGET-RECEIPTS.md": "6ebf7552fb813299937d4d1d6140b94913fa530205156ea54e153bb9dc782f8b"
+  },
+  "production_change_boundary": [
+    "crates/zil-syntax/src/lib.rs",
+    "crates/zil-syntax/src/parser/mod.rs",
+    "crates/zil-syntax/src/attributes/mod.rs",
+    "crates/zil-driver/src/session.rs",
+    "crates/zil-driver/src/project.rs"
+  ],
+  "findings": [
+    "Successful receipt stores max(parser.nodes, validator.work), since each pre-existing counter separately compares against max_nodes; no budget charging/diagnostic branch was changed.",
+    "fits_limits requires no diagnostics, full token tape including EOF <= max_tokens, and receipt <= max_nodes. EOF can cause conservative rejection even when the original lexer succeeds, but fallback preserves original result rather than inventing an error.",
+    "Only max_tokens and max_nodes are neutralized, under a new domain-separated private Parse identity. Source bytes/path/FileId/ModuleId, nine remaining limit axes, build_inputs and rule/schema/producer identity stay bound. Driver always uses the unchanged default attribute context.",
+    "Untrusted public ParseResult/ParseUsage values have no insertion path into private raw snapshots; no decoder or disk syntax cache was added.",
+    "Insufficient existing success receipt selects the original full-budget key and original parser. Existing fallback entries can be reused only under their exact original quotas.",
+    "Loader and project_pipeline both select parse_key with matching effective token/node quotas. Source byte validation and project token/EOF charging still execute; all current filesystem import resolutions, missing/ambiguous file checks and source reads remain live.",
+    "Single-source downstream phases derive their keys from a separate original full identity, not the neutral Parse key. Project downstream phases also retain full project identity. Disk source backup and frontend checkpoint identities are unchanged.",
+    "Only successful raw parses are published; independent Verify, cancellation boundaries, active-query cleanup and capacity eviction behavior remain intact."
+  ],
+  "controls": {
+    "author_suite_independently_reexecuted": {
+      "total_pass": 61,
+      "existing_syntax_lib": 17,
+      "new_syntax_receipt": 2,
+      "existing_driver_lib": 36,
+      "new_driver_budget": 6,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "new_external_consumer": {
+      "total_pass": 3,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "late_phase_counterexample": {
+      "max_nodes": 24,
+      "parse_nodes_required": 24,
+      "parse_queries_executed": 0,
+      "parse_queries_reused": 1,
+      "failure_phase": "Ct",
+      "category": "ResourceLimit",
+      "code": "E-RESOURCE-LIMIT",
+      "message": "Core traversal depth/node budget exceeded",
+      "file_id": 10,
+      "span": [
+        57,
+        58
+      ],
+      "warm_fresh_full_report_observables_equal": true,
+      "later_phase_reused_queries": 0,
+      "restoration_fresh_verify_runs": 1
+    },
+    "simultaneous_token_node_boundaries": {
+      "comparisons": 81,
+      "corpus": [
+        "empty source",
+        "UTF-8/trivia/nested comments and scalar body",
+        "multiple doc attributes",
+        "cfg removed and deferred attachments"
+      ],
+      "full_parse_values_compared_when_receipt_fits": true,
+      "warm_fresh_diagnostics_and_observables_always_equal": true
+    },
+    "cross_entry_discovery": {
+      "separately_warmed_sources": 4,
+      "project_parse_queries_reused": 4,
+      "project_verify_runs": 1,
+      "current_new_directory_file_ambiguity": "E-MODULE-AMBIGUOUS",
+      "ambiguity_verify_runs": 0,
+      "active_queries_after": 0
+    }
+  },
+  "performance_samples_added": 0,
+  "new_non_author_native_execution_controls": 0,
+  "evidence_sha256": {
+    "CP33-INDEPENDENT-AUTHOR-CONTROLS.json": "5aca183abccc7b7b682b46de145ca7de169b43c46b20997bed806451dbec76ac",
+    "CP33-INDEPENDENT-AUTHOR-SYNTAX.log": "a68043483cd9f655d3fac4abc664225aab95a92e9bccdde8b32df9c7d3d3b7c6",
+    "CP33-INDEPENDENT-AUTHOR-DRIVER.log": "2825799c6db76559eaa41c0f87256668805b42b406ad21cf08602040dc32b962",
+    "CP33-INDEPENDENT-CONSUMER-EXECUTION.json": "ac880909441657212b0b6301f1dc982bc591bb0ee6f454fa9d0a9695b74e119d",
+    "CP33-INDEPENDENT-CONSUMER-COMPILE.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "CP33-INDEPENDENT-CONSUMER-TEST.log": "c05c1764dbbe4cfa8e55dbe56f7c324ebf38003ab790a0eb885c52ee6134a337",
+    "cp33_independent_consumer.rs": "c8756ca7f610f659f9dc73358b71e19aac23f32df734f8a06417e5d1e3e7310b"
+  },
+  "limits": [
+    "Private raw query reuse is not a full syntax/semantic incremental compiler; later phases remain live under their current identities.",
+    "Parse query event Reused/Executed is not itself an actual lexer invocation counter because discovery may provide a checked Arc after capacity eviction.",
+    "Tests do not import CP22/CP26 performance or disk publication conclusions; no old timing is attributed to CP33.",
+    "CP33 is based on ee72fd6 and does not contain CP29/CP32. No joint-candidate behavior or speed has been established.",
+    "All code remained frozen; no test duration is a performance sample."
+  ]
+}

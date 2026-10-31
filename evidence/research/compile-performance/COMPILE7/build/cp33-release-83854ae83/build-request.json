@@ -1,0 +1,38 @@
+{
+  "source_commit": "83854ae83f7fec4fc8f9c22d0751a1fd2725671f",
+  "source_crates_tree": "e912a9149e017f93596384f3ba28a247f6a1b979",
+  "source_clean_before": true,
+  "started_utc": "2026-10-31T01:50:34.607370+00:00",
+  "target": "/workspace/scratch/c3607737969d/target-cp33",
+  "environment": {
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "CARGO_TARGET_DIR": "/workspace/scratch/c3607737969d/target-cp33",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_RELEASE_DEBUG": "0",
+    "LD_LIBRARY_PATH": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "PATH": "/workspace/scratch/4ab361722127/.toolchain/rust/bin:/workspace/scratch/4ab361722127/.toolchain/llvm/bin:/root/.codex/tmp/arg0-linux/codex-arg0bqBv7y:/opt/codex/codex-path:/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/override:/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin:/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin:/opt/codex/runtimes/codex-primary-runtime/dependencies/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/fallback",
+    "CARGO_INCREMENTAL": "0"
+  },
+  "scope": "Host build and link identity only; no performance samples",
+  "harness_source": {
+    "path": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/compile7_session.rs",
+    "resolved": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/compile7_session.rs",
+    "size": 6755,
+    "sha256": "3aaf249ad90b67029bacedc66523ce149c230099af27fdc22ed2a6074ee5a37f"
+  },
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "cargo_build_command": [
+    "cargo",
+    "build",
+    "--manifest-path",
+    "/workspace/scratch/c3607737969d/zil-cp33/Cargo.toml",
+    "-p",
+    "zil-driver",
+    "--lib",
+    "--features",
+    "llvm-api",
+    "--release",
+    "--offline",
+    "--message-format=json-render-diagnostics"
+  ]
+}

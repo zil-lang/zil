@@ -1,0 +1,34 @@
+{
+  "source_commit": "3ba131efdeffe85ba5fccd1c177745d812a6ce61",
+  "source_status": "",
+  "start_utc": "2026-10-31T01:45:15.331342+00:00",
+  "cargo_command": [
+    "cargo",
+    "build",
+    "--offline",
+    "--release",
+    "-p",
+    "zil-cli",
+    "--message-format=json-render-diagnostics"
+  ],
+  "cargo_target_dir": "/workspace/scratch/c3607737969d/target-cp32",
+  "environment": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_RELEASE_DEBUG": "0"
+  },
+  "harness_source": {
+    "path": "/workspace/scratch/c3607737969d/recovery/compile7_tools/compile7_session.rs",
+    "resolved": "/workspace/scratch/c3607737969d/recovery/compile7_tools/compile7_session.rs",
+    "size": 6755,
+    "sha256": "3aaf249ad90b67029bacedc66523ce149c230099af27fdc22ed2a6074ee5a37f"
+  },
+  "native_control_source": {
+    "path": "/workspace/scratch/c3607737969d/recovery/cp29-release-a0f38d2b/cp29_native_control.rs",
+    "resolved": "/workspace/scratch/c3607737969d/recovery/cp29-release-a0f38d2b/cp29_native_control.rs",
+    "size": 5767,
+    "sha256": "5275c621600ba7a50a52b351a26f1f0a0a12a6a26deff6051f5c2c3abbda037f"
+  },
+  "rustc_version": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "cargo_version": "cargo 1.99.1 (5f94df478 2026-08-27)\n"
+}

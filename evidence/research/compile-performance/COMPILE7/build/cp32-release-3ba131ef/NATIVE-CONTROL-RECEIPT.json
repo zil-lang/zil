@@ -1,0 +1,224 @@
+{
+  "source_commit": "3ba131efdeffe85ba5fccd1c177745d812a6ce61",
+  "control_source_sha256": "5275c621600ba7a50a52b351a26f1f0a0a12a6a26deff6051f5c2c3abbda037f",
+  "control_binary_sha256": "a49631b2e3db6ac88056fd44d8a5fb59d97b0fca3a006bfe66cc5c41122554f2",
+  "result": {
+    "pass": true,
+    "optimization": "O0",
+    "persistent_successes": 3,
+    "fresh_successes": 3,
+    "native_executions": 6,
+    "rejected_warm_fresh_pair": 1,
+    "timing_benchmark": false
+  },
+  "requests": [
+    {
+      "step": "cold",
+      "memo": {
+        "eligible": true,
+        "reused_functions": 0,
+        "checked_functions": 6,
+        "retained_modules": 3,
+        "retained_weight": 30230
+      },
+      "verification_runs": {
+        "warm": 1,
+        "fresh": 1
+      },
+      "exit": {
+        "warm": {
+          "actual": 3,
+          "expected": 3
+        },
+        "fresh": {
+          "actual": 3,
+          "expected": 3
+        }
+      },
+      "stdout_hex": {
+        "warm": "43",
+        "fresh": "43"
+      }
+    },
+    {
+      "step": "private",
+      "memo": {
+        "eligible": true,
+        "reused_functions": 2,
+        "checked_functions": 4,
+        "retained_modules": 3,
+        "retained_weight": 30230
+      },
+      "verification_runs": {
+        "warm": 1,
+        "fresh": 1
+      },
+      "exit": {
+        "warm": {
+          "actual": 7,
+          "expected": 7
+        },
+        "fresh": {
+          "actual": 7,
+          "expected": 7
+        }
+      },
+      "stdout_hex": {
+        "warm": "47",
+        "fresh": "47"
+      }
+    },
+    {
+      "step": "restore",
+      "memo": {
+        "eligible": true,
+        "reused_functions": 2,
+        "checked_functions": 4,
+        "retained_modules": 3,
+        "retained_weight": 30230
+      },
+      "verification_runs": {
+        "warm": 1,
+        "fresh": 1
+      },
+      "exit": {
+        "warm": {
+          "actual": 3,
+          "expected": 3
+        },
+        "fresh": {
+          "actual": 3,
+          "expected": 3
+        }
+      },
+      "stdout_hex": {
+        "warm": "43",
+        "fresh": "43"
+      }
+    }
+  ],
+  "native_platform": "Linux x86_64",
+  "representation_equality": [
+    "typed",
+    "candidate",
+    "lir",
+    "llvm",
+    "verified-interfaces"
+  ],
+  "scope": "Same small CP29 native control linked to CP32; O0 correctness only, no timing score.",
+  "files": {
+    "RESULT.json": "7fef6b7b9156020772af5703356a76b44885de3ae9905490961eb5de6af1ff02",
+    "cold/fresh/compile.json": "700a3c20ec39706f7c33f1bd43b79a5d46f198857024ceec5c8cb05a6abe5ac3",
+    "cold/fresh/exit.json": "59858bf5f1b2ce96408712b60bd93d1003bd7da5c5b8fc9a63a263399baa2049",
+    "cold/fresh/phases/candidate.txt": "347455134d48188b35f6bc95e1a49b06827a1a7bc84aac64873b4fd386e94fc7",
+    "cold/fresh/phases/core.txt": "2ad8718a295bb03b96ce1da4b81118be93476143108961c1f06a2e899b0475ad",
+    "cold/fresh/phases/ct-core.txt": "2ad8718a295bb03b96ce1da4b81118be93476143108961c1f06a2e899b0475ad",
+    "cold/fresh/phases/interfaces.txt": "ef60b75012bb02ff3ce276c4e3339c20d8abca088f31de536730c700accfa1b3",
+    "cold/fresh/phases/lir.txt": "6f73f734cc749784c7a32e32d24543c2d957ee28939dd4b16e86c573896ecfea",
+    "cold/fresh/phases/llvm.ll": "23cb45f24f4b2dc6b47859081b8ae04862d46332ba3b8a54a1094c66a4c9f848",
+    "cold/fresh/phases/source-map.txt": "082eea8bccdfce973581ea721755e269e3b51826d795d999ec2b569fdf7811ce",
+    "cold/fresh/phases/syntax.txt": "ab7382d4d8602525ef1c8508050e52f3d928d4771411cb5bb448f46a34f1e799",
+    "cold/fresh/phases/typed.txt": "c2126bbd93174389f720c310a6d65785409e747e7adfa56c2ec0de45cdf74139",
+    "cold/fresh/phases/verified-interfaces.txt": "4f24c4d3db8267efa06871ec3e210f4ee9ba8a9bf5d5394aa7d0be106003f156",
+    "cold/fresh/phases/verified.txt": "fa7b0a84f0cf66bbc475bf1b9af9601eb16eb0e7bbc2f7a87df0f83535ea67cf",
+    "cold/fresh/program": "d2b56121148ce9304bba160ff5bf217431e0c5f4099c21c997a44ec300a99cb1",
+    "cold/fresh/program.ll": "23cb45f24f4b2dc6b47859081b8ae04862d46332ba3b8a54a1094c66a4c9f848",
+    "cold/fresh/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cold/fresh/stdout": "6b23c0d5f35d1b11f9b683f0b0a617355deb11277d91ae091d399c655b87940d",
+    "cold/warm/compile.json": "f0dd149c97a0a19b2f1eb8d4ca8b4c921ef93cfcf8f22f33a57e7400c55c3cfb",
+    "cold/warm/exit.json": "59858bf5f1b2ce96408712b60bd93d1003bd7da5c5b8fc9a63a263399baa2049",
+    "cold/warm/memo.json": "8be2dd6842cee498858d82e3de4885f4d27d9e3f9aaf08f34166e528486e2a85",
+    "cold/warm/phases/candidate.txt": "347455134d48188b35f6bc95e1a49b06827a1a7bc84aac64873b4fd386e94fc7",
+    "cold/warm/phases/core.txt": "2ad8718a295bb03b96ce1da4b81118be93476143108961c1f06a2e899b0475ad",
+    "cold/warm/phases/ct-core.txt": "2ad8718a295bb03b96ce1da4b81118be93476143108961c1f06a2e899b0475ad",
+    "cold/warm/phases/interfaces.txt": "ef60b75012bb02ff3ce276c4e3339c20d8abca088f31de536730c700accfa1b3",
+    "cold/warm/phases/lir.txt": "6f73f734cc749784c7a32e32d24543c2d957ee28939dd4b16e86c573896ecfea",
+    "cold/warm/phases/llvm.ll": "23cb45f24f4b2dc6b47859081b8ae04862d46332ba3b8a54a1094c66a4c9f848",
+    "cold/warm/phases/source-map.txt": "082eea8bccdfce973581ea721755e269e3b51826d795d999ec2b569fdf7811ce",
+    "cold/warm/phases/syntax.txt": "ab7382d4d8602525ef1c8508050e52f3d928d4771411cb5bb448f46a34f1e799",
+    "cold/warm/phases/typed.txt": "c2126bbd93174389f720c310a6d65785409e747e7adfa56c2ec0de45cdf74139",
+    "cold/warm/phases/verified-interfaces.txt": "4f24c4d3db8267efa06871ec3e210f4ee9ba8a9bf5d5394aa7d0be106003f156",
+    "cold/warm/phases/verified.txt": "fa7b0a84f0cf66bbc475bf1b9af9601eb16eb0e7bbc2f7a87df0f83535ea67cf",
+    "cold/warm/program": "d2b56121148ce9304bba160ff5bf217431e0c5f4099c21c997a44ec300a99cb1",
+    "cold/warm/program.ll": "23cb45f24f4b2dc6b47859081b8ae04862d46332ba3b8a54a1094c66a4c9f848",
+    "cold/warm/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cold/warm/stdout": "6b23c0d5f35d1b11f9b683f0b0a617355deb11277d91ae091d399c655b87940d",
+    "private/fresh/compile.json": "26ebc8722738e78c86209ecb245e2a9d64d8d6e18423e522feb19398301dc040",
+    "private/fresh/exit.json": "b64829777d85f21b7e46f478cfe0484d40a0a8089cdd591811d98f3668ad29a2",
+    "private/fresh/phases/candidate.txt": "ac13c5c0f7857f918eeb288e58700725e06d16be717d1083229f52640586d85c",
+    "private/fresh/phases/core.txt": "013ed6430c3ff375dfd7155dca106a739aac475493fb5d5d361366dc53d45a50",
+    "private/fresh/phases/ct-core.txt": "013ed6430c3ff375dfd7155dca106a739aac475493fb5d5d361366dc53d45a50",
+    "private/fresh/phases/interfaces.txt": "cc98a8246c816a10f25b68efc437198551a84c66d29929ebb80ac4fd179c3cf3",
+    "private/fresh/phases/lir.txt": "c2a76e80c499951cfb32157624699550214c6dfc09d35cc05af1b188793d1bdf",
+    "private/fresh/phases/llvm.ll": "d7e6d6ca309471b5da830f19d867ad0ea1d64f7b86b7dbe6d80f4527de9c285a",
+    "private/fresh/phases/source-map.txt": "082eea8bccdfce973581ea721755e269e3b51826d795d999ec2b569fdf7811ce",
+    "private/fresh/phases/syntax.txt": "a7ec1b23458e21f212762235a2d1303f2e2851a5ae5bdf7679ffab6d373fd491",
+    "private/fresh/phases/typed.txt": "11dee19cc3669f35de66c03b06a6084613d3cbb1b1906d93a6c75980abaeae28",
+    "private/fresh/phases/verified-interfaces.txt": "4cd1a8cfcbe65d8c83c8b5bde46d890a39556be4555165a94250d06efddd07db",
+    "private/fresh/phases/verified.txt": "15c39225c3bc7b695376937aba303a0f9ee35353c1a1ec06748285ffaf6eb17d",
+    "private/fresh/program": "71506f2d7d0ed48a6c29c26f96c117a4ec411987efe854015103de420a5064ea",
+    "private/fresh/program.ll": "d7e6d6ca309471b5da830f19d867ad0ea1d64f7b86b7dbe6d80f4527de9c285a",
+    "private/fresh/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "private/fresh/stdout": "333e0a1e27815d0ceee55c473fe3dc93d56c63e3bee2b3b4aee8eed6d70191a3",
+    "private/warm/compile.json": "a661ba8c5fa8580b1a6acb8b9cb0a27ecb76f5c4ebdbf479be014ee310bebcba",
+    "private/warm/exit.json": "b64829777d85f21b7e46f478cfe0484d40a0a8089cdd591811d98f3668ad29a2",
+    "private/warm/memo.json": "b45012eeff89c99ecb039821991ee6424f6c3f86845e1c408635c7bb031a34bb",
+    "private/warm/phases/candidate.txt": "ac13c5c0f7857f918eeb288e58700725e06d16be717d1083229f52640586d85c",
+    "private/warm/phases/core.txt": "013ed6430c3ff375dfd7155dca106a739aac475493fb5d5d361366dc53d45a50",
+    "private/warm/phases/ct-core.txt": "013ed6430c3ff375dfd7155dca106a739aac475493fb5d5d361366dc53d45a50",
+    "private/warm/phases/interfaces.txt": "cc98a8246c816a10f25b68efc437198551a84c66d29929ebb80ac4fd179c3cf3",
+    "private/warm/phases/lir.txt": "c2a76e80c499951cfb32157624699550214c6dfc09d35cc05af1b188793d1bdf",
+    "private/warm/phases/llvm.ll": "d7e6d6ca309471b5da830f19d867ad0ea1d64f7b86b7dbe6d80f4527de9c285a",
+    "private/warm/phases/source-map.txt": "082eea8bccdfce973581ea721755e269e3b51826d795d999ec2b569fdf7811ce",
+    "private/warm/phases/syntax.txt": "a7ec1b23458e21f212762235a2d1303f2e2851a5ae5bdf7679ffab6d373fd491",
+    "private/warm/phases/typed.txt": "11dee19cc3669f35de66c03b06a6084613d3cbb1b1906d93a6c75980abaeae28",
+    "private/warm/phases/verified-interfaces.txt": "4cd1a8cfcbe65d8c83c8b5bde46d890a39556be4555165a94250d06efddd07db",
+    "private/warm/phases/verified.txt": "15c39225c3bc7b695376937aba303a0f9ee35353c1a1ec06748285ffaf6eb17d",
+    "private/warm/program": "71506f2d7d0ed48a6c29c26f96c117a4ec411987efe854015103de420a5064ea",
+    "private/warm/program.ll": "d7e6d6ca309471b5da830f19d867ad0ea1d64f7b86b7dbe6d80f4527de9c285a",
+    "private/warm/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "private/warm/stdout": "333e0a1e27815d0ceee55c473fe3dc93d56c63e3bee2b3b4aee8eed6d70191a3",
+    "reject/fresh.json": "8817cfd5721aae8172bb3e306f0dc0ef1e09e6ed5aa8240815c5b408b8fe5381",
+    "reject/warm.json": "ad3d18a9cfd5bfadd1aa507c24040b88d9adc82b7d1c720ac19f9ec3b20b3ead",
+    "restore/fresh/compile.json": "d581d4b6f9b30525b8f57d5d895af71df97a4701eab63fce76e6a37110e3e0c6",
+    "restore/fresh/exit.json": "59858bf5f1b2ce96408712b60bd93d1003bd7da5c5b8fc9a63a263399baa2049",
+    "restore/fresh/phases/candidate.txt": "347455134d48188b35f6bc95e1a49b06827a1a7bc84aac64873b4fd386e94fc7",
+    "restore/fresh/phases/core.txt": "2ad8718a295bb03b96ce1da4b81118be93476143108961c1f06a2e899b0475ad",
+    "restore/fresh/phases/ct-core.txt": "2ad8718a295bb03b96ce1da4b81118be93476143108961c1f06a2e899b0475ad",
+    "restore/fresh/phases/interfaces.txt": "ef60b75012bb02ff3ce276c4e3339c20d8abca088f31de536730c700accfa1b3",
+    "restore/fresh/phases/lir.txt": "6f73f734cc749784c7a32e32d24543c2d957ee28939dd4b16e86c573896ecfea",
+    "restore/fresh/phases/llvm.ll": "23cb45f24f4b2dc6b47859081b8ae04862d46332ba3b8a54a1094c66a4c9f848",
+    "restore/fresh/phases/source-map.txt": "082eea8bccdfce973581ea721755e269e3b51826d795d999ec2b569fdf7811ce",
+    "restore/fresh/phases/syntax.txt": "ab7382d4d8602525ef1c8508050e52f3d928d4771411cb5bb448f46a34f1e799",
+    "restore/fresh/phases/typed.txt": "c2126bbd93174389f720c310a6d65785409e747e7adfa56c2ec0de45cdf74139",
+    "restore/fresh/phases/verified-interfaces.txt": "4f24c4d3db8267efa06871ec3e210f4ee9ba8a9bf5d5394aa7d0be106003f156",
+    "restore/fresh/phases/verified.txt": "fa7b0a84f0cf66bbc475bf1b9af9601eb16eb0e7bbc2f7a87df0f83535ea67cf",
+    "restore/fresh/program": "d2b56121148ce9304bba160ff5bf217431e0c5f4099c21c997a44ec300a99cb1",
+    "restore/fresh/program.ll": "23cb45f24f4b2dc6b47859081b8ae04862d46332ba3b8a54a1094c66a4c9f848",
+    "restore/fresh/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "restore/fresh/stdout": "6b23c0d5f35d1b11f9b683f0b0a617355deb11277d91ae091d399c655b87940d",
+    "restore/warm/compile.json": "9ccd9c335c2f19fee522e42953eee16fd3163e4345b5d8047d87ccc82dfb021f",
+    "restore/warm/exit.json": "59858bf5f1b2ce96408712b60bd93d1003bd7da5c5b8fc9a63a263399baa2049",
+    "restore/warm/memo.json": "b45012eeff89c99ecb039821991ee6424f6c3f86845e1c408635c7bb031a34bb",
+    "restore/warm/phases/candidate.txt": "347455134d48188b35f6bc95e1a49b06827a1a7bc84aac64873b4fd386e94fc7",
+    "restore/warm/phases/core.txt": "2ad8718a295bb03b96ce1da4b81118be93476143108961c1f06a2e899b0475ad",
+    "restore/warm/phases/ct-core.txt": "2ad8718a295bb03b96ce1da4b81118be93476143108961c1f06a2e899b0475ad",
+    "restore/warm/phases/interfaces.txt": "ef60b75012bb02ff3ce276c4e3339c20d8abca088f31de536730c700accfa1b3",
+    "restore/warm/phases/lir.txt": "6f73f734cc749784c7a32e32d24543c2d957ee28939dd4b16e86c573896ecfea",
+    "restore/warm/phases/llvm.ll": "23cb45f24f4b2dc6b47859081b8ae04862d46332ba3b8a54a1094c66a4c9f848",
+    "restore/warm/phases/source-map.txt": "082eea8bccdfce973581ea721755e269e3b51826d795d999ec2b569fdf7811ce",
+    "restore/warm/phases/syntax.txt": "ab7382d4d8602525ef1c8508050e52f3d928d4771411cb5bb448f46a34f1e799",
+    "restore/warm/phases/typed.txt": "c2126bbd93174389f720c310a6d65785409e747e7adfa56c2ec0de45cdf74139",
+    "restore/warm/phases/verified-interfaces.txt": "4f24c4d3db8267efa06871ec3e210f4ee9ba8a9bf5d5394aa7d0be106003f156",
+    "restore/warm/phases/verified.txt": "fa7b0a84f0cf66bbc475bf1b9af9601eb16eb0e7bbc2f7a87df0f83535ea67cf",
+    "restore/warm/program": "d2b56121148ce9304bba160ff5bf217431e0c5f4099c21c997a44ec300a99cb1",
+    "restore/warm/program.ll": "23cb45f24f4b2dc6b47859081b8ae04862d46332ba3b8a54a1094c66a4c9f848",
+    "restore/warm/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "restore/warm/stdout": "6b23c0d5f35d1b11f9b683f0b0a617355deb11277d91ae091d399c655b87940d",
+    "sources/a.zil": "d3de462c23115e433f7af5cf1a437c4e53c8e02dc136cdaa48e74424ccfdd395",
+    "sources/b.zil": "0c1992c7e72ed9c59a0d81311c4c78aa46b732356e29fdaecccf0c30d1d244ca",
+    "sources/io.zil": "c74e8c5ecd1c34c25c2b173f3f2528690593dd2da9688515821cf90ff0b1ae47",
+    "sources/main.zil": "c4835cd2e058570ad2721073d0d92e372579789850a51f4fba7b10c5b3f825e4",
+    "sources/zil.toml": "cf8248f48af02903b2c7b6f580b34dbda7aa813a6474aaee49bbec4e51265da6"
+  }
+}

@@ -1,0 +1,11 @@
+
+running 3 tests
+test independently_parsed_sources_can_feed_current_filesystem_discovery_with_new_remaining_budgets ... prewarmed_current_discovery parsed_queries_reused=4; current_ambiguity_rejected
+ok
+test parse_success_receipt_never_neutralizes_later_phase_node_identity ... later_phase_budget nodes=24 parse_required=24 first_error=Diagnostic { phase: Ct, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "Core traversal depth/node budget exceeded", span: Some(Span { file: FileId(10), start: 57, end: 58 }), notes: [] }
+ok
+test simultaneous_token_node_boundaries_preserve_full_parse_errors_and_success_values ... simultaneous_token_node_boundary_comparisons=81
+ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+

@@ -1,0 +1,23 @@
+{
+  "command": [
+    "rustc",
+    "--edition=2024",
+    "-O",
+    "-C",
+    "debuginfo=0",
+    "-C",
+    "panic=abort",
+    "-L",
+    "dependency=/workspace/scratch/c3607737969d/target-cp32/release/deps",
+    "-L",
+    "native=/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "--extern",
+    "zil_driver=/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_driver-8b7b7327dd24ab30.rlib",
+    "--extern",
+    "zil_base=/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_base-e7f463e530140758.rlib",
+    "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/cp29_native_control.rs",
+    "-o",
+    "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/cp32-native-control"
+  ],
+  "returncode": 0
+}

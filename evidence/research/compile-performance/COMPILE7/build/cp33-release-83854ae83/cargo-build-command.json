@@ -1,0 +1,30 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "--manifest-path",
+    "/workspace/scratch/c3607737969d/zil-cp33/Cargo.toml",
+    "-p",
+    "zil-driver",
+    "--lib",
+    "--features",
+    "llvm-api",
+    "--release",
+    "--offline",
+    "--message-format=json-render-diagnostics"
+  ],
+  "returncode": 0,
+  "host_wall_seconds": 39.43299647199456,
+  "stdout": {
+    "path": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/cargo-build.stdout",
+    "resolved": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/cargo-build.stdout",
+    "size": 11167,
+    "sha256": "5ef5d834cb8b237e590a3e8050ab2f3f1fdecf0ed523489da9c749611fc83329"
+  },
+  "stderr": {
+    "path": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/cargo-build.stderr",
+    "resolved": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/cargo-build.stderr",
+    "size": 1245,
+    "sha256": "dd8c85ab06dc42e42667a0e99b4d40bad5279170ca2c3636c5e1789036855cd5"
+  }
+}

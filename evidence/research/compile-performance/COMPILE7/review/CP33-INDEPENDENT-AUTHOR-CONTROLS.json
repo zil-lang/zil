@@ -1,0 +1,59 @@
+{
+  "reviewer": "cp25_evidence",
+  "verdict": "Pass",
+  "scope": "Frozen author suite independently rerun; correctness only, not performance",
+  "source_commit": "83854ae83f7fec4fc8f9c22d0751a1fd2725671f",
+  "commands": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "zil-syntax",
+        "--lib",
+        "--test",
+        "cp33_parse_receipts",
+        "--",
+        "--test-threads=1"
+      ],
+      "cwd": "/workspace/scratch/c3607737969d/zil-cp33",
+      "source_commit": "83854ae83f7fec4fc8f9c22d0751a1fd2725671f",
+      "returncode": 0,
+      "elapsed_control_seconds": 0.041022300720214844,
+      "log": "/workspace/scratch/c3607737969d/review/CP33-INDEPENDENT-AUTHOR-SYNTAX.log",
+      "sha256": "a68043483cd9f655d3fac4abc664225aab95a92e9bccdde8b32df9c7d3d3b7c6"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "--test",
+        "cp33_parse_budget",
+        "--",
+        "--test-threads=1"
+      ],
+      "cwd": "/workspace/scratch/c3607737969d/zil-cp33",
+      "source_commit": "83854ae83f7fec4fc8f9c22d0751a1fd2725671f",
+      "returncode": 0,
+      "elapsed_control_seconds": 0.5346822738647461,
+      "log": "/workspace/scratch/c3607737969d/review/CP33-INDEPENDENT-AUTHOR-DRIVER.log",
+      "sha256": "2825799c6db76559eaa41c0f87256668805b42b406ad21cf08602040dc32b962"
+    }
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/c3607737969d/target-cp33",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0"
+  },
+  "tests_passed": 61,
+  "failed": 0,
+  "ignored": 0,
+  "filtered": 0
+}

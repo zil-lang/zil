@@ -1,0 +1,39 @@
+{
+  "reviewer": "cp25_evidence",
+  "source_commit": "83854ae83f7fec4fc8f9c22d0751a1fd2725671f",
+  "scope": "Three new non-author correctness controls, no performance scoring",
+  "compile_argv": [
+    "rustc",
+    "--edition=2024",
+    "--test",
+    "/workspace/scratch/c3607737969d/review/cp33_independent_consumer.rs",
+    "-L",
+    "dependency=/workspace/scratch/c3607737969d/target-cp33/debug/deps",
+    "-L",
+    "native=/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "-o",
+    "/workspace/scratch/c3607737969d/review/cp33_independent_consumer",
+    "--extern",
+    "zil_base=/workspace/scratch/c3607737969d/target-cp33/debug/deps/libzil_base-a5cb5dbca91c1029.rlib",
+    "--extern",
+    "zil_syntax=/workspace/scratch/c3607737969d/target-cp33/debug/deps/libzil_syntax-85e178f3f1cb215e.rlib",
+    "--extern",
+    "zil_driver=/workspace/scratch/c3607737969d/target-cp33/debug/deps/libzil_driver-1b1290d3146c0e79.rlib"
+  ],
+  "rlib_sha256": {
+    "/workspace/scratch/c3607737969d/target-cp33/debug/deps/libzil_base-a5cb5dbca91c1029.rlib": "9dadb4d79a80b0c38f44d92fbf7c240cac828984ae18a01cf4221a43afe80796",
+    "/workspace/scratch/c3607737969d/target-cp33/debug/deps/libzil_syntax-85e178f3f1cb215e.rlib": "123f29b1381b02b929624dac3da71f3ed4732e626c8f814ef41cc90aa5df6d78",
+    "/workspace/scratch/c3607737969d/target-cp33/debug/deps/libzil_driver-1b1290d3146c0e79.rlib": "a2a57f5c5e63cad2c7e8386da4d970e6ed1e198f4a1659456674973d48ec5879"
+  },
+  "source_sha256": "c8756ca7f610f659f9dc73358b71e19aac23f32df734f8a06417e5d1e3e7310b",
+  "build_exit": 0,
+  "build_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "test_argv": [
+    "/workspace/scratch/c3607737969d/review/cp33_independent_consumer",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "test_exit": 0,
+  "test_log_sha256": "c05c1764dbbe4cfa8e55dbe56f7c324ebf38003ab790a0eb885c52ee6134a337",
+  "binary_sha256": "023f7732e53b574b1e847741bee89c75140e97b35fb4e4ba8d42a89206ef3ae6"
+}

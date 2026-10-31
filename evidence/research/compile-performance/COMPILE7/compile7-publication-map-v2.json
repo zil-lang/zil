@@ -1,0 +1,38 @@
+{
+  "observed_utc": "2026-10-31 01:55:07 UTC",
+  "branch": "research/compile7-20261031",
+  "research_head": "00b6481d6182d818c26656b17b23553074a27add",
+  "research_tree": "d58ca9a4d3a43a55306ba54ac548350b15d7722b",
+  "CP28": {
+    "local_source": "ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8",
+    "remote_source": "360f2c142aed54a65ad4232ae7ef655b8a3fcc5b",
+    "crates_tree": "a7ae8da1862a69cf673b8db50431b4991cb0d1c5",
+    "scope": "Three previously unpushed source/test files, complete crates subtree checked"
+  },
+  "CP29": {
+    "remote_source": "11d88c78037a77d2c188a6684cdaa0300f60b7b9",
+    "remote_tree": "7f92a9945a8058fd746ccfa486da76e5b3bcc55d",
+    "branch": "research/cp29-types-memo"
+  },
+  "CP30": {
+    "remote_source": "df13bc96536c7f775d7227256e45db7fc9e178b2",
+    "remote_tree": "22a5b6768c3d4a521237fda2e29a5a517e5d2ea2",
+    "branch": "research/cp30-published-read"
+  },
+  "CP32": {
+    "source": "3ba131efdeffe85ba5fccd1c177745d812a6ce61",
+    "remote": "b9ccf36aac5720886c9e68b3a812b4f61f841626",
+    "tree": "d6a3cfe548530a0de31dcf7999218b177f9aa06b",
+    "crates": "236bb83f64dcbc873ef7905e5f8e767c6b0d8025",
+    "branch": "research/cp32-bounded-type-retention",
+    "status": "correctness-reviewed experimental; performance pending"
+  },
+  "CP33": {
+    "source": "83854ae83f7fec4fc8f9c22d0751a1fd2725671f",
+    "remote": "675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17",
+    "tree": "b66bb18605ea411d648217adaf89f79257d50310",
+    "crates": "e912a9149e017f93596384f3ba28a247f6a1b979",
+    "branch": "research/cp33-parse-budget-receipts",
+    "status": "correctness-reviewed experimental; performance pending"
+  }
+}

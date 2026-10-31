@@ -1,0 +1,49 @@
+{
+  "verdict": "Pass",
+  "windows": {
+    "cp32": {
+      "default": {
+        "four_request_mix_B_over_A": 1.003583302323684,
+        "four_request_mix_exploratory_CI95": [
+          0.953824708508911,
+          1.0386845133531646
+        ],
+        "seven_request_process_wall_B_over_A": 1.015281630299402,
+        "seven_request_process_cpu_B_over_A": 1.0158491942469972,
+        "case_weighted_process_peak_rss_B_over_A": 1.2020257963360934
+      },
+      "8192": {
+        "four_request_mix_B_over_A": 1.0602967383512498,
+        "four_request_mix_exploratory_CI95": [
+          0.8785372054312739,
+          1.18577658628337
+        ],
+        "seven_request_process_wall_B_over_A": 1.127211875714389,
+        "seven_request_process_cpu_B_over_A": 1.1234516976087254,
+        "case_weighted_process_peak_rss_B_over_A": 1.1386560434794428
+      }
+    },
+    "cp33": {
+      "default": {
+        "four_request_mix_B_over_A": 0.975870181373638,
+        "four_request_mix_exploratory_CI95": [
+          0.9458644303685265,
+          1.0255884631416594
+        ],
+        "seven_request_process_wall_B_over_A": 0.9339585080906586,
+        "seven_request_process_cpu_B_over_A": 0.9339830881513806,
+        "case_weighted_process_peak_rss_B_over_A": 0.906540540119004
+      },
+      "8192": {
+        "four_request_mix_B_over_A": 0.9473980145275767,
+        "four_request_mix_exploratory_CI95": [
+          0.8681367698554155,
+          1.1476004535302204
+        ],
+        "seven_request_process_wall_B_over_A": 0.9184870117828671,
+        "seven_request_process_cpu_B_over_A": 0.9301312563641708,
+        "case_weighted_process_peak_rss_B_over_A": 0.8864827763681876
+      }
+    }
+  }
+}

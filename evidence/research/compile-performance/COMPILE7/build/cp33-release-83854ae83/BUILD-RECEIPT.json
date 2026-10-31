@@ -1,0 +1,343 @@
+{
+  "source_commit": "83854ae83f7fec4fc8f9c22d0751a1fd2725671f",
+  "source_crates_tree": "e912a9149e017f93596384f3ba28a247f6a1b979",
+  "source_clean_before": true,
+  "started_utc": "2026-10-31T01:50:34.607370+00:00",
+  "target": "/workspace/scratch/c3607737969d/target-cp33",
+  "environment": {
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "CARGO_TARGET_DIR": "/workspace/scratch/c3607737969d/target-cp33",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_RELEASE_DEBUG": "0",
+    "LD_LIBRARY_PATH": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "PATH": "/workspace/scratch/4ab361722127/.toolchain/rust/bin:/workspace/scratch/4ab361722127/.toolchain/llvm/bin:/root/.codex/tmp/arg0-linux/codex-arg0bqBv7y:/opt/codex/codex-path:/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/override:/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin:/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin:/opt/codex/runtimes/codex-primary-runtime/dependencies/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/fallback",
+    "CARGO_INCREMENTAL": "0"
+  },
+  "scope": "Host build and link identity only; no performance samples",
+  "harness_source": {
+    "path": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/compile7_session.rs",
+    "resolved": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/compile7_session.rs",
+    "size": 6755,
+    "sha256": "3aaf249ad90b67029bacedc66523ce149c230099af27fdc22ed2a6074ee5a37f"
+  },
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "cargo_build_command": [
+    "cargo",
+    "build",
+    "--manifest-path",
+    "/workspace/scratch/c3607737969d/zil-cp33/Cargo.toml",
+    "-p",
+    "zil-driver",
+    "--lib",
+    "--features",
+    "llvm-api",
+    "--release",
+    "--offline",
+    "--message-format=json-render-diagnostics"
+  ],
+  "cargo": {
+    "command": [
+      "cargo",
+      "build",
+      "--manifest-path",
+      "/workspace/scratch/c3607737969d/zil-cp33/Cargo.toml",
+      "-p",
+      "zil-driver",
+      "--lib",
+      "--features",
+      "llvm-api",
+      "--release",
+      "--offline",
+      "--message-format=json-render-diagnostics"
+    ],
+    "returncode": 0,
+    "host_wall_seconds": 39.43299647199456,
+    "stdout": {
+      "path": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/cargo-build.stdout",
+      "resolved": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/cargo-build.stdout",
+      "size": 11167,
+      "sha256": "5ef5d834cb8b237e590a3e8050ab2f3f1fdecf0ed523489da9c749611fc83329"
+    },
+    "stderr": {
+      "path": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/cargo-build.stderr",
+      "resolved": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/cargo-build.stderr",
+      "size": 1245,
+      "sha256": "dd8c85ab06dc42e42667a0e99b4d40bad5279170ca2c3636c5e1789036855cd5"
+    }
+  },
+  "features": {
+    "build-script-build": [
+      "default",
+      "native"
+    ],
+    "zil_base": [],
+    "zil_ir": [],
+    "zil_llvm_api": [
+      "default",
+      "native"
+    ],
+    "zil_syntax": [],
+    "zil_ct": [],
+    "zil_verify": [],
+    "zil_lower": [],
+    "zil_backend_llvm": [
+      "default",
+      "llvm-api"
+    ],
+    "zil_expand": [],
+    "zil_types": [],
+    "zil_analyze": [],
+    "zil_db": [],
+    "zil_driver": [
+      "default",
+      "llvm-api"
+    ]
+  },
+  "link": {
+    "command": [
+      "rustc",
+      "--edition=2024",
+      "-O",
+      "-C",
+      "debuginfo=0",
+      "-C",
+      "panic=abort",
+      "-L",
+      "dependency=/workspace/scratch/c3607737969d/target-cp33/release/deps",
+      "-L",
+      "native=/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+      "--extern",
+      "zil_driver=/workspace/scratch/c3607737969d/target-cp33/release/libzil_driver.rlib",
+      "--extern",
+      "zil_base=/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_base-e7f463e530140758.rlib",
+      "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/compile7_session.rs",
+      "-o",
+      "/workspace/scratch/c3607737969d/recovery/compile7_tools/session-cp33"
+    ],
+    "returncode": 0,
+    "host_wall_seconds": 15.447795648986357,
+    "stdout": {
+      "path": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/harness-link.stdout",
+      "resolved": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/harness-link.stdout",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderr": {
+      "path": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/harness-link.stderr",
+      "resolved": "/workspace/scratch/c3607737969d/recovery/cp33-release-83854ae83/harness-link.stderr",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "binary": {
+    "path": "/workspace/scratch/c3607737969d/recovery/compile7_tools/session-cp33",
+    "resolved": "/workspace/scratch/c3607737969d/recovery/compile7_tools/session-cp33",
+    "size": 11555200,
+    "sha256": "81ac94492e5c3065fc1d67c00dae0fc6191d8b157101ab5671ae4a5b4e23b129"
+  },
+  "rlibs": [
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_analyze-470c3dfbc89d5c11.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_analyze-470c3dfbc89d5c11.rlib",
+      "size": 2738598,
+      "sha256": "2d1fd258e773cbcb3ebb05792f4260ee53f4cd948c4df96819fce6f64803b6a6"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_backend_llvm-7807b9daafde6848.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_backend_llvm-7807b9daafde6848.rlib",
+      "size": 2535894,
+      "sha256": "bab4d2866158a74058db54df435e114734844a9cbf965c07f7bf856ab16161c1"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_base-e7f463e530140758.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_base-e7f463e530140758.rlib",
+      "size": 388872,
+      "sha256": "f36bed323045db2d5112784f0046501450d1d4a66ea0a7f1ab2e2dade82e42ef"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_ct-37a69dd877a1d367.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_ct-37a69dd877a1d367.rlib",
+      "size": 1072980,
+      "sha256": "d833e71e7791d598f3016be5e00d34ead4c4c464bed706193afd1a4ec1126e6a"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_db-23385aa85197b59a.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_db-23385aa85197b59a.rlib",
+      "size": 302122,
+      "sha256": "7c226c4aa2b6c696a3a1cc2f1f100a9152cd84fd41326fb127f8a6b9a58711df"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_expand-732b897022079d2d.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_expand-732b897022079d2d.rlib",
+      "size": 6284210,
+      "sha256": "bbf97feb6e5295891099ce78746d3b3e1edf8cd78df08df995e3cb2a071d9311"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_ir-1b5d967475aa5e49.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_ir-1b5d967475aa5e49.rlib",
+      "size": 1823198,
+      "sha256": "31c90574e2200b4733fa31e2491ddaa9cf0d43441e2f3525507c22410aea337f"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_llvm_api-50db4fbf35314d61.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_llvm_api-50db4fbf35314d61.rlib",
+      "size": 1355554,
+      "sha256": "43f61c3173367c176131f6c840d2c8e99cddbbdbc6fbc7a38b13506de66bf86e"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_lower-c82675f114eb8aef.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_lower-c82675f114eb8aef.rlib",
+      "size": 99980,
+      "sha256": "77e3f765ebff927018bd0e16dd0b98925e3fe75f615ee3b7bf8517ab3bd27817"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_syntax-c507ec0227ccb0d3.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_syntax-c507ec0227ccb0d3.rlib",
+      "size": 1625574,
+      "sha256": "46600b212f7066fbb8ee70465ec35339575ccf6fd3d1f323c708c5b80bde4e0b"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_types-0f2f4cb04f032d1a.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_types-0f2f4cb04f032d1a.rlib",
+      "size": 8800354,
+      "sha256": "ec37dcf8529153ee9b20293674e0cea4ad662bc87c7c16bda08e8b0fb3cc4c91"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_verify-1f492929ef238afb.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp33/release/deps/libzil_verify-1f492929ef238afb.rlib",
+      "size": 3744062,
+      "sha256": "fb0dcee755a7d634a737506e9ca3fe06412f2d4c3bb966d7a67b000c5aad741f"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp33/release/libzil_driver.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp33/release/libzil_driver.rlib",
+      "size": 3198440,
+      "sha256": "5965f930eaa90b856d7dd2440b05872b441473cfafce72ddb743e6ebffbdda9e"
+    }
+  ],
+  "profiles": {
+    "build-script-build": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    },
+    "zil_base": {
+      "opt_level": "3",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    },
+    "zil_ir": {
+      "opt_level": "3",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    },
+    "zil_llvm_api": {
+      "opt_level": "3",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    },
+    "zil_syntax": {
+      "opt_level": "3",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    },
+    "zil_ct": {
+      "opt_level": "3",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    },
+    "zil_verify": {
+      "opt_level": "3",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    },
+    "zil_lower": {
+      "opt_level": "3",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    },
+    "zil_backend_llvm": {
+      "opt_level": "3",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    },
+    "zil_expand": {
+      "opt_level": "3",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    },
+    "zil_types": {
+      "opt_level": "3",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    },
+    "zil_analyze": {
+      "opt_level": "3",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    },
+    "zil_db": {
+      "opt_level": "3",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    },
+    "zil_driver": {
+      "opt_level": "3",
+      "debuginfo": 0,
+      "debug_assertions": false,
+      "overflow_checks": false,
+      "test": false
+    }
+  },
+  "tools": [
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/rust/bin/rustc",
+      "resolved": "/workspace/scratch/4ab361722127/.toolchain/rust/bin/rustc",
+      "size": 648536,
+      "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/rust/bin/cargo",
+      "resolved": "/workspace/scratch/4ab361722127/.toolchain/rust/bin/cargo",
+      "size": 36148320,
+      "sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af"
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib/libLLVM-23.so",
+      "resolved": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib/libLLVM-23.so",
+      "size": 67715776,
+      "sha256": "882e5f026688e2fe19af43b372b3c670b05e1471f1fb7c12b7007c5d0fc0f1d8"
+    }
+  ],
+  "source_commit_after": "83854ae83f7fec4fc8f9c22d0751a1fd2725671f",
+  "source_status_after": "",
+  "source_clean_after": true,
+  "completed_utc": "2026-10-31T01:51:29.689360+00:00",
+  "status": "Pass"
+}

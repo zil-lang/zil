@@ -1,0 +1,25 @@
+{
+  "at_utc": "2026-10-31T02:05:11.928913+00:00",
+  "archive": "/workspace/scratch/c3607737969d/recovery/reviewer-consumers-preserved.tar.xz",
+  "size": 14117336,
+  "sha256": "ab97af9b99fe5604fde4ed687c1b32dc86c5a8813b9bfd8a040db458a490808b",
+  "files": {
+    "cp29_independent_consumer": {
+      "path": "/workspace/scratch/c3607737969d/review/cp29_independent_consumer",
+      "size": 24378352,
+      "sha256": "303088146c8fcee94db4208fdf014a8aa741df872033665acc9e35d8bd04ff33"
+    },
+    "cp32_independent_consumer": {
+      "path": "/workspace/scratch/c3607737969d/review/cp32_independent_consumer",
+      "size": 24420112,
+      "sha256": "fad236f66d4cb2f0b34d124ca529530553a49e7b3c4e806fe0d0df73dbc032ab"
+    },
+    "cp33_independent_consumer": {
+      "path": "/workspace/scratch/c3607737969d/review/cp33_independent_consumer",
+      "size": 38790824,
+      "sha256": "023f7732e53b574b1e847741bee89c75140e97b35fb4e4ba8d42a89206ef3ae6"
+    }
+  },
+  "every_file_hash_verified": true,
+  "expanded_copies_removed": true
+}

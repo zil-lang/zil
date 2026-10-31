@@ -1,0 +1,12 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "--offline",
+    "--release",
+    "-p",
+    "zil-cli",
+    "--message-format=json-render-diagnostics"
+  ],
+  "returncode": 0
+}

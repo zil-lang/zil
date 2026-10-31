@@ -1,0 +1,227 @@
+{
+  "source_commit": "3ba131efdeffe85ba5fccd1c177745d812a6ce61",
+  "source_status": "",
+  "completed_utc": "2026-10-31T01:46:47.958858+00:00",
+  "cargo": {
+    "command": [
+      "cargo",
+      "build",
+      "--offline",
+      "--release",
+      "-p",
+      "zil-cli",
+      "--message-format=json-render-diagnostics"
+    ],
+    "returncode": 0
+  },
+  "link_commands": [
+    {
+      "command": [
+        "rustc",
+        "--edition=2024",
+        "-O",
+        "-C",
+        "debuginfo=0",
+        "-C",
+        "panic=abort",
+        "-L",
+        "dependency=/workspace/scratch/c3607737969d/target-cp32/release/deps",
+        "-L",
+        "native=/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+        "--extern",
+        "zil_driver=/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_driver-8b7b7327dd24ab30.rlib",
+        "--extern",
+        "zil_base=/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_base-e7f463e530140758.rlib",
+        "--cfg",
+        "cp29",
+        "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/compile7_session.rs",
+        "-o",
+        "/workspace/scratch/c3607737969d/recovery/compile7_tools/session-cp32"
+      ],
+      "returncode": 0
+    },
+    {
+      "command": [
+        "rustc",
+        "--edition=2024",
+        "-O",
+        "-C",
+        "debuginfo=0",
+        "-C",
+        "panic=abort",
+        "-L",
+        "dependency=/workspace/scratch/c3607737969d/target-cp32/release/deps",
+        "-L",
+        "native=/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+        "--extern",
+        "zil_driver=/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_driver-8b7b7327dd24ab30.rlib",
+        "--extern",
+        "zil_base=/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_base-e7f463e530140758.rlib",
+        "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/cp29_native_control.rs",
+        "-o",
+        "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/cp32-native-control"
+      ],
+      "returncode": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/zil",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/zil",
+      "size": 7474312,
+      "sha256": "785e03b770434d07b747b94f964b3ab5ebb0581b4052ad2b3d11d3f71bfc01ba"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/recovery/compile7_tools/session-cp32",
+      "resolved": "/workspace/scratch/c3607737969d/recovery/compile7_tools/session-cp32",
+      "size": 11605920,
+      "sha256": "5487697b599112159fdfc10a38865d3ebb2cfd4814bb5185be3efde4f5ca5d72"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/compile7_session.rs",
+      "resolved": "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/compile7_session.rs",
+      "size": 6755,
+      "sha256": "3aaf249ad90b67029bacedc66523ce149c230099af27fdc22ed2a6074ee5a37f"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/cp29_native_control.rs",
+      "resolved": "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/cp29_native_control.rs",
+      "size": 5767,
+      "sha256": "5275c621600ba7a50a52b351a26f1f0a0a12a6a26deff6051f5c2c3abbda037f"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/cp32-native-control",
+      "resolved": "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/cp32-native-control",
+      "size": 11627744,
+      "sha256": "a49631b2e3db6ac88056fd44d8a5fb59d97b0fca3a006bfe66cc5c41122554f2"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/cargo-build.stdout",
+      "resolved": "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/cargo-build.stdout",
+      "size": 11887,
+      "sha256": "c868e99582fdd35dfd72bcf4051bb52739cdaea293a0ea4edaaf30412727ffe6"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/cargo-build.stderr",
+      "resolved": "/workspace/scratch/c3607737969d/recovery/cp32-release-3ba131ef/cargo-build.stderr",
+      "size": 1331,
+      "sha256": "3bea9e88b150559a8f24c214166c98f25a60c16ad102ad8b135bb48547fb7ad4"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_base-e7f463e530140758.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_base-e7f463e530140758.rlib",
+      "size": 388872,
+      "sha256": "0d0c5baeeb3525fc749143a16c322979a1693645c732a79fe8ac3a2a2f1cfbc3"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_ir-1b5d967475aa5e49.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_ir-1b5d967475aa5e49.rlib",
+      "size": 1823198,
+      "sha256": "69ca0b9798ea6293d7a381877f2532ac31408f3d477662226290fdec5548df80"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_llvm_api-50db4fbf35314d61.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_llvm_api-50db4fbf35314d61.rlib",
+      "size": 1355554,
+      "sha256": "61e4eb9dcb185ac8641166d9265cdb44e871a9d374305a4eca09214b2be84b4b"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_syntax-c507ec0227ccb0d3.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_syntax-c507ec0227ccb0d3.rlib",
+      "size": 1618422,
+      "sha256": "804132480efe0cd4efe17f3420d9fce40683203d332907bd42ad57c789cb98e9"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_ct-37a69dd877a1d367.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_ct-37a69dd877a1d367.rlib",
+      "size": 1072980,
+      "sha256": "1ef1e7c26383f8233bc963b28cc2d57dce3bff435d5b66da425587eab9ad2442"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_verify-1f492929ef238afb.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_verify-1f492929ef238afb.rlib",
+      "size": 3744062,
+      "sha256": "6ecc8d54d792abb97f1d0fdf63100036db68c2e9016c8173669bcff869f9f04f"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_lower-c82675f114eb8aef.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_lower-c82675f114eb8aef.rlib",
+      "size": 99980,
+      "sha256": "a6521ea9efd5e1b885fef002ab080332ee90dd0c566da4fc0fcac65b7a62f16b"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_backend_llvm-7807b9daafde6848.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_backend_llvm-7807b9daafde6848.rlib",
+      "size": 2535894,
+      "sha256": "f8b8fe7303a627aaa669ea033115fb913287f88cb77c1ddca317c1192cff7228"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_expand-732b897022079d2d.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_expand-732b897022079d2d.rlib",
+      "size": 6284210,
+      "sha256": "9e4293dcf4a5d4adb7802ab87f76fa11c17214389746871cd8909e78e032a23e"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_analyze-470c3dfbc89d5c11.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_analyze-470c3dfbc89d5c11.rlib",
+      "size": 2738598,
+      "sha256": "36b61767918afdcc5078a5469304364d0432602c41dd90b0adccd535bac57a58"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_db-23385aa85197b59a.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_db-23385aa85197b59a.rlib",
+      "size": 302122,
+      "sha256": "3b636f0de3d710c18f708169eb77e93eb95c0e0b9143f4e82a9c3713aab0102e"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_types-0f2f4cb04f032d1a.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_types-0f2f4cb04f032d1a.rlib",
+      "size": 9106472,
+      "sha256": "0e2291c0ee0de5386cd02f53001635ca4766cdf60b01bbdb8c0a5a0dee81df53"
+    },
+    {
+      "path": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_driver-8b7b7327dd24ab30.rlib",
+      "resolved": "/workspace/scratch/c3607737969d/target-cp32/release/deps/libzil_driver-8b7b7327dd24ab30.rlib",
+      "size": 3213684,
+      "sha256": "648d092affe89d1cb8238276ef7837cc50d215a36a858fc5506338b26a35b3de"
+    }
+  ],
+  "tools": [
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/rust/bin/rustc",
+      "resolved": "/workspace/scratch/4ab361722127/.toolchain/rust/bin/rustc",
+      "size": 648536,
+      "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/rust/bin/cargo",
+      "resolved": "/workspace/scratch/4ab361722127/.toolchain/rust/bin/cargo",
+      "size": 36148320,
+      "sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af"
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/clang",
+      "resolved": "/workspace/scratch/4ab361722127/.toolchain/llvm/bin/clang-23",
+      "size": 282507120,
+      "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67"
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/rust/lib/librustc_driver-7ed0375ae352bd75.so",
+      "resolved": "/workspace/scratch/4ab361722127/.toolchain/rust/lib/librustc_driver-7ed0375ae352bd75.so",
+      "size": 158240640,
+      "sha256": "5a2cd52edba7d15f8d898b92a912638f5b73a089c7c1bfde5604ab45665602c7"
+    },
+    {
+      "path": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib/libLLVM-23.so",
+      "resolved": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib/libLLVM-23.so",
+      "size": 67715776,
+      "sha256": "882e5f026688e2fe19af43b372b3c670b05e1471f1fb7c12b7007c5d0fc0f1d8"
+    }
+  ],
+  "environment": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_BUILD_JOBS": "2",
+    "LD_LIBRARY_PATH": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/4ab361722127/.toolchain/llvm/lib"
+  }
+}

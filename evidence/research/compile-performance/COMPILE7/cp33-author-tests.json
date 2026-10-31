@@ -1,0 +1,30 @@
+[
+  {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "zil-syntax",
+      "--lib",
+      "--test",
+      "cp33_parse_receipts"
+    ],
+    "exit": 0,
+    "wall_seconds": 1.5589410200045677
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "zil-driver",
+      "--lib",
+      "--test",
+      "cp33_parse_budget"
+    ],
+    "exit": 0,
+    "wall_seconds": 12.070837234990904
+  }
+]
