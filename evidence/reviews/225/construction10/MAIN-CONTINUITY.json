@@ -1,0 +1,226 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "zil施工10/branch_audit",
+  "slices": [
+    "225",
+    "226"
+  ],
+  "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+  "observed_main_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+  "reviewed_at_utc": "2026-10-31T09:09:34.622195+00:00",
+  "scope": "Main-branch continuity of the previously signed finite 225/226 delivery and its exact independent tests; no new production or language-scope approval.",
+  "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+  "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
+  "prior_formal_review_commit": "2f39e1afc6b3fabaa39be4f838fa971f9a2cc0d2",
+  "prior_formal_reviews_unchanged": [
+    {
+      "path": "evidence/reviews/225/construction10/FINAL.json",
+      "sha256": "4bf9006daa25848c5db25e655984db1e43da99b4a6b5a584a299ee04c3ed4635"
+    },
+    {
+      "path": "evidence/reviews/226/construction10/FINAL.json",
+      "sha256": "8a7381b232c3480d9c4afa67483bc3887c8835be045646227760c1d12021fb55"
+    }
+  ],
+  "ci": {
+    "repository": "zil-lang/zil",
+    "event": "push",
+    "head_branch": "main",
+    "head_sha": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+    "workflow": ".github/workflows/verify-main.yml",
+    "run_id": 41186163758,
+    "run_attempt": 1,
+    "job_id": 124493408210,
+    "status": "completed",
+    "conclusion": "success",
+    "steps_successful": 25,
+    "steps_total": 25,
+    "completed_at": "2026-10-31T09:05:37Z",
+    "url": "https://github.com/zil-lang/zil/actions/runs/41186163758/job/124493408210",
+    "run_json_sha256": "376b32a2025b0994917f40d937ebbf895d8ec022d5ea25ed3a627488c96afb4f",
+    "jobs_json_sha256": "01734d7b5a1ec80c909da4422e9f76f7fed8cbe87740e5e524cda7c487121c74"
+  },
+  "source_identity": {
+    "actual_checkout": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+    "PR_candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
+    "prior_PR_run": 41184530698,
+    "full_tree_same_as_PR": true,
+    "tree_git_sha": "248eb911a7272bda979e418ecc62415984e81eb6",
+    "tree_manifest_sha256": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5",
+    "tree_entries": 87508,
+    "P2_and_I2_true_ancestors_of_main": true,
+    "test_path": "crates/zil-driver/tests/review225226_capture.rs",
+    "test_blob": "96a696f917dac46010ad3e107163d3f2ce13e261",
+    "both_phase_and_final_receipts_bind_same_tree": true
+  },
+  "toolchain_continuity": {
+    "version": "Rust 1.99.1 / ZIL LLVM API and Clang 23.1.4",
+    "toolchain_text_and_check_json_identical_to_reviewed_PR": true,
+    "check_json_sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71",
+    "llvm_library_sha256": "82441dae7d94aac9e1964b06ee6d4bb0f28c0fcf3aaa31df91c886806a112567",
+    "clang_sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67"
+  },
+  "executed_suites": {
+    "workspace": {
+      "full": {
+        "groups": 326,
+        "passed": 2976,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "review225226": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "log_sha256": "8d8e0e090b1480cc33b65c6ba1322393e67963358326596d3b54ec6350c92484"
+    },
+    "reference": {
+      "full": {
+        "groups": 326,
+        "passed": 2933,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "review225226": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "log_sha256": "328d875ed9b5603c6775b2a3aad911d1875a688594bb113e27ec50768880bb6e"
+    }
+  },
+  "independent_test_names": [
+    "two_nonempty_same_type_stores_preserve_payloads_and_cleanup",
+    "callable_hidden_in_managed_resource_head_is_not_capture_authority",
+    "mixed_ordinary_and_dynamic_branch_origins_are_rejected",
+    "raw_one_branch_store_injection_cannot_reuse_ordinary_origin_plan",
+    "child_take_and_replacement_wait_for_last_actual_callback_use",
+    "ordinary_branch_union_keeps_each_possible_owner_live",
+    "zero_storage_ordinary_product_capture_does_not_need_store_layout",
+    "owned_store_environment_does_not_acquire_external_shared_product_hold",
+    "separate_local_environments_preserve_owned_store_and_shared_product_responsibilities"
+  ],
+  "native_continuity": {
+    "workspace": {
+      "main_inventory_members": 65796,
+      "slice_inventory_members": 178,
+      "matching_non_compile_members": 167,
+      "all_matching_mode_bytes_sha256": true,
+      "program_binary_hashes_matched": 10,
+      "stdout_hashes_matched": 10,
+      "empty_stderr_hashes_matched": 10,
+      "compile_reports_excluded_from_byte_comparison": 11,
+      "normalization": "Only the directory PID and sequence suffix are removed; compare the complete multiset of relative path, mode, bytes and SHA256.",
+      "normalized_multiset_sha256": "090308073c21a726637df0180d6ae9bf98f2e7489e2d30760ca2d050f2189fda",
+      "manifest_sha256": "9ebd7c7572a3e32bb8babf4b078c5b98249fdc4be23c875c4ba42671194146d1",
+      "successfully_uploaded_artifact": {
+        "id": 13036929389,
+        "name": "zil-main-41186163758-1-workspace-native",
+        "size_in_bytes": 195176278,
+        "digest": "sha256:9cc0793732318e762b17b0f8bd1eebdd84a652ea575fafb8c0e6ed66d63b2ba2"
+      }
+    },
+    "reference": {
+      "main_inventory_members": 63318,
+      "slice_inventory_members": 178,
+      "matching_non_compile_members": 167,
+      "all_matching_mode_bytes_sha256": true,
+      "program_binary_hashes_matched": 10,
+      "stdout_hashes_matched": 10,
+      "empty_stderr_hashes_matched": 10,
+      "compile_reports_excluded_from_byte_comparison": 11,
+      "normalization": "Only the directory PID and sequence suffix are removed; compare the complete multiset of relative path, mode, bytes and SHA256.",
+      "normalized_multiset_sha256": "698500e0dffd8867c82c7979502ee10d3bbd37ea40980640ed680fbfa8e6340e",
+      "manifest_sha256": "0b6a816edabb9f5e999394d68899e61a4753c23ab96d3d676c93593fa428f902",
+      "successfully_uploaded_artifact": {
+        "id": 13037930262,
+        "name": "zil-main-41186163758-1-reference-native",
+        "size_in_bytes": 191578832,
+        "digest": "sha256:8b0ae5c620c3209e61296a10f742c7e35947324e4fd6b00eb98dce62b312cbfe"
+      }
+    }
+  },
+  "native_evidence_reuse": {
+    "prior_inspected_result": "evidence/reviews/225/construction10/ci41184530698/RESULT.json",
+    "prior_inspected_receipts": "evidence/reviews/225/construction10/ci41184530698/receipts.zip",
+    "basis": "Exact source/test tree and toolchain receipts; nine actually executed main tests per backend; successful native uploads; per-backend hashes of all 167 non-compile slice files, including all ten program binaries and outputs, identical to previously independently inspected PR evidence.",
+    "main_large_native_payload_downloaded_by_reviewer": false,
+    "main_compile_reports_individually_reread": false,
+    "main_compile_report_boundary": "Eleven per-backend compile JSON files carry run-specific paths and timings and are excluded from byte equality. Exact test assertions enforce backend selection, no fallback and successful compilation before executing each native control.",
+    "local_language_tests_rerun": false
+  },
+  "consumer209": {
+    "status": "Pass",
+    "observed_source_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+    "source_identity_kind": "observed-git",
+    "native_executions": 128,
+    "unique_case_and_fail_at": 128,
+    "ordinary": 40,
+    "probed": 88,
+    "real_allocation_failures": 56,
+    "all_probe_live_zero": true,
+    "allocated": 80,
+    "freed": 80,
+    "each_probe_balanced": true,
+    "all_128_stdout_exit_and_allocation_oracles_recomputed_and_match": true,
+    "observations_identical_to_independently_checked_PR": true,
+    "source_hashes_identical_to_PR": true,
+    "oracle_sha256": "2993bc9e0714515c3e22add3997a12b3ea55cc5e91dc18fd1d0dc4156d4893cb",
+    "builds": 16,
+    "api_objects": 40,
+    "llvm_version": "23.1.4",
+    "builder_input_parse_ns_zero_verified_before_after": true,
+    "fallback": null,
+    "receipt_sha256": "3b9d3cbd4869ad478064be4d84cb119e64939aaace6cfb1d55923a919f125cd4"
+  },
+  "final_gates": {
+    "formatting": "Pass: empty log and successful exact workflow step",
+    "clippy": "Pass: finished all-target check with no warning/error; successful -D warnings workflow step",
+    "llvm_text_reference": {
+      "groups": 8,
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "migration_runner": {
+      "passed": 9,
+      "failed": 0
+    },
+    "receipt_sha256": {
+      "fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "clippy.log": "85c2bed986b6066b00a387a35d449686757d11368a9da74fa008c9be71cca864",
+      "text-reference.log": "b8d11f1c778ce05b1ae75472189d087b2000956a9ae8d1b14f05d352de334382",
+      "migration-runner.log": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
+    }
+  },
+  "official_final_artifact": {
+    "id": 13037137092,
+    "name": "zil-main-41186163758-1-final",
+    "size_in_bytes": 320448149,
+    "digest": "sha256:d3a8a1685a20cc0bcebb55e6a52610088560174f813132ce36338e8ef1025680"
+  },
+  "raw_receipt_member_prefix": "receipts/ inside official_final_artifact; full logs, consumer, toolchain and both native inventories were independently read locally",
+  "counting_boundary": "The nine independent tests are already included in each workspace total. Native runs and consumer observations are not added to Rust-test counts or product coverage.",
+  "first_failed_round_preserved": "evidence/reviews/225/construction10/ci41182685056/FAILURE.json",
+  "boundaries": {
+    "full_language_1_4": "NotSatisfied",
+    "B0": "Doing",
+    "Rust_product_gates": "NotRun",
+    "native_Windows": "NotRun",
+    "main_ci_replay": "Pass at observed_main_commit; this does not expand the reviewed language subset",
+    "default_plain_Product_readonly_capture": "Unfinished",
+    "parameter_and_outer_capture_origins": "Unsupported in delivered subset",
+    "mixed_owning_Store_and_external_shared_Hold_in_one_environment": "Unsupported by existing self-contained boundary"
+  }
+}
