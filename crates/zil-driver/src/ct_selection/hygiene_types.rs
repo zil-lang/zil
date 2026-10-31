@@ -213,6 +213,18 @@ impl Renamer<'_> {
                 {
                     &alias.name
                 }
+                s::ItemKind::Enum(declaration) if declaration.generics.is_empty() => {
+                    // Validate before binding, charging every variant before
+                    // inspecting it. Ordinary enum checks still own payload
+                    // eligibility, duplicate variants and recursive layouts.
+                    for variant in &declaration.variants {
+                        self.budget.node(variant.span, 1)?;
+                        if matches!(variant.fields, s::VariantFields::Record(_)) {
+                            return Err(self.unsupported(variant.span));
+                        }
+                    }
+                    &declaration.name
+                }
                 _ => return Err(self.unsupported(item.span)),
             };
             self.budget.spend(
@@ -246,6 +258,9 @@ impl Renamer<'_> {
                 s::ItemKind::TypeAlias(alias) => {
                     self.bind_type(&mut alias.name, !item.public, item.span)?
                 }
+                s::ItemKind::Enum(declaration) => {
+                    self.bind_type(&mut declaration.name, !item.public, item.span)?
+                }
                 _ => unreachable!(),
             }
         }
@@ -266,6 +281,17 @@ impl Renamer<'_> {
                 }
                 s::ItemKind::TypeAlias(alias) => {
                     self.ty(alias.value.as_mut().expect("validated alias"), 1)?
+                }
+                s::ItemKind::Enum(declaration) => {
+                    for variant in &mut declaration.variants {
+                        self.budget.node(variant.span, 1)?;
+                        self.attributes(&mut variant.attributes, 2)?;
+                        if let s::VariantFields::Tuple(types) = &mut variant.fields {
+                            for ty in types {
+                                self.ty(ty, 2)?;
+                            }
+                        }
+                    }
                 }
                 _ => unreachable!(),
             }
