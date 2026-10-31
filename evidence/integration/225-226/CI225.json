@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task": "225",
+  "status": "Pass",
+  "evidence_level": "GitHubFullCIRecomputedFromDownloadedReceipts",
+  "run_id": 41154544248,
+  "delivery_commit": "8ea37c2de56cf65f1448e4fa647671f4459ad148",
+  "actual_checkout": "c0a72749624aa4e3596f53cce2b70e0cc820afb6",
+  "source_code_commit": "5f47ffa58f5e8cb7bb03ac94675e9bc6bed3b9a0",
+  "all_workflow_steps": "completed/success including all uploads and final job completion, verified through GitHub jobs API",
+  "workspace": {"passed": 2873, "failed": 0, "ignored": 0, "log_sha256": "667400fe860800cb4162a7589aebf712f9a5f7c9da11261b808aa3a1e7b8b4a8"},
+  "reference": {"passed": 2837, "failed": 0, "ignored": 0, "log_sha256": "4f66824c001c1de220a7cea4349ebfe8cfc9262dc230b8cae252cd4e8587eb0e"},
+  "native_consumer": {"builds": 16, "executions": 128, "allocation_observed_executions": 88, "actual_failure_injected_executions": 56, "all_observed_final_live_zero": true, "report_sha256": "d2594cc92a63b76d8d9f36349ca6290df3b9738e8d8754f4fb0848c24a96d17d", "source_commit": "c0a72749624aa4e3596f53cce2b70e0cc820afb6"},
+  "text_reference": {"passed": 36, "failed": 0, "ignored": 0, "log_sha256": "ee8a3d587dc76536d8a74080a03192061c086fbbfaea181e42ca3bfd4bbe5246"},
+  "migration_runner": {"passed": 9, "log_sha256": "1393ebb7eebf7e2622afc9e4e459701f4bbc92ac47f6c4b5e6911c4e0137e7c1"},
+  "clippy": {"status": "Pass", "log_sha256": "d1e875ff5d2a65bc49038b0106b5688161b03b18de56fbf737f38afd72860d05"},
+  "format": {"status": "Pass", "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+  "artifacts": [
+    {"id": 13025039167, "role": "final", "sha256": "486fc553a2d88225bc88c7548ade16dc26a39982efc24b69ff5127a7ccadfc3e", "downloaded_hash_verified": true},
+    {"id": 13025007255, "role": "workspace", "sha256": "b9bc842767cd4d1aecea08e99cb0e82df02ef94ebe36b0eddffd98d76b41e471", "downloaded_hash_verified": true},
+    {"id": 13024968835, "role": "reference", "sha256": "e2dd4f959f3f56ba72d44e677a2960bf00cd1688dfe71e091fc041cbf3d33b38", "downloaded_hash_verified": false, "note": "The identical reference log was read from the hash-verified final artifact."},
+    {"id": 13023884113, "role": "workspace-native", "sha256": "5b5092fe12cee16f799d8b4601b174b160ab1b4b77975f740654b6ab5c4a2c34", "downloaded_hash_verified": false},
+    {"id": 13024014744, "role": "reference-native", "sha256": "077e16b9b88726d98bce2fd8714548802c721c70c2cda9ebd2372fcade2dbae8", "downloaded_hash_verified": false}
+  ],
+  "limits": "Automated CI on its exact PR merge checkout, not a post-main-merge run, independent human/agent execution review, Rust product comparison or whole-language acceptance. Counts from overlapping configurations are not summed as unique coverage."
+}
