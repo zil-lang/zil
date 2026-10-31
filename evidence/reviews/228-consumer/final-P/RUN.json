@@ -1,0 +1,651 @@
+{
+  "schema_version": 1,
+  "start_utc": "2026-10-31T01:07:17.489226+00:00",
+  "end_utc": "2026-10-31T01:07:22.411238+00:00",
+  "checkout": "be50e75f5c7646d79138efd7ba3dc54c2439e26d",
+  "common_candidate_P": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "all_production_crate_source_bytes_identical_to_P": true,
+  "production_candidate_228": "c1578e319d606d745835a7c3c609a3bb738b3c15",
+  "production_candidate_229": "d8c71880928c2e0497ffe078834382503960256b",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "impl228_consumer",
+    "--test",
+    "review228_consumer_reserved",
+    "--",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "environment": {
+    "CARGO_HOME": "/workspace/scratch/e9af9764d083/cargo-consumer",
+    "CARGO_TARGET_DIR": "/workspace/scratch/e9af9764d083/targets/consumer",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_INCREMENTAL": "0",
+    "ZIL_CLANG": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "LD_LIBRARY_PATH": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/final-P/native"
+  },
+  "exit_code": 0,
+  "source_files": [
+    {
+      "path": "examples/mainline/generated_events228/plain/main.zil",
+      "bytes": 405,
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723"
+    },
+    {
+      "path": "examples/mainline/generated_events228/plain/events.zil",
+      "bytes": 921,
+      "sha256": "76e56021048041c2ccbde0d045b166ce72c3dc39d54695aa4fbe34eab823b280"
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/main.zil",
+      "bytes": 405,
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723"
+    },
+    {
+      "path": "examples/mainline/generated_events228/generated/events.zil",
+      "bytes": 795,
+      "sha256": "ec806958a5bd7498436d8fad2a7edf2ddbcceb47830372e1eb493db80f290b02"
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/main.zil",
+      "bytes": 405,
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723"
+    },
+    {
+      "path": "examples/mainline/generated_events228/where/events.zil",
+      "bytes": 929,
+      "sha256": "3cf1f38e502ff90d09aeaf1229c91dc7fa6f645402963e55c5d7d5ecf1c2fb47"
+    },
+    {
+      "path": "examples/mainline/generated_events228/combined/main.zil",
+      "bytes": 405,
+      "sha256": "7cf5a48d4a48b4c2f61d743663aafda8ea0f730ee1cb764e79ed1368542ac723"
+    },
+    {
+      "path": "examples/mainline/generated_events228/combined/events.zil",
+      "bytes": 803,
+      "sha256": "5b3bd05203f0fcda74e2c77ad022e2f92b0505bbdffb4851f09e4b8e44ecf4f4"
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/reserved_function_plain.zil",
+      "bytes": 67,
+      "sha256": "5ff05ce63b5c809092fbe1cce874da929f9b8498d9f334afcaf547aa823a4b43"
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/reserved_function_pure.zil",
+      "bytes": 92,
+      "sha256": "ba5ed5a8422068966281b711646caf8ea6c040c93b6c077c7fb610eccd981ce5"
+    },
+    {
+      "path": "examples/mainline/generated_events228/review/reserved_function_mixed.zil",
+      "bytes": 107,
+      "sha256": "a69d61a6b82a695edc9094926c5f0399218c254fb29f41f2cfc6590a10c2e798"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl228_consumer.rs",
+      "bytes": 9252,
+      "sha256": "d9307c88a7fa946aa74aa810388d0ddfc77720fa1d843c549384dc2208960b43"
+    },
+    {
+      "path": "crates/zil-driver/tests/review228_consumer_reserved.rs",
+      "bytes": 2519,
+      "sha256": "c9749debd6700b76d57057298ce97de2a5441d274259c89e32a94eb68e09934f"
+    }
+  ],
+  "reports": [
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/consumer228-combined-O0-96-0/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2904,
+            "input_kind": "builder",
+            "preflight_ns": 952602,
+            "builder_ns": 482144,
+            "parse_ns": 0,
+            "optimize_ns": 170073,
+            "emit_ns": 3478355,
+            "total_ns": 5881115
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/consumer228-combined-O2-96-1/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1200,
+            "input_kind": "builder",
+            "preflight_ns": 460773,
+            "builder_ns": 327415,
+            "parse_ns": 0,
+            "optimize_ns": 3995822,
+            "emit_ns": 4573748,
+            "total_ns": 9575121
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/consumer228-generated-O0-96-2/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2904,
+            "input_kind": "builder",
+            "preflight_ns": 506371,
+            "builder_ns": 296639,
+            "parse_ns": 0,
+            "optimize_ns": 83023,
+            "emit_ns": 4190110,
+            "total_ns": 5279714
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/consumer228-generated-O2-96-3/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1200,
+            "input_kind": "builder",
+            "preflight_ns": 499340,
+            "builder_ns": 442316,
+            "parse_ns": 0,
+            "optimize_ns": 3709638,
+            "emit_ns": 3443684,
+            "total_ns": 8374411
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/consumer228-nominal-generated-96-5/compile.json",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-TYPE-MISMATCH",
+          "message": "expected Record { name: \"@module1:$module1_$ctfor222$1$1$0$Event\", fields: [(\"kind\", I32)] }, found Record { name: \"@module1:$module1_$ctfor222$1$0$0$Event\", fields: [(\"kind\", I32)] }",
+          "span": {
+            "file": 0,
+            "start": 50,
+            "end": 64
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/consumer228-nominal-plain-96-4/compile.json",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-TYPE-MISMATCH",
+          "message": "expected Record { name: \"@module1:$module1_Touch\", fields: [(\"kind\", I32)] }, found Record { name: \"@module1:$module1_Pointer\", fields: [(\"kind\", I32)] }",
+          "span": {
+            "file": 0,
+            "start": 50,
+            "end": 64
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/consumer228-plain-O0-96-6/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2904,
+            "input_kind": "builder",
+            "preflight_ns": 550636,
+            "builder_ns": 407224,
+            "parse_ns": 0,
+            "optimize_ns": 83313,
+            "emit_ns": 3480458,
+            "total_ns": 4844610
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/consumer228-plain-O2-96-7/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1200,
+            "input_kind": "builder",
+            "preflight_ns": 498489,
+            "builder_ns": 365041,
+            "parse_ns": 0,
+            "optimize_ns": 3655198,
+            "emit_ns": 3439037,
+            "total_ns": 8181295
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/consumer228-resource-inline-96-8/compile.json",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Copy bound fields require a finite ordinary Copy Value",
+          "span": {
+            "file": 0,
+            "start": 65,
+            "end": 71
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/consumer228-resource-where-96-9/compile.json",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Copy bound fields require a finite ordinary Copy Value",
+          "span": {
+            "file": 0,
+            "start": 65,
+            "end": 71
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/consumer228-where-O0-96-10/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2904,
+            "input_kind": "builder",
+            "preflight_ns": 1070501,
+            "builder_ns": 377429,
+            "parse_ns": 0,
+            "optimize_ns": 84716,
+            "emit_ns": 2441818,
+            "total_ns": 4208763
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/consumer228-where-O2-96-11/compile.json",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1200,
+            "input_kind": "builder",
+            "preflight_ns": 485219,
+            "builder_ns": 332202,
+            "parse_ns": 0,
+            "optimize_ns": 4272202,
+            "emit_ns": 2965996,
+            "total_ns": 8327822
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/reserved228-mixed-152/compile.json",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-BYTE-BUFFER-NAME",
+          "message": "ByteBuffer and bare byte storage primitives cannot be rebound",
+          "span": {
+            "file": 0,
+            "start": 30,
+            "end": 53
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/reserved228-plain-152/compile.json",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-BYTE-BUFFER-NAME",
+          "message": "ByteBuffer and bare byte storage primitives cannot be rebound",
+          "span": {
+            "file": 0,
+            "start": 15,
+            "end": 38
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    },
+    {
+      "path": "evidence/reviews/228-consumer/final-P/native/reserved228-pure-152/compile.json",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-BYTE-BUFFER-NAME",
+          "message": "ByteBuffer and bare byte storage primitives cannot be rebound",
+          "span": {
+            "file": 0,
+            "start": 15,
+            "end": 38
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "native_codegen": null
+    }
+  ],
+  "scope": "Only seven frozen consumer tests plus the exact three original reserved-function inputs. No full-workspace gate or unrelated suite."
+}
