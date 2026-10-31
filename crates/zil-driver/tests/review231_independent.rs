@@ -148,7 +148,7 @@ fn independent_grouped_bounds_and_cross_subject_clause_order() {
 
 const ROOT: &str = "import rules;import data;fn read<T>(x:&T)->i32 where T:((rules.Code))=>x.code();fn main()->i32{let x=data.make();return read(&x)-13}";
 const RULES: &str = "pub trait Code{fn code(self:&Self)->i32;}";
-const DATA: &str = "import rules;pub struct Payload{n:i32}impl rules.Code for Payload{fn code()->i32=>.n}pub fn make()->Payload=>Payload{n:13}";
+const DATA: &str = "import rules;pub struct Payload{n:i32}impl rules.Code for Payload{fn code(self:&Self)->i32=>self.n}pub fn make()->Payload=>Payload{n:13}";
 
 #[test]
 fn independent_module_identity_alias_privacy_and_binder_boundaries() {
@@ -156,7 +156,7 @@ fn independent_module_identity_alias_privacy_and_binder_boundaries() {
         "qualified-group",
         &[("main", ROOT), ("rules", RULES), ("data", DATA)],
     );
-    let lookalike = "pub trait Code{fn code(self:&Self)->i32;}pub struct Payload{n:i32}impl Code for Payload{fn code()->i32=>.n}pub fn make()->Payload=>Payload{n:13}";
+    let lookalike = "pub trait Code{fn code(self:&Self)->i32;}pub struct Payload{n:i32}impl Code for Payload{fn code(self:&Self)->i32=>self.n}pub fn make()->Payload=>Payload{n:13}";
     reject(
         "same-method-wrong-trait",
         &[("main", ROOT), ("rules", RULES), ("data", lookalike)],
