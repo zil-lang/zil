@@ -220,6 +220,64 @@ fn two_local_self_types_and_same_spelling_traits_keep_nominal_identity() {
 }
 
 #[test]
+fn separate_generic_library_uses_each_actual_method_body() {
+    let root = "import facade;import data;import second;fn main()->i32{let first=data.make(7);let other=second.make(35);return facade.read(&first)+facade.read(&other)-142}";
+    let facade = "import rules;pub fn read<T>(x:&T)->i32 where T:rules.Read=>x.value()";
+    let second = DATA.replace("=>self.n", "=>self.n+100");
+    let files = [
+        ("main", root),
+        ("rules", RULES),
+        ("data", DATA),
+        ("second", &second),
+        ("facade", facade),
+    ];
+    accept("separate-library-distinct-implementations", &files);
+    native("separate-library-distinct-implementations", &files, "");
+}
+
+#[test]
+fn generated_dependency_cannot_authorize_an_unimported_source_trait() {
+    let root = "import facade;import data;fn main()->i32{let value=data.make(42);return facade.read(&value)-42}";
+    let facade = "import rules;pub fn read<T>(x:&T)->i32 where T:rules.Read=>x.value();struct Local{n:i32}impl data.Hidden for Local{fn hidden(self:&Self)->i32=>self.n}";
+    let data = format!("{DATA};pub trait Hidden{{fn hidden(self:&Self)->i32;}}");
+    // The actual read<Item> instance needs a generated dependency on data.
+    // That compiler dependency must not legalize the unrelated source impl's
+    // missing `import data`, including when that impl is never called.
+    let report = check(
+        "generated-import-is-not-source-authorization",
+        &[
+            ("main", root),
+            ("rules", RULES),
+            ("data", &data),
+            ("facade", facade),
+        ],
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 0);
+    assert!(!report.artifacts.contains_key("executable"));
+    assert!(report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"
+        && d.message == "trait receiver declaration is not available in this source module"));
+    // Adding the actual source import establishes that the only missing
+    // precondition above was source-level access, not malformed impl syntax.
+    let imported = facade.replacen("import rules;", "import rules;import data;", 1);
+    accept(
+        "actual-source-import-authorizes-ordinary-trait",
+        &[
+            ("main", root),
+            ("rules", RULES),
+            ("data", &data),
+            ("facade", &imported),
+        ],
+    );
+}
+
+#[test]
 fn uncalled_bad_impls_cannot_escape_signature_method_set_or_collision_checks() {
     let root = "import data;fn main()->i32=>0";
     let rules = "pub trait Read{fn value(self:&Self)->i32;}";
