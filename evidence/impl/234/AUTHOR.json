@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "status": "ReferencePassedApiPending",
+  "implementation_author": "/root",
+  "implementation_commit": "32f218d419cc162f8f51e5a24a5e2fb24d50e3b0",
+  "upstream_source_commit": "3d6babe17ee9d0a2f62d123063fb7af6a0886612",
+  "upstream_pr": 13,
+  "patch_scope": "canonical narrow integer bit pattern only; no research performance code",
+  "command": "cargo test --offline --locked -p zil-driver --no-default-features --test impl234_narrow_constants",
+  "tests": {
+    "passed": 2,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "compiler": "Rust 1.99.1",
+  "native_toolchain": "Clang 17.0.6 reference; LLVM 23 API not run locally",
+  "source_build_reports": 12,
+  "native_observations": 44,
+  "machine_ir_controls": "builder210 full-bit-width signed/unsigned equivalence and non-equivalence at 1/8/16/32/64 bits; awaits LLVM23 CI",
+  "formal_api_status": "NotRun",
+  "files": {
+    "reference-native.tar.gz": {
+      "size": 40382,
+      "sha256": "16fa3d9a64d140cc2b057d6a709279429ff154d19fb096750c95d7620843c64c"
+    },
+    "reference.log": {
+      "size": 421,
+      "sha256": "492556b52f5fa17a77ea456b9cedd568845c323386987dca74666016d55ede6e"
+    }
+  }
+}
