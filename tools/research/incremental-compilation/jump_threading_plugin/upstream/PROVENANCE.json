@@ -1,0 +1,20 @@
+{
+  "repository": "llvm/llvm-project",
+  "commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "ref": "llvmorg-23.1.4",
+  "license": "Apache-2.0 WITH LLVM-exception; original SPDX/copyright text retained",
+  "files": [
+    {
+      "name": "JumpThreading.cpp",
+      "upstream_path": "llvm/lib/Transforms/Scalar/JumpThreading.cpp",
+      "sha256": "735bdb11bc0a10b549a430eb69863dce4f64a4be48f878f47c380b6898caaf62",
+      "bytes": 129818
+    },
+    {
+      "name": "JumpThreading.h",
+      "upstream_path": "llvm/include/llvm/Transforms/Scalar/JumpThreading.h",
+      "sha256": "5abd69e54d52f6b9b0c47dc1332fa1c034ee718d9c53567a6bc93eee12350688",
+      "bytes": 9432
+    }
+  ]
+}
