@@ -1750,6 +1750,16 @@ impl<'a, 'c> Builder<'a, 'c> {
             CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none()) => {
                 self.function_reference(e)?
             }
+            CoreExprKind::Member { object, .. }
+                if matches!(object.kind, CoreExprKind::Member { .. })
+                    && !self.package_captures.is_empty() =>
+            {
+                if let Some(value) = self.captured_product_copy_projection(e)? {
+                    value
+                } else {
+                    self.aggregate(e, expected)?
+                }
+            }
             CoreExprKind::Tuple(_)
             | CoreExprKind::Array(_)
             | CoreExprKind::Index { .. }
@@ -1768,6 +1778,88 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.same(&result.1, expected, e.span)?
         }
         Ok(result)
+    }
+    /// An owning capture still reads a Copy leaf without taking its inline
+    /// Product prefixes. The whole environment retains its original cleanup.
+    fn captured_product_copy_projection(
+        &mut self,
+        expression: &CoreExpr,
+    ) -> R<Option<(ValueId, Type)>> {
+        let mut root = expression;
+        let mut path = Vec::new();
+        while let CoreExprKind::Member { object, member } = &root.kind {
+            if path.len() >= self.limits.max_call_depth {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "Product capture projection depth exceeded",
+                    Some(expression.span),
+                ));
+            }
+            self.closures
+                .snapshot(member.len().saturating_add(1), root.span)?;
+            path.push((member.as_str(), root.span));
+            root = object;
+        }
+        let CoreExprKind::Name(name) = &root.kind else {
+            return Ok(None);
+        };
+        let Some(local) = self.lookup(name) else {
+            return Ok(None);
+        };
+        if !self.package_captures.contains_key(&local) {
+            return Ok(None);
+        }
+        let ty = &self.function.locals[local.0 as usize].ty;
+        let work = inference::type_snapshot_work(ty, expression.span, self.limits)?;
+        self.closures.snapshot(
+            work.saturating_mul(path.len().saturating_mul(2).saturating_add(2)),
+            expression.span,
+        )?;
+        if !packages::product::supported(ty)
+            || !self
+                .known_type(expression)
+                .is_some_and(|ty| ty.is_copy_value())
+        {
+            return Ok(None);
+        }
+        // A bound Package environment is a view, not ordinary local storage.
+        // Its first projection must use the existing field-window operation;
+        // BorrowLocal would invent an independent addressable owner.
+        let mut path = path.into_iter().rev();
+        let (first, span) = path.next().expect("member path");
+        let (index, field) = aggregates::field(ty, first, span)?;
+        let (mut address, mut ty) = self.borrow_package_field(local, index, field, false, span)?;
+        for (member, span) in path {
+            let Type::Address {
+                inner,
+                mutable: false,
+            } = ty
+            else {
+                unreachable!()
+            };
+            let (index, field) = aggregates::field(&inner, member, span)?;
+            ty = Type::Address {
+                mutable: false,
+                inner: Box::new(field),
+            };
+            address = self.value(
+                InstructionKind::AddressField { address, index },
+                ty.clone(),
+                span,
+            )?;
+        }
+        let Type::Address { inner, .. } = ty else {
+            unreachable!()
+        };
+        let ty = *inner;
+        Ok(Some((
+            self.value(
+                InstructionKind::ReadAddress { address },
+                ty.clone(),
+                expression.span,
+            )?,
+            ty,
+        )))
     }
     /// A known operand constrains an unsuffixed integer literal; this does not
     /// insert numeric conversions or change the type of a bound runtime value.
@@ -2092,6 +2184,21 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
                 self.expr(&expression, Some(&stored))?.0
             } else if capture.borrowed {
+                if matches!(capture.ty, Type::Package { .. }) {
+                    self.closures.snapshot(
+                        self.function.parameters.len().saturating_add(1),
+                        capture.span,
+                    )?;
+                    if self.function.parameters.contains(&capture.source)
+                        || self.package_captures.contains_key(&capture.source)
+                        || self.borrowed_captures.contains_key(&capture.source)
+                    {
+                        return Err(unsupported(
+                            capture.span,
+                            "default Product capture requires an ordinary local owner; parameter and outer capture origins remain unsupported",
+                        ));
+                    }
+                }
                 let expression = CoreExpr {
                     id: zil_base::NodeId(0),
                     kind: CoreExprKind::Name(capture.name.clone()),
