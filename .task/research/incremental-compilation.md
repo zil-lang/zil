@@ -106,3 +106,5 @@ JumpThreading插件限定正确性控制通过后，继续评估单对象工具�
 上游主分支已推进f2572502beb76eb86e9254dea855404e4998a64d，专项PR发生Expand接口冲突。按主线已批准的232/233/234语义导入主分支到专项，唯一手工解决同时保留共享声明索引和跨模块trait所需完整模块/imports。旧阶段规范hash和已冻二进制证据不改写；合并后记录新规范身份并做限定组合控制与新HEAD远端CI，不自行合入main。
 
 CI闭环追加写集：.github/workflows/verify-main.yml（以实际现有主验证workflow文件名为准）、tools/ci/research_disk_space.py及其限定测试、changes/research-ci-disk-recovery.md。41206406105先发现DB撤回时tests.rs未同步，888af53逐字恢复配套3d6测试（13唯一/26执行）且release ELF逐字不变；随后41207249551被runner ENOSPC硬终止，未取得全量测试结论。仅在GitHub托管Linux临时运行器准备阶段清理固定白名单的未使用预装工具链，先记录容量/路径并立刻上传收据；不得删源码/测试/原始验证证据，不改测试集合/命令、预算或产品门。原两次失败保留，新完整CI另绑定。
+
+研究LLVM组合需要完整远端验证，追加独立写集.github/workflows/research-llvm.yml、tools/ci/research_llvm_manifest.py及限定控制、changes/research-llvm-ci.md。保持官方verify-main.yml不变；研究workflow仅专项push和显式dispatch，复用官方全量workspace/reference/native/Clippy/证据保存及成功归档后缓存释放逻辑。固定SDK一次下载、校验后同时供官方安装和精确headers，按已冻四TU组合工具分别重链original/candidate，测试只显式加载candidate/lib并核对实际check_toolchain库SHA与来源收据。完整源码/patch/log/receipt失败也归档，不上传SDK、动态库或target。研究时限可独立90分钟，不降低测试/预算，也不把远端正确性验收称作本地性能结果。root独审、统一提交，不自行合入main。
