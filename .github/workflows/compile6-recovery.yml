@@ -1,0 +1,54 @@
+name: Compile6 source and toolchain recovery
+on:
+  push:
+    branches: ['task/cp25-reactive-session']
+    paths: ['.github/workflows/compile6-recovery.yml']
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Archive exact source and commit identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/recovery/logs" "$RUNNER_TEMP/sdk"
+          git rev-parse HEAD > "$RUNNER_TEMP/recovery/commit.txt"
+          git rev-parse HEAD^{tree} > "$RUNNER_TEMP/recovery/tree.txt"
+          git cat-file commit HEAD > "$RUNNER_TEMP/recovery/commit.raw"
+          git ls-tree -r --full-tree HEAD > "$RUNNER_TEMP/recovery/files.txt"
+          git archive --format=tar.gz -o "$RUNNER_TEMP/recovery/source.tar.gz" HEAD
+          node tools/handoff.mjs --check > "$RUNNER_TEMP/recovery/logs/handoff.stdout" 2> "$RUNNER_TEMP/recovery/logs/handoff.stderr" || echo "$?" > "$RUNNER_TEMP/recovery/logs/handoff.exit"
+      - name: Restore pinned compiler tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update > "$RUNNER_TEMP/recovery/logs/apt-update.log" 2>&1
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g > "$RUNNER_TEMP/recovery/logs/apt-install.log" 2>&1
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt > "$RUNNER_TEMP/recovery/logs/rustup.log" 2>&1
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/llvm23" > "$RUNNER_TEMP/recovery/logs/llvm-install.log" 2>&1
+          cp -a "$(rustc +1.99.1 --print sysroot)" "$RUNNER_TEMP/sdk/rust"
+          mkdir -p "$RUNNER_TEMP/sdk/llvm/bin" "$RUNNER_TEMP/sdk/llvm/lib"
+          for name in clang clang-23 clang++ llvm-config opt lld ld.lld lld-link; do cp -a "$RUNNER_TEMP/llvm23/bin/$name" "$RUNNER_TEMP/sdk/llvm/bin/"; done
+          cp -a "$RUNNER_TEMP/llvm23/lib/clang" "$RUNNER_TEMP/sdk/llvm/lib/"
+          cp -a "$RUNNER_TEMP/llvm23/lib/libLLVM-23.so" "$RUNNER_TEMP/llvm23/lib/libLLVM.so.23.1" "$RUNNER_TEMP/sdk/llvm/lib/"
+          cp "$RUNNER_TEMP/llvm23/install-receipt.json" "$RUNNER_TEMP/recovery/llvm-install-receipt.json"
+          for name in libxml2.so.2 libzstd.so.1 libz.so.1; do p=$(ldconfig -p | awk -v n="$name" '$1==n && /x86-64/ {print $NF; exit}'); test -n "$p"; cp -L "$p" "$RUNNER_TEMP/sdk/llvm/lib/$name"; done
+          rustc +1.99.1 -Vv > "$RUNNER_TEMP/recovery/rustc-version.txt"
+          tar -C "$RUNNER_TEMP/sdk" -czf "$RUNNER_TEMP/recovery/toolchain.tar.gz" rust llvm
+          (cd "$RUNNER_TEMP/recovery" && sha256sum source.tar.gz toolchain.tar.gz > SHA256SUMS)
+      - name: Retain recovery and any failure logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: compile6-recovery-${{ github.run_id }}
+          path: ${{ runner.temp }}/recovery/
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
