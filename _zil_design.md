@@ -519,6 +519,22 @@ Types、Analyze、Verify分别从实际类型、MakeClosure输入、捕获位置
 
 206 的 Product capture 拒绝为当时有限实现边界；214–216 先冻结其原始 source/raw/Wire 与拒绝，再按本合同晋升完整合法形状，同时保持缺失 child、错误绑定、重复取走、共享写入、来源伪造和错误布局的最近拒绝。登记不表示实现或产品通过；完整 1.4、异步/取消、长期外部保留及原生 Windows 义务保持。
 
+### 9.1.3 完整 Product Store 的拥有捕获（225）
+
+在§9.1.1已有拥有捕获协议上，内层Store元素扩展为§8.2.4已核完整、有限、非零布局的递归Product。仅放宽直接Package child的组合，不引入递归by-value、内层Store、具体Closure、FunctionPointer、ForeignCallback、Address、Desc、拥有数组或拥有Sum；禁用种类必须遍历实际完整类型，包括Copy聚合与Managed用户资源头，不能藏在子Package中。每层Product至少有真实Managed叶，child-only wrapper合法。捕获Package自身仍只允许原直接Store/Managed和有限Copy字段；不由此放宽Product内部Store或嵌套callable Package。
+
+沿用真实创建时转交、Fn/FnMut/FnOnce、固定捕获槽/标志、Store完整初始化前缀及每层字段声明序清理。新Store捕获环境及拥有它的实际Closure父环境仍只返回有限Copy/Unit；普通Desc与已有地址不取得责任。共享/独占元素窗口仍不得跨相交reserve/push/pop/give/drop或父移动；最后实际使用后可转交，借用根不得因child投影丢失。相同元素类型不合并两个Store或两个capture的实例身份。
+
+Types、Analyze、Verify各自核验完整元素资格、隐藏禁用类型和精确canonical Store资源定义，Verify不调用前两者的求证函数；Raw/Wire与未用元数据也走同一独立核验。新Product路径的扫描、队列和比较在工作前收费，旧平坦capture路径预算不变；schema/Wire27、ABI、默认额度和产品门不变。登记不构成实现或验收，需源正反例、同型实例、Raw/Wire攻击、预算边界以及O0/O2真实失败清理证据。
+
+### 9.1.4 同步共享 Product 捕获（226）
+
+§8.1.2的普通共享&Product可进入局部、同步、非逃逸闭包，保留创建时的实际地址及其父来源；允许显式共享地址的按值捕获，也允许不发生拥有消费的普通Product只读捕获。默认只读捕获不是复制Product；显式move Product继续按§9.1.2转交完整责任，move已有地址不转交被指向资源。若正文取child或整体消费，仍按既有拥有推断处理；不得为让程序通过而隐式取得所有权。共享捕获不得制造可变Desc或&mut Product。
+
+此切片仅返回原有限Copy/Unit，使用既有Hold/Call/loan/活性机制跟踪捕获、局部转借和派生字段；实际最后使用后可释放借入。环境保有共享地址期间，相交取走、替换、整值移动与析构按真实将来使用检查。存入自含callback Store、借入逃逸/返回、长期外部回调、挂起/取消、可变Product及Store元素窗口的捕获不由本合同自动开放；普通Product来源与动态Store元素来源必须独立恢复，不能仅凭同一个Address<Package>类型授予普通捕获资格。若当前IR不能可靠区分来源，应保守拒绝该路径，而不是去掉所有Package地址防线。
+
+无新运行时opcode、堆盒、RC、锁或权限位。新增来源/资格检查必须预费且由Analyze/Verify分别实现；只开放有源到机器证据的路径。完整defer/异步/长期生命周期和四目标验收不随本片升级。
+
 ### 9.2 精确路径和三个执行时点
 
 普通内联结构/元组字段可精确捕获；同源前缀合并，不能移动同一字段两次或制造两份相交独占资格。动态索引、自定义投影、未知解引用、packed/union、需完整 teardown 的位置，提升到最近合法前缀或要求明确的已核视图。不能为提高精度提前执行 getter、索引计算、allocator 或用户代码。

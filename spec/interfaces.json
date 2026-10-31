@@ -45,6 +45,18 @@
       "state": "ContractToImplement",
       "representation": "Existing shared Address and actual root/field projections; no ownership or mutable Desc manufactured.",
       "independence": "Ordinary shared Product and Store-window admission are distinct; complete live root required."
+    },
+    "owned_product_store_capture_225": {
+      "authority": "_zil_design.md §9.1.3",
+      "state": "ContractToImplement",
+      "representation": "Existing Managed<OwnedStore<Product>>, capture slots and initialized prefix; schema/Wire27 unchanged.",
+      "independence": "Types/Analyze/Verify each check the complete recursive element tree, canonical definition, real input identity and active loan invalidation; no producer proof bit."
+    },
+    "shared_product_capture_226": {
+      "authority": "_zil_design.md §9.1.4",
+      "state": "ContractToImplement",
+      "representation": "Existing shared Address<Package> and capture Hold; ordinary origin must not be confused with Store-element origin.",
+      "independence": "Every admission must preserve actual parent provenance and Copy/Unit nonescaping boundary; otherwise reject."
     }
   },
   "schemas": [
