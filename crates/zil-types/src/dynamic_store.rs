@@ -29,8 +29,8 @@ fn legacy_fields(ty: &Type) -> bool {
 }
 
 /// Admission for an actually owned capture, not for an arbitrary Store
-/// element. The inner element deliberately uses the original leaf profile;
-/// allowing callback elements here would open recursive owning storage.
+/// element. Only the old leaf or a complete finite Product is admitted;
+/// hidden callback/Store/borrowed fields still cannot enter an inner element.
 pub(super) fn owned_capture(ty: &Type, work: &mut usize, limits: &Limits, span: Span) -> R<bool> {
     let cost = inference::type_snapshot_work(ty, span, limits)?;
     *work = work.checked_sub(cost.saturating_mul(8)).ok_or_else(|| {
@@ -43,7 +43,7 @@ pub(super) fn owned_capture(ty: &Type, work: &mut usize, limits: &Limits, span: 
     fn store(ty: &Type) -> bool {
         matches!(ty, Type::Managed(payload)
             if matches!(payload.as_ref(), Type::OwnedStore { element }
-                if legacy_element(element) && leaf_content(element)))
+                if (legacy_element(element) || product_element(element)) && leaf_content(element)))
     }
     fn leaf_content(ty: &Type) -> bool {
         match ty {
@@ -88,8 +88,8 @@ pub(super) fn supported_element(ty: &Type) -> bool {
         || product_element(ty)
 }
 
-/// Container qualification is explicit. It does not widen captured Stores,
-/// owning arrays or general error payloads through the ordinary Product gate.
+/// Container qualification is explicit. Owning captures add their own complete
+/// hidden-type check; arrays and general error payloads remain separate gates.
 pub(super) fn product_element(ty: &Type) -> bool {
     packages::product::nested(ty) && packages::product::supported(ty) && has_storage(ty)
 }
