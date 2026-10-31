@@ -27,10 +27,15 @@ key=json.loads(next(prior.glob('unit-*.input.json')).read_text())['action_key']
 pre=cache/'pre'/key/'bc';assert pre.is_file();old_sha=hashlib.sha256(pre.read_bytes()).hexdigest();pre.write_bytes(b'corrupt-pre-lto-control')
 dest,result,row=request('damaged-pre',source/'main.zil',cache,['--mode','thin','--dso-local'],expected)
 assert row['pre_hits']==2 and hashlib.sha256(pre.read_bytes()).hexdigest()==old_sha,row
-post_name=next(n for n in result['post_after'] if n.startswith('llvmcache-'))
+# The cache also retains historical edit keys. Select a key produced by the
+# actual current cold source, not an arbitrary historical entry that is unused.
+cold=json.loads((a.controls.resolve()/'thin-closed0-dso1-cold/result.json').read_text())
+post_name=next(n for n in cold['post_after'] if n.startswith('llvmcache-'))
+post_sha=result['post_after'][post_name]['sha256']
 post=cache/'post'/post_name;post.write_bytes(b'corrupt-post-lto-control')
 dest,result,row=request('damaged-post',source/'main.zil',cache,['--mode','thin','--dso-local'],expected)
 assert row['pre_hits']==3 and post_name in row['post_corrupt_skipped'],row
+assert result['post_after'][post_name]['sha256']==post_sha, 'required post key was not rebuilt'
 manifest=json.loads((cache/'post-manifest.json').read_text())
 for name,identity in manifest.items():assert hashlib.sha256((cache/'post'/name).read_bytes()).hexdigest()==identity['sha256']
 
