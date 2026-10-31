@@ -1,0 +1,130 @@
+name: Construction 8 audited recovery
+on:
+  push:
+    branches: [chore/construction8-resume]
+    paths: [.github/workflows/construction8-resume.yml]
+permissions:
+  contents: read
+jobs:
+  audit-cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Check ancestry, archive transport and delete only leased completed refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/resume"
+          python3 - <<'PY'
+          import datetime,json,os,pathlib,subprocess
+          def git(*args):
+              return subprocess.check_output(['git',*args],text=True).strip()
+          git('fetch','origin','--prune')
+          main='42ce8081a2aa5722a14fea53f23f819f46685a60'
+          assert git('rev-parse','origin/main') == main, 'Main changed; re-audit required'
+          expected={
+            'impl/222-ct-for':'a9aa46a8c32fbd52463c3de3b848984321a20c99',
+            'impl/223-product-store':'aefc031d83c92aaea0c6154fdfe9b94834a9b105',
+            'impl/224-readonly-product':'2b98ac8b99c3a4f7dcdc29bb1b6e62d0a4da4ba0',
+            'integration/222-224':'f4c742fd8bb9567120902812c9a7117928784e5c',
+            'repair/construction8-stdin':'ccae8c60c96a2c174b137b2fab084e9e8a97a02f'}
+          rows=[]
+          research=git('rev-parse','origin/research/compile-performance')
+          for row in git('for-each-ref','--format=%(refname:strip=3) %(objectname)','refs/remotes/origin').splitlines():
+              name,sha=row.split()
+              if name=='HEAD': continue
+              counts=git('rev-list','--left-right','--count',main+'...'+sha).split()
+              in_main=subprocess.run(['git','merge-base','--is-ancestor',sha,main]).returncode==0
+              in_research=subprocess.run(['git','merge-base','--is-ancestor',sha,research]).returncode==0
+              rows.append(dict(branch=name,sha=sha,main_only=int(counts[0]),branch_only=int(counts[1]),in_main=in_main,in_research=in_research))
+          print('AUDIT',json.dumps(rows,ensure_ascii=False))
+          for name,sha in expected.items():
+              assert git('rev-parse','origin/'+name)==sha, name+' changed'
+              subprocess.run(['git','merge-base','--is-ancestor',sha,main],check=True)
+          transport='sync/construction8-history'
+          transport_sha='f1e29652886c9fd9e3200350c55e501f9e859a0a'
+          assert git('rev-parse','origin/'+transport)==transport_sha
+          paths=git('diff','--name-only',main+'...'+transport_sha).splitlines()
+          allowed=lambda p:p.startswith('.construction8-history/') or p=='.github/workflows/import-construction8.yml' or p.startswith('evidence/integration/222-224/postmerge-stdin-repair/transport/')
+          assert paths and all(allowed(p) for p in paths), 'Unexpected transport-only changes'
+          tag='refs/tags/archive/construction8-transport-20261031'
+          existing=git('ls-remote','origin',tag)
+          if existing:
+              assert existing.split()[0]==transport_sha, 'Archive tag mismatch'
+          else:
+              git('push','origin',transport_sha+':'+tag)
+          assert git('ls-remote','origin',tag).split()[0]==transport_sha
+          deleted=dict(expected)
+          deleted[transport]=transport_sha
+          args=['push','--atomic']+[f'--force-with-lease=refs/heads/{name}:{sha}' for name,sha in deleted.items()]+['origin']+[':refs/heads/'+name for name in deleted]
+          git(*args)
+          remaining=git('ls-remote','--heads','origin')
+          assert not any('refs/heads/'+name in [r.split()[1] for r in remaining.splitlines()] for name in deleted)
+          result=dict(schema_version=1,status='Pass',utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),main=main,research=research,audit=rows,deleted=deleted,archived_transport=dict(tag=tag,sha=transport_sha,paths=paths),remaining=remaining.splitlines(),scope='Branch ancestry and guarded cleanup only; no compiler acceptance and no research merge')
+          pathlib.Path(os.environ['RUNNER_TEMP'],'resume','branch-audit.json').write_text(json.dumps(result,indent=2)+'\n')
+          print('CLEANUP',json.dumps(result,ensure_ascii=False))
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: construction8-resume-branch-audit
+          path: ${{ runner.temp }}/resume/
+          if-no-files-found: error
+          retention-days: 30
+  rust-recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Export pinned compiler and public dependency cache, never credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          cargo +1.99.1 fetch --locked
+          mkdir -p "$RUNNER_TEMP/recovery"
+          toolchain="$(rustup which --toolchain 1.99.1 rustc)"
+          root="$(dirname "$(dirname "$toolchain")")"
+          tar -C "$root" -czf "$RUNNER_TEMP/recovery/rust-1.99.1.tar.gz" bin lib libexec
+          tar -C "$HOME/.cargo" -czf "$RUNNER_TEMP/recovery/cargo-registry.tar.gz" registry
+          rustc +1.99.1 -vV > "$RUNNER_TEMP/recovery/rust-version.txt"
+          sha256sum "$RUNNER_TEMP/recovery/"*.tar.gz > "$RUNNER_TEMP/recovery/SHA256SUMS"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: construction8-rust-recovery
+          path: ${{ runner.temp }}/recovery/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+  llvm-recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Export repository-pinned LLVM, not runner state
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/llvm-23.1.4"
+          mkdir -p "$RUNNER_TEMP/recovery"
+          tar -C "$RUNNER_TEMP/llvm-23.1.4" -czf "$RUNNER_TEMP/recovery/llvm-23.1.4.tar.gz" .
+          sha256sum "$RUNNER_TEMP/recovery/llvm-23.1.4.tar.gz" > "$RUNNER_TEMP/recovery/SHA256SUMS"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: construction8-llvm-recovery
+          path: ${{ runner.temp }}/recovery/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
