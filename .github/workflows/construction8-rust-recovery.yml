@@ -1,0 +1,30 @@
+name: Construction 8 Rust recovery
+on:
+  push:
+    branches: [chore/construction8-resume]
+    paths: [.github/workflows/construction8-rust-recovery.yml]
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Export exact toolchain only
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          mkdir -p "$RUNNER_TEMP/recovery"
+          toolchain="$(rustup which --toolchain 1.99.1 rustc)"
+          root="$(dirname "$(dirname "$toolchain")")"
+          tar -C "$root" -czf "$RUNNER_TEMP/recovery/rust-1.99.1.tar.gz" bin lib libexec
+          rustc +1.99.1 -vV > "$RUNNER_TEMP/recovery/rust-version.txt"
+          sha256sum "$RUNNER_TEMP/recovery/rust-1.99.1.tar.gz" > "$RUNNER_TEMP/recovery/SHA256SUMS"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: construction8-rust-recovery-v2
+          path: ${{ runner.temp }}/recovery/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
