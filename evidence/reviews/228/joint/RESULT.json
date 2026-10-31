@@ -1,0 +1,85 @@
+{
+  "task": "228",
+  "status": "Pass",
+  "implementation_commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "reviewed_commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "reviewer": "/root/mainline_recovery",
+  "implementation_author": "/root/scope_audit",
+  "execution_head": "a642dda1c4c52cf3c5030965fcbc8ad51ee68ff0",
+  "tree_clean_before_and_after_execution": true,
+  "production_and_tests_equal_to_candidate": "git diff --exit-code 04fbd476fdbf02fbeaee374d2a8895f16f23c954 -- crates examples passed; execution merge only retains extra original review evidence.",
+  "driver_src_tree": "5cad5e35d03c16291e4cd45adbef8c769b5cab54",
+  "expand_src_tree": "01c3690f47779962a87665e725353cffd361eb33",
+  "spec_hash": "b94813aee9a57ce9810a5fe59e3ed7a060c3fead985c5cd6632c9deadf4abdcb",
+  "normative_hash": "5e0b190fff701bcaef8ffb1cbd818261584ee2795f69dad514668e497719f3c1",
+  "recorded_at": "2026-10-31T01:08:02.427650+00:00",
+  "command": "cargo test --locked -p zil-driver --features llvm-api --test review228_hygiene -- --nocapture",
+  "environment": {
+    "PATH": "/workspace/scratch/3cf12ce32e36/toolchains/rust-1.99.1/bin:/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin:/usr/local/bin:/usr/bin:/bin",
+    "ZIL_CLANG": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/bin/clang",
+    "ZIL_LLVM_LIB_DIR": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "LD_LIBRARY_PATH": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4/lib",
+    "CARGO_TARGET_DIR": "/workspace/scratch/e9af9764d083/targets/review228",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_BUILD_JOBS": "2",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/e9af9764d083/receipts/review228-joint-P"
+  },
+  "exit": 0,
+  "tests": {
+    "passed": 6,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "source_cases": {
+    "single_verify": 7,
+    "project_verify": 2,
+    "ordinary_rejects": 17,
+    "project_nominal_and_privacy_rejects": 2,
+    "plain_pure_mixed_reserved_name_rejects": 3
+  },
+  "machine": {
+    "backend": "LLVM API",
+    "host": "x86_64-unknown-linux-gnu",
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "builds": 18,
+    "executions": 18,
+    "all_exit_codes": 0,
+    "all_stdout": "",
+    "all_stderr": ""
+  },
+  "budgets": {
+    "thresholds": {
+      "budget-work": 2651,
+      "budget-nodes": 472
+    },
+    "sequence": "fresh N Success, warm N Success, N-1 ResourceLimit with Verify0, warm N Success. All active query counts 0; all successes Verify1.",
+    "single_slice_thresholds_equal": true
+  },
+  "findings_closed": [
+    "R228-BUDGET: batch flag propagated in existing paid traversal; type-only module lookup is prepaid",
+    "R228-RESERVED-FUNCTION: exact ordinary primitive name checks occur before alpha renaming in pure and mixed generation; original bad inputs reject, allowed Copy/bool functions execute"
+  ],
+  "failure_history": "../RESULT-single-slice.json and original attempt archives remain unchanged; no failed or filtered run is relabeled.",
+  "archive": {
+    "path": "raw.tar.gz",
+    "sha256": "5c675900b7dd475eaf6673a6a64c7b02cde51d183bdaacf805cde8dce763f11d",
+    "bytes": 483554,
+    "file_count": 542
+  },
+  "raw_log_sha256": "f12e3c5626310e250805a46365b6e32ca45d4415417699be9009242b195ff696",
+  "scope": "Non-author review of 228 on exact combined 228/229 candidate. Does not duplicate 229 review or substitute for root full integration gates.",
+  "product_state": {
+    "B0": "Doing",
+    "full_language": "NotSatisfied",
+    "product": "NotRun",
+    "native_windows": "NotRun"
+  }
+}
