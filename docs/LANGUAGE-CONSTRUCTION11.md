@@ -6,8 +6,8 @@
 
 | 切片 | 精确实施提交 | 本轮范围 |
 | --- | --- | --- |
-| 232 | `507e650d526653ccc79146366e4bb7c30b55ac84`；原生产为 `426bbd2066e70acdb5b635ea90694c050c78f764`，后续只迁移具名夹具 | 普通局部平坦/递归Product的默认只读捕获沿真实共享地址；拥有视图读取Copy叶不误取走中间child，实际child/Managed消费保留拥有及FnOnce分类。 |
-| 233 | `6d087050f232e8e8939aff297af0acc89e11bd20` | 已真实导入的公开普通trait与本地具体Self可以分处不同模块，trait库自己的泛型helper能找到该Self的具体方法依赖；生成依赖不等于源码导入授权。 |
+| 232 | `507e650d526653ccc79146366e4bb7c30b55ac84`；原生产为 `426bbd2066e70acdb5b635ea90694c050c78f764`，后续只迁移具名夹具 | 普通局部平坦/递归Product的默认只读捕获沿真实共享地址；拥有视图读取Copy叶不误取走中间child；实际拥有用途保持创建时转交，任一可达退出未恢复完整形状则为FnOnce，完整恢复的既有路径仍可为FnMut。 |
+| 233 | `6d087050f232e8e8939aff297af0acc89e11bd20` | 已真实导入的公开普通trait与impl所在模块定义的非泛型Struct或既有资源Self可以分处不同模块，资源receiver仍限共享头，trait库自己的泛型helper能找到该Self的具体方法依赖；生成依赖不等于源码导入授权。 |
 | 234 | `32f218d419cc162f8f51e5a24a5e2fb24d50e3b0` | 在构造LLVM整数常量时先截断到实际位宽，校正窄负常量在LLVM23优化路径中的结果，并用完整i32/i64返回字节核验。 |
 
 232新增借入仍限已证明的普通局部来源；未核参数、外层capture、动态Store窗口、逃逸和默认可变Product捕获继续关闭。真实拥有消费在创建环境时转交责任；最后一次共享使用前，相交move、take或replace继续拒绝。没有新增隐式Box、RC、锁或世代机制。
@@ -18,7 +18,7 @@
 
 ## 实际联合消费者
 
-`examples/mainline/construction11`包含main、rules、data三个模块。完整Product中保存资源Ticket和data.Counter；默认只读回调两次调用trait库helper，源码完整比较结果14，再移动owner，最后stdout恰为一次`A`清理。API/Clang与O0/O2均检查实际后端、无fallback；API检查builder对象收据。
+`examples/mainline/construction11`包含main、rules、data三个模块。完整Product中保存资源Ticket和data.Counter；默认只读回调两次调用trait库helper，最后一次回调使用后移动owner，再在源码中完整比较结果14，退出时stdout恰为一次`A`清理。API/Clang与O0/O2均检查实际后端、无fallback；API检查builder对象收据。
 
 最近反例只把owner移动提前到回调最后使用之前，必须在Verify以`E-BORROW-CONFLICT`拒绝，`verification_runs=1`，没有可执行文件。正反例的原始源码、报告、输出和阶段产物均保存。首次本地把Verify计数误写为0的夹具失败也保留；生产规则未因此变化。
 
@@ -41,11 +41,11 @@
 
 ## 预算与实际证据边界
 
-232旧legacy Type/Analyze/Verify为835/7129/12161，225为3889/36339/56097，226为1787/15791/30761，均逐值保持；新flat为1226/7896/16608，recursive为1788/14756/29096，owned为1762/12234/17419。233旧242/1568/1432/1412保持，新counter最小16012、trait library最小2003。N、N−1、cold/warm/fresh与失败后恢复按各自固定输入核验，没有提升默认额度。
+232旧legacy Type/Analyze/Verify为835/7129/12161，225为3889/36339/56097，226为1787/15791/30761，均逐值保持；新flat为1226/7896/16608，recursive为1788/14756/29096，owned为1762/12234/17419。233旧242/1568/1432/1412保持，新counter最小16012、trait library最小2003。232三元组分别来自Types、Analyze、Verify入口的max_analysis_steps临界值，并核验N、N−1及fresh N。233数字来自driver入口传入上限的临界值；同session的cold/warm及失败后恢复另由两个新profile覆盖。各自固定输入的测量口径保持分开，没有提升默认额度。
 
 首轮234/joint所选原生证据已由两位非作者分别核对。234包含24份作者编译报告、88次运行观察，以及8份独审编译报告、56次完整12字节观察；8组API冷暖配对核对action key、builder/cache、当前源码Verify与无fallback。builder宽度控制的40次执行依据冻结循环和成功CI日志，逐例临时对象由原测试清理，不能冒称都留下了原件。它们仍只是首轮失败运行内的限定通过证据。
 
-首轮State/分配失败消费者为16次构建、40个API对象、128次执行观察、88次分配观察和56次实际故障注入，全部观察live=0且allocated=frees。fmt、Clippy、text-reference37项和迁移runner9项按原件核对。最终验收必须另外绑定第二轮及实际main的完整结果。
+首轮State/分配失败消费者为16次构建、40个API对象、128次执行观察、88次分配观察和56次实际故障注入，88条带分配记录的观察均live=0且allocated=frees；另40条执行观察的allocation为null，不据此补造分配数据。fmt、Clippy、text-reference37项和迁移runner9项按原件核对。最终验收必须另外绑定第二轮及实际main的完整结果。
 
 ## Rust四目标与后续义务
 
