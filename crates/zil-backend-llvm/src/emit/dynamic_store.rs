@@ -34,7 +34,7 @@ pub(super) fn helper(
 }
 
 pub(super) fn runtime(
-    lir: &LirModule,
+    lir: &LirView<'_>,
     closures: &BTreeMap<ClosureId, &ClosureDefinition>,
 ) -> CompileResult<m::Code> {
     if !lir
@@ -684,7 +684,7 @@ pub(super) fn runtime(
         // Whole Store elements are complete inline values. The same checked
         // declaration-order leaf paths used by ordinary Product cleanup also
         // reach every nested child here; no extra partial flags or allocation.
-        for (path, teardown) in packages::teardown_paths(element, &lir.resources)? {
+        for (path, teardown) in packages::teardown_paths(element, lir.resources)? {
             let name = format!(
                 "field.{}",
                 path.iter()

@@ -700,7 +700,8 @@ pub fn expression(
     limits: &Limits,
 ) -> CompileResult<CoreExpr> {
     expression_cost(expression, limits)?;
-    let mut e = Expander::new(module, true, limits, None);
+    let declarations = BTreeMap::new();
+    let mut e = Expander::new(module, true, limits, None, &declarations);
     let result = e.expr(expression);
     if e.diagnostics.is_empty() {
         Ok(result)
@@ -717,7 +718,8 @@ pub fn expression_with_next_id(
     limits: &Limits,
 ) -> CompileResult<(CoreExpr, NodeId)> {
     expression_cost(expression, limits)?;
-    let mut expander = Expander::new(module, true, limits, None);
+    let declarations = BTreeMap::new();
+    let mut expander = Expander::new(module, true, limits, None, &declarations);
     let result = expander.expr(expression);
     if expander.diagnostics.is_empty() {
         Ok((result, NodeId(expander.next)))

@@ -1,7 +1,9 @@
 //! Explicit source graphs. Module identity never depends on a concatenated name
 //! or source buffer. The filesystem adapter is the only import-reading entry.
 use super::artifacts::ArtifactPlan;
-use super::session::{RawSnapshot, check_entry_contract, disk_source, phase_key, query_key};
+use super::session::{
+    RawSnapshot, TypedInput, check_entry_contract, disk_source, phase_key, query_key,
+};
 use super::*;
 use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
@@ -60,9 +62,6 @@ impl CompilationSession {
         observer: &mut dyn FnMut(&QueryEvent),
         loaded_syntax: Option<&[Arc<ParseResult>]>,
     ) -> CompileReport {
-        if self.raw.len() > self.capacity {
-            self.clear();
-        }
         let start = Instant::now();
         let fallback = SourceUnit::new(FileId(0), project.root, "<project>", "");
         let root = project
@@ -76,6 +75,7 @@ impl CompilationSession {
         {
             report.fail(errors);
         }
+        self.trim_history();
         report.seconds = start.elapsed().as_secs_f64();
         report
     }
@@ -87,9 +87,8 @@ impl CompilationSession {
     ) -> CompileReport {
         let start = Instant::now();
         // Discovery may borrow immutable syntax from the previous request.
-        // The existing compile_project_request capacity guard still clears
-        // cache ownership before publishing this request; the lent Arcs do
-        // not preserve query authority or add another retained cache.
+        // Request-end eviction bounds retained raw ownership; borrowed Parse
+        // inputs never carry verification authority or form another cache.
         let mut project = ProjectSources {
             root: ModuleId(0),
             modules: vec![SourceUnit::new(
@@ -182,7 +181,7 @@ impl CompilationSession {
             // conservative project quota, including trivia and EOF tokens.
             parse_options.limits.max_tokens = remaining.max_tokens.min(remaining.max_nodes);
             let (raw, snapshot) = self.query(
-                query_key(source, &parse_options, Phase::Parse, false),
+                self.parse_key(source, &parse_options),
                 &[],
                 options,
                 report,
@@ -393,10 +392,9 @@ impl CompilationSession {
             options,
             report,
             observer,
-            &typed.module,
+            TypedInput::Program(typed),
             typed_snapshot,
             artifacts,
-            Some(&typed),
         )
     }
 }
@@ -782,7 +780,7 @@ fn load_sources(
         let mut query_options = options.clone();
         query_options.limits.max_tokens = parse_limits.max_tokens;
         query_options.limits.max_nodes = remaining.max_nodes;
-        let key = query_key(&project.modules[index], &query_options, Phase::Parse, false);
+        let key = session.parse_key(&project.modules[index], &query_options);
         let cached = if session.database.read(&key).map_err(|e| vec![e])?.is_some() {
             match session.raw.get(&key) {
                 Some(RawSnapshot::Parse(p)) => Some(p.clone()),
@@ -939,7 +937,7 @@ mod discovery158_tests {
         assert!(errors.iter().any(|e| e.code == "E-MODULE-AMBIGUOUS"));
     }
     #[test]
-    fn capacity_clear_keeps_immutable_lent_syntax_but_not_query_authority() {
+    fn capacity_eviction_keeps_lent_syntax_valid_without_caching_authority() {
         let (_dir, path, mut session) = setup();
         session.capacity = 1;
         assert!(session.raw.len() > session.capacity);
@@ -947,10 +945,14 @@ mod discovery158_tests {
         let r = session.compile_path(&path, &CompileOptions::default());
         assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
         assert_eq!(r.verification_runs, 1);
-        assert!(!r.cache_hit); // Old query authority was actually cleared.
+        assert!(r.cache_hit); // Raw inputs may be reused; Verify still ran.
+        assert_eq!(session.cached_query_count(), 1);
         let after = discover(&session, &path, &CompileOptions::default()).unwrap();
         for (a, b) in before.iter().zip(after.iter()) {
-            assert!(Arc::ptr_eq(a, b));
+            // Evicted raw syntax remains valid for existing immutable readers;
+            // discovery reconstructs equivalent syntax after eviction.
+            assert!(!Arc::ptr_eq(a, b));
+            assert_eq!(format!("{a:?}"), format!("{b:?}"));
         }
         assert_eq!(session.active_query_count(), 0);
     }

@@ -5,7 +5,7 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use zil_base::{CompileResult, Diagnostic, Phase, ResultCategory};
-use zil_ir::LirModule;
+use zil_ir::{LirModule, LirView};
 use zil_verify::VerifiedModule;
 
 use crate::object_cache::{
@@ -164,6 +164,17 @@ pub fn build_with_cancellation(
     options: &BuildOptions,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<BuildArtifact> {
+    build_view_with_cancellation(verified, &lir.as_view(), options, cancelled)
+}
+
+/// Borrowed raw LIR uses the same complete binding and machine preflight as the
+/// owned API. Sharing removes allocation, never current-request verification.
+pub fn build_view_with_cancellation(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &BuildOptions,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> CompileResult<BuildArtifact> {
     check_cancelled(cancelled)?;
     if options.emit.entry == EntryPoint::None {
         return Err(vec![Diagnostic::error(
@@ -179,12 +190,12 @@ pub fn build_with_cancellation(
             "codegen units and jobs must be in 1..=64",
         ));
     }
-    let machine = crate::emit::lower_with_options(verified, lir, &options.emit)?;
+    let machine = crate::emit::lower_view_with_options(verified, lir, &options.emit)?;
     // Diagnostic/reference output only. API preflight runs once per owned unit,
     // immediately before its LLVMBuilder calls; it cannot be bypassed.
     let llvm = machine.to_text();
     let plan =
-        crate::machine_cgu::partition(machine, lir, options.emit.entry, options.codegen.units);
+        crate::machine_cgu::partition_view(machine, lir, options.emit.entry, options.codegen.units);
     if options.backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
         return Err(vec![Diagnostic::new(
             Phase::Codegen,
@@ -205,7 +216,7 @@ pub fn build_with_cancellation(
         ..ObjectCacheSummary::default()
     };
     let cache = options.object_cache.as_ref().and_then(|path| {
-        match PreparedCache::new(path, &lir.target, options.optimization) {
+        match PreparedCache::new(path, lir.target, options.optimization) {
             Ok(cache) => {
                 cache_summary.enabled = true;
                 Some(cache)
