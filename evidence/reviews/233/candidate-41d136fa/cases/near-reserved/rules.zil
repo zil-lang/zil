@@ -1,0 +1,1 @@
+pub trait Sender{}pub trait Syncer{}pub trait Dropper{}

@@ -1,0 +1,1 @@
+import rules;import data;pub fn read<T>(x:&T)->i32 where T:rules.Read=>x.value() struct Local{n:i32}impl data.Hidden for Local{fn hidden(self:&Self)->i32=>self.n}

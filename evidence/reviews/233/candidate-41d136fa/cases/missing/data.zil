@@ -1,0 +1,1 @@
+import rules;pub struct Item{n:i32}impl rules.Read for Item{}

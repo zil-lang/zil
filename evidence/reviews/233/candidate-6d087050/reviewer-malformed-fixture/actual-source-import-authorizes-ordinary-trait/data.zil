@@ -1,0 +1,1 @@
+import rules;pub struct Item{n:i32}impl rules.Read for Item{fn value(self:&Self)->i32=>self.n}pub fn make(n:i32)->Item=>Item{n:n} pub trait Hidden{fn hidden(self:&Self)->i32;}
