@@ -1,0 +1,28 @@
+name: Restore construction 9 task objects
+on:
+  push:
+    branches: [task/228-transport]
+permissions:
+  contents: write
+concurrency:
+  group: construction9-task-object-import
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Verify bundle and publish exact task refs
+        shell: bash
+        run: python3 .construction9/import_tasks.py
+      - name: Preserve publication receipt
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: construction9-publication-${{ github.run_id }}
+          path: construction9-publication.json
+          if-no-files-found: error
+          retention-days: 30

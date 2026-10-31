@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "bundle_sha256": "fba554c23c16cc72102adcd387d5b4db7de60d5f368fd86af5ec3806ce061aef",
+  "targets": [
+    {
+      "branch": "task/228",
+      "sha": "75f22dda0f80b49aeba16bc64b39249211d5e7ac"
+    },
+    {
+      "branch": "task/229",
+      "sha": "2e76a6dd09c2fc47ada43ec8192372c8bafa374b"
+    },
+    {
+      "branch": "task/228-consumer",
+      "sha": "dd7ca488ffed75a138fcc2a7809926f2c325e238"
+    }
+  ]
+}
