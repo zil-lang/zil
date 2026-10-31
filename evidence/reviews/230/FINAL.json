@@ -1,0 +1,396 @@
+{
+  "schema_version": 1,
+  "task": "230",
+  "status": "Pass",
+  "verdict": "Pass",
+  "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+  "reviewer": "/root/defer_design",
+  "implementation_author": "/root/continuity_audit",
+  "independent_of_implementation_author": true,
+  "ci_candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
+  "actual_tested_checkout": "045dc75cec6eaa4de52951e075c52fd809fb6b3c",
+  "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+  "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
+  "reviewed_at_utc": "2026-10-31T08:47:47.430155+00:00",
+  "scope": "Slice 230: finite generation of ordinary nominal enums, including forward payload references, aliases, constructors/patterns, module hygiene, ordinary semantic boundaries, resource budgets and actual native consumers.",
+  "identity": {
+    "ci_run": 41184530698,
+    "ci_job": 124488604160,
+    "ci_url": "https://github.com/zil-lang/zil/actions/runs/41184530698/job/124488604160",
+    "source_tree_sha256": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5",
+    "actual_source_tree_matches_I2_byte_for_byte": true,
+    "source_tree_entries": 87508,
+    "crates_tree_at_P2_and_I2": "cc67ae136dce0c6d8ad17ffdbaa25ae574c6c9ca",
+    "P2_to_I2_source_or_test_changes": false,
+    "all_186_crate_source_entries_identical_to_first_production": true,
+    "reviewed_blobs": {
+      "crates/zil-driver/src/ct_selection/hygiene.rs": "f1becf839873b99f7f359e634fde4b397e83cd6e",
+      "crates/zil-driver/src/ct_selection/hygiene_types.rs": "89a2eed87b78937e0f1f73979ec734b99a0e3ed0",
+      "crates/zil-driver/src/ct_selection/materialize.rs": "fba1fcf218a89778fadd007b10cb524ec5f37d01",
+      "crates/zil-driver/tests/impl230_generation.rs": "240e7fa63033c8835784584a2de544cbbcdf4100",
+      "crates/zil-driver/tests/review230_independent.rs": "b7775a3cea5623c4d81cfc2b98a785d10e691d55",
+      "examples/mainline/ct_enums230/events.zil": "95e09dd399fccfd20f20ef8954da25bb3a496c78",
+      "examples/mainline/ct_enums230/events_plain.zil": "2b976990c515641aa267d91a0b2ec45309f014c7"
+    },
+    "spec_and_all_seven_normative_inputs_independently_rehashed": true,
+    "identity_precheck": "evidence/reviews/230/P2-PENDING.json"
+  },
+  "static_review": {
+    "source_inspection": "evidence/reviews/230/RESTORED-PENDING.json",
+    "inspected_source_blobs_unchanged_at_P2": true,
+    "findings": [
+      "Active finite-iteration materialization admits the frozen ordinary-enum profile; unsupported generated declaration and payload cases keep their existing rejection boundaries.",
+      "Full-batch nominal prebinding supports forward payload aliases while preserving private identities across iterations and modules.",
+      "Type/constructor/pattern renaming respects module qualifiers and generic binders; iterator spelling and pattern value binders remain distinct.",
+      "Variant and payload traversal consume the shared request budget; cold, warm and reduced-budget executions confirm rejection and recovery.",
+      "Ordinary semantic checking and raw/Wire verification retain authority over nominal layout and variant/payload validity."
+    ]
+  },
+  "independent_execution": {
+    "unique_tests": 9,
+    "actual_test_names": [
+      "address_payloads_and_recursive_alias_payloads_keep_ordinary_rejections",
+      "forward_payload_alias_variant_spelling_and_pattern_binder_are_independent",
+      "generic_type_binder_shadows_alias_and_does_not_leak_to_later_functions",
+      "payload_constant_substitution_rechecks_changed_source_in_a_warm_session",
+      "qualified_import_and_same_spelled_generated_enum_keep_separate_identities",
+      "same_layout_generated_public_enums_remain_nominal_between_modules",
+      "transparent_aliases_do_not_merge_distinct_generation_rounds",
+      "variant_payload_visits_share_request_limits_with_cold_and_warm_replay",
+      "ordinary_expansion_and_generated_sources_execute_at_o0_and_o2"
+    ],
+    "workspace": {
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "reference": {
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "source_copies_checked_per_backend": 46,
+    "compile_reports_checked_per_backend": 27,
+    "budget_reports_checked_per_backend": 10,
+    "native": {
+      "llvm_api": {
+        "executions": 8,
+        "O0": 4,
+        "O2": 4,
+        "llvm_version": "23.1.4",
+        "input_kind": "builder",
+        "verify_before_after": true
+      },
+      "clang_reference": {
+        "executions": 8,
+        "O0": 4,
+        "O2": 4,
+        "clang_version": "23.1.4",
+        "explicit_ir_input": true
+      },
+      "all_verification_runs": 1,
+      "all_fallbacks": null,
+      "all_exit_codes": 0,
+      "all_stdout_bytes": 0,
+      "all_stderr_bytes": 0,
+      "executable_hashes": {
+        "workspace": [
+          {
+            "label": "native-O0-forward",
+            "program_sha256": "830b852c1f473ddbe9ed92124c1360f76d93ccf9ebeaa1b29f9200755232c4c8"
+          },
+          {
+            "label": "native-O0-forward-plain",
+            "program_sha256": "830b852c1f473ddbe9ed92124c1360f76d93ccf9ebeaa1b29f9200755232c4c8"
+          },
+          {
+            "label": "native-O0-qualified",
+            "program_sha256": "a780338da1bbfd24450e220aa5502aabef14a3a56aeccd0f80f4e3209c6ff1c5"
+          },
+          {
+            "label": "native-O0-qualified-plain",
+            "program_sha256": "a780338da1bbfd24450e220aa5502aabef14a3a56aeccd0f80f4e3209c6ff1c5"
+          },
+          {
+            "label": "native-O2-forward",
+            "program_sha256": "dbf72056c6f586c23e25e7183a247d3a0c28dcca1dfdcd3276a23d7a6891a0b4"
+          },
+          {
+            "label": "native-O2-forward-plain",
+            "program_sha256": "dbf72056c6f586c23e25e7183a247d3a0c28dcca1dfdcd3276a23d7a6891a0b4"
+          },
+          {
+            "label": "native-O2-qualified",
+            "program_sha256": "24530da87ef7dd7390187f7410f9443543b9edfdf24a77d8676d2a378244509b"
+          },
+          {
+            "label": "native-O2-qualified-plain",
+            "program_sha256": "24530da87ef7dd7390187f7410f9443543b9edfdf24a77d8676d2a378244509b"
+          }
+        ],
+        "reference": [
+          {
+            "label": "native-O0-forward",
+            "program_sha256": "546d4e37ec9f5f62ee2aa75dd9393d676908ef2ff7d95563ff8017e6c90e1629"
+          },
+          {
+            "label": "native-O0-forward-plain",
+            "program_sha256": "546d4e37ec9f5f62ee2aa75dd9393d676908ef2ff7d95563ff8017e6c90e1629"
+          },
+          {
+            "label": "native-O0-qualified",
+            "program_sha256": "2affe4b6714e8bb6ba8e0c8f6ca4a99375278aba22911099ed722c183f832e0d"
+          },
+          {
+            "label": "native-O0-qualified-plain",
+            "program_sha256": "2affe4b6714e8bb6ba8e0c8f6ca4a99375278aba22911099ed722c183f832e0d"
+          },
+          {
+            "label": "native-O2-forward",
+            "program_sha256": "d2ef2ad1ece4cb8e343dee735e1ce4ccd6b3b53340c203e761e11dca2305432e"
+          },
+          {
+            "label": "native-O2-forward-plain",
+            "program_sha256": "d2ef2ad1ece4cb8e343dee735e1ce4ccd6b3b53340c203e761e11dca2305432e"
+          },
+          {
+            "label": "native-O2-qualified",
+            "program_sha256": "9577cd30a506b7011bf05501794863649c5ecbc5087df0813899c3170e8afc23"
+          },
+          {
+            "label": "native-O2-qualified-plain",
+            "program_sha256": "9577cd30a506b7011bf05501794863649c5ecbc5087df0813899c3170e8afc23"
+          }
+        ]
+      }
+    },
+    "budget": {
+      "work_minimum": 3014,
+      "node_minimum": 512,
+      "both_backends_observed_attempts": "N Success; N Success/cache hit; N-1 ResourceLimit at ct with verification_runs=0 and no executable; N Success/cache hit; fresh N Success",
+      "active_queries": "Executed source assertions require zero after each relevant compilation; not a separately serialized report field."
+    },
+    "cache_edit": "Valid/valid/short-array/valid yields Success/Success/E-ARRAY-LENGTH/Success; the second and restored valid requests hit cache and reverify once.",
+    "actual_semantic_rejections": [
+      {
+        "label": "generic-alias-no-privilege",
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-GENERIC-ARGUMENT"
+        ]
+      },
+      {
+        "label": "module-distinct-identity",
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-TYPE-MISMATCH"
+        ]
+      },
+      {
+        "label": "payload-address-false",
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      {
+        "label": "payload-address-true",
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      {
+        "label": "payload-edit-2",
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-ARRAY-LENGTH"
+        ]
+      },
+      {
+        "label": "payload-recursive-alias-false",
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-INFINITE-LAYOUT"
+        ]
+      },
+      {
+        "label": "payload-recursive-alias-true",
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-INFINITE-LAYOUT"
+        ]
+      },
+      {
+        "label": "qualified-missing-member",
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-MODULE-MEMBER"
+        ]
+      },
+      {
+        "label": "round-alias",
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-TYPE-MISMATCH"
+        ]
+      },
+      {
+        "label": "round-alias-plain",
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "cache_hit": false,
+        "diagnostic_codes": [
+          "E-TYPE-MISMATCH"
+        ]
+      }
+    ],
+    "both_second_run_backends_directly_compared": true
+  },
+  "author_supplement": {
+    "actual_tests_per_backend": 6,
+    "source_copies_checked_per_backend": 50,
+    "compile_reports_checked_per_backend": 47,
+    "budget_reports_checked_per_backend": 10,
+    "actual_native_executions_per_backend": 8,
+    "work_minimum": 2698,
+    "node_minimum": 871,
+    "raw_wire": {
+      "actual_passing_test": "ct_selection::hygiene::generated_enum_tests::impl230_generated_enum_raw_wire_reconstructs_and_rejects_forgery",
+      "positive_candidate_and_wire_roundtrip_verified": true,
+      "real_instruction_mutations": 3,
+      "actual_rejections_per_backend_run": 6,
+      "raw_and_wire_diagnostic": "E-VERIFY-ENUM",
+      "mutations": [
+        "out-of-range variant index",
+        "removed payload fields",
+        "out-of-range payload read index"
+      ],
+      "six_saved_artifacts_identical_across_both_backend_runs": true
+    }
+  },
+  "full_ci": {
+    "job_steps_completed_successfully": 25,
+    "default_workspace": {
+      "passed": 2976,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "reference_workspace": {
+      "passed": 2933,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "formatting": "Pass: empty original fmt.log and successful strict workflow step",
+    "clippy": "Pass: --locked --workspace --all-targets -- -D warnings, original log completes without diagnostics",
+    "text_reference": {
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "migration_runner": {
+      "passed": 9,
+      "failed": 0
+    },
+    "api_state_consumer": {
+      "builds": 16,
+      "executions": 128,
+      "allocation_failure_controls": 56,
+      "allocation_observations": 88,
+      "invalid_inputs": 8,
+      "all_observations_rechecked_against_frozen_business_oracle": true,
+      "oracle_sha256": "2993bc9e0714515c3e22add3997a12b3ea55cc5e91dc18fd1d0dc4156d4893cb",
+      "all_observed_allocations_cleaned": true,
+      "all_builds_api_23_1_4_without_fallback": true
+    },
+    "comparison": "94 semantic reports per backend were checked against first-run inputs/outcomes and directly between the second-run backends; no 230 discrepancy found."
+  },
+  "evidence": {
+    "receipt_archive": "evidence/reviews/230/p2-receipts.tar.gz",
+    "receipt_archive_sha256": "804a53cddd04dacfc18025b24ee382a6a017a39605a31613d0d14404be51dcd1",
+    "receipt_archive_bytes": 183502,
+    "receipt_archive_members": 568,
+    "all_archive_members_reopened_and_verified": true,
+    "native_files_independently_rehashed_per_backend": 719,
+    "native_zip_sha256": {
+      "workspace": "5b132234673e85e43f39572e649c60e268ea26b5e4d64918bb4e90a785b37ba8",
+      "reference": "8fe61b9c4f2fc2a5841af94f0bc500bfd7a45b3557df9462b164dced25c6d16e"
+    },
+    "final_zip_sha256": "d6c12c02575572ea673c9554119580a12f2588243ee5fd137d0cd9439c3991f3",
+    "full_log_sha256": {
+      "workspace": "82c0bb4b1d1dc1d8c8ae4779a88f3dbfe6fb00f6cf1c706ee9c5d891de34c981",
+      "reference": "f5c2236d7c5db39fd8950c0f241938d67d294516d497cb1490dca211a13562d9"
+    },
+    "global_gate_receipt_sha256": {
+      "fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "clippy.log": "b3682e9132994629cfab3cdff1ebb374d85f925eeb5dd28f10efef31c0efd8ca",
+      "text-reference.log": "be8557552d99c7976339b917a2332cb65129ac1a64a0aaac2e48b398bfe7fe9e",
+      "migration-runner.log": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53",
+      "consumer209.json": "160b2917e9f8e38b527ea634f1ad5def31ced840929f839edde684b33ac148ce",
+      "bundle-verify.log": "8da4424282940260b44c71919caf72788c66aef8f22ad7104ba7a06adbaa95ad",
+      "commit.txt": "de746ec58883b77a9a7afd37c71eb06008db5ece3bb144cdb7c8139a10e2cc32"
+    },
+    "prior_failure_record": "evidence/integration/construction10/attempt-1/COMPLETE.json",
+    "prior_default_observation": "evidence/reviews/230/FIRST-RUN-OBSERVATIONS.json",
+    "prior_reference_observation": "evidence/reviews/230/FIRST-RUN-REFERENCE-OBSERVATIONS.json",
+    "first_run_complete_counts_preserved": {
+      "default": {
+        "passed": 2967,
+        "failed": 6,
+        "ignored": 0
+      },
+      "reference": {
+        "passed": 2924,
+        "failed": 6,
+        "ignored": 0
+      }
+    }
+  },
+  "boundaries": {
+    "complete_language_goals_1_to_4": "NotSatisfied",
+    "B0": "Doing",
+    "Rust_product_performance_gates": "NotRun",
+    "native_Windows_execution": "NotRun",
+    "merged_main_followup_CI": "NotRun at review time; this review binds the tested P2/I2 candidate",
+    "other_slices": "Their independent reviews remain the responsibility of their assigned non-authors.",
+    "example_provenance": "Original 230 example bytes match the recovered archive. The unavailable original examples-tree membership is not claimed.",
+    "coverage": "Finite positive/negative and budget tests plus real consumers are not an exhaustive proof of the language.",
+    "budget_scope": "Reported minima bind these exact saved inputs and this tested candidate.",
+    "first_run_failures": "Original failed full-run records remain unchanged; the new Pass applies to this second-run 230 review."
+  },
+  "production_or_test_edits_by_this_review": false,
+  "local_cargo_executed": false
+}
