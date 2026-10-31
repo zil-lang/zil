@@ -1,0 +1,678 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "reviewer": "zil施工10/branch_audit",
+  "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+  "reviewed_at_utc": "2026-10-31T08:46:50.928921+00:00",
+  "ci": {
+    "run_id": 41184530698,
+    "run_attempt": 1,
+    "job_id": 124488604160,
+    "url": "https://github.com/zil-lang/zil/actions/runs/41184530698/job/124488604160",
+    "event_scope": "PR14 candidate verification; main replay remains integration-owned",
+    "head_sha": "f1492652cb6497a33f39e615fd398456ce09253a",
+    "actual_checkout_commit": "045dc75cec6eaa4de52951e075c52fd809fb6b3c",
+    "all_25_steps_success": true,
+    "job_completed_at": "2026-10-31T08:41:37Z"
+  },
+  "commands_observed_in_exact_workflow": [
+    "cargo test --locked --workspace --no-fail-fast",
+    "cargo test --locked --workspace --no-default-features --no-fail-fast",
+    "cargo fmt --all -- --check",
+    "cargo clippy --locked --workspace --all-targets -- -D warnings",
+    "cargo test --locked -p zil-llvm-api --features text-reference",
+    "python3 tools/llvm/test_validate_migration.py",
+    "python3 tools/research/208/validate.py --repo . --cli \"$CARGO_TARGET_DIR/release/zil\" --clang \"$ZIL_CLANG\" --out \"$RUNNER_TEMP/consumer209\""
+  ],
+  "toolchain": {
+    "rustc": "1.99.1",
+    "clang_and_zil_llvm_api": "23.1.4",
+    "rustc_internal_llvm": "23.1.1",
+    "receipt": "receipts/llvm-api-toolchain.json inside receipts.zip"
+  },
+  "suites": {
+    "workspace": {
+      "full_workspace": {
+        "groups": 326,
+        "passed": 2976,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "independent_slice": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0,
+        "names": [
+          "callable_hidden_in_managed_resource_head_is_not_capture_authority",
+          "mixed_ordinary_and_dynamic_branch_origins_are_rejected",
+          "ordinary_branch_union_keeps_each_possible_owner_live",
+          "owned_store_environment_does_not_acquire_external_shared_product_hold",
+          "raw_one_branch_store_injection_cannot_reuse_ordinary_origin_plan",
+          "child_take_and_replacement_wait_for_last_actual_callback_use",
+          "separate_local_environments_preserve_owned_store_and_shared_product_responsibilities",
+          "zero_storage_ordinary_product_capture_does_not_need_store_layout",
+          "two_nonempty_same_type_stores_preserve_payloads_and_cleanup"
+        ]
+      },
+      "log_sha256": "82c0bb4b1d1dc1d8c8ae4779a88f3dbfe6fb00f6cf1c706ee9c5d891de34c981"
+    },
+    "reference": {
+      "full_workspace": {
+        "groups": 326,
+        "passed": 2933,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "independent_slice": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0,
+        "names": [
+          "callable_hidden_in_managed_resource_head_is_not_capture_authority",
+          "mixed_ordinary_and_dynamic_branch_origins_are_rejected",
+          "ordinary_branch_union_keeps_each_possible_owner_live",
+          "owned_store_environment_does_not_acquire_external_shared_product_hold",
+          "raw_one_branch_store_injection_cannot_reuse_ordinary_origin_plan",
+          "separate_local_environments_preserve_owned_store_and_shared_product_responsibilities",
+          "child_take_and_replacement_wait_for_last_actual_callback_use",
+          "zero_storage_ordinary_product_capture_does_not_need_store_layout",
+          "two_nonempty_same_type_stores_preserve_payloads_and_cleanup"
+        ]
+      },
+      "log_sha256": "f5c2236d7c5db39fd8950c0f241938d67d294516d497cb1490dca211a13562d9"
+    }
+  },
+  "author_regression_groups_observed": {
+    "workspace": [
+      {
+        "test_file": "impl225_budget.rs",
+        "groups": 1,
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      {
+        "test_file": "impl225_machine.rs",
+        "groups": 1,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      {
+        "test_file": "impl225_product_store_capture.rs",
+        "groups": 1,
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      {
+        "test_file": "impl226_budget.rs",
+        "groups": 1,
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      {
+        "test_file": "impl226_shared_product_capture.rs",
+        "groups": 1,
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      }
+    ],
+    "reference": [
+      {
+        "test_file": "impl225_budget.rs",
+        "groups": 1,
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      {
+        "test_file": "impl225_machine.rs",
+        "groups": 1,
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      {
+        "test_file": "impl225_product_store_capture.rs",
+        "groups": 1,
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      {
+        "test_file": "impl226_budget.rs",
+        "groups": 1,
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      {
+        "test_file": "impl226_shared_product_capture.rs",
+        "groups": 1,
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      }
+    ]
+  },
+  "feature_boundary": "impl225_machine is API-feature-gated: 1 executed in default, 0 in no-default; the independent nine tests and ten native runs execute in both.",
+  "independent_tests": {
+    "path": "crates/zil-driver/tests/review225226_capture.rs",
+    "blob": "96a696f917dac46010ad3e107163d3f2ce13e261",
+    "source_sha256": "e528cdff294706356d0f739df08c3161d61baa5c042966f625dd1048721836e2",
+    "correction_commit": "beba0e4de1d1a96ba8e5e64f95f82c0b52f724b0",
+    "rust_tests_per_backend": 9,
+    "positive_source_raw_wire_controls_per_backend": 10,
+    "mutated_families_per_backend": 2,
+    "mutated_checks": [
+      "Analyze",
+      "independent raw Verify",
+      "Wire Verify"
+    ],
+    "invalid_inputs_reach_native": false
+  },
+  "native_executions": {
+    "workspace": [
+      {
+        "case": "replace",
+        "optimization": "O0",
+        "backend": "llvm-api",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "AB",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "04ccbf074849f58a54e3bbfbf63c7aa4c83a63ac9f5ddaadc3887064dd203aee",
+        "compile_sha256": "2be867eb918e303c28f50a1f0997ddfa057901ad6e328bd36e2c429ef7ae9808",
+        "native_directory": "review225226-replace-34999-15"
+      },
+      {
+        "case": "replace",
+        "optimization": "O2",
+        "backend": "llvm-api",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "AB",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "04ccbf074849f58a54e3bbfbf63c7aa4c83a63ac9f5ddaadc3887064dd203aee",
+        "compile_sha256": "3ab9df6ef2ee7f60be384f28c2a73f05b5a574ef1768a2d0091ce2a62604a2c1",
+        "native_directory": "review225226-replace-34999-17"
+      },
+      {
+        "case": "separate-owned-and-shared",
+        "optimization": "O0",
+        "backend": "llvm-api",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "AB",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "6c836b8d70e0832d4193e869f96a991e263e9cf82d64bea1494f47ca6f83d9e3",
+        "compile_sha256": "0106e31527feee032a5ff7ded7058f763f9b74c62cc6d3a2c31850710fa06c6a",
+        "native_directory": "review225226-separate-owned-and-shared-34999-13"
+      },
+      {
+        "case": "separate-owned-and-shared",
+        "optimization": "O2",
+        "backend": "llvm-api",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "AB",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "6c836b8d70e0832d4193e869f96a991e263e9cf82d64bea1494f47ca6f83d9e3",
+        "compile_sha256": "fdecf8f0e39325cab180284aa2cb785d4ec427973c7a870df83239de9b2e999a",
+        "native_directory": "review225226-separate-owned-and-shared-34999-16"
+      },
+      {
+        "case": "take",
+        "optimization": "O0",
+        "backend": "llvm-api",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "A",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "f48dbb0ef7ef978b0ae1127384baab43f54fa1130c132dcfef1ffef48d382ff2",
+        "compile_sha256": "72029f19b0a47699c33f7e38963d60a39dc238d733d693f842fbe3d4617676ce",
+        "native_directory": "review225226-take-34999-3"
+      },
+      {
+        "case": "take",
+        "optimization": "O2",
+        "backend": "llvm-api",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "A",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "f48dbb0ef7ef978b0ae1127384baab43f54fa1130c132dcfef1ffef48d382ff2",
+        "compile_sha256": "8b7d072562363565d2d928bf6cbfff0b1f83f4c721e1e09b6654e6f87420435b",
+        "native_directory": "review225226-take-34999-8"
+      },
+      {
+        "case": "two-nonempty",
+        "optimization": "O0",
+        "backend": "llvm-api",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "AB",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "fc2d2cd29ef87069642041fcfcf88278238b5129e6351d11bf4f5551f412d1d5",
+        "compile_sha256": "7b1642d65391ed408638395ffa1db560b97da50dab2be830f5bec495c662a108",
+        "native_directory": "review225226-two-nonempty-34999-21"
+      },
+      {
+        "case": "two-nonempty",
+        "optimization": "O2",
+        "backend": "llvm-api",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "AB",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "fc2d2cd29ef87069642041fcfcf88278238b5129e6351d11bf4f5551f412d1d5",
+        "compile_sha256": "e833a2d52e1b703f9929bb6ec128c50335a185e760d7760432fe1da199959a26",
+        "native_directory": "review225226-two-nonempty-34999-23"
+      },
+      {
+        "case": "zero-storage-shared",
+        "optimization": "O0",
+        "backend": "llvm-api",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "60f6f3b8bcfc013858c9d00632cf1d145d01e319efdd1d7c2e61997d7f7b6563",
+        "compile_sha256": "0cadaede394c5f862a240033f11abc94c7f6b1893a507158505640cd6900fd20",
+        "native_directory": "review225226-zero-storage-shared-34999-20"
+      },
+      {
+        "case": "zero-storage-shared",
+        "optimization": "O2",
+        "backend": "llvm-api",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "60f6f3b8bcfc013858c9d00632cf1d145d01e319efdd1d7c2e61997d7f7b6563",
+        "compile_sha256": "6051419bfca0f30070b3df1e976983cebee52eaa63b8cfec2269106e541bf850",
+        "native_directory": "review225226-zero-storage-shared-34999-22"
+      }
+    ],
+    "reference": [
+      {
+        "case": "replace",
+        "optimization": "O0",
+        "backend": "clang",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "AB",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "04ccbf074849f58a54e3bbfbf63c7aa4c83a63ac9f5ddaadc3887064dd203aee",
+        "compile_sha256": "9561467c9b0c40af6717c247ef2890bb62facde5ae2c6752441da6e520537312",
+        "native_directory": "review225226-replace-66967-15"
+      },
+      {
+        "case": "replace",
+        "optimization": "O2",
+        "backend": "clang",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "AB",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "04ccbf074849f58a54e3bbfbf63c7aa4c83a63ac9f5ddaadc3887064dd203aee",
+        "compile_sha256": "a97e4efb1844f496411fb22c869d81a9ec9a632e22a7e1609144dad8d8ec887e",
+        "native_directory": "review225226-replace-66967-17"
+      },
+      {
+        "case": "separate-owned-and-shared",
+        "optimization": "O0",
+        "backend": "clang",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "AB",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "6c836b8d70e0832d4193e869f96a991e263e9cf82d64bea1494f47ca6f83d9e3",
+        "compile_sha256": "02a97a8948a4544983fb7c22946f56396dd5f825be02f6c540a8bbfe62d9c05a",
+        "native_directory": "review225226-separate-owned-and-shared-66967-13"
+      },
+      {
+        "case": "separate-owned-and-shared",
+        "optimization": "O2",
+        "backend": "clang",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "AB",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "6c836b8d70e0832d4193e869f96a991e263e9cf82d64bea1494f47ca6f83d9e3",
+        "compile_sha256": "d71170973461ab20710a4079ad9ad8ffe121b158d8dbf109630bbbb35c8a7cd7",
+        "native_directory": "review225226-separate-owned-and-shared-66967-16"
+      },
+      {
+        "case": "take",
+        "optimization": "O0",
+        "backend": "clang",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "A",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "f48dbb0ef7ef978b0ae1127384baab43f54fa1130c132dcfef1ffef48d382ff2",
+        "compile_sha256": "59e75f2514c82768d553de5729385263275e3995216ae3f9605d4833c03a1ba6",
+        "native_directory": "review225226-take-66967-3"
+      },
+      {
+        "case": "take",
+        "optimization": "O2",
+        "backend": "clang",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "A",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "f48dbb0ef7ef978b0ae1127384baab43f54fa1130c132dcfef1ffef48d382ff2",
+        "compile_sha256": "7a654a9495603cfcf9100d0691049d491e050595e5877138a84412b7f4d1ea62",
+        "native_directory": "review225226-take-66967-9"
+      },
+      {
+        "case": "two-nonempty",
+        "optimization": "O0",
+        "backend": "clang",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "AB",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "fc2d2cd29ef87069642041fcfcf88278238b5129e6351d11bf4f5551f412d1d5",
+        "compile_sha256": "8771390b57d1c0e327e55080fbbdc01de82aea45340b0adaded49b2970286010",
+        "native_directory": "review225226-two-nonempty-66967-20"
+      },
+      {
+        "case": "two-nonempty",
+        "optimization": "O2",
+        "backend": "clang",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "AB",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "fc2d2cd29ef87069642041fcfcf88278238b5129e6351d11bf4f5551f412d1d5",
+        "compile_sha256": "df631b6f8cb38d76349a6f7cfeae73e4cbc04a52c45ab2d670008cbef5c57e0b",
+        "native_directory": "review225226-two-nonempty-66967-23"
+      },
+      {
+        "case": "zero-storage-shared",
+        "optimization": "O0",
+        "backend": "clang",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "60f6f3b8bcfc013858c9d00632cf1d145d01e319efdd1d7c2e61997d7f7b6563",
+        "compile_sha256": "d3f7fab8c7c4b71a732b0f586dbea3ac19bf09e25337d748825d1d51127eda63",
+        "native_directory": "review225226-zero-storage-shared-66967-21"
+      },
+      {
+        "case": "zero-storage-shared",
+        "optimization": "O2",
+        "backend": "clang",
+        "llvm_toolchain": "23.1.4",
+        "fallback": null,
+        "stdout": "",
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "exit_evidence": "Actual subprocess exit assertion in exact test blob plus this test pass in the full log; no standalone exit receipt was emitted.",
+        "source_sha256": "60f6f3b8bcfc013858c9d00632cf1d145d01e319efdd1d7c2e61997d7f7b6563",
+        "compile_sha256": "c8a921fd0db6980c447025160628810159cad5e4b38e6217faa2eed1090a2325",
+        "native_directory": "review225226-zero-storage-shared-66967-22"
+      }
+    ]
+  },
+  "native_total": 20,
+  "native_api": 10,
+  "native_clang_reference": 10,
+  "paired_controls": [
+    {
+      "case": "replace",
+      "optimization": "O0",
+      "same_source_llvm_text_stdout_stderr": true
+    },
+    {
+      "case": "replace",
+      "optimization": "O2",
+      "same_source_llvm_text_stdout_stderr": true
+    },
+    {
+      "case": "separate-owned-and-shared",
+      "optimization": "O0",
+      "same_source_llvm_text_stdout_stderr": true
+    },
+    {
+      "case": "separate-owned-and-shared",
+      "optimization": "O2",
+      "same_source_llvm_text_stdout_stderr": true
+    },
+    {
+      "case": "take",
+      "optimization": "O0",
+      "same_source_llvm_text_stdout_stderr": true
+    },
+    {
+      "case": "take",
+      "optimization": "O2",
+      "same_source_llvm_text_stdout_stderr": true
+    },
+    {
+      "case": "two-nonempty",
+      "optimization": "O0",
+      "same_source_llvm_text_stdout_stderr": true
+    },
+    {
+      "case": "two-nonempty",
+      "optimization": "O2",
+      "same_source_llvm_text_stdout_stderr": true
+    },
+    {
+      "case": "zero-storage-shared",
+      "optimization": "O0",
+      "same_source_llvm_text_stdout_stderr": true
+    },
+    {
+      "case": "zero-storage-shared",
+      "optimization": "O2",
+      "same_source_llvm_text_stdout_stderr": true
+    }
+  ],
+  "manifest_proofs": {
+    "workspace": {
+      "all_artifact_files": 65796,
+      "independently_hashed_slice_files": 178,
+      "all_bytes_and_sha256_match": true,
+      "source_manifest_sha256": "b609fe51936811f31f6832461754cdd7bca0f8a014ff6a0943917192727693c7"
+    },
+    "reference": {
+      "all_artifact_files": 63318,
+      "independently_hashed_slice_files": 178,
+      "all_bytes_and_sha256_match": true,
+      "source_manifest_sha256": "c8e0117b1687e0fa630b883ba3578de32501029a234064ef677df3ba2f13e418"
+    }
+  },
+  "rejection_proofs": {
+    "workspace": {
+      "mixed_original_bytes": 631,
+      "mixed_original_sha256": "32c69b4e3b42efb0b12d3116b36b8916b5b8fe5e787d664f6f4e7b88fef007f0",
+      "mixed_category": "Unsupported",
+      "mixed_phase": "analyze",
+      "no_native_for_mixed_negative": true,
+      "raw_selected_producer": "owner=LocalId(8); block=1; instruction=0; result=ValueId(49); window=ValueId(47)",
+      "raw_diff_hunks": 1,
+      "control_wire_sha256": "41f8d62ab185b635af7a40a4300f0f2c953fab2bae832721a18e6d4cf5711a1d",
+      "attack_wire_sha256": "26f19f21d85efc0f23c38126510bb7263b94feeb1f747333ed7a58ecabb1bbd1",
+      "rejection_evidence": "Exact test blob attack helper, both attack test passes, actual changed TypedIR and Wire snapshots; helper requires Analyze + independent raw Verify + Wire Verify Unsupported and rejects E-VERIFY-PLAN* explanations."
+    },
+    "reference": {
+      "mixed_original_bytes": 631,
+      "mixed_original_sha256": "32c69b4e3b42efb0b12d3116b36b8916b5b8fe5e787d664f6f4e7b88fef007f0",
+      "mixed_category": "Unsupported",
+      "mixed_phase": "analyze",
+      "no_native_for_mixed_negative": true,
+      "raw_selected_producer": "owner=LocalId(8); block=1; instruction=0; result=ValueId(49); window=ValueId(47)",
+      "raw_diff_hunks": 1,
+      "control_wire_sha256": "41f8d62ab185b635af7a40a4300f0f2c953fab2bae832721a18e6d4cf5711a1d",
+      "attack_wire_sha256": "26f19f21d85efc0f23c38126510bb7263b94feeb1f747333ed7a58ecabb1bbd1",
+      "rejection_evidence": "Exact test blob attack helper, both attack test passes, actual changed TypedIR and Wire snapshots; helper requires Analyze + independent raw Verify + Wire Verify Unsupported and rejects E-VERIFY-PLAN* explanations."
+    }
+  },
+  "remaining_final_gates": {
+    "formatting": "Pass: empty output and successful exact workflow step",
+    "clippy": "Pass: finished, no warning/error, exact -D warnings workflow step",
+    "llvm_text_reference": {
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "migration_runner": {
+      "passed": 9,
+      "failed": 0
+    },
+    "consumer209": {
+      "status": "Pass",
+      "source_commit": "045dc75cec6eaa4de52951e075c52fd809fb6b3c",
+      "native_executions": 128,
+      "ordinary": 40,
+      "probe": 88,
+      "injected_allocation_failures": 56,
+      "all_probe_live_zero": true,
+      "allocated_and_freed": [
+        80,
+        80
+      ],
+      "all_128_exact_oracle_results_match": true,
+      "builds": 16,
+      "api_objects": 40,
+      "llvm_version": "23.1.4",
+      "fallback": null,
+      "json_sha256": "160b2917e9f8e38b527ea634f1ad5def31ced840929f839edde684b33ac148ce"
+    }
+  },
+  "coverage_counting": "The nine slice tests are included in each full workspace count. Native and consumer observations are separate evidence dimensions, not additional language coverage or product gates.",
+  "first_failure_preserved": {
+    "run_id": 41182685056,
+    "status": "Fail",
+    "actual_checkout_commit": "015cb5d4e6c7794de616e0a933520cd3dfa886f7",
+    "original_test_blob": "9479b3e5a914b4ce75b2b84ac05447d08896696b",
+    "slice_original_result": {
+      "passed": 6,
+      "failed": 2
+    },
+    "evidence": "evidence/reviews/225/construction10/ci41182685056/FAILURE.json",
+    "failure_json_sha256": "387d77ae8995da3054bb1996303d5bcf1c48137fa989d945ca0a814a2e0bc138",
+    "correction": "evidence/reviews/225/construction10/CORRECTION.json",
+    "production_not_changed_for_fixture_correction": true,
+    "original_single_environment_input_retained_as_explicit_unsupported": true,
+    "raw_locator_fixed_without_weakening_rejection": true
+  },
+  "archive": {
+    "path": "evidence/reviews/225/construction10/ci41184530698/receipts.zip",
+    "bytes": 357228,
+    "sha256": "7479bd2c51155b8b471bfcb6b9937bed4fee9f619f5070073db3d5844b389b98",
+    "members": 174,
+    "selection": "Original jobs, exact test source, complete full-suite logs and final gates; this slice source/compile/stdout/stderr/LLVM text/Wire/mutated/selection snapshots and filtered manifests. Large phase dumps and program binaries remain in the full CI artifacts; all 178 files per backend were independently hashed before selection."
+  },
+  "rust_four_goals_and_breakthrough": [
+    {
+      "goal": "Rust-like safety",
+      "evidence": "Finite complete-Product Store ownership and explicit local shared-Product capture have independent source/raw/Wire rejection, actual owner liveness and cleanup evidence.",
+      "limit": "General escape, async/concurrency and complete-language safety remain unfinished."
+    },
+    {
+      "goal": "Runtime and memory parity",
+      "evidence": "Actual O0/O2 native cleanup agrees across API and Clang; the separate consumer has 56 real allocation failures and live0.",
+      "limit": "No matched Rust timing, peak RSS or tail-latency result was measured here."
+    },
+    {
+      "goal": "Expression and maintenance",
+      "evidence": "Two same-type owned Stores and a separate local shared environment compose with ordinary Product syntax.",
+      "limit": "Single owning-Store environment with an external shared Hold remains Unsupported; full framework maintenance comparison is unmeasured."
+    },
+    {
+      "goal": "Lower compilation cost",
+      "evidence": "Legacy and new exact budget boundary groups execute in both backends; source budgets and product gates remain unchanged.",
+      "limit": "Budget correctness is not a compile-speed comparison; no Rust performance claim is made."
+    },
+    {
+      "goal": "Repeatable net breakthrough",
+      "evidence": "The finite language composition increment is executable and independently reproduced.",
+      "limit": "The product-level four-goal conjunction and a product-level net breakthrough are not established."
+    }
+  ],
+  "boundaries": {
+    "full_language_1_4": "NotSatisfied",
+    "B0": "Doing",
+    "Rust_product_gates": "NotRun",
+    "native_Windows": "NotRun",
+    "main_ci_replay": "Pending integration owner",
+    "default_plain_Product_readonly_capture": "Unfinished",
+    "parameter_and_outer_capture_origins": "Unsupported in delivered subset",
+    "mixed_owning_Store_and_external_shared_Hold_in_one_environment": "Unsupported by existing self-contained boundary"
+  }
+}
