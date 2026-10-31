@@ -24,7 +24,7 @@ ac4与888的release CLI逐字相同，SHA256均为`0d0e05f4b3ba14c298fef7907c8a6
 | 事件支持因子化 | 从真实TypedIR转移直接求解，保留完整sum-of-products联合关系 | 能保留128个独立bool的入口乘积；完整资源查询最坏回退6.540倍。容量扩展成立，通用速度优势不成立 |
 | zit适配与生产反向DB | 修复精确环检测、拓扑秩、失败恢复；生产接入反向边和相等屏障后做隔离消融 | JS适配开销明显增加；生产DB六区组未证明净收益，默认DB已完整恢复3d6原实现 |
 | 真正减少前端工作 | 保留初始化纯投影；新增可信本地原始TypedProgram缓存；ffe4保留项目原始Parse Arc | 前两者分别是有限子分析复用和整项目精确候选复用；ffe4实际复用未改模块的parser结果。均不等于函数级Types增量 |
-| 显式O2分区/正文导入 | 固定owner块、唯一canonical定义、受限优化副本及真实对象键 | 旧EE两区组中有明显编辑收益，也有内存与暖请求不利点；运行质量与最终Rust矩阵仍须确认 |
+| 显式O2分区/正文导入 | 固定owner块、唯一canonical定义、受限优化副本及真实对象键；已完成六族运行质量核验 | 原策略运行性能GM退化5.393/9.582倍，8192算术约326倍；已NoGo，不按同等级O2质量晋升。新修复单独测量 |
 | 标量局部提升 | 在有限白名单和两层可证明条件下消除不可观察栈往返 | ca79两区组有局部改善；默认19/40、closed17/40时间单元不利。没有消除主要LLVM热点 |
 | ThinLocal | 真正CGU、pre-link bitcode、真实lld后键、缓存损坏恢复和section GC | 完整服务时间几何比约1.115/1.104，默认与closed总体回退；不晋升默认 |
 | MergeFunctions | 显式off/after/before-and-after，地址/导出控制 | late有局部收益；early+closed在8192函数出现约100秒对约2秒的灾难性退化，停止并淘汰该组合 |
@@ -197,7 +197,7 @@ ca79另一次冻结profile共549样本，157包含JT，152包含共同重算链�
 
 ## 继续拆解LLVM热点：LVI、CFG和SSA v1–v4
 
-这些候选已经实际实现为隔离LLVM库，并分别完成限定独审。它们对应不同浪费，不能把各功能窗的阶段CPU比相乘成累计提速；组合独审和最终矩阵仍另行进行。下表全部是原先功能/诊断窗口，不是排他正式性能结论。
+这些候选已经实际实现为隔离LLVM库，并分别完成限定独审。它们对应不同浪费，不能把各功能窗的阶段CPU比相乘成累计提速；后续组合独审另列，最终编译矩阵仍单独验证。下表全部是原先功能/诊断窗口，不是排他正式性能结论。
 
 | 候选 | 实际改变与观测 | 负面与解释边界 |
 |---|---|---|
@@ -212,6 +212,54 @@ LVI独审执行48000次随机缓存变更/不变量检查、52个边界检查点
 CFG独审保留17个成功ZIL构建、2个当前类型拒绝、68次native及6个pipeline请求：O0/O3序列相同，O2只多目标pass。原profile因缺clang报E-LINK-IO，后面的v2才是有效重试，不能丢掉失败。原113798082字节stage stderr完整归档；380782521字节重复派生pass-tables.json只保存精确SHA，解析工具和原stderr可恢复。
 
 SSA v4以相同flags重编译JumpThreading与SSAUpdaterBulk两单元，保持公共header/class/layout及原值重写、通知和PHI清理规则。独立v4审计为82个C API请求、134次native、39个helper及2个直接utility函数/34变量；v2的74个API/126次native属于其独立旧审计，不能相加冒充v4覆盖。v4另建计数库记录505个batch、18781变量、18276命中/505 miss、511838次live-in访问、37562 PHI，解释实际减少的结构工作；计数库时间不充当性能臂。初始helper链接、debug/lifetime夹具、错误CLI及v2/v3失败/无收益均保留。当前输入、完整32位oracle、clean-source重建和原ca79 perf也都可追溯。最终组合尚未借这些限定Pass获得正式速度或运行质量验收。
+
+## 四单元组合的身份与正确性边界
+
+74431冻结工具将入口保留JumpThreading、SSA v4、LVI索引和CFG位置改动合为四个LLVM翻译单元，原版与候选用相同flags构建；两侧真实ZIL API编译器均来自888源码，只改变四处私有pipeline/cache身份字符串。独审核对每侧661份构建输入与实际DSO加载；原版库SHA为`7046ae90…`，候选为`7b5c5ef8…`。它保留既有class/header/layout，没有以opt包装器替代真实LLVM API路径。
+
+这次组合独审的范围是50个独立C API请求、31次成功ZIL构建、3次当前类型拒绝、186次原生调用和138752个生成的完整u32值；没有正式benchmark。作者另保留五个实际API profile和一次从源码重新构造库的控制，它们均是诊断/功能证据，不能作为正式编译比。原同源pair构建、原始IR/C控制和oracle、完整生成器、vendored C++、许可证、SDK安装/链接收据及原producer字节均进入`llvm-combined`包。fresh rebuild收据中的b733是被构建ZIL源码revision，不是组合生成器commit。
+
+6ed研究workflow和manifest工具另有作者/独审协议控制。独审12种身份案例使用明确的非ELF假库/假archive，确认错误库、loader环境、失败命令、缺收据和错误SDK等被拒绝；这些假fixture原字节全部保存。它验证工作流与身份合同，不表示已实际加载LLVM或通过远端完整CI。原始工具审查、初始计时器失败和最终df04修复也独立归档；a638是较早Git revision，其bench文件SHA仍为c682，不能写成两个文件版本。
+
+## 六族正式运行质量：原增量分区策略NoGo
+
+冻结组合使用74431工具构造四单元LLVM库，实际API编译器共同源码为888；正式native窗口仍使用prepared中原runtime/merge-runtime/stage6_bench脚本，其中bench SHA为`c682809…`。后来的a638引用缓存审查和df04计时器修复不改写这个窗口身份。54次带loader审计的构建只是每artifact一次诊断准备；另有270次非计时原生正确性控制，之后排他执行1620次正式native（6族×9臂×5固定seed×6区组）。二者不能冒充正式编译速度或峰值内存对照。
+
+非作者复核全部1620请求/54产物/48条真实ZIL loader记录、完整四字节stdout/空stderr、进程顺序与租约、原输入/工具/ELF/DSO身份；未额外重跑native。独立实现计算出270个arm中位数、300个重叠比较格及全部123个不利格，并匹配固定2000次按正反顺序分层的配对bootstrap。区间只反映这一个固定六区组窗口：五个seed不当独立区组，六个固定族也不当总体随机抽样，十组比较相互重叠且未作多重校正。
+
+| native时间比较 | 六族GM比 | 探索性95%区间 | 不利比较格 |
+|---|---:|---|---:|
+| 默认candidate / 同源original | 0.480722 | [0.473208,0.489855] | 11/30 |
+| closed candidate / 同源original closed | 0.485798 | [0.479883,0.495806] | 13/30 |
+| 默认candidate / Rust | 0.699888 | [0.681539,0.715938] | 6/30 |
+| closed candidate / Rust | 0.395792 | [0.384804,0.407182] | 1/30 |
+| 原incremental / 默认candidate | 5.393289 | [5.305863,5.472825] | 22/30 |
+| 原incremental closed / candidate closed | 9.581893 | [9.292923,9.711111] | 26/30 |
+
+GM不能掩盖分布缺口。默认candidate的512-body仍比Rust慢28.786338倍，closed为0.942748；显式closed合同不能抵消默认合同的差距。原incremental在2048-branch相对默认candidate为26.792059倍，8192-arithmetic为326.301440倍；closed的8192-arithmetic仍为320.536744倍。即使全部输出一致，原分区/受限正文导入仍未满足同等级O2运行质量，已经判`NoGoForEqualQualityPromotion`。
+
+因此这个不变策略原计划的23族增量编译1380请求及六opaque族增量编译360请求均在启动前标记NotRun，共1740；不把它们写作失败执行或完成样本，不以较快的编译换取未披露运行退化。后续质量修复使用新身份与新证据，不能覆盖本次NoGo。原分析的`cells.csv`、`all-adverse-cells.csv`、`summary.json`、独立`recomputed.json`和NoGo ledger都完整保留；小样本fresh native进程时间含启动/I/O/清理，不代表所有程序的稳态吞吐。
+
+## 新组合默认合同的23族完整CLI窗口
+
+这个窗口明确使用888共同源码的四单元候选LLVM、O2、after-MergeFunctions与可信原始语义候选缓存，关闭source-cache和incremental-o2；计时工具冻结在df04。Rust使用overflow checks、panic abort、8 CGU，并保留每个序列的增量缓存。六配对区组共1380请求，1320有效；`body-64x16`和`types-64x16`的60次ZIL预算拒绝原样保留，接受性未提高，只有21族/105单元有速度比。全部有效请求都有原生输出观察，630次成功ZIL均有当前独立Verify。
+
+下表是完整CLI经过时间的ZIL/Rust几何比，越小越快；区间来自固定2000次正反顺序分层配对bootstrap，只描述该固定窗口。CLI启动、身份/缓存、前端、Verify、后端和链接都在计时内，源生成与原生程序运行在外。未改/restore是跨进程命中；不是函数级Types增量。
+
+| 请求 | 21有效族GM | 探索性95%区间 | 较慢单元 | wait4峰值RSS比 |
+|---|---:|---|---:|---:|
+| cold | 1.062502 | [1.045326,1.082673] | 14/21 | 1.325173 |
+| unchanged | 0.986217 | [0.964597,1.015480] | 11/21 | 0.960584 |
+| early_edit | 1.520148 | [1.487865,1.555052] | 17/21 | 1.299844 |
+| late_edit | 1.396218 | [1.363347,1.424426] | 15/21 | 1.281317 |
+| restore | 0.728182 | [0.713961,0.745489] | 6/21 | 0.770216 |
+| 全部有效单元 | 1.101225 | [1.088708,1.115823] | 63/105 | 1.103046 |
+
+这些数据支持“有效固定语料上的完整O2请求已接近Rust总体量级”，仍不支持全面追平。大单模块8192函数cold为2997.8/2274.1ms，unchanged为639.1/413.6ms；前/后编辑仍为2.319/2.435倍，cold峰值RSS为1.602倍。body-16x16前编辑为2.514倍。restore的收益不能掩盖编辑与大模块差距，两个预算拒绝族也不能从总体适用范围中消失。closed和opaque窗口另行验证，不把不同窗口比值相乘或用单族区间作总体显著性声明。
+
+复核按冻结runner再生编辑内容并与原SHA侧车核对，原root仅保留最终restore源码；再生内容不冒充每个历史请求的原始快照。runner没有记录逐请求ELF SHA；归档记录最终现存产物身份，不能追认历史ELF重哈希。DSO绑定来自pair原加载探针、编译器/launcher/library身份与对象报告，也不是逐请求LD_DEBUG审计。峰值RSS来自wait4，不与Session当前VmRSS或全系统同时峰值混比。
+
+分析v1因SourceFileLoader在测量结束后生成一个pyc；该副作用按字节和时间保留。v2改为不写bytecode的加载，统计表、源清单和编译器审计与v1一致，原v1/pyc/raw未改。随后为下个窗口释放空间，先完整归档并核验，再只删除138个Rust增量缓存根的5172文件、4593946026逻辑字节；源码、program、对象、语义缓存和9160个非缓存文件保持一致。首次删除22项后因自身hardlink的ctime变化安全中止，修订后对剩余文件重新全SHA再完成；失败与修复均保留。这些清理不是性能样本，也未保存本来不存在的逐请求中间缓存状态。
 
 ## 原始表与失败记录索引
 
@@ -242,6 +290,14 @@ SSA v4以相同flags重编译JumpThreading与SSAUpdaterBulk两单元，保持公
 | [llvm-ssa](../../../evidence/research/incremental-compilation/stage6/llvm-ssa) | 完整`ssa-update` v1–v4源/失败/计数/有效重试/clean重建；独审v2/v4、14份原input/oracle及原ca79 perf |
 | [screen-cache-cleanup](../../../evidence/research/incremental-compilation/stage6/screen-cache-cleanup) | 36个旧screen Rust缓存的计划、1112文件完整SHA匹配/删除audit；初次schema读取失败在删除前退出，正确重试回收1152760644字节 |
 | [ci-main-412093](../../../evidence/research/incremental-compilation/stage6/ci-main-412093) | 精确2e8 HEAD的官方成功CI，原run/jobs/artifact-list和503718字节完整日志ZIP；不接受后来的组合或当前HEAD |
+| [llvm-combined](../../../evidence/research/incremental-compilation/stage6/llvm-combined) | `research/stage6/combined-v1-*`源/同源pair/构建/控制/五profile，fresh rebuild与旧producer；`stage6-combined-review`全部独审；744完整工具/C++/许可证、SDK收据及借用原始控制输入 |
+| [research-ci-tools](../../../evidence/research/incremental-compilation/stage6/research-ci-tools) | 6ed workflow/manifest/提案精确字节，`research-llvm-ci`作者与`research-llvm-ci-independent-v1`12案例；假库与负例原字节，不是远端CI通过 |
+| [benchmark-tools](../../../evidence/research/incremental-compilation/stage6/benchmark-tools) | confirmation/timer/opaque/runtime工具作者及独审所有初始失败和修复；旧c17、7830、a638与df04源及其import依赖；首次未冻capture缺helper的纠正收据 |
+| [runtime-final-v1](../../../evidence/research/incremental-compilation/stage6/runtime-final-v1) | `combined-runtime-prepared-v1`全部54产物身份与1620逐请求原输出；270额外oracle、旧/新producer控制、lease、分析全表与2f8独立复算；原incremental1740NotRun ledger |
+| [confirmation-default](../../../evidence/research/incremental-compilation/stage6/confirmation-default) | 默认23族1380请求的完整rows/源身份/原runner/命令/lease及分析v1；1320有效+60预算拒绝，全部115单元状态及105有效比值；所有最终Rust缓存逐文件SHA |
+| [confirmation-default-cache-cleanup](../../../evidence/research/incremental-compilation/stage6/confirmation-default-cache-cleanup) | v2无bytecode分析与副作用纠正；138缓存根5172文件的SHA核对/删除audit，初次22项中断、hardlink诊断、重验5150项与完成收据 |
+
+
 
 
 ## 待完成的确认，不预填结果
@@ -249,9 +305,9 @@ SSA v4以相同flags重编译JumpThreading与SSAUpdaterBulk两单元，保持公
 | 新窗口/工作 | 本稿状态 | 完成后必须回答的问题 |
 |---|---|---|
 | 最终整合身份的Session | ffe4两窗已完成；不得自动改标为新身份 | 新main/LLVM变动是否影响既有编辑收益、常驻内存及错误/取消/预算控制 |
-| 合入f257后的生产CLI与Rust同工作负载矩阵 | ac4/888限定源码与CLI已冻结；最终候选和实际LLVM工具链须独立绑定，矩阵待测 | 默认与closed、冷/暖/前后编辑/恢复，全部形状和失败；同等级优化下是否缩小O2差距 |
-| opaque与真实项目运行质量矩阵 | 待正式结果 | 正确输出之外的吞吐、代码尺寸和资源行为；导入上限/SLP/Merge等策略是否损失运行性能 |
-| 入口保留JumpThreading库候选 | v1真实API库路径及限定独审已完成；最终组合正式矩阵待测 | 原版clone/内建等价、class/layout及实际加载库身份、LLVM验证、入口/循环/资源控制，以及完整请求和运行质量能否复现收益 |
+| 合入f257后的生产CLI与Rust同工作负载矩阵 | ac4/888限定源码与CLI已冻结；默认23族六区组已完成并独立审核；closed/opaque/同源隔离仍待冻结结论 | 默认与closed、冷/暖/前后编辑/恢复，全部形状和失败；同等级优化下是否缩小O2差距 |
+| 运行质量后续确认 | 六族旧组合已正式完成，原incremental质量NoGo；真实项目及新修复仍待测 | 保留默认body差距和全部不利格；新策略必须用独立身份证明运行质量，不能借旧GM晋升 |
+| 入口保留JumpThreading库候选 | 真实API四单元组合独审及六族runtime已完成；最终编译矩阵待发布 | 原版clone/内建等价、class/layout及实际加载库身份、LLVM验证、入口/循环/资源控制，以及完整请求和运行质量能否复现收益 |
 | 稳定语义owner与更细Types/CT/函数依赖 | 尚未完成 | 真正减少实际语义工作，并保留当前源码、ID、查找、规则和预算有效性，而非只改缓存计数 |
 
 四目标仍分别判断：已完成的安全证据是限定源码/错误/恢复和独立Verify控制，不是整语言最终安全验收；运行性能仍需上述质量矩阵；本轮没有以语法便利替代性能证明；编译方面已取得若干分布上的实际改善、容量扩展和具体热点定位，也完整保留了回退与撤回。最终突破结论必须落到新身份、完整用户请求及可接受运行质量上。
