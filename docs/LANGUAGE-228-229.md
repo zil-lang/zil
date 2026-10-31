@@ -134,3 +134,7 @@ fn duplicate<T>(value: T) -> (T, T) where T: Copy {
 ## 下一轮优先候选
 
 可并行推进有限非泛型enum生成（只含已有Unit/Tuple变体）与已有名义trait bound的where正规化。前者主要占用ct_selection；后者需要generic_where及modules中真实where路径的模块身份解析。它们目前只是只读梳理后的候选，没有新派编号、没有修改规范，也未计入已实现能力；225–227仍由其施工线维护。
+
+## 本轮实际交接记录检查
+
+在已提交元数据候选 `3a1aca37a53c310da961c0a54d9c59f7aa35f50b` 的main工作树实际运行 `node tools/handoff.mjs`，全局 **Fail / 1379项记录完整性错误 / 0 warnings**，退出码1。228、229均为已合入且各零错误。相对本轮6ba起点真实基线1372项，错误多重集新增7、减少0；新增记录涉及225、226、227，未改写其他施工工单来抹平错误。这些是工单/证据记录完整性问题，与编译器CI失败不同。原始输出及逐项差分见[handoff-final-D2/RESULT.json](../evidence/integration/228-229/closeout/handoff-final-D2/RESULT.json)。`data/handoff.json`保存上述D提交的实际快照，不冒称包含快照自身的后续提交已重新执行检查。首次元数据D检查有1381项，其中本轮两项是消费者收据status字段混入范围说明；原始D输出保留为Fail。原消费者复核者在新CONSUMER-ACCEPTANCE.json中分离严格状态与有限范围，绑定原始报告摘要和原执行身份，未改原报告、检查器或任何测试结果；本次相对该D新增0、减少2项。
