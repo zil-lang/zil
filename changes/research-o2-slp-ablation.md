@@ -1,0 +1,9 @@
+# O2 SLP 单因素消融
+
+精确基线43037eb7b108ba864144979204b5c6d18636dac3，树55968984013f78fcc3d1af8f79f6741c44af8e17。Rust 1.99.1精确revision的SSA/back/write.rs L230–236在O2启用loop vectorization、仅O3启用SLP；目前ZIL API在所有O2启用SLP。该事实不证明SLP导致当前编译热点，也不证明关闭后运行质量无损，需要相同源码与相同其他策略的消融。
+
+本候选仅存在于隔离源码快照，不修改当前生产树、不增加产品CLI开关。唯一机器优化行为改动为将LLVMPassBuilderOptionsSetSLPVectorization的value改成0。额外修改仅为三个O2 pipeline_identity收据字符串附加slp-vectorization=false；同一个身份函数也被真实对象cache namespace使用，策略身份因此完整。O0已为false，不改变其行为或身份。loop vectorization/interleaving、MergeFunctions三策略、CGU/导入、目标/ABI、Verify/preflight与失败发布逻辑全部使用43037原实现。
+
+tools/research/incremental-compilation/slp_ablation/prepare.py默认只产生两文件原/后源码、精确diff、commit/tree/blob/SHA身份清单，不编译或物化完整源码。功能窗口可用--materialize将同一Git对象树必要构建输入解包到私有source目录，应用相同两文件修改，并使用独立CARGO_TARGET_DIR构建。不得复用或覆盖43037参考二进制；对象缓存也分别建目录。
+
+后续控制需覆盖三个MergeFunctions策略的API/text-reference地址/导出、资源/闭包/FFI与当前验证；尤其相同opaque-input的大branch/arithmetic及checked-add正文，保留编译时间与运行输出/吞吐，不能只观察编译器变快而忽略生成代码。参考臂与SLPoff臂使用相同源码、merge/CGU/closed参数、CPU和输入。正式计时需要完整端到端成本；没有取得净收益前不改变默认O2策略。
