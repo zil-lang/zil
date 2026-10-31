@@ -20,3 +20,7 @@
 先运行 `node tools/handoff.mjs --check`，从实时authority定位main，再读 `_zil_goal.md` 与派定工单。一单一worktree和target；正式全量由集成者管理。新的独立沙盒不依赖旧对象目录或编译缓存。当前历史handoff完整性Fail与本轮源验收分别留证，不能把缺记录当作测试通过或失败。
 
 施工心跳只更新zil-log的“zil施工10”专属行，采用北京时间。只记录真实活动，收尾后不承诺后台继续。分支只在fresh-main祖先与精确tip/成功main CI守卫后清理；实际结果回写construction-progress及清理收据。
+
+## 实际交接记录检查
+
+在元数据提交 `115f4f81e58b6262e3f80234953310158f8b0785` 上，`check-plan --self-test` 实际通过（14任务、7项负向自检）；`handoff` 仍为 Fail / 1145 errors / 0 warnings，与完整工作树旧基线的错误多重集合逐条相同，新增0、消除0。本轮225/226/230/231各0记录错误。该历史记录完整性缺口保留，不等同编译器CI失败；实际原输出和差分见[收口收据](../evidence/integration/construction10/closeout/RESULT.json)。快照记录这个已检查提交，后续收据提交不冒充另一次执行。
