@@ -90,3 +90,7 @@
 第六阶段初筛后追加：与实际Rust1.99.1源码/工作产品比对确认ThinLocal和持久语义查询是具体差距，继续制作实际CGU ThinLTO隔离对照及显式可信语义候选缓存。ThinLTO独立工具写集tools/research/incremental-compilation/thin_local/**及提案，当前EE生产不改；semantic_incremental继续持有driver/project、lib、artifacts、新semantic_cache及相应测试/session协调接入，root负责CLI。新增trusted缓存为显式选项，既有source缓存不改，完整源/规则/limits/target/compiler身份绑定，每次当前Verify保持；不以内容hash证明不可信来源。先控制/独审，最终另固定实现与性能身份；EE初筛仍只测保留的EE二进制。
 
 Rust精确源码又确认O2默认MergeFunctions与当前LLVM默认管线的具体差异。追加backend/API MergeFunctions可选择候选（off/after/before-and-after），由backend作者持有pass/缓存key与控制，root接driver/CLI；先保持默认off，函数地址/导出/FFI/资源语义不改，Clang无法支持的early模式显式Unsupported。不得把原ThinLTO初筛或原529语义缓存性能重绑到新生产；新release与消融另冻结。
+
+精确Rust比对再确认O2与O3的SLP开关不同。按changes/research-o2-slp-ablation.md在隔离43037快照仅关闭SLP并更新真实pipeline/cache身份，追加tools/research/incremental-compilation/slp_ablation/**写集。当前生产保持原行为；独立构建/控制和同负载编译及运行质量消融后再决定，不将Merge窗口收益归给此候选。
+
+真实机器IR审计发现只读参数和单源块标量仍产生大量不可观察的栈往返。按changes/research-scalar-local-promotion.md追加emit.rs、emit/scalar_locals.rs及driver scalar_local_promotion控制写集，由llvm_shape_audit转为该候选作者；保留独立review_incremental_slice1审核分离。仅允许白名单、无地址暴露且当前定义可证明的标量；不重排调用/trap、不引入跨源块Phi或更改预算/Verify。先作为待审候选实现，最终必须同Merge/SLP设置消融后决定保留，不以静态IR计数宣称收益。
