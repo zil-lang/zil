@@ -147,8 +147,8 @@ fn independent_grouped_bounds_and_cross_subject_clause_order() {
 }
 
 const ROOT: &str = "import rules;import data;fn read<T>(x:&T)->i32 where T:((rules.Code))=>x.code();fn main()->i32{let x=data.make();return read(&x)-13}";
-const RULES: &str = "pub trait Code{fn code(self:&Self)->i32;}";
-const DATA: &str = "import rules;pub struct Payload{n:i32}impl rules.Code for Payload{fn code(self:&Self)->i32=>self.n}pub fn make()->Payload=>Payload{n:13}";
+const RULES: &str = "pub trait Code{fn code(self:&Self)->i32;}pub struct Payload{n:i32}impl Code for Payload{fn code(self:&Self)->i32=>self.n}pub fn make(n:i32)->Payload=>Payload{n:n}";
+const DATA: &str = "import rules;pub fn make()->rules.Payload=>rules.make(13)";
 
 #[test]
 fn independent_cross_module_impl_matches_existing_inline_boundary() {
