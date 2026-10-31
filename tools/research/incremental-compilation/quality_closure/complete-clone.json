@@ -1,0 +1,19 @@
+{
+  "revision": "888af53a0a7389d10a508250059db6b631c61e4a",
+  "policy": "complete-direct-internal-v1",
+  "patch_sha256": "bbd995d5a57f21c4965c3b571d62b168b74b7ef26fbb1090fc89b67891cf3ce4",
+  "files": [
+    {
+      "path": "crates/zil-backend-llvm/src/machine_cgu.rs",
+      "original_sha256": "8d8db58cd3120746f5d2bbbaa6ab9a67095329266cfeb52408f32dc95965cd3d",
+      "patched_sha256": "5ca518b0b5f269e8df29c5d19555fda389b0367754a4bbba4ae7700fea0260e0",
+      "bytes": 50137
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/machine_cgu_clone_controls.rs",
+      "original_sha256": null,
+      "patched_sha256": "a6be1ed9fd900623315318028481b44dc3935f2b70eb4f514821845c93441905",
+      "bytes": 17339
+    }
+  ]
+}
