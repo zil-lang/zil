@@ -49,6 +49,8 @@ def main():
     p.add_argument('--rustc', type=Path)
     p.add_argument('--out', required=True, type=Path)
     p.add_argument('--blocks', type=int, default=5)
+    p.add_argument('--baseline-source', default='5d7c1eeb2b74052eb239e19529dc5a943c6622a3',
+                   help='exact source identity of the separately built baseline')
     a = p.parse_args()
     a.out.mkdir(parents=True, exist_ok=False)
     cpus = sorted(os.sched_getaffinity(0))[:2]
@@ -57,7 +59,7 @@ def main():
     if a.rustc:
         compilers['rust'] = a.rustc.resolve()
     probes = {k: getattr(a, k+'_probe').resolve() for k in ['baseline', 'candidate']}
-    manifest = {'scope': __doc__, 'baseline_source': '5d7c1eeb2b74052eb239e19529dc5a943c6622a3',
+    manifest = {'scope': __doc__, 'baseline_source': a.baseline_source,
                 'candidate_source': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                 'compilers': {k: {'path': str(v), 'sha256': sha(v)} for k, v in compilers.items()},
                 'probes': {k: {'path': str(v), 'sha256': sha(v)} for k, v in probes.items()},
