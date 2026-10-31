@@ -1,0 +1,9 @@
+   Compiling zil-base v0.1.0 (/workspace/zil/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/zil/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/zil/crates/zil-syntax)
+   Compiling zil-expand v0.1.0 (/workspace/zil/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/zil/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/zil/crates/zil-analyze)
+   Compiling zil-verify v0.1.0 (/workspace/zil/crates/zil-verify)
+   Compiling zil-stage6-graph-revisit v0.1.0 (/workspace/zil/tools/research/incremental-compilation/stage6_algorithms/graph)
+    Finished `release` profile [optimized] target(s) in 50.71s

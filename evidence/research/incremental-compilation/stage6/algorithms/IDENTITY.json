@@ -1,0 +1,112 @@
+{
+  "head_at_collection": "7963d69ff993872455c4c5caf6a73ff2a6160fc7",
+  "boundary": "Raw query/scheduler experiments, separate from production CLI measurements. Original failures and superseded functional candidates remain separately identified. No executable/cache artifacts are archived.",
+  "measured_tool_snapshot": "7963d69ff993872455c4c5caf6a73ff2a6160fc7",
+  "source_identity_scope": "source_sha256 identifies files at collection, including the later failure-recording runner revision. Original formal measurements retain the runner and binary hashes in their own receipts and the 7963d69ff snapshot; they are not relabeled with collection-time hashes.",
+  "archives": [
+    {
+      "path": "stage6-graph-final.tar.gz",
+      "sha256": "dbf51babdf5b4223af3c4e79364bd0bdc99ad3e7bacf7d98ccb30dbf4e393bca",
+      "bytes": 4871296,
+      "members": 152
+    },
+    {
+      "path": "stage6-graph-final-v2.tar.gz",
+      "sha256": "d3f068f8584fa02d84d329fa2f4103431027bb9de1c204acc8fb58b836afc7bc",
+      "bytes": 9770568,
+      "members": 569
+    },
+    {
+      "path": "stage6-algorithms.tar.gz",
+      "sha256": "2986907a02bd45fcacaaac355b2465ac07f9165f41091b8c6b061c13916f8ff8",
+      "bytes": 5668941,
+      "members": 327
+    },
+    {
+      "path": "stage6-factor-controls.tar.gz",
+      "sha256": "77f07d661b9c6dcebd0188c178c2194585714aa57f28d97eb41aa6b2f4426666",
+      "bytes": 53169,
+      "members": 72
+    },
+    {
+      "path": "stage6-factor-final.tar.gz",
+      "sha256": "19948351638f15ee8d159102125004162af04ed93c48475486556891fa0f50f4",
+      "bytes": 61528,
+      "members": 95
+    },
+    {
+      "path": "stage6-factor-final-v2.tar.gz",
+      "sha256": "c13b2b8e70d8a18fd66aab5966ab387ce5455720691da1b37f8ab4181b04dd91",
+      "bytes": 161706,
+      "members": 95
+    },
+    {
+      "path": "stage6-factor-frozen.tar.gz",
+      "sha256": "27192246bddbf3252d451c5a576e0fa4067d2eb457051c84e1e551dac95b5387",
+      "bytes": 161752,
+      "members": 95
+    },
+    {
+      "path": "stage6-factor-benchmark.tar.gz",
+      "sha256": "cbba3d0291f0dce38f4ffdfbc5bfe726226ebedc476e1a7fd192b8619f8e398f",
+      "bytes": 581400,
+      "members": 123
+    }
+  ],
+  "source_sha256": {
+    "tools/research/incremental-compilation/stage6_algorithms/collect.py": "bd5ad5d8aa8c9a13037725dccad63175ddfcbb354a105ba82bad7b6219d4358f",
+    "tools/research/incremental-compilation/stage6_algorithms/extract_callgraphs.py": "dcb77bb6b03a5da1d1599710a6548774676867f6fd40fdd2daf8bfa236998700",
+    "tools/research/incremental-compilation/stage6_algorithms/factor_artifact_audit.py": "b63342bdb8b327b76fc0a1901913992efec53aa93e3b816456f5e820a718b4e2",
+    "tools/research/incremental-compilation/stage6_algorithms/factor_bench.py": "f0de5e1eda6d159b6f11f6e81583194ef258817058abd91256e14ce5899304e9",
+    "tools/research/incremental-compilation/stage6_algorithms/factor_bench_fault_probe.py": "14b04bd6d1415be00307b07faef25ecda1f17977a7e4a607d7141a789084f208",
+    "tools/research/incremental-compilation/stage6_algorithms/factor_probe.py": "912ee26a7ace3e3a40275f1d9926d16427d5be1425a4835fba54dab6e1610b29",
+    "tools/research/incremental-compilation/stage6_algorithms/factor_relations.py": "02a10dcf01b5cca371603f50a966013c48c9e1fb33a945be887c0bf5d1a17e45",
+    "tools/research/incremental-compilation/stage6_algorithms/factor_relations_README.md": "ce3a44164a2c7426e77eb1c12db43c0e571dcf3b2f048bbb6c615dae9a3e4719",
+    "tools/research/incremental-compilation/stage6_algorithms/graph/Cargo.lock": "e31a3188be5fbe3f6999fe0d45560cda4956ac70c01bca0d1755b0a76fd385f7",
+    "tools/research/incremental-compilation/stage6_algorithms/graph/Cargo.toml": "fee7b75023841ca89c4d6fcfd34a74d12c50b7d9e1659c69587dcee438a895fe",
+    "tools/research/incremental-compilation/stage6_algorithms/graph/README.md": "5021f092c50a0278775565fbb7de9508e5d87d1b0b9de9bd59e0836c0658fea6",
+    "tools/research/incremental-compilation/stage6_algorithms/graph/extract_current.rs": "dc00ede483f3250cfce597011c4a31f94a3ba7d80df4a37d4458fb8a35a84efd",
+    "tools/research/incremental-compilation/stage6_algorithms/graph/factored.rs": "879d5ffa75e36596232463a3e3f759b79cda26f87e28c84fbc4fa8bd9dc6efb4",
+    "tools/research/incremental-compilation/stage6_algorithms/graph/main.rs": "d4c4f0c6f0c659e49cae32f09ce319e02b6ad38badc8254fc55d696c419b02f2",
+    "tools/research/incremental-compilation/stage6_algorithms/graph/main_support.rs": "551f4a506d0e42b3898db9af5ab47716a0fb6fa723150c074e1dd65862558edd",
+    "tools/research/incremental-compilation/stage6_algorithms/graph/oracle_current.rs": "22b0cc438fc2da1de7312dae6b50ce60e06e6c70ad60497967965770926d07e1",
+    "tools/research/incremental-compilation/stage6_algorithms/graph/report_current.rs": "d9870b2ad6535d420d821df413768da7a735c6f5fd8be3bcdd14785e70683b80",
+    "tools/research/incremental-compilation/stage6_algorithms/graph/source_current.rs": "fa13e61d06593b892c0eeb0c74337c8f0e3e59044abb4f90f3275631dabff41b",
+    "tools/research/incremental-compilation/stage6_algorithms/graph/symbolic_current.rs": "8f0e81966f5e91f8edfff1dbcf01baa75af0b343074d070c5bf9112088f5cb5c",
+    "tools/research/incremental-compilation/stage6_algorithms/graph_revisit.py": "e2673c6f3b9424bb3973d7b500e6487ea9bd4b118bd59b8a1bd4c2b9d07cd0e5",
+    "tools/research/incremental-compilation/stage6_algorithms/zit_README.md": "4d6f3fa20c32218f851583a81f95f91afd52a207a1a83f8b8ec9918e61b01d79",
+    "tools/research/incremental-compilation/stage6_algorithms/zit_adapter.mjs": "1ff6a8c160ca3045ddfefc985fc6edd744e57cda1cb0f9c5ed67e48c6cef12f4",
+    "tools/research/incremental-compilation/stage6_algorithms/zit_bench.mjs": "5bc9f1beffcf3930447932a3af79b7e157a80d7f29a1d9f1eb314b6d25b9371f",
+    "tools/research/incremental-compilation/stage6_algorithms/zit_bench.py": "9ffe88a40f4112ba954676106acccef575248cef9b8393d9dcc581fdbac3a9f5",
+    "tools/research/incremental-compilation/stage6_algorithms/zit_probe.mjs": "abc1d7b12a11671a0393ebd3f50b0a1bd8db4bc61438eea4ca91429f147156d7",
+    "tools/research/063/bdd.rs": "d2c691c8a6d61c96fe76a0f7bfd6f0fa3bd02db1e1bcbd3ef66ddd161010191c",
+    "tools/research/063/budget.rs": "3a6f1d9f55f14e67e12b918df2d8204f8c9e085192dbb52ad5907199a56f25e0",
+    "tools/research/063/extract.rs": "3758dcff0b11a99c201a6d9812934d4f2af658f0a226160a4df423064e23c4cc",
+    "tools/research/063/main.rs": "10f1f19fc33faa52b859f68ba2ae61f9aa1d863a2bb97e059d2c521acbb52b41",
+    "tools/research/063/oracle.rs": "e4654f35241ba0dac1264156ff2d34864fb9285be975645dfd99900aba353ea9",
+    "tools/research/063/ordering.rs": "d5bf57c03d2a92af63a5a9e73599749120ec3e7940a0d7365fca0bd0819fb748",
+    "tools/research/063/pipeline.rs": "b6fdc9470417cd4718e204bbcc9efd1918f4b725600ee7262f68cae170f127d9",
+    "tools/research/063/report.rs": "fcbbdd412a4538d5b2ec89dcfbe5b7a346dcffa600b0d15e80eb8be41ae0cfc5",
+    "tools/research/063/roots.rs": "aa2e5bf4e523cc1b66469c8845551971bf661d9e7b441d2f2b823f2bc14908e5",
+    "tools/research/063/schema.rs": "3555577c4bac9175a286d57851dc40b8d39b74d7444530ba3126885de872cde0",
+    "tools/research/063/source.rs": "9bdeeb475d90d734c5f5144763ec040c15aac029ae2103083ce227c1ce14f618",
+    "tools/research/063/symbolic.rs": "3d1ac6a219dd7a5b3e8fe8a8c5c1639caefd4a9b820cb1d2126900ffa1ced846",
+    "tools/research/063/telemetry.rs": "0dec5add43b1701d1737e3b8965c1f6e316d8adb8c68621aa1c08dc13993ca70",
+    "tools/research/063/tests.rs": "8146f1951686c25c31954647b8ad33bf57a4df1f04cca0ff44dde5d89c13eb63",
+    "tools/research/071/direct.rs": "4f1692ac02751e5857c1e2bb67cc4a989f7f11d7c4f78d86fc1612fc821aafab",
+    "tools/research/071/domains.rs": "5fd843e9bdcf53691ab264391f2d4c152ad8e234f171873581ff9d06a987f708",
+    "tools/research/071/encoding.rs": "7d65c4836a6cfcdb1b5db34e63239929616c7724553d20f71ceaa523d1aa7350",
+    "tools/research/071/extract.rs": "68e0a4c4ef89031822ac8fe37fffeed99220a734ba94bf96a99f5d9a535f02d5",
+    "tools/research/071/main.rs": "01973c377d7d3746378230dce4c025455c0087dbfb3e37b4396b90dac112d0f9",
+    "tools/research/071/oracle.rs": "99685544c9ea19e2def602bf7d2c4199dcb613f9e3055b28b574d8a0c0d52d55",
+    "tools/research/071/report.rs": "d75d15924c51442b71ed598ed4daf24042f9da2b2f29cfc0d3ba828b601b2489",
+    "tools/research/071/roots.rs": "4d66b86e3f9495b4f32db5bbbbcacad23103d0a237c4562765093ef0b376745b",
+    "tools/research/071/symbolic.rs": "92115503f0801adfb26eeece7ecd19b7cfa3cb13f9372f9bf9f11dafbf16190d",
+    "tools/research/071/tests.rs": "46110e33fc344eabdfea04b627d448881de233fb196e8b3e27145ca506890349",
+    "tools/research/076/intern.rs": "6a85eb8f0d8de4e674fe04f73258104911ec6d3cea5c400a4831781dbbb5592e",
+    "tools/research/076/intern_tests.rs": "4ed15e97002a6a2be8a47a2c6cdbeb569f554e13ab58b2b27cccc4b98684d3a6",
+    "tools/research/076/main.rs": "6dda0ab01d0f0d9b7d68f6f27f5df5545877007c5ac1368e2d6e2e0b962d58c5",
+    "tools/research/076/report.rs": "d588494974fb098270e3c7d7c4a88a0063d134b6503f49841a4c0ffd3a08c8f1",
+    "tools/research/076/tests.rs": "6da5dceb8153241b19b25b351810ce5d5de68c58c262b44c969e2098e5f4ae8f"
+  }
+}

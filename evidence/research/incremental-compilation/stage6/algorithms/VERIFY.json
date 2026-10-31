@@ -1,0 +1,49 @@
+{
+  "verified_utc": "2026-10-31T11:33:52.515966+00:00",
+  "identity_sha256": "549a3ca6147c2bbfa3f83d72a2e37bd2d4c50b21032750927758759a3258a36c",
+  "archives": [
+    {
+      "archive": "stage6-graph-final.tar.gz",
+      "file_count": 152,
+      "status": "AllMemberBytesAndHashesMatch"
+    },
+    {
+      "archive": "stage6-graph-final-v2.tar.gz",
+      "file_count": 569,
+      "status": "AllMemberBytesAndHashesMatch"
+    },
+    {
+      "archive": "stage6-algorithms.tar.gz",
+      "file_count": 327,
+      "status": "AllMemberBytesAndHashesMatch"
+    },
+    {
+      "archive": "stage6-factor-controls.tar.gz",
+      "file_count": 72,
+      "status": "AllMemberBytesAndHashesMatch"
+    },
+    {
+      "archive": "stage6-factor-final.tar.gz",
+      "file_count": 95,
+      "status": "AllMemberBytesAndHashesMatch"
+    },
+    {
+      "archive": "stage6-factor-final-v2.tar.gz",
+      "file_count": 95,
+      "status": "AllMemberBytesAndHashesMatch"
+    },
+    {
+      "archive": "stage6-factor-frozen.tar.gz",
+      "file_count": 95,
+      "status": "AllMemberBytesAndHashesMatch"
+    },
+    {
+      "archive": "stage6-factor-benchmark.tar.gz",
+      "file_count": 123,
+      "status": "AllMemberBytesAndHashesMatch"
+    }
+  ],
+  "source_files_checked": 54,
+  "compressed_bytes": 21330360,
+  "boundary": "Archive and source identity validation only; no benchmark rerun or rewritten original identities."
+}

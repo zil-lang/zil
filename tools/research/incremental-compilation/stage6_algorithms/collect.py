@@ -60,6 +60,8 @@ for directory in ["063", "071", "076"]:
 manifest = {
     "head_at_collection": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=args.repo, text=True).strip(),
     "boundary": "Raw query/scheduler experiments, separate from production CLI measurements. Original failures and superseded functional candidates remain separately identified. No executable/cache artifacts are archived.",
+    "measured_tool_snapshot": "7963d69ff993872455c4c5caf6a73ff2a6160fc7",
+    "source_identity_scope": "source_sha256 identifies files at collection, including the later failure-recording runner revision. Original formal measurements retain the runner and binary hashes in their own receipts and the 7963d69ff snapshot; they are not relabeled with collection-time hashes.",
     "archives": archives, "source_sha256": identities,
 }
 (args.out / "IDENTITY.json").write_text(json.dumps(manifest, indent=2) + "\n")

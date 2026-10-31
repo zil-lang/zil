@@ -1,0 +1,351 @@
+   Compiling zil-stage6-graph-revisit v0.1.0 (/workspace/zil/tools/research/incremental-compilation/stage6_algorithms/graph)
+warning: enum `Method` is never used
+ --> ../../../063/bdd.rs:7:10
+  |
+7 | pub enum Method {
+  |          ^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `name` is never used
+  --> ../../../063/bdd.rs:14:12
+   |
+13 | impl Method {
+   | ----------- method in this implementation
+14 |     pub fn name(self) -> &'static str {
+   |            ^^^^
+
+warning: struct `Plan` is never constructed
+  --> ../../../063/bdd.rs:23:12
+   |
+23 | pub struct Plan {
+   |            ^^^^
+
+warning: struct `Step` is never constructed
+  --> ../../../063/bdd.rs:29:8
+   |
+29 | struct Step {
+   |        ^^^^
+
+warning: fields `phase` and `point` are never read
+  --> ../../../063/bdd.rs:43:9
+   |
+42 | pub struct Context {
+   |            ------- fields in this struct
+43 |     pub phase: &'static str,
+   |         ^^^^^
+44 |     pub point: Option<usize>,
+   |         ^^^^^
+   |
+   = note: `Context` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: fields `image_calls`, `early_eliminations`, `max_boundary`, `wire_substitutions`, and `max_factor_support` are never read
+  --> ../../../063/bdd.rs:59:9
+   |
+48 | pub struct Bdd {
+   |            --- fields in this struct
+...
+59 |     pub image_calls: usize,
+   |         ^^^^^^^^^^^
+60 |     pub early_eliminations: usize,
+   |         ^^^^^^^^^^^^^^^^^^
+61 |     pub max_boundary: usize,
+   |         ^^^^^^^^^^^^
+62 |     pub wire_substitutions: usize,
+   |         ^^^^^^^^^^^^^^^^^^
+63 |     pub max_factor_support: usize,
+   |         ^^^^^^^^^^^^^^^^^^
+
+warning: multiple methods are never used
+   --> ../../../063/bdd.rs:125:12
+    |
+ 68 | impl Bdd {
+    | -------- methods in this implementation
+...
+125 |     pub fn set_context(&mut self, phase: &'static str, point: Option<usize>) {
+    |            ^^^^^^^^^^^
+...
+134 |     pub fn reachable_nodes(&self, roots: &[Id], work: &mut Work) -> R<usize> {
+    |            ^^^^^^^^^^^^^^^
+...
+218 |     pub fn node_count(&self) -> usize {
+    |            ^^^^^^^^^^
+...
+356 |     pub fn shape(&mut self, root: Id) -> R<(usize, usize)> {
+    |            ^^^^^
+...
+388 |     pub fn and_exists(&mut self, a: Id, b: Id, vars: &BTreeSet<u16>) -> R<Id> {
+    |            ^^^^^^^^^^
+...
+441 |     fn unprime(&mut self, root: Id) -> R<Id> {
+    |        ^^^^^^^
+...
+460 |     pub fn plan(&mut self, factors: &[(usize, Id)], method: Method) -> R<Plan> {
+    |            ^^^^
+...
+571 |     fn substitute(&mut self, root: Id, old: u16, new: u16, flip: bool) -> R<Id> {
+    |        ^^^^^^^^^^
+...
+614 |     pub fn image(&mut self, input: Id, plan: &Plan) -> R<Id> {
+    |            ^^^^^
+
+warning: constant `MAX_RELATIONS` is never used
+  --> ../../../063/budget.rs:10:11
+   |
+10 | pub const MAX_RELATIONS: usize = 200_000;
+   |           ^^^^^^^^^^^^^
+
+warning: function `insert` is never used
+  --> ../../../071/direct.rs:27:4
+   |
+27 | fn insert(
+   |    ^^^^^^
+
+warning: function `solve` is never used
+  --> ../../../071/direct.rs:89:8
+   |
+89 | pub fn solve(
+   |        ^^^^^
+
+warning: type alias `RowId` is never used
+  --> ../../../076/intern.rs:18:6
+   |
+18 | type RowId = usize;
+   |      ^^^^^
+
+warning: struct `Stats` is never constructed
+  --> ../../../076/intern.rs:21:12
+   |
+21 | pub struct Stats {
+   |            ^^^^^
+
+warning: method `json` is never used
+  --> ../../../076/intern.rs:38:12
+   |
+37 | impl Stats {
+   | ---------- method in this implementation
+38 |     pub fn json(&self) -> String {
+   |            ^^^^
+
+warning: struct `Pool` is never constructed
+  --> ../../../076/intern.rs:62:19
+   |
+62 | pub(crate) struct Pool {
+   |                   ^^^^
+
+warning: methods `hash`, `probe`, `grow`, `intern`, `intern_hashed`, and `release_work` are never used
+   --> ../../../076/intern.rs:69:8
+    |
+ 68 | impl Pool {
+    | --------- methods in this implementation
+ 69 |     fn hash(&mut self, row: &[u64], work: &mut Work) -> R<u64> {
+    |        ^^^^
+...
+ 79 |     fn probe(&mut self, row: &[u64], hash: u64, work: &mut Work) -> R<(usize, Option<RowId>)> {
+    |        ^^^^^
+...
+109 |     fn grow(&mut self, work: &mut Work) -> R<()> {
+    |        ^^^^
+...
+137 |     pub(crate) fn intern(&mut self, row: &[u64], work: &mut Work) -> R<RowId> {
+    |                   ^^^^^^
+...
+141 |     pub(crate) fn intern_hashed(&mut self, row: &[u64], hash: u64, work: &mut Work) -> R<RowId> {
+    |                   ^^^^^^^^^^^^^
+...
+168 |     fn release_work(&self, work: &mut Work) -> R<()> {
+    |        ^^^^^^^^^^^^
+
+warning: struct `Relation` is never constructed
+   --> ../../../076/intern.rs:173:8
+    |
+173 | struct Relation {
+    |        ^^^^^^^^
+
+warning: struct `Indexed` is never constructed
+   --> ../../../076/intern.rs:179:19
+    |
+179 | pub(crate) struct Indexed {
+    |                   ^^^^^^^
+
+warning: methods `register`, `insert`, and `expand` are never used
+   --> ../../../076/intern.rs:185:19
+    |
+184 | impl Indexed {
+    | ------------ methods in this implementation
+185 |     pub(crate) fn register(&mut self, key: String, keep_empty: bool, work: &mut Work) -> R<usize> {
+    |                   ^^^^^^^^
+...
+204 |     pub(crate) fn insert(&mut self, relation: usize, row: RowId, work: &mut Work) -> R<bool> {
+    |                   ^^^^^^
+...
+221 |     fn expand(self, pool: &Pool, work: &mut Work) -> R<Relations> {
+    |        ^^^^^^
+
+warning: enum `Fault` is never used
+   --> ../../../076/intern.rs:247:6
+    |
+247 | enum Fault {
+    |      ^^^^^
+
+warning: struct `TransferPlan` is never constructed
+   --> ../../../076/intern.rs:252:8
+    |
+252 | struct TransferPlan {
+    |        ^^^^^^^^^^^^
+
+warning: struct `EventPlan` is never constructed
+   --> ../../../076/intern.rs:256:8
+    |
+256 | struct EventPlan {
+    |        ^^^^^^^^^
+
+warning: function `plans` is never used
+   --> ../../../076/intern.rs:260:4
+    |
+260 | fn plans(events: &[Event], relations: &mut Indexed, work: &mut Work) -> R<Vec<EventPlan>> {
+    |    ^^^^^
+
+warning: function `solve` is never used
+   --> ../../../076/intern.rs:305:8
+    |
+305 | pub fn solve(
+    |        ^^^^^
+
+warning: variant `Location` is never constructed
+  --> ../../../071/encoding.rs:14:5
+   |
+12 | pub enum Representation {
+   |          -------------- variant in this enum
+13 |     Dense,
+14 |     Location,
+   |     ^^^^^^^^
+   |
+   = note: `Representation` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: method `name` is never used
+  --> ../../../071/encoding.rs:18:12
+   |
+17 | impl Representation {
+   | ------------------- method in this implementation
+18 |     pub fn name(self) -> &'static str {
+   |            ^^^^
+
+warning: fields `representation`, `incidence_bits`, `location_bits`, `domain_pairs`, and `raw_domain_edges` are never read
+  --> ../../../071/encoding.rs:43:9
+   |
+42 | pub struct Encoding {
+   |            -------- fields in this struct
+43 |     pub representation: Representation,
+   |         ^^^^^^^^^^^^^^
+44 |     pub physical: Schema,
+45 |     pub incidence_bits: usize,
+   |         ^^^^^^^^^^^^^^
+46 |     pub location_bits: usize,
+   |         ^^^^^^^^^^^^^
+47 |     pub domain_pairs: usize,
+   |         ^^^^^^^^^^^^
+48 |     pub raw_domain_edges: usize,
+   |         ^^^^^^^^^^^^^^^^
+   |
+   = note: `Encoding` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: fields `work` and `rows` are never read
+  --> oracle_current.rs:13:9
+   |
+10 | pub struct Reference {
+   |            --------- fields in this struct
+...
+13 |     pub work: usize,
+   |         ^^^^
+14 |     pub rows: usize,
+   |         ^^^^
+
+warning: function `object` is never used
+  --> report_current.rs:27:15
+   |
+27 | pub(crate) fn object(fields: Vec<(&str, String)>) -> String {
+   |               ^^^^^^
+
+warning: function `outcome` is never used
+  --> report_current.rs:37:4
+   |
+37 | fn outcome(error: &str) -> &'static str {
+   |    ^^^^^^^
+
+warning: function `execute` is never used
+   --> report_current.rs:184:8
+    |
+184 | pub fn execute(path: &Path, method: &str, output: Option<&Path>) -> R<String> {
+    |        ^^^^^^^
+
+warning: function `process_peak_rss` is never used
+   --> report_current.rs:576:4
+    |
+576 | fn process_peak_rss() -> Option<usize> {
+    |    ^^^^^^^^^^^^^^^^
+
+warning: function `legacy_type` is never used
+   --> report_current.rs:585:4
+    |
+585 | fn legacy_type(m: &zil_ir::TypedModule, t: &zil_ir::Type) -> bool {
+    |    ^^^^^^^^^^^
+
+warning: fields `events` and `phase_ns` are never read
+  --> symbolic_current.rs:29:9
+   |
+23 | pub struct Solution {
+   |            -------- fields in this struct
+...
+29 |     pub events: usize,
+   |         ^^^^^^
+30 |     pub status: QueryStatus,
+31 |     pub phase_ns: [u128; 4], // extraction, event construction, planning, fixed point
+   |         ^^^^^^^^
+
+warning: function `solve_encoded` is never used
+   --> symbolic_current.rs:905:8
+    |
+905 | pub fn solve_encoded(
+    |        ^^^^^^^^^^^^^
+
+warning: function `record` is never used
+    --> symbolic_current.rs:1102:4
+     |
+1102 | fn record(
+     |    ^^^^^^
+
+warning: struct `Sample` is never constructed
+  --> ../../../063/telemetry.rs:11:12
+   |
+11 | pub struct Sample {
+   |            ^^^^^^
+
+warning: struct `Telemetry` is never constructed
+  --> ../../../063/telemetry.rs:21:12
+   |
+21 | pub struct Telemetry {
+   |            ^^^^^^^^^
+
+warning: associated items `new`, `extraction_failure`, `sample`, `finish`, and `json` are never used
+  --> ../../../063/telemetry.rs:31:12
+   |
+30 | impl Telemetry {
+   | -------------- associated items in this implementation
+31 |     pub fn new(enabled: bool) -> Self {
+   |            ^^^
+...
+50 |     pub fn extraction_failure(&mut self, error: &str) {
+   |            ^^^^^^^^^^^^^^^^^^
+...
+53 |     pub fn sample(
+   |            ^^^^^^
+...
+80 |     pub fn finish(&mut self, b: &Bdd, failure: Option<&String>) {
+   |            ^^^^^^
+...
+86 |     pub fn json(&self) -> String {
+   |            ^^^^
+
+warning: `zil-stage6-graph-revisit` (bin "cut-support") generated 38 warnings
+    Finished `release` profile [optimized] target(s) in 9.36s

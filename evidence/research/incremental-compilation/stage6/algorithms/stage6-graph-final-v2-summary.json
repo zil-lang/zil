@@ -1,0 +1,417 @@
+[
+  {
+    "case": "resources-sequential-1",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 1922639.5,
+        "candidate_ns": 262095.5,
+        "rss_kib": 4926.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 1789979.5,
+        "candidate_ns": 304038.5,
+        "rss_kib": 4988.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 1777470.5,
+        "candidate_ns": 342806.5,
+        "rss_kib": 4882.0
+      },
+      "dense:fused:owner:gc": {
+        "wall_ns": 2785270.5,
+        "candidate_ns": 1426796.5,
+        "rss_kib": 5066.0
+      },
+      "local:fused:owner:gc": {
+        "wall_ns": 2880564.5,
+        "candidate_ns": 1517454.0,
+        "rss_kib": 4930.0
+      },
+      "dense:cut:owner:gc": {
+        "wall_ns": 2822907.5,
+        "candidate_ns": 1361127.5,
+        "rss_kib": 4964.0
+      }
+    }
+  },
+  {
+    "case": "resources-sequential-4",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 3052758.5,
+        "candidate_ns": 1297772.5,
+        "rss_kib": 5140.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 3105253.5,
+        "candidate_ns": 1285308.5,
+        "rss_kib": 5062.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 3375967.0,
+        "candidate_ns": 1396135.0,
+        "rss_kib": 5152.0
+      },
+      "dense:fused:owner:gc": {
+        "wall_ns": 53285747.5,
+        "candidate_ns": 50863795.5,
+        "rss_kib": 17690.0
+      },
+      "local:fused:owner:gc": {
+        "wall_ns": 33434025.0,
+        "candidate_ns": 30862862.0,
+        "rss_kib": 11452.0
+      },
+      "dense:cut:owner:gc": {
+        "wall_ns": 57775432.5,
+        "candidate_ns": 55344852.0,
+        "rss_kib": 17754.0
+      }
+    }
+  },
+  {
+    "case": "resources-sequential-8",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 11655899.5,
+        "candidate_ns": 6655724.0,
+        "rss_kib": 6310.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 7864761.5,
+        "candidate_ns": 4588545.0,
+        "rss_kib": 5636.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 7234060.5,
+        "candidate_ns": 4117575.0,
+        "rss_kib": 5744.0
+      },
+      "dense:fused:owner:gc": {
+        "wall_ns": 534645222.0,
+        "candidate_ns": 531208636.0,
+        "rss_kib": 18098.0
+      },
+      "local:fused:owner:gc": {
+        "wall_ns": 312725373.5,
+        "candidate_ns": 308891381.5,
+        "rss_kib": 18082.0
+      },
+      "dense:cut:owner:gc": {
+        "wall_ns": 612473997.0,
+        "candidate_ns": 607980748.5,
+        "rss_kib": 18468.0
+      }
+    }
+  },
+  {
+    "case": "resources-sequential-16",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 33906881.5,
+        "candidate_ns": 27248292.0,
+        "rss_kib": 11762.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 20683895.5,
+        "candidate_ns": 14335313.5,
+        "rss_kib": 7262.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 21072814.5,
+        "candidate_ns": 14611264.5,
+        "rss_kib": 7698.0
+      }
+    }
+  },
+  {
+    "case": "resources-diamond-1",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 1850095.5,
+        "candidate_ns": 317839.5,
+        "rss_kib": 4846.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 1802143.0,
+        "candidate_ns": 355706.0,
+        "rss_kib": 4884.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 1908057.5,
+        "candidate_ns": 395131.5,
+        "rss_kib": 4928.0
+      },
+      "dense:fused:owner:gc": {
+        "wall_ns": 3529333.0,
+        "candidate_ns": 2137208.5,
+        "rss_kib": 5116.0
+      },
+      "local:fused:owner:gc": {
+        "wall_ns": 3856646.0,
+        "candidate_ns": 2277204.0,
+        "rss_kib": 5386.0
+      },
+      "dense:cut:owner:gc": {
+        "wall_ns": 4087689.5,
+        "candidate_ns": 2219702.0,
+        "rss_kib": 5016.0
+      }
+    }
+  },
+  {
+    "case": "resources-diamond-2",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 2751679.5,
+        "candidate_ns": 747922.5,
+        "rss_kib": 4938.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 3179430.0,
+        "candidate_ns": 1154085.0,
+        "rss_kib": 4960.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 2580491.5,
+        "candidate_ns": 883457.5,
+        "rss_kib": 5084.0
+      },
+      "dense:fused:owner:gc": {
+        "wall_ns": 16512347.5,
+        "candidate_ns": 14521650.0,
+        "rss_kib": 7518.0
+      },
+      "local:fused:owner:gc": {
+        "wall_ns": 15561427.5,
+        "candidate_ns": 13470895.0,
+        "rss_kib": 7590.0
+      },
+      "dense:cut:owner:gc": {
+        "wall_ns": 17231171.0,
+        "candidate_ns": 15171460.5,
+        "rss_kib": 8154.0
+      }
+    }
+  },
+  {
+    "case": "resources-diamond-3",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 3842065.0,
+        "candidate_ns": 1635706.5,
+        "rss_kib": 5108.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 4273185.0,
+        "candidate_ns": 1745087.5,
+        "rss_kib": 5090.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 4423426.0,
+        "candidate_ns": 1841236.5,
+        "rss_kib": 5194.0
+      },
+      "dense:fused:owner:gc": {
+        "wall_ns": 86822333.5,
+        "candidate_ns": 84164644.5,
+        "rss_kib": 17628.0
+      },
+      "local:fused:owner:gc": {
+        "wall_ns": 67084138.5,
+        "candidate_ns": 64288987.5,
+        "rss_kib": 15336.0
+      },
+      "dense:cut:owner:gc": {
+        "wall_ns": 91240127.0,
+        "candidate_ns": 88019103.0,
+        "rss_kib": 17516.0
+      }
+    }
+  },
+  {
+    "case": "resources-diamond-4",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 7960808.0,
+        "candidate_ns": 4336641.5,
+        "rss_kib": 5538.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 8210121.5,
+        "candidate_ns": 4425624.0,
+        "rss_kib": 5476.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 8501867.0,
+        "candidate_ns": 4491975.0,
+        "rss_kib": 5526.0
+      },
+      "dense:fused:owner:gc": {
+        "wall_ns": 307960973.5,
+        "candidate_ns": 303385225.5,
+        "rss_kib": 17980.0
+      },
+      "local:fused:owner:gc": {
+        "wall_ns": 247408346.0,
+        "candidate_ns": 242665806.0,
+        "rss_kib": 17948.0
+      },
+      "dense:cut:owner:gc": {
+        "wall_ns": 380456552.5,
+        "candidate_ns": 375741371.5,
+        "rss_kib": 17874.0
+      }
+    }
+  },
+  {
+    "case": "resources-diamond-5",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 19697110.0,
+        "candidate_ns": 11504945.5,
+        "rss_kib": 6770.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 19025848.0,
+        "candidate_ns": 11017015.0,
+        "rss_kib": 6532.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 19143598.5,
+        "candidate_ns": 10956858.5,
+        "rss_kib": 6588.0
+      }
+    }
+  },
+  {
+    "case": "bundles",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 8781951.5,
+        "candidate_ns": 4617503.5,
+        "rss_kib": 5838.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 8341597.0,
+        "candidate_ns": 4422334.0,
+        "rss_kib": 5908.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 8743744.0,
+        "candidate_ns": 4691890.5,
+        "rss_kib": 5866.0
+      },
+      "dense:fused:owner:gc": {
+        "wall_ns": 104813147.5,
+        "candidate_ns": 100390512.5,
+        "rss_kib": 18674.0
+      },
+      "local:fused:owner:gc": {
+        "wall_ns": 79992392.0,
+        "candidate_ns": 75465025.0,
+        "rss_kib": 18708.0
+      },
+      "dense:cut:owner:gc": {
+        "wall_ns": 114512313.0,
+        "candidate_ns": 109699448.0,
+        "rss_kib": 18516.0
+      }
+    }
+  },
+  {
+    "case": "loop",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 1922154.0,
+        "candidate_ns": 467505.0,
+        "rss_kib": 5140.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 1937717.0,
+        "candidate_ns": 522021.0,
+        "rss_kib": 5204.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 2055695.0,
+        "candidate_ns": 618152.5,
+        "rss_kib": 5244.0
+      },
+      "dense:fused:owner:gc": {
+        "wall_ns": 5612374.5,
+        "candidate_ns": 4015856.0,
+        "rss_kib": 5868.0
+      },
+      "local:fused:owner:gc": {
+        "wall_ns": 5620586.0,
+        "candidate_ns": 4162857.5,
+        "rss_kib": 5918.0
+      },
+      "dense:cut:owner:gc": {
+        "wall_ns": 5565829.0,
+        "candidate_ns": 4134766.0,
+        "rss_kib": 5988.0
+      }
+    }
+  },
+  {
+    "case": "large-128",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 29461626.0,
+        "candidate_ns": 20763937.5,
+        "rss_kib": 8580.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 28958707.5,
+        "candidate_ns": 20657881.5,
+        "rss_kib": 8526.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 29840697.5,
+        "candidate_ns": 21379622.0,
+        "rss_kib": 8962.0
+      }
+    }
+  },
+  {
+    "case": "even-64x64",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 733771323.0,
+        "candidate_ns": 462622430.5,
+        "rss_kib": 70936.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 713181645.0,
+        "candidate_ns": 458304826.0,
+        "rss_kib": 70990.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 760563713.5,
+        "candidate_ns": 489326792.5,
+        "rss_kib": 72206.0
+      }
+    }
+  },
+  {
+    "case": "body-16x16",
+    "methods": {
+      "dense:direct:owner:gc": {
+        "wall_ns": 1108994267.5,
+        "candidate_ns": 867520779.5,
+        "rss_kib": 69282.0
+      },
+      "local:direct:owner:gc": {
+        "wall_ns": 1123751616.0,
+        "candidate_ns": 880055814.5,
+        "rss_kib": 69334.0
+      },
+      "local:intern:owner:gc": {
+        "wall_ns": 1145323463.0,
+        "candidate_ns": 902894692.5,
+        "rss_kib": 69326.0
+      }
+    }
+  }
+]
