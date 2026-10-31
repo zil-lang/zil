@@ -1,0 +1,35 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/e9af9764d083/zil-consumer228-229/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.49s
+     Running tests/review228_consumer_shadow.rs (/workspace/scratch/e9af9764d083/targets/consumer/debug/deps/review228_consumer_shadow-9ba310ba11fafc73)
+
+running 3 tests
+test inline_copy_bound_does_not_capture_a_same_named_struct ... 
+thread 'inline_copy_bound_does_not_capture_a_same_named_struct' (30) panicked at crates/zil-driver/tests/review228_consumer_shadow.rs:23:5:
+assertion `left == right` failed: inline: {"status":"Success","phase":"verify","diagnostics":[],"artifacts":{"candidate":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-inline-29/phases/candidate.txt","core":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-inline-29/phases/core.txt","ct-core":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-inline-29/phases/ct-core.txt","source-map":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-inline-29/phases/source-map.txt","syntax":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-inline-29/phases/syntax.txt","typed":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-inline-29/phases/typed.txt","verified":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-inline-29/phases/verified.txt"},"input_fingerprint":"63ac75a4c9d41a5e1880e3e2dd22ba3989701d6f5a72e423a99b68d1c23f71d2","seconds":0.009664401,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"nominal_shadow.zil"},"scalar_interfaces":[]}
+  left: Success
+ right: SafeReject
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test trailing_copy_bound_does_not_capture_a_same_named_struct ... 
+thread 'trailing_copy_bound_does_not_capture_a_same_named_struct' (31) panicked at crates/zil-driver/tests/review228_consumer_shadow.rs:23:5:
+assertion `left == right` failed: where: {"status":"Success","phase":"verify","diagnostics":[],"artifacts":{"candidate":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-where-29/phases/candidate.txt","core":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-where-29/phases/core.txt","ct-core":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-where-29/phases/ct-core.txt","source-map":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-where-29/phases/source-map.txt","syntax":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-where-29/phases/syntax.txt","typed":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-where-29/phases/typed.txt","verified":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-where-29/phases/verified.txt"},"input_fingerprint":"f2a8deaed84e0ba4c9f690ff47ebb9f26f73083c907fe11fb40d7c4fb7798895","seconds":0.011649482,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"nominal_shadow.zil"},"scalar_interfaces":[]}
+  left: Success
+ right: SafeReject
+FAILED
+test unbounded_generic_does_not_capture_a_same_named_struct ... 
+thread 'unbounded_generic_does_not_capture_a_same_named_struct' (32) panicked at crates/zil-driver/tests/review228_consumer_shadow.rs:23:5:
+assertion `left == right` failed: unbounded: {"status":"Success","phase":"verify","diagnostics":[],"artifacts":{"candidate":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-unbounded-29/phases/candidate.txt","core":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-unbounded-29/phases/core.txt","ct-core":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-unbounded-29/phases/ct-core.txt","source-map":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-unbounded-29/phases/source-map.txt","syntax":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-unbounded-29/phases/syntax.txt","typed":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-unbounded-29/phases/typed.txt","verified":"/workspace/scratch/e9af9764d083/zil-consumer228-229/evidence/reviews/228-consumer/shadow-original/native/shadow229-unbounded-29/phases/verified.txt"},"input_fingerprint":"04aa2bdac5cb485b94fa6dbac7d429baf4f8a738a531db2099ebbcfe28c81d9b","seconds":0.00977183,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"nominal_shadow.zil"},"scalar_interfaces":[]}
+  left: Success
+ right: SafeReject
+FAILED
+
+failures:
+
+failures:
+    inline_copy_bound_does_not_capture_a_same_named_struct
+    trailing_copy_bound_does_not_capture_a_same_named_struct
+    unbounded_generic_does_not_capture_a_same_named_struct
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p zil-driver --test review228_consumer_shadow`

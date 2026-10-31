@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "archive": "native.tar.xz",
+  "archive_size": 5120,
+  "archive_sha256": "76081502839975c1a2e174887038fc68797bbddf1822eb848ff7b61cd28b588f",
+  "verification": "Every archived member re-read and compared by bytes SHA-256, size, and mode before expanded originals removed.",
+  "files": [
+    {
+      "path": "shadow229-inline-29/compile.json",
+      "size": 1710,
+      "sha256": "f488defd63d61759e24212b3a8ec24b55458ca8c650d0f88b39ad5d8e88c006f",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-inline-29/phases/candidate.txt",
+      "size": 1872,
+      "sha256": "40ac4c0513c1b5a24427a1ccfd1b46595bdf3c4fa62c5707bc661d415dc07d0b",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-inline-29/phases/core.txt",
+      "size": 3590,
+      "sha256": "0308a9035685447fe4957281d8767a25bf51a6ef58c8b9e7767ff659b846c696",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-inline-29/phases/ct-core.txt",
+      "size": 3590,
+      "sha256": "0308a9035685447fe4957281d8767a25bf51a6ef58c8b9e7767ff659b846c696",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-inline-29/phases/source-map.txt",
+      "size": 2050,
+      "sha256": "7454630ad43febbef339c7f07454a7902f4de8a1e797088298df467c6a673e8f",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-inline-29/phases/syntax.txt",
+      "size": 19033,
+      "sha256": "4a1db3cbfaa694ce40f50fea4b410db1d5c5a8155dbefcdea33a6cc618f3c30e",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-inline-29/phases/typed.txt",
+      "size": 5264,
+      "sha256": "0ed5a009a56ffc292f1a6539cdf148e7d63a79bbd1bc92832357d72f20ca18bc",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-inline-29/phases/verified.txt",
+      "size": 5341,
+      "sha256": "7f2580b870a31b3df851b3bd29a4592e7fa670a1d996c8c6b70dc805c07fdc6a",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-inline-29/source.zil",
+      "size": 63,
+      "sha256": "63ac75a4c9d41a5e1880e3e2dd22ba3989701d6f5a72e423a99b68d1c23f71d2",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-29/compile.json",
+      "size": 1730,
+      "sha256": "654297acd156a7528dee28a5b9d15e9d4625f29fe32d93709e11e333f621811b",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-29/phases/candidate.txt",
+      "size": 1872,
+      "sha256": "3b84d5efa4cc8076c87888f0fd28d43c433b3810e0f4a7cd602fd62daf720112",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-29/phases/core.txt",
+      "size": 3589,
+      "sha256": "f6d27dddf455b7ddc80d6951d28f1fb71c4fbd4bae58110d9c730fe462592f10",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-29/phases/ct-core.txt",
+      "size": 3589,
+      "sha256": "f6d27dddf455b7ddc80d6951d28f1fb71c4fbd4bae58110d9c730fe462592f10",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-29/phases/source-map.txt",
+      "size": 2050,
+      "sha256": "bdfe13f66998175bf2b4f4e6abe21bb1d58f52773e70c37fdddd2055977e1274",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-29/phases/syntax.txt",
+      "size": 17709,
+      "sha256": "d38859a0c926d0da99ae8f757a5770e377b0b3361af6eaf2c000cede0d7bd01d",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-29/phases/typed.txt",
+      "size": 5263,
+      "sha256": "c831a02e0b96c737fed43288f70dc85622662ba78f0a14d843d03a61ab6fd447",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-29/phases/verified.txt",
+      "size": 5340,
+      "sha256": "f2b98c7f30e1ad44471907d34b144f309f0a025091a5770c4d42e20f3d1da4f3",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-unbounded-29/source.zil",
+      "size": 58,
+      "sha256": "04aa2bdac5cb485b94fa6dbac7d429baf4f8a738a531db2099ebbcfe28c81d9b",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-29/compile.json",
+      "size": 1703,
+      "sha256": "376ec8c7d2dc2598218d3485b681be6109334320db366132cb9b9291ee847d18",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-29/phases/candidate.txt",
+      "size": 1877,
+      "sha256": "4d577fc1247bb8d9ce74cee56f64d34c6733d147647f4b50441cc05df0a73dca",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-29/phases/core.txt",
+      "size": 3591,
+      "sha256": "96beec49dfe1faca51d8aeafc000c41c48f4b0c3b0eb8b427323a267c03c3f9f",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-29/phases/ct-core.txt",
+      "size": 3591,
+      "sha256": "96beec49dfe1faca51d8aeafc000c41c48f4b0c3b0eb8b427323a267c03c3f9f",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-29/phases/source-map.txt",
+      "size": 2050,
+      "sha256": "3c5308b984ccdfe6304d8486d88491728903e5714b467a48c9edea48f1773fce",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-29/phases/syntax.txt",
+      "size": 21183,
+      "sha256": "e996297f867b2de022c36f7d69ad0e5318b442d107363fb1dc774193dfc3ec53",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-29/phases/typed.txt",
+      "size": 5265,
+      "sha256": "8b961de77f923518127a2574b59cfab860603907d32c0511e622a711ebc53115",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-29/phases/verified.txt",
+      "size": 5342,
+      "sha256": "40f7f73b3e7f9673b4b2223c5aad336543ba075da01f8f5b122019a564109031",
+      "mode": 420
+    },
+    {
+      "path": "shadow229-where-29/source.zil",
+      "size": 71,
+      "sha256": "f2a8deaed84e0ba4c9f690ff47ebb9f26f73083c907fe11fb40d7c4fb7798895",
+      "mode": 420
+    }
+  ]
+}
