@@ -1,0 +1,1 @@
+import rules;pub struct Item{n:i32}impl rules.Read for Item{fn value(self:&Self)->i32=>self.n+100}pub fn make(n:i32)->Item=>Item{n:n}

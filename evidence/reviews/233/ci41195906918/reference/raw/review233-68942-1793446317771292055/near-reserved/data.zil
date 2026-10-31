@@ -1,0 +1,1 @@
+import rules;struct Item{n:i32}impl rules.Sender for Item{}impl rules.Syncer for Item{}impl rules.Dropper for Item{}

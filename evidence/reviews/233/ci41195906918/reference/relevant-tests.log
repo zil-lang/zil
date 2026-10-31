@@ -1,0 +1,35 @@
+Running tests/review233_independent.rs (/home/runner/work/_temp/target-reference/debug/deps/review233_independent-e5ecd2588aba6e0e)
+
+running 9 tests
+test generated_dependency_cannot_authorize_an_unimported_source_trait ... ok
+test private_missing_unimported_traits_and_foreign_self_stay_closed ... ok
+test renamed_reserved_traits_are_rejected_without_a_generic_bound ... ok
+test imported_signature_types_preserve_their_real_nominal_owner ... ok
+test shared_resource_receiver_runs_real_drop_and_rejects_owned_receiver ... ok
+test separate_generic_library_uses_each_actual_method_body ... ok
+test two_local_self_types_and_same_spelling_traits_keep_nominal_identity ... ok
+test uncalled_bad_impls_cannot_escape_signature_method_set_or_collision_checks ... ok
+test split_trait_impl_uses_definition_module_and_both_bound_spellings ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.98s
+Running tests/impl233_modules.rs (/home/runner/work/_temp/target-reference/debug/deps/impl233_modules-95376ac888bbd472)
+
+running 9 tests
+test imported_impls_check_uncalled_method_sets_signatures_and_collisions ... ok
+test new_imported_trait_work_has_exact_cold_warm_and_fresh_boundaries ... ok
+test original_single_module_and_drop_work_budgets_remain_exact ... ok
+test original_three_module_where_and_inline_inputs_reach_independent_verify ... ok
+test privacy_local_self_and_nominal_identity_remain_required ... ok
+test generic_trait_library_depends_on_each_actual_implementation_without_source_back_imports ... ok
+test resource_implementations_keep_shared_heads_and_original_drop_responsibility ... ok
+test public_imported_traits_export_checked_shared_mutable_static_and_value_methods ... ok
+test static_trait_declarations_cannot_hide_reserved_capabilities_after_module_renaming ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s
+Running tests/impl233_project_traits.rs (/home/runner/work/_temp/target-reference/debug/deps/impl233_project_traits-d906c1bbd485b2f7)
+
+running 2 tests
+test raw_hygienic_trait_spelling_cannot_replace_an_actual_import ... ok
+test static_reserved_exclusion_uses_the_exact_module_prefix_without_weakening_identity ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

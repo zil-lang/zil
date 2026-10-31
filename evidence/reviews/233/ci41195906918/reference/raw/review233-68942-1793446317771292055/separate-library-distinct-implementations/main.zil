@@ -1,0 +1,1 @@
+import facade;import data;import second;fn main()->i32{let first=data.make(7);let other=second.make(35);return facade.read(&first)+facade.read(&other)-142}
