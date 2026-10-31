@@ -169,7 +169,7 @@ fn two_roots_and_shadowed_names_preserve_actual_storage() {
     control("two-roots", &distinct);
     native("two-roots", &distinct, "BA");
     let shadow = format!(
-        "{MODEL} fn main()->i32{{let owner={FIRST};let callback=()=>owner.child.value;let owner={SECOND};return callback()+owner.child.value-15}}"
+        "{MODEL} fn main()->i32{{let owner={FIRST};let callback=()=>owner.child.value;if true{{let owner={SECOND};return callback()+owner.child.value-15}}else{{return 1}}}}"
     );
     control("shadow", &shadow);
     native("shadow", &shadow, "BA");
@@ -223,7 +223,11 @@ fn parameter_outer_capture_and_escaping_environment_remain_closed() {
     }
 }
 
-fn rejected_diagnostics<T>(result: Result<T, Vec<Diagnostic>>, marker: &str) {
+fn rejected_diagnostics<T>(
+    result: Result<T, Vec<Diagnostic>>,
+    marker: &str,
+    expected_code: Option<&str>,
+) {
     let errors = result
         .err()
         .expect("invalid source provenance must be rejected");
@@ -238,9 +242,35 @@ fn rejected_diagnostics<T>(result: Result<T, Vec<Diagnostic>>, marker: &str) {
                 && !d.code.starts_with("E-VERIFY-PLAN")),
         "{errors:#?}"
     );
+    match expected_code {
+        Some(code) => assert!(
+            errors
+                .iter()
+                .all(|d| d.code == code && d.category == ResultCategory::SafeReject),
+            "{errors:#?}"
+        ),
+        None => assert!(
+            errors
+                .iter()
+                .all(|d| d.category == ResultCategory::Unsupported),
+            "{errors:#?}"
+        ),
+    }
 }
 
-fn attack(label: &str, module: TypedModule, mut plan: CandidatePlan, marker: &str) {
+#[derive(Clone, Copy)]
+enum AnalyzeExpectation {
+    RejectOrigin,
+    ReconstructRetargetedOrdinaryRoot,
+}
+
+fn attack(
+    label: &str,
+    module: TypedModule,
+    mut plan: CandidatePlan,
+    marker: &str,
+    analyze_expectation: AnalyzeExpectation,
+) {
     plan.module_fingerprint = module.fingerprint();
     let out = directory(label);
     fs::write(out.join("typed.txt"), format!("{module:#?}")).unwrap();
@@ -249,13 +279,31 @@ fn attack(label: &str, module: TypedModule, mut plan: CandidatePlan, marker: &st
     fs::write(out.join("candidate.wire"), &wire).unwrap();
     let analyze = zil_analyze::analyze(&module, &Limits::default());
     fs::write(out.join("analyze.txt"), format!("{analyze:#?}")).unwrap();
-    rejected_diagnostics(analyze, marker);
-    let raw = zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default());
+    let raw = zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    );
     fs::write(out.join("raw.txt"), format!("{raw:#?}")).unwrap();
-    rejected_diagnostics(raw, marker);
     let decoded = zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default());
     fs::write(out.join("wire.txt"), format!("{decoded:#?}")).unwrap();
-    rejected_diagnostics(decoded, marker);
+    match analyze_expectation {
+        AnalyzeExpectation::RejectOrigin => rejected_diagnostics(analyze, marker, None),
+        AnalyzeExpectation::ReconstructRetargetedOrdinaryRoot => {
+            // Both roots qualify as ordinary locals. Analyze must recover the
+            // *new* root rather than retain the old owner's Hold facts. The
+            // later TakeLocal conflict is checked by Verify's separate loan
+            // pass; the unchanged 226 explicit-address baseline is identical.
+            assert_eq!(analyze.unwrap(), plan);
+        }
+    }
+    let code = match analyze_expectation {
+        AnalyzeExpectation::RejectOrigin => None,
+        AnalyzeExpectation::ReconstructRetargetedOrdinaryRoot => Some("E-BORROW-CONFLICT"),
+    };
+    rejected_diagnostics(raw, marker, code);
+    rejected_diagnostics(decoded, marker, code);
 }
 
 #[test]
@@ -297,6 +345,7 @@ fn raw_and_wire_dynamic_store_source_cannot_impersonate_default_local_capture() 
         module,
         plan,
         "ordinary local Product origins",
+        AnalyzeExpectation::RejectOrigin,
     );
 }
 
@@ -305,7 +354,29 @@ fn raw_and_wire_same_type_other_owner_does_not_inherit_loan_permission() {
     let text = format!(
         "{MODEL} fn main()->i32{{let first={FIRST};let second={SECOND};let callback=()=>first.child.value;let moved=second;return callback()-7}}"
     );
-    let (mut module, mut plan) = control("same-type-control", &text);
+    reject(
+        "same-type-source-retarget",
+        &text.replace("()=>first.child.value", "()=>second.child.value"),
+        Some("E-BORROW-CONFLICT"),
+    );
+    retarget_same_type("same-type", &text);
+}
+
+#[test]
+fn raw_and_wire_same_type_explicit226_control() {
+    let text = format!(
+        "{MODEL} fn main()->i32{{let first={FIRST};let second={SECOND};let view=&first;let callback=()=>view.child.value;let moved=second;return callback()-7}}"
+    );
+    reject(
+        "same-type-explicit226-source-retarget",
+        &text.replace("let view=&first", "let view=&second"),
+        Some("E-BORROW-CONFLICT"),
+    );
+    retarget_same_type("same-type-explicit226", &text);
+}
+
+fn retarget_same_type(label: &str, text: &str) {
+    let (mut module, mut plan) = control(&format!("{label}-control"), text);
     let function = module
         .functions
         .iter_mut()
@@ -344,5 +415,11 @@ fn raw_and_wire_same_type_other_owner_does_not_inherit_loan_permission() {
         }
     }
     assert!(roots > 0);
-    attack("same-type-retarget", module, plan, "borrow");
+    attack(
+        &format!("{label}-retarget"),
+        module,
+        plan,
+        "overlaps a shared address",
+        AnalyzeExpectation::ReconstructRetargetedOrdinaryRoot,
+    );
 }
