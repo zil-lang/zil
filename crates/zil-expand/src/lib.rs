@@ -114,6 +114,16 @@ pub fn check_generated_type_name(name: &str, span: Span) -> CompileResult<()> {
     generics::check_generated_type_name(name, span).map_err(|error| vec![error])
 }
 
+/// Preserve the ordinary function primitive-name rule before hygiene changes
+/// its source spelling. Function and nominal reserved-name sets are distinct.
+pub fn check_generated_function_name(name: &str, span: Span) -> CompileResult<()> {
+    if primitive_name(name) {
+        Err(vec![primitive_name_error(name, span)])
+    } else {
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct ExpandedModule {
     pub core: CoreModule,
