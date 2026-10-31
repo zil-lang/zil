@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task": "226",
+  "implementation_commit": "b4eef0b533d088829abfc7785bc716c48c89d889",
+  "original_delivery": "1748b767c3fd3ab1408c84ce8a9dc0f2ae34b8cd",
+  "original_full_ci": {
+    "run": 41154731186,
+    "checkout": "d34b6e645e68387f06909860890c4094259ef03e",
+    "status": "Fail",
+    "workspace": {"passed": 2871, "failed": 1, "ignored": 0, "log_sha256": "b8acc61a188648d5cf008db4762dc3698058f5b6f0c1ebcbc9dbc7b116991115"},
+    "reference": {"passed": 2836, "failed": 1, "ignored": 0, "log_sha256": "b24da943dee5e649fae5a8f0f893458a67085ac58274cd92a5732f5eb7e04355"},
+    "failing_test": "impl175_store_views::element_shape_mutable_owned_field_return_and_capture_guards_are_explicit",
+    "actual": {"category": "Unsupported", "phase": "analyze", "code": "E-UNSUPPORTED", "message": "shared Product capture requires proven ordinary local Product origins"},
+    "old_expected": {"category": "Unsupported", "phase": "types", "code": "E-UNSUPPORTED", "message_contains": "Store element address capture"},
+    "artifact_id": 13025161533,
+    "artifact_sha256": "77819d449c27bfa0adb53ac5e950429f3762bb7afa50d4720157072ec11f5045"
+  },
+  "change": "Only the exact phase and message assertion for the unchanged original ZIL capture source are migrated. The test still requires Unsupported/E-UNSUPPORTED. No compiler code, ZIL fixture bytes, budgets, negative-case selection or other assertions change.",
+  "committed_author_rerun": {
+    "source_commit": "b4eef0b533d088829abfc7785bc716c48c89d889",
+    "llvm_api": {"command": "cargo test --locked --offline -p zil-driver --features llvm-api --test impl175_store_views --test impl226_budget --test impl226_shared_product_capture --test impl224_shared_product --test impl214_source --test impl204_source --test impl204_budget --no-fail-fast", "exit": 0, "passed": 84, "failed": 0, "ignored": 0, "log_sha256": "6122738e4b4f227ffb503462e499c428c12f6136dc144fdc64c48923d2ee4553"},
+    "reference": {"command": "cargo test --locked --offline -p zil-driver --test impl175_store_views --test impl226_shared_product_capture --no-fail-fast", "exit": 0, "passed": 28, "failed": 0, "ignored": 0, "log_sha256": "fb51569f8d07b1d80b5667489cd721273665a6e7c252105275e1903174d6f05f"},
+    "clippy": {"command": "cargo clippy --locked --offline -p zil-driver --features llvm-api --test impl175_store_views --test impl226_budget --test impl226_shared_product_capture -- -D warnings", "exit": 0, "log_sha256": "ebd3f376e720eb782bd44582c9c25ab744202dce1d396b5f8b274d7055d23bea"},
+    "overlap": "84 includes the earlier 64 affected tests. The reference 28 overlaps the API cases and is not added as distinct coverage."
+  },
+  "status": "AuthorRepairPassFullRerunPending",
+  "independent_execution_review": "NotProvided",
+  "full_ci_after_repair": "Must be read from the new PR-head run; the original failure remains Fail."
+}
