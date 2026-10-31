@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "reviewer": "zil施工10/branch_audit",
+  "implementation_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+  "status": "CorrectedFixturesAwaitRetest",
+  "original_ci_run": 41182685056,
+  "original_ci_checkout": "015cb5d4e6c7794de616e0a933520cd3dfa886f7",
+  "original_test_blob": "9479b3e5a914b4ce75b2b84ac05447d08896696b",
+  "corrected_test_blob": "96a696f917dac46010ad3e107163d3f2ce13e261",
+  "production_files_changed": [],
+  "rust_test_count_before": 8,
+  "rust_test_count_after": 9,
+  "planned_native_executions_per_backend_after": 10,
+  "raw_branch_correction": {
+    "original_failure": "Injection locator found zero direct BorrowLocal-result-to-Store pairs; attack was not executed",
+    "new_selector": "Select exactly one BorrowLocal of the source local item in a non-entry conditional block; assert result type equals the dominating Store window type",
+    "single_mutation": "Replace that producer with ReborrowAddress(window, mutable=false), retaining its SSA result and all existing consumers; leave the other ordinary branch intact",
+    "safety_assertions_preserved": [
+      "Valid original source/Analyze/raw/Wire control",
+      "Exactly one selected producer",
+      "Fresh module fingerprint",
+      "Analyze Unsupported with ordinary local Product origins",
+      "Independent raw Verify and Wire Verify reject the same origin violation",
+      "E-VERIFY-PLAN mismatches are not accepted as target rejection"
+    ],
+    "runtime_confirmation": "Pending root scoped retest; source control IR and selection are now saved for diagnosis"
+  },
+  "composition_scope_correction": {
+    "frozen_contract": [
+      "The existing self-contained owning-Store profile in _zil_design.md section9.1.1 is retained by225 section9.1.3",
+      "226 section9.1.4 does not open owning-Store environments with an external shared Hold"
+    ],
+    "production_boundary": [
+      "crates/zil-analyze/src/dynamic_store.rs owned-Store profile calls callable_fields::self_contained",
+      "crates/zil-analyze/src/callable_fields.rs rejects Address capture in the self-contained profile"
+    ],
+    "root_scope_decision": "Root accepted this interpretation and requested an explicit original Unsupported nearest negative plus two coexisting local environments, without changing production",
+    "original_source_preservation": "Original format literal is byte-identical; exact CI source.zil is preserved as mixed-original.zil with SHA25632c69b4e3b42efb0b12d3116b36b8916b5b8fe5e787d664f6f4e7b88fef007f0",
+    "negative_case": "owned_store_environment_does_not_acquire_external_shared_product_hold asserts Analyze Unsupported and no executable",
+    "positive_case": "separate_local_environments_preserve_owned_store_and_shared_product_responsibilities owns Store in one environment and shares Product in another; both coexist",
+    "oracles_preserved": [
+      "Last shared call before consume succeeds",
+      "Early consume remains SafeReject/E-BORROW-CONFLICT",
+      "O0/O2 source-to-native exact AB cleanup and exit0",
+      "No claim that a single mixed owning/shared environment is supported"
+    ]
+  },
+  "validation_performed": [
+    "Official Rust1.99.1 rustfmt --edition2024 succeeded",
+    "Original mixed source format literal compared byte-for-byte against preserved original source",
+    "First CI workspace log and8 actual LLVM API23.1.4 O0/O2 native receipts independently inspected"
+  ],
+  "validation_not_performed": [
+    "No cargo invocation or new native execution by this reviewer after fixture correction",
+    "No corrected-suite Pass claim"
+  ],
+  "failure_evidence": "evidence/reviews/225/construction10/ci41182685056/FAILURE.json"
+}
