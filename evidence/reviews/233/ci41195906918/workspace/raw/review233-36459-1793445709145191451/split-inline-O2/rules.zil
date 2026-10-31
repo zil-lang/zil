@@ -1,0 +1,1 @@
+pub trait Read{fn value(self:&Self)->i32;}pub fn read<T:Read>(x:&T)->i32=>x.value()

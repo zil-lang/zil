@@ -1,0 +1,1 @@
+import rules;extern "C" fn putchar(code:i32)->i32;resource Counter{n:i32}impl Drop for Counter{fn drop(self:Self){unsafe{putchar(65)}}}impl rules.Read for Counter{fn value()->i32=>.n}pub fn check()->i32{let counter=Counter{n:42};return counter.value()-42}

@@ -1,0 +1,1 @@
+import rules;impl rules.Read for rules.Item{fn value()->i32=>7}
