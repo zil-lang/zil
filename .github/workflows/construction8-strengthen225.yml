@@ -1,0 +1,46 @@
+name: Publish 225 candidate-control strengthening
+on:
+  push:
+    branches: [chore/construction8-resume]
+    paths: [.github/workflows/construction8-strengthen225.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: bd802f3a6a59e5e83c9b5c7ebf188371fef6cc0c
+          fetch-depth: 0
+          persist-credentials: true
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,hashlib,json,lzma,pathlib,subprocess
+          encoded='''/Td6WFoAAATm1rRGAgAhARwAAAAQz1jM4ATfArpdAC2ewEczfOFnZGPlYNXxwoDIRdR9kcnDWIML+BQ9xYQPZovsrMoi5WHk8E/VDc9c3AACwtQfLFD/6qA3djdPHu94PaszJ+c+p/FNI9xoI5l2I+ThDN9gc/wKTrK1s47fImMikF/MwkJCsG1uvY/3qAbv96mdYcpyX5suvl4s0uwx+7fv/r2Kq6KtO2MTN520Zo3Jubz6GeCFHayg9kZT1e0xAWZxeq3CeFAI3+G1bLRSdETXUahPpShEzoh7BeVHU2ksyZvAyd/XdbaKtqYCBma1+5Lx04VJcDSsxC3DQM1lA5kQp9u54znRgPYXKYteva2XdOVy2arK3xe7zQXWTBna3BXsi9vw4BL/vB7w0+lymPpiXlrrhBJH2b8G1cp/PAdZWFDdcjHOMQWOb4sZ+zen2lbPBveplY2bd4SCf4CVS2WAo4ehIUyO2rAayapuJgOPdU47IdoEqMSSd/mIFzRGMOIfsmyr/N7bjPvLs9Sn7WLByhlWwfHe4FGKUqid+RduDc2mkuVWeq87dvpAERAy7VYYw4ypY7HYQ6yhlQ3vUFteg2zPZTT+pK3i+ir4RpR4FjefhtixPBrA/NTogNYnpFVqk626qdE4JUPotRKS+aYJURaOAwLD8iPATCzyzt6OFvDSvAyuFGwLfloDdqEBg1a2gt1KFSjpJa/eQoYv7gC2EJb51M2SoqLj/1x2KE2XoNLrKR149QmiXXIv2sOr8y6Fv+rOUebE8Ml8v83jk3XuEc+cBVcd/t3t+nh22/NeQu1Pea/9vFvEnbsEVDVn/+NqnMyVDv1znEVcO+E8ZtQdDfqcTsdQ9P+5jTzU0mMiiNgRzJ+l5WySqyKXRg6nlU+FMieaI9Az4AmMPc2Zl948CT3+iP968b0TuUtmC9HsIvbh3JNO9pz9yPgaGyr56ShHjlxSqHHhAAAAsdNOclsdTHUAAdYF4AkAACjefBaxxGf7AgAAAAAEWVo='''
+          records=json.loads(lzma.decompress(base64.b64decode(encoded,validate=True)))
+          parent='bd802f3a6a59e5e83c9b5c7ebf188371fef6cc0c'
+          for record in records:
+              assert '\nparent '+parent+'\n' in record['raw']
+              for path,before,ops,after in record['edits']:
+                  assert path=='crates/zil-driver/tests/impl225_product_store_capture.rs'
+                  p=pathlib.Path(path);old=p.read_bytes()
+                  assert hashlib.sha256(old).hexdigest()==before
+                  lines=old.decode().splitlines(keepends=True)
+                  for start,end,text in reversed(ops):lines[start:end]=[text]
+                  data=''.join(lines).encode();assert hashlib.sha256(data).hexdigest()==after;p.write_bytes(data)
+              subprocess.run(['git','add','--all'],check=True)
+              tree=subprocess.check_output(['git','write-tree'],text=True).strip()
+              assert record['raw'].startswith('tree '+tree+'\n')
+              sha=subprocess.check_output(['git','hash-object','-t','commit','-w','--stdin'],input=record['raw'],text=True).strip()
+              assert sha==record['sha'];parent=sha
+          assert parent=='5f47ffa58f5e8cb7bb03ac94675e9bc6bed3b9a0'
+          ref='refs/heads/impl/225-product-store-capture'
+          current=subprocess.check_output(['git','ls-remote','origin',ref],text=True).split()[0]
+          assert current=='bd802f3a6a59e5e83c9b5c7ebf188371fef6cc0c'
+          subprocess.run(['git','push','--force-with-lease='+ref+':'+current,'origin',parent+':'+ref],check=True)
+          print('Published exact test-only followup',parent)
+          PY
