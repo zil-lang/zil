@@ -1,0 +1,31 @@
+{
+  "status": "ReferencePassed_ApiPending",
+  "tested_commit": "118cbec40c9182352ff5480a9c515cd38d8d1574",
+  "tests": {
+    "passed": 2,
+    "failed": 0,
+    "ignored": 0
+  },
+  "native_executions": 2,
+  "native_backend": "Clang 17.0.6 reference",
+  "reviewer": "/root/next_language_slices",
+  "static_review": "No source semantics or assertion weakening in 9d36cbaf63d159c0a8386752e9492f1d0f109fa3; only negative raw evidence persistence added.",
+  "negative": {
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "codes": [
+      "E-BORROW-CONFLICT"
+    ],
+    "executable": false
+  },
+  "plan_check": "14 tasks, 7 negative self-tests passed",
+  "format": "cargo fmt --all -- --check passed",
+  "files": {
+    "data.zil": "91e1a4e72857e7c8570be91bb783f0548e1c5535e39d45298ee643fb86ed27bd",
+    "main.zil": "2be01961ebcdde834d299e516962ec91aee513d7823d0df62d73da4d992f1421",
+    "reference.log": "a5fdc0cbb60dc317161373a6636145d096adb0b3bdd912bf3ce5478ae47ef42c",
+    "report.json": "dea64f59adcefbfe9df9418404760be5e8865eed42b8407a80871ba971d63f20",
+    "rules.zil": "5f4a1eefcc6766ac9cf44c3b5800221747951dee01f088349b8337a1a36c481f"
+  }
+}
