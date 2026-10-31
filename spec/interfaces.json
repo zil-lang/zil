@@ -32,7 +32,7 @@
       "state": "ContractToImplement",
       "representation": "Untrusted hygienic source generation using existing CTIR verification and VM, no Wire change.",
       "budget": "Cumulative CT and generation cost, charged before growth including warm reuse.",
-      "declarations": "222 ordinary functions; 228 separately extends finite struct and alias declarations. Other Type/Syntax/trait/impl generation remains unimplemented."
+      "declarations": "222 ordinary functions; 228 separately extends finite struct and alias declarations; 230 extends nongeneric Unit/Tuple enums. General Type/Syntax/trait/impl generation remains unimplemented."
     },
     "product_store_223": {
       "authority": "_zil_design.md §8.2.4",
@@ -69,6 +69,18 @@
       "state": "ContractToImplement",
       "representation": "Direct ordinary function type-parameter where Copy bounds normalize into existing inline bounds before aliases and specialization.",
       "independence": "No producer permission or solver extension. Definition and instance checks remain; one remaining budget flows through normalization, aliases and specialization."
+    },
+    "source_enum_generation_230": {
+      "authority": "_zil_design.md §16.6",
+      "state": "ContractToImplement",
+      "representation": "Existing untrusted AST for nongeneric Unit/Tuple enums with finite Copy payloads; per-iteration nominal hygiene, constructor and pattern paths; schema/Wire27 unchanged.",
+      "independence": "Generated declarations pass ordinary Types, Analyze and independent Verify. Immutable ConfigReady, lexical shadowing and cumulative prepaid generation budgets remain. Record/generic enums, resource/package/trait/impl and general Type/Syntax/#emit remain outside this slice."
+    },
+    "where_nominal_traits_231": {
+      "authority": "_zil_design.md §18.1 profile 231",
+      "state": "ContractToImplement",
+      "representation": "Direct ordinary function type-parameter where bounds normalize existing nongeneric nominal traits and Copy into the existing inline-bound checker; no new solver, schema or runtime representation.",
+      "independence": "Actual module identity, visibility, definition/instance checks and one remaining prepaid budget are retained. Only a real $module<decimal>_ prefix is recognized for reserved-trait exclusion; it is never removed for nominal equality."
     }
   },
   "schemas": [
