@@ -126,7 +126,9 @@ fn unused_foreign_declarations_do_not_invalidate_independent_objects() {
             "pub fn get()->i32 { unsafe { return abs(1,2); } }\nextern \"C\" fn abs(x:i32)->i32;",
         );
         let bad = d.build(&o);
-        assert_ne!(bad.status, ResultCategory::Success);
+        assert_eq!(bad.status, ResultCategory::SafeReject);
+        assert_eq!(bad.phase, Phase::Types);
+        assert_eq!(bad.diagnostics[0].code, "E-CALL-ARITY");
         assert!(bad.native_codegen.is_none());
     }
 }
