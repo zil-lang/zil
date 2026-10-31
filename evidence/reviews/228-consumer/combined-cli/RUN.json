@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/environment_recovery",
+  "checkout": "85fd4511a9ba9a2c84531f8b902ea70a45deaf26",
+  "producer_candidates": [
+    "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+    "6253c2eb468aa0284e9c201e0a1f0053dc20a6f4"
+  ],
+  "utc": "2026-10-31T00:52:00.099008+00:00",
+  "reason": "Existing prior generation tests documented a CLI/API namespace difference, so verify the actual filesystem CLI entry for the combined source.",
+  "status": "Pass",
+  "cli_build_command": [
+    "cargo",
+    "build",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-cli"
+  ],
+  "rows": [
+    {
+      "optimization": "O0",
+      "build_command": [
+        "/workspace/scratch/e9af9764d083/targets/consumer/debug/zil",
+        "build",
+        "examples/mainline/generated_events228/combined/main.zil",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O0",
+        "--emit-dir",
+        "evidence/reviews/228-consumer/combined-cli/native/O0/phases",
+        "-o",
+        "evidence/reviews/228-consumer/combined-cli/native/O0/events",
+        "--json"
+      ],
+      "build_exit": 0,
+      "runs": [
+        {
+          "input_byte": 48,
+          "exit_code": 0,
+          "stdout": "J",
+          "stderr": "",
+          "expected_stdout": "J",
+          "expected_exit": 0
+        },
+        {
+          "input_byte": 49,
+          "exit_code": 0,
+          "stdout": "W",
+          "stderr": "",
+          "expected_stdout": "W",
+          "expected_exit": 0
+        },
+        {
+          "input_byte": 120,
+          "exit_code": 7,
+          "stdout": "",
+          "stderr": "",
+          "expected_stdout": "",
+          "expected_exit": 7
+        }
+      ]
+    },
+    {
+      "optimization": "O2",
+      "build_command": [
+        "/workspace/scratch/e9af9764d083/targets/consumer/debug/zil",
+        "build",
+        "examples/mainline/generated_events228/combined/main.zil",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O2",
+        "--emit-dir",
+        "evidence/reviews/228-consumer/combined-cli/native/O2/phases",
+        "-o",
+        "evidence/reviews/228-consumer/combined-cli/native/O2/events",
+        "--json"
+      ],
+      "build_exit": 0,
+      "runs": [
+        {
+          "input_byte": 48,
+          "exit_code": 0,
+          "stdout": "J",
+          "stderr": "",
+          "expected_stdout": "J",
+          "expected_exit": 0
+        },
+        {
+          "input_byte": 49,
+          "exit_code": 0,
+          "stdout": "W",
+          "stderr": "",
+          "expected_stdout": "W",
+          "expected_exit": 0
+        },
+        {
+          "input_byte": 120,
+          "exit_code": 7,
+          "stdout": "",
+          "stderr": "",
+          "expected_stdout": "",
+          "expected_exit": 7
+        }
+      ]
+    }
+  ]
+}
