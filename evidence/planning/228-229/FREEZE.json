@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "status": "FrozenForImplementation",
+  "baseline": "6ba0b04ee8b9cac3ead187b2aa9f03c91c217e49",
+  "spec_hash": "11c7554a05d0a9d2bc9e34ebf8ec3e80dd2e406b813ef98faa11723d3ecd3e3c",
+  "normative_hash": "9650a02607d782c2981f75930de3ad239c8322677170f81135a13352777c92ae",
+  "tasks": [
+    "228",
+    "229"
+  ],
+  "authors": {
+    "228": "/root/scope_audit",
+    "229": "/root/mainline_recovery"
+  },
+  "consumer": "/root/environment_recovery",
+  "integration": "/root",
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm": "23.1.4"
+  },
+  "prior_tasks_untouched": [
+    "225",
+    "226",
+    "227"
+  ],
+  "handoff_baseline": {
+    "status": "Fail",
+    "scope": "record integrity on sparse checkout, not compiler acceptance",
+    "stdout_sha256": "1fbc1f12b752b283815f2f14f00705a54a459377c75b2325607f87a7e7e9c4ee"
+  },
+  "product_gate": "NotRun",
+  "full_language_gate": "NotSatisfied"
+}
