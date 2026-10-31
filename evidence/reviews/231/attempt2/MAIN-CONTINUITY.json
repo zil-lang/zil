@@ -1,0 +1,310 @@
+{
+  "schema_version": 1,
+  "task": "231",
+  "reviewer": "/root/continuity_audit",
+  "implementation_author": "/root/defer_design",
+  "verdict": "Pass",
+  "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
+  "observed_main_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+  "run": 41186163758,
+  "job": 124493408210,
+  "run_attempt": 1,
+  "reviewed_at_utc": "2026-10-31T09:08:25.275048+00:00",
+  "scope": "Independent main-CI continuity check after the completed PR review of bounded slice 231. This receipt adds the actual main execution identity and does not amend the historical PR review.",
+  "prior_review": {
+    "path": "evidence/reviews/231/attempt2/FINAL.json",
+    "commit": "3d3707fe7e85166183ecab818df67ad04a963790",
+    "sha256": "a13307d3d16aec734dcb289cd46f90326476d9599588d8c066f20e5721d7b42d",
+    "original_bytes_unchanged": true,
+    "detailed_native_observations": "evidence/reviews/231/attempt2/OBSERVATIONS.json",
+    "raw_receipts": "evidence/reviews/231/attempt2/raw-receipts.tar.gz",
+    "pr_run": 41184530698,
+    "pr_candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
+    "actual_pr_checkout": "045dc75cec6eaa4de52951e075c52fd809fb6b3c"
+  },
+  "identity": {
+    "M_equals_I2_complete_tree": "248eb911a7272bda979e418ecc62415984e81eb6",
+    "source_tree_entries": 87508,
+    "source_tree_bytes": 11554382,
+    "source_tree_sha256": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5",
+    "main_workspace_reference_final_and_PR_source_lists_byte_identical": true,
+    "test_blob": "33b9c08e1fe2eefc12e0d6ce101ba14276674532",
+    "toolchain_receipts_byte_identical_to_PR": true,
+    "rust": "1.99.1",
+    "llvm": "23.1.4",
+    "clang": "23.1.4",
+    "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
+    "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
+    "metadata_commit_not_claimed_tested": "The later review/integration/documentation commits are not the observed main checkout."
+  },
+  "complete_main_gates": {
+    "official_run_event": "push",
+    "official_run_status": "completed",
+    "official_run_conclusion": "success",
+    "job_steps": {
+      "total": 25,
+      "success": 25,
+      "failed": 0,
+      "skipped": 0
+    },
+    "format": "Pass; successful official Formatting step and original empty fmt.log",
+    "clippy": "Pass; all-target -D warnings, original log completed with no warning/error diagnostics",
+    "text_reference": {
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "migration": {
+      "passed": 9,
+      "failed": 0,
+      "raw_result": "OK"
+    },
+    "global_consumer": {
+      "receipt_status": "Pass",
+      "receipt_source_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+      "scope": "Only observed identity and Pass receipt checked here; detailed global consumer review belongs to the integration audit."
+    }
+  },
+  "configurations": {
+    "workspace": {
+      "counts": {
+        "groups": 326,
+        "passed": 2976,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "review231": {
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0,
+        "actual_named_tests": [
+          "independent_grouped_bounds_and_cross_subject_clause_order",
+          "independent_cross_module_impl_matches_existing_inline_boundary",
+          "independent_module_identity_alias_privacy_and_binder_boundaries",
+          "independent_reserved_capabilities_and_similar_ordinary_trait_names",
+          "independent_raw_ast_prefixes_only_apply_the_reserved_name_exclusion",
+          "independent_enum_payload_inference_keeps_inline_equivalence",
+          "independent_native_grouped_module_and_generated_enum_consumers",
+          "independent_module_where_budget_boundary_survives_cache_replay"
+        ],
+        "exact_log_section_sha256": "29d91bd3993587a2d31771dfc2a4346d410d7b68a646975324b38c5d15004cd9",
+        "log_section_byte_start": 240928,
+        "log_section_byte_end_exclusive": 241769
+      },
+      "log_sha256": "8d8e0e090b1480cc33b65c6ba1322393e67963358326596d3b54ec6350c92484",
+      "small_archive": {
+        "id": 13036949211,
+        "name": "zil-main-41186163758-1-workspace",
+        "bytes": 3510057,
+        "sha256": "b6f29edd4c021728bb8ee6232186f9735f5578bdce1f868c0d4029437afb40e2",
+        "all_8_extracted_members_compared_to_zip": true
+      },
+      "native_manifest": {
+        "sha256": "9ebd7c7572a3e32bb8babf4b078c5b98249fdc4be23c875c4ba42671194146d1",
+        "prefix": "review231-35368",
+        "entries": 461,
+        "bytes": 9735383,
+        "full_phase_entries": 65796,
+        "relative_path_set_equal_to_PR": true,
+        "matched_groups": {
+          "source_files": {
+            "entries": 103,
+            "size_and_sha256_equal_to_reviewed_PR": true
+          },
+          "budget_minima": {
+            "entries": 2,
+            "size_and_sha256_equal_to_reviewed_PR": true
+          },
+          "native_exit_and_output": {
+            "entries": 24,
+            "size_and_sha256_equal_to_reviewed_PR": true
+          },
+          "raw_prefix_inputs_and_results": {
+            "entries": 21,
+            "size_and_sha256_equal_to_reviewed_PR": true
+          }
+        },
+        "group_counts_overlap": "Seven raw-prefix source files also appear in source_files; these are not additive coverage counts.",
+        "native_report_entries": [
+          "native-O0-generated/report.json",
+          "native-O0-inline/report.json",
+          "native-O0-project/report.json",
+          "native-O0-where/report.json",
+          "native-O2-generated/report.json",
+          "native-O2-inline/report.json",
+          "native-O2-project/report.json",
+          "native-O2-where/report.json"
+        ]
+      },
+      "uploaded_native_artifact": {
+        "id": 13036929389,
+        "name": "zil-main-41186163758-1-workspace-native",
+        "size_in_bytes": 195176278,
+        "digest": "sha256:9cc0793732318e762b17b0f8bd1eebdd84a652ea575fafb8c0e6ed66d63b2ba2",
+        "expired": false,
+        "workflow_run": {
+          "id": 41186163758,
+          "repository_id": 1433889316,
+          "head_repository_id": 1433889316,
+          "head_branch": "main",
+          "head_sha": "9e7072b1ebdc6900c7370863c27c7432953bd830"
+        }
+      },
+      "large_native_payload_downloaded_or_reaudited": false
+    },
+    "reference": {
+      "counts": {
+        "groups": 326,
+        "passed": 2933,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "review231": {
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0,
+        "actual_named_tests": [
+          "independent_grouped_bounds_and_cross_subject_clause_order",
+          "independent_cross_module_impl_matches_existing_inline_boundary",
+          "independent_module_identity_alias_privacy_and_binder_boundaries",
+          "independent_reserved_capabilities_and_similar_ordinary_trait_names",
+          "independent_raw_ast_prefixes_only_apply_the_reserved_name_exclusion",
+          "independent_enum_payload_inference_keeps_inline_equivalence",
+          "independent_native_grouped_module_and_generated_enum_consumers",
+          "independent_module_where_budget_boundary_survives_cache_replay"
+        ],
+        "exact_log_section_sha256": "8625150452abc70a25caf15982b43669c23c91c9fbe547e215b00e782eed099c",
+        "log_section_byte_start": 243052,
+        "log_section_byte_end_exclusive": 243903
+      },
+      "log_sha256": "328d875ed9b5603c6775b2a3aad911d1875a688594bb113e27ec50768880bb6e",
+      "small_archive": {
+        "id": 13037486130,
+        "name": "zil-main-41186163758-1-reference",
+        "bytes": 3445874,
+        "sha256": "62d14924e22f1dd22d7cf57aa44a4951810cdadeee8508767d22959a7b8c0ff1",
+        "all_8_extracted_members_compared_to_zip": true
+      },
+      "native_manifest": {
+        "sha256": "0b6a816edabb9f5e999394d68899e61a4753c23ab96d3d676c93593fa428f902",
+        "prefix": "review231-67098",
+        "entries": 461,
+        "bytes": 9731802,
+        "full_phase_entries": 63318,
+        "relative_path_set_equal_to_PR": true,
+        "matched_groups": {
+          "source_files": {
+            "entries": 103,
+            "size_and_sha256_equal_to_reviewed_PR": true
+          },
+          "budget_minima": {
+            "entries": 2,
+            "size_and_sha256_equal_to_reviewed_PR": true
+          },
+          "native_exit_and_output": {
+            "entries": 24,
+            "size_and_sha256_equal_to_reviewed_PR": true
+          },
+          "raw_prefix_inputs_and_results": {
+            "entries": 21,
+            "size_and_sha256_equal_to_reviewed_PR": true
+          }
+        },
+        "group_counts_overlap": "Seven raw-prefix source files also appear in source_files; these are not additive coverage counts.",
+        "native_report_entries": [
+          "native-O0-generated/report.json",
+          "native-O0-inline/report.json",
+          "native-O0-project/report.json",
+          "native-O0-where/report.json",
+          "native-O2-generated/report.json",
+          "native-O2-inline/report.json",
+          "native-O2-project/report.json",
+          "native-O2-where/report.json"
+        ]
+      },
+      "uploaded_native_artifact": {
+        "id": 13037930262,
+        "name": "zil-main-41186163758-1-reference-native",
+        "size_in_bytes": 191578832,
+        "digest": "sha256:8b0ae5c620c3209e61296a10f742c7e35947324e4fd6b00eb98dce62b312cbfe",
+        "expired": false,
+        "workflow_run": {
+          "id": 41186163758,
+          "repository_id": 1433889316,
+          "head_repository_id": 1433889316,
+          "head_branch": "main",
+          "head_sha": "9e7072b1ebdc6900c7370863c27c7432953bd830"
+        }
+      },
+      "large_native_payload_downloaded_or_reaudited": false
+    }
+  },
+  "budget_continuity": {
+    "reviewed_PR_thresholds": {
+      "work": 2169,
+      "nodes": 394
+    },
+    "main_minimum_json_hashes": {
+      "module-work/minimum.json": "720972e449e6da4ff36185792f23255ed81c83e7d8619b9b09576ec249592a02",
+      "module-nodes/minimum.json": "f2eedf97bdc77fc5b49db1280b007869ccada93f67dc5f1a89c19a2a2266c1b1"
+    },
+    "both_main_manifests_match_reviewed_PR_minimum_bytes": true,
+    "actual_budget_test_passed_in_both_configurations": true,
+    "unchanged_test_guards": "cold N, warm N, N-1 ResourceLimit, recovered N, fresh N, successful Verify 1, warm cache reuse, and zero active queries after each session attempt. These assertions reran; detailed report payloads were not reopened for main."
+  },
+  "native_review_reuse": {
+    "basis": "Exact whole source tree, independent test blob, workflow/options and Rust/LLVM toolchain identities match the reviewed PR; all eight named tests ran in each main configuration; uploaded main native inventories preserve the inspected source/minimum/exit/output/raw-prefix hashes.",
+    "default_contract": "Four source families at O0/O2, LLVM API builder input with verify_before_after, no fallback, Verify 1 and exit zero/empty output are enforced by the unchanged passing test.",
+    "reference_contract": "The same four families at O0/O2 use explicit Clang reference mode; this is not additional LLVM API coverage.",
+    "limits": "Main native report payloads and binaries were not downloaded or deeply re-audited. New execution is evidenced by actual main test logs and upload inventories; the detailed native audit is the immutable PR review."
+  },
+  "receipt_sha256": {
+    "jobs.json": "01734d7b5a1ec80c909da4422e9f76f7fed8cbe87740e5e524cda7c487121c74",
+    "run.json": "376b32a2025b0994917f40d937ebbf895d8ec022d5ea25ed3a627488c96afb4f",
+    "artifacts.json": "67bc6de745bd5ac8cea0682bb1aa409a275b2d36832df58bfe999a5c46a3c6a4",
+    "final/receipts/commit.txt": "aade5c19ddcc5e20be26c3e662d8bf66768984e5c5e8b0d344b5e66e713b40a4",
+    "final/receipts/source-tree.txt": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5",
+    "final/receipts/toolchain.txt": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0",
+    "final/receipts/llvm-api-toolchain.json": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71",
+    "final/receipts/fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "final/receipts/clippy.log": "85c2bed986b6066b00a387a35d449686757d11368a9da74fa008c9be71cca864",
+    "final/receipts/text-reference.log": "b8d11f1c778ce05b1ae75472189d087b2000956a9ae8d1b14f05d352de334382",
+    "final/receipts/migration-runner.log": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53",
+    "final/receipts/consumer209.json": "3b9d3cbd4869ad478064be4d84cb119e64939aaace6cfb1d55923a919f125cd4"
+  },
+  "final_uploaded_artifact": {
+    "id": 13037137092,
+    "name": "zil-main-41186163758-1-final",
+    "size_in_bytes": 320448149,
+    "digest": "sha256:d3a8a1685a20cc0bcebb55e6a52610088560174f813132ce36338e8ef1025680",
+    "expired": false,
+    "workflow_run": {
+      "id": 41186163758,
+      "repository_id": 1433889316,
+      "head_repository_id": 1433889316,
+      "head_branch": "main",
+      "head_sha": "9e7072b1ebdc6900c7370863c27c7432953bd830"
+    }
+  },
+  "historical_boundaries": {
+    "old_failures": "All prior failed receiver/cross-module-impl/enum-payload fixtures and local reference records remain as recorded in FINAL.json.",
+    "existing_unsupported_controls": "Cross-module trait implementation and unannotated enum payload inference remain explicit inline/plain comparison controls; main reran both named tests.",
+    "no_additional_language_scope": true,
+    "full_language_1_4": "NotSatisfied",
+    "full_zui": "NotSatisfied",
+    "rust_product_gate": "NotRun",
+    "native_windows": "NotRun",
+    "four_goal_conjunction": "NotEstablished",
+    "performance_superiority": "NotMeasured"
+  },
+  "review_execution": "Read-only Git/object, log, JSON, small-ZIP member and manifest comparison; no Cargo or additional native execution."
+}
