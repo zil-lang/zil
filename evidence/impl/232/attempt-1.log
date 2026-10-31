@@ -1,0 +1,26 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-types)
+error: `let` bindings require top-level or-patterns in parentheses
+   --> crates/zil-types/src/closures/package_effects.rs:319:17
+    |
+319 |             let Type::Record { fields, .. } | Type::Package { fields, .. } = ty else {
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: wrap the pattern in parentheses
+    |
+319 |             let (Type::Record { fields, .. } | Type::Package { fields, .. }) = ty else {
+    |                 +                                                          +
+
+error[E0425]: cannot find function `limit` in this scope
+    --> crates/zil-types/src/lib.rs:1792:28
+     |
+1792 |                 return Err(limit("Product capture projection depth exceeded", expression.span));
+     |                            ^^^^^ not found in this scope
+     |
+note: function `crate::closures::limit` exists but is inaccessible
+    --> crates/zil-types/src/closures.rs:414:1
+     |
+ 414 | fn limit(message: impl Into<String>, span: Span) -> Diagnostic {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not accessible
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `zil-types` (lib) due to 2 previous errors

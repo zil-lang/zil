@@ -1,0 +1,66 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-base)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-llvm-api)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-types)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-lower)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 11.03s
+     Running tests/impl232_readonly_product_capture.rs (target/debug/deps/impl232_readonly_product_capture-a50a52c4bbb60982)
+
+running 2 tests
+
+thread 'default_flat_product_read_is_a_repeatable_borrow' (273) panicked at crates/zil-driver/tests/impl232_readonly_product_capture.rs:25:54:
+extern "C" fn putchar(code: i32) -> i32;
+resource Ticket { code: i32 }
+impl Drop for Ticket { fn drop(self: Self) { unsafe { putchar(.code) } } }
+package Leaf { manages ticket: Ticket; value: i32 }
+package Item { child: Leaf; tag: i32 }
+fn main() -> i32 {
+    let item = Leaf { ticket: Ticket { code: 65 }, value: 10 }
+    let callback = () => { return item.value }
+    let value = callback() + callback()
+    let moved = item
+    return value - 20
+}
+
+[
+    Diagnostic {
+        phase: Types,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "Package capture requires explicit move",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 353,
+                end: 357,
+            },
+        ),
+        notes: [],
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test default_flat_product_read_is_a_repeatable_borrow ... FAILED
+
+thread 'default_recursive_product_read_is_a_repeatable_borrow' (274) panicked at crates/zil-driver/tests/impl232_readonly_product_capture.rs:26:66:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Analyze, category: SafeReject, code: "E-UNINITIALIZED", message: "local 8 is not initialized on every incoming path", span: Some(Span { file: FileId(0), start: 435, end: 445 }), notes: [] }]
+test default_recursive_product_read_is_a_repeatable_borrow ... FAILED
+
+failures:
+
+failures:
+    default_flat_product_read_is_a_repeatable_borrow
+    default_recursive_product_read_is_a_repeatable_borrow
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p zil-driver --test impl232_readonly_product_capture`
