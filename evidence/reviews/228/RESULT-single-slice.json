@@ -1,0 +1,277 @@
+{
+  "id": "228",
+  "reviewer": "/root/mainline_recovery",
+  "author": "/root/scope_audit",
+  "status": "PassSingleSliceAwaitingJointCandidate",
+  "author_implementation": "c1578e319d606d745835a7c3c609a3bb738b3c15",
+  "review_test_commits": [
+    "fbb7fbe9b6e45215a1e94d8c764f9aa981c53f0c",
+    "15f36114fcbc7812e2e2d7c53bbb8ed205539966"
+  ],
+  "fixed_run_tree": {
+    "head": "df035b4fbd7fb9c7139a6dd27e10d6d11261ff31",
+    "uncommitted_delta": "Four-line allowed Copy/bool function source fixture, subsequently committed unchanged as 15f36114f. Production equal to c157."
+  },
+  "production_manifest": [
+    {
+      "path": "crates/zil-driver/src/ct_selection/generation.rs",
+      "sha256": "78fa77dc3665140eb31ec4f03683954a46a2b89c0201e8a75ed2652247e78fc8"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/hygiene.rs",
+      "sha256": "8ee852d42e4a2b2ef31f987c48ae3bf916f17fa5e5209f759688e4c6bf4c2b5b"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/hygiene_types.rs",
+      "sha256": "73ca0eca5c8baf152d36e5be7b8a485368a21a60d73e3cac889b741bb165a4f6"
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/materialize.rs",
+      "sha256": "d57c9378a0fda617cbb2a85d578a5c123c15fb6bef9b838fb1018238db4da56f"
+    },
+    {
+      "path": "crates/zil-expand/src/lib.rs",
+      "sha256": "d93438fa3a65562d099ac9e40fbbb5951f46f08656bd805ba306c91914c53eee"
+    }
+  ],
+  "recorded_at": "2026-10-31T01:06:35.963292+00:00",
+  "fixed_run": {
+    "tests_passed": 6,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "source_verify_cases": 7,
+    "project_verify_cases": 2,
+    "ordinary_source_rejection_cases": 17,
+    "project_identity_privacy_rejections": 2,
+    "reserved_function_controls": 3,
+    "linux_llvm_api_builds": 18,
+    "linux_o0_o2_executions": 18,
+    "all_native_exit": 0,
+    "all_native_stdout": "",
+    "all_native_stderr": "",
+    "budget_thresholds": {
+      "budget-nodes": 472,
+      "budget-work": 2651
+    },
+    "budget_sequence": "fresh N / warm N / N-1 ResourceLimit with Verify0 / warm N, active queries 0; successful source Verify1",
+    "clippy_exit": 0
+  },
+  "semantic_rejections": [
+    {
+      "label": "alias-recursive-layout",
+      "status": "SafeReject",
+      "phase": "types",
+      "code": "E-INFINITE-LAYOUT"
+    },
+    {
+      "label": "borrow-is-not-copy",
+      "status": "SafeReject",
+      "phase": "expand",
+      "code": "E-GENERIC-ARGUMENT"
+    },
+    {
+      "label": "bounded-alias-remains-closed",
+      "status": "Unsupported",
+      "phase": "expand",
+      "code": "E-UNSUPPORTED"
+    },
+    {
+      "label": "const-generic-remains-closed",
+      "status": "Unsupported",
+      "phase": "expand",
+      "code": "E-UNSUPPORTED"
+    },
+    {
+      "label": "existing-public-duplicate",
+      "status": "SafeReject",
+      "phase": "expand",
+      "code": "E-NAME-DUPLICATE"
+    },
+    {
+      "label": "generated-alias-cannot-authorize-generic-call",
+      "status": "Unsupported",
+      "phase": "expand",
+      "code": "E-UNSUPPORTED"
+    },
+    {
+      "label": "generated-import-not-configready",
+      "status": "Unsupported",
+      "phase": "expand",
+      "code": "E-UNSUPPORTED"
+    },
+    {
+      "label": "generated-layout-not-configready",
+      "status": "SafeReject",
+      "phase": "ct",
+      "code": "E-CT-PHASE-DEPENDENCY"
+    },
+    {
+      "label": "generated-nominal-cannot-authorize-generic-field",
+      "status": "Unsupported",
+      "phase": "expand",
+      "code": "E-UNSUPPORTED"
+    },
+    {
+      "label": "hidden-invalid-array",
+      "status": "SafeReject",
+      "phase": "expand",
+      "code": "E-GENERIC-ARGUMENT"
+    },
+    {
+      "label": "mixed-generation-reserved-function",
+      "status": "SafeReject",
+      "phase": "expand",
+      "code": "E-BYTE-BUFFER-NAME"
+    },
+    {
+      "label": "mixed-module-nominals",
+      "status": "SafeReject",
+      "phase": "types",
+      "code": "E-TYPE-MISMATCH"
+    },
+    {
+      "label": "nested-private-not-visible",
+      "status": "Unsupported",
+      "phase": "types",
+      "code": "E-UNSUPPORTED"
+    },
+    {
+      "label": "nominal-alias-across-iterations",
+      "status": "SafeReject",
+      "phase": "types",
+      "code": "E-TYPE-MISMATCH"
+    },
+    {
+      "label": "old-pure-generation-reserved-function",
+      "status": "SafeReject",
+      "phase": "expand",
+      "code": "E-BYTE-BUFFER-NAME"
+    },
+    {
+      "label": "plain-reserved-function",
+      "status": "SafeReject",
+      "phase": "expand",
+      "code": "E-BYTE-BUFFER-NAME"
+    },
+    {
+      "label": "private-generated-field",
+      "status": "SafeReject",
+      "phase": "expand",
+      "code": "E-FIELD-PRIVATE"
+    },
+    {
+      "label": "reserved-copy-alias",
+      "status": "SafeReject",
+      "phase": "expand",
+      "code": "E-GENERIC-ARGUMENT"
+    },
+    {
+      "label": "reserved-operation-alias",
+      "status": "SafeReject",
+      "phase": "expand",
+      "code": "E-BYTE-BUFFER-NAME"
+    },
+    {
+      "label": "reserved-operation-function",
+      "status": "SafeReject",
+      "phase": "expand",
+      "code": "E-BYTE-BUFFER-NAME"
+    },
+    {
+      "label": "reserved-scalar-struct",
+      "status": "SafeReject",
+      "phase": "expand",
+      "code": "E-NAME-DUPLICATE"
+    },
+    {
+      "label": "same-spelling-type-value-declarations",
+      "status": "SafeReject",
+      "phase": "expand",
+      "code": "E-NAME-DUPLICATE"
+    }
+  ],
+  "findings": [
+    {
+      "id": "R228-BUDGET",
+      "first_inspected": "c4652f7afcfef5578bce456b5c9fa80013eddc4c",
+      "type": "StaticAccountingFinding",
+      "detail": "Every iteration added an uncharged linear module import lookup, including old function-only batches; the new batch any scan was also unnecessary work.",
+      "repair_commits": [
+        "9cbfc0055d4ff91c560c0916eb36f3fae8afc29a",
+        "2122c2258c2ebca0eb1c28d33bbf536a92e1e48c"
+      ],
+      "resolution": "has_types propagates during already-paid materialization; only actual type batches perform per-module prepaid lookup. Independent nested exact limits and author old-cost controls remain applicable."
+    },
+    {
+      "id": "R228-RESERVED-FUNCTION",
+      "measured_production": "2122c2258c2ebca0eb1c28d33bbf536a92e1e48c",
+      "status_before": "Fail",
+      "original_source": "#for(n in [1]){struct S{x:i32}fn bytes_len()->i32=>n;pub fn run()->i32=>bytes_len()}fn main()->i32=>run()-1",
+      "detail": "Type batch checked reserved names only for non-functions; both pure and mixed generated function routes hid bytes_len through alpha renaming, whereas ordinary source rejected it.",
+      "repair": "c1578e319d606d745835a7c3c609a3bb738b3c15",
+      "resolution": "The actual ordinary primitive_name rule is now applied before name rewriting in both existing paid declaration walks. The original inputs reject; allowed Copy/bool function source remains executable."
+    },
+    {
+      "id": "R228-FIXTURE-BOUND",
+      "status": "TestFixtureError",
+      "detail": "Attempt1 used a bounded module alias syntax that already fails Parse. It is preserved and replaced by the parseable generic bounded alias A<T:Copy> = T to exercise semantic Unsupported. No production change made for this fixture."
+    }
+  ],
+  "attempts": [
+    {
+      "archive": "attempt1-raw.tar.gz",
+      "passed": 4,
+      "failed": 1,
+      "classification": "TestFixtureError",
+      "production": "2122-equivalent fe5f03c3302b1105234d04f374ae148288aab079",
+      "test_uncommitted": true
+    },
+    {
+      "archive": "attempt2-raw.tar.gz",
+      "passed": 4,
+      "failed": 1,
+      "classification": "ActualReservedFunctionEscape",
+      "production": "2122-equivalent fe5f03c3302b1105234d04f374ae148288aab079",
+      "test_uncommitted": true
+    },
+    {
+      "archive": "attempt3-raw.tar.gz",
+      "passed": 0,
+      "failed": 1,
+      "filtered": 5,
+      "classification": "Plain-versus-pure-and-mixed confirmation, not a full suite",
+      "production": "2122-equivalent fe5f03c3302b1105234d04f374ae148288aab079",
+      "test_uncommitted": true
+    },
+    {
+      "archive": "fixed-raw.tar.gz",
+      "passed": 6,
+      "failed": 0,
+      "production": "c157-equivalent df035b4fbd7fb9c7139a6dd27e10d6d11261ff31"
+    }
+  ],
+  "command": "cargo test --locked -p zil-driver --features llvm-api --test review228_hygiene -- --nocapture",
+  "lint_command": "cargo clippy --locked -p zil-driver --features llvm-api --test review228_hygiene -- -D warnings",
+  "environment": {
+    "rust": "/workspace/scratch/3cf12ce32e36/toolchains/rust-1.99.1/bin",
+    "llvm": "/workspace/scratch/3cf12ce32e36/toolchains/llvm-23.1.4",
+    "CARGO_TARGET_DIR": "/workspace/scratch/e9af9764d083/targets/review228",
+    "CARGO_BUILD_JOBS": 2,
+    "CARGO_INCREMENTAL": 0,
+    "dev_and_test_debug": 0,
+    "dev_and_test_strip": "symbols",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/e9af9764d083/receipts/review228-fixed"
+  },
+  "limits": [
+    "This is non-author review of 228 only; combined 228/229 candidate binding is pending.",
+    "No production code was edited by the reviewer. Cherry-picks are author commits.",
+    "Formal full integration, native Windows and Rust product comparisons not run here.",
+    "The Const generic scope ordering observation does not open any supported const generic form; the source control remains Unsupported."
+  ],
+  "product_state": {
+    "B0": "Doing",
+    "full_language": "NotSatisfied",
+    "product": "NotRun"
+  }
+}
