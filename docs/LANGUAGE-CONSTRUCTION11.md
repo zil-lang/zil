@@ -1,6 +1,6 @@
 # 施工11：Product默认只读捕获、跨模块trait与整数常量正确性
 
-当前联合候选为 `c0418f532e750e7df2b00d9b7d76da82baa5086c`，PR15第二次正式CI [41195906918](https://github.com/zil-lang/zil/actions/runs/41195906918) 已完成25/25步骤：默认3027/0/0、reference2983/0/0，均336组、零过滤。实际PR checkout为 `db07200ba221bdb67f3f1b7bef7f8e9851592a1a`，完整树与候选逐字相同。非作者最终裁决和真实main验收仍待完成；首轮Fail保持独立身份。[第二轮原始回执](../evidence/integration/construction11/ci41195906918/RESULT.json)已归档。
+232/233/234已随[PR15](https://github.com/zil-lang/zil/pull/15)合入实际main `f2572502beb76eb86e9254dea855404e4998a64d`。PR第二轮CI [41195906918](https://github.com/zil-lang/zil/actions/runs/41195906918)和实际main CI [41198113948](https://github.com/zil-lang/zil/actions/runs/41198113948)各25/25步骤成功，默认3027/0/0、reference2983/0/0，均336组、零过滤。三单与联合消费者的非作者FINAL保留其原PR审查身份，本次另发布[main连续性核验](../evidence/integration/construction-status-20261031/MAIN-CI.json)。PR候选、实际checkout与实际main完整Git tree相同。2026-10-31核查补入14个遗留提交；这批历史提交相对受测main的净差异仅为docs/evidence。本次另补齐工单、交接和进度元数据，没有新增语言实现或重复记账测试。
 
 ## 实施身份与有限范围
 
@@ -45,7 +45,7 @@
 
 首轮234/joint所选原生证据已由两位非作者分别核对。234包含24份作者编译报告、88次运行观察，以及8份独审编译报告、56次完整12字节观察；8组API冷暖配对核对action key、builder/cache、当前源码Verify与无fallback。builder宽度控制的40次执行依据冻结循环和成功CI日志，逐例临时对象由原测试清理，不能冒称都留下了原件。它们仍只是首轮失败运行内的限定通过证据。
 
-首轮State/分配失败消费者为16次构建、40个API对象、128次执行观察、88次分配观察和56次实际故障注入，88条带分配记录的观察均live=0且allocated=frees；另40条执行观察的allocation为null，不据此补造分配数据。fmt、Clippy、text-reference37项和迁移runner9项按原件核对。最终验收必须另外绑定第二轮及实际main的完整结果。
+首轮State/分配失败消费者为16次构建、40个API对象、128次执行观察、88次分配观察和56次实际故障注入，88条带分配记录的观察均live=0且allocated=frees；另40条执行观察的allocation为null，不据此补造分配数据。fmt、Clippy、text-reference37项和迁移runner9项按原件核对。第二轮验收与实际main完整结果现分别绑定PR原收据和[evidence/integration/construction-status-20261031/MAIN-CI.json](../evidence/integration/construction-status-20261031/MAIN-CI.json)，保持不同运行身份。
 
 ## Rust四目标与后续义务
 
@@ -55,4 +55,5 @@
 
 下一最小前置是227普通同步defer的独立合同：注册成功后，在正常落出、return、`?`、break、continue等承诺路径恰好执行一次。FnOnce只保证至多调用一次，环境销毁不能代替动作履行。必须明确注册/履行状态、真实作用域激活、借用保持、返回值准备及与局部逆成功构造顺序的交织，再决定公共IR/Wire与缓存版本；该项目前仍是未实现义务。
 
-历史handoff记录完整性仍保留1145项缺口；最终收口会重新执行并比较错误集合。该记录门与编译器CI分开。临时分支与工作树只在实际main成功CI、精确tip及祖先关系守卫通过后整理；当前尚未执行最终清理。
+最近可恢复的施工10 handoff快照记录1145项历史完整性问题（0警告）；这是记录检查，不是编译测试失败。本次静态核验不冒称重新执行了handoff，后续实际核查原件单独保留。施工8/10运维历史先用只创建、不覆盖的archive标签保全（与被归档tip逐SHA核对），施工11实施/审核枝须进入最新main历史，再以精确tip与原子租约清理；执行结果见当前接续入口。
+

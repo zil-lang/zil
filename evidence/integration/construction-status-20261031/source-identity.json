@@ -1,0 +1,32 @@
+{
+  "scope": "Read-only GitHub Git objects",
+  "checked_at": "2026-10-31",
+  "commits": [
+    {
+      "sha": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+      "tree": "da369979b8a7f7d0a93f14defbb2e68ba9e53142",
+      "parents": [
+        "7bbdced53004c0887c7d79feeb1485acd84db85b"
+      ],
+      "url": "https://github.com/zil-lang/zil/commit/c0418f532e750e7df2b00d9b7d76da82baa5086c"
+    },
+    {
+      "sha": "db07200ba221bdb67f3f1b7bef7f8e9851592a1a",
+      "tree": "da369979b8a7f7d0a93f14defbb2e68ba9e53142",
+      "parents": [
+        "0a3d0021fa788a27c87df20454c34c338039f1c5",
+        "c0418f532e750e7df2b00d9b7d76da82baa5086c"
+      ],
+      "url": "https://github.com/zil-lang/zil/commit/db07200ba221bdb67f3f1b7bef7f8e9851592a1a"
+    },
+    {
+      "sha": "f2572502beb76eb86e9254dea855404e4998a64d",
+      "tree": "da369979b8a7f7d0a93f14defbb2e68ba9e53142",
+      "parents": [
+        "0a3d0021fa788a27c87df20454c34c338039f1c5",
+        "c0418f532e750e7df2b00d9b7d76da82baa5086c"
+      ],
+      "url": "https://github.com/zil-lang/zil/commit/f2572502beb76eb86e9254dea855404e4998a64d"
+    }
+  ]
+}

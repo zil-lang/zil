@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "verdict": "Pass",
+  "slice": "234",
+  "reviewer": "/root/closeout_review",
+  "acceptance_scope": "Metadata audit of exact PR FINAL to already successful main CI continuity, not a new language execution",
+  "implementation_commit": "32f218d419cc162f8f51e5a24a5e2fb24d50e3b0",
+  "prior_independent_reviewer": "/root/next_language_slices",
+  "prior_independent_verdict": "Pass",
+  "prior_final_evidence": "evidence/reviews/234/FINAL.json",
+  "candidate_commit": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+  "main_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+  "main_run_id": 41198113948,
+  "complete_pr_and_main_trees_equal": true,
+  "source_identity_evidence": "evidence/integration/construction-status-20261031/source-identity.json",
+  "main_ci_evidence": "evidence/integration/construction-status-20261031/MAIN-CI.json",
+  "new_native_executions": 0,
+  "full_language_or_product_acceptance": false
+}

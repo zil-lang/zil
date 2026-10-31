@@ -1,0 +1,235 @@
+{
+  "sha": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+  "url": "https://api.github.com/repos/zil-lang/zil/git/trees/61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+  "tree": [
+    {
+      "path": ".agent",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "cf05dea7daddaf21bbfc11aa023ca8c7817d3c85",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/cf05dea7daddaf21bbfc11aa023ca8c7817d3c85"
+    },
+    {
+      "path": ".github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "df6acd94cde5c6010c2340363e6d319c0b8c36bb",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/df6acd94cde5c6010c2340363e6d319c0b8c36bb"
+    },
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "de77bdccf277724d47d4d75028e6923cf54451c4",
+      "size": 85,
+      "url": "https://api.github.com/repos/zil-lang/zil/git/blobs/de77bdccf277724d47d4d75028e6923cf54451c4"
+    },
+    {
+      "path": ".task",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4bc7c4b4144e5115f21479b290aca9a56637234e",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/4bc7c4b4144e5115f21479b290aca9a56637234e"
+    },
+    {
+      "path": "AGENTS.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0888df99142f2c349aa7ae81fa56638ca7608e3a",
+      "size": 2351,
+      "url": "https://api.github.com/repos/zil-lang/zil/git/blobs/0888df99142f2c349aa7ae81fa56638ca7608e3a"
+    },
+    {
+      "path": "Cargo.lock",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9107f4a982d037b5736d62c8906f58b40805f431",
+      "size": 1613,
+      "url": "https://api.github.com/repos/zil-lang/zil/git/blobs/9107f4a982d037b5736d62c8906f58b40805f431"
+    },
+    {
+      "path": "Cargo.toml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d0e906f4852161e0d6e487124a633f5e0c094e8d",
+      "size": 1277,
+      "url": "https://api.github.com/repos/zil-lang/zil/git/blobs/d0e906f4852161e0d6e487124a633f5e0c094e8d"
+    },
+    {
+      "path": "GITHUB-SYNC.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d5a71f761c6ec731cf831c6fa778aea775aab66a",
+      "size": 3975,
+      "url": "https://api.github.com/repos/zil-lang/zil/git/blobs/d5a71f761c6ec731cf831c6fa778aea775aab66a"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "296e0924c6740aa3a754d49d861306bb0167b110",
+      "size": 34311,
+      "url": "https://api.github.com/repos/zil-lang/zil/git/blobs/296e0924c6740aa3a754d49d861306bb0167b110"
+    },
+    {
+      "path": "SOURCE-SNAPSHOT-20261026.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cf99013138cf74975b387723852fb086d7f30406",
+      "size": 663,
+      "url": "https://api.github.com/repos/zil-lang/zil/git/blobs/cf99013138cf74975b387723852fb086d7f30406"
+    },
+    {
+      "path": "_zil_design.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2134316b4a79f7019a64b7253f2bde3f73a4e6e4",
+      "size": 169401,
+      "url": "https://api.github.com/repos/zil-lang/zil/git/blobs/2134316b4a79f7019a64b7253f2bde3f73a4e6e4"
+    },
+    {
+      "path": "_zil_goal.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ad15e364840db4ff9b6a703bd93bd5aae3f344d0",
+      "size": 30083,
+      "url": "https://api.github.com/repos/zil-lang/zil/git/blobs/ad15e364840db4ff9b6a703bd93bd5aae3f344d0"
+    },
+    {
+      "path": "benches",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0383159bc7ee4e497eb948f09bf3e61031d31373",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/0383159bc7ee4e497eb948f09bf3e61031d31373"
+    },
+    {
+      "path": "changes",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c38eca14bad45cae8bbb46633fdb2b7200b15fc7",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/c38eca14bad45cae8bbb46633fdb2b7200b15fc7"
+    },
+    {
+      "path": "conformance",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "cab7aff40fbc6989011288af2b89a91f42c1ea33",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/cab7aff40fbc6989011288af2b89a91f42c1ea33"
+    },
+    {
+      "path": "crates",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4264d924216925d387da7c1a84b723dc8944dec1",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/4264d924216925d387da7c1a84b723dc8944dec1"
+    },
+    {
+      "path": "data",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5833f69960ffb5cabfbb619b3963db045ecd23c8",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/5833f69960ffb5cabfbb619b3963db045ecd23c8"
+    },
+    {
+      "path": "design-candidates",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "211024277dc40e67dd92e45694ba094309e41970",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/211024277dc40e67dd92e45694ba094309e41970"
+    },
+    {
+      "path": "docs",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "834f3fa7d29318e89b41a0b42ed6d578a41469cf",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/834f3fa7d29318e89b41a0b42ed6d578a41469cf"
+    },
+    {
+      "path": "evidence",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "47d2523e0f9e8b8f0dbab3a527d5bda625329b8d",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/47d2523e0f9e8b8f0dbab3a527d5bda625329b8d"
+    },
+    {
+      "path": "examples",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "bfce5cb022eaac4dffec87d4c1ad6d93b4a797f2",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/bfce5cb022eaac4dffec87d4c1ad6d93b4a797f2"
+    },
+    {
+      "path": "inputs",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "50e12db2ac523b0023fc3a2b2e1e05990ef168fa",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/50e12db2ac523b0023fc3a2b2e1e05990ef168fa"
+    },
+    {
+      "path": "lang-designer.html",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "86fc2defcb1dc81d3ef2f4b1af3a7c0c8b4cc999",
+      "size": 694531,
+      "url": "https://api.github.com/repos/zil-lang/zil/git/blobs/86fc2defcb1dc81d3ef2f4b1af3a7c0c8b4cc999"
+    },
+    {
+      "path": "policy",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4ec216e68e0cb7d671c1080f68a8dad702177ee2",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/4ec216e68e0cb7d671c1080f68a8dad702177ee2"
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "58eef2ccd48f957feeada49b17ad1e3fd667bf8c",
+      "size": 86,
+      "url": "https://api.github.com/repos/zil-lang/zil/git/blobs/58eef2ccd48f957feeada49b17ad1e3fd667bf8c"
+    },
+    {
+      "path": "spec",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1fbde066f372f5ad0d6c7df055fba2dce9fac91f",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/1fbde066f372f5ad0d6c7df055fba2dce9fac91f"
+    },
+    {
+      "path": "templates",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "448f9e30c9ca869243a8303dfda2adf9e3e067f4",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/448f9e30c9ca869243a8303dfda2adf9e3e067f4"
+    },
+    {
+      "path": "tests",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "6ff4b02d607098ec0f46c9db5f50b9ddbde3c2d2",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/6ff4b02d607098ec0f46c9db5f50b9ddbde3c2d2"
+    },
+    {
+      "path": "tools",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5f6859d4dda9462b1c9d5a42fc7dc418ee24eb70",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/5f6859d4dda9462b1c9d5a42fc7dc418ee24eb70"
+    },
+    {
+      "path": "ui",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "b1f630633239c9a0e2074ac04d0f1e014e3e874d",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/b1f630633239c9a0e2074ac04d0f1e014e3e874d"
+    },
+    {
+      "path": "validation",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "a29184c470b02779a6e5f700d7d5b6d6631c8a64",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/trees/a29184c470b02779a6e5f700d7d5b6d6631c8a64"
+    }
+  ],
+  "truncated": false
+}
