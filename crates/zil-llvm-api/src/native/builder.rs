@@ -196,7 +196,17 @@ impl<'a> Construction<'a> {
                     .globals
                     .get(n.as_str())
                     .ok_or_else(|| error(ErrorKind::Verify, format!("unbuilt symbol @{n}")))?,
-                m::Val::Int(n) => LLVMConstInt(self.ty(ty)?, *n as u64, 0),
+                m::Val::Int(n) => {
+                    let m::Ty::Int(bits @ (1 | 8 | 16 | 32 | 64)) = ty else {
+                        return Err(error(ErrorKind::Verify, "integer constant type mismatch"));
+                    };
+                    // LLVM 23's APInt constructor requires a canonical bit
+                    // pattern when SignExtend is false. Passing a negative i32
+                    // as full-width u64 leaves hidden high bits: printing hides
+                    // them, but IPSCCP can then mismerge distinct return values.
+                    let value = (*n as u64) & (u64::MAX >> (64 - bits));
+                    LLVMConstInt(self.ty(ty)?, value, 0)
+                }
                 m::Val::Bool(b) => LLVMConstInt(self.ty(ty)?, u64::from(*b), 0),
                 m::Val::Null | m::Val::Zero => LLVMConstNull(self.ty(ty)?),
                 m::Val::Undef => LLVMGetUndef(self.ty(ty)?),
