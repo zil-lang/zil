@@ -1,0 +1,59 @@
+{
+  "task": "231",
+  "status": "NewRecoveryExamplesPendingCI",
+  "byte_identical_restoration": false,
+  "origin": "Newly constructed from the surviving exact impl231 test consumers and frozen nominal trait where contract. The original three example source texts are absent from this agent's retained context and recovered objects.",
+  "unavailable_original_examples_tree": "10130ad28f301fde31a22f95c270f4b0f626ddcb",
+  "surviving_consumer_blob": "07efe215af769bebfb318ca45182494506870e61",
+  "original_test_file": "crates/zil-driver/tests/impl231_where_traits.rs",
+  "destination_directory": "examples/mainline/where_traits231",
+  "files": [
+    "main.zil",
+    "model.zil",
+    "helper.zil"
+  ],
+  "contract_exercised": [
+    "A public ordinary nominal Read trait is defined in the real model module, with a finite Copy record implementation and a constructor that retains private field access inside model.",
+    "Main and helper import model under an alias and express the where bound as the genuinely qualified m.Read.",
+    "Helper forwards the same nominal obligation from a generic relay to a generic read function; both operate through the trait method on a shared parameter.",
+    "Main reads separate records through a local generic function and the imported helper relay. The expected native return is 17 + 25 - 42 = 0."
+  ],
+  "unchanged_consumer_requirements": [
+    "qualified_public_where_bounds_keep_module_identity_and_native_behavior must build and execute the three module example at O0 and O2 with exit code zero and one verification run.",
+    "module_bound_resolution_obeys_exact_fresh_and_cached_limits must independently measure work and node minima at Stage::Core, then require N, cached N, N-1 rejection, recovered N and fresh N with no active query leak."
+  ],
+  "validation": {
+    "cargo_executed": false,
+    "native_executed": false,
+    "status": "NotRun",
+    "historical_thresholds_reused": false,
+    "historical_author_results_rebound": false,
+    "required_next_step": "Include these new source bytes in a newly identified recovery candidate, run the unchanged consumers in CI, retain the actual inputs/reports and measure new budget thresholds. Old source identity and old 4410/922 thresholds do not apply to these new bytes."
+  },
+  "changes_excluded": [
+    "production code",
+    "test source",
+    "test assertions",
+    "normative contract"
+  ],
+  "new_source_identities": [
+    {
+      "name": "main.zil",
+      "bytes": 205,
+      "git_blob_sha": "e6ce0a8716510e1ac0719617ca214b8bd97b596d",
+      "sha256": "dd34dc971783ad44cbb5495bcb95034c2179b5a6350265633cec2498c0fce6a2"
+    },
+    {
+      "name": "model.zil",
+      "bytes": 162,
+      "git_blob_sha": "c79d377b76cc65d8b9db1be23230b29dc22bcbd8",
+      "sha256": "898fbb884e355b208cf50d4031086c5f529f2d59d97ba5a6b13fd621631e5bfe"
+    },
+    {
+      "name": "helper.zil",
+      "bytes": 137,
+      "git_blob_sha": "1521db649b84db55b25867abffbad4cabc3c502e",
+      "sha256": "613760489edb385d8477b5c23eab726cb97c3e03967165c824d0263578879a35"
+    }
+  ]
+}
