@@ -236,13 +236,7 @@ impl State {
             .checked_sub(checker.captures.len())
             .ok_or_else(|| limit("byte capture admission budget exceeded", input.span))?;
         let mut owns_leaf_store = false;
-        for capture in &checker.captures {
-            if packages::product::nested(&capture.ty) && !capture.moved {
-                return Err(unsupported(
-                    capture.span,
-                    "Product capture requires explicit move or an actual whole/child ownership use",
-                ));
-            }
+        for capture in &mut checker.captures {
             if dynamic_store::is_carrier(&capture.stored_type()) {
                 if !capture.moved
                     || !dynamic_store::owned_capture(
@@ -295,6 +289,24 @@ impl State {
                     })?;
                     owns_leaf_store = true;
                 }
+            }
+            if matches!(capture.ty, Type::Package { .. }) && !capture.moved {
+                // Resolve the complete body's ownership uses before choosing
+                // a shared window. Reading a child path must not take it, and
+                // a later real take must not be hidden by an earlier read.
+                packages::product::validate(
+                    &capture.ty,
+                    checker.work_left,
+                    self.limits.max_call_depth,
+                    capture.span,
+                )?;
+                if capture.written || capture.consumed {
+                    return Err(unsupported(
+                        capture.span,
+                        "mutable Product capture is not implemented",
+                    ));
+                }
+                capture.borrowed = true;
             }
             // A local byte-storage Desc uses the same actual capture-source
             // and dynamic access checks as a direct synchronous operation.
@@ -1654,7 +1666,16 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     && !nested_owned
                     && !dynamic_store::owned_capture(ty, self.work_left, self.limits, span)?
                 {
-                    return Err(unsupported(span, "Package capture requires explicit move"));
+                    // Flat ordinary Products share the same window profile as
+                    // recursive Products. Other Package kinds still fail this
+                    // complete qualifier; Store/array/callback ownership is not
+                    // granted by the new default-read path.
+                    packages::product::validate(
+                        ty,
+                        self.work_left,
+                        self.limits.max_call_depth,
+                        span,
+                    )?;
                 }
                 (ty, None)
             }
