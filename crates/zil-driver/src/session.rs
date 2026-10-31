@@ -14,7 +14,7 @@ use zil_db::{
     ArtifactCache, CacheRead, CacheWriteError, Database, Dependency, FingerprintKind, QueryKey,
     QuerySnapshot, ResultFingerprints,
 };
-use zil_ir::{CandidatePlan, CoreModule, Type, TypedModule};
+use zil_ir::{CandidatePlan, CoreModule, Type, TypedModule, TypedProgram};
 use zil_syntax::ParseResult;
 
 /// Only unverified, immutable data can be retained across requests. There is no
@@ -29,6 +29,47 @@ pub(super) enum RawSnapshot {
     Project(Arc<super::project::ExpandedProject>),
     ProjectCore(Arc<super::project::EvaluatedProject>),
     ProjectTyped(Arc<zil_ir::TypedProgram>),
+}
+
+/// The existing immutable owner of a raw module. Retaining a project avoids
+/// copying its embedded module; this does not verify its interfaces or maps.
+pub(super) enum TypedInput {
+    Module(Arc<TypedModule>),
+    Program(Arc<TypedProgram>),
+}
+impl TypedInput {
+    fn module(&self) -> &TypedModule {
+        match self {
+            Self::Module(module) => module,
+            Self::Program(program) => &program.module,
+        }
+    }
+    fn program(&self) -> Option<&TypedProgram> {
+        match self {
+            Self::Module(_) => None,
+            Self::Program(program) => Some(program),
+        }
+    }
+    fn verify(
+        &self,
+        candidate: Arc<CandidatePlan>,
+        options: &CompileOptions,
+    ) -> CompileResult<zil_verify::VerifiedModule> {
+        match self {
+            Self::Module(module) => zil_verify::verify_shared_module(
+                module.clone(),
+                candidate,
+                &options.target,
+                &options.limits,
+            ),
+            Self::Program(program) => zil_verify::verify_shared_program_module(
+                program.clone(),
+                candidate,
+                &options.target,
+                &options.limits,
+            ),
+        }
+    }
 }
 impl RawSnapshot {
     /// Identity of a deterministic, private, process-local construction. This is
@@ -391,10 +432,9 @@ impl CompilationSession {
             options,
             report,
             observer,
-            &typed,
+            TypedInput::Module(typed),
             typed_snapshot,
             artifacts,
-            None,
         )
         .map(|_| ())
     }
@@ -405,10 +445,9 @@ impl CompilationSession {
         options: &CompileOptions,
         report: &mut CompileReport,
         observer: &mut dyn FnMut(&QueryEvent),
-        typed: &TypedModule,
+        typed: TypedInput,
         typed_snapshot: Arc<QuerySnapshot>,
         artifacts: ArtifactPlan,
-        project: Option<&zil_ir::TypedProgram>,
     ) -> CompileResult<Arc<CandidatePlan>> {
         // Types and Analyze depend on the same complete request identity. The
         // cached raw result is still independently checked below on every call.
@@ -421,7 +460,7 @@ impl CompilationSession {
             report,
             observer,
             || {
-                zil_analyze::analyze(typed, &options.limits)
+                zil_analyze::analyze(typed.module(), &options.limits)
                     .map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
             },
         )?;
@@ -432,7 +471,7 @@ impl CompilationSession {
             ));
         };
         self.finish_candidate(
-            options, report, observer, typed, &candidate, artifacts, project,
+            options, report, observer, typed, candidate.clone(), artifacts,
         )?;
         Ok(candidate)
     }
@@ -443,10 +482,9 @@ impl CompilationSession {
         options: &CompileOptions,
         report: &mut CompileReport,
         observer: &mut dyn FnMut(&QueryEvent),
-        typed: &TypedModule,
-        candidate: &CandidatePlan,
+        typed: TypedInput,
+        candidate: Arc<CandidatePlan>,
         artifacts: ArtifactPlan,
-        project: Option<&zil_ir::TypedProgram>,
     ) -> CompileResult<()> {
         report.phase = Phase::Analyze;
         artifacts.dump_lazy(report, options, "candidate", |_| format!("{candidate:#?}"))?;
@@ -459,20 +497,16 @@ impl CompilationSession {
             .check(Phase::Verify)
             .map_err(|error| vec![error])?;
         report.verification_runs += 1;
-        let verified = report.trace.measure("verify", "stage", |_| {
-            zil_verify::verify_module(
-                typed.clone(),
-                (*candidate).clone(),
-                &options.target,
-                &options.limits,
-            )
-        });
+        let verified = report
+            .trace
+            .measure("verify", "stage", |_| typed.verify(candidate, options));
         event(Phase::Verify, QueryDisposition::Executed, report, observer);
         options
             .cancellation
             .check(Phase::Verify)
             .map_err(|error| vec![error])?;
         let verified = verified?;
+        let project = typed.program();
         report.phase = Phase::Verify;
         report.trace.measure("contract_publish", "stage", |_| {
             super::contracts::publish(&verified, &mut report.scalar_interfaces)
