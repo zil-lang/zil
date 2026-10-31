@@ -31,6 +31,29 @@ mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
 
+fn check_nominal_name(name: &str, span: Span) -> R<()> {
+    if super::byte_buffer_name(name) || super::owned_store_name(name) {
+        return Err(super::primitive_name_error(name, span));
+    }
+    if copy::reserved_name(name) {
+        return Err(error(span, "Copy is a reserved structural capability name"));
+    }
+    Ok(())
+}
+
+pub(super) fn check_generated_type_name(name: &str, span: Span) -> R<()> {
+    check_nominal_name(name, span)?;
+    if aliases::reserved_declaration_name(name) {
+        return Err(Diagnostic::error(
+            Phase::Expand,
+            "E-NAME-DUPLICATE",
+            Some(span),
+            "duplicate alias or declaration name",
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn specialize<'a>(
     module: &'a Module,
     limits: &Limits,
@@ -67,16 +90,8 @@ pub(super) fn specialize<'a>(
             ItemKind::Trait(t) => Some(t.name.as_str()),
             _ => None,
         };
-        if let Some(name) =
-            declared.filter(|n| super::byte_buffer_name(n) || super::owned_store_name(n))
-        {
-            return Err(vec![super::primitive_name_error(name, item.span)]);
-        }
-        if declared.is_some_and(copy::reserved_name) {
-            return Err(vec![error(
-                item.span,
-                "Copy is a reserved structural capability name",
-            )]);
+        if let Some(name) = declared {
+            check_nominal_name(name, item.span).map_err(|error| vec![error])?;
         }
         for param in params(item) {
             names_budget.node(param.span, 0).map_err(|e| vec![e])?;
