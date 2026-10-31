@@ -1,0 +1,20 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 4.21s
+     Running tests/impl192_copy_fields.rs (target/debug/deps/impl192_copy_fields-be849bab75aba3cf)
+
+running 1 test
+
+thread 'owning_package_captures_borrow_the_actual_environment_field' (74) panicked at crates/zil-driver/tests/impl192_copy_fields.rs:278:5:
+{"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"mutable Product capture is not implemented","span":{"file":0,"start":146,"end":151},"notes":[]}],"artifacts":{"core":"/workspace/scratch/994319f2ba02/zil-232/out/native/impl192-before-diagnostic-migration/fields192-73-2/phases/core.txt","ct-core":"/workspace/scratch/994319f2ba02/zil-232/out/native/impl192-before-diagnostic-migration/fields192-73-2/phases/ct-core.txt","source-map":"/workspace/scratch/994319f2ba02/zil-232/out/native/impl192-before-diagnostic-migration/fields192-73-2/phases/source-map.txt","syntax":"/workspace/scratch/994319f2ba02/zil-232/out/native/impl192-before-diagnostic-migration/fields192-73-2/phases/syntax.txt"},"input_fingerprint":"349f3a09067b9c65e59dc9f3d023feb32d19b4985958bf0a1f5a9c6f2aa6001a","seconds":0.009596435,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test owning_package_captures_borrow_the_actual_environment_field ... FAILED
+
+failures:
+
+failures:
+    owning_package_captures_borrow_the_actual_environment_field
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.21s
+
+error: test failed, to rerun pass `-p zil-driver --test impl192_copy_fields`
