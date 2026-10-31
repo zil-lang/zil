@@ -36,7 +36,7 @@ pub(super) struct EvaluatedProject {
 }
 
 pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> CompileReport {
-    CompilationSession::default().compile_project(project, options)
+    CompilationSession::without_type_memo().compile_project(project, options)
 }
 
 impl CompilationSession {
@@ -75,8 +75,11 @@ impl CompilationSession {
         trace: &TimingTrace,
     ) -> CompileReport {
         let mut request = trace.scope("compile_project", "request");
+        self.type_memo_stats = zil_types::ProgramMemoStats::default();
         if self.raw.len() > self.capacity {
-            request.trace().value("session_eviction", || self.clear());
+            request
+                .trace()
+                .value("session_eviction", || self.clear_queries());
         }
         let start = Instant::now();
         let fallback = SourceUnit::new(FileId(0), project.root, "<project>", "");
@@ -105,6 +108,7 @@ impl CompilationSession {
         path: &Path,
         options: &CompileOptions,
     ) -> CompileReport {
+        self.type_memo_stats = zil_types::ProgramMemoStats::default();
         let start = Instant::now();
         let trace = TimingTrace::new(options.timings);
         let mut request = trace.scope("compile_path", "request");
@@ -471,6 +475,9 @@ impl CompilationSession {
                 .expect("validated root")
                 .core,
         )?;
+        let previous_memo = self.type_memo.clone();
+        let memo_enabled = self.type_memo_enabled;
+        let mut pending_memo = None;
         let (raw, typed_snapshot) = self.query(
             key(Phase::Types, true),
             std::slice::from_ref(&ct_snapshot),
@@ -478,8 +485,19 @@ impl CompilationSession {
             report,
             observer,
             || {
-                zil_types::check_program(core, &options.target, &options.limits)
-                    .map(|typed| RawSnapshot::ProjectTyped(Arc::new(typed)))
+                if selection_needed || !memo_enabled {
+                    return zil_types::check_program(core, &options.target, &options.limits)
+                        .map(|typed| RawSnapshot::ProjectTyped(Arc::new(typed)));
+                }
+                let (typed, memo) = zil_types::check_program_with_memo(
+                    core,
+                    &options.target,
+                    &options.limits,
+                    key(Phase::Types, true).rules,
+                    &previous_memo,
+                )?;
+                pending_memo = Some(memo);
+                Ok(RawSnapshot::ProjectTyped(Arc::new(typed)))
             },
         )?;
         let RawSnapshot::ProjectTyped(typed) = raw else {
@@ -488,6 +506,10 @@ impl CompilationSession {
                 "project types query returned another snapshot kind",
             ));
         };
+        self.type_memo_stats = pending_memo.as_ref().map_or_else(
+            zil_types::ProgramMemoStats::default,
+            zil_types::ProgramMemo::stats,
+        );
         report.phase = Phase::Types;
         report.scalar_interfaces = typed.interfaces.clone();
         artifacts.dump_lazy(report, options, "typed", |_| format!("{:#?}", typed.module))?;
@@ -495,6 +517,9 @@ impl CompilationSession {
             format!("{:#?}", typed.interfaces)
         })?;
         if options.stop_after == Stage::Types {
+            if let Some(memo) = pending_memo {
+                self.type_memo = Arc::new(memo);
+            }
             return Ok(());
         }
         let candidate = self.finish_typed(
@@ -506,6 +531,11 @@ impl CompilationSession {
             artifacts,
             Some(&typed),
         )?;
+        // Publish this independent epoch only after all requested later stages
+        // and artifacts succeed. Failure/cancellation keep the old one.
+        if let Some(memo) = pending_memo {
+            self.type_memo = Arc::new(memo);
+        }
         if let Some(cache) = checkpoint {
             cache.store(
                 &typed,

@@ -42,6 +42,28 @@ pub fn check_program(
     target: &TargetProfile,
     limits: &Limits,
 ) -> CompileResult<TypedProgram> {
+    check_program_inner(program, target, limits, None).map(|(program, _)| program)
+}
+
+/// Reuse only process-local successful scalar body construction. The returned
+/// memo is a transaction candidate: drivers commit it only after the complete
+/// request succeeds. All declarations and later semantic passes still execute.
+pub fn check_program_with_memo(
+    program: &CoreProgram,
+    target: &TargetProfile,
+    limits: &Limits,
+    context: Fingerprint,
+    memo: &program_memo::ProgramMemo,
+) -> CompileResult<(TypedProgram, program_memo::ProgramMemo)> {
+    check_program_inner(program, target, limits, Some((memo, context)))
+}
+
+fn check_program_inner(
+    program: &CoreProgram,
+    target: &TargetProfile,
+    limits: &Limits,
+    previous: Option<(&program_memo::ProgramMemo, Fingerprint)>,
+) -> CompileResult<(TypedProgram, program_memo::ProgramMemo)> {
     let inferred = resolve_program_shapes_borrowed(program, limits)?;
     let program = &inferred;
     let project_enums = enums::ProjectDefinitions::new(program);
@@ -246,25 +268,47 @@ pub fn check_program(
         .map_err(|e| vec![e])?;
         factories.insert(id, typed);
     }
+    let mut memo = previous.and_then(|(previous, context)| {
+        program_memo::Request::new(
+            program,
+            &signatures_by_module,
+            target,
+            limits,
+            context,
+            previous,
+        )
+    });
     let mut functions = Vec::new();
     let mut interfaces = Vec::new();
     let mut resources = Vec::new();
     let mut root_functions = Vec::new();
-    for module in &program.modules {
+    for (module_index, module) in program.modules.iter().enumerate() {
         let core = &module.core;
         let table = &signatures_by_module[&core.module_id];
         resources.extend(resources::definitions(core, table).map_err(|e| vec![e])?);
         let enum_types = project_enums.resolve(core, &mut enum_work, limits)?;
         let imports = imports_for(module, &signatures_by_module)?;
         let mut exports = Vec::new();
-        for f in core.functions.iter().filter(|f| {
-            f.callable_parameters.is_empty()
-                && f.type_parameters.is_empty()
-                && f.state_parameters.is_empty()
-        }) {
+        for (function_index, f) in core
+            .functions
+            .iter()
+            .filter(|f| {
+                f.callable_parameters.is_empty()
+                    && f.type_parameters.is_empty()
+                    && f.state_parameters.is_empty()
+            })
+            .enumerate()
+        {
             let signature = &table[&f.name];
             let id = signature.concrete_id(f.span).map_err(|e| vec![e])?;
-            let mut typed = if let Some(typed) = factories.remove(&id) {
+            let before = memo.as_ref().map(|_| closure_state.memo_counters());
+            let cached = memo
+                .as_mut()
+                .and_then(|memo| memo.load(module_index, function_index, &mut closure_state));
+            let mut typed = if let Some(typed) = cached {
+                visibility.check(&typed, core.module_id)?;
+                typed
+            } else if let Some(typed) = factories.remove(&id) {
                 typed
             } else {
                 let pending_start = closure_state.pending.len();
@@ -285,6 +329,15 @@ pub fn check_program(
                 }
                 typed
             };
+            if memo.as_mut().is_some_and(|memo| {
+                let usage = closure_state
+                    .memo_usage(before.expect("active memo captured builder counters"));
+                memo.record(module_index, &typed, usage).is_none()
+            }) {
+                // An ineligible output or storage bound simply disables this
+                // optional epoch; it never changes the current typed result.
+                memo = None;
+            }
             // This is a diagnostic label only; all resolution and calls use module/function IDs.
             if core.module_id != program.root {
                 typed.name = format!("@module{}:function{}", core.module_id.0, id.0);
@@ -366,11 +419,14 @@ pub fn check_program(
         interface.signature_fingerprint =
             interface_fingerprint(&interface.exports, target, &module.closures);
     }
-    Ok(TypedProgram {
-        module,
-        interfaces,
-        root_functions,
-    })
+    Ok((
+        TypedProgram {
+            module,
+            interfaces,
+            root_functions,
+        },
+        memo.map(program_memo::Request::finish).unwrap_or_default(),
+    ))
 }
 
 fn imports_for<'a>(
