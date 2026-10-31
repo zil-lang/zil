@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "task": "231",
+  "author": "/root/defer_design",
+  "status": "MigrationPreparedPendingFreshCI",
+  "authorization": "Authoritative main .task/impl/231.md names review229_joint Marker acceptance migration after first full CI 41182685056.",
+  "reason": "The unchanged source declares a nongeneric ordinary Marker trait. Its unused generic identity body only returns T under Copy+Marker, which the frozen 231 contract permits. The alias does not grant numeric or field authority.",
+  "production_commit": "13927a0fa893c98c66be40e6a343c4b918b49d7c",
+  "original_ci": {
+    "run": 41182685056,
+    "job": 124483160069,
+    "actual_checkout": "015cb5d4e6c7794de616e0a933520cd3dfa886f7",
+    "candidate": "85a09bb0618868f9c4ec9073ba6fe19f72666b56",
+    "suite": "review229_joint",
+    "test": "generated_types_do_not_grant_where_binders_members_or_numeric_rights",
+    "case": "invalid-bound",
+    "suite_passed": 1,
+    "suite_failed": 1,
+    "actual_compile_status": "Success",
+    "actual_compile_phase": "verify",
+    "verification_runs": 1,
+    "input_fingerprint": "be6f9b832966249ac0c14e11970ec8f9980fc2bb145f056c177909a00f4a284b",
+    "workspace_log_sha256": "2b5844d01a6c4559e931a29e410ae560851de1495c34b03ef324f21c42eaf93b",
+    "original_excerpt_sha256": "1ddce1b9285720ba81083733a6e4543297b2ddf48600b3cbce8970534aa2000f",
+    "source_tree_line": "100644 blob f9ce378eaa989853bcc65f597c4a2de6c5e8174f\tcrates/zil-driver/tests/review229_joint.rs"
+  },
+  "file": {
+    "path": "crates/zil-driver/tests/review229_joint.rs",
+    "original_git_blob": "f9ce378eaa989853bcc65f597c4a2de6c5e8174f",
+    "new_git_blob": "1047e9c8750cc84a285505d88ae1e2ecaba8a884",
+    "original_sha256": "8dc47aa4e235e02e433479ebe71cbf4d6509eab13e8acb0e48148e7992e8e3ae",
+    "new_sha256": "d96d3371a615384e147e1b98dc34eb8d0ccb2b438f16a556763bf5b2b727fb7a"
+  },
+  "preserved_input": {
+    "path": "original-marker.zil",
+    "bytes": 103,
+    "sha256": "be6f9b832966249ac0c14e11970ec8f9980fc2bb145f056c177909a00f4a284b",
+    "byte_identical_in_original_and_new_test": true,
+    "original_case_label_retained": true
+  },
+  "assertion_change": {
+    "case": "invalid-bound",
+    "old": "SafeReject or Unsupported at Expand; zero verification runs",
+    "new": "Success at Verify; exactly one verification run"
+  },
+  "unchanged_controls": [
+    "alias-numeric input and rejection assertions",
+    "nominal-field input and rejection assertions",
+    "complete generated_array_alias_and_shadowing_where_helper_execute_at_o0_and_o2 function"
+  ],
+  "new_nearest_rejections": [
+    {
+      "label": "missing-bound",
+      "source": "trait Marker{}#for(n in [1]){type Count=i32;fn bad<T>(x:T)->T where T:Copy+Missing=>x;}fn main()->i32=>0",
+      "expected": "SafeReject or Unsupported at Expand; zero verification runs"
+    },
+    {
+      "label": "generic-bound",
+      "source": "trait Marker<U>{}#for(n in [1]){type Count=i32;fn bad<T>(x:T)->T where T:Copy+Marker=>x;}fn main()->i32=>0",
+      "expected": "SafeReject or Unsupported at Expand; zero verification runs"
+    }
+  ],
+  "production_modified": false,
+  "test_assertions_outside_named_migration_modified": false,
+  "local_execution": {
+    "cargo": "NotRun",
+    "native": "NotRun",
+    "rustfmt": "Attempted but unavailable: loader could not find librustc_driver-7ed0375ae352bd75.so; exit 127. The command did not format the file.",
+    "source_preservation_and_blob_checks": "Completed by direct byte comparison; not compiler acceptance"
+  },
+  "required_fresh_validation": "Root reruns unchanged full CI with this exact new test blob; includes all five source cases and the original O0/O2 native consumer. No new CI success is claimed by this record."
+}
