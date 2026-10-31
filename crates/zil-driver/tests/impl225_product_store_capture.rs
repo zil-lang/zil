@@ -189,10 +189,24 @@ fn raw_canonical_and_actual_capture_mutations_are_rejected_independently() {
         .unwrap();
     def.name.push_str("-forged");
     assert!(zil_analyze::analyze(&bad, &Limits::default()).is_err());
-    let fake = CandidatePlan::empty_for(&bad);
+    let mut fake = plan.clone();
+    fake.module_fingerprint = bad.fingerprint();
     let wire = zil_ir::wire::encode_module_candidate(&bad, &fake, &Limits::default()).unwrap();
-    assert!(zil_verify::verify_module(bad.clone(), fake, &bad.target, &Limits::default()).is_err());
-    assert!(zil_verify::verify_module_bytes(&wire, &bad.target, &Limits::default()).is_err());
+    for rejected in [
+        zil_verify::verify_module(bad.clone(), fake, &bad.target, &Limits::default()),
+        zil_verify::verify_module_bytes(&wire, &bad.target, &Limits::default()),
+    ] {
+        let errors = rejected.unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.message.contains("canonical")),
+            "{errors:#?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.code != "E-VERIFY-PLAN" && d.code != "E-VERIFY-PLAN-IDENTITY")
+        );
+    }
     let mut changed = module;
     let mut found = false;
     for f in &mut changed.functions {
