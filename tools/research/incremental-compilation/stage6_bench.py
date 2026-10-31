@@ -88,19 +88,49 @@ def generate(case, out, edit):
 
 def measured(cmd, run, label, timeout):
     def expired(_signum, _frame):raise TimeoutError('compiler timeout')
-    signal.signal(signal.SIGALRM,expired)
-    with (run/f'{label}.stdout').open('wb') as stdout,(run/f'{label}.stderr').open('wb') as stderr:
-        start=time.perf_counter_ns()
-        try:p=subprocess.Popen(cmd,stdout=stdout,stderr=stderr,start_new_session=True)
-        except OSError as error:
-            return {'elapsed_ns':time.perf_counter_ns()-start,'exit':None,'timeout':False,'launch_error':str(error),'cpu_seconds':None,'max_rss_kib':None}
-        signal.alarm(timeout)
-        timed_out=False
-        try:_,status,usage=os.wait4(p.pid,0)
-        except TimeoutError:
-            timed_out=True;os.killpg(p.pid,signal.SIGKILL);_,status,usage=os.wait4(p.pid,0)
-        finally:signal.alarm(0)
-        wall=time.perf_counter_ns()-start;p.returncode=os.waitstatus_to_exitcode(status)
+    prior_handler=signal.getsignal(signal.SIGALRM)
+    start=time.perf_counter_ns();p=None;reaped=False;timed_out=False;status=None
+    try:
+        with (run/f'{label}.stdout').open('wb') as stdout,(run/f'{label}.stderr').open('wb') as stderr:
+            signal.signal(signal.SIGALRM,expired)
+            start=time.perf_counter_ns()
+            try:p=subprocess.Popen(cmd,stdout=stdout,stderr=stderr,start_new_session=True)
+            except OSError as error:
+                return {'elapsed_ns':time.perf_counter_ns()-start,'exit':None,'timeout':False,'launch_error':str(error),'cpu_seconds':None,'max_rss_kib':None}
+            signal.alarm(timeout)
+            try:_,status,usage=os.wait4(p.pid,0)
+            except TimeoutError:
+                timed_out=True
+                try:os.killpg(p.pid,signal.SIGKILL)
+                except ProcessLookupError:pass
+                _,status,usage=os.wait4(p.pid,0)
+            reaped=True;p.returncode=os.waitstatus_to_exitcode(status)
+            wall=time.perf_counter_ns()-start
+    except BaseException as error:
+        signal.alarm(0)
+        cleanup_attempted=False
+        if p is not None and not reaped:
+            cleanup_attempted=True
+            try:os.killpg(p.pid,signal.SIGKILL)
+            except ProcessLookupError:pass
+            try:
+                _,status,usage=os.wait4(p.pid,0)
+            except ChildProcessError:
+                # A signal can arrive after wait4 reaped the child but before
+                # the Python assignment records its status. Preserve the error.
+                pass
+            reaped=True
+            if status is not None:p.returncode=os.waitstatus_to_exitcode(status)
+        interrupted={'status':'Interrupted','command':cmd,'pid':p.pid if p is not None else None,
+                     'exit':p.returncode if p is not None else None,'error':repr(error),
+                     'elapsed_ns':time.perf_counter_ns()-start,
+                     'process_group_cleanup_attempted':cleanup_attempted,'child_reaped':reaped}
+        try:(run/f'{label}.interrupted.json').write_text(json.dumps(interrupted,indent=2)+'\n')
+        except OSError as receipt_error:error.add_note('Could not write interruption receipt: '+str(receipt_error))
+        raise
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM,prior_handler)
     return {'elapsed_ns':wall,'exit':p.returncode,'timeout':timed_out,'cpu_seconds':usage.ru_utime+usage.ru_stime,'max_rss_kib':usage.ru_maxrss}
 
 def main():
@@ -126,6 +156,7 @@ def main():
             for block in range(a.blocks):
                 for position,arm in enumerate(['zil',reference] if block%2==0 else [reference,'zil']):
                     run=a.out/f'{c["name"]}-{mode}-{block}-{position}-{arm}';run.mkdir()
+                    history_valid=True
                     for label,edit in requests:
                         expected=generate(c,src,edit)
                         source_hashes={x.name:sha(x) for x in sorted(src.glob('*.zil' if arm!='rust' else '*.rs'))}
@@ -164,6 +195,9 @@ def main():
                                 row['valid']=False;row['native']={'launch_error':str(error)}
                             except subprocess.TimeoutExpired as error:
                                 row['valid']=False;row['native']={'timeout':True,'stdout_hex':(error.stdout or b'').hex(),'stderr_hex':(error.stderr or b'').hex()}
+                        row['execution_valid']=bool(row['valid']);row['sequence_history_valid']=history_valid
+                        row['valid']=row['execution_valid'] and history_valid
+                        history_valid=bool(row['valid'])
                         rows.append(row)
                         with (a.out/'rows.jsonl').open('a') as f:f.write(json.dumps(row)+'\n')
                         if not row['valid']:print('FAIL',c['name'],mode,arm,label,result['exit'],flush=True)
