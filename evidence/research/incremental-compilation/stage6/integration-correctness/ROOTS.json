@@ -1,0 +1,126 @@
+[
+  {
+    "prefix": "research/stage6/integration-checks",
+    "source_path": "/workspace/.zil-env/research/stage6/integration-checks"
+  },
+  {
+    "prefix": "research/stage6-integration-review/combo.initial-delimiter-failure.log",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/combo.initial-delimiter-failure.log"
+  },
+  {
+    "prefix": "research/stage6-integration-review/combo.initial-delimiter-failure.rs",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/combo.initial-delimiter-failure.rs"
+  },
+  {
+    "prefix": "research/stage6-integration-review/combo.initial-first-error-assumption.log",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/combo.initial-first-error-assumption.log"
+  },
+  {
+    "prefix": "research/stage6-integration-review/combo.initial-first-error-assumption.rs",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/combo.initial-first-error-assumption.rs"
+  },
+  {
+    "prefix": "research/stage6-integration-review/combo.initial-missing-import-assumption.log",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/combo.initial-missing-import-assumption.log"
+  },
+  {
+    "prefix": "research/stage6-integration-review/combo.initial-missing-import-assumption.rs",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/combo.initial-missing-import-assumption.rs"
+  },
+  {
+    "prefix": "research/stage6-integration-review/combo.initial-restore-assumption.log",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/combo.initial-restore-assumption.log"
+  },
+  {
+    "prefix": "research/stage6-integration-review/combo.initial-restore-assumption.rs",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/combo.initial-restore-assumption.rs"
+  },
+  {
+    "prefix": "research/stage6-integration-review/combo.log",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/combo.log"
+  },
+  {
+    "prefix": "research/stage6-integration-review/combo.rs",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/combo.rs"
+  },
+  {
+    "prefix": "research/stage6-integration-review/controls",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/controls"
+  },
+  {
+    "prefix": "research/stage6-integration-review/controls.initial-first-error-assumption",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/controls.initial-first-error-assumption"
+  },
+  {
+    "prefix": "research/stage6-integration-review/controls.initial-missing-import-assumption",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/controls.initial-missing-import-assumption"
+  },
+  {
+    "prefix": "research/stage6-integration-review/controls.initial-restore-assumption",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/controls.initial-restore-assumption"
+  },
+  {
+    "prefix": "research/stage6-integration-review/db-withdrawal-test-binding.json",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/db-withdrawal-test-binding.json"
+  },
+  {
+    "prefix": "research/stage6-integration-review/db-withdrawal-test-binding.md",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/db-withdrawal-test-binding.md"
+  },
+  {
+    "prefix": "research/stage6-integration-review/inventory.json",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/inventory.json"
+  },
+  {
+    "prefix": "research/stage6-integration-review/review.json",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/review.json"
+  },
+  {
+    "prefix": "research/stage6-integration-review/review.md",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/review.md"
+  },
+  {
+    "prefix": "research/stage6-integration-review/static.json",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/static.json"
+  },
+  {
+    "prefix": "research/stage6-integration-review/static.md",
+    "source_path": "/workspace/.zil-env/research/stage6-integration-review/static.md"
+  },
+  {
+    "prefix": "research/upstream-integration/STATIC.md",
+    "source_path": "/workspace/.zil-env/research/upstream-integration/STATIC.md"
+  },
+  {
+    "prefix": "research/upstream-integration/STATIC.json",
+    "source_path": "/workspace/.zil-env/research/upstream-integration/STATIC.json"
+  },
+  {
+    "prefix": "research/upstream-integration/resolve-expand.patch",
+    "source_path": "/workspace/.zil-env/research/upstream-integration/resolve-expand.patch"
+  },
+  {
+    "prefix": "research/upstream-integration/resolved-expand-lib.rs",
+    "source_path": "/workspace/.zil-env/research/upstream-integration/resolved-expand-lib.rs"
+  },
+  {
+    "prefix": "research/stage6/old-rust-cache-cleanup-2-complete.json",
+    "source_path": "/workspace/.zil-env/research/stage6/old-rust-cache-cleanup-2-complete.json"
+  },
+  {
+    "prefix": "research/stage6/old-rust-cache-cleanup-2-files.jsonl",
+    "source_path": "/workspace/.zil-env/research/stage6/old-rust-cache-cleanup-2-files.jsonl"
+  },
+  {
+    "prefix": "research/stage6/old-rust-cache-cleanup-2-resume-files.jsonl",
+    "source_path": "/workspace/.zil-env/research/stage6/old-rust-cache-cleanup-2-resume-files.jsonl"
+  },
+  {
+    "prefix": "research/stage6/remaining-old-rust-cache-scan.json",
+    "source_path": "/workspace/.zil-env/research/stage6/remaining-old-rust-cache-scan.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

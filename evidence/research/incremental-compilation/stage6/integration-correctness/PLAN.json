@@ -1,0 +1,17 @@
+{
+  "kind": "integration-correctness",
+  "summary": [
+    {
+      "class": "elf-executable-or-object",
+      "files": 2,
+      "bytes": 32784
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 364,
+      "bytes": 5610202
+    }
+  ],
+  "selected_paths": 366,
+  "unique_blobs": 198
+}

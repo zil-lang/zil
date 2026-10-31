@@ -63,6 +63,17 @@ def roots_for(kind, repo, research):
     elif kind == 'syntax-session-review':
         roots = [research / 'stage6-syntax-session-review']
         tools = ['stage6_session_bench.py', 'stage6_session_probe.rs']
+    elif kind == 'integration-correctness':
+        roots = [stage / 'integration-checks']
+        review = research / 'stage6-integration-review'
+        roots += sorted(p for p in review.iterdir() if p.is_file()
+                        or p.is_dir() and p.name.startswith('controls'))
+        roots += [research / 'upstream-integration' / name for name in [
+            'STATIC.md', 'STATIC.json', 'resolve-expand.patch', 'resolved-expand-lib.rs',
+        ]]
+        roots += sorted(stage.glob('old-rust-cache-cleanup-2-*'))
+        roots.append(stage / 'remaining-old-rust-cache-scan.json')
+        tools = []
     elif kind == 'scalar-screens':
         roots = sorted(p for p in stage.iterdir() if p.name.startswith('scalar-screen-'))
         roots.append(stage / 'scalar-screens.log')
@@ -336,6 +347,7 @@ def collect(args):
                   'Independent Session review, including its full large inventory and recomputation.' if args.kind == 'session-review' else
                   'Two completed six-block AST Session windows: ccf1 versus ffe4 isolation and 3d6 versus ffe4 combination. Frozen raw controls, requests, exclusive-window receipts and original build/source identities. Collection HEAD is a later compiler and does not relabel these measurements.' if args.kind == 'syntax-session' else
                   'Independent audit of both frozen AST Session windows, complete source/request inventory, fixed paired bootstrap, Parse/Verify/object/native controls and preserved reviewer schema-error attempt.' if args.kind == 'syntax-session-review' else
+                  'Frozen ac4 upstream integration scoped correctness and 888 matching DB unit-test repair, independent review and retained fixture/CI failures. Exact review/worktree/target trees and active API/plugin/runtime/SSA work are excluded. The later in-progress CI run is not a pass or an archived completed run. Includes identity-bound old Rust-cache cleanup receipts.' if args.kind == 'integration-correctness' else
                   'Two complete scalar screening windows, 160 requests each; two-block screening only.' if args.kind == 'scalar-screens' else
                   'Frozen pass/SLP/perf diagnostics and ca79 profiles. Initial instrumentation failures, invalid SLP setter ablation, adaptive NotRun cases and perf permission failures remain distinct; no formal exclusive timing claim. Active jump-threading plugin candidates and SDK/build targets are outside scope.' if args.kind == 'diagnostics' else
                   'Syntax author/reviewer correctness, failed initial fixtures, fixed controls and root build identities. Exact source checkouts/shared targets are outside scope; commit/source receipts retain their identities. Formal syntax Session windows are separate.' if args.kind == 'syntax-correctness' else
@@ -422,7 +434,7 @@ def verify(root, destination=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--kind', choices=['session', 'session-review', 'syntax-session', 'syntax-session-review', 'scalar-screens', 'scalar-correctness', 'diagnostics', 'syntax-correctness'])
+    parser.add_argument('--kind', choices=['session', 'session-review', 'syntax-session', 'syntax-session-review', 'integration-correctness', 'scalar-screens', 'scalar-correctness', 'diagnostics', 'syntax-correctness'])
     parser.add_argument('--repo', type=Path, default=Path.cwd())
     parser.add_argument('--research', type=Path, default=Path('/workspace/.zil-env/research'))
     parser.add_argument('--out', type=Path)
