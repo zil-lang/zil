@@ -67,3 +67,5 @@
 第五阶段第二候选先记录changes/research-closed-executable-port.md，移植旧CP13显式封闭构建；追加CLI main.rs及CLI限定测试写集。保持默认false及公共Wire/JSON形状，默认/closed分别计量和独审，来源绑定旧e7b492c6。
 
 第五阶段第三候选先记录changes/research-dominator-intervals.md，在既有preflight.rs写集内为当前支配树构造大图区间索引，独立旧walk差分后测完整成本，保持SSA/phi/不可达语义与首错。
+
+第五阶段冻结801五窗的分项继续暴露大模块命中后的机器预检成本。先记录changes/research-preflight-fanin.md；在既有preflight.rs写集内评估高扇入idom合并的当前树路径投影，以及只用于函数内查找的容器。必须待原独占测量完成再构建/测试，新候选另列身份和窗口，完整保留原801数据与不利结果。
