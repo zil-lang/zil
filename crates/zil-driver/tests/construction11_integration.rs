@@ -1,0 +1,113 @@
+//! Joint source consumer for Product captures and trait-library instantiation.
+use std::{collections::BTreeMap, fs, path::PathBuf, process::Command};
+use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
+use zil_driver::{
+    CompilationSession, CompileOptions, NativeBackend, Optimization, ProjectSources, Stage,
+};
+
+const MAIN: &str = include_str!("../../../examples/mainline/construction11/main.zil");
+const RULES: &str = include_str!("../../../examples/mainline/construction11/rules.zil");
+const DATA: &str = include_str!("../../../examples/mainline/construction11/data.zil");
+
+fn project(main: &str) -> ProjectSources {
+    let files = [("main", main), ("rules", RULES), ("data", DATA)];
+    ProjectSources {
+        root: ModuleId(0),
+        modules: files
+            .iter()
+            .enumerate()
+            .map(|(n, (name, text))| {
+                SourceUnit::new(
+                    FileId(n as u32),
+                    ModuleId(n as u32),
+                    format!("{name}.zil"),
+                    *text,
+                )
+            })
+            .collect(),
+        paths: BTreeMap::from([
+            (vec!["rules".into()], ModuleId(1)),
+            (vec!["data".into()], ModuleId(2)),
+        ]),
+    }
+}
+
+#[test]
+fn shared_product_callback_calls_trait_library_then_releases_owner() {
+    #[cfg(not(feature = "llvm-api"))]
+    let backends = [NativeBackend::Clang];
+    #[cfg(feature = "llvm-api")]
+    let backends = [NativeBackend::Clang, NativeBackend::LlvmApi];
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir)
+                .join(format!(
+                    "construction11-{}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+            fs::create_dir_all(&root).unwrap();
+            for (name, text) in [("main", MAIN), ("rules", RULES), ("data", DATA)] {
+                fs::write(root.join(format!("{name}.zil")), text).unwrap();
+            }
+            let options = CompileOptions {
+                backend,
+                optimization,
+                stop_after: Stage::Build,
+                output: Some(root.join("program")),
+                emit_dir: Some(root.join("phases")),
+                ..CompileOptions::default()
+            };
+            let report = CompilationSession::default().compile_project(&project(MAIN), &options);
+            fs::write(root.join("report.json"), report.to_json()).unwrap();
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let output = Command::new(root.join("program")).output().unwrap();
+            fs::write(root.join("stdout.bin"), &output.stdout).unwrap();
+            fs::write(root.join("stderr.bin"), &output.stderr).unwrap();
+            fs::write(
+                root.join("exit.txt"),
+                format!("{:?}\n", output.status.code()),
+            )
+            .unwrap();
+            assert_eq!(output.status.code(), Some(0));
+            assert_eq!(output.stdout, b"A");
+            assert!(output.stderr.is_empty());
+        }
+    }
+}
+
+#[test]
+fn cross_module_trait_use_keeps_the_product_capture_loan_active() {
+    let source = MAIN.replace(
+        "let value = callback() + callback()\n    let moved = item",
+        "let moved = item\n    let value = callback() + callback()",
+    );
+    assert_ne!(source, MAIN);
+    let report = CompilationSession::default()
+        .compile_project(&project(&source), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{}",
+        report.to_json()
+    );
+    // The independent Verify invocation rejects the active loan and is counted.
+    assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+    assert!(!report.artifacts.contains_key("executable"));
+}
