@@ -1,0 +1,1510 @@
+[
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-0/candidate.wire",
+    "archived": "migration-cases/migration232-072-owned-original-145-0/candidate.wire",
+    "sha256": "7e6bf8ce38cb230dc4045e1e6502cf4357a64596bf73e2d57904649eb1b67930",
+    "bytes": 6766
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-0/phases/candidate.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-0/phases/candidate.txt.gz",
+    "sha256": "c8ef1ff8bc69357c529c579a1b05a996e37354cf5aab72ff49abfeacaed41fcd",
+    "bytes": 10873
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-0/phases/core.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-0/phases/core.txt.gz",
+    "sha256": "022a085f15dbbf8dfabe11ae2069f9e14a1e9319856108286d17d17fea12f75e",
+    "bytes": 51929
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-0/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-0/phases/ct-core.txt.gz",
+    "sha256": "33879e12f7d654d1985fa941cda409b642d5cf3564e4474d56a4142c0262ef7f",
+    "bytes": 62900
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-0/phases/source-map.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-0/phases/source-map.txt.gz",
+    "sha256": "1c021ab2816fe101cb5073eaaaf4a8974b5917c97352dc9a4c85f72eb7641251",
+    "bytes": 32835
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-0/phases/syntax.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-0/phases/syntax.txt.gz",
+    "sha256": "4376d90dd2efba9ee5835a854bdb3680ec2fdc6a8754ba4a6dd34ac6c48bdedc",
+    "bytes": 116192
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-0/phases/typed.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-0/phases/typed.txt.gz",
+    "sha256": "0b0a259e4c2e6d1064b854525382bfe6f17c2694267ba3fff4e7d0e094e99d9a",
+    "bytes": 118326
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-0/phases/verified.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-0/phases/verified.txt.gz",
+    "sha256": "debeb9ef9a8fc4d9d26d9b350af2e4e2bbc9b0f62d18069e1c72736f704e172a",
+    "bytes": 118403
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-0/report.json",
+    "archived": "migration-cases/migration232-072-owned-original-145-0/report.json",
+    "sha256": "05b071f1c9d3e1cc487cfd0fe5ec4ed87c45ddef486c26c60509bbee1a40de7b",
+    "bytes": 1702
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-0/source.zil",
+    "archived": "migration-cases/migration232-072-owned-original-145-0/source.zil",
+    "sha256": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1",
+    "bytes": 359
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-0/typed.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-0/typed.txt.gz",
+    "sha256": "0b0a259e4c2e6d1064b854525382bfe6f17c2694267ba3fff4e7d0e094e99d9a",
+    "bytes": 118326
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/exit.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/exit.txt",
+    "sha256": "e26e2b8eec6de0aa1bebb5d7cb22a9155b30b2b4738a3f208ce2feaf4a770608",
+    "bytes": 8
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/phases/candidate.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/phases/candidate.txt.gz",
+    "sha256": "c8ef1ff8bc69357c529c579a1b05a996e37354cf5aab72ff49abfeacaed41fcd",
+    "bytes": 10873
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/phases/core.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/phases/core.txt.gz",
+    "sha256": "022a085f15dbbf8dfabe11ae2069f9e14a1e9319856108286d17d17fea12f75e",
+    "bytes": 51929
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/phases/ct-core.txt.gz",
+    "sha256": "33879e12f7d654d1985fa941cda409b642d5cf3564e4474d56a4142c0262ef7f",
+    "bytes": 62900
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/phases/lir.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/phases/lir.txt.gz",
+    "sha256": "1fafad9358e6aa08d2dd8eaff46d3cdc03e16adca2e98f61cbcdd4b9be3132b8",
+    "bytes": 119165
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/phases/llvm.ll",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/phases/llvm.ll.gz",
+    "sha256": "b7fd62a9fa997a2eaf59af7072eb330b634d1c9570886d0bf6c7a02b6892f7ea",
+    "bytes": 11507
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/phases/source-map.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/phases/source-map.txt.gz",
+    "sha256": "1c021ab2816fe101cb5073eaaaf4a8974b5917c97352dc9a4c85f72eb7641251",
+    "bytes": 32835
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/phases/syntax.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/phases/syntax.txt.gz",
+    "sha256": "4376d90dd2efba9ee5835a854bdb3680ec2fdc6a8754ba4a6dd34ac6c48bdedc",
+    "bytes": 116192
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/phases/typed.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/phases/typed.txt.gz",
+    "sha256": "0b0a259e4c2e6d1064b854525382bfe6f17c2694267ba3fff4e7d0e094e99d9a",
+    "bytes": 118326
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/phases/verified.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/phases/verified.txt.gz",
+    "sha256": "debeb9ef9a8fc4d9d26d9b350af2e4e2bbc9b0f62d18069e1c72736f704e172a",
+    "bytes": 118403
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/program",
+    "archived": null,
+    "sha256": "14d9bdf0ad67027a564dcf4a95f670fb9b0487c8056d20faaa5c577bcc8f06cc",
+    "bytes": 16120,
+    "reason": "executable digest; LLVM/process outputs archived"
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/program.ll",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/program.ll.gz",
+    "sha256": "b7fd62a9fa997a2eaf59af7072eb330b634d1c9570886d0bf6c7a02b6892f7ea",
+    "bytes": 11507
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/report.json",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/report.json",
+    "sha256": "332b7fe5096e8097e2a24225162f1aecad22718dc58806bd41f3432b5dc5ba6f",
+    "bytes": 2982
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/source.zil",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/source.zil",
+    "sha256": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1",
+    "bytes": 359
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/stderr",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-1/stdout",
+    "archived": "migration-cases/migration232-072-owned-original-145-1/stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/exit.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/exit.txt",
+    "sha256": "e26e2b8eec6de0aa1bebb5d7cb22a9155b30b2b4738a3f208ce2feaf4a770608",
+    "bytes": 8
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/phases/candidate.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/phases/candidate.txt.gz",
+    "sha256": "c8ef1ff8bc69357c529c579a1b05a996e37354cf5aab72ff49abfeacaed41fcd",
+    "bytes": 10873
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/phases/core.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/phases/core.txt.gz",
+    "sha256": "022a085f15dbbf8dfabe11ae2069f9e14a1e9319856108286d17d17fea12f75e",
+    "bytes": 51929
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/phases/ct-core.txt.gz",
+    "sha256": "33879e12f7d654d1985fa941cda409b642d5cf3564e4474d56a4142c0262ef7f",
+    "bytes": 62900
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/phases/lir.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/phases/lir.txt.gz",
+    "sha256": "1fafad9358e6aa08d2dd8eaff46d3cdc03e16adca2e98f61cbcdd4b9be3132b8",
+    "bytes": 119165
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/phases/llvm.ll",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/phases/llvm.ll.gz",
+    "sha256": "b7fd62a9fa997a2eaf59af7072eb330b634d1c9570886d0bf6c7a02b6892f7ea",
+    "bytes": 11507
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/phases/source-map.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/phases/source-map.txt.gz",
+    "sha256": "1c021ab2816fe101cb5073eaaaf4a8974b5917c97352dc9a4c85f72eb7641251",
+    "bytes": 32835
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/phases/syntax.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/phases/syntax.txt.gz",
+    "sha256": "4376d90dd2efba9ee5835a854bdb3680ec2fdc6a8754ba4a6dd34ac6c48bdedc",
+    "bytes": 116192
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/phases/typed.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/phases/typed.txt.gz",
+    "sha256": "0b0a259e4c2e6d1064b854525382bfe6f17c2694267ba3fff4e7d0e094e99d9a",
+    "bytes": 118326
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/phases/verified.txt",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/phases/verified.txt.gz",
+    "sha256": "debeb9ef9a8fc4d9d26d9b350af2e4e2bbc9b0f62d18069e1c72736f704e172a",
+    "bytes": 118403
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/program",
+    "archived": null,
+    "sha256": "cd1baf59bfb2634c5d05843da30c45bcfade6ca6e92baf6854bd51696dbb3b26",
+    "bytes": 16080,
+    "reason": "executable digest; LLVM/process outputs archived"
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/program.ll",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/program.ll.gz",
+    "sha256": "b7fd62a9fa997a2eaf59af7072eb330b634d1c9570886d0bf6c7a02b6892f7ea",
+    "bytes": 11507
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/report.json",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/report.json",
+    "sha256": "2ecf492af4644c936a2aff2f20a4b0949365ceffc578d858678f324154eb061a",
+    "bytes": 2982
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/source.zil",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/source.zil",
+    "sha256": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1",
+    "bytes": 359
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/stderr",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owned-original-145-2/stdout",
+    "archived": "migration-cases/migration232-072-owned-original-145-2/stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owner-after-creation-145-3/phases/core.txt",
+    "archived": "migration-cases/migration232-072-owner-after-creation-145-3/phases/core.txt.gz",
+    "sha256": "c37a4c426307e622f8dd5ed7f2c71f3ce39e1aa05097fd028806cc9ce0608268",
+    "bytes": 54593
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owner-after-creation-145-3/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-072-owner-after-creation-145-3/phases/ct-core.txt.gz",
+    "sha256": "5eea71a8d319932e26dfceef7015d64e5f5e3b88c379120edcebf741da57e901",
+    "bytes": 65564
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owner-after-creation-145-3/phases/source-map.txt",
+    "archived": "migration-cases/migration232-072-owner-after-creation-145-3/phases/source-map.txt.gz",
+    "sha256": "19234988d8b1f42255ce5930bdc89a5502d556e82e347c01222c9288e5d1bae0",
+    "bytes": 34455
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owner-after-creation-145-3/phases/syntax.txt",
+    "archived": "migration-cases/migration232-072-owner-after-creation-145-3/phases/syntax.txt.gz",
+    "sha256": "e504b1a114b55ee8b62884c26bc0455fa063e51d7e986ad1f48b92976bcf4202",
+    "bytes": 120005
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owner-after-creation-145-3/phases/typed.txt",
+    "archived": "migration-cases/migration232-072-owner-after-creation-145-3/phases/typed.txt.gz",
+    "sha256": "881cb7007e516e2e767f698f26e43aa8c3ddae5fd0fe4321bc881af9a4b133e2",
+    "bytes": 120036
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owner-after-creation-145-3/report.json",
+    "archived": "migration-cases/migration232-072-owner-after-creation-145-3/report.json",
+    "sha256": "8437f85f18018b42120e92e367401d305ea98f5dfdecbc01b737a3c69c5ae60f",
+    "bytes": 1559
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-owner-after-creation-145-3/source.zil",
+    "archived": "migration-cases/migration232-072-owner-after-creation-145-3/source.zil",
+    "sha256": "165ed7cbb543275cda271be1d8c7535dd53bb26349e061ed5db19aaec2ee342b",
+    "bytes": 363
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-second-call-145-4/phases/core.txt",
+    "archived": "migration-cases/migration232-072-second-call-145-4/phases/core.txt.gz",
+    "sha256": "282deb368d72508d258f97f8392fcd1c267bc08203e5196e8c981bbd4a76a10a",
+    "bytes": 55827
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-second-call-145-4/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-072-second-call-145-4/phases/ct-core.txt.gz",
+    "sha256": "3581600e1b28bdd417b6df2cb9206d73a246bc5208f9bf354bb7d90b260bc968",
+    "bytes": 66866
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-second-call-145-4/phases/source-map.txt",
+    "archived": "migration-cases/migration232-072-second-call-145-4/phases/source-map.txt.gz",
+    "sha256": "e5e5bb0e7619489f5a75d886552dfb8efd265bc7f0da17d684c47b4d79b26e74",
+    "bytes": 35535
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-second-call-145-4/phases/syntax.txt",
+    "archived": "migration-cases/migration232-072-second-call-145-4/phases/syntax.txt.gz",
+    "sha256": "79984aa2fd5f704235c7487b21b4d77005caf16c517d3b4e6736c7f7985d50c0",
+    "bytes": 123217
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-second-call-145-4/phases/typed.txt",
+    "archived": "migration-cases/migration232-072-second-call-145-4/phases/typed.txt.gz",
+    "sha256": "5e1e7be1ac17e9846c4401201bd7ca3bfbc041189fabbe582ebebef35fe96d0b",
+    "bytes": 127823
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-second-call-145-4/report.json",
+    "archived": "migration-cases/migration232-072-second-call-145-4/report.json",
+    "sha256": "8909e2e38c67982ff0d329f3d8d4bb82f1c0a32e30156a38b5d97fca23019f0e",
+    "bytes": 1514
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-072-second-call-145-4/source.zil",
+    "archived": "migration-cases/migration232-072-second-call-145-4/source.zil",
+    "sha256": "ed2e039e5c58a2f8a79210fde4fb3ca17a983d9bae21d83440be271351a2179e",
+    "bytes": 379
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-default-mutable-172-9/phases/core.txt",
+    "archived": "migration-cases/migration232-077-default-mutable-172-9/phases/core.txt.gz",
+    "sha256": "0555e617db0c2d4224022725756480ebb9b5ee45720e1e9c18edb2ff58cff887",
+    "bytes": 58974
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-default-mutable-172-9/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-077-default-mutable-172-9/phases/ct-core.txt.gz",
+    "sha256": "36060d12c500d50c0225882ca616982647d4845de1f9460f9b65533a85f8539f",
+    "bytes": 67653
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-default-mutable-172-9/phases/source-map.txt",
+    "archived": "migration-cases/migration232-077-default-mutable-172-9/phases/source-map.txt.gz",
+    "sha256": "4dd0b3d8819b3fa325c4ad7f2911daac159a4d8ed37a4fecdce5c38955afda52",
+    "bytes": 39878
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-default-mutable-172-9/phases/syntax.txt",
+    "archived": "migration-cases/migration232-077-default-mutable-172-9/phases/syntax.txt.gz",
+    "sha256": "62e4acf787bb6723c0d89e88a3f0a0b35371e8681dc0ad45827ec339e51b7f16",
+    "bytes": 120847
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-default-mutable-172-9/report.json",
+    "archived": "migration-cases/migration232-077-default-mutable-172-9/report.json",
+    "sha256": "236ed10c11f0c2618418f3e0e8f9fadc1e845e274c154088d77af8a90dd2591f",
+    "bytes": 1318
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-default-mutable-172-9/source.zil",
+    "archived": "migration-cases/migration232-077-default-mutable-172-9/source.zil",
+    "sha256": "b973f70b1b8a23a18c9264f90218fb3991e798c3c7781b3a755b3afacae3c05d",
+    "bytes": 355
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-replace-172-5/phases/candidate.txt",
+    "archived": "migration-cases/migration232-077-live-field-replace-172-5/phases/candidate.txt.gz",
+    "sha256": "8471f8063f87f9941f2da29ffa1e7b712b2353712bb3e86dedaad8467333971f",
+    "bytes": 13961
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-replace-172-5/phases/core.txt",
+    "archived": "migration-cases/migration232-077-live-field-replace-172-5/phases/core.txt.gz",
+    "sha256": "15ca70d937e2a8db8d9d0d5222fb46be0d1c7739a1763d8aef05250c942844d4",
+    "bytes": 58204
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-replace-172-5/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-077-live-field-replace-172-5/phases/ct-core.txt.gz",
+    "sha256": "6b91aafc7e25b90b8cae5096972c0a2b955284d3402b223a5088a796ac4bb6e6",
+    "bytes": 67376
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-replace-172-5/phases/source-map.txt",
+    "archived": "migration-cases/migration232-077-live-field-replace-172-5/phases/source-map.txt.gz",
+    "sha256": "f9b40905b72a790154c5d6f6b916ffdc9f198d13590d020ab1237039deb392a1",
+    "bytes": 40215
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-replace-172-5/phases/syntax.txt",
+    "archived": "migration-cases/migration232-077-live-field-replace-172-5/phases/syntax.txt.gz",
+    "sha256": "c14ffa164601ccb1f02309768e33991dbe5df4b8992639ce2bf5037f1b347794",
+    "bytes": 121915
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-replace-172-5/phases/typed.txt",
+    "archived": "migration-cases/migration232-077-live-field-replace-172-5/phases/typed.txt.gz",
+    "sha256": "fbc48745bea16ffa21d91db666584c626cf86a2e6d505660464003defc45e8ab",
+    "bytes": 131529
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-replace-172-5/report.json",
+    "archived": "migration-cases/migration232-077-live-field-replace-172-5/report.json",
+    "sha256": "a4998cd3219332d58b3fc74519495bf87af814a6309e3c776e6e2c70386abda7",
+    "bytes": 1776
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-replace-172-5/source.zil",
+    "archived": "migration-cases/migration232-077-live-field-replace-172-5/source.zil",
+    "sha256": "22f2deb9dcb82d34b35073c99bfad121b55025296865549eced7d6554843004a",
+    "bytes": 353
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-take-172-4/phases/candidate.txt",
+    "archived": "migration-cases/migration232-077-live-field-take-172-4/phases/candidate.txt.gz",
+    "sha256": "b6b48051d5fda4a3f90b385b0f57cbb23831d71ceca7b305d72ac4cb68dae04a",
+    "bytes": 13474
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-take-172-4/phases/core.txt",
+    "archived": "migration-cases/migration232-077-live-field-take-172-4/phases/core.txt.gz",
+    "sha256": "71b408b9cc635308fa87bfd7d91907645bb1533e429e5f4bec90f03e14063a25",
+    "bytes": 55676
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-take-172-4/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-077-live-field-take-172-4/phases/ct-core.txt.gz",
+    "sha256": "eea8858b619ccd527a564b6c6b85e5e7e353761a0a68d6f642975f5cbd258aa3",
+    "bytes": 64895
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-take-172-4/phases/source-map.txt",
+    "archived": "migration-cases/migration232-077-live-field-take-172-4/phases/source-map.txt.gz",
+    "sha256": "d99b780368efc1fd0edc4649c3c9371ad40b4243edb1157a8e41625d7776b69d",
+    "bytes": 37709
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-take-172-4/phases/syntax.txt",
+    "archived": "migration-cases/migration232-077-live-field-take-172-4/phases/syntax.txt.gz",
+    "sha256": "2804512c2173c99000152c71962fad6dc513ded2bb8512a4f1689c0d07082cf7",
+    "bytes": 119572
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-take-172-4/phases/typed.txt",
+    "archived": "migration-cases/migration232-077-live-field-take-172-4/phases/typed.txt.gz",
+    "sha256": "810d3bc9f66d0702487198788b9d1a9651496f5e6480b392dd7a92c82ac3b75e",
+    "bytes": 124021
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-take-172-4/report.json",
+    "archived": "migration-cases/migration232-077-live-field-take-172-4/report.json",
+    "sha256": "21b58d4a350d0496d88a29e60c22cb24b7c7022dbedbfbad6aae2185b17cb80e",
+    "bytes": 1758
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-field-take-172-4/source.zil",
+    "archived": "migration-cases/migration232-077-live-field-take-172-4/source.zil",
+    "sha256": "02a019fc5ebdb17e6fb6cb9b27b7e82a6989edd1122da4c628675805ba99c67c",
+    "bytes": 360
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-owner-move-172-3/phases/candidate.txt",
+    "archived": "migration-cases/migration232-077-live-owner-move-172-3/phases/candidate.txt.gz",
+    "sha256": "12f23c9a076516d76186a1dae7b6e84bf01158b7345d9e306a6c66201f222234",
+    "bytes": 13467
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-owner-move-172-3/phases/core.txt",
+    "archived": "migration-cases/migration232-077-live-owner-move-172-3/phases/core.txt.gz",
+    "sha256": "1e16f5ad492ec3726b9b4ef9087ec8a536cc94811637ef9a4f200fe23321744d",
+    "bytes": 53927
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-owner-move-172-3/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-077-live-owner-move-172-3/phases/ct-core.txt.gz",
+    "sha256": "7291f1c1713702e9f78fd8ca649f189a3de2570dd8dd7f975e25202f523fe60b",
+    "bytes": 64591
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-owner-move-172-3/phases/source-map.txt",
+    "archived": "migration-cases/migration232-077-live-owner-move-172-3/phases/source-map.txt.gz",
+    "sha256": "03f50ee4ed416422ad552b841ae5d319d26e6956ad11960d73f139e9bb050441",
+    "bytes": 36629
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-owner-move-172-3/phases/syntax.txt",
+    "archived": "migration-cases/migration232-077-live-owner-move-172-3/phases/syntax.txt.gz",
+    "sha256": "52586798c80fc6acee105dd42bd9d45ea57317ba688562c698d50ccf5a37fa0d",
+    "bytes": 116824
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-owner-move-172-3/phases/typed.txt",
+    "archived": "migration-cases/migration232-077-live-owner-move-172-3/phases/typed.txt.gz",
+    "sha256": "46fa0b34cdb7ed35f48f028445d4c6e4a5e5a909e7ca0cae686b5d477aff7b28",
+    "bytes": 126130
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-owner-move-172-3/report.json",
+    "archived": "migration-cases/migration232-077-live-owner-move-172-3/report.json",
+    "sha256": "fc31864874f7576f06dd7c7c76dc8a814c34f17590cc37bd0e998df3af83df60",
+    "bytes": 1758
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-live-owner-move-172-3/source.zil",
+    "archived": "migration-cases/migration232-077-live-owner-move-172-3/source.zil",
+    "sha256": "0a519ca50dfe1f0edd22ee1d8d5cb92ce72e2c1f6e7f40e5a819e1b90b2192ef",
+    "bytes": 353
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-6/candidate.wire",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-6/candidate.wire",
+    "sha256": "af378510ea1de8acf2c0afc37b39d4b48a91b449cb003c0311524b5c85d0518e",
+    "bytes": 7338
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-6/phases/candidate.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-6/phases/candidate.txt.gz",
+    "sha256": "98500dc86c7bee85eabaff5a43efd6e17a5c580874757787692541030576adc4",
+    "bytes": 13638
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-6/phases/core.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-6/phases/core.txt.gz",
+    "sha256": "72151d7777fb5c2126a0bcbf3eb7c1250ffbe96d27d91a88aa4c7f156d3292dc",
+    "bytes": 55278
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-6/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-6/phases/ct-core.txt.gz",
+    "sha256": "69abb99011a9bb8cb74089cb0d9c4aacf31a997580c955d34a1676ca9a000233",
+    "bytes": 66010
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-6/phases/source-map.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-6/phases/source-map.txt.gz",
+    "sha256": "e5fd9a9f19420d0f1b989ffc74d1a2f3919a38e249416d3f04f44566c303341b",
+    "bytes": 37709
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-6/phases/syntax.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-6/phases/syntax.txt.gz",
+    "sha256": "3a5067c1c73a272b187c083021579af276e970b98583f16f13c79d885817f89b",
+    "bytes": 120235
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-6/phases/typed.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-6/phases/typed.txt.gz",
+    "sha256": "c08d561942c52a706d49f1a77ee2d21360ab6f917fdebae3ac10ca05c30d7263",
+    "bytes": 129176
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-6/phases/verified.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-6/phases/verified.txt.gz",
+    "sha256": "1283d99e23135b1f8d6211d857162f602826dadc36e4ad75f8ab4f76460f3180",
+    "bytes": 129253
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-6/report.json",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-6/report.json",
+    "sha256": "ca0d83b6849dad2608a8f5de9f7b1e5a037cf4f8ed6f31dc6c733083005adc22",
+    "bytes": 1728
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-6/source.zil",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-6/source.zil",
+    "sha256": "1cf106087b0dd2ced94ae55aa0894dd9d50549d50da0a354e356801a8d80b601",
+    "bytes": 369
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-6/typed.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-6/typed.txt.gz",
+    "sha256": "c08d561942c52a706d49f1a77ee2d21360ab6f917fdebae3ac10ca05c30d7263",
+    "bytes": 129176
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/exit.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/exit.txt",
+    "sha256": "e26e2b8eec6de0aa1bebb5d7cb22a9155b30b2b4738a3f208ce2feaf4a770608",
+    "bytes": 8
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/phases/candidate.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/phases/candidate.txt.gz",
+    "sha256": "98500dc86c7bee85eabaff5a43efd6e17a5c580874757787692541030576adc4",
+    "bytes": 13638
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/phases/core.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/phases/core.txt.gz",
+    "sha256": "72151d7777fb5c2126a0bcbf3eb7c1250ffbe96d27d91a88aa4c7f156d3292dc",
+    "bytes": 55278
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/phases/ct-core.txt.gz",
+    "sha256": "69abb99011a9bb8cb74089cb0d9c4aacf31a997580c955d34a1676ca9a000233",
+    "bytes": 66010
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/phases/lir.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/phases/lir.txt.gz",
+    "sha256": "7fb4018dd227e2fd023ea07a5738c287a64554b99b1a2d1c4c4508550f746c77",
+    "bytes": 130018
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/phases/llvm.ll",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/phases/llvm.ll.gz",
+    "sha256": "460a532f2f55c582f5cbcd8f9d0981ae840b9955b1f3390456f5f5795ea83098",
+    "bytes": 9102
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/phases/source-map.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/phases/source-map.txt.gz",
+    "sha256": "e5fd9a9f19420d0f1b989ffc74d1a2f3919a38e249416d3f04f44566c303341b",
+    "bytes": 37709
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/phases/syntax.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/phases/syntax.txt.gz",
+    "sha256": "3a5067c1c73a272b187c083021579af276e970b98583f16f13c79d885817f89b",
+    "bytes": 120235
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/phases/typed.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/phases/typed.txt.gz",
+    "sha256": "c08d561942c52a706d49f1a77ee2d21360ab6f917fdebae3ac10ca05c30d7263",
+    "bytes": 129176
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/phases/verified.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/phases/verified.txt.gz",
+    "sha256": "1283d99e23135b1f8d6211d857162f602826dadc36e4ad75f8ab4f76460f3180",
+    "bytes": 129253
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/program",
+    "archived": null,
+    "sha256": "2cf78c8dfae49685cf42126fefaeea9cb4fbcf7c566bc6649d1df83d04e09f33",
+    "bytes": 16120,
+    "reason": "executable digest; LLVM/process outputs archived"
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/program.ll",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/program.ll.gz",
+    "sha256": "460a532f2f55c582f5cbcd8f9d0981ae840b9955b1f3390456f5f5795ea83098",
+    "bytes": 9102
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/report.json",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/report.json",
+    "sha256": "9e33689a9c20210614117178d34b20075df80a344172816e875c503aada6755c",
+    "bytes": 3033
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/source.zil",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/source.zil",
+    "sha256": "1cf106087b0dd2ced94ae55aa0894dd9d50549d50da0a354e356801a8d80b601",
+    "bytes": 369
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/stderr",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-7/stdout",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-7/stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/exit.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/exit.txt",
+    "sha256": "e26e2b8eec6de0aa1bebb5d7cb22a9155b30b2b4738a3f208ce2feaf4a770608",
+    "bytes": 8
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/phases/candidate.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/phases/candidate.txt.gz",
+    "sha256": "98500dc86c7bee85eabaff5a43efd6e17a5c580874757787692541030576adc4",
+    "bytes": 13638
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/phases/core.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/phases/core.txt.gz",
+    "sha256": "72151d7777fb5c2126a0bcbf3eb7c1250ffbe96d27d91a88aa4c7f156d3292dc",
+    "bytes": 55278
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/phases/ct-core.txt.gz",
+    "sha256": "69abb99011a9bb8cb74089cb0d9c4aacf31a997580c955d34a1676ca9a000233",
+    "bytes": 66010
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/phases/lir.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/phases/lir.txt.gz",
+    "sha256": "7fb4018dd227e2fd023ea07a5738c287a64554b99b1a2d1c4c4508550f746c77",
+    "bytes": 130018
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/phases/llvm.ll",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/phases/llvm.ll.gz",
+    "sha256": "460a532f2f55c582f5cbcd8f9d0981ae840b9955b1f3390456f5f5795ea83098",
+    "bytes": 9102
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/phases/source-map.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/phases/source-map.txt.gz",
+    "sha256": "e5fd9a9f19420d0f1b989ffc74d1a2f3919a38e249416d3f04f44566c303341b",
+    "bytes": 37709
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/phases/syntax.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/phases/syntax.txt.gz",
+    "sha256": "3a5067c1c73a272b187c083021579af276e970b98583f16f13c79d885817f89b",
+    "bytes": 120235
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/phases/typed.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/phases/typed.txt.gz",
+    "sha256": "c08d561942c52a706d49f1a77ee2d21360ab6f917fdebae3ac10ca05c30d7263",
+    "bytes": 129176
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/phases/verified.txt",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/phases/verified.txt.gz",
+    "sha256": "1283d99e23135b1f8d6211d857162f602826dadc36e4ad75f8ab4f76460f3180",
+    "bytes": 129253
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/program",
+    "archived": null,
+    "sha256": "4aadd6dbc74db7b77de97b8ed6803273baa3d88e0bcda71140c104e841a8e643",
+    "bytes": 16080,
+    "reason": "executable digest; LLVM/process outputs archived"
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/program.ll",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/program.ll.gz",
+    "sha256": "460a532f2f55c582f5cbcd8f9d0981ae840b9955b1f3390456f5f5795ea83098",
+    "bytes": 9102
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/report.json",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/report.json",
+    "sha256": "551ec62e9d313d56111227812bf36072e464a41b965cae6dac46c7d255fe7a35",
+    "bytes": 3033
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/source.zil",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/source.zil",
+    "sha256": "1cf106087b0dd2ced94ae55aa0894dd9d50549d50da0a354e356801a8d80b601",
+    "bytes": 369
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/stderr",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-move-after-last-use-172-8/stdout",
+    "archived": "migration-cases/migration232-077-move-after-last-use-172-8/stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-0/candidate.wire",
+    "archived": "migration-cases/migration232-077-shared-original-172-0/candidate.wire",
+    "sha256": "f5ec7b1ccd2b89e7d952b79161191c026ca240cf95ecc30f60a3a3083640ad49",
+    "bytes": 6828
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-0/phases/candidate.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-0/phases/candidate.txt.gz",
+    "sha256": "570ea401aa3a3d1409315f244c48de07348d77156a51aeaf5a5482eb9c14da95",
+    "bytes": 13307
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-0/phases/core.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-0/phases/core.txt.gz",
+    "sha256": "28a8c4aa56806a594a05d588a233b99b42b2e50a06e177345676e2afc41b06a1",
+    "bytes": 52573
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-0/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-0/phases/ct-core.txt.gz",
+    "sha256": "ba865c71af2fef4de1152015c57f1c55d82070a859be377ca85dc3cdfd6e0c22",
+    "bytes": 61249
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-0/phases/source-map.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-0/phases/source-map.txt.gz",
+    "sha256": "c0419fadf90f2690c1ed0788e9723e953bb1e489dcd413839ebdd05294144710",
+    "bytes": 35549
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-0/phases/syntax.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-0/phases/syntax.txt.gz",
+    "sha256": "c67a308ca361124548949408ce34aa2e463995e4457bb626efbd6d42ca29f34c",
+    "bytes": 113369
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-0/phases/typed.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-0/phases/typed.txt.gz",
+    "sha256": "c61dd6907efe155a6686ec46f085e33cd916ba0a0ad4d882bcbaf4de8d796af8",
+    "bytes": 119646
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-0/phases/verified.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-0/phases/verified.txt.gz",
+    "sha256": "688d245617463628cacee5391bbe9351071216ae80dc4cd68ad8e504addd57ee",
+    "bytes": 119723
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-0/report.json",
+    "archived": "migration-cases/migration232-077-shared-original-172-0/report.json",
+    "sha256": "5ec5413527084e90a35a5ce861723428d273eb3fcdd5745d0cc8c7543e8940d7",
+    "bytes": 1700
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-0/source.zil",
+    "archived": "migration-cases/migration232-077-shared-original-172-0/source.zil",
+    "sha256": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7",
+    "bytes": 341
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-0/typed.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-0/typed.txt.gz",
+    "sha256": "c61dd6907efe155a6686ec46f085e33cd916ba0a0ad4d882bcbaf4de8d796af8",
+    "bytes": 119646
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/exit.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/exit.txt",
+    "sha256": "e26e2b8eec6de0aa1bebb5d7cb22a9155b30b2b4738a3f208ce2feaf4a770608",
+    "bytes": 8
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/phases/candidate.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/phases/candidate.txt.gz",
+    "sha256": "570ea401aa3a3d1409315f244c48de07348d77156a51aeaf5a5482eb9c14da95",
+    "bytes": 13307
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/phases/core.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/phases/core.txt.gz",
+    "sha256": "28a8c4aa56806a594a05d588a233b99b42b2e50a06e177345676e2afc41b06a1",
+    "bytes": 52573
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/phases/ct-core.txt.gz",
+    "sha256": "ba865c71af2fef4de1152015c57f1c55d82070a859be377ca85dc3cdfd6e0c22",
+    "bytes": 61249
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/phases/lir.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/phases/lir.txt.gz",
+    "sha256": "99c0d1961d16f1318756bdec41b1a438b23e9d5517acfdfa3829d2e32593a282",
+    "bytes": 120488
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/phases/llvm.ll",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/phases/llvm.ll.gz",
+    "sha256": "2bad42d44d5cc9d0be0fc0007d8db95f3c5052918f18d2608f49d06aa7b86354",
+    "bytes": 8311
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/phases/source-map.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/phases/source-map.txt.gz",
+    "sha256": "c0419fadf90f2690c1ed0788e9723e953bb1e489dcd413839ebdd05294144710",
+    "bytes": 35549
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/phases/syntax.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/phases/syntax.txt.gz",
+    "sha256": "c67a308ca361124548949408ce34aa2e463995e4457bb626efbd6d42ca29f34c",
+    "bytes": 113369
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/phases/typed.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/phases/typed.txt.gz",
+    "sha256": "c61dd6907efe155a6686ec46f085e33cd916ba0a0ad4d882bcbaf4de8d796af8",
+    "bytes": 119646
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/phases/verified.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/phases/verified.txt.gz",
+    "sha256": "688d245617463628cacee5391bbe9351071216ae80dc4cd68ad8e504addd57ee",
+    "bytes": 119723
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/program",
+    "archived": null,
+    "sha256": "19aadcb6a4d980630de4d957b7c8891ad7d9ced91d00c50ade70a755847bbc91",
+    "bytes": 16120,
+    "reason": "executable digest; LLVM/process outputs archived"
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/program.ll",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/program.ll.gz",
+    "sha256": "2bad42d44d5cc9d0be0fc0007d8db95f3c5052918f18d2608f49d06aa7b86354",
+    "bytes": 8311
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/report.json",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/report.json",
+    "sha256": "fd85c7bb746a09e328df4b3e029d205d2f5489270849c52503837e2d68773bed",
+    "bytes": 2985
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/source.zil",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/source.zil",
+    "sha256": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7",
+    "bytes": 341
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/stderr",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-1/stdout",
+    "archived": "migration-cases/migration232-077-shared-original-172-1/stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/exit.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/exit.txt",
+    "sha256": "e26e2b8eec6de0aa1bebb5d7cb22a9155b30b2b4738a3f208ce2feaf4a770608",
+    "bytes": 8
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/phases/candidate.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/phases/candidate.txt.gz",
+    "sha256": "570ea401aa3a3d1409315f244c48de07348d77156a51aeaf5a5482eb9c14da95",
+    "bytes": 13307
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/phases/core.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/phases/core.txt.gz",
+    "sha256": "28a8c4aa56806a594a05d588a233b99b42b2e50a06e177345676e2afc41b06a1",
+    "bytes": 52573
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/phases/ct-core.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/phases/ct-core.txt.gz",
+    "sha256": "ba865c71af2fef4de1152015c57f1c55d82070a859be377ca85dc3cdfd6e0c22",
+    "bytes": 61249
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/phases/lir.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/phases/lir.txt.gz",
+    "sha256": "99c0d1961d16f1318756bdec41b1a438b23e9d5517acfdfa3829d2e32593a282",
+    "bytes": 120488
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/phases/llvm.ll",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/phases/llvm.ll.gz",
+    "sha256": "2bad42d44d5cc9d0be0fc0007d8db95f3c5052918f18d2608f49d06aa7b86354",
+    "bytes": 8311
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/phases/source-map.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/phases/source-map.txt.gz",
+    "sha256": "c0419fadf90f2690c1ed0788e9723e953bb1e489dcd413839ebdd05294144710",
+    "bytes": 35549
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/phases/syntax.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/phases/syntax.txt.gz",
+    "sha256": "c67a308ca361124548949408ce34aa2e463995e4457bb626efbd6d42ca29f34c",
+    "bytes": 113369
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/phases/typed.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/phases/typed.txt.gz",
+    "sha256": "c61dd6907efe155a6686ec46f085e33cd916ba0a0ad4d882bcbaf4de8d796af8",
+    "bytes": 119646
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/phases/verified.txt",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/phases/verified.txt.gz",
+    "sha256": "688d245617463628cacee5391bbe9351071216ae80dc4cd68ad8e504addd57ee",
+    "bytes": 119723
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/program",
+    "archived": null,
+    "sha256": "4aadd6dbc74db7b77de97b8ed6803273baa3d88e0bcda71140c104e841a8e643",
+    "bytes": 16080,
+    "reason": "executable digest; LLVM/process outputs archived"
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/program.ll",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/program.ll.gz",
+    "sha256": "2bad42d44d5cc9d0be0fc0007d8db95f3c5052918f18d2608f49d06aa7b86354",
+    "bytes": 8311
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/report.json",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/report.json",
+    "sha256": "399a03500762d2b9a478117c6fc722ad207e9138bfb5f76e518e69c9f23c904c",
+    "bytes": 2985
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/source.zil",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/source.zil",
+    "sha256": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7",
+    "bytes": 341
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/stderr",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/migration232-077-shared-original-172-2/stdout",
+    "archived": "migration-cases/migration232-077-shared-original-172-2/stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/compile.json",
+    "archived": "192-original-controls/fields192-201-30/compile.json",
+    "sha256": "7b5a29553c2973f4baf886934c2d5a453425a26536f7f49bcf994d3f5856ab79",
+    "bytes": 3382
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/exit.txt",
+    "archived": "192-original-controls/fields192-201-30/exit.txt",
+    "sha256": "dfaad51c7d32f19558720db5f41f1a565f05d8387e7ab32d629a10592fd2f27d",
+    "bytes": 7
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/main.zil",
+    "archived": "192-original-controls/fields192-201-30/main.zil",
+    "sha256": "c086c7267551b26167a57eec166a2bdfa1951f8f9b307110a0954d41672f48e9",
+    "bytes": 193
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/phases/candidate.txt",
+    "archived": "192-original-controls/fields192-201-30/phases/candidate.txt.gz",
+    "sha256": "9b091459446e8ae9ef360059b7903f886aab71e02d61463a62009241b932cee1",
+    "bytes": 7823
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/phases/core.txt",
+    "archived": "192-original-controls/fields192-201-30/phases/core.txt.gz",
+    "sha256": "0c49d9209976407cd2a4b55fe4cdf7560efba377541ad041503e5ccbe9854cbc",
+    "bytes": 56333
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/phases/ct-core.txt",
+    "archived": "192-original-controls/fields192-201-30/phases/ct-core.txt.gz",
+    "sha256": "0cde73da03c8a36169fc440e2d4761dbf28085326bc07c83ebe4b371655edcee",
+    "bytes": 62747
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/phases/interfaces.txt",
+    "archived": "192-original-controls/fields192-201-30/phases/interfaces.txt",
+    "sha256": "3a6e701ff0a78f047dfd86d14cef0f6ddeb37758e84bfeb96c51c4d1accbcbf2",
+    "bytes": 1725
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/phases/lir.txt",
+    "archived": "192-original-controls/fields192-201-30/phases/lir.txt.gz",
+    "sha256": "e309dbac9bcea6ee45661767edc77992c7c2a33b331db1cdd9fce98423ab748b",
+    "bytes": 69522
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/phases/llvm.ll",
+    "archived": "192-original-controls/fields192-201-30/phases/llvm.ll.gz",
+    "sha256": "f5274400c5401d207fcca01e41b1ae1cd2a20f130006324a8b4696586d232016",
+    "bytes": 6314
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/phases/source-map.txt",
+    "archived": "192-original-controls/fields192-201-30/phases/source-map.txt.gz",
+    "sha256": "232e8164f9e763a40af28ae1607afcdcd89f1340e473645d933f33285042d1cb",
+    "bytes": 30802
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/phases/syntax.txt",
+    "archived": "192-original-controls/fields192-201-30/phases/syntax.txt.gz",
+    "sha256": "0375d0a7f7e2b195782d4e421b0e77aeb12b7e7cf5b2551dcb677ca8680c39a6",
+    "bytes": 85454
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/phases/typed.txt",
+    "archived": "192-original-controls/fields192-201-30/phases/typed.txt.gz",
+    "sha256": "9882af1dd8238c88e96a87044b32fde08e11d95d46653b140a50242376188e9d",
+    "bytes": 68694
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/phases/verified-interfaces.txt",
+    "archived": "192-original-controls/fields192-201-30/phases/verified-interfaces.txt.gz",
+    "sha256": "87afa3127f4557b9920a8dd9bed9cf43ae80eaca4532ba1a803a26e696c69691",
+    "bytes": 2675
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/phases/verified.txt",
+    "archived": "192-original-controls/fields192-201-30/phases/verified.txt.gz",
+    "sha256": "f6750f23201209bb3e8ea29fa9d4de871c2aba582740ba355e0a84bda2d286ec",
+    "bytes": 68771
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/program",
+    "archived": null,
+    "sha256": "07983c5bde3d3f7bc0719bfa74dc04cee3ad6593e7f692de75290857f93c6554",
+    "bytes": 15992,
+    "reason": "executable digest; LLVM/process outputs archived"
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/program.ll",
+    "archived": "192-original-controls/fields192-201-30/program.ll.gz",
+    "sha256": "f5274400c5401d207fcca01e41b1ae1cd2a20f130006324a8b4696586d232016",
+    "bytes": 6314
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/stderr",
+    "archived": "192-original-controls/fields192-201-30/stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-30/stdout",
+    "archived": "192-original-controls/fields192-201-30/stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/compile.json",
+    "archived": "192-original-controls/fields192-201-47/compile.json",
+    "sha256": "451ff8d98b31bd0cb303e882a7ce7f37f9bc77baf55ae0a41dd88294f8c44fb4",
+    "bytes": 3382
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/exit.txt",
+    "archived": "192-original-controls/fields192-201-47/exit.txt",
+    "sha256": "dfaad51c7d32f19558720db5f41f1a565f05d8387e7ab32d629a10592fd2f27d",
+    "bytes": 7
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/main.zil",
+    "archived": "192-original-controls/fields192-201-47/main.zil",
+    "sha256": "c086c7267551b26167a57eec166a2bdfa1951f8f9b307110a0954d41672f48e9",
+    "bytes": 193
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/phases/candidate.txt",
+    "archived": "192-original-controls/fields192-201-47/phases/candidate.txt.gz",
+    "sha256": "9b091459446e8ae9ef360059b7903f886aab71e02d61463a62009241b932cee1",
+    "bytes": 7823
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/phases/core.txt",
+    "archived": "192-original-controls/fields192-201-47/phases/core.txt.gz",
+    "sha256": "0c49d9209976407cd2a4b55fe4cdf7560efba377541ad041503e5ccbe9854cbc",
+    "bytes": 56333
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/phases/ct-core.txt",
+    "archived": "192-original-controls/fields192-201-47/phases/ct-core.txt.gz",
+    "sha256": "0cde73da03c8a36169fc440e2d4761dbf28085326bc07c83ebe4b371655edcee",
+    "bytes": 62747
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/phases/interfaces.txt",
+    "archived": "192-original-controls/fields192-201-47/phases/interfaces.txt",
+    "sha256": "3a6e701ff0a78f047dfd86d14cef0f6ddeb37758e84bfeb96c51c4d1accbcbf2",
+    "bytes": 1725
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/phases/lir.txt",
+    "archived": "192-original-controls/fields192-201-47/phases/lir.txt.gz",
+    "sha256": "e309dbac9bcea6ee45661767edc77992c7c2a33b331db1cdd9fce98423ab748b",
+    "bytes": 69522
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/phases/llvm.ll",
+    "archived": "192-original-controls/fields192-201-47/phases/llvm.ll.gz",
+    "sha256": "f5274400c5401d207fcca01e41b1ae1cd2a20f130006324a8b4696586d232016",
+    "bytes": 6314
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/phases/source-map.txt",
+    "archived": "192-original-controls/fields192-201-47/phases/source-map.txt.gz",
+    "sha256": "232e8164f9e763a40af28ae1607afcdcd89f1340e473645d933f33285042d1cb",
+    "bytes": 30802
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/phases/syntax.txt",
+    "archived": "192-original-controls/fields192-201-47/phases/syntax.txt.gz",
+    "sha256": "0375d0a7f7e2b195782d4e421b0e77aeb12b7e7cf5b2551dcb677ca8680c39a6",
+    "bytes": 85454
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/phases/typed.txt",
+    "archived": "192-original-controls/fields192-201-47/phases/typed.txt.gz",
+    "sha256": "9882af1dd8238c88e96a87044b32fde08e11d95d46653b140a50242376188e9d",
+    "bytes": 68694
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/phases/verified-interfaces.txt",
+    "archived": "192-original-controls/fields192-201-47/phases/verified-interfaces.txt.gz",
+    "sha256": "87afa3127f4557b9920a8dd9bed9cf43ae80eaca4532ba1a803a26e696c69691",
+    "bytes": 2675
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/phases/verified.txt",
+    "archived": "192-original-controls/fields192-201-47/phases/verified.txt.gz",
+    "sha256": "f6750f23201209bb3e8ea29fa9d4de871c2aba582740ba355e0a84bda2d286ec",
+    "bytes": 68771
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/program",
+    "archived": null,
+    "sha256": "81fb67a2ffa21da43096166b93d51806e9e84a3800c78366c10f25020737cc5c",
+    "bytes": 15944,
+    "reason": "executable digest; LLVM/process outputs archived"
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/program.ll",
+    "archived": "192-original-controls/fields192-201-47/program.ll.gz",
+    "sha256": "f5274400c5401d207fcca01e41b1ae1cd2a20f130006324a8b4696586d232016",
+    "bytes": 6314
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/stderr",
+    "archived": "192-original-controls/fields192-201-47/stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-47/stdout",
+    "archived": "192-original-controls/fields192-201-47/stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-51/compile.json",
+    "archived": "192-original-controls/fields192-201-51/compile.json",
+    "sha256": "ae47dd1af739a0b392ce29f3802ad72d6ff6e34de82bf25de08e334efb9910c0",
+    "bytes": 1223
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-51/main.zil",
+    "archived": "192-original-controls/fields192-201-51/main.zil",
+    "sha256": "26dc5c16f8c00e7032c048a84a5b9c9e64b81141c7aac47687a740d1f787b2f0",
+    "bytes": 189
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-51/phases/core.txt",
+    "archived": "192-original-controls/fields192-201-51/phases/core.txt.gz",
+    "sha256": "2a907476dbbea2c0fe40c6f5546a2390dd717819e92cd7751c53895a768518e0",
+    "bytes": 56326
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-51/phases/ct-core.txt",
+    "archived": "192-original-controls/fields192-201-51/phases/ct-core.txt.gz",
+    "sha256": "0ef0c2c7ad75b3ca40bb13b5df3de14354d6d3caee56a60cda369be1722c47c2",
+    "bytes": 62740
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-51/phases/source-map.txt",
+    "archived": "192-original-controls/fields192-201-51/phases/source-map.txt.gz",
+    "sha256": "86ce930dd793ba58e19694aeb4952f1a9c024155393abc50b84e984f96eed595",
+    "bytes": 30802
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-51/phases/syntax.txt",
+    "archived": "192-original-controls/fields192-201-51/phases/syntax.txt.gz",
+    "sha256": "3f470497fd877bfc7e81a6e897265429b4ebc35d181f3c2bf9742f7c9db12a90",
+    "bytes": 85192
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-54/compile.json",
+    "archived": "192-original-controls/fields192-201-54/compile.json",
+    "sha256": "5b5d031ff70daa9e3951ad82f3791b9054fe339b9f5c846a098af87dba9417ff",
+    "bytes": 1250
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-54/main.zil",
+    "archived": "192-original-controls/fields192-201-54/main.zil",
+    "sha256": "901c268f469fcdd1ade9b72bbfaaf3d20e6a4ea6f7483f25814f2c3b907d00fb",
+    "bytes": 193
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-54/phases/core.txt",
+    "archived": "192-original-controls/fields192-201-54/phases/core.txt.gz",
+    "sha256": "b086e3ce1bc2651d41a5a5b7a18e7394e8b167bef48745ab5a5ae3f3bd68c519",
+    "bytes": 56322
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-54/phases/ct-core.txt",
+    "archived": "192-original-controls/fields192-201-54/phases/ct-core.txt.gz",
+    "sha256": "c7f809f3a4a9a292f40cc92961d62ae68b021bdd540ecb9aac3861f8e139be2c",
+    "bytes": 62736
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-54/phases/source-map.txt",
+    "archived": "192-original-controls/fields192-201-54/phases/source-map.txt.gz",
+    "sha256": "232e8164f9e763a40af28ae1607afcdcd89f1340e473645d933f33285042d1cb",
+    "bytes": 30802
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-54/phases/syntax.txt",
+    "archived": "192-original-controls/fields192-201-54/phases/syntax.txt.gz",
+    "sha256": "a5fbb7a5424ae51e92e93bfc30e48e7252e6a71f16228ddd910d5c5586295d07",
+    "bytes": 85455
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-56/compile.json",
+    "archived": "192-original-controls/fields192-201-56/compile.json",
+    "sha256": "f0c082c9d73eb13b7f2ad4901702260e5bdad753b1e4bee4f5572171af298502",
+    "bytes": 2063
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-56/main.zil",
+    "archived": "192-original-controls/fields192-201-56/main.zil",
+    "sha256": "6d1fa6d70aa4f9ce145051e365d5b9ef6374828009079151d7b3b967a9237baa",
+    "bytes": 223
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-56/phases/candidate.txt",
+    "archived": "192-original-controls/fields192-201-56/phases/candidate.txt.gz",
+    "sha256": "4b3dbf3bca0ec20f440bc49ff71c1da0107704e788ed0b8078985e26771539cb",
+    "bytes": 8317
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-56/phases/core.txt",
+    "archived": "192-original-controls/fields192-201-56/phases/core.txt.gz",
+    "sha256": "0c6c0c2039f0833f76ea56296e29a32e32bbcb3f3339f8cd47c87ab9fcc0ccd4",
+    "bytes": 63403
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-56/phases/ct-core.txt",
+    "archived": "192-original-controls/fields192-201-56/phases/ct-core.txt.gz",
+    "sha256": "456f7f061d58be3da773d5bbd4f4cc804afea1303ba894fa5878d2d2c4ef37e8",
+    "bytes": 69965
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-56/phases/interfaces.txt",
+    "archived": "192-original-controls/fields192-201-56/phases/interfaces.txt",
+    "sha256": "423c326071ff9f85507befb3730c6f4b472fdd9974222fd72f6abd73c8975492",
+    "bytes": 1725
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-56/phases/source-map.txt",
+    "archived": "192-original-controls/fields192-201-56/phases/source-map.txt.gz",
+    "sha256": "b7c9219a8c75ca308ef5cf593488e4afd42db1a7e650fd0d8034941f83c976a7",
+    "bytes": 33982
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-56/phases/syntax.txt",
+    "archived": "192-original-controls/fields192-201-56/phases/syntax.txt.gz",
+    "sha256": "60e3ed5b806179161758de58b381700d70aa17d1977900f79dbeff84b2c6d420",
+    "bytes": 95400
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/fields192-201-56/phases/typed.txt",
+    "archived": "192-original-controls/fields192-201-56/phases/typed.txt.gz",
+    "sha256": "8524dc891c557f301501664fc5eb43c363cbb497adfc6c7e9f3f1dff81ea7a8a",
+    "bytes": 73462
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/explicit-descriptor-attack/OBSERVATION.json",
+    "archived": "independent-raw/review077-342-1793444644487894274/explicit-descriptor-attack/OBSERVATION.json",
+    "sha256": "6cefd4fcc30e1dba6db2c8ccc2f8aa7002ca49f8dea54d14ef86f84f249e8c26",
+    "bytes": 227
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/explicit-descriptor-attack/analyze.txt",
+    "archived": "independent-raw/review077-342-1793444644487894274/explicit-descriptor-attack/analyze.txt",
+    "sha256": "df2b50cb7962f8fdaa11682724657965246773aaaa428d22c9119af40db98ccb",
+    "bytes": 286
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/explicit-descriptor-attack/mutated-plan.txt",
+    "archived": "independent-raw/review077-342-1793444644487894274/explicit-descriptor-attack/mutated-plan.txt.gz",
+    "sha256": "1e0032d90eaffb0409ffedfd3576b227908cad7b107ac1a8a4f8976c06c6667f",
+    "bytes": 13181
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/explicit-descriptor-attack/mutated-typed.txt",
+    "archived": "independent-raw/review077-342-1793444644487894274/explicit-descriptor-attack/mutated-typed.txt.gz",
+    "sha256": "82019ad3534f1333d36b007ff4411c418d8d88518dbafa5072464e886deb0dea",
+    "bytes": 132243
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/explicit-descriptor-attack/mutated.wire",
+    "archived": "independent-raw/review077-342-1793444644487894274/explicit-descriptor-attack/mutated.wire",
+    "sha256": "6f3023c8ac0d2e031466841581ed2fa4df1039ed5babdf7e945fe88622602da2",
+    "bytes": 7518
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/explicit-descriptor-attack/original-typed.txt",
+    "archived": "independent-raw/review077-342-1793444644487894274/explicit-descriptor-attack/original-typed.txt.gz",
+    "sha256": "7dcc2a105d4472040f335c75e124f8a6f020986fb1572df591e91b3dd5fb2339",
+    "bytes": 132292
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/explicit-descriptor-attack/original.wire",
+    "archived": "independent-raw/review077-342-1793444644487894274/explicit-descriptor-attack/original.wire",
+    "sha256": "77d397e9442b42b4c5d32a065ad9624700fa86b643dc349ff4d30fa4ab00bcf6",
+    "bytes": 7522
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/explicit-descriptor-attack/raw.txt",
+    "archived": "independent-raw/review077-342-1793444644487894274/explicit-descriptor-attack/raw.txt",
+    "sha256": "78f0ca93ee48994d007b97a47cdb13b929ca570235626ad8c1bb4e9b3f35bb35",
+    "bytes": 475
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/explicit-descriptor-attack/source.zil",
+    "archived": "independent-raw/review077-342-1793444644487894274/explicit-descriptor-attack/source.zil",
+    "sha256": "8b0596e50d577e4bb50a94644b7cdd21c3880c65aba1050b2f18eff7d37cd701",
+    "bytes": 436
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/explicit-descriptor-attack/wire.txt",
+    "archived": "independent-raw/review077-342-1793444644487894274/explicit-descriptor-attack/wire.txt",
+    "sha256": "78f0ca93ee48994d007b97a47cdb13b929ca570235626ad8c1bb4e9b3f35bb35",
+    "bytes": 475
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/original077-selector/OBSERVATION.json",
+    "archived": "independent-raw/review077-342-1793444644487894274/original077-selector/OBSERVATION.json",
+    "sha256": "f4b7472f495d97b85b34e176ffe15e93ef7b0f9d886509e52091906879672636",
+    "bytes": 222
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/original077-selector/analyze.txt",
+    "archived": "independent-raw/review077-342-1793444644487894274/original077-selector/analyze.txt.gz",
+    "sha256": "250680869917a5498bc80bd66634c71764996c5d256d29f78d6e376bb9e9c9dc",
+    "bytes": 15691
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/original077-selector/mutated-plan.txt",
+    "archived": "independent-raw/review077-342-1793444644487894274/original077-selector/mutated-plan.txt.gz",
+    "sha256": "a3e6b4f7e13a6284462c8cf855fa1f59dd2b07aff2cff25e8cbb34c299a70705",
+    "bytes": 13540
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/original077-selector/mutated-typed.txt",
+    "archived": "independent-raw/review077-342-1793444644487894274/original077-selector/mutated-typed.txt.gz",
+    "sha256": "4bb337355af6d5d23365214021ca4648c1fb489a14eff28b62ba31141ca27e12",
+    "bytes": 129620
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/original077-selector/mutated.wire",
+    "archived": "independent-raw/review077-342-1793444644487894274/original077-selector/mutated.wire",
+    "sha256": "9051906e0e7fc4908d3261177a35faada154d0dbfb981c81a1773ea8f9cd421f",
+    "bytes": 7374
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/original077-selector/original-typed.txt",
+    "archived": "independent-raw/review077-342-1793444644487894274/original077-selector/original-typed.txt.gz",
+    "sha256": "4bb337355af6d5d23365214021ca4648c1fb489a14eff28b62ba31141ca27e12",
+    "bytes": 129620
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/original077-selector/original.wire",
+    "archived": "independent-raw/review077-342-1793444644487894274/original077-selector/original.wire",
+    "sha256": "9051906e0e7fc4908d3261177a35faada154d0dbfb981c81a1773ea8f9cd421f",
+    "bytes": 7374
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/original077-selector/raw.txt",
+    "archived": "independent-raw/review077-342-1793444644487894274/original077-selector/raw.txt.gz",
+    "sha256": "7f5f78901d987d8acc70fd4ffa822f233ead92f969a3502f483899605b305c46",
+    "bytes": 177390
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/original077-selector/source.zil",
+    "archived": "independent-raw/review077-342-1793444644487894274/original077-selector/source.zil",
+    "sha256": "3b5af3a5ec45339fe7ad20655e9202042ac31bb6af77c60beb24ed2c6ca0f9c1",
+    "bytes": 419
+  },
+  {
+    "source": "/workspace/scratch/994319f2ba02/zil-review11/out/native/review232-migration-507e650d/review077-342-1793444644487894274/original077-selector/wire.txt",
+    "archived": "independent-raw/review077-342-1793444644487894274/original077-selector/wire.txt.gz",
+    "sha256": "7f5f78901d987d8acc70fd4ffa822f233ead92f969a3502f483899605b305c46",
+    "bytes": 177390
+  }
+]

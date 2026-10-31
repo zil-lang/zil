@@ -1,0 +1,8 @@
+{
+  "source_commit": "387d4e77a4e2123201d998d20ba980ea04ccbdc6",
+  "command": "cargo test --offline --locked --no-default-features -p zil-driver --test impl233_baseline -- --nocapture",
+  "toolchain": "Rust 1.99.1",
+  "native_executions": 0,
+  "status": "Reproduced",
+  "note": "Fn family impl syntax initial probe failed in Parse and is retained separately; declaration-only probes are the actual semantic cases."
+}

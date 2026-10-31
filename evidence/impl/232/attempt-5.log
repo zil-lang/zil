@@ -1,0 +1,19 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 5.68s
+     Running tests/impl232_readonly_product_capture.rs (target/debug/deps/impl232_readonly_product_capture-a50a52c4bbb60982)
+
+running 10 tests
+test mutable_product_capture_and_unknown_incoming_roots_remain_closed ... ok
+test live_shared_capture_rejects_owner_move_and_child_replacement ... ok
+test raw_store_window_cannot_replace_ordinary_default_capture ... ok
+test explicit_move_keeps_owning_repeatable_environment ... ok
+test default_flat_product_read_is_a_repeatable_borrow ... ok
+test read_then_real_child_take_infers_owning_fnonce ... ok
+test default_recursive_product_read_is_a_repeatable_borrow ... ok
+test identical_product_types_keep_distinct_capture_roots ... ok
+test shared_resource_head_and_explicit_local_reborrow_do_not_take_children ... ok
+test nested_real_ownership_use_is_not_hidden_by_outer_reads ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+

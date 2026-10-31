@@ -1,0 +1,1 @@
+pub struct Stamp{n:i32}

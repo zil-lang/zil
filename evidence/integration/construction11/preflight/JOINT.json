@@ -1,0 +1,17 @@
+{
+  "status": "ReferencePassed",
+  "scope": "joint three-module Product readonly closure plus trait-library generic call, and nearest active-loan rejection",
+  "source_test_commit": "e52e192bf396b235f57430900fad7d5196b00f02",
+  "command": "cargo test --offline --locked -p zil-driver --no-default-features --test construction11_integration",
+  "tests": {
+    "passed": 2,
+    "failed": 0,
+    "ignored": 0
+  },
+  "native_backend": "Clang 17.0.6 reference",
+  "native_executions": 2,
+  "output": "A once; exit 0",
+  "nearest_rejection": "SafeReject / Verify / E-BORROW-CONFLICT; no executable",
+  "original_fixture_failure": "The independent Verify invocation is correctly counted as one, not zero; first assertion failure retained without production change.",
+  "llvm23": "Pending"
+}

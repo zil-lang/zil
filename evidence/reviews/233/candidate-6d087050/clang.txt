@@ -1,0 +1,4 @@
+Ubuntu clang version 17.0.6 (++20231209124227+6009708b4367-1~exp1~20231209124336.77)
+Target: x86_64-pc-linux-gnu
+Thread model: posix
+InstalledDir: /workspace/scratch/60e90d664238/.toolchains/clang-17/usr/lib/llvm-17/bin

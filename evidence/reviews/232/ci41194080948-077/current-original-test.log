@@ -1,0 +1,19 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.30s
+     Running tests/impl077_package_captures.rs (.work/target-review077-77b/debug/deps/impl077_package_captures-f69589a766b88cc3)
+
+running 1 test
+
+thread 'captures077_analyze_rejects_shared_alias_write_and_unrestored_fnmut' (298) panicked at crates/zil-driver/tests/impl077_package_captures.rs:195:5:
+accepted whole view disguised as Managed description
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test captures077_analyze_rejects_shared_alias_write_and_unrestored_fnmut ... FAILED
+
+failures:
+
+failures:
+    captures077_analyze_rejects_shared_alias_write_and_unrestored_fnmut
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-driver --test impl077_package_captures`

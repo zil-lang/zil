@@ -1,0 +1,152 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-232/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 7.23s
+     Running tests/impl214_source.rs (target/debug/deps/impl214_source-799b970e85f42494)
+
+running 20 tests
+test complete_product_store_elements_are_admitted_since_223 ... ok
+test complete_child_refill_keeps_fnmut ... ok
+test child_partial_local_refill_is_ordinary_complete_transfer ... ok
+test explicit_owned_read_is_repeatable_fn ... ok
+test nested_default_consumer_transfers_the_outer_product ... ok
+test original206_child_take_is_once_and_keeps_its_source_bytes ... ok
+test conditional_child_take_records_all_exits ... ok
+test default_whole_and_child_uses_capture_ownership_at_creation ... ok
+test original_flat_and_recursive_readonly_sources_use_shared_product_captures ... ok
+test same_type_siblings_and_three_levels_remain_actual_distinct_values ... ok
+test a_product_environment_can_enter_state_and_outer_callback_store ... ok
+test replacement_without_missing_exit_keeps_fnmut ... ok
+test shadowed_nested_names_do_not_steal_outer_responsibility ... ok
+test factory_accepts_complete_product_inputs_and_cleanup ... ok
+test try_after_complete_refill_keeps_fnmut_on_the_error_exit ... ok
+test unchanged_flat_types_budget_still_accepts_exact_418 ... ok
+test source_declared_fn_cannot_hide_child_consumption ... ok
+test try_before_refill_requires_once_even_when_success_restores ... ok
+test while_break_and_continue_restore_the_child ... ok
+214 Product capture Types boundary: 1006
+test new_product_capture_has_exact_recoverable_work_boundary ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/impl215_capture.rs (target/debug/deps/impl215_capture-719a00f43e8949fe)
+
+running 6 tests
+test capture_with_borrowed_child_stays_closed ... ok
+test capture_child_must_be_present_at_repeatable_return ... ok
+test complete_product_capture_is_checked_by_analyze_and_wire ... ok
+test conditional_cleanup_remains_idempotent_for_a_consumed_child ... ok
+test capture_child_cannot_be_transferred_twice ... ok
+Product capture Analyze exact budget: 3254
+test fresh_exact_budget_and_one_less_are_distinct ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/impl216_machine.rs (target/debug/deps/impl216_machine-4c8a64c4f58ddba7)
+
+running 8 tests
+test default_whole_capture_surrenders_environment_before_local_cleanup ... ok
+test equal_closure_types_retain_distinct_live_flags ... ok
+test once_early_error_cleans_taken_child_then_remaining_local_fields ... ok
+test fnmut_error_after_refill_preserves_the_next_invocation ... ok
+test fnmut_refills_complete_children_on_each_call ... ok
+test taken_product_child_keeps_real_buffer_ownership_during_allocation_failure ... ok
+test owned_fn_and_uncalled_environment_drop_all_descendants_once ... ok
+test callback_store_uses_actual_product_environment_stride_and_cleans_failures ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
+
+     Running tests/impl216_raw.rs (target/debug/deps/impl216_raw-e2c2acab385d8910)
+
+running 7 tests
+test product_capture_llvm_has_one_flag_per_child_and_rejects_forged_lir ... ok
+test missing_capture_bind_is_still_rejected ... ok
+test wrong_capture_index_is_still_rejected ... ok
+test repeatable_capture_must_return_with_its_child_present ... ok
+test shared_capture_cannot_discharge_a_child ... ok
+test complete_product_capture_has_independent_raw_wire_and_machine_layout_admission ... ok
+Product216 Verify N=3405; N-1=ResourceLimit; fresh N=Pass
+test product_capture_has_a_fresh_exact_verify_budget_boundary ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/impl224_shared_product.rs (target/debug/deps/impl224_shared_product-65ee7c76e42a2bfc)
+
+running 12 tests
+test original_shared_capture_promoted_by_226 ... ok
+test real_source_has_independent_raw_and_wire_checks ... ok
+test live_shared_borrows_prevent_consumption_replacement_and_mutation ... ok
+test each_changed_phase_has_its_own_exact_budget_boundary ... ok
+test sharing_does_not_add_mutable_owned_reads_retention_or_escape ... ok
+test candidate_cannot_hide_live_loan_or_incomplete_product_attacks ... ok
+test zero_storage_ordinary_heads_do_not_inherit_store_element_rules ... ok
+test shared_parameter_local_alias_nested_fields_and_nll_are_usable ... ok
+test nested_shared_projection_executes_with_real_drop_order_at_o0_and_o2 ... ok
+test direct_owning_field_addresses_reach_native_storage_and_nll ... ok
+test allocated_product_leaves_are_cleaned_on_each_real_allocator_failure ... ok
+test shared_product_work_has_exact_n_minus_one_and_fresh_boundaries ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+
+     Running tests/impl225_budget.rs (target/debug/deps/impl225_budget-666bfd0de8d85e72)
+
+running 2 tests
+legacy: types=835,analyze=7129,verify=12161
+test legacy_flat_capture_boundaries ... ok
+nested: types=3889,analyze=36339,verify=56097
+test nested_store_capture_new_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+     Running tests/impl226_budget.rs (target/debug/deps/impl226_budget-650c1d5f46aba12b)
+
+running 2 tests
+legacy: types=835,analyze=7129,verify=12161
+test legacy_flat_capture_boundaries ... ok
+nested: types=1787,analyze=15791,verify=30761
+test shared_product_capture_new_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/impl226_shared_product_capture.rs (target/debug/deps/impl226_shared_product_capture-332d07cf1c52aba0)
+
+running 8 tests
+test incoming_product_address_remains_conservatively_closed ... ok
+test dynamic_store_origins_do_not_acquire_capture_permission ... ok
+test current_loan_blocks_whole_owner_move ... ok
+test raw_store_operand_cannot_borrow_ordinary_capture_authority ... ok
+test explicit_address_move_is_not_product_ownership ... ok
+test direct_child_and_alias_preserve_whole_owner ... ok
+test branch_origins_keep_both_actual_ordinary_owners_live ... ok
+test explicit_local_shared_product_capture ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+     Running tests/impl232_budget.rs (target/debug/deps/impl232_budget-b46f6a3937215ad4)
+
+running 3 tests
+flat: types=1226,analyze=7896,verify=16608
+test default_flat_product_boundaries ... ok
+owned: types=1762,analyze=12234,verify=17419
+test owning_product_projection_boundaries ... ok
+recursive: types=1788,analyze=14756,verify=29096
+test default_recursive_product_boundaries ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/impl232_readonly_product_capture.rs (target/debug/deps/impl232_readonly_product_capture-a50a52c4bbb60982)
+
+running 11 tests
+test mutable_product_capture_and_unknown_incoming_roots_remain_closed ... ok
+test live_shared_capture_rejects_owner_move_and_child_replacement ... ok
+test raw_store_window_cannot_replace_ordinary_default_capture ... ok
+test default_flat_product_read_is_a_repeatable_borrow ... ok
+test explicit_move_keeps_owning_repeatable_environment ... ok
+test default_recursive_product_read_is_a_repeatable_borrow ... ok
+test identical_product_types_keep_distinct_capture_roots ... ok
+test read_then_real_child_take_infers_owning_fnonce ... ok
+test nested_real_ownership_use_is_not_hidden_by_outer_reads ... ok
+test shared_resource_head_and_explicit_local_reborrow_do_not_take_children ... ok
+test uncalled_and_error_exit_cleanup_stays_with_the_actual_owner ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.86s
+

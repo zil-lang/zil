@@ -1,0 +1,48 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.38s
+     Running tests/impl225_budget.rs (target-review232-426bbd20/debug/deps/impl225_budget-666bfd0de8d85e72)
+
+running 2 tests
+legacy: types=835,analyze=7129,verify=12161
+test legacy_flat_capture_boundaries ... ok
+nested: types=3889,analyze=36339,verify=56097
+test nested_store_capture_new_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/impl226_budget.rs (target-review232-426bbd20/debug/deps/impl226_budget-650c1d5f46aba12b)
+
+running 2 tests
+legacy: types=835,analyze=7129,verify=12161
+test legacy_flat_capture_boundaries ... ok
+nested: types=1787,analyze=15791,verify=30761
+test shared_product_capture_new_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/impl232_budget.rs (target-review232-426bbd20/debug/deps/impl232_budget-b46f6a3937215ad4)
+
+running 3 tests
+flat: types=1226,analyze=7896,verify=16608
+test default_flat_product_boundaries ... ok
+owned: types=1762,analyze=12234,verify=17419
+test owning_product_projection_boundaries ... ok
+recursive: types=1788,analyze=14756,verify=29096
+test default_recursive_product_boundaries ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/review232_independent.rs (target-review232-426bbd20/debug/deps/review232_independent-fc9e01a38ecd2418)
+
+running 8 tests
+test parameter_outer_capture_and_escaping_environment_remain_closed ... ok
+test live_default_capture_blocks_intersecting_move_take_and_replace ... ok
+test raw_and_wire_same_type_other_owner_does_not_inherit_loan_permission ... ok
+test raw_and_wire_dynamic_store_source_cannot_impersonate_default_local_capture ... ok
+test raw_and_wire_same_type_explicit226_control ... ok
+test default_flat_and_recursive_capture_keep_owner_and_clean_once ... ok
+test two_roots_and_shadowed_names_preserve_actual_storage ... ok
+test whole_consumption_and_uncalled_shared_environment_keep_cleanup ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+

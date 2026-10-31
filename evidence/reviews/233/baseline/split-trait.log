@@ -1,0 +1,24 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.25s
+     Running tests/review233_independent.rs (target/debug/deps/review233_independent-d319a612cef6f2d4)
+
+running 1 test
+test split_trait_impl_uses_definition_module_and_both_bound_spellings ... FAILED
+
+failures:
+
+---- split_trait_impl_uses_definition_module_and_both_bound_spellings stdout ----
+
+thread 'split_trait_impl_uses_definition_module_and_both_bound_spellings' (32) panicked at crates/zil-driver/tests/review233_independent.rs:67:5:
+assertion `left == right` failed: split-where: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"trait implementation resolution","span":{"file":2,"start":35,"end":94},"notes":[]},{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"trait receiver declaration is not available in this source module","span":{"file":2,"start":60,"end":93},"notes":[]}],"artifacts":{"core":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-31/split-where/phases/core.txt","ct-core":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-31/split-where/phases/ct-core.txt","source-map":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-31/split-where/phases/source-map.txt","syntax":"/workspace/scratch/994319f2ba02/zil-review11/out/native/review233-31/split-where/phases/syntax.txt"},"input_fingerprint":"d212559beac4d06acab506dc889854c9b43c82aeca25dc8023a1bcfdd823f12c","seconds":0.009294386,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"rules.zil","2":"data.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    split_trait_impl_uses_definition_module_and_both_bound_spellings
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-driver --test review233_independent`

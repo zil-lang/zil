@@ -1,0 +1,1 @@
+import data;fn main()->i32=>data.check()

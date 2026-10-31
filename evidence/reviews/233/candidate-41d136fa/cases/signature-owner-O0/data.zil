@@ -1,0 +1,1 @@
+import rules;pub struct Item{n:i32}impl rules.Read for Item{fn value(x:rules.Stamp)->i32=>.n+rules.get(&x)}pub fn check()->i32{let item=Item{n:7};return item.value(rules.make(35))-42}

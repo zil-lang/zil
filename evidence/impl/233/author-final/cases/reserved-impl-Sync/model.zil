@@ -1,0 +1,1 @@
+pub trait Sync{}pub struct Payload{n:i32}impl Sync for Payload{}

@@ -1,0 +1,1 @@
+import other;pub struct Item{n:i32}impl other.Read for Item{fn value(self:&Self)->i32=>self.n}pub fn make(n:i32)->Item=>Item{n:n}

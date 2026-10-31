@@ -1,0 +1,1 @@
+import rules;import data;fn read<T:((rules.Code))>(x:&T)->i32=>x.code();fn main()->i32{let x=data.make();return read(&x)-13}

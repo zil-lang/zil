@@ -1,0 +1,22 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.48s
+     Running tests/impl225_budget.rs (target/debug/deps/impl225_budget-666bfd0de8d85e72)
+
+running 2 tests
+legacy: types=835,analyze=7129,verify=12161
+test legacy_flat_capture_boundaries ... ok
+nested: types=3889,analyze=36339,verify=56097
+test nested_store_capture_new_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/impl226_budget.rs (target/debug/deps/impl226_budget-650c1d5f46aba12b)
+
+running 2 tests
+legacy: types=835,analyze=7129,verify=12161
+test legacy_flat_capture_boundaries ... ok
+nested: types=1787,analyze=15791,verify=30761
+test shared_product_capture_new_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+

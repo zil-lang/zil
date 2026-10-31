@@ -1,0 +1,3016 @@
+{
+  "source_commit": "6d087050f232e8e8939aff297af0acc89e11bd20",
+  "cases": [
+    {
+      "case": "argument-mismatch",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "77c5e846c88e3ae82e5b0ca7d5b2ce509a3f9e39fce1a8b709f4459977cf2be6",
+          "bytes": 89
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d",
+          "bytes": 29
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "b9b434008735fd40a3c5ff3617024f0560d9d7ba3da4d6096791d5a743db3d4d",
+          "bytes": 40014
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-SIGNATURE",
+          "message": "implementation receiver, parameters, passing modes and return type must match the declared signature",
+          "span": {
+            "file": 2,
+            "start": 66,
+            "end": 88
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "counter-consumer-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "counters.zil",
+          "sha256": "7a1c0ba778cbef2766478c2acd31792a21dbd5cb6eea8a0d6aaa92137f446593",
+          "bytes": 323
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "dc34e5fc6b0308ba742a7d8f34b0346318c5ad3f24920f0671c17bb49ffc470e",
+          "bytes": 331
+        },
+        {
+          "filename": "operations.zil",
+          "sha256": "3bfec813cce16fb04db17e4113e5b99ef900dc30716b207bc6744c95b5458971",
+          "bytes": 201
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "5c87ca277b55e92586a6e46cd0815988ef9a253c9d1ff8be8752e84f64076de6",
+          "bytes": 20886
+        },
+        {
+          "kind": "core",
+          "sha256": "a0552177694d21ca630397a745d4bb097c5ac3878be3e3712e7a80f9fae0cb87",
+          "bytes": 94512
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "a0552177694d21ca630397a745d4bb097c5ac3878be3e3712e7a80f9fae0cb87",
+          "bytes": 94512
+        },
+        {
+          "kind": "executable",
+          "sha256": "acd32a9aa8663e3e4dfa5faa51c5781a1aa612ef52220cba1b785e1244d3dc33",
+          "bytes": 16112
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "bd54dd248a44d8c291fe53c68761c170702ffac8b08e9d476eeec48b8204f2c6",
+          "bytes": 10382
+        },
+        {
+          "kind": "lir",
+          "sha256": "e73830218cee0d6e91d2c80ca232f7173ca3bb357da4c7aacaed68258301aa95",
+          "bytes": 114571
+        },
+        {
+          "kind": "llvm",
+          "sha256": "bd0a50a17b2273b2e41275f84df7a0cbd246a41580d43478493f122e4952f69e",
+          "bytes": 5182
+        },
+        {
+          "kind": "source-map",
+          "sha256": "91fc57fdff57ab88cde462591ec632d8d132ad2186db079a821e87a09a639a51",
+          "bytes": 59637
+        },
+        {
+          "kind": "syntax",
+          "sha256": "beb92bcd5ab6e3d84bc7407060d2c08a1ba226fa9fc722e04c768390e07e2f98",
+          "bytes": 246711
+        },
+        {
+          "kind": "typed",
+          "sha256": "e0598d71dc51932cc9c43b0b24a766966aafce7cdd29d483c0325e5a08c9ab6b",
+          "bytes": 113731
+        },
+        {
+          "kind": "verified",
+          "sha256": "e16d89f130145f320f57d0bf8f3cf40b9e2726b6faac62d5af23abaed5db1b48",
+          "bytes": 113808
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "8c8bdd832301271a85fbc9f8ea145d3783523cbe4c63b2fbfb270805c58098f0",
+          "bytes": 14108
+        }
+      ],
+      "diagnostics": [],
+      "backend": "clang",
+      "fallback": null,
+      "runtime_assertions": {
+        "exit_code_equals_zero": "passed Rust assertion before stdout/stderr were persisted",
+        "stdout_utf8": "",
+        "stderr_empty": true
+      }
+    },
+    {
+      "case": "counter-consumer-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "counters.zil",
+          "sha256": "7a1c0ba778cbef2766478c2acd31792a21dbd5cb6eea8a0d6aaa92137f446593",
+          "bytes": 323
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "dc34e5fc6b0308ba742a7d8f34b0346318c5ad3f24920f0671c17bb49ffc470e",
+          "bytes": 331
+        },
+        {
+          "filename": "operations.zil",
+          "sha256": "3bfec813cce16fb04db17e4113e5b99ef900dc30716b207bc6744c95b5458971",
+          "bytes": 201
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "5c87ca277b55e92586a6e46cd0815988ef9a253c9d1ff8be8752e84f64076de6",
+          "bytes": 20886
+        },
+        {
+          "kind": "core",
+          "sha256": "a0552177694d21ca630397a745d4bb097c5ac3878be3e3712e7a80f9fae0cb87",
+          "bytes": 94512
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "a0552177694d21ca630397a745d4bb097c5ac3878be3e3712e7a80f9fae0cb87",
+          "bytes": 94512
+        },
+        {
+          "kind": "executable",
+          "sha256": "ed063f78890113f1b09ac976b4a53ab32043cd69a061659c6f3607b5d2351215",
+          "bytes": 16112
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "bd54dd248a44d8c291fe53c68761c170702ffac8b08e9d476eeec48b8204f2c6",
+          "bytes": 10382
+        },
+        {
+          "kind": "lir",
+          "sha256": "e73830218cee0d6e91d2c80ca232f7173ca3bb357da4c7aacaed68258301aa95",
+          "bytes": 114571
+        },
+        {
+          "kind": "llvm",
+          "sha256": "bd0a50a17b2273b2e41275f84df7a0cbd246a41580d43478493f122e4952f69e",
+          "bytes": 5182
+        },
+        {
+          "kind": "source-map",
+          "sha256": "91fc57fdff57ab88cde462591ec632d8d132ad2186db079a821e87a09a639a51",
+          "bytes": 59637
+        },
+        {
+          "kind": "syntax",
+          "sha256": "beb92bcd5ab6e3d84bc7407060d2c08a1ba226fa9fc722e04c768390e07e2f98",
+          "bytes": 246711
+        },
+        {
+          "kind": "typed",
+          "sha256": "e0598d71dc51932cc9c43b0b24a766966aafce7cdd29d483c0325e5a08c9ab6b",
+          "bytes": 113731
+        },
+        {
+          "kind": "verified",
+          "sha256": "e16d89f130145f320f57d0bf8f3cf40b9e2726b6faac62d5af23abaed5db1b48",
+          "bytes": 113808
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "8c8bdd832301271a85fbc9f8ea145d3783523cbe4c63b2fbfb270805c58098f0",
+          "bytes": 14108
+        }
+      ],
+      "diagnostics": [],
+      "backend": "clang",
+      "fallback": null,
+      "runtime_assertions": {
+        "exit_code_equals_zero": "passed Rust assertion before stdout/stderr were persisted",
+        "stdout_utf8": "",
+        "stderr_empty": true
+      }
+    },
+    {
+      "case": "duplicate",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "218ceab450bda0d04928178201f177a0ece0a56344e61a5b8e4ef63b48095765",
+          "bytes": 104
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d",
+          "bytes": 29
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "0cc896ba33928c26936a1eef88149c4a5cf3284b58a6ed37462bd6ac72214cb9",
+          "bytes": 44122
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-METHOD-SET",
+          "message": "duplicate implementation method",
+          "span": {
+            "file": 2,
+            "start": 85,
+            "end": 103
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "extra",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "01822b9d6db3c799140175966ff903b6caac692e41e15e31f8aec7a5b558a512",
+          "bytes": 98
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d",
+          "bytes": 29
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "a45755a69d796e43b88bf9006e9a3fe2941e9fd167523aff29c3cab47c3d8d50",
+          "bytes": 42181
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-METHOD-SET",
+          "message": "method not declared by this trait",
+          "span": {
+            "file": 2,
+            "start": 85,
+            "end": 97
+          },
+          "notes": []
+        },
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-METHOD-SET",
+          "message": "implementation must define every declared method exactly once",
+          "span": {
+            "file": 2,
+            "start": 38,
+            "end": 98
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "field-collision",
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "31d0d56d98fed660133f28747991f280854e5febd6f1016be9d29cf3292dbd21",
+          "bytes": 91
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d",
+          "bytes": 29
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "core",
+          "sha256": "2c510ada1e5ecd8356b8f1dd03415dcdcb1f2afd474137cc25517a1fee3c36e3",
+          "bytes": 15865
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "2c510ada1e5ecd8356b8f1dd03415dcdcb1f2afd474137cc25517a1fee3c36e3",
+          "bytes": 15865
+        },
+        {
+          "kind": "source-map",
+          "sha256": "f05099c650c4c2fbc230747f0e9659e1922c21f4c83c9a373646cd13ba766c3f",
+          "bytes": 6471
+        },
+        {
+          "kind": "syntax",
+          "sha256": "56002bbcf79f008bc5bf6b72b991e13dfe224fe2147ab303524c85426f21939c",
+          "bytes": 37720
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-RECEIVER-MEMBER-CONFLICT",
+          "message": "field and inherent method share a name",
+          "span": {
+            "file": 2,
+            "start": 32,
+            "end": 40
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "foreign-self",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "3947369d327a6902165bc5e6bc74dbdf41c70fa21b4d0915b90b1f3ae421a360",
+          "bytes": 29
+        },
+        {
+          "filename": "implementation.zil",
+          "sha256": "200c7135d87bd6c2ae8530dadf54b3ab916db05f532d894bb15a04f647cad670",
+          "bytes": 77
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "e93ddaf80006a23e64306a7849e7a6a232d6b7cf95e035da9bf678b1e504c682",
+          "bytes": 39
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "core",
+          "sha256": "850adf6a8dad27931a700e538613020f3823b67d4fcc1324e7d8a48d0e1f421b",
+          "bytes": 17582
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "850adf6a8dad27931a700e538613020f3823b67d4fcc1324e7d8a48d0e1f421b",
+          "bytes": 17582
+        },
+        {
+          "kind": "source-map",
+          "sha256": "5f1869b0dacb0426ead80ee5c76b34228b0df6738846e21ae3c446447d0ad0a8",
+          "bytes": 6578
+        },
+        {
+          "kind": "syntax",
+          "sha256": "7ebc934ece8cae84dd67d42d2b31c1284bc13d303d34ca8cdc5c1747fed2a0dc",
+          "bytes": 41266
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "static local traits require a concrete local value struct or a shared-head resource implementation",
+          "span": {
+            "file": 3,
+            "start": 25,
+            "end": 77
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait implementation resolution",
+          "span": {
+            "file": 3,
+            "start": 25,
+            "end": 77
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "implicit-receiver",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "93571a34569760cba94b8d823522c568e9c6f7c8bd1ccf3e44206d4e67b5f738",
+          "bytes": 122
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "d654baebb13c4fe0ffbcf9f2fbf3c92748219ba3bf8f1b729925fa267d1505c3",
+          "bytes": 132
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "b17e0644180a6264a520c1d8b5bdf158f0637ed22572e4de760184cde5085821",
+          "bytes": 7008
+        },
+        {
+          "kind": "core",
+          "sha256": "d8dd51a5577680be58b09fe80920b26b570803ad04f21047fcef5e8d1696b676",
+          "bytes": 37508
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "d8dd51a5577680be58b09fe80920b26b570803ad04f21047fcef5e8d1696b676",
+          "bytes": 37508
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "f2c69abb6f7956f5e8e6816f1aa4729ab38c1ccaeaf747e97eb5d4b57ad6e21b",
+          "bytes": 6536
+        },
+        {
+          "kind": "source-map",
+          "sha256": "6856df9e88b08b32e24935a73cc66aedeabb395f458d69192548b6c05bd0a5a5",
+          "bytes": 20655
+        },
+        {
+          "kind": "syntax",
+          "sha256": "b63419dad80b7e4a3a58d4d1ba520cbcee680e44f2a889a2c458fec781356f43",
+          "bytes": 85591
+        },
+        {
+          "kind": "typed",
+          "sha256": "8583e94c7ba1e436509dcacc46efac03e43bc39245ea2f76cbca911f0d93ec17",
+          "bytes": 41170
+        },
+        {
+          "kind": "verified",
+          "sha256": "171223f0e26da745bd8240c1bd6193f15fb1912922c43dd1b51dc5e30c6e02ee",
+          "bytes": 41247
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "3ef7b2841dc34779c4ef7c3f9a5e16bd866e67a171ebcb67e3e4f3ed097498f9",
+          "bytes": 9683
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "case": "inherent-collision",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "9e42d931774b5caa47195e17dfd2306f360b651ad3bc3ff987d3adf18559d067",
+          "bytes": 127
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d",
+          "bytes": 29
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "core",
+          "sha256": "f9522beb46238e8130158a0b5680fe73b29f91c1a3dd239c3596491c5511050b",
+          "bytes": 20964
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "f9522beb46238e8130158a0b5680fe73b29f91c1a3dd239c3596491c5511050b",
+          "bytes": 20964
+        },
+        {
+          "kind": "source-map",
+          "sha256": "c6ddaed375b76cfddc1e1273456e0152310e0648a61e78d0c24d4f26b92cf5d4",
+          "bytes": 10083
+        },
+        {
+          "kind": "syntax",
+          "sha256": "f3ace55329ea53be92c451f52754ac917fda69d51f27d5447f243c06ca71443e",
+          "bytes": 50502
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "colliding trait, inherent or field name requires explicit trait-qualified resolution",
+          "span": {
+            "file": 2,
+            "start": 66,
+            "end": 84
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait implementation resolution",
+          "span": {
+            "file": 2,
+            "start": 38,
+            "end": 85
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "library-inline-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18",
+          "bytes": 129
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9",
+          "bytes": 93
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "10bb976eea6606dff514f015fb5d65a7b1c6bb428782493997ce89cfe8b13c2f",
+          "bytes": 83
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "1086ccacf9c0df4581dc2ca675881aca4c4559d516444cb6691182187b7173e5",
+          "bytes": 7281
+        },
+        {
+          "kind": "core",
+          "sha256": "4e9d6433b9833b6cce8526b061a4d0c60f7f250e95b133b00b702c2158c8a108",
+          "bytes": 40842
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "4e9d6433b9833b6cce8526b061a4d0c60f7f250e95b133b00b702c2158c8a108",
+          "bytes": 40842
+        },
+        {
+          "kind": "executable",
+          "sha256": "969b55465226ec6e38df02be4831f02447ad2a1b070e4712b56e42f3db1e0a36",
+          "bytes": 15976
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "597169f1e0f2dae7f692d0a004be9ad58fedb50a9a717c85ea895f869a409046",
+          "bytes": 7505
+        },
+        {
+          "kind": "lir",
+          "sha256": "88cbbc0ecb9b4ca6a61d2ced608c8ccf3b704f851b33d00c5a2442103aabfec1",
+          "bytes": 43941
+        },
+        {
+          "kind": "llvm",
+          "sha256": "d3749f3657d65e7c352981c027d6e40ba591a89dfde719763e1be5a418ed0632",
+          "bytes": 2164
+        },
+        {
+          "kind": "source-map",
+          "sha256": "21243fbd6119bfe75e3b32c244eaa8749e0c651949e59be41bb54b37b9fb1fd2",
+          "bytes": 21857
+        },
+        {
+          "kind": "syntax",
+          "sha256": "9619105e7f0e77d02314abc626356a59e1f86ed0d6fca84271d2cfe8f9afdd84",
+          "bytes": 91112
+        },
+        {
+          "kind": "typed",
+          "sha256": "88b0fb91130077515de830c9650b3fb892bc1c955c2a9e54c54ae9480bad58cc",
+          "bytes": 43111
+        },
+        {
+          "kind": "verified",
+          "sha256": "a4cbab23c91506e2719c321c729a34739185e738996ac1d27663ae86b74badfa",
+          "bytes": 43188
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "efe4c363f6fbf7d7dd3c6675569e59f554f4510d87b3e4ca50516a06420b05d6",
+          "bytes": 10820
+        }
+      ],
+      "diagnostics": [],
+      "backend": "clang",
+      "fallback": null,
+      "runtime_assertions": {
+        "exit_code_equals_zero": "passed Rust assertion before stdout/stderr were persisted",
+        "stdout_utf8": "",
+        "stderr_empty": true
+      }
+    },
+    {
+      "case": "library-inline-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18",
+          "bytes": 129
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9",
+          "bytes": 93
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "10bb976eea6606dff514f015fb5d65a7b1c6bb428782493997ce89cfe8b13c2f",
+          "bytes": 83
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "1086ccacf9c0df4581dc2ca675881aca4c4559d516444cb6691182187b7173e5",
+          "bytes": 7281
+        },
+        {
+          "kind": "core",
+          "sha256": "4e9d6433b9833b6cce8526b061a4d0c60f7f250e95b133b00b702c2158c8a108",
+          "bytes": 40842
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "4e9d6433b9833b6cce8526b061a4d0c60f7f250e95b133b00b702c2158c8a108",
+          "bytes": 40842
+        },
+        {
+          "kind": "executable",
+          "sha256": "a718c3c4649d6b8b6c5cfffb3608d10c39b39fc50afbb012e895324cbbd7bf18",
+          "bytes": 15976
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "597169f1e0f2dae7f692d0a004be9ad58fedb50a9a717c85ea895f869a409046",
+          "bytes": 7505
+        },
+        {
+          "kind": "lir",
+          "sha256": "88cbbc0ecb9b4ca6a61d2ced608c8ccf3b704f851b33d00c5a2442103aabfec1",
+          "bytes": 43941
+        },
+        {
+          "kind": "llvm",
+          "sha256": "d3749f3657d65e7c352981c027d6e40ba591a89dfde719763e1be5a418ed0632",
+          "bytes": 2164
+        },
+        {
+          "kind": "source-map",
+          "sha256": "21243fbd6119bfe75e3b32c244eaa8749e0c651949e59be41bb54b37b9fb1fd2",
+          "bytes": 21857
+        },
+        {
+          "kind": "syntax",
+          "sha256": "9619105e7f0e77d02314abc626356a59e1f86ed0d6fca84271d2cfe8f9afdd84",
+          "bytes": 91112
+        },
+        {
+          "kind": "typed",
+          "sha256": "88b0fb91130077515de830c9650b3fb892bc1c955c2a9e54c54ae9480bad58cc",
+          "bytes": 43111
+        },
+        {
+          "kind": "verified",
+          "sha256": "a4cbab23c91506e2719c321c729a34739185e738996ac1d27663ae86b74badfa",
+          "bytes": 43188
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "efe4c363f6fbf7d7dd3c6675569e59f554f4510d87b3e4ca50516a06420b05d6",
+          "bytes": 10820
+        }
+      ],
+      "diagnostics": [],
+      "backend": "clang",
+      "fallback": null,
+      "runtime_assertions": {
+        "exit_code_equals_zero": "passed Rust assertion before stdout/stderr were persisted",
+        "stdout_utf8": "",
+        "stderr_empty": true
+      }
+    },
+    {
+      "case": "library-private-method",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "385dab6851cde5d2babec36a23b1f70bd52a753e55662c62ddcbf5a2d8f6adad",
+          "bytes": 171
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9",
+          "bytes": 93
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "29aaa243030bdf60971ed282c7c2b5d4e7215cbfad49b847cdcab4d98c58dcd1",
+          "bytes": 92
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "1e5313b11986734b99ed56eaa75c2d62e2fecf36c8c0abb9212b3995393e5447",
+          "bytes": 106597
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "method secret is not provided by the declared trait bounds of T",
+          "span": {
+            "file": 1,
+            "start": 82,
+            "end": 83
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "library-where-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18",
+          "bytes": 129
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9",
+          "bytes": 93
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440",
+          "bytes": 91
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "56789497a2346534c807e05e6ee047a1458bb7f1017394bce0e586ffb4c3e805",
+          "bytes": 7287
+        },
+        {
+          "kind": "core",
+          "sha256": "10acad3542c9a7bbaac04ffed82282639daf3fbc70b2b926e49161bf9b284476",
+          "bytes": 40837
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "10acad3542c9a7bbaac04ffed82282639daf3fbc70b2b926e49161bf9b284476",
+          "bytes": 40837
+        },
+        {
+          "kind": "executable",
+          "sha256": "969b55465226ec6e38df02be4831f02447ad2a1b070e4712b56e42f3db1e0a36",
+          "bytes": 15976
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "ee03921c3c84ce99af5ff100da736e48b7e841020113d8bcc0212bfbdb200b60",
+          "bytes": 7502
+        },
+        {
+          "kind": "lir",
+          "sha256": "44def85501dfb0a5e267e632a914449751eecdf3399e2cd87939615fcac13b50",
+          "bytes": 43947
+        },
+        {
+          "kind": "llvm",
+          "sha256": "e2609d501b58dae4d1651207378345808db835278be0f4615a5637b4386cbf27",
+          "bytes": 2164
+        },
+        {
+          "kind": "source-map",
+          "sha256": "57015e38b5c61ae44cf25552e6ec5f793f1956e9d1181d593b0cabba40f69efb",
+          "bytes": 21857
+        },
+        {
+          "kind": "syntax",
+          "sha256": "aed3d7d12aa7639e318a35d01e1ba00dd1ff1a3157c7cf7c560a305877b507ec",
+          "bytes": 93538
+        },
+        {
+          "kind": "typed",
+          "sha256": "4c61758a47ccfd82bcafa8878164da6e68fc66d654760206316fb97441308bd5",
+          "bytes": 43109
+        },
+        {
+          "kind": "verified",
+          "sha256": "35a6643f813719b65ae6d1a7977823102ee2b5436514c577d98b710aa34b23c7",
+          "bytes": 43186
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "dbebb48ea331aa628101b6fe8f0170a6eacddc67e098e4e465b4d6e25950386b",
+          "bytes": 10817
+        }
+      ],
+      "diagnostics": [],
+      "backend": "clang",
+      "fallback": null,
+      "runtime_assertions": {
+        "exit_code_equals_zero": "passed Rust assertion before stdout/stderr were persisted",
+        "stdout_utf8": "",
+        "stderr_empty": true
+      }
+    },
+    {
+      "case": "library-where-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18",
+          "bytes": 129
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "cd67899b52ab9c2ebbc9be23df9f2250da2213eeba044085eff934c61cc927b9",
+          "bytes": 93
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440",
+          "bytes": 91
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "56789497a2346534c807e05e6ee047a1458bb7f1017394bce0e586ffb4c3e805",
+          "bytes": 7287
+        },
+        {
+          "kind": "core",
+          "sha256": "10acad3542c9a7bbaac04ffed82282639daf3fbc70b2b926e49161bf9b284476",
+          "bytes": 40837
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "10acad3542c9a7bbaac04ffed82282639daf3fbc70b2b926e49161bf9b284476",
+          "bytes": 40837
+        },
+        {
+          "kind": "executable",
+          "sha256": "a718c3c4649d6b8b6c5cfffb3608d10c39b39fc50afbb012e895324cbbd7bf18",
+          "bytes": 15976
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "ee03921c3c84ce99af5ff100da736e48b7e841020113d8bcc0212bfbdb200b60",
+          "bytes": 7502
+        },
+        {
+          "kind": "lir",
+          "sha256": "44def85501dfb0a5e267e632a914449751eecdf3399e2cd87939615fcac13b50",
+          "bytes": 43947
+        },
+        {
+          "kind": "llvm",
+          "sha256": "e2609d501b58dae4d1651207378345808db835278be0f4615a5637b4386cbf27",
+          "bytes": 2164
+        },
+        {
+          "kind": "source-map",
+          "sha256": "57015e38b5c61ae44cf25552e6ec5f793f1956e9d1181d593b0cabba40f69efb",
+          "bytes": 21857
+        },
+        {
+          "kind": "syntax",
+          "sha256": "aed3d7d12aa7639e318a35d01e1ba00dd1ff1a3157c7cf7c560a305877b507ec",
+          "bytes": 93538
+        },
+        {
+          "kind": "typed",
+          "sha256": "4c61758a47ccfd82bcafa8878164da6e68fc66d654760206316fb97441308bd5",
+          "bytes": 43109
+        },
+        {
+          "kind": "verified",
+          "sha256": "35a6643f813719b65ae6d1a7977823102ee2b5436514c577d98b710aa34b23c7",
+          "bytes": 43186
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "dbebb48ea331aa628101b6fe8f0170a6eacddc67e098e4e465b4d6e25950386b",
+          "bytes": 10817
+        }
+      ],
+      "diagnostics": [],
+      "backend": "clang",
+      "fallback": null,
+      "runtime_assertions": {
+        "exit_code_equals_zero": "passed Rust assertion before stdout/stderr were persisted",
+        "stdout_utf8": "",
+        "stderr_empty": true
+      }
+    },
+    {
+      "case": "missing",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "ba74f95b0d7a3ed9b6e0326bedc3d52d6f5a3bcdd85524ba94ced60496ef1c01",
+          "bytes": 67
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d",
+          "bytes": 29
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "70efdc57581700bdf769ff9a378b7e792acb27604a351e2e65ed768f925fa883",
+          "bytes": 31599
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-METHOD-SET",
+          "message": "implementation must define every declared method exactly once",
+          "span": {
+            "file": 2,
+            "start": 38,
+            "end": 67
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mutable-mismatch",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "19044e98ff54b8f91c8c7631bb6ce9720eb8d4f048c40b5e34d789f2b9670729",
+          "bytes": 99
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d",
+          "bytes": 29
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "c31d628a4c4788049214e2283abea89948452e6448e72db81986c148769e6dbf",
+          "bytes": 42152
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-SIGNATURE",
+          "message": "implementation receiver, parameters, passing modes and return type must match the declared signature",
+          "span": {
+            "file": 2,
+            "start": 66,
+            "end": 98
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "near-name-FnOnce_Extra",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "36d05a37a601068869ef9c0eb3ee1084ed960ce7724aa3078113c4a302262e31",
+          "bytes": 80
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "e8fc18598d3860806de53824795e0e14d88571a3570236ee9bbd2311bed03cce",
+          "bytes": 1874
+        },
+        {
+          "kind": "core",
+          "sha256": "ed8745f1a1a974f0c6297a96a8a891bdcf38b1e4fe206e56dc57e89c96a65d2c",
+          "bytes": 7866
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "ed8745f1a1a974f0c6297a96a8a891bdcf38b1e4fe206e56dc57e89c96a65d2c",
+          "bytes": 7866
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "56b5c8eb683babd49aa187a09aaada0357af4f80abd0320bf7af43e75b8c13de",
+          "bytes": 3438
+        },
+        {
+          "kind": "source-map",
+          "sha256": "dec312b28a35159baa5c5ae28420c5a81d552fbc37be1dd746d89c6fcf0616aa",
+          "bytes": 2544
+        },
+        {
+          "kind": "syntax",
+          "sha256": "f0af7a28bd60334576ca808bc7049262cf3385fb6524760785b4e932618bc724",
+          "bytes": 19904
+        },
+        {
+          "kind": "typed",
+          "sha256": "03504d362d179371b19fc7986174d10c87f359f3d540c6a17c5d11451713f248",
+          "bytes": 5261
+        },
+        {
+          "kind": "verified",
+          "sha256": "60e1986cb40d1bc365898b23836d44e1237fbce52cd5debaafa345a467ded08b",
+          "bytes": 5338
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "b6a387653aa2a75e9a0a27ee76333b1350fe4cc03ed3d000f729c343339ff30c",
+          "bytes": 5338
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "case": "near-name-Module0_Send",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "c8c952bc5888acd5022c9366437d1cbd71baadb3beb4c452807c575eaaa37466",
+          "bytes": 80
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "26fbaecda98136c89aadfc364e99bdfc1e9fc2de7744d2ef298459c9a1d28712",
+          "bytes": 1871
+        },
+        {
+          "kind": "core",
+          "sha256": "5d0c51ebcca3a6b40c0eb6e8332c9e24759c4464d38a3522926f3ead299aa0a5",
+          "bytes": 7870
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "5d0c51ebcca3a6b40c0eb6e8332c9e24759c4464d38a3522926f3ead299aa0a5",
+          "bytes": 7870
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "cc2d1e73accd3269cd6bfbdac9ab2de314028454585e7337a61191f770f393c9",
+          "bytes": 3447
+        },
+        {
+          "kind": "source-map",
+          "sha256": "dec312b28a35159baa5c5ae28420c5a81d552fbc37be1dd746d89c6fcf0616aa",
+          "bytes": 2544
+        },
+        {
+          "kind": "syntax",
+          "sha256": "ca5f214b0249c0fffae0a3bcc026a992229d194a550c3854693ba121f8ab2830",
+          "bytes": 19904
+        },
+        {
+          "kind": "typed",
+          "sha256": "5efd067f241277791b8a767dc0e988f22a86253c7a614735ab379e1435787559",
+          "bytes": 5256
+        },
+        {
+          "kind": "verified",
+          "sha256": "a994a1e012a9b2c12b9544cbe09bb5407008d456c12faddad12969d153402063",
+          "bytes": 5333
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "bcde4206676c1997664d721423ac68b5044c09ffc6719a2ae4a34053985f70a4",
+          "bytes": 5347
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "case": "near-name-Send_User",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "2239980ae3a03126c793ac8ccdbbc4066de0d14d9c1d194d5908be45cd362b92",
+          "bytes": 74
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "2dae0c0a17f24157fafdb7885d01fc6c6a48bfbce45a83476a10091e4b367e98",
+          "bytes": 1870
+        },
+        {
+          "kind": "core",
+          "sha256": "b9589d914fba1ef0fa05c15a1ddc13e6eb9048a6ba4c3fba2f876278166f11e3",
+          "bytes": 7866
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "b9589d914fba1ef0fa05c15a1ddc13e6eb9048a6ba4c3fba2f876278166f11e3",
+          "bytes": 7866
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "a7d52fa76c8e633b4f54d7758fc268211542fa239b2006098a505df621bc5c68",
+          "bytes": 3440
+        },
+        {
+          "kind": "source-map",
+          "sha256": "e3ce40d3af9ee230e288d41466458ade15c5ce36bad87719913a3cc6a7dcd5e2",
+          "bytes": 2544
+        },
+        {
+          "kind": "syntax",
+          "sha256": "f158849f90bbac6c1c644da1c934f29199123c772bc31e8bbc6e247f57726897",
+          "bytes": 19898
+        },
+        {
+          "kind": "typed",
+          "sha256": "a4e5030b338d4ac7151935a1530fbd5b31744ea5cbe98d30043f569bcb6011c6",
+          "bytes": 5259
+        },
+        {
+          "kind": "verified",
+          "sha256": "791742b22555965f68a06d45e939cec98c2e97ba60af9c2ecdd1187035769848",
+          "bytes": 5336
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "250b689d6fcdd243d2382e7bfb64195dc3077466e3a2d1fcb25cde7c4f407fba",
+          "bytes": 5340
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "case": "near-name-User_Send",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "c3bdce49b1922c9cd254a5b7ab8509da1c3d4f137e2223f509072e5a5f62afc5",
+          "bytes": 74
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "7a6b606e70e3eebba0d1b117d9b0a007caedd0d2239d32f5c877075012a0acc1",
+          "bytes": 1875
+        },
+        {
+          "kind": "core",
+          "sha256": "55921b5da51dc639bf2f7785ed8360dd932be758fcd75716d9c2a882b8f4d7e1",
+          "bytes": 7872
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "55921b5da51dc639bf2f7785ed8360dd932be758fcd75716d9c2a882b8f4d7e1",
+          "bytes": 7872
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "060b30ae48666614a87c855825295716ea8f3498687c7a2dd711e4eaf4c365dd",
+          "bytes": 3438
+        },
+        {
+          "kind": "source-map",
+          "sha256": "e3ce40d3af9ee230e288d41466458ade15c5ce36bad87719913a3cc6a7dcd5e2",
+          "bytes": 2544
+        },
+        {
+          "kind": "syntax",
+          "sha256": "82936625a4cfb9e77bcc244717f7dbc79ab46a745312090d906c810ce4c77eda",
+          "bytes": 19898
+        },
+        {
+          "kind": "typed",
+          "sha256": "5a8a741de80392bfd5e6a51ccbcd135415be0f1d29c3c79f01f1b1adfeaebf04",
+          "bytes": 5267
+        },
+        {
+          "kind": "verified",
+          "sha256": "cecb40ca06e37c15da1af787965f93376acd889b110f00fb0558b89a95f25de7",
+          "bytes": 5344
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "204f06ff0aedc9656491c3ac2f7182648d0f0b7320490ea4f70bd5e4c0c74a5f",
+          "bytes": 5338
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "case": "original-inline",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "cd3ab4311c39c2c3a79d74663afa0bda32cf9cfeb87dd686c87d0ab7cbdcf868",
+          "bytes": 136
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "bb14edbd550a16a05d6891bc9cc49838dabad48d9690a7e673f4c40f8e92a6ea",
+          "bytes": 124
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "a99b6b9b45c1c65536868b44fc097d5a6af573f04acee17ca1a44f527603877d",
+          "bytes": 7008
+        },
+        {
+          "kind": "core",
+          "sha256": "88f1b270d59e06529452302e00bd0d9246de3e77ab71ffcc9fca10a0ed910d36",
+          "bytes": 37520
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "88f1b270d59e06529452302e00bd0d9246de3e77ab71ffcc9fca10a0ed910d36",
+          "bytes": 37520
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "e9410bd06cd501bf6d34d562b2002439b7acd12f794c095d37eab361389a7c93",
+          "bytes": 6547
+        },
+        {
+          "kind": "source-map",
+          "sha256": "2e0c6d087050d3e5a0e888a4c80a9fc47fb34f63e5fe4e3d6d2f5190b3b87786",
+          "bytes": 19939
+        },
+        {
+          "kind": "syntax",
+          "sha256": "3a0cf3b5eff4b278a38d9f4550b95074b015006d915ff23af6d96ab7904fc34c",
+          "bytes": 88400
+        },
+        {
+          "kind": "typed",
+          "sha256": "656bced8c901de1faf969747b827701290e43d26ff7e1e53084810cd01e6c6b6",
+          "bytes": 41173
+        },
+        {
+          "kind": "verified",
+          "sha256": "5bfd9a21167db72158890fdd1ce9b3a957f9b8ffbe946cf007106e369a8d4768",
+          "bytes": 41250
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "491017214eb635376da654b8b139ab840f6c16cd3630d4ec80d73e88d948df40",
+          "bytes": 9694
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "case": "original-three-module-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "cd3ab4311c39c2c3a79d74663afa0bda32cf9cfeb87dd686c87d0ab7cbdcf868",
+          "bytes": 136
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "d654baebb13c4fe0ffbcf9f2fbf3c92748219ba3bf8f1b729925fa267d1505c3",
+          "bytes": 132
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "33d966225770e8e03504ecbeda57e386a46e10677090582f6e01bfd7ffe52ccf",
+          "bytes": 7002
+        },
+        {
+          "kind": "core",
+          "sha256": "60de55f6abeff0802a7921578335c1962e7ded96fd1455c986c42c812feb9d08",
+          "bytes": 37509
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "60de55f6abeff0802a7921578335c1962e7ded96fd1455c986c42c812feb9d08",
+          "bytes": 37509
+        },
+        {
+          "kind": "executable",
+          "sha256": "cc64aa8d6f5643e2b9d790bbed958137e9a3c2912d214a450fa8ea2769bb199f",
+          "bytes": 15976
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "ca737255e3dba519b4fbfbe5fdadf90dfe18e7a86e59301c6574cca0a508d366",
+          "bytes": 6542
+        },
+        {
+          "kind": "lir",
+          "sha256": "e56154991620e85e66829bc89e152acc4405ffd570c3023c26ec808dc10d1e1f",
+          "bytes": 42002
+        },
+        {
+          "kind": "llvm",
+          "sha256": "3a6b358e2452758903b56fc3bec5d548d8402f1a3c9d3d97c62cb8e9a05d3b87",
+          "bytes": 2030
+        },
+        {
+          "kind": "source-map",
+          "sha256": "25cde0e8a06e174332c2bd7d65fd5f2988cf91fdb9bfbfb1b20fe5347036275e",
+          "bytes": 19942
+        },
+        {
+          "kind": "syntax",
+          "sha256": "6d33b48283d3b9cdd95f3f4fbd264df1c253e1b74f0f8626e0c8c3820b303722",
+          "bytes": 90747
+        },
+        {
+          "kind": "typed",
+          "sha256": "d01936d0d88fb4d8fde5271c5587ffd4299149781afa2b3f704c818b04979973",
+          "bytes": 41165
+        },
+        {
+          "kind": "verified",
+          "sha256": "69f5e3da912c4327aa7c052f913e1f3282023be84a1f4f80e79d312011a7ee5e",
+          "bytes": 41242
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "aec0b6d6c19bcee1863378176a5ab328bf5ce84786d53556f319bcb9282e82d4",
+          "bytes": 9689
+        }
+      ],
+      "diagnostics": [],
+      "backend": "clang",
+      "fallback": null,
+      "runtime_assertions": {
+        "exit_code_equals_zero": "passed Rust assertion before stdout/stderr were persisted",
+        "stdout_utf8": "",
+        "stderr_empty": true
+      }
+    },
+    {
+      "case": "original-three-module-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "cd3ab4311c39c2c3a79d74663afa0bda32cf9cfeb87dd686c87d0ab7cbdcf868",
+          "bytes": 136
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "d654baebb13c4fe0ffbcf9f2fbf3c92748219ba3bf8f1b729925fa267d1505c3",
+          "bytes": 132
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "33d966225770e8e03504ecbeda57e386a46e10677090582f6e01bfd7ffe52ccf",
+          "bytes": 7002
+        },
+        {
+          "kind": "core",
+          "sha256": "60de55f6abeff0802a7921578335c1962e7ded96fd1455c986c42c812feb9d08",
+          "bytes": 37509
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "60de55f6abeff0802a7921578335c1962e7ded96fd1455c986c42c812feb9d08",
+          "bytes": 37509
+        },
+        {
+          "kind": "executable",
+          "sha256": "c9edb25d0c298edc427c833471b828d47d0c50018672cdfbf06692d0fb5dab84",
+          "bytes": 15976
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "ca737255e3dba519b4fbfbe5fdadf90dfe18e7a86e59301c6574cca0a508d366",
+          "bytes": 6542
+        },
+        {
+          "kind": "lir",
+          "sha256": "e56154991620e85e66829bc89e152acc4405ffd570c3023c26ec808dc10d1e1f",
+          "bytes": 42002
+        },
+        {
+          "kind": "llvm",
+          "sha256": "3a6b358e2452758903b56fc3bec5d548d8402f1a3c9d3d97c62cb8e9a05d3b87",
+          "bytes": 2030
+        },
+        {
+          "kind": "source-map",
+          "sha256": "25cde0e8a06e174332c2bd7d65fd5f2988cf91fdb9bfbfb1b20fe5347036275e",
+          "bytes": 19942
+        },
+        {
+          "kind": "syntax",
+          "sha256": "6d33b48283d3b9cdd95f3f4fbd264df1c253e1b74f0f8626e0c8c3820b303722",
+          "bytes": 90747
+        },
+        {
+          "kind": "typed",
+          "sha256": "d01936d0d88fb4d8fde5271c5587ffd4299149781afa2b3f704c818b04979973",
+          "bytes": 41165
+        },
+        {
+          "kind": "verified",
+          "sha256": "69f5e3da912c4327aa7c052f913e1f3282023be84a1f4f80e79d312011a7ee5e",
+          "bytes": 41242
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "aec0b6d6c19bcee1863378176a5ab328bf5ce84786d53556f319bcb9282e82d4",
+          "bytes": 9689
+        }
+      ],
+      "diagnostics": [],
+      "backend": "clang",
+      "fallback": null,
+      "runtime_assertions": {
+        "exit_code_equals_zero": "passed Rust assertion before stdout/stderr were persisted",
+        "stdout_utf8": "",
+        "stderr_empty": true
+      }
+    },
+    {
+      "case": "original-where",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "cd3ab4311c39c2c3a79d74663afa0bda32cf9cfeb87dd686c87d0ab7cbdcf868",
+          "bytes": 136
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "d654baebb13c4fe0ffbcf9f2fbf3c92748219ba3bf8f1b729925fa267d1505c3",
+          "bytes": 132
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "33d966225770e8e03504ecbeda57e386a46e10677090582f6e01bfd7ffe52ccf",
+          "bytes": 7002
+        },
+        {
+          "kind": "core",
+          "sha256": "60de55f6abeff0802a7921578335c1962e7ded96fd1455c986c42c812feb9d08",
+          "bytes": 37509
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "60de55f6abeff0802a7921578335c1962e7ded96fd1455c986c42c812feb9d08",
+          "bytes": 37509
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "ca737255e3dba519b4fbfbe5fdadf90dfe18e7a86e59301c6574cca0a508d366",
+          "bytes": 6542
+        },
+        {
+          "kind": "source-map",
+          "sha256": "25cde0e8a06e174332c2bd7d65fd5f2988cf91fdb9bfbfb1b20fe5347036275e",
+          "bytes": 19942
+        },
+        {
+          "kind": "syntax",
+          "sha256": "6d33b48283d3b9cdd95f3f4fbd264df1c253e1b74f0f8626e0c8c3820b303722",
+          "bytes": 90747
+        },
+        {
+          "kind": "typed",
+          "sha256": "d01936d0d88fb4d8fde5271c5587ffd4299149781afa2b3f704c818b04979973",
+          "bytes": 41165
+        },
+        {
+          "kind": "verified",
+          "sha256": "69f5e3da912c4327aa7c052f913e1f3282023be84a1f4f80e79d312011a7ee5e",
+          "bytes": 41242
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "aec0b6d6c19bcee1863378176a5ab328bf5ce84786d53556f319bcb9282e82d4",
+          "bytes": 9689
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "case": "overlap",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "1f58a8fa643c37b193417e07940170c37ca5eaf4339403e797d4be34727e10f8",
+          "bytes": 132
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d",
+          "bytes": 29
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "cd64a84bbd543ffa063e940381496772907c6827f7379e6cb5ec17c747d04e43",
+          "bytes": 48969
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-DUPLICATE",
+          "message": "overlapping concrete trait implementation",
+          "span": {
+            "file": 2,
+            "start": 85,
+            "end": 132
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "private-self-method-export",
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "afe50c1efe034b3e9e275514142ece688d7a8bf12cfcdf192fd705e601fe4b4e",
+          "bytes": 132
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "338d9328b54a2508228b81c68b3a63a44027cdd53670c137efc27133f1ece7cc",
+          "bytes": 64
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "core",
+          "sha256": "506afeca8b9a02461abfad5b67ff3bfa1f99ad62afe5b48f05403bf70c34bb24",
+          "bytes": 29994
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "506afeca8b9a02461abfad5b67ff3bfa1f99ad62afe5b48f05403bf70c34bb24",
+          "bytes": 29994
+        },
+        {
+          "kind": "source-map",
+          "sha256": "d420032883782c241368c58c135e5bf0b0aaf0f27594ee0522bf8142de1ccd7a",
+          "bytes": 15534
+        },
+        {
+          "kind": "syntax",
+          "sha256": "b209cc8b4b16a42dd0227222d3f6f6f51d8b43140a7d80b54f765d8e8938811f",
+          "bytes": 66661
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-UNKNOWN-FIELD",
+          "message": "unknown field code",
+          "span": {
+            "file": 0,
+            "start": 52,
+            "end": 58
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "private-trait",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "cd3ab4311c39c2c3a79d74663afa0bda32cf9cfeb87dd686c87d0ab7cbdcf868",
+          "bytes": 136
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d",
+          "bytes": 29
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "962abb5c73efdfd69ff2b091630b5d23f168ecf29b856a84dc2db89b2e5c494e",
+          "bytes": 37
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "0b18ca163b8b306fbce4925422468a7bf4f11a66db92e4a2d3da0abf2f42f60f",
+          "bytes": 51679
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-MODULE-PRIVATE",
+          "message": "imported declaration is private",
+          "span": {
+            "file": 2,
+            "start": 43,
+            "end": 53
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "reserved-declaration-Drop",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "9b26ef6bd3826b3a9e3a299e89114adcb57c62f1df98f9a61fe8f1b8e4efbbc9",
+          "bytes": 16
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "b0851c789af3febccb6c6debe4bc97af46a328f19129619c543c422708fa868b",
+          "bytes": 10565
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "reserved-declaration-Fn",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "a1a9a4f05c818fca6c5de6ea15322bdb9ba14ea79fc9f93f5075daa0b12cb3ec",
+          "bytes": 14
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "9e7fc98b24e6cd5d34a63a3a66ca11a4c1a2141b9f486a198b6b05dca6b505ca",
+          "bytes": 10563
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 14
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "reserved-declaration-FnMut",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "1d721ce3e1b797d7fdb177d7d1eba7743a2f45dcc882a0ef29dcc792ac1a9a41",
+          "bytes": 17
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "e0c6f13e1cdd0c33fad506cac92e80ed9cde444c248f005967e5df5877d61b0b",
+          "bytes": 10566
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 17
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "reserved-declaration-FnOnce",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "b58a65f8659f0a2d8791876e3a3027559232ffe251ba53ceec6f31f43d15cae6",
+          "bytes": 18
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "be7ab18c12a059df4245d1e47c852db254386446178b70c6fcf66a909cab58f1",
+          "bytes": 10567
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 18
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "reserved-declaration-Send",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "5a698308c07a889034a585306ac0dc3b5fa4d060c21d2a28d129ea70358be0e8",
+          "bytes": 16
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "989136d811e1af2421ed4b5a589b2f6bf446790a14d3659d6d45e8edb610d608",
+          "bytes": 10565
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "reserved-declaration-Share",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "78c1dcd9a8f846f6f6c9f4156f5ad0e4b56a8ded5d356389fcc0ab40b6b77b83",
+          "bytes": 17
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "5b4e21faca7b006a6d0254935b48809b4e3a65e799c993c9fb0ffe70bb106162",
+          "bytes": 10566
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 17
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "reserved-declaration-Sync",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "8dc61105b3d4ba2485f454130b5c5b092504afd1bf07b593b9b020bd393b20e1",
+          "bytes": 16
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "b42be1306b9c32eb0c0dc33bab95fcb2d03005fc4ab1d614a415f84f7f515462",
+          "bytes": 10565
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "reserved-declaration-Transfer",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "011be6c8d3244d24ab329b329244eeb1550b7b8c5293dc0ff63b33b959cb8532",
+          "bytes": 20
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "590f2059e50eca59bb645d937ea83e58b8cc10b1da8d3d06570d63230a2ba518",
+          "bytes": 10569
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 20
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "reserved-impl-Drop",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "2f648516333531bb1e4e78e67dbd02a4960b246f72190668a2a65c2ec8b783f8",
+          "bytes": 64
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "8207fd3c92ca98d7101562daa26385106694d7ed8d49b214fd7e9cbc93d8ea6c",
+          "bytes": 19888
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "reserved-impl-Send",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "9ddc66aee305a27569ae8bd99146aa46aa1bbd5e8d1ca23994020ecf0f97628d",
+          "bytes": 64
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "82fd0ec9c8056a7ef01eed0c2535b0617ab039afaee529dd7a33654eeedbe832",
+          "bytes": 19888
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "reserved-impl-Share",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "7e66c1fb73386d82c290c2acdad9e1f2937fc8d2370d497d974f3e1a17d08848",
+          "bytes": 66
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "babc02d81a82cb6b02617e729f8231503762ee1c680928fe38f039394704c267",
+          "bytes": 19890
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 17
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "reserved-impl-Sync",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "b58270c347b86f92582938caa2a2fe5aff6f838c9c668c324fb73fba240661d3",
+          "bytes": 64
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "e4e72a25cf804f2bcf13259c1f70e402eaa36e86b8b5703bd8da723a796fb232",
+          "bytes": 19888
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 16
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "reserved-impl-Transfer",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "main.zil",
+          "sha256": "d6f23fad58b64eb679f4db1271263e8908512b5bee59c2f3a44b47dd6fed8497",
+          "bytes": 30
+        },
+        {
+          "filename": "model.zil",
+          "sha256": "7de76c3e2d977ce97d57d1d4c0ebafbb3d818af93ecb03fb175d951e030f33b1",
+          "bytes": 72
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "db95e63706a9724b2022d06923dacba3f06866b4bce89453a63ffbaf18ffd2cf",
+          "bytes": 19896
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 1,
+            "start": 0,
+            "end": 20
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "resource-consumer-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "ed141b2b783f602031bd43e126498fb886383ad3dd20392934b7a5886bdf89e8",
+          "bytes": 244
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "b2dfb44da890a2fc065d81474ff11a67e98f7b6c250d1aedc293b1e078c8e90b",
+          "bytes": 40
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "4541c467725ecb9479524fa6531799162bc68bebed5a3b74ab3de3bd160ca892",
+          "bytes": 6583
+        },
+        {
+          "kind": "core",
+          "sha256": "14303e60e5cff328775de1aac9631c476850595fb1bac70c140d9ef29ceadff9",
+          "bytes": 41278
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "14303e60e5cff328775de1aac9631c476850595fb1bac70c140d9ef29ceadff9",
+          "bytes": 41278
+        },
+        {
+          "kind": "executable",
+          "sha256": "aa6dc67439b219b8a68dd93bf6f0f3624f14a635ab6699c81a81b31ce0e34c42",
+          "bytes": 16024
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "cc05c46de7aa05593d47004f9bcf444497c09ac8d3d8155fe429b033c5cddb85",
+          "bytes": 5425
+        },
+        {
+          "kind": "lir",
+          "sha256": "9b2b060757da7735ebaa20da62d7d88ff82d69b8f3c218f99305d1fe823ba4b9",
+          "bytes": 45034
+        },
+        {
+          "kind": "llvm",
+          "sha256": "f25c63b2292592896514f40da6420ac31976ea9ade8e329feb6fc758cac419bb",
+          "bytes": 2552
+        },
+        {
+          "kind": "source-map",
+          "sha256": "9ad79f006dcf3276d552c3764eea72039c86d8ce65fec3a2ada6d033b7eed4a4",
+          "bytes": 22345
+        },
+        {
+          "kind": "syntax",
+          "sha256": "0943a9966faff7782e4dbc0e537e9058ca5931e93fd59a24344c4018e12b018b",
+          "bytes": 90217
+        },
+        {
+          "kind": "typed",
+          "sha256": "05dac277e39b9391180798bd2af567bed48fcb730d1be7688ee986929afd7045",
+          "bytes": 44188
+        },
+        {
+          "kind": "verified",
+          "sha256": "9e8cd337ad3b27852313ebe5f117883eaee8c13db17371cef38e1db316367e77",
+          "bytes": 44265
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "a472f9ee3d862cfe0fc3c6f976fe7ad92497f9d82198ef1350c9141b74d3b732",
+          "bytes": 8417
+        }
+      ],
+      "diagnostics": [],
+      "backend": "clang",
+      "fallback": null,
+      "runtime_assertions": {
+        "exit_code_equals_zero": "passed Rust assertion before stdout/stderr were persisted",
+        "stdout_utf8": "A",
+        "stderr_empty": true
+      }
+    },
+    {
+      "case": "resource-consumer-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "ed141b2b783f602031bd43e126498fb886383ad3dd20392934b7a5886bdf89e8",
+          "bytes": 244
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "b2dfb44da890a2fc065d81474ff11a67e98f7b6c250d1aedc293b1e078c8e90b",
+          "bytes": 40
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "4541c467725ecb9479524fa6531799162bc68bebed5a3b74ab3de3bd160ca892",
+          "bytes": 6583
+        },
+        {
+          "kind": "core",
+          "sha256": "14303e60e5cff328775de1aac9631c476850595fb1bac70c140d9ef29ceadff9",
+          "bytes": 41278
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "14303e60e5cff328775de1aac9631c476850595fb1bac70c140d9ef29ceadff9",
+          "bytes": 41278
+        },
+        {
+          "kind": "executable",
+          "sha256": "b820b2373294ddd088cc5e9b7b4ffebae522def1e282824a50114531bc20c5ac",
+          "bytes": 16024
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "cc05c46de7aa05593d47004f9bcf444497c09ac8d3d8155fe429b033c5cddb85",
+          "bytes": 5425
+        },
+        {
+          "kind": "lir",
+          "sha256": "9b2b060757da7735ebaa20da62d7d88ff82d69b8f3c218f99305d1fe823ba4b9",
+          "bytes": 45034
+        },
+        {
+          "kind": "llvm",
+          "sha256": "f25c63b2292592896514f40da6420ac31976ea9ade8e329feb6fc758cac419bb",
+          "bytes": 2552
+        },
+        {
+          "kind": "source-map",
+          "sha256": "9ad79f006dcf3276d552c3764eea72039c86d8ce65fec3a2ada6d033b7eed4a4",
+          "bytes": 22345
+        },
+        {
+          "kind": "syntax",
+          "sha256": "0943a9966faff7782e4dbc0e537e9058ca5931e93fd59a24344c4018e12b018b",
+          "bytes": 90217
+        },
+        {
+          "kind": "typed",
+          "sha256": "05dac277e39b9391180798bd2af567bed48fcb730d1be7688ee986929afd7045",
+          "bytes": 44188
+        },
+        {
+          "kind": "verified",
+          "sha256": "9e8cd337ad3b27852313ebe5f117883eaee8c13db17371cef38e1db316367e77",
+          "bytes": 44265
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "a472f9ee3d862cfe0fc3c6f976fe7ad92497f9d82198ef1350c9141b74d3b732",
+          "bytes": 8417
+        }
+      ],
+      "diagnostics": [],
+      "backend": "clang",
+      "fallback": null,
+      "runtime_assertions": {
+        "exit_code_equals_zero": "passed Rust assertion before stdout/stderr were persisted",
+        "stdout_utf8": "A",
+        "stderr_empty": true
+      }
+    },
+    {
+      "case": "resource-mutable",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "ed141b2b783f602031bd43e126498fb886383ad3dd20392934b7a5886bdf89e8",
+          "bytes": 244
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d",
+          "bytes": 29
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "a6db87402d08332bcc8fa4a3d628e1d3e7a3150a0913ea9e45576f68051a6eaa",
+          "bytes": 45
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "core",
+          "sha256": "958f9e093e7b0747c6fb8132b094cf7a11d1eb4752d980fcf6ecc39daad741d4",
+          "bytes": 40172
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "958f9e093e7b0747c6fb8132b094cf7a11d1eb4752d980fcf6ecc39daad741d4",
+          "bytes": 40172
+        },
+        {
+          "kind": "source-map",
+          "sha256": "d2305662778856babafe1db6c78e75511d692f20fafeb89b152a20383450c0d1",
+          "bytes": 21083
+        },
+        {
+          "kind": "syntax",
+          "sha256": "2830832bcd37b710f7dadde03cb5835d0b4385b7a7cee20fd0dd65376239958a",
+          "bytes": 88146
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "head addresses require a shared finite user-resource head or a supported Store element; byte-storage and other Package heads are not implemented",
+          "span": {
+            "file": 1,
+            "start": 23,
+            "end": 37
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "resource-value",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "ed141b2b783f602031bd43e126498fb886383ad3dd20392934b7a5886bdf89e8",
+          "bytes": 244
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d",
+          "bytes": 29
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "51fddd18e1e915457bef6dc97cca17da2becbc12b74e0b7fd1e1184b67618aae",
+          "bytes": 40
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "core",
+          "sha256": "36bdb1a22236285d3c04b4dc217556faf28daa66953a6a5706dc45ec987cb3bc",
+          "bytes": 39877
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "36bdb1a22236285d3c04b4dc217556faf28daa66953a6a5706dc45ec987cb3bc",
+          "bytes": 39877
+        },
+        {
+          "kind": "source-map",
+          "sha256": "42d733494c48c73f10e72bccad86b7b6a8ada71453e47ada967292cb6a5728de",
+          "bytes": 21083
+        },
+        {
+          "kind": "syntax",
+          "sha256": "5f1bfdd7718479443deaa528759c719712807c0aa4b1ea0834b60ef3ba5732bb",
+          "bytes": 86323
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "resource trait implementations in this slice require shared &Self receivers",
+          "span": {
+            "file": 2,
+            "start": 130,
+            "end": 176
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait implementation resolution",
+          "span": {
+            "file": 2,
+            "start": 130,
+            "end": 176
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "result-mismatch",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "5c74accada5fe166875a4a8591eb016f2bd1fa19f25e2226af9b5adcf7453340",
+          "bytes": 84
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d",
+          "bytes": 29
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "27125a6230de6911570cb9e804ae462cdedaf3e31d1ffc10fb522692e42ed6e4",
+          "bytes": 37531
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-SIGNATURE",
+          "message": "implementation receiver, parameters, passing modes and return type must match the declared signature",
+          "span": {
+            "file": 2,
+            "start": 66,
+            "end": 83
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "same-spelling-wrong-trait",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "f95ec8c38556125d7e6676afb42f38d957c21c7d1dc43c64a4b12fa8b1480a1a",
+          "bytes": 144
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "d654baebb13c4fe0ffbcf9f2fbf3c92748219ba3bf8f1b729925fa267d1505c3",
+          "bytes": 132
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "ea6f91d6ab09847c2301321e2cb969ae905b5ecc5d3030ca05a075084f721dd2",
+          "bytes": 94488
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "type $module2_Payload does not satisfy nominal trait bound $module1_Code",
+          "span": {
+            "file": 0,
+            "start": 120,
+            "end": 128
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "two-implementations-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18",
+          "bytes": 129
+        },
+        {
+          "filename": "helpers.zil",
+          "sha256": "d72757cfc02db66e36adb41c76a116ef3e363b63acc615677d77470b29cd132b",
+          "bytes": 68
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "7faed248c11f3bd349e327637d56f33a1b557c55a3e8227e563d6ff370f4dd14",
+          "bytes": 153
+        },
+        {
+          "filename": "other.zil",
+          "sha256": "588386b37633e495c132a891ae9a0b19478c4f16574953ff6c23d7ada93147ce",
+          "bytes": 131
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440",
+          "bytes": 91
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "542c8b1c57e3bc91202690bf9d038bd2b73a3bd2957f9e005b6a2c853c4a2ec0",
+          "bytes": 13025
+        },
+        {
+          "kind": "core",
+          "sha256": "858ab2ff8915e835a857537068176edc889f2182c097293c8d72c8e85ba83bba",
+          "bytes": 80423
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "858ab2ff8915e835a857537068176edc889f2182c097293c8d72c8e85ba83bba",
+          "bytes": 80423
+        },
+        {
+          "kind": "executable",
+          "sha256": "cd46927518601bb0a48cac32ca15305988aed7a73c48d820517aa3545a25a0ee",
+          "bytes": 16080
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "87ecb5b0b061e4b4b884e2ba0be859974e592d3f6c977f5a4bab499f863683ed",
+          "bytes": 13280
+        },
+        {
+          "kind": "lir",
+          "sha256": "f900b7d19a8cce814bcb526985149fb258e23752c5b5bfb02883255f112625be",
+          "bytes": 83458
+        },
+        {
+          "kind": "llvm",
+          "sha256": "9ae8e3a7a06d7057c750e93e809881119baae5b1d205c4cffd6b5f339c6db369",
+          "bytes": 4165
+        },
+        {
+          "kind": "source-map",
+          "sha256": "029a4681bd4a8abfde43d32084f68f3b34feb504b52a978c5c142013fae93ced",
+          "bytes": 43125
+        },
+        {
+          "kind": "syntax",
+          "sha256": "1594cb18d79ad4f75574edec58fc95b9b04b060aebc39927a313be8dff4b05cc",
+          "bytes": 174036
+        },
+        {
+          "kind": "typed",
+          "sha256": "9be8f97eeec73fc74bce238d9899e7e5f59a6de787cb9a52c415da2b2a5ea846",
+          "bytes": 82618
+        },
+        {
+          "kind": "verified",
+          "sha256": "125d56f2a9838654ca6eb6bae585880ab3a0267bc79ddb5c9c34f3b08b746648",
+          "bytes": 82695
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "c0cbad7e82822c9c488a1cf39748b7d6134ccc77f51a5e1bf6947b98e71be1b3",
+          "bytes": 18928
+        }
+      ],
+      "diagnostics": [],
+      "backend": "clang",
+      "fallback": null,
+      "runtime_assertions": {
+        "exit_code_equals_zero": "passed Rust assertion before stdout/stderr were persisted",
+        "stdout_utf8": "",
+        "stderr_empty": true
+      }
+    },
+    {
+      "case": "two-implementations-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "66802cf58d598ba499215abd108639bce5f98a51610bf9835eb4385ffc12bb18",
+          "bytes": 129
+        },
+        {
+          "filename": "helpers.zil",
+          "sha256": "d72757cfc02db66e36adb41c76a116ef3e363b63acc615677d77470b29cd132b",
+          "bytes": 68
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "7faed248c11f3bd349e327637d56f33a1b557c55a3e8227e563d6ff370f4dd14",
+          "bytes": 153
+        },
+        {
+          "filename": "other.zil",
+          "sha256": "588386b37633e495c132a891ae9a0b19478c4f16574953ff6c23d7ada93147ce",
+          "bytes": 131
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "bfabc6444ac5cee73eace047510b3edf1e223568d5ebb5fb6b18f2944537c440",
+          "bytes": 91
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "candidate",
+          "sha256": "542c8b1c57e3bc91202690bf9d038bd2b73a3bd2957f9e005b6a2c853c4a2ec0",
+          "bytes": 13025
+        },
+        {
+          "kind": "core",
+          "sha256": "858ab2ff8915e835a857537068176edc889f2182c097293c8d72c8e85ba83bba",
+          "bytes": 80423
+        },
+        {
+          "kind": "ct-core",
+          "sha256": "858ab2ff8915e835a857537068176edc889f2182c097293c8d72c8e85ba83bba",
+          "bytes": 80423
+        },
+        {
+          "kind": "executable",
+          "sha256": "55180abe445abbb512f79767881f165ec3db06dc7ac6214e9dbfc149428976fa",
+          "bytes": 16080
+        },
+        {
+          "kind": "interfaces",
+          "sha256": "87ecb5b0b061e4b4b884e2ba0be859974e592d3f6c977f5a4bab499f863683ed",
+          "bytes": 13280
+        },
+        {
+          "kind": "lir",
+          "sha256": "f900b7d19a8cce814bcb526985149fb258e23752c5b5bfb02883255f112625be",
+          "bytes": 83458
+        },
+        {
+          "kind": "llvm",
+          "sha256": "9ae8e3a7a06d7057c750e93e809881119baae5b1d205c4cffd6b5f339c6db369",
+          "bytes": 4165
+        },
+        {
+          "kind": "source-map",
+          "sha256": "029a4681bd4a8abfde43d32084f68f3b34feb504b52a978c5c142013fae93ced",
+          "bytes": 43125
+        },
+        {
+          "kind": "syntax",
+          "sha256": "1594cb18d79ad4f75574edec58fc95b9b04b060aebc39927a313be8dff4b05cc",
+          "bytes": 174036
+        },
+        {
+          "kind": "typed",
+          "sha256": "9be8f97eeec73fc74bce238d9899e7e5f59a6de787cb9a52c415da2b2a5ea846",
+          "bytes": 82618
+        },
+        {
+          "kind": "verified",
+          "sha256": "125d56f2a9838654ca6eb6bae585880ab3a0267bc79ddb5c9c34f3b08b746648",
+          "bytes": 82695
+        },
+        {
+          "kind": "verified-interfaces",
+          "sha256": "c0cbad7e82822c9c488a1cf39748b7d6134ccc77f51a5e1bf6947b98e71be1b3",
+          "bytes": 18928
+        }
+      ],
+      "diagnostics": [],
+      "backend": "clang",
+      "fallback": null,
+      "runtime_assertions": {
+        "exit_code_equals_zero": "passed Rust assertion before stdout/stderr were persisted",
+        "stdout_utf8": "",
+        "stderr_empty": true
+      }
+    },
+    {
+      "case": "value-mismatch",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "sources": [
+        {
+          "filename": "data.zil",
+          "sha256": "91574ef46011751510dd2c54e0b4fff40acdf7a1554bbf0fccc1d22c2bb5f289",
+          "bytes": 94
+        },
+        {
+          "filename": "main.zil",
+          "sha256": "1d48449b70fac87769ec186370fbd94102fdf876c7ebdd76d7725a6d413a364d",
+          "bytes": 29
+        },
+        {
+          "filename": "rules.zil",
+          "sha256": "cf79ee1281d10b2fadc4cba0d997483e7793ff9ec5ae4880680773ec37106011",
+          "bytes": 41
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "syntax",
+          "sha256": "86bb9432215bd2793d722e7d116a52e6c7879dd1a197ff4467d81fcf5b88f466",
+          "bytes": 40329
+        }
+      ],
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-SIGNATURE",
+          "message": "implementation receiver, parameters, passing modes and return type must match the declared signature",
+          "span": {
+            "file": 2,
+            "start": 66,
+            "end": 93
+          },
+          "notes": []
+        }
+      ]
+    }
+  ]
+}

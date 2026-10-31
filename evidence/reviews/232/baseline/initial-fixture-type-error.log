@@ -1,0 +1,27 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-verify)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-llvm-api)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-syntax)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-ct)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/994319f2ba02/zil-review11/crates/zil-driver)
+error[E0164]: expected tuple struct or tuple variant, found struct variant `Type::Address`
+   --> crates/zil-driver/tests/review232_independent.rs:137:51
+    |
+137 |         matches!(&module.closures[0].captures[0], Type::Address(inner) if matches!(inner.as_ref(), Type::Package {..}))
+    |                                                   ^^^^^^^^^^^^^^^^^^^^ not a tuple struct or tuple variant
+    |
+help: add the names to match a struct variant's fields
+    |
+137 -         matches!(&module.closures[0].captures[0], Type::Address(inner) if matches!(inner.as_ref(), Type::Package {..}))
+137 +         matches!(&module.closures[0].captures[0], Type::Address { mutable: inner, inner: _ } if matches!(inner.as_ref(), Type::Package {..}))
+    |
+
+For more information about this error, try `rustc --explain E0164`.
+error: could not compile `zil-driver` (test "review232_independent") due to 1 previous error
