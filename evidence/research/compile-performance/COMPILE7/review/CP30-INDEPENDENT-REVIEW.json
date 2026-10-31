@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "reviewer": "/root/cp25_evidence",
+  "implementation_author": "/root/incremental_research",
+  "implementation_commit": "1b86175c8728834c20d1bb18ce13a329764e315f",
+  "verdict": "Pass",
+  "scope": "CP30 public Database API correctness and active traversal preservation; not performance or complete workspace/product acceptance",
+  "created_at": "2026-10-31T00:43:52.670233+00:00",
+  "working_tree_clean": true,
+  "production_changed_files": [
+    "crates/zil-db/src/lib.rs"
+  ],
+  "active_dfs_byte_equal_to_parent": true,
+  "source_files": [
+    {
+      "path": "crates/zil-db/src/lib.rs",
+      "sha256": "ac3571f01affa1a46c6c4494c2cd32e89520aab96664dc2ef3942c9d4762c0c6"
+    },
+    {
+      "path": "crates/zil-db/tests/cp30_published_read.rs",
+      "sha256": "8cf53854e1eba1bd98f733b12b80fa7df873b3aab80137e057a2dc3ba3a01b13"
+    },
+    {
+      "path": "crates/zil-db/src/tests.rs",
+      "sha256": "4dbb8006dc7decb62c0686b653849ba3f24e18cfe01cb76db38b32da3a95a510"
+    }
+  ],
+  "verification": {
+    "argv": [
+      "cargo",
+      "test",
+      "-p",
+      "zil-db",
+      "--offline"
+    ],
+    "environment_overrides": {
+      "CARGO_TARGET_DIR": "/workspace/scratch/c3607737969d/review/cp30-target",
+      "CARGO_PROFILE_DEV_DEBUG": "0",
+      "CARGO_PROFILE_TEST_DEBUG": "0",
+      "CARGO_INCREMENTAL": "0",
+      "rust_bin": "/workspace/scratch/4ab361722127/.toolchain/rust/bin",
+      "llvm_bin": "/workspace/scratch/4ab361722127/.toolchain/llvm/bin"
+    },
+    "exit_code": 0,
+    "unit_tests": {
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    "integration_tests": {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    "doc_tests": 0,
+    "retained_stdout_tail": "CP30-INDEPENDENT-TEST-TAIL.log",
+    "note": "Author and reviewer independently run the same 13 named tests; do not sum as 26 distinct tests."
+  },
+  "invariants_reviewed": [
+    "Only publish inserts into private snapshot map; it checks deps while key remains active",
+    "publish invalidation removes every direct and transitive stale consumer before replacement",
+    "invalidate only removes; clear removes all snapshots and active records",
+    "Published Arc results cannot be mutated in place through public API",
+    "active nonempty retains byte-identical original full-closure DFS/error ordering"
+  ],
+  "coverage": [
+    "Existing 9600 four-node DAG invalidation/replacement combinations with five fingerprint facets and duplicate edges",
+    "New 64 DAG by 16 active-subset matrix reachability oracle",
+    "Unrelated active, missing active, abort, clear, exported Arc isolation",
+    "Failed publication, stale input, cancellation and InfraError cannot introduce forward edges or replace old snapshot"
+  ],
+  "remaining": [
+    "No full-cost performance verdict",
+    "No new compiler semantic incrementality implemented by this change"
+  ]
+}

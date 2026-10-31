@@ -1,0 +1,39 @@
+{
+  "implementation_commit": "a0f38d2bca8f01fc19ff1f2fa0a42c3983c223b8",
+  "compile_argv": [
+    "/workspace/scratch/4ab361722127/.toolchain/rust/bin/rustc",
+    "--edition=2024",
+    "--test",
+    "/workspace/scratch/c3607737969d/review/cp29_independent_consumer.rs",
+    "-L",
+    "dependency=/workspace/scratch/c3607737969d/target-cp29/debug/deps",
+    "-o",
+    "/workspace/scratch/c3607737969d/review/cp29_independent_consumer",
+    "--extern",
+    "zil_base=/workspace/scratch/c3607737969d/target-cp29/debug/deps/libzil_base-a5cb5dbca91c1029.rlib",
+    "--extern",
+    "zil_ir=/workspace/scratch/c3607737969d/target-cp29/debug/deps/libzil_ir-b9f5982dc757d842.rlib",
+    "--extern",
+    "zil_syntax=/workspace/scratch/c3607737969d/target-cp29/debug/deps/libzil_syntax-85e178f3f1cb215e.rlib",
+    "--extern",
+    "zil_expand=/workspace/scratch/c3607737969d/target-cp29/debug/deps/libzil_expand-dd2700c7a1d08ec9.rlib",
+    "--extern",
+    "zil_types=/workspace/scratch/c3607737969d/target-cp29/debug/deps/libzil_types-5cf87fbec5b9f0fc.rlib"
+  ],
+  "build_exit": 0,
+  "source_sha256": "c5f36273f41bc4056df8d45ebadf35641b80b14dedb9bc3ae2c0e2ca4d7bad61",
+  "linked_rlib_sha256": {
+    "/workspace/scratch/c3607737969d/target-cp29/debug/deps/libzil_base-a5cb5dbca91c1029.rlib": "83f3c0ef89947e252399f2ee414e43cbb332134f2539afda1509d06d624b0f3f",
+    "/workspace/scratch/c3607737969d/target-cp29/debug/deps/libzil_ir-b9f5982dc757d842.rlib": "0e813fb0be1c1128ee31e5a63d2cf5c5f913bb58fdc286275b9d9b7157213862",
+    "/workspace/scratch/c3607737969d/target-cp29/debug/deps/libzil_syntax-85e178f3f1cb215e.rlib": "e3e70a3c8eacb82ef96c230ebe561fdf8a731b27079fab181c56875c01363a5d",
+    "/workspace/scratch/c3607737969d/target-cp29/debug/deps/libzil_expand-dd2700c7a1d08ec9.rlib": "03f265fe05730ce9e5b4b1e668b718f10dd3bf338a968279d8ec393b77123f57",
+    "/workspace/scratch/c3607737969d/target-cp29/debug/deps/libzil_types-5cf87fbec5b9f0fc.rlib": "88e0029b3f7dd948401a620bd6121c126eb8f5eda3d6210bf9af93ae166380c7"
+  },
+  "test_argv": [
+    "/workspace/scratch/c3607737969d/review/cp29_independent_consumer",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "test_exit": 0,
+  "binary_sha256": "303088146c8fcee94db4208fdf014a8aa741df872033665acc9e35d8bd04ff33"
+}

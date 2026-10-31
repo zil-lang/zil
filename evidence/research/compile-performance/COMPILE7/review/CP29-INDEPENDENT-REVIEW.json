@@ -1,0 +1,73 @@
+{
+  "reviewer": "cp25_evidence",
+  "implementation_author": "frontend_incremental",
+  "implementation_commit": "a0f38d2bca8f01fc19ff1f2fa0a42c3983c223b8",
+  "verdict": "Pass",
+  "scope": "Bounded scalar module-builder memo correctness; performance adoption pending complete-cost evidence",
+  "at_utc": "2026-10-31T01:00:50.823953+00:00",
+  "source_sha256": {
+    "crates/zil-driver/src/lib.rs": "ac28c860a17526a5bb0c4c324f420c3353eac0686d61ffaa072ebe759119b5d9",
+    "crates/zil-driver/src/project.rs": "fd1e26a96fe7f4a1c80bcc2c6183d4cb54a6baa58f570a1777ece01faa19da69",
+    "crates/zil-driver/src/session.rs": "4f4e531a76f960d0fa13c03be7da2f4431b7ca00f409a679f0b25f8fda6593a3",
+    "crates/zil-driver/tests/cp29_types_memo.rs": "92459c5d6d3177cbe863c694589e35df3cb2a88307da4f0c0920e3ba14b167c9",
+    "crates/zil-types/PROGRAM-MEMO.md": "bbe3f1ab0da71371bbba06bd1af3eb14c602dc763fe3c9b15005af05b66cd0ae",
+    "crates/zil-types/src/closures.rs": "d5fae594b662e09b13810af359447fc5651bd2889a41a417a6c8707c2292da15",
+    "crates/zil-types/src/lib.rs": "0aeed36c1712fb1e70d29b53833148010e61e67a64eee1f6e538a0e6c632f4e0",
+    "crates/zil-types/src/program.rs": "2722f4578b245f95c3992dafe590ef957895dca84b62707366c6283fd3961991",
+    "crates/zil-types/src/program_memo.rs": "f6d80c9a13b31b479c10f017a5b60b9f3164649c9d3ca27c44e7b3a2fbb59629"
+  },
+  "clean_checkout": true,
+  "write_set_extension": "root explicitly authorized one line in crates/zil-driver/src/lib.rs to disable memo for one-shot compile_path",
+  "author_control_reexecution": {
+    "command": "CARGO_TARGET_DIR=/workspace/scratch/c3607737969d/target-cp29 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 cargo test -p zil-driver --test cp29_types_memo --offline",
+    "environment_script": "/workspace/scratch/c3607737969d/recovery/env.sh",
+    "exact_commit_types_and_driver_recompiled": true,
+    "run": 12,
+    "passed": 12,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "exit": 0
+  },
+  "independent_consumer": {
+    "run": 3,
+    "passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "exit": 0,
+    "source": "cp29_independent_consumer.rs",
+    "execution_receipt": "CP29-INDEPENDENT-CONSUMER-EXECUTION.json",
+    "linked_libraries": "Dependencies rebuilt during independent exact-commit cargo invocation; external consumer separately linked with rustc",
+    "controls": [
+      "12 adjacent mixed scalar/foreign epochs equal cold full TypedProgram",
+      "4 quota dimensions require changed prefix success and first error in unchanged FileId(1), cold/warm full diagnostics equal",
+      "3 semantic rejection variants preserve earlier successful epoch"
+    ]
+  },
+  "semantic_findings": [
+    "Module-level reuse of ordinary scalar builders only; modified module fully rechecked",
+    "Exact complete declarations, signatures, foreign contracts, imports, target, limits, source body/IDs/spans identity",
+    "Private opaque raw memo; no verifier or decoder authority",
+    "All six shared budget balances prechecked before replay; insufficient allowance falls back without debit",
+    "Fresh requested later stages and artifacts precede epoch publication; failure/cancellation retain previous epoch",
+    "Foreign/unsafe scalar modules always run live builders; unsupported forms disable optimization",
+    "Explicit clear resets query and memo; automatic query eviction retains separately bounded memo",
+    "One-shot compile_path/compile_project disable memo"
+  ],
+  "limitations": [
+    "No performance adoption claim",
+    "No native execution of compiled candidate programs by this reviewer",
+    "No full workspace/product gates or whole-language acceptance",
+    "64 MiB bound is structural accounting, not measured RSS; no capacity-limit stress test",
+    "Historical snapshot-only handoff failure not waived"
+  ],
+  "artifact_sha256": {
+    "CP29-INDEPENDENT-REVIEW.md": "2f17bc607d1925c30a957b792a5246e44065aa896c1f67a1dab098673e8f7045",
+    "CP29-INDEPENDENT-AUTHOR-CONTROLS.log": "b9fc40753d040500bce5f1e2c19659c4fad5eb5232862a862d48b74243002aa4",
+    "cp29_independent_consumer.rs": "c5f36273f41bc4056df8d45ebadf35641b80b14dedb9bc3ae2c0e2ca4d7bad61",
+    "CP29-INDEPENDENT-CONSUMER-EXECUTION.json": "1358b5abfdb2308f82e7bf37cd00ff573efe3185bea4a28981d2ebf224c6a28d",
+    "CP29-INDEPENDENT-CONSUMER-BUILD.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "CP29-INDEPENDENT-CONSUMER-TEST.log": "dfbf32de6d65df75bb539a56c09775b9578773dbc2d590a6ef113809402dd2ff"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "source": "/tmp/zil-llvm23-round2",
+  "archive": "/tmp/zil-llvm23-round2-preserved.tar.xz",
+  "files": 53831,
+  "uncompressed_bytes": 497549258,
+  "compressed_bytes": 38468748,
+  "sha256": "1fae6b57dc4a9989c79643528826a6ea5180538bb6fc5cb5e6c8191c5152bfc5",
+  "verification": "every archived regular file compared to original sha256 before removing the redundant uncompressed scratch directory",
+  "restore": "tar -xJf /tmp/zil-llvm23-round2-preserved.tar.xz -C /tmp",
+  "seconds": 39.60731911659241
+}

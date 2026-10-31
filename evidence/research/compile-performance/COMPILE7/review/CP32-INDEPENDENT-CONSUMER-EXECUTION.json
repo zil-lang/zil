@@ -1,0 +1,46 @@
+{
+  "reviewer": "cp25_evidence",
+  "source_commit": "3ba131efdeffe85ba5fccd1c177745d812a6ce61",
+  "scope": "Correctness only, three prior independent controls plus two new production-cap transition controls",
+  "compile_argv": [
+    "rustc",
+    "--edition=2024",
+    "--test",
+    "/workspace/scratch/c3607737969d/review/cp32_independent_consumer.rs",
+    "-L",
+    "dependency=/workspace/scratch/c3607737969d/target-cp32/debug/deps",
+    "-o",
+    "/workspace/scratch/c3607737969d/review/cp32_independent_consumer",
+    "--extern",
+    "zil_base=/workspace/scratch/c3607737969d/target-cp32/debug/deps/libzil_base-a5cb5dbca91c1029.rlib",
+    "--extern",
+    "zil_ir=/workspace/scratch/c3607737969d/target-cp32/debug/deps/libzil_ir-b9f5982dc757d842.rlib",
+    "--extern",
+    "zil_syntax=/workspace/scratch/c3607737969d/target-cp32/debug/deps/libzil_syntax-85e178f3f1cb215e.rlib",
+    "--extern",
+    "zil_expand=/workspace/scratch/c3607737969d/target-cp32/debug/deps/libzil_expand-dd2700c7a1d08ec9.rlib",
+    "--extern",
+    "zil_types=/workspace/scratch/c3607737969d/target-cp32/debug/deps/libzil_types-5cf87fbec5b9f0fc.rlib"
+  ],
+  "rlib_sha256": {
+    "/workspace/scratch/c3607737969d/target-cp32/debug/deps/libzil_base-a5cb5dbca91c1029.rlib": "21cb6a25d92f3104bd5c05acfaeb805c1ff6652ef244c888425ad0206368e483",
+    "/workspace/scratch/c3607737969d/target-cp32/debug/deps/libzil_ir-b9f5982dc757d842.rlib": "afe4553aea1d11ca25e363b8d2f2dcb4748f7e10ca5713e23c6c8a3190803058",
+    "/workspace/scratch/c3607737969d/target-cp32/debug/deps/libzil_syntax-85e178f3f1cb215e.rlib": "d36286df488d9996490e4a535500962ce958ea390b3c22ae86b4efa0b2265657",
+    "/workspace/scratch/c3607737969d/target-cp32/debug/deps/libzil_expand-dd2700c7a1d08ec9.rlib": "c1b80040d5acd27002b9163165eb2b62827aed439ee2cf6a1ec6e243df4c0aa4",
+    "/workspace/scratch/c3607737969d/target-cp32/debug/deps/libzil_types-5cf87fbec5b9f0fc.rlib": "006ef8433942292d10adec45e647c54294f22db77167a980e0108457d0827dd4"
+  },
+  "source_sha256": {
+    "/workspace/scratch/c3607737969d/review/cp32_independent_consumer.rs": "b45ba8ea5fc94ef590f202c5cf4e8e8805e78543e26ec1f4f54fcc5a8b46da61",
+    "/workspace/scratch/c3607737969d/review/cp29_independent_consumer.rs": "c5f36273f41bc4056df8d45ebadf35641b80b14dedb9bc3ae2c0e2ca4d7bad61"
+  },
+  "build_exit": 0,
+  "build_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "test_argv": [
+    "/workspace/scratch/c3607737969d/review/cp32_independent_consumer",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "test_exit": 0,
+  "test_log_sha256": "121e40e475f218ad4ac8295f1a90b11ccdab3ca5c96d4806437d708d3dd55ca0",
+  "binary_sha256": "fad236f66d4cb2f0b34d124ca529530553a49e7b3c4e806fe0d0df73dbc032ab"
+}

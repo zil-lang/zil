@@ -1,0 +1,16 @@
+{
+  "source_commit_at_build": "6905ef3c2c3de99a9728824ee288c5ec8f5a266c",
+  "source_crates_tree": "a7ae8da1862a69cf673b8db50431b4991cb0d1c5",
+  "baseline_crates_tree": "a7ae8da1862a69cf673b8db50431b4991cb0d1c5",
+  "baseline_commit": "ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8",
+  "command": "source recovery/env.sh; CARGO_TARGET_DIR=/workspace/scratch/c3607737969d/build-baseline cargo build --manifest-path zil/Cargo.toml -p zil-cli --release --offline",
+  "build_log_sha256": "6135b087a130479773615454b62cf884f12e87dfe5d1428e93c5131cbf260c03",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/4ab361722127/.toolchain/llvm/bin\n",
+  "llvm_library_sha256": "882e5f026688e2fe19af43b372b3c670b05e1471f1fb7c12b7007c5d0fc0f1d8",
+  "compiler": {
+    "path": "/workspace/scratch/c3607737969d/build-baseline/release/zil",
+    "sha256": "10b0813cb4430105ce9d75ee6f09b6c22f400bf126b6dd1045cc777798a934a4"
+  },
+  "scope": "Compiler host rebuild receipt, not ZIL program compilation performance"
+}

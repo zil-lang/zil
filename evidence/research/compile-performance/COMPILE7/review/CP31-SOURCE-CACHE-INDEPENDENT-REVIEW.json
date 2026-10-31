@@ -1,0 +1,59 @@
+{
+  "reviewer": "cp25_evidence",
+  "implementation_author": "root",
+  "implementation_commit": "f95297b7a30c70b6e7387373e0978c02ce644e99",
+  "verdict": "Pass",
+  "scope": "Source-candidate configuration wrapper and evidence guards only; synthetic controls, no performance claim",
+  "at_utc": "2026-10-31T00:53:41.912153+00:00",
+  "source_sha256": {
+    "tools/research/compile-performance/compile7_source_cache.py": "da5b8b8cc3cfda52b427a9182e6090471579aecf25d52b0c8ca35ccc14b177e6",
+    "tools/research/compile-performance/compile7_source_cache_test.py": "8a244f98572626bd2fe7c15d265d8dd52e1a1a326dcd0a1bc28ba05808c8366c",
+    "tools/research/compile-performance/bench.py": "10a7cd80819589dfceacdc2a885e71e84c723b8c8cdf66c48682934e96308ace",
+    "tools/research/compile-performance/rust_bench.py": "4aafc427a4b4752a59362e17c2c5e6e6e514de335b9554a665aa313b951da116",
+    "tools/research/compile-performance/runtime_bench.py": "95b90e7929b87c4a8c5111aefaf956a40c0ac0e85466191298f4747bb7626855"
+  },
+  "command": "python3 /workspace/scratch/c3607737969d/review/cp31_source_cache_controls.py",
+  "python": "3.12.14",
+  "tests": {
+    "run": 59,
+    "passed": 59,
+    "failed": 0,
+    "skipped": 0,
+    "author_controls": 4,
+    "wrapped_zil_controls": 24,
+    "wrapped_rust_controls": 27,
+    "independent_extension_controls": 4,
+    "exit": 0
+  },
+  "initial_run": {
+    "run": 59,
+    "passed": 58,
+    "failed": 1,
+    "reason": "Inherited Rust control expected source cache on; independent harness expectation corrected for explicit B=off, original files unchanged",
+    "log": "CP31-SOURCE-CACHE-INDEPENDENT-TEST.log"
+  },
+  "adaptations": [
+    "Historical v2 schema test expects earlier extension guard rejection",
+    "Historical incremental Rust test expects source cache pair absent for explicitly disabled ZIL B"
+  ],
+  "retained_guards": [
+    "Verify report recheck",
+    "Native output compared to frozen oracle even after resealing digest",
+    "Complete matrix and paired ordering",
+    "Frozen full plan hash and replayed command argv",
+    "Raw logs, source snapshots, output/tool/linker/helper identity",
+    "Preflight/completion receipts and failure/no-score behavior"
+  ],
+  "limitations": [
+    "Synthetic records and mocked compiler/native invocations are runner controls only",
+    "No compiler implementation or configuration performance measurement",
+    "No whole-language acceptance or product gates",
+    "Snapshot-only historical handoff remains Fail"
+  ],
+  "artifact_sha256": {
+    "cp31_source_cache_controls.py": "2fc375c6309f819b630f8c8e5bbab11ca78ed10dc10fa9016e5b7864337ea029",
+    "CP31-SOURCE-CACHE-INDEPENDENT-REVIEW.md": "de69a7f8987cfe85b6f34f7238829f922b80a9f99c30703cced6dccd98f3fa5b",
+    "CP31-SOURCE-CACHE-INDEPENDENT-TEST.log": "40de821457f30aa95990b48c42e1cd7c78d7e32a3e9efc0f8ce0f8ebb3d041c9",
+    "CP31-SOURCE-CACHE-INDEPENDENT-TEST-R2.log": "49c0bc108b2fc1ad4185442315d4a75c98cc1922fd0c304f43d3091ab74cb6bb"
+  }
+}

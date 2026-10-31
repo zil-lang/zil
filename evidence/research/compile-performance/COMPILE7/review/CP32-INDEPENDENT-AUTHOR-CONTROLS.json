@@ -1,0 +1,60 @@
+{
+  "reviewer": "cp25_evidence",
+  "verdict": "Pass",
+  "scope": "Frozen author control suite independently rerun; correctness only, not performance",
+  "source_commit": "3ba131efdeffe85ba5fccd1c177745d812a6ce61",
+  "commands": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "zil-types",
+        "--lib",
+        "cp32",
+        "--",
+        "--test-threads=1"
+      ],
+      "cwd": "/workspace/scratch/c3607737969d/zil-cp32",
+      "source_commit": "3ba131efdeffe85ba5fccd1c177745d812a6ce61",
+      "returncode": 0,
+      "elapsed_control_seconds": 0.04805707931518555,
+      "log": "/workspace/scratch/c3607737969d/review/CP32-INDEPENDENT-AUTHOR-TYPES.log",
+      "sha256": "07f5a0ce42903e59605e83bc118137dfa90c4c1bb1b86ff6717d559c109e40ed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "cp29_types_memo",
+        "--test",
+        "cp32_partial_types_memo",
+        "--",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/c3607737969d/zil-cp32",
+      "source_commit": "3ba131efdeffe85ba5fccd1c177745d812a6ce61",
+      "returncode": 0,
+      "elapsed_control_seconds": 3.225707530975342,
+      "log": "/workspace/scratch/c3607737969d/review/CP32-INDEPENDENT-AUTHOR-DRIVER.log",
+      "sha256": "b9530db394efc3dfa750aab3345bfaebe6b33f45525e11b00a401c81326d251f"
+    }
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/c3607737969d/target-cp32",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0"
+  },
+  "tests_passed": 17,
+  "failed": 0,
+  "ignored": 0,
+  "filtered_unrun_unit_tests": 18
+}

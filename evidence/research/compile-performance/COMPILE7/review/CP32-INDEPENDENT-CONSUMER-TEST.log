@@ -1,0 +1,16 @@
+
+running 5 tests
+test cp29_regression::intervening_semantic_rejection_cannot_poison_a_successful_epoch ... ok
+test cp29_regression::repeated_mixed_scalar_and_live_foreign_epochs_equal_cold ... ok
+test cp29_regression::unchanged_later_builder_quota_failure_is_identical_in_four_dimensions ... quota dimension=0 cold_and_warm_first_error=Diagnostic { phase: Types, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "project block budget exceeded", span: Some(Span { file: FileId(1), start: 0, end: 87 }), notes: [] }
+quota dimension=1 cold_and_warm_first_error=Diagnostic { phase: Types, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "project instruction budget exceeded", span: Some(Span { file: FileId(1), start: 51, end: 64 }), notes: [] }
+quota dimension=2 cold_and_warm_first_error=Diagnostic { phase: Types, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "project local budget exceeded", span: Some(Span { file: FileId(1), start: 32, end: 40 }), notes: [] }
+quota dimension=3 cold_and_warm_first_error=Diagnostic { phase: Types, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "project value budget exceeded", span: Some(Span { file: FileId(1), start: 62, end: 63 }), notes: [] }
+ok
+test expanding_a_retained_module_evicts_then_reacquires_later_snapshots_without_stale_ids ... retention_transition initial=ProgramMemoStats { eligible: true, reused_functions: 0, checked_functions: 9217, retained_modules: 812, retained_weight: 67091363, source_modules_reused: 0, source_modules_checked: 1025, capacity_skipped_modules: 213, snapshot_cloned_functions: 7300 } expanded=ProgramMemoStats { eligible: true, reused_functions: 7299, checked_functions: 1918, retained_modules: 805, retained_weight: 67042244, source_modules_reused: 811, source_modules_checked: 214, capacity_skipped_modules: 220, snapshot_cloned_functions: 1 } restored=ProgramMemoStats { eligible: true, reused_functions: 7236, checked_functions: 1981, retained_modules: 812, retained_weight: 67091363, source_modules_reused: 804, source_modules_checked: 221, capacity_skipped_modules: 213, snapshot_cloned_functions: 64 }
+ok
+test omitted_module_visibility_and_late_semantic_error_remain_live_for_the_whole_environment ... omitted_module_live visibility_invalidation=ProgramMemoStats { eligible: true, reused_functions: 0, checked_functions: 9217, retained_modules: 812, retained_weight: 67091363, source_modules_reused: 0, source_modules_checked: 1025, capacity_skipped_modules: 213, snapshot_cloned_functions: 7300 } first_error=Diagnostic { phase: Types, category: SafeReject, code: "E-UNKNOWN-NAME", message: "unknown function absent_name", span: Some(Span { file: FileId(1024), start: 424, end: 435 }), notes: [] }
+ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.79s
+

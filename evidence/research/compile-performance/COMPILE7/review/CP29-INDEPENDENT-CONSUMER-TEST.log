@@ -1,0 +1,12 @@
+
+running 3 tests
+test intervening_semantic_rejection_cannot_poison_a_successful_epoch ... ok
+test repeated_mixed_scalar_and_live_foreign_epochs_equal_cold ... ok
+test unchanged_later_builder_quota_failure_is_identical_in_four_dimensions ... quota dimension=0 cold_and_warm_first_error=Diagnostic { phase: Types, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "project block budget exceeded", span: Some(Span { file: FileId(1), start: 0, end: 87 }), notes: [] }
+quota dimension=1 cold_and_warm_first_error=Diagnostic { phase: Types, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "project instruction budget exceeded", span: Some(Span { file: FileId(1), start: 51, end: 64 }), notes: [] }
+quota dimension=2 cold_and_warm_first_error=Diagnostic { phase: Types, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "project local budget exceeded", span: Some(Span { file: FileId(1), start: 32, end: 40 }), notes: [] }
+quota dimension=3 cold_and_warm_first_error=Diagnostic { phase: Types, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "project value budget exceeded", span: Some(Span { file: FileId(1), start: 62, end: 63 }), notes: [] }
+ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

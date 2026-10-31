@@ -1,0 +1,11 @@
+{
+  "at_utc": "2026-10-31T01:37:14.861506+00:00",
+  "archive": "/workspace/scratch/c3607737969d/zil/evidence/research/compile-performance/COMPILE7/initial-windows.tar.xz",
+  "archive_sha256": "78f01467bc59a27683a96b6b739f2c36e2735a8c0ebabdcaa3c8b918f2a59059",
+  "archive_size": 1056096,
+  "files": 12836,
+  "source_bytes": 70199899,
+  "every_archived_file_hash_verified": true,
+  "originals_retained": true,
+  "scope": "Full original config window, complete CP29 session, failed CP30 window and independent complete recovery; no discarded failed records"
+}

@@ -1,0 +1,8 @@
+{
+  "worktree": "/workspace/scratch/c3607737969d/zil-cp32",
+  "branch": "research/cp32-bounded-type-retention",
+  "base": "a0f38d2bca8f01fc19ff1f2fa0a42c3983c223b8",
+  "files": 3530,
+  "omitted": 84272,
+  "clean": true
+}

@@ -1,0 +1,279 @@
+{
+  "reviewer": "cp25_evidence",
+  "verdict": "Pass",
+  "scope": "Static review of build receipts, Cargo fingerprints, common harness bytes, and already frozen plans; no compiler/test/native execution",
+  "baseline": {
+    "declared_baseline_commit": "ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8",
+    "actual_build_checkout_commit": "6905ef3c2c3de99a9728824ee288c5ec8f5a266c",
+    "equal_crates_tree": "a7ae8da1862a69cf673b8db50431b4991cb0d1c5",
+    "harness_sha256": "24683943ee32f3fb4007450b0cf88d2acc7e7cfb3b6fdecf90493df7823d22cd"
+  },
+  "cp29_source_commit": "a0f38d2bca8f01fc19ff1f2fa0a42c3983c223b8",
+  "cp30_source_commit": "1b86175c8728834c20d1bb18ce13a329764e315f",
+  "common_harness_source_sha256": "3aaf249ad90b67029bacedc66523ce149c230099af27fdc22ed2a6074ee5a37f",
+  "same_source_copies": [
+    "/workspace/scratch/c3607737969d/zil/tools/research/compile-performance/compile7_session.rs",
+    "/workspace/scratch/c3607737969d/recovery/compile7_tools/compile7_session.rs",
+    "/workspace/scratch/c3607737969d/recovery/cp29-release-a0f38d2b/compile7_session.rs",
+    "/workspace/scratch/c3607737969d/recovery/session-harness-control-v3/frozen-sources/compile7_session.rs"
+  ],
+  "cargo_features_and_profiles": {
+    "baseline": {
+      "zil_driver": {
+        "features": [
+          "default",
+          "llvm-api"
+        ],
+        "profile_identity": 8124246371357089319,
+        "rustc_identity": 11835527281324007204,
+        "rustflags": [],
+        "compile_kind": 0
+      },
+      "zil_backend_llvm": {
+        "features": [
+          "default",
+          "llvm-api"
+        ],
+        "profile_identity": 8124246371357089319,
+        "rustc_identity": 11835527281324007204,
+        "rustflags": [],
+        "compile_kind": 0
+      },
+      "zil_llvm_api": {
+        "features": [
+          "default",
+          "native"
+        ],
+        "profile_identity": 9899447955806696376,
+        "rustc_identity": 11835527281324007204,
+        "rustflags": [],
+        "compile_kind": 0
+      }
+    },
+    "cp29": {
+      "zil_driver": {
+        "features": [
+          "default",
+          "llvm-api"
+        ],
+        "profile_identity": 8124246371357089319,
+        "rustc_identity": 11835527281324007204,
+        "rustflags": [],
+        "compile_kind": 0
+      },
+      "zil_backend_llvm": {
+        "features": [
+          "default",
+          "llvm-api"
+        ],
+        "profile_identity": 8124246371357089319,
+        "rustc_identity": 11835527281324007204,
+        "rustflags": [],
+        "compile_kind": 0
+      },
+      "zil_llvm_api": {
+        "features": [
+          "default",
+          "native"
+        ],
+        "profile_identity": 9899447955806696376,
+        "rustc_identity": 11835527281324007204,
+        "rustflags": [],
+        "compile_kind": 0
+      }
+    },
+    "cp30": {
+      "zil_driver": {
+        "features": [
+          "default",
+          "llvm-api"
+        ],
+        "profile_identity": 8124246371357089319,
+        "rustc_identity": 11835527281324007204,
+        "rustflags": [],
+        "compile_kind": 0
+      },
+      "zil_backend_llvm": {
+        "features": [
+          "default",
+          "llvm-api"
+        ],
+        "profile_identity": 8124246371357089319,
+        "rustc_identity": 11835527281324007204,
+        "rustflags": [],
+        "compile_kind": 0
+      },
+      "zil_llvm_api": {
+        "features": [
+          "default",
+          "native"
+        ],
+        "profile_identity": 9899447955806696376,
+        "rustc_identity": 11835527281324007204,
+        "rustflags": [],
+        "compile_kind": 0
+      }
+    }
+  },
+  "fingerprint_files_sha256": {
+    "/workspace/scratch/c3607737969d/build-baseline/release/.fingerprint/zil-driver-8b7b7327dd24ab30/lib-zil_driver.json": "b51cd0d54387e832c24edb275e4188afd02409e5d6cdf64fb8002beacf9d917b",
+    "/workspace/scratch/c3607737969d/build-baseline/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/lib-zil_backend_llvm.json": "871d3dbf815d31d12c7227bdc1401ee4d6180bf160ec4cd9527879b513421736",
+    "/workspace/scratch/c3607737969d/build-baseline/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/lib-zil_llvm_api.json": "932579491706fb46a1bf36e79fcd3ed4365582308f7e87b31afe200367d13a6b",
+    "/workspace/scratch/c3607737969d/target-cp29/release/.fingerprint/zil-driver-8b7b7327dd24ab30/lib-zil_driver.json": "b51cd0d54387e832c24edb275e4188afd02409e5d6cdf64fb8002beacf9d917b",
+    "/workspace/scratch/c3607737969d/target-cp29/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/lib-zil_backend_llvm.json": "871d3dbf815d31d12c7227bdc1401ee4d6180bf160ec4cd9527879b513421736",
+    "/workspace/scratch/c3607737969d/target-cp29/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/lib-zil_llvm_api.json": "932579491706fb46a1bf36e79fcd3ed4365582308f7e87b31afe200367d13a6b",
+    "/workspace/scratch/c3607737969d/build-cp30/release/.fingerprint/zil-driver-8b7b7327dd24ab30/lib-zil_driver.json": "b51cd0d54387e832c24edb275e4188afd02409e5d6cdf64fb8002beacf9d917b",
+    "/workspace/scratch/c3607737969d/build-cp30/release/.fingerprint/zil-backend-llvm-7807b9daafde6848/lib-zil_backend_llvm.json": "871d3dbf815d31d12c7227bdc1401ee4d6180bf160ec4cd9527879b513421736",
+    "/workspace/scratch/c3607737969d/build-cp30/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/lib-zil_llvm_api.json": "932579491706fb46a1bf36e79fcd3ed4365582308f7e87b31afe200367d13a6b"
+  },
+  "cp29_link_command": [
+    "rustc",
+    "--edition=2024",
+    "-O",
+    "-C",
+    "debuginfo=0",
+    "-C",
+    "panic=abort",
+    "-L",
+    "dependency=/workspace/scratch/c3607737969d/target-cp29/release/deps",
+    "-L",
+    "native=/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "--extern",
+    "zil_driver=/workspace/scratch/c3607737969d/target-cp29/release/deps/libzil_driver-8b7b7327dd24ab30.rlib",
+    "--extern",
+    "zil_base=/workspace/scratch/c3607737969d/target-cp29/release/deps/libzil_base-e7f463e530140758.rlib",
+    "--cfg",
+    "cp29",
+    "/workspace/scratch/c3607737969d/recovery/cp29-release-a0f38d2b/compile7_session.rs",
+    "-o",
+    "/workspace/scratch/c3607737969d/recovery/compile7_tools/session-cp29"
+  ],
+  "cp30_link_command": [
+    "rustc",
+    "--edition=2024",
+    "-O",
+    "-C",
+    "debuginfo=0",
+    "-C",
+    "panic=abort",
+    "-L",
+    "dependency=/workspace/scratch/c3607737969d/build-cp30/release/deps",
+    "-L",
+    "native=/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+    "--extern",
+    "zil_driver=/workspace/scratch/c3607737969d/build-cp30/release/libzil_driver.rlib",
+    "--extern",
+    "zil_base=/workspace/scratch/c3607737969d/build-cp30/release/deps/libzil_base-e7f463e530140758.rlib",
+    "/workspace/scratch/c3607737969d/zil/tools/research/compile-performance/compile7_session.rs",
+    "-o",
+    "/workspace/scratch/c3607737969d/recovery/compile7_tools/session-cp30"
+  ],
+  "cp30_top_rlib_is_same_file_as_frozen_dependency": true,
+  "cfg_boundary": "Only CP29 harness uses --cfg cp29. The conditional code prints optional memo counters after the timed compile_path call; compilation, sequence, validity and observable comparison paths are shared. Baseline and CP30 print null for this field. Whole-process metrics include this reporting cost.",
+  "llvm_library_sha256": "882e5f026688e2fe19af43b372b3c670b05e1471f1fb7c12b7007c5d0fc0f1d8",
+  "frozen_plans": {
+    "cp29": {
+      "path": "/workspace/scratch/c3607737969d/measurements/cp29-session/plan.json",
+      "sha256": "448b10cf93da597921ec762fe256cff1e1bfa621674f2a52b1f141d68ab9a85c",
+      "binaries": {
+        "A": {
+          "path": "/workspace/scratch/c3607737969d/recovery/compile7_tools/session-baseline-control",
+          "sha256": "24683943ee32f3fb4007450b0cf88d2acc7e7cfb3b6fdecf90493df7823d22cd",
+          "declared_source": "ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8"
+        },
+        "B": {
+          "path": "/workspace/scratch/c3607737969d/recovery/compile7_tools/session-cp29",
+          "sha256": "d5026d528ad4a3cc7f296581aff3d03ae25cf2e9fb079d1fb7847be4ce0da540",
+          "declared_source": "a0f38d2bca8f01fc19ff1f2fa0a42c3983c223b8"
+        }
+      },
+      "harness_sha256": "3aaf249ad90b67029bacedc66523ce149c230099af27fdc22ed2a6074ee5a37f"
+    },
+    "cp30": {
+      "path": "/workspace/scratch/c3607737969d/measurements/cp30-session/plan.json",
+      "sha256": "3deae1fce42b90b79598494e2ebf308c2ddd8ba51de005c90b14677345512825",
+      "binaries": {
+        "A": {
+          "path": "/workspace/scratch/c3607737969d/recovery/compile7_tools/session-baseline-control",
+          "sha256": "24683943ee32f3fb4007450b0cf88d2acc7e7cfb3b6fdecf90493df7823d22cd",
+          "declared_source": "ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8"
+        },
+        "B": {
+          "path": "/workspace/scratch/c3607737969d/recovery/compile7_tools/session-cp30",
+          "sha256": "acee7329118b57f67bb8c96ce008580c5274f34884a12d9880eb03ebb3730221",
+          "declared_source": "1b86175c8728834c20d1bb18ce13a329764e315f"
+        }
+      },
+      "harness_sha256": "3aaf249ad90b67029bacedc66523ce149c230099af27fdc22ed2a6074ee5a37f"
+    }
+  },
+  "limitations": [
+    "No rebuild/relink or binary execution by reviewer",
+    "Large binary/rlib digests are matched across prior build receipts and frozen plans here; live large-file rehash deferred until quiet performance windows end",
+    "Baseline harness link invocation was supplied retrospectively by its author; baseline compiler build receipt, matching Cargo feature/profile fingerprints and three original frozen harness plans support the binding. No contemporaneous standalone baseline harness link-command file was found."
+  ],
+  "receipt_sha256": {
+    "/workspace/scratch/c3607737969d/recovery/baseline-build.json": "72f3c5520673cb9544cc48febf03787c9578a238aebfd3ffb72137081754e15a",
+    "/workspace/scratch/c3607737969d/recovery/cp29-release-a0f38d2b/BUILD-RECEIPT.json": "de0459ac07920bc39485aed7034a48493f27d6a9b0a422dbd5ff40397fa11ee8",
+    "/workspace/scratch/c3607737969d/recovery/cp30-release-1b86175c/BUILD-RECEIPT.json": "1a1a5972df0f0b34f4f1ec859d449564779e50e47191d07c3c20c91eb62cf50c"
+  },
+  "post_window_followup": {
+    "at_utc": "2026-10-31T01:37:41.831750+00:00",
+    "reviewer_rebuilt_or_executed_harness": false,
+    "coordinator_reproduction_receipt": "/workspace/scratch/c3607737969d/recovery/baseline-harness-reproduction/RECEIPT.json",
+    "receipt_sha256": "068d118428f40433ab2931c480b8eaf1cc2d054314dafd389cc76819820a1fe5",
+    "command": [
+      "rustc",
+      "--edition=2024",
+      "-O",
+      "-C",
+      "debuginfo=0",
+      "-C",
+      "panic=abort",
+      "-L",
+      "dependency=/workspace/scratch/c3607737969d/build-baseline/release/deps",
+      "-L",
+      "native=/workspace/scratch/4ab361722127/.toolchain/llvm/lib",
+      "--extern",
+      "zil_driver=/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_driver-8b7b7327dd24ab30.rlib",
+      "--extern",
+      "zil_base=/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_base-e7f463e530140758.rlib",
+      "/workspace/scratch/c3607737969d/recovery/compile7_tools/compile7_session.rs",
+      "-o",
+      "/workspace/scratch/c3607737969d/recovery/baseline-harness-reproduction/session-baseline-reproduced"
+    ],
+    "root_link_returncode": 0,
+    "old_and_reproduced_harness_bytes_independently_compared": true,
+    "harness_sha256": "24683943ee32f3fb4007450b0cf88d2acc7e7cfb3b6fdecf90493df7823d22cd",
+    "all_13_baseline_rlibs_rehashed": true,
+    "rlibs": {
+      "/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_driver-8b7b7327dd24ab30.rlib": "86b97426ef1e539a2f11c38df4a830b3a9b29911f3e86177b95aff8219e8a2ae",
+      "/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_syntax-c507ec0227ccb0d3.rlib": "6af512afc1dde482388e3c209adf9b988867f050169a53cd1a120351adb7bae7",
+      "/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_expand-732b897022079d2d.rlib": "77a3a2c639740e0979979403404900c564ea41f23463fe45b854dadbf1a41ae5",
+      "/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_base-e7f463e530140758.rlib": "0dc6aac66b7ff0b4d67688ece160d859798d789442e7d963522293441014ac90",
+      "/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_lower-c82675f114eb8aef.rlib": "833f0d4b42bf552250b75b15900ab8187066a6a8d3c8d2db01c0c93dfc44c322",
+      "/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_analyze-470c3dfbc89d5c11.rlib": "818c7b34b8b280a7dfc802748129fb7e2ced3d79e2cab6d2defbb31d3d3fcd29",
+      "/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_ir-1b5d967475aa5e49.rlib": "9d14d756a83488ad11a02299ef343d55d54656e0ec9f883fbf60f7d4cf1e7a65",
+      "/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_verify-1f492929ef238afb.rlib": "0e255bed9f217d52a61075bbd3e1b70fa236e0ae63079a457637f0ea17d811f1",
+      "/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_db-23385aa85197b59a.rlib": "6396408f76487cc9c305cc4c8d459329c1426e08e6cd71428a8c71babfcb81dd",
+      "/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_types-0f2f4cb04f032d1a.rlib": "abd52c5171ed49a90e2b4ed4ff3456705a14d37c96a2e607b1cfb0bc051a954d",
+      "/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_llvm_api-50db4fbf35314d61.rlib": "6f7ca75ee6880f20dfd957240662ceb385dbfe0031e3142e5501cc0c776872e4",
+      "/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_backend_llvm-7807b9daafde6848.rlib": "4edbfaf83729d68cc459f0a9710ebec4bd4eafb88b61ab0866ab975eed9bf64b",
+      "/workspace/scratch/c3607737969d/build-baseline/release/deps/libzil_ct-37a69dd877a1d367.rlib": "10f4cc132448e35548c54975771830feec96c2509b3d9bfd5d63b03c18c1dabb"
+    },
+    "link_logs": {
+      "/workspace/scratch/c3607737969d/recovery/baseline-harness-reproduction/link.stdout": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "/workspace/scratch/c3607737969d/recovery/baseline-harness-reproduction/link.stderr": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "previously_deferred_large_artifact_hashes": "All CP29 artifacts/tools and CP30 rlibs/harness now independently rehashed against BUILD-RECEIPT; baseline compiler/harness and Cargo fingerprints also checked.",
+    "complete_recompute_receipt": "/workspace/scratch/c3607737969d/review/session-independent-recompute-r1/RESULT.json",
+    "complete_recompute_sha256": "353afdc6ab697acec0e83317fc9550ddaf9d85c027dde76ecb371d394a3779c4",
+    "historical_limit": "The contemporaneous standalone baseline link-command log is still absent. The later same-source/same-rlib/same-flag relink reproduces the exact measured binary, closing the source/flags binding uncertainty without rewriting history."
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "source_head": "ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8",
+  "available_main": "42ce8081a2aa5722a14fea53f23f819f46685a60",
+  "method": "independent sparse checkout with read-only object alternates",
+  "materialized_files": 3526,
+  "unmaterialized_files": 84272,
+  "unavailable_non_evidence": [],
+  "source_bytes_match_git_blobs": true,
+  "git_alternates": [
+    "/workspace/scratch/4ab361722127/zil/.git/objects",
+    "/workspace/scratch/fec853c597a1/zil/.git/objects",
+    "/workspace/scratch/d286b3aeeb6b/zil/.git/objects"
+  ]
+}

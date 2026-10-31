@@ -1,0 +1,43 @@
+{
+  "reviewer": "cp25_evidence",
+  "implementation_author": "incremental_research",
+  "implementation_commit": null,
+  "verdict": "NeedsChanges",
+  "at_utc": "2026-10-31T01:04:56.389063+00:00",
+  "scope": "Static audit of frozen v2 session harness source; no benchmark or new control execution",
+  "source_sha256": {
+    "compile7_session.py": "c99045e422ae2e61cc6d11d5f5b781fada267d426e3561a369c7e47a1e4d34a6",
+    "compile7_session.rs": "3aaf249ad90b67029bacedc66523ce149c230099af27fdc22ed2a6074ee5a37f"
+  },
+  "findings": [
+    {
+      "id": "CP31-S1",
+      "location": "compile7_session.py::inspect_output and run summary",
+      "issue": "No type, finiteness or nonnegative/positive validation for timing and RSS fields; malformed negative/NaN numbers can retain pass and enter ratios. Request snapshot labels are not checked against fixed sequence.",
+      "requested_fix": "Validate numerical fields and exact request/snapshot mapping before accepting a row."
+    },
+    {
+      "id": "CP31-S2",
+      "location": "compile7_session.py::run / consistent",
+      "issue": "Measurement observables are compared only within measured A/B rows, not to successful fresh-session control observables; common drift in both arms can retain pass.",
+      "requested_fix": "Compare each measurement observable_digest to the corresponding successful control key(case,capacity,request)."
+    },
+    {
+      "id": "CP31-S3",
+      "location": "compile7_session.py::run finalization",
+      "issue": "The tool computes scores from in-memory rows but only hashes rows.jsonl on disk; an altered disk row can be sealed without rechecking it equals the measured rows used in scoring.",
+      "requested_fix": "Reload raw rows, verify equality/shape/order/command against the in-memory execution records before retaining a successful result and scores."
+    }
+  ],
+  "retained_strengths": [
+    "Frozen runner/harness/binary/fixture/tool/environment/host identity checked before and after",
+    "Fresh-session control compares observable report, diagnostics and scalar interfaces",
+    "Control logs replay Verify counts, raw stderr, record ordering and commands",
+    "Separate initialization/edit-copy/request/process costs and explicit Verify-only scope"
+  ],
+  "limitations": [
+    "Source-hash binding only; files not yet committed",
+    "No independent TypedIR/native equivalence is supplied by this harness",
+    "No performance claim from static audit"
+  ]
+}

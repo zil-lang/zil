@@ -1,0 +1,109 @@
+{
+  "schema": 1,
+  "reviewer": "/root/cp25_evidence",
+  "scope": "Read-only CP25 status and mechanism audit; synchronous ZIT source-function rerun; no compiler performance measurement and no production implementation by reviewer",
+  "created_at": "2026-10-31T00:41:55.406693+00:00",
+  "source_head": "ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8",
+  "current_review_tree_head": "6905ef3c2c3de99a9728824ee288c5ec8f5a266c",
+  "cp25": {
+    "implementation": "NotImplemented",
+    "compiler_benchmark": "NotRun",
+    "production_adoption": "Hold",
+    "evidence": "docs/research/compile-performance/CP25-FEASIBILITY.md"
+  },
+  "other_candidate_measurements": [
+    {
+      "candidate": "CP22 / 485301e1",
+      "wall_ratio": 1.0205131985,
+      "cpu_ratio": 0.9917486312,
+      "adoption": "NoGo; late publication correctness finding also retained"
+    },
+    {
+      "candidate": "CP26 / CP22",
+      "wall_ratio": 0.993843,
+      "cpu_ratio": 1.020515,
+      "adoption": "No established full-cost benefit"
+    },
+    {
+      "candidate": "CP22+CP26+CP27 / 485301e1",
+      "wall_ratio": 1.0758383657698185,
+      "cpu_ratio": 1.0792596347920755,
+      "adoption": "NoGo"
+    },
+    {
+      "candidate": "CP28 standalone ownership repair",
+      "wall_ratio": null,
+      "cpu_ratio": null,
+      "benchmark": "NotRun",
+      "correctness": "Prior independent scoped review Pass; do not borrow CP27 performance"
+    }
+  ],
+  "source_files": [
+    {
+      "source_path": "/workspace/scratch/4ab361722127/zil/docs/research/compile-performance/CP25-FEASIBILITY.md",
+      "repository_path": "docs/research/compile-performance/CP25-FEASIBILITY.md",
+      "sha256": "e7c039941b85c94c65e722fe90f8a8b4cc097cbd14b4ba096c5600f80be0c7cf",
+      "size_bytes": 20629
+    },
+    {
+      "source_path": "/workspace/scratch/4ab361722127/zil/docs/research/compile-performance/COMPILE6-RESULT.md",
+      "repository_path": "docs/research/compile-performance/COMPILE6-RESULT.md",
+      "sha256": "553724c8dd1359f8a7287e6adf2e03546fefe2418b886a6da3cc117f4d0cf9f7",
+      "size_bytes": 18680
+    },
+    {
+      "source_path": "/workspace/scratch/4ab361722127/zil/evidence/research/compile-performance/COMPILE6/mechanisms/zit.ts",
+      "repository_path": "evidence/research/compile-performance/COMPILE6/mechanisms/zit.ts",
+      "sha256": "719a914356a24ac1edbeb1ffe6637d22311c9299e6be9ddbcdf3f7fdddf1474f",
+      "size_bytes": 39873
+    },
+    {
+      "source_path": "/workspace/scratch/4ab361722127/zil/evidence/research/compile-performance/COMPILE6/mechanisms/zit-mechanisms.mjs",
+      "repository_path": "evidence/research/compile-performance/COMPILE6/mechanisms/zit-mechanisms.mjs",
+      "sha256": "7546229a48282ccb8625177dae01cba87c262f75b7247f42c864d41b378b58fe",
+      "size_bytes": 5294
+    },
+    {
+      "source_path": "/workspace/scratch/4ab361722127/zil/crates/zil-driver/src/session.rs",
+      "repository_path": "crates/zil-driver/src/session.rs",
+      "sha256": "73697422cb96bb2bab68320c7e362b683742253785f97f144c8c2c28afe48a71",
+      "size_bytes": 32971
+    },
+    {
+      "source_path": "/workspace/scratch/4ab361722127/zil/crates/zil-driver/src/project.rs",
+      "repository_path": "crates/zil-driver/src/project.rs",
+      "sha256": "7e9650a7ad0c768419c567bc5c9d7b20deaf68d23934f2df8bee0b76981c7bd5",
+      "size_bytes": 42411
+    },
+    {
+      "source_path": "/workspace/scratch/4ab361722127/zil/crates/zil-db/src/lib.rs",
+      "repository_path": "crates/zil-db/src/lib.rs",
+      "sha256": "2a07435a5d585581219bea2cc8aa70d9dbd62fe9cb3e0555f2a2913563e768e4",
+      "size_bytes": 9601
+    },
+    {
+      "source_path": "/workspace/scratch/4ab361722127/zil/crates/zil-types/src/resource_effects.rs",
+      "repository_path": "crates/zil-types/src/resource_effects.rs",
+      "sha256": "5e9ea40bca14d9edff0b10dc4e0684c7da919185a775f77d88d38e17231b2e23",
+      "size_bytes": 32534
+    }
+  ],
+  "mechanism_rerun": {
+    "command": [
+      "node",
+      "/workspace/scratch/4ab361722127/zil/evidence/research/compile-performance/COMPILE6/mechanisms/zit-mechanisms.mjs",
+      "/workspace/scratch/4ab361722127/upload/zit.ts",
+      "/tmp/zil-cp25-recheck-compile7.json"
+    ],
+    "exit_code": 0,
+    "raw_receipt": "ZIT-MECHANISMS-RECHECK.json",
+    "raw_receipt_sha256": "0fec39540f2b3ea87fc18dd1c0ae5a552a447ce3bdd4424cf05544f3f9112cd5",
+    "receipt_mtime_utc": "2026-10-31T00:33:22.082762+00:00",
+    "node": "v24.22.1",
+    "source_sha256": "719a914356a24ac1edbeb1ffe6637d22311c9299e6be9ddbcdf3f7fdddf1474f",
+    "cases": 5,
+    "coverage": "Only synchronous numeric reactive paths. Helper imports stubbed; no DOM, asynchronous integration, complete application, or performance claim."
+  },
+  "cp29_review_status": "Awaiting exact implementation commit; conceptual concerns sent to author/root",
+  "cp30_review_status": "Awaiting exact implementation commit; publication-invariant argument reviewed but not accepted as tested candidate"
+}

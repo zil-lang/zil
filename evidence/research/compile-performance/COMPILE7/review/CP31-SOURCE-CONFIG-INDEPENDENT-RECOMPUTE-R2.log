@@ -1,0 +1,15 @@
+{
+  "verdict": "Pass",
+  "rows": 240,
+  "native": {
+    "preflight": 128,
+    "measure": 768
+  },
+  "wall": 1.006204022252628,
+  "cpu": 1.0246194035137959,
+  "stderr": {
+    "preflight": 0,
+    "measure": 0
+  },
+  "report": "/workspace/scratch/c3607737969d/review/CP31-SOURCE-CONFIG-INDEPENDENT-RECOMPUTE.json"
+}

@@ -1,0 +1,50 @@
+{
+  "verdict": "Pass",
+  "summary": {
+    "cp29": {
+      "default": {
+        "four_request_mix_B_over_A": 1.0706921463335672,
+        "four_request_mix_CI95": [
+          1.048456819571068,
+          1.2143559973991724
+        ],
+        "seven_request_process_wall_B_over_A": 1.0748700254956665,
+        "seven_request_process_cpu_B_over_A": 1.0755211948002679,
+        "seven_request_case_weighted_peak_RSS_B_over_A": 1.0495049125461762
+      },
+      "8192": {
+        "four_request_mix_B_over_A": 0.9944436205838071,
+        "four_request_mix_CI95": [
+          0.8835550873417529,
+          1.0931231879253716
+        ],
+        "seven_request_process_wall_B_over_A": 0.9962418003041478,
+        "seven_request_process_cpu_B_over_A": 0.9965078831153288,
+        "seven_request_case_weighted_peak_RSS_B_over_A": 1.0382188030735022
+      }
+    },
+    "cp30": {
+      "default": {
+        "four_request_mix_B_over_A": 1.0069388861562487,
+        "four_request_mix_CI95": [
+          0.9554144392114318,
+          1.0453035729919682
+        ],
+        "seven_request_process_wall_B_over_A": 1.0091278777413053,
+        "seven_request_process_cpu_B_over_A": 1.0087762815904115,
+        "seven_request_case_weighted_peak_RSS_B_over_A": 0.9912836460694835
+      },
+      "8192": {
+        "four_request_mix_B_over_A": 0.9732890325831829,
+        "four_request_mix_CI95": [
+          0.907086075585382,
+          1.1446304859805647
+        ],
+        "seven_request_process_wall_B_over_A": 1.006573599759846,
+        "seven_request_process_cpu_B_over_A": 1.0068162848806002,
+        "seven_request_case_weighted_peak_RSS_B_over_A": 1.000107104301333
+      }
+    }
+  },
+  "result": "/workspace/scratch/c3607737969d/review/session-independent-recompute-r1/RESULT.json"
+}

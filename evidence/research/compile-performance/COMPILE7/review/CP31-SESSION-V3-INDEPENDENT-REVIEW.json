@@ -1,0 +1,51 @@
+{
+  "reviewer": "cp25_evidence",
+  "implementation_author": "incremental_research",
+  "integration_author": "root",
+  "implementation_commit": "cfb54cf21948ad0d79bbcaa11b6a6eb6fd9ce212",
+  "verdict": "Pass",
+  "at_utc": "2026-10-31T01:15:57.494496+00:00",
+  "scope": "Frozen persistent-session v3 harness and evidence guard correctness only; no compiler-candidate or performance adoption conclusion",
+  "source_sha256": {
+    "tools/research/compile-performance/compile7_session.py": "6ec96a3b6fdf0ade3e3ffaadff8a29c7c46d5b805941175fcf8d78e2d889a7c3",
+    "tools/research/compile-performance/compile7_session.rs": "3aaf249ad90b67029bacedc66523ce149c230099af27fdc22ed2a6074ee5a37f",
+    "tools/research/compile-performance/compile7_scalar.py": "b8e9b0235f3c998cf08a96c3988ffd9d40e1e64c388c472b52c28f7195a49649"
+  },
+  "command": "source /workspace/scratch/c3607737969d/recovery/env.sh; python3 /workspace/scratch/c3607737969d/recovery/compile7_session_v3_checks.py --runner /workspace/scratch/c3607737969d/zil/tools/research/compile-performance/compile7_session.py --control /workspace/scratch/c3607737969d/recovery/session-harness-control-v3 --out /workspace/scratch/c3607737969d/review/cp31-session-v3-independent-controls",
+  "checks": {
+    "run": 67,
+    "passed": 67,
+    "failed": 0,
+    "exit": 0,
+    "new_compiler_subprocesses": 0,
+    "performance_measurements": 0
+  },
+  "verified_existing_real_control": {
+    "persistent_sequences": 4,
+    "persistent_requests": 28,
+    "fresh_comparisons": 28,
+    "scope": "Existing baseline harness control replayed from original logs/identities; not new executions or candidate evidence",
+    "result_sha256": "cc17b6aac743f23ab666bfa9b874a0fd023a1d991de3c0973ade79965a08d9ef"
+  },
+  "v2_findings_closed": [
+    "CP31-S1 strict numeric fields and exact request/snapshot mapping",
+    "CP31-S2 measured observable map equals frozen successful control map",
+    "CP31-S3 disk row bytes parse to the same execution records used for scoring"
+  ],
+  "retained_boundaries": [
+    "compile_path through Verify includes source discovery; LLVM/link not measured",
+    "Edit copying/session initialization/report generation separate; whole-process wait4 retained",
+    "Observed report/interface equality only, not complete TypedIR or native oracle",
+    "Raw/compiler/control/tool/fixture/environment/host identity and no-score on failure retained",
+    "Quiet-window is a known-load declaration, not exclusive OS host/cache guarantee",
+    "Declared source commit requires separate build provenance receipt",
+    "Fixed seven-request sequence is distinct from historical weighted CLI protocol"
+  ],
+  "artifact_sha256": {
+    "CP31-SESSION-V3-INDEPENDENT-REVIEW.md": "5013c1dfd9cfb71e4dac3555d1f278d16bce1b4f965c9bbf24300460b8cba424",
+    "CP31-SESSION-V3-INDEPENDENT-CONTROLS.log": "c8e2be69442cc8878256d289fea1f2bbf2ed3085d1135c9245356855a92ecf10",
+    "cp31-session-v3-independent-controls/result.json": "3aecce347b5524c5899d2c264f3f15ce43fdf07d32dbe0777a641ea2027a3833",
+    "CP31-SESSION-V2-REVIEW.json": "f00ae3e1dd9b3595acbd487c2a48dd78eeaf32603baa52f2147465b3467e3cfe"
+  },
+  "control_script_sha256": "be5c58d0eafda54e478ca9937c2390fd928f1e8883c02e79880cac6660dbde8b"
+}

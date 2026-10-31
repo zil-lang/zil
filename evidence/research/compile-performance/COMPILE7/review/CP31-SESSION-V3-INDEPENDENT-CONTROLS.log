@@ -1,0 +1,7 @@
+/workspace/scratch/c3607737969d/review/cp31-session-v3-independent-controls/cases/common_AB_observable_drift/measure/result.json
+/workspace/scratch/c3607737969d/review/cp31-session-v3-independent-controls/cases/disk_rows_tampered_after_execution/measure/result.json
+{
+  "pass": true,
+  "checks": 67,
+  "result": "/workspace/scratch/c3607737969d/review/cp31-session-v3-independent-controls/result.json"
+}

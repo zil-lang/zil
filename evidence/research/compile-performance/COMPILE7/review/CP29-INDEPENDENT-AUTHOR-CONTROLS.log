@@ -1,0 +1,21 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/c3607737969d/zil-cp29/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/c3607737969d/zil-cp29/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 6.03s
+     Running tests/cp29_types_memo.rs (/workspace/scratch/c3607737969d/target-cp29/debug/deps/cp29_types_memo-38eabab4af703062)
+
+running 12 tests
+test private_body_edit_reuses_other_modules_with_exact_typed_output ... ok
+test raw_body_edit_with_identical_spans_and_forged_fingerprint_cannot_hit ... ok
+test non_scalar_body_and_declarations_take_the_original_path ... ok
+test all_eleven_limits_are_in_the_epoch_identity ... ok
+test complete_signature_identity_visibility_target_context_and_positions_are_bound ... ok
+test observer_cancellation_and_later_analysis_failure_do_not_commit_an_epoch ... ok
+test scalar_foreign_modules_run_live_and_full_foreign_contracts_invalidate ... ok
+test persistent_project_with_scalar_io_still_verifies_private_edits ... ok
+test explicit_disable_drops_epoch_and_preserves_one_shot_results ... ok
+test session_private_edit_runs_fresh_analysis_verify_and_clear_drops_epoch ... ok
+test cross_function_quota_shortage_replays_the_original_first_error ... ok
+test raw_query_capacity_eviction_keeps_the_separate_bounded_successful_epoch ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

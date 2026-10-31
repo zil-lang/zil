@@ -1,0 +1,255 @@
+{
+  "reviewer": "cp25_evidence",
+  "verdict": "Pass",
+  "adoption": "NoGo: disabling source candidates did not establish a complete-cost benefit",
+  "scope": "Read-only independent recomputation of actual full-CLI same-binary A=source-cache-on / B=off window; no new compilation",
+  "frozen_inputs": {
+    "/workspace/scratch/c3607737969d/measurements/cp31-source-config-plan/plan.json": "7b17f3294d7206e65733ff8feb9e496e6ee24f7143ae0c3ce91b598905a92b63",
+    "/workspace/scratch/c3607737969d/measurements/cp31-source-config-preflight/result.json": "e13a1ff18bcb1ccfefdfeed85c3869c1a672db29e92775c8d1376e3cefca1d28",
+    "/workspace/scratch/c3607737969d/measurements/cp31-source-config-preflight/records.jsonl": "4177ac7f99d373b2ad48e18f1e0e15b43f8da0081ed885197e774ffa8b40706c",
+    "/workspace/scratch/c3607737969d/measurements/cp31-source-config-measure/complete.json": "e8241b361a530ddeab324d3e0dbea6207f84e845841e3c0555c3d806107d5750",
+    "/workspace/scratch/c3607737969d/measurements/cp31-source-config-measure/records.jsonl": "9da2fdbd41590162dac458aeff1cb929b4a0d3027b1a8a3ea25be20894357d0f",
+    "/workspace/scratch/c3607737969d/measurements/cp31-source-config-summary.json": "144012fc311c99f83b273949ac9ce8f033dc2e28efba4346760b663f949cb518",
+    "/workspace/scratch/c3607737969d/zil/tools/research/compile-performance/compile7_source_cache.py": "da5b8b8cc3cfda52b427a9182e6090471579aecf25d52b0c8ca35ccc14b177e6"
+  },
+  "source_identity": {
+    "A": {
+      "commit": "ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8",
+      "crates_tree": "a7ae8da1862a69cf673b8db50431b4991cb0d1c5"
+    },
+    "B": {
+      "commit": "ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8",
+      "crates_tree": "a7ae8da1862a69cf673b8db50431b4991cb0d1c5"
+    }
+  },
+  "compiler_sha256": "10b0813cb4430105ce9d75ee6f09b6c22f400bf126b6dd1045cc777798a934a4",
+  "profile": "O0",
+  "units": 1,
+  "jobs": 1,
+  "blocks": 3,
+  "case_weights": {
+    "tree4x2": 0.05,
+    "tree32x8": 0.15,
+    "tree256x8": 0.3,
+    "tree1024x8": 0.3,
+    "retained": 0.2
+  },
+  "request_weights": {
+    "cold_process": 0.1,
+    "unchanged": 0.35,
+    "private_edit": 0.4,
+    "public_edit": 0.15
+  },
+  "measurement_rows": 240,
+  "preflight_rows_unscored": 40,
+  "native_output_checks": {
+    "preflight": 128,
+    "measure": 768
+  },
+  "nonempty_cli_stderr_logs": {
+    "preflight": 0,
+    "measure": 0
+  },
+  "native_stderr_nonempty": 0,
+  "all_rows_verify_runs": 1,
+  "arm_balance": "Exactly two observations per arm/case/request/block; ABBA, BAAB, ABBA",
+  "all_row_validation_passed": true,
+  "completion_and_preflight_receipts_match": true,
+  "output_elf_hash_groups": 15,
+  "output_llvm_hash_groups": 15,
+  "all_case_snapshot_elf_hashes_equal_across_arms_and_repeats": true,
+  "llvm_sidecar_unique_digests_by_case_snapshot": {
+    "retained/base": 12,
+    "retained/private": 12,
+    "retained/public": 12,
+    "tree1024x8/base": 12,
+    "tree1024x8/private": 12,
+    "tree1024x8/public": 12,
+    "tree256x8/base": 12,
+    "tree256x8/private": 12,
+    "tree256x8/public": 12,
+    "tree32x8/base": 12,
+    "tree32x8/private": 12,
+    "tree32x8/public": 12,
+    "tree4x2/base": 12,
+    "tree4x2/private": 12,
+    "tree4x2/public": 12
+  },
+  "query_cache_states": [
+    {
+      "arm": "A",
+      "request": "cold_process",
+      "state": "miss",
+      "count": 30
+    },
+    {
+      "arm": "A",
+      "request": "private_edit",
+      "state": "miss",
+      "count": 30
+    },
+    {
+      "arm": "A",
+      "request": "public_edit",
+      "state": "miss",
+      "count": 30
+    },
+    {
+      "arm": "A",
+      "request": "unchanged",
+      "state": "hit",
+      "count": 30
+    },
+    {
+      "arm": "B",
+      "request": "cold_process",
+      "state": "miss",
+      "count": 30
+    },
+    {
+      "arm": "B",
+      "request": "private_edit",
+      "state": "miss",
+      "count": 30
+    },
+    {
+      "arm": "B",
+      "request": "public_edit",
+      "state": "miss",
+      "count": 30
+    },
+    {
+      "arm": "B",
+      "request": "unchanged",
+      "state": "hit",
+      "count": 30
+    }
+  ],
+  "aggregation": "Mean of two observations within a block; median across frozen three blocks for each absolute arm/case/request cost; apply frozen case and request weights; divide summed absolute costs only after weighting",
+  "recomputed_seconds": {
+    "wall": {
+      "A": 0.9448468402925,
+      "B": 0.950708691115,
+      "by_case": {
+        "tree4x2": {
+          "A": 0.32129071239999996,
+          "B": 0.310760228525,
+          "B_over_A": 0.9672244373441778
+        },
+        "tree32x8": {
+          "A": 0.35274927145,
+          "B": 0.35195404527499996,
+          "B_over_A": 0.9977456334020728
+        },
+        "tree256x8": {
+          "A": 0.7088046172750001,
+          "B": 0.6719999512500001,
+          "B_over_A": 0.948075019366415
+        },
+        "tree1024x8": {
+          "A": 1.9980539394249999,
+          "B": 2.060400071725,
+          "B_over_A": 1.0312034280305478
+        },
+        "retained": {
+          "A": 0.319061734725,
+          "B": 0.313287830025,
+          "B_over_A": 0.9819034874082392
+        }
+      },
+      "by_request": {
+        "cold_process": {
+          "A": 1.257032923775,
+          "B": 1.071509570325,
+          "B_over_A": 0.8524116990564939
+        },
+        "unchanged": {
+          "A": 0.6385923184499999,
+          "B": 0.66204396785,
+          "B_over_A": 1.0367239766631116
+        },
+        "private_edit": {
+          "A": 1.0933398162,
+          "B": 1.1411708108249998,
+          "B_over_A": 1.0437476015382305
+        },
+        "public_edit": {
+          "A": 1.0553353998500001,
+          "B": 1.0358268067,
+          "B_over_A": 0.9815143193786801
+        }
+      },
+      "B_over_A": 1.006204022252628
+    },
+    "cpu": {
+      "A": 0.9204655887499998,
+      "B": 0.9431269024999999,
+      "by_case": {
+        "tree4x2": {
+          "A": 0.31996415000000006,
+          "B": 0.30968035,
+          "B_over_A": 0.9678595242623274
+        },
+        "tree32x8": {
+          "A": 0.346534225,
+          "B": 0.3493792,
+          "B_over_A": 1.0082097951508253
+        },
+        "tree256x8": {
+          "A": 0.691500875,
+          "B": 0.6682114499999999,
+          "B_over_A": 0.9663204692257257
+        },
+        "tree1024x8": {
+          "A": 1.9409718999999999,
+          "B": 2.0424727000000003,
+          "B_over_A": 1.0522938018834793
+        },
+        "retained": {
+          "A": 0.313727075,
+          "B": 0.3101538,
+          "B_over_A": 0.9886102434735669
+        }
+      },
+      "by_request": {
+        "cold_process": {
+          "A": 1.0828551,
+          "B": 1.05926135,
+          "B_over_A": 0.9782115354122635
+        },
+        "unchanged": {
+          "A": 0.634399075,
+          "B": 0.658341375,
+          "B_over_A": 1.0377401243846391
+        },
+        "private_edit": {
+          "A": 1.0839914999999998,
+          "B": 1.130926275,
+          "B_over_A": 1.0432981024297703
+        },
+        "public_edit": {
+          "A": 1.04362535,
+          "B": 1.029405175,
+          "B_over_A": 0.9863742529826437
+        }
+      },
+      "B_over_A": 1.0246194035137959
+    }
+  },
+  "exploratory_paired_block_bootstrap95": [
+    0.9945974392876915,
+    1.015013916803318
+  ],
+  "matches_published_summary": true,
+  "limitations": [
+    "Configuration comparison using the same ee72fd6 compiler, not CP25/29/30 implementation speed evidence",
+    "Fresh CLI process per request; not a persistent session benchmark",
+    "Shared host, unflushed OS page cache, three paired blocks; descriptive bootstrap only",
+    "Native ELF/LLVM products were removed with disposable work; reviewed recorded before/after digests and all retained native output oracles, not a new rehash of deleted products",
+    "LLVM sidecar digests differ across sequences; the text serializer contains a verified-fingerprint comment. LLVM text equality is not claimed; final ELF digests agree for each case/snapshot",
+    "Current static tool/source/fixture identity verified; original runtime environment is retained in the plan, not claimed re-executed",
+    "No formal product gate or whole-language acceptance"
+  ],
+  "audit_script_sha256": "cf41a751f4e137be51833464ef9ad0e3303123c67b8c4424f2b32786d58b109c",
+  "initial_audit_run": "The initial audit script incorrectly required LLVM sidecar byte identity across sequences. That extra assertion failed and was removed; the measurement and raw evidence were unchanged. The first audit log is retained."
+}

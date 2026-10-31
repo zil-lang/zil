@@ -1,0 +1,22 @@
+{
+  "observed_utc": "2026-10-31 01:29:07 UTC",
+  "branch": "research/compile7-20261031",
+  "research_head": "360f2c142aed54a65ad4232ae7ef655b8a3fcc5b",
+  "research_tree": "89f45a33647c2ce20d1f4080f2fd8530dd1a3fc0",
+  "CP28": {
+    "local_source": "ee72fd6f701efa5f7a75ea3f13d4effc20d5c4b8",
+    "remote_source": "360f2c142aed54a65ad4232ae7ef655b8a3fcc5b",
+    "crates_tree": "a7ae8da1862a69cf673b8db50431b4991cb0d1c5",
+    "scope": "Three previously unpushed source/test files, complete crates subtree checked"
+  },
+  "CP29": {
+    "remote_source": "11d88c78037a77d2c188a6684cdaa0300f60b7b9",
+    "remote_tree": "7f92a9945a8058fd746ccfa486da76e5b3bcc55d",
+    "branch": "research/cp29-types-memo"
+  },
+  "CP30": {
+    "remote_source": "df13bc96536c7f775d7227256e45db7fc9e178b2",
+    "remote_tree": "22a5b6768c3d4a521237fda2e29a5a517e5d2ea2",
+    "branch": "research/cp30-published-read"
+  }
+}

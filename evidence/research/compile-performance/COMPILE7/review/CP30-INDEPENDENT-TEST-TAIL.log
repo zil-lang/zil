@@ -1,0 +1,17 @@
+test tests::absent_producers_match_legacy_scanning_on_reachable_dags_and_after_eviction ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.74s
+
+     Running tests/cp30_published_read.rs (/workspace/scratch/c3607737969d/review/cp30-target/debug/deps/cp30_published_read-3f06dce4b2e89b87)
+
+running 2 tests
+test changing_an_exported_arc_cannot_mutate_the_published_graph ... ok
+test every_four_node_dag_matches_matrix_reachability_with_each_active_subset ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+   Doc-tests zil_db
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

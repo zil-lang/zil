@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/c3607737969d/review/cp31_source_config_recompute.py", line 112, in <module>
+    assert len(llvm_hashes) == 15 and all(len(values) == 1 for values in llvm_hashes.values())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
