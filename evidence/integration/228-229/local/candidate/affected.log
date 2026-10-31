@@ -1,0 +1,65 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/e9af9764d083/zil-integration228-229/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/e9af9764d083/zil-integration228-229/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 5.79s
+     Running tests/impl222_224_composition.rs (/workspace/scratch/e9af9764d083/targets/integration/debug/deps/impl222_224_composition-dbae64dd8b8972fb)
+
+running 2 tests
+test shared_store_child_keeps_the_actual_container_loan_until_last_use ... ok
+test generated_product_elements_keep_shared_child_lifetimes_and_recursive_cleanup ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/impl222_generation.rs (/workspace/scratch/e9af9764d083/targets/integration/debug/deps/impl222_generation-30a8a1775e41fbca)
+
+running 6 tests
+test cross_module_closed_dependencies_and_visibility_are_preserved ... ok
+test generated_operations_still_enter_the_ordinary_safety_gate ... ok
+test generation_boundaries_and_runtime_shadowing_fail_closed ... ok
+test all_generations_conditions_and_later_queries_share_limits_and_cache_charges ... ok
+test ordered_ranges_arrays_nested_selection_and_hygiene_reach_verify ... ok
+test generated_values_hygiene_and_receiving_control_flow_execute_at_o0_and_o2 ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.97s
+
+     Running tests/impl222_review_regressions.rs (/workspace/scratch/e9af9764d083/targets/integration/debug/deps/impl222_review_regressions-5a0933a978b72e53)
+
+running 2 tests
+test nominal_constructor_uses_the_same_namespace_after_single_generation ... ok
+test nested_generations_conditions_and_later_query_share_fresh_and_warm_limits ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests/impl228_generation.rs (/workspace/scratch/e9af9764d083/targets/integration/debug/deps/impl228_generation-4789c04df715f21e)
+
+running 7 tests
+test unsupported_declaration_kinds_and_configready_remain_closed ... ok
+test declaration_reserved_names_cannot_escape_through_alpha_renaming ... ok
+test duplicate_nominals_visibility_and_unchecked_types_still_reject ... ok
+test generated_type_tables_share_request_limits_and_warm_cache_charges ... ok
+test generated_function_names_follow_the_ordinary_function_rule ... ok
+test declarations_aliases_defaults_and_namespaces_reach_independent_verify ... ok
+test generated_and_plain_declarations_execute_at_o0_and_o2 ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s
+
+     Running tests/impl229_nominal_shadow.rs (/workspace/scratch/e9af9764d083/targets/integration/debug/deps/impl229_nominal_shadow-cf1654e679e36de8)
+
+running 3 tests
+test unused_symbolic_types_do_not_gain_nominal_members_or_constructors ... ok
+test real_collision_paths_have_measured_fresh_and_exhausted_boundaries ... ok
+test actual_nominal_and_symbolic_identity_still_execute ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests/impl229_where_copy.rs (/workspace/scratch/e9af9764d083/targets/integration/debug/deps/impl229_where_copy-fc36ea30e269afcc)
+
+running 6 tests
+test project_path_uses_the_same_where_checks ... ok
+test unsupported_clauses_are_not_erased_and_unused_bodies_are_checked ... ok
+test old_source_budget_controls ... ok
+test where_aliases_and_specialization_share_exact_fresh_and_warm_limits ... ok
+test ordinary_where_sources_reach_the_independent_verifier ... ok
+test inline_where_duplicate_and_project_programs_execute_at_o0_and_o2 ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+

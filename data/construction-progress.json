@@ -1,64 +1,38 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-30T19:07:42.066645+00:00",
-  "status": "Integrated",
-  "conversation": "zil施工8",
-  "accepted_main_at_start": "a8e8831a9e28ac2ec83be6eac740a8f04a00af7d",
-  "milestone": "222–224 finite generation, Product Store, shared Product borrow",
-  "active_development_agents": 0,
+  "observed_at_utc": "2026-10-31T01:11:20.510812+00:00",
+  "status": "AwaitingCI",
+  "conversation": "zil施工9",
+  "accepted_main_at_start": "6ba0b04ee8b9cac3ead187b2aa9f03c91c217e49",
+  "latest_main_observed": "06b27a2f89058f8295dab5830f54a79b9be6e424",
+  "implementation_commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "milestone": "228 finite generated types and 229 free-function where Copy",
+  "active_development_agents": 3,
   "tasks": [
     {
-      "id": "222",
-      "state": "已合入",
-      "owner": "/root/ct_for",
-      "branch": "impl/222-ct-for",
-      "review": "evidence/reviews/222-224/REVIEW-222.json",
-      "branch_role": "historical implementation branch retained in main history"
-    },
-    {
-      "id": "223",
-      "state": "已合入",
-      "owner": "/root/product_store",
-      "branch": "impl/223-product-store",
-      "review": "evidence/reviews/222-224/REVIEW-223.json",
-      "branch_role": "historical implementation branch retained in main history"
-    },
-    {
-      "id": "224",
-      "state": "已合入",
+      "id": "228",
+      "state": "待验",
+      "branch": "task/228",
       "owner": "/root/scope_audit",
-      "branch": "impl/224-readonly-product",
-      "review": "evidence/reviews/222-224/REVIEW-224.json",
-      "branch_role": "historical implementation branch retained in main history"
+      "review": "evidence/reviews/228/joint/RESULT.json"
+    },
+    {
+      "id": "229",
+      "state": "待验",
+      "branch": "task/229",
+      "owner": "/root/mainline_recovery",
+      "review": "evidence/reviews/229/joint-P/RESULT.json"
     }
   ],
   "local_affected_regression": {
-    "commit": "a57516d138f85c8f352bec5d440c5c22af259b14",
-    "passed": 132,
+    "commit": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+    "passed": 26,
     "failed": 0,
     "ignored": 0,
-    "receipt": "evidence/integration/222-224/local/RESULT.json"
+    "receipt": "evidence/integration/228-229/local/RESULT.json"
   },
   "candidate_ci": {
-    "status": "Pass",
-    "run_id": 41088376020,
-    "run_url": "https://github.com/zil-lang/zil/actions/runs/41088376020",
-    "actual_checkout": "4d3df5891aafebdd8337337180a7e2559daec361",
-    "tree": "c6ce79652a5276f127ee43598b0a1b8d57284787",
-    "workspace": {
-      "passed": 2861,
-      "failed": 0,
-      "ignored": 0
-    },
-    "reference": {
-      "passed": 2826,
-      "failed": 0,
-      "ignored": 0
-    },
-    "all_required_steps_success": true,
-    "successful_step_count": 25,
-    "audit_sha256": "c71d414d04a72d2502ff17ad73f60961ca04459652315706f00faf1d9276d705",
-    "evidence": "evidence/integration/222-224/ci41088376020/RESULT.json"
+    "status": "NotRun"
   },
   "last_acceptance_ci": {
     "status": "Pass",
@@ -81,92 +55,26 @@
     "audit_sha256": "136bd7d838a4343888555d1b975afb40eb2ed45b65037af00457166d21800f34",
     "evidence": "evidence/integration/222-224/ci41106864272/RESULT.json"
   },
-  "last_main_ci": {
-    "status": "Pass",
-    "run_id": 41106864272,
-    "run_url": "https://github.com/zil-lang/zil/actions/runs/41106864272",
-    "actual_checkout": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
-    "tree": "a7509a9fea1ed2f5818bcb454af4e9b6e6568e7f",
-    "workspace": {
-      "passed": 2861,
-      "failed": 0,
-      "ignored": 0
-    },
-    "reference": {
-      "passed": 2826,
-      "failed": 0,
-      "ignored": 0
-    },
-    "all_required_steps_success": true,
-    "successful_step_count": 25,
-    "audit_sha256": "136bd7d838a4343888555d1b975afb40eb2ed45b65037af00457166d21800f34",
-    "evidence": "evidence/integration/222-224/ci41106864272/RESULT.json"
+  "concurrent_work": {
+    "225": "Separate construction 8 task; not part of this delivery",
+    "226": "Separate construction 8 task; not part of this delivery",
+    "227": "Separate construction 8 contract task; not part of this delivery",
+    "research/compile-performance": "Separate authorized research line; not performance evidence for this delivery"
   },
   "notification": {
     "requested_minutes_approximately": 10,
     "automation_created": false,
     "page": "https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab",
-    "row": "zil施工8",
+    "row": "zil施工9",
     "page_updates_during_active_construction": true,
-    "known_gap": "One blocked publication call exceeded the requested interval; real heartbeat resumed and was delegated to an active agent."
+    "after_turn_background_activity_promised": false
   },
-  "stale_after_minutes": 20,
-  "stale_interpretation": "StatusUnknown; an old heartbeat does not prove execution or termination.",
-  "full_language": "NotSatisfied",
-  "full_zui": "NotSatisfied",
-  "product": "NotRun",
-  "native_windows": "NotRun",
-  "implementation_commit": "4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41",
-  "independent_scope_reviews": "Pass",
-  "final_affected_regression": {
-    "passed": 19,
-    "failed": 0,
-    "ignored": 0,
-    "receipt": "evidence/integration/222-224/final-generation/RESULT.json"
-  },
-  "readiness_recheck": {
-    "source_commit": "6b0d974bedfb40c93eb36e491ceb18a138718dac",
-    "unchanged_original_sources": 29,
-    "success": 15,
-    "unsupported": 12,
-    "malformed_excluded": 2,
-    "promoted": [
-      "product-store-element",
-      "product-error-union"
-    ],
-    "old_success_regressions": 0,
-    "receipt": "evidence/integration/222-224/readiness/READINESS.json",
-    "full_readiness": false
-  },
-  "mainline_merge_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
-  "postmerge_repair": {
-    "base_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
-    "failed_run_id": 41101248493,
-    "code_commit": "e38ce27fda432e7a55b4a203f4fd047756d9512e",
-    "author_delivery_commit": "bcce4ca58cbd7edb1692c9140a0babb314491ddc",
-    "review_commit": "2276a6dcd41e6e8828fb7908cddf1fc4ff37b0a8",
-    "review_evidence": "evidence/integration/222-224/postmerge-stdin-repair/review/REVIEW.json",
-    "author": "/root/product_store",
-    "reviewer": "/root/ct_for",
-    "scope": "Optional stdin protocol in the independent machine test only; fixtures, compiler source and behavioral oracles unchanged"
-  },
-  "original_pr_merge_commit": "39e52ef784d41f5744b909a9e6702ab16c1b1227",
-  "verification_snapshot_note": "The original PR and the final post-repair main have separate exact source identities; the first main failure remains Fail. Later documentation-only descendants can have newer workflow runs; read the live GitHub ref for current status.",
-  "closeout_receipt": "evidence/integration/222-224/closeout/ACCEPTANCE.json",
-  "handoff_snapshot": {
-    "status": "Fail",
-    "source_commit": "1b895ecb866e8c957cc020fe69bddf21979712f7",
-    "errors": 1356,
-    "warnings": 0,
-    "baseline_source_commit": "ccae8c60c96a2c174b137b2fab084e9e8a97a02f",
-    "comparison_status": "Pass",
-    "error_multiset_unchanged": true,
-    "new_slice_errors": {
-      "222": 0,
-      "223": 0,
-      "224": 0
-    },
-    "receipt": "evidence/integration/222-224/closeout/handoff-final/RESULT.json",
-    "note": "Record integrity only; original global Fail is preserved and the snapshot identifies the actual inspected committed parent."
+  "limits": {
+    "B0": "Doing",
+    "181": "施工",
+    "complete_1_4": "NotSatisfied",
+    "complete_ZUI": "NotSatisfied",
+    "Rust_product_gates": "NotRun",
+    "native_Windows": "NotRun"
   }
 }
