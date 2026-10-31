@@ -140,8 +140,16 @@ def load_config(path, smoke):
         raise ValueError('configuration schema must be 1')
     if not smoke:
         variant = config['candidate_variant']
+        original_variant = config.get('original_variant', 'original')
+        namespace = config.get('pipeline_identity_namespace', 'research-llvm-jt')
         if not isinstance(variant, str) or not re.fullmatch(r'[a-z][a-z0-9_+.-]*', variant) or variant in ['original', 'baseline', 'stock']:
             raise ValueError('candidate_variant must explicitly name the distinct candidate toolchain')
+        if (not isinstance(original_variant, str) or
+                not re.fullmatch(r'[a-z][a-z0-9_+.-]*', original_variant) or
+                original_variant in [variant, 'baseline', 'stock']):
+            raise ValueError('original_variant must explicitly name the distinct control toolchain')
+        if namespace not in ['research-llvm-jt', 'research-llvm-stage6']:
+            raise ValueError('unsupported pipeline identity namespace')
         for field in ['baseline_revision', 'candidate_revision']:
             if not re.fullmatch(r'[0-9a-f]{40}', config[field]):
                 raise ValueError('formal source revisions must be full Git commit IDs')
@@ -184,7 +192,7 @@ def load_config(path, smoke):
             llvm['version'] = recorded.get('version')
             llvm['receipt_arm'] = receipt.get('arm')
             if not smoke:
-                expected_arm = 'original' if name.startswith('original_') else variant if name.startswith('entry_') else None
+                expected_arm = original_variant if name.startswith('original_') else variant if name.startswith('entry_') else None
                 if arm.get('expected_toolchain_arm') != expected_arm or llvm['receipt_arm'] != expected_arm:
                     raise ValueError('toolchain receipt belongs to another experimental arm: ' + name)
                 provenance = json.loads(Path(arm['source_receipt']['path']).read_text())
@@ -195,7 +203,7 @@ def load_config(path, smoke):
                         raise ValueError('baseline compiler does not match its build/source receipt')
                     arm['source_revision'] = provenance['commit']
                 else:
-                    tag = '|research-llvm-jt=' + expected_arm + '|dso-sha256=' + llvm['library']['sha256']
+                    tag = '|' + namespace + '=' + expected_arm + '|dso-sha256=' + llvm['library']['sha256']
                     if (provenance['revision'] != config['candidate_revision'] or
                             provenance['arm'] != expected_arm or provenance['production_mutated'] is not False or
                             provenance['toolchain_receipt']['sha256'] != llvm['receipt']['sha256'] or
@@ -296,6 +304,8 @@ def prepare(args):
     arms, tools = load_config(args.config, args.functional_smoke)
     manifest.update(config=identity(args.config), arms=arms, tools=tools,
                     candidate_variant=json.loads(args.config.read_text()).get('candidate_variant', 'functional-smoke'),
+                    original_variant=json.loads(args.config.read_text()).get('original_variant', 'original'),
+                    pipeline_identity_namespace=json.loads(args.config.read_text()).get('pipeline_identity_namespace', 'research-llvm-jt'),
                     isolated_environment_keys=ISOLATED_ENV,
                     inherited_path=os.environ.get('PATH', ''),
                     scripts={name: identity(HERE / name) for name in [Path(__file__).name, 'stage6_merge_runtime.py', 'stage6_bench.py']},
