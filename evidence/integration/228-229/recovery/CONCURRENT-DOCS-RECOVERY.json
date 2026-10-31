@@ -1,0 +1,278 @@
+{
+  "utc": "2026-10-31T01:54:22.310573+00:00",
+  "status": "Pass",
+  "exact_previous_main": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+  "exact_new_main": "e463b7eec0b25e931d8ba58253ae31efaec4b4b4",
+  "exact_new_tree": "7025c1dff012970e46e0b817aad71c57d1b7f6ff",
+  "exact_commit_chain": [
+    {
+      "sha": "d6b2dde8b547a74773e3fc857d8226be6a5aaa48",
+      "parent": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+      "tree": "dd8a0252a4d4cddb81de0d7f4f753f3c0525ab91",
+      "changed_paths": [
+        "docs/log/zil施工8.md"
+      ]
+    },
+    {
+      "sha": "35840141057499a7d5458d0ead95e47ff595ec1d",
+      "parent": "d6b2dde8b547a74773e3fc857d8226be6a5aaa48",
+      "tree": "19d24437aedd918c5edb0d8024e057407d36264f",
+      "changed_paths": [
+        "changes/227-defer-lowering-plan.md"
+      ]
+    },
+    {
+      "sha": "bb1a9720f9edd59cd9741b9610a840e012b6865d",
+      "parent": "35840141057499a7d5458d0ead95e47ff595ec1d",
+      "tree": "bb92c4260aeb1db3536347071c579ddde315fb5b",
+      "changed_paths": [
+        "evidence/planning/227/BLOCKERS.json"
+      ]
+    },
+    {
+      "sha": "d47e63d427ff960fffd6b9040c589f23924e6e76",
+      "parent": "bb1a9720f9edd59cd9741b9610a840e012b6865d",
+      "tree": "8706aa048ad940d3f35cff73e364d5e7f460698b",
+      "changed_paths": [
+        ".task/impl/226.md"
+      ]
+    },
+    {
+      "sha": "e463b7eec0b25e931d8ba58253ae31efaec4b4b4",
+      "parent": "d47e63d427ff960fffd6b9040c589f23924e6e76",
+      "tree": "7025c1dff012970e46e0b817aad71c57d1b7f6ff",
+      "changed_paths": [
+        "docs/log/zil施工8.md"
+      ]
+    }
+  ],
+  "raw_objects": [
+    {
+      "sha": "35840141057499a7d5458d0ead95e47ff595ec1d",
+      "type": "commit",
+      "bytes": 282,
+      "sha256": "02e46cb1dbc9068d54d873a4f3c0b3e119bae792f8bd89ed8555eda2073d11a4",
+      "author_timezone": "+0800",
+      "committer_timezone": "+0800",
+      "added_message_trailing_lf": false
+    },
+    {
+      "sha": "bb1a9720f9edd59cd9741b9610a840e012b6865d",
+      "type": "commit",
+      "bytes": 283,
+      "sha256": "6f7e67bb934b38bf91b1914f5bb2060dce4d12f058a8cf07e6445e2de2af0013",
+      "author_timezone": "+0800",
+      "committer_timezone": "+0800",
+      "added_message_trailing_lf": false
+    },
+    {
+      "sha": "d47e63d427ff960fffd6b9040c589f23924e6e76",
+      "type": "commit",
+      "bytes": 279,
+      "sha256": "6eee5e0f634ef39dd944ed30d5797368900cfbce3b0f6d75ac407c8cb4f676ef",
+      "author_timezone": "+0800",
+      "committer_timezone": "+0800",
+      "added_message_trailing_lf": false
+    },
+    {
+      "sha": "d6b2dde8b547a74773e3fc857d8226be6a5aaa48",
+      "type": "commit",
+      "bytes": 275,
+      "sha256": "cac0edf630c32f5f3b034aaad358fe599ff5102acbddb6153063cb94b939c455",
+      "author_timezone": "+0800",
+      "committer_timezone": "+0800",
+      "added_message_trailing_lf": false
+    },
+    {
+      "sha": "e463b7eec0b25e931d8ba58253ae31efaec4b4b4",
+      "type": "commit",
+      "bytes": 274,
+      "sha256": "6c6bf754e9a5383e4e46a8f9a2d1516198ac849322ade2d0eeddc70258a65fac",
+      "author_timezone": "+0800",
+      "committer_timezone": "+0800",
+      "added_message_trailing_lf": false
+    },
+    {
+      "sha": "0182a1fee9ed54af4e130a9f65ff8b222c96dca4",
+      "type": "tree",
+      "bytes": 577,
+      "sha256": "b23c5013d62b640434b7ec8d7dc4a48f545f5860775b8e8f9a31d7011700f672"
+    },
+    {
+      "sha": "03765869b9ed931eb5c14a7be65fbe040d102061",
+      "type": "tree",
+      "bytes": 17386,
+      "sha256": "07f790ee4ea8292b1465c490c92f607c2a4e6cc4d98a79027324ae014decf80e"
+    },
+    {
+      "sha": "189c1531e738b269a602381934e3a0282f9b4687",
+      "type": "tree",
+      "bytes": 559,
+      "sha256": "4888949fba85f37f960ea7e2f7502958082a105b1295a475e663be9d6852b19c"
+    },
+    {
+      "sha": "19d24437aedd918c5edb0d8024e057407d36264f",
+      "type": "tree",
+      "bytes": 1137,
+      "sha256": "63ab8943785996622ba21045543b7c7b3913e71fde403a019b92e435f9a5fefb"
+    },
+    {
+      "sha": "20399a032a3e1083c8024c0ecff29e34fa3a4582",
+      "type": "tree",
+      "bytes": 7004,
+      "sha256": "23e872df9b2536d2a014b5807598bf7a14c7ec0257da56328bc2282225218c0b"
+    },
+    {
+      "sha": "7025c1dff012970e46e0b817aad71c57d1b7f6ff",
+      "type": "tree",
+      "bytes": 1137,
+      "sha256": "417f6e5e39b0653cd18145535425a7880fe44137a62cf598ae6aa3fd68f344df"
+    },
+    {
+      "sha": "70e88381b2b573efde35fc357c32dded285059ec",
+      "type": "tree",
+      "bytes": 41,
+      "sha256": "735183779764f65f475a15638cad27724c1e1ddc2b383c43eaddf8785867a212"
+    },
+    {
+      "sha": "70fad012b322c623020e92dd0190a3f3d468783c",
+      "type": "tree",
+      "bytes": 41,
+      "sha256": "93e765b26f2473c22df3d8cb87992c7df38cdc0ff977dfb8003fd4c94e77d355"
+    },
+    {
+      "sha": "86ff90496c847244b9ce03d3952d298da68b17f1",
+      "type": "tree",
+      "bytes": 3151,
+      "sha256": "6b473949300f58f83afd97f2ef85da738c13c850f647247adf8b294a253f51c3"
+    },
+    {
+      "sha": "8706aa048ad940d3f35cff73e364d5e7f460698b",
+      "type": "tree",
+      "bytes": 1137,
+      "sha256": "e132029f656507e9a466d0285d270bdbdb027e6001ffc7c885daf5da706e43cc"
+    },
+    {
+      "sha": "bb92c4260aeb1db3536347071c579ddde315fb5b",
+      "type": "tree",
+      "bytes": 1137,
+      "sha256": "4f377af0cb9f2ba2d2768c1e026f02ca31c74080d1a92999f16afa8010049011"
+    },
+    {
+      "sha": "c6c13d32e304bf3a40df522c31ff5f50c377ff81",
+      "type": "tree",
+      "bytes": 132,
+      "sha256": "2e57614c0ac0de7eafb17a7c3861c3ba5c9c71bd0b16a381221104250ff86609"
+    },
+    {
+      "sha": "d2ab8c7c247f4538f0a6806a81054f34b86e1298",
+      "type": "tree",
+      "bytes": 3151,
+      "sha256": "d42dd4e7303a350886759a6d4db2f2a4ba0009bc32d6207b9abd93ab4275db7c"
+    },
+    {
+      "sha": "d976bd70791d3db27e78684459177a7b2e7c6605",
+      "type": "tree",
+      "bytes": 41,
+      "sha256": "c314557af84ba93e4513ba5c99669d0a71ab04762b3b6f9dc4c9653481ab35e3"
+    },
+    {
+      "sha": "dd8a0252a4d4cddb81de0d7f4f753f3c0525ab91",
+      "type": "tree",
+      "bytes": 1137,
+      "sha256": "e2619c64be229b8d1cf68280cf209685e932eef8449fd3009dd2cd3fdd2d7584"
+    },
+    {
+      "sha": "5a8c2e20de036ff4a90533395d25376f98babae4",
+      "type": "blob",
+      "bytes": 4696,
+      "sha256": "3f66f06239a709ec4f2dbc7bdca6b1e7dc64d9c87adf8be96e621970a6ab06e4"
+    },
+    {
+      "sha": "632f937b557f131df732c13ba91efec9e317d3f6",
+      "type": "blob",
+      "bytes": 1475,
+      "sha256": "90a803850e58bd1542deb10310593923831a1a9eca12ad95c31822369d300002"
+    },
+    {
+      "sha": "878ea8bb975d12d2baae5ba00f180709f717943f",
+      "type": "blob",
+      "bytes": 502,
+      "sha256": "86a26c70791eb24a773d19a83bb9e2630199e1520e22b75ca2bcd2621548537e"
+    },
+    {
+      "sha": "b7a53e175b55a7eeb6acdb21e4284119b940e7b9",
+      "type": "blob",
+      "bytes": 2930,
+      "sha256": "6ad05e11667467c980d0abaef52466e3d3b617d34b4f5b9537ec0b398f1f5a54"
+    },
+    {
+      "sha": "d1f1c052ddcc97f2e18fd8eb3b6064159cad46f2",
+      "type": "blob",
+      "bytes": 507,
+      "sha256": "30beecb4f35aa84ca47a15001916504d3c2e6158ae4870640991494c2aa8506f"
+    }
+  ],
+  "raw_object_bytes": 49271,
+  "changed_paths": [
+    ".task/impl/226.md",
+    "changes/227-defer-lowering-plan.md",
+    "docs/log/zil施工8.md",
+    "evidence/planning/227/BLOCKERS.json"
+  ],
+  "production_trees": {
+    "crates": {
+      "before": "21bdc454a5c7947cb7899ddd9321f91c6bf7fb77",
+      "after": "21bdc454a5c7947cb7899ddd9321f91c6bf7fb77",
+      "equal": true
+    },
+    "crates/zil-driver/src": {
+      "before": "5cad5e35d03c16291e4cd45adbef8c769b5cab54",
+      "after": "5cad5e35d03c16291e4cd45adbef8c769b5cab54",
+      "equal": true
+    },
+    "crates/zil-expand/src": {
+      "before": "01c3690f47779962a87665e725353cffd361eb33",
+      "after": "01c3690f47779962a87665e725353cffd361eb33",
+      "equal": true
+    }
+  },
+  "all_protected_ci_paths_identical": true,
+  "protected_ci_paths": [
+    "crates",
+    "Cargo.toml",
+    "Cargo.lock",
+    "build.rs",
+    "rust-toolchain",
+    "rust-toolchain.toml",
+    ".cargo",
+    "tools",
+    ".github",
+    "policy",
+    "stdlib",
+    "std",
+    "spec",
+    "_zil_design.md",
+    "examples",
+    "conformance",
+    "validation",
+    "tests",
+    "benches",
+    "data/normative-inputs.json"
+  ],
+  "isolated_connectivity": {
+    "exit_code": 0,
+    "no_alternates": true,
+    "no_remote": true,
+    "log": "isolated-connectivity.log",
+    "base_complete_pack_previously_hash_verified": true,
+    "all_new_raw_objects_individually_hash_verified": true
+  },
+  "updated_ref": "refs/remotes/origin/main",
+  "compare_and_swap_from": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+  "local_heads_unchanged": true,
+  "tracked_worktree_status_unchanged": true,
+  "source_alternates_untouched": true,
+  "source_zip_untouched": true,
+  "remote_operations": 0
+}

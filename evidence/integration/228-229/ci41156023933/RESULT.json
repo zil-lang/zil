@@ -1,0 +1,458 @@
+{
+  "audit_kind": "Independent read-only post-merge main CI receipt audit; not a relabelled PR result or a new implementation review.",
+  "reviewer": "/root/mainline_recovery",
+  "verdict": "Pass",
+  "status": "Pass",
+  "completeness": "Complete within stated artifact verification scope",
+  "created_at_utc": "2026-10-31T01:54:46.205371+00:00",
+  "run_id": 41156023933,
+  "run_attempt": 1,
+  "run_url": "https://github.com/zil-lang/zil/actions/runs/41156023933",
+  "job_id": 124402886263,
+  "event": "push",
+  "branch": "main",
+  "actual_tested_commit": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+  "actual_git_tree": "bdcc3ce343ff5c1ca495f864c85ff672a5401ac5",
+  "reviewed_production_candidate": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "source_binding": {
+    "pr_tested_commit": "ee5333028cb0c959dc6b73e43de000c66e4ace3f",
+    "pr_tree": "a72cfaa984e4f4720c0a047084fa24d159646ad9",
+    "main_tested_commit": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+    "main_tree": "bdcc3ce343ff5c1ca495f864c85ff672a5401ac5",
+    "entire_trees_equal": false,
+    "same_root_path_set": true,
+    "changed_top_level_paths": [
+      ".task",
+      "docs"
+    ],
+    "unchanged_top_level_paths": [
+      ".agent",
+      ".github",
+      ".gitignore",
+      "AGENTS.md",
+      "Cargo.lock",
+      "Cargo.toml",
+      "GITHUB-SYNC.md",
+      "README.md",
+      "SOURCE-SNAPSHOT-20261026.md",
+      "_zil_design.md",
+      "_zil_goal.md",
+      "benches",
+      "changes",
+      "conformance",
+      "crates",
+      "data",
+      "design-candidates",
+      "evidence",
+      "examples",
+      "inputs",
+      "lang-designer.html",
+      "policy",
+      "rust-toolchain.toml",
+      "spec",
+      "templates",
+      "tests",
+      "tools",
+      "ui",
+      "validation"
+    ],
+    "production_tests_configuration_equal": true,
+    "documentation_base_advance": {
+      "pr_base": "0197ea37997e00a06a274cb5bdbec893f25fb493",
+      "main_merge_first_parent": "3883a5b4b93f784b63826d86672eda17bfa69cf0",
+      "reported_paths": [
+        ".task/impl/225.md",
+        ".task/impl/226.md",
+        "docs/log/zil施工8.md"
+      ],
+      "evidence": "github-compare-pr-to-main.json; root independently verified three skip-ci documentation commits.",
+      "direct_tree_comparison": "exact-pr-main-doc-diff.json",
+      "exact_changed_paths": [
+        ".task/impl/225.md",
+        ".task/impl/226.md",
+        "docs/log/zil施工8.md"
+      ],
+      "tree_objects_checked": 8,
+      "only_three_documentation_blobs_differ": true
+    },
+    "source_hash_validation_basis": "Local faf7c8e2 frozen sources remain valid for hashing because complete examples and tools trees equal the actual main merge; actual CI receipt identity must equal main M independently.",
+    "pr_audit_immutable": {
+      "path": "/workspace/scratch/e9af9764d083/ci-audit-41154458005/RESULT.json",
+      "sha256": "d841771bf649b1a9fff53fd769142f83022509d24ffddc991e0053db8b40aa0e"
+    }
+  },
+  "pr_result_preservation": {
+    "pr_run_id": 41154458005,
+    "pr_verdict_preserved": "Pass",
+    "pr_actual_tested_commit": "ee5333028cb0c959dc6b73e43de000c66e4ace3f",
+    "pr_result_sha256": "d841771bf649b1a9fff53fd769142f83022509d24ffddc991e0053db8b40aa0e",
+    "expected_pr_result_sha256": "d841771bf649b1a9fff53fd769142f83022509d24ffddc991e0053db8b40aa0e",
+    "all_28_listed_pr_evidence_files_unchanged": true,
+    "not_relabelled_main": true
+  },
+  "required_workflow_steps": 22,
+  "actual_successful_steps": 25,
+  "workspace": {
+    "passed": 2905,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0,
+    "bytes": 296666,
+    "sha256": "a611aa41616edb53f3dc88ad52957bb6d3370512b240e79d13c913cae4647c8a",
+    "summary_records": 316,
+    "nonempty_test_groups": 298,
+    "executed_groups": 298,
+    "failed_summary_records": 0,
+    "malformed_summaries": [],
+    "unconsumed_test_lines": [],
+    "scope": "Canonical per-configuration log only; counts not added across configurations."
+  },
+  "reference": {
+    "passed": 2863,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0,
+    "bytes": 298651,
+    "sha256": "20d328ba8c9040460cfbd0e9511a791b9a8373fe9b59ed732174e5a6cbf3beba",
+    "summary_records": 316,
+    "nonempty_test_groups": 294,
+    "executed_groups": 294,
+    "failed_summary_records": 0,
+    "malformed_summaries": [],
+    "unconsumed_test_lines": [],
+    "scope": "Canonical per-configuration log only; counts not added across configurations."
+  },
+  "feature_difference": {
+    "actual_checkout": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+    "all_identity_receipts_byte_equal": true,
+    "identity_receipts": {
+      "commit.txt": true,
+      "source-tree.txt": true,
+      "toolchain.txt": true,
+      "llvm-api-toolchain.json": true
+    },
+    "group_pairing": "Exact sequential ordinal plus runner header normalized only for target path and binary hash; complete original headers retained.",
+    "summary_records_per_configuration": 316,
+    "workspace_only_tests": 45,
+    "reference_only_tests": 3,
+    "net_passed_difference": 42,
+    "all_explicit_unavailable_controls_passed": true,
+    "counts_not_added_across_configurations": true
+  },
+  "toolchain": {
+    "status": "Pass",
+    "llvm_clang_lld": "23.1.4",
+    "rust_cargo": "1.99.1",
+    "consumer_clang_binary_hash_matches_toolchain": true
+  },
+  "formatting": "Pass",
+  "clippy": {
+    "status": "Pass",
+    "command": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+    "finished_dev_profile": true,
+    "log_sha256": "8e654d7b1e5c408794d4ccb20ac1b0c2ab6acde6e2abca26f6ace4544a296eb1"
+  },
+  "consumer209": {
+    "status": "Pass",
+    "source_commit": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+    "source_identity_kind": "observed-git",
+    "builds": 16,
+    "api_builder_objects": 40,
+    "executions": 128,
+    "allocator_observations": 88,
+    "injected_failures": 56,
+    "commands": 145,
+    "all_source_and_oracle_hashes_match_frozen_tree": true,
+    "all_observations_match_rederived_oracle": true,
+    "all_builder_api_without_fallback": true,
+    "all_builds_verify_once": true,
+    "ordinary_probe_ir_pair_equality": true,
+    "all_observed_allocations_released": true,
+    "sha256": "3d95cd69cf933368a88586e1b69469e9e3bf3986c249dbc1c25bc2d0a9351d59",
+    "scope": "Uploaded summary inspected; current workflow does not upload full consumer209 raw commands or executables."
+  },
+  "text_reference": {
+    "passed": 36,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0,
+    "bytes": 3931,
+    "sha256": "8dd61fbb632506ba93f7f9f1b04e8c1f382ac04338691fb059f6589cc4003e85",
+    "summary_records": 8,
+    "nonempty_test_groups": 5,
+    "executed_groups": 5,
+    "failed_summary_records": 0,
+    "malformed_summaries": [],
+    "unconsumed_test_lines": [],
+    "scope": "Canonical per-configuration log only; counts not added across configurations."
+  },
+  "migration_runner": {
+    "tests": 9,
+    "terminal_ok": true,
+    "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53",
+    "classification": "Synthetic migration-runner controls, not ZIL native executions."
+  },
+  "native_artifacts": [
+    {
+      "phase": "workspace",
+      "artifact_metadata": {
+        "id": 13025171694,
+        "name": "zil-main-41156023933-1-workspace-native",
+        "size_in_bytes": 190751155,
+        "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13025171694",
+        "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13025171694/zip",
+        "expired": false,
+        "created_at": "2026-10-31T01:42:39Z",
+        "expires_at": "2026-11-30T01:41:46Z",
+        "updated_at": "2026-10-31T01:42:39Z",
+        "digest": "sha256:b3a5ff52c6facf990903c575f01ad42589bade0183dd264ec25919869acf1aaa",
+        "workflow_run": {
+          "id": 41156023933,
+          "repository_id": 1433889316,
+          "head_repository_id": 1433889316,
+          "head_branch": "main",
+          "head_sha": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952"
+        }
+      },
+      "manifest": {
+        "sha256": "cf291bd5ed93f9a912ca5e8caca452dad7baea6fbc3b7722d26afe3fb618157a",
+        "bytes": 12795472,
+        "phase": "workspace",
+        "producer_root": "/home/runner/work/_temp/native-evidence/workspace",
+        "file_count": 63447,
+        "payload_bytes": 3072569013,
+        "producer_executable_mode_files": 2471,
+        "problems": [],
+        "executable_count_is_not_execution_count": true,
+        "payload_zip_independently_verified": false
+      },
+      "upload": "success",
+      "inventory_protected_release": "success",
+      "native_zip_payload_independently_downloaded": false,
+      "audit_basis": "Complete downloaded manifest, GitHub metadata, successful upload, and exact inventory-protected release. Native ZIP bytes/per-file payload were not independently downloaded or verified."
+    },
+    {
+      "phase": "reference",
+      "artifact_metadata": {
+        "id": 13026220546,
+        "name": "zil-main-41156023933-1-reference-native",
+        "size_in_bytes": 187615600,
+        "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13026220546",
+        "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13026220546/zip",
+        "expired": false,
+        "created_at": "2026-10-31T01:48:57Z",
+        "expires_at": "2026-11-30T01:48:10Z",
+        "updated_at": "2026-10-31T01:48:57Z",
+        "digest": "sha256:97232dd2b61508024bba7701db621964e23685a5e926427e3519e6423204168e",
+        "workflow_run": {
+          "id": 41156023933,
+          "repository_id": 1433889316,
+          "head_repository_id": 1433889316,
+          "head_branch": "main",
+          "head_sha": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952"
+        }
+      },
+      "manifest": {
+        "sha256": "657fa0ccca3b7529b54c67d693dfa0bdd01ed4180daaefce158be11f42faffc9",
+        "bytes": 12315844,
+        "phase": "reference",
+        "producer_root": "/home/runner/work/_temp/native-evidence/reference",
+        "file_count": 61179,
+        "payload_bytes": 3029948797,
+        "producer_executable_mode_files": 2335,
+        "problems": [],
+        "executable_count_is_not_execution_count": true,
+        "payload_zip_independently_verified": false
+      },
+      "upload": "success",
+      "inventory_protected_release": "success",
+      "native_zip_payload_independently_downloaded": false,
+      "audit_basis": "Complete downloaded manifest, GitHub metadata, successful upload, and exact inventory-protected release. Native ZIP bytes/per-file payload were not independently downloaded or verified."
+    }
+  ],
+  "all_phase_and_final_duplicate_receipts_byte_identical": true,
+  "all_five_artifacts_present_unexpired_with_digest": true,
+  "all_downloaded_phase_and_final_zip_bytes_match_api_digest": true,
+  "source_history_bundle": {
+    "present_in_final_zip": true,
+    "ci_bundle_verify": "success",
+    "bundle_metadata": {
+      "uncompressed_bytes": 271437454,
+      "compressed_bytes": 269845239,
+      "crc32": "9416d8e1"
+    },
+    "bundle_extracted_or_locally_verified_by_this_reviewer": false
+  },
+  "limitations": [
+    "Native ZIP payloads were not independently downloaded: native evidence uses complete manifests, API metadata, successful upload and exact inventory-protected release.",
+    "consumer209 full raw commands and executables are not uploaded by this workflow; only its complete summary was independently inspected and every observation compared with the rederived oracle.",
+    "Final repository.bundle was present and CI-verified; this reviewer neither extracted nor independently verified it locally.",
+    "Python migration controls are synthetic controls, not ZIL native executions."
+  ],
+  "ci_failures_observed": [],
+  "audit_parser_failures_observed": [],
+  "new_compiler_tests_executed": false,
+  "source_code_modified": false,
+  "remote_mutations_performed": false,
+  "audit_directory_frozen_after_result_write": true,
+  "evidence_files": [
+    {
+      "path": "__pycache__/audit_receipts.cpython-312.pyc",
+      "bytes": 13740,
+      "sha256": "12857c6bcea1a4ac07ad50ac64d149e2d64e95bb8cd92b1b1a3245e38183263f"
+    },
+    {
+      "path": "artifacts-final.json",
+      "bytes": 4020,
+      "sha256": "e5d2f67b212861ef4a941c25f2fc581c4964dbff79eadf0418abd67f0e41b9ac"
+    },
+    {
+      "path": "artifacts-workspace-observed.json",
+      "bytes": 820,
+      "sha256": "1afc33373772fc24423f58cf0340a0f5ed5de02c80afeb951f4d9c69a9cab436"
+    },
+    {
+      "path": "audit_final.py",
+      "bytes": 8507,
+      "sha256": "7bc2bdf5be787f80a47e06d45696742ac8e4ccd547a81e3d75073fabac638251"
+    },
+    {
+      "path": "audit_receipts.py",
+      "bytes": 7685,
+      "sha256": "4e070ebfc871de86cd84505d0c98f4c9399c6944fe2317713fa4488941c618ae"
+    },
+    {
+      "path": "audit_workflow.py",
+      "bytes": 3074,
+      "sha256": "bb158d1e0b92c216b7e5dc36f4d3303fe35a0f6347735298a9fe46f780f558de"
+    },
+    {
+      "path": "ci-expectations.json",
+      "bytes": 27375,
+      "sha256": "35c1a87151dd37a57877da42a98283c640be402089713b9770b62612b601df56"
+    },
+    {
+      "path": "clippy-and-bundle-log-audit.json",
+      "bytes": 698,
+      "sha256": "7045a85f1852328f1b3f3a78615798f63c95311787e0a724179b95aa4d7c3529"
+    },
+    {
+      "path": "compare_phases.py",
+      "bytes": 3394,
+      "sha256": "d9be1df253fb9763264ce523dc4d1eb79ed257f482a0319e2d949368fd6ce740"
+    },
+    {
+      "path": "exact-pr-main-doc-diff.json",
+      "bytes": 181436,
+      "sha256": "fa68c2d95864c299b7ce12866bbaa1c471e11e63560ee1f84fc598da57afaf83"
+    },
+    {
+      "path": "expectations-binding.json",
+      "bytes": 1709,
+      "sha256": "53267aad041b8eb50504d15c2008d49a160a6c5ae2014033e66e9a82987cb60f"
+    },
+    {
+      "path": "feature-count-differences.json",
+      "bytes": 16171,
+      "sha256": "a87e5ccff95837f29e2bc9839215597886baf3937caf191ebbeaeca5bfcd8991"
+    },
+    {
+      "path": "final-audit.json",
+      "bytes": 54945,
+      "sha256": "2fe0c2a393be428bb8212a812b8022760331f673c825facc6e453b6a7bf33e30"
+    },
+    {
+      "path": "github-compare-pr-to-main.json",
+      "bytes": 36040,
+      "sha256": "d72838d618f64140dac1751540bce284c8bc947bc651e610049d3baca0f99a6d"
+    },
+    {
+      "path": "job.log",
+      "bytes": 961365,
+      "sha256": "94362b6d5901a043b29c599e0a9307f53728f666b9da2547236dc30159cac946"
+    },
+    {
+      "path": "jobs-final.json",
+      "bytes": 7970,
+      "sha256": "d7e087244003a03072e46ea1cc026562c203283114c1f9e9aa2b1055dca6da20"
+    },
+    {
+      "path": "jobs-observed-01.json",
+      "bytes": 4317,
+      "sha256": "1679bff11f52ac2e14a40eb87f48c7ecdf0055abbc8ddf09d1e69607aec4d557"
+    },
+    {
+      "path": "merge-git-object.json",
+      "bytes": 3304,
+      "sha256": "7520f48dbb69e5bacab5a2ff35169ba76f8bb48a09df5646e4854414f182aac4"
+    },
+    {
+      "path": "merge-root-tree.json",
+      "bytes": 8211,
+      "sha256": "9651d9d3d3d7e0954f9a2ffedf7c9c83861118cc9cb76ca896be2474bff896ac"
+    },
+    {
+      "path": "observations.json",
+      "bytes": 2534,
+      "sha256": "b59b4ff15a513651654eb69822255945f1beeaacf7a3be226ad018b57368c41d"
+    },
+    {
+      "path": "pr-preservation.json",
+      "bytes": 7740,
+      "sha256": "25ae73a23564fd422838c9887279ad82fd7e4a57d58a9ee544767236d339f3dc"
+    },
+    {
+      "path": "reference-audit.json",
+      "bytes": 380420,
+      "sha256": "200e05f3d9c6db29f078b412976da0bbab204e0c0b3edf24362d862b77cbf827"
+    },
+    {
+      "path": "reference.transfer.json",
+      "bytes": 324,
+      "sha256": "3414a023e57081b333bc5819c650d7362a90d6afb50d80c3b5bddf6bfb2409e5"
+    },
+    {
+      "path": "reference.zip",
+      "bytes": 3372970,
+      "sha256": "06a745a2b9e2f5bb84731b63fa235ca4a9adf39074291f1fc14eb697d9c93410"
+    },
+    {
+      "path": "run-final.json",
+      "bytes": 13059,
+      "sha256": "6faf3b2e7d89bb78b34f4830bce3048e960166b9d5d544559ee5a9a818f5231b"
+    },
+    {
+      "path": "run-observed-01.json",
+      "bytes": 13056,
+      "sha256": "db00137e037892ec96fd9a0164045ae74cc32cdca011bbef93c4f6e7e03c5787"
+    },
+    {
+      "path": "source-subtree-binding.json",
+      "bytes": 2054,
+      "sha256": "50b4c4cf280d24fcc94fed2c4da5ea9b9e355e91313e24ddfe9be5bbfdaf04a3"
+    },
+    {
+      "path": "workflow-audit.json",
+      "bytes": 11116,
+      "sha256": "85a4f6d7eab3755fbc2ed01e59acb0b96efdebeb72b88926e234fb11854e63d5"
+    },
+    {
+      "path": "workspace-audit.json",
+      "bytes": 380752,
+      "sha256": "64f86c9be246e0c3dc6d770f06bb3261bee266bd9687878f5439ec36dda8b03c"
+    },
+    {
+      "path": "workspace.transfer.json",
+      "bytes": 324,
+      "sha256": "948fd0963ddfa3dce9557718595ac71509157715d84ec415f71617623bd99ced"
+    },
+    {
+      "path": "workspace.zip",
+      "bytes": 3431787,
+      "sha256": "11d7e481d5cb437f09015b69d0747b1fa838d18e52bbc786f057c2394caedd88"
+    }
+  ]
+}

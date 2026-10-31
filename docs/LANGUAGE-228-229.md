@@ -2,9 +2,20 @@
 
 ## 当前验收状态
 
-共同实现为 `04fbd476fdbf02fbeaee374d2a8895f16f23c954`（P）。228、229的交叉非作者审查均为Pass，事件消费者和root受影响回归通过；当前等待GitHub完整工作区、参考后端、机器消费者、质量与迁移门，以及main合并后的实际验收。任务保持“待验”。
+228、229已合入并完成正式主线验收。共同实现为 04fbd476fdbf02fbeaee374d2a8895f16f23c954（P），PR候选为 faf7c8e2c713d81cedaf2b2a74a738045f093cd0（R）。两个切片的交叉非作者审核均为Pass，作者和原失败记录保持原身份。
 
-施工9从远端 `6ba0b04ee8b9cac3ead187b2aa9f03c91c217e49` 建立独立工作树，合流时保留施工8至 `06b27a2f89058f8295dab5830f54a79b9be6e424` 的工单和日志更新。225–227及编译性能研究仍由各自施工线负责。
+| 正式验收 | 实际提交 | GitHub run |
+| --- | --- | --- |
+| PR11完整验收 | ee5333028cb0c959dc6b73e43de000c66e4ace3f | [41154458005](https://github.com/zil-lang/zil/actions/runs/41154458005) |
+| main合并后完整验收 | e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952 | [41156023933](https://github.com/zil-lang/zil/actions/runs/41156023933) |
+
+两次运行的22个声明步骤及3个自动步骤均成功，共25个实际步骤：默认workspace 2905/0/0、reference 2863/0/0，均零过滤；格式与Clippy通过，text-reference 36/0、migration 9项合成控制通过。每次机器State/分配故障控制均独立核对16次构建、40个API builder对象、128次执行、88条allocator观察、56次注入故障及145条command记录。各轮结果不相加为独立覆盖。
+
+PR与实际main整树不同；直接分层核对确认仅225、226工单及施工8日志三个文档blob改变，生产、测试、示例、配置和工具相同。主线结果从本次原始收据重新计数，未把PR结果改标为main。main之后至e463b7ee、再至21058d0e的并行更新仍只涉及文档/规划/证据，已逐SHA保留；全部CI输入不变。
+
+两次CI的原始小ZIP、完整job日志、独立审计和最终恢复包的非bundle成员已保存于evidence/integration/228-229/ci41154458005及ci41156023933。大native ZIP未在本地另行逐文件下载核验，判断依据为完整manifest、GitHub摘要元数据、成功上传及清理前inventory核对。consumer209的工作流保存完整summary；审计重核其全部观察，原始命令目录和可执行文件未由该工作流上传。源码bundle另由环境恢复代理导入并在无alternates的隔离对象库中验证，收据见recovery目录；不追改两份CI审计收据当时未展开bundle的声明。
+
+施工9从远端6ba0b04e建立独立工作区，并保留施工8的225–227及编译研究各自的进度和身份。
 
 ## 新增语言能力
 
@@ -49,7 +60,7 @@ fn duplicate<T>(value: T) -> (T, T) where T: Copy {
 
 普通泛型自由函数现在接受 `where T: Copy`，正规化到既有内联 `T: Copy` 能力检查；重复Copy约束幂等。约束目标必须是本函数直接声明的普通类型参数。
 
-本片不开放StoreElement、callable、自定义trait、投影、生命周期、const参数、方法或impl上的一般where约束。未实例化的泛型函数体仍接受符号检查，不能利用外部同名结构体获得字段或构造能力。含where的新路径按where→别名→特化传递同一剩余预算；无where旧路径保留原行为与费用，具名碰撞返修的费用变化单独记录。
+本片不开放StoreElement、callable、自定义trait、投影、生命周期、const参数、方法或impl上的一般where约束。未实例化的泛型函数体仍接受符号检查，不能利用外部同名结构体获得字段或构造能力。含where的新路径按where→别名→特化传递同一剩余预算；未触及该名义碰撞缺陷的无where旧路径保留原行为与费用；碰撞路径的拒绝修复和新增费用单独记录。
 
 ## 独审发现与返修
 
@@ -93,7 +104,7 @@ fn duplicate<T>(value: T) -> (T, T) where T: Copy {
 
 四组消费者为手写+inline、生成+inline、手写+where、生成+where；同输入下都验证 `0 → J / exit0`、`1 → W / exit0`、`x → 空输出 / exit7`。LLVM API报告确认23.1.4、builder输入、`parse_ns=0`，O0/O2均验证并执行。早期CLI控制保持原候选身份，不改标为最终修复版的执行。
 
-旧 `#for(i in 0..1){struct S{x:i32}}fn main()->i32=>0` 原字节从旧拒绝列表迁入正例，标签仍为generated-type；其余旧反例未删改。正式全仓尚待CI验证。
+旧 `#for(i in 0..1){struct S{x:i32}}fn main()->i32=>0` 原字节从旧拒绝列表迁入正例，标签仍为generated-type；其余旧反例未删改。该迁移已同时进入本次PR与main两套完整配置验收。
 
 ## 预算合同
 
@@ -119,3 +130,7 @@ fn duplicate<T>(value: T) -> (T, T) where T: Copy {
 本轮使有限生成器可以生成有真实类型的事件载荷，并用普通where Copy泛型消费它们。完整Type/Syntax、`#emit`、一般trait/lending、普通defer、长期外部回调关闭/注销/重入、挂起/取消/并发等继续按各自工单推进。
 
 225–227不随本轮晋升；B0仍Doing、181仍施工，完整1.4与完整ZUI仍NotSatisfied，Rust产品门及原生Windows仍NotRun。没有建立四目标合取或可重复产品净突破。历史handoff记录完整性Fail也不因本轮局部语言验证而消失。
+
+## 下一轮优先候选
+
+可并行推进有限非泛型enum生成（只含已有Unit/Tuple变体）与已有名义trait bound的where正规化。前者主要占用ct_selection；后者需要generic_where及modules中真实where路径的模块身份解析。它们目前只是只读梳理后的候选，没有新派编号、没有修改规范，也未计入已实现能力；225–227仍由其施工线维护。

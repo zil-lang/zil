@@ -1,0 +1,65 @@
+[
+  {
+    "sha": "3883a5b4b93f784b63826d86672eda17bfa69cf0",
+    "raw_bytes": 267,
+    "raw_sha256": "0ea44f41445c2743413eec23b8d76f39fcdddc393ca69cc53c211710fdf59da5",
+    "object_id_recomputed_before_any_git_object_write": "3883a5b4b93f784b63826d86672eda17bfa69cf0",
+    "reconstruction": {
+      "method": "API exact fields and recovered timezone/newline, accepted only on full expected SHA match",
+      "author_offset": "+0800",
+      "committer_offset": "+0800",
+      "message_added_final_lf": false
+    },
+    "tree": "678d4e3231abdb711ac5fd2d304d7089a3fc72ce",
+    "parents": [
+      "5d85a7ae1002a4a0e384e56ceee3da3da5af8d79"
+    ]
+  },
+  {
+    "sha": "5d85a7ae1002a4a0e384e56ceee3da3da5af8d79",
+    "raw_bytes": 272,
+    "raw_sha256": "8de946ffa9bb5c37e7054ea5a92c010cf3f8df636c095cca5e01cc60ad16efc0",
+    "object_id_recomputed_before_any_git_object_write": "5d85a7ae1002a4a0e384e56ceee3da3da5af8d79",
+    "reconstruction": {
+      "method": "API exact fields and recovered timezone/newline, accepted only on full expected SHA match",
+      "author_offset": "+0800",
+      "committer_offset": "+0800",
+      "message_added_final_lf": false
+    },
+    "tree": "76c558f178e785eb8fe6fd73264b3b54a9b65124",
+    "parents": [
+      "e6cad313ce80854a9c9201b71c18cc8e92479d0f"
+    ]
+  },
+  {
+    "sha": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+    "raw_bytes": 1439,
+    "raw_sha256": "976841448cb58bcc29db717a626d7034c0adb577f0801a16bb6c1b78188d040a",
+    "object_id_recomputed_before_any_git_object_write": "e60f9e2242a1d1ac3bfc14e082e627d7f7bc8952",
+    "reconstruction": {
+      "method": "verified API payload plus original PGP signature",
+      "retained_signature_final_empty_continuation": true
+    },
+    "tree": "bdcc3ce343ff5c1ca495f864c85ff672a5401ac5",
+    "parents": [
+      "3883a5b4b93f784b63826d86672eda17bfa69cf0",
+      "faf7c8e2c713d81cedaf2b2a74a738045f093cd0"
+    ]
+  },
+  {
+    "sha": "e6cad313ce80854a9c9201b71c18cc8e92479d0f",
+    "raw_bytes": 278,
+    "raw_sha256": "7d6731291ac94cbcddb53bc2e8d1f4c17fac6847800ea2fad5cbab3aa9470740",
+    "object_id_recomputed_before_any_git_object_write": "e6cad313ce80854a9c9201b71c18cc8e92479d0f",
+    "reconstruction": {
+      "method": "API exact fields and recovered timezone/newline, accepted only on full expected SHA match",
+      "author_offset": "+0800",
+      "committer_offset": "+0800",
+      "message_added_final_lf": false
+    },
+    "tree": "866a3561143b8b801431a921a8f2f8b764ac96f7",
+    "parents": [
+      "0197ea37997e00a06a274cb5bdbec893f25fb493"
+    ]
+  }
+]

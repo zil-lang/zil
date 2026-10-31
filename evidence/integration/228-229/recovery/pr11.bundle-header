@@ -1,0 +1,20 @@
+# v2 git bundle
+ee5333028cb0c959dc6b73e43de000c66e4ace3f HEAD
+404fc72d7d0e2b4119809e9a878445a1c1375ed4 refs/remotes/origin/chore/construction8-resume
+5f47ffa58f5e8cb7bb03ac94675e9bc6bed3b9a0 refs/remotes/origin/impl/225-product-store-capture
+0197ea37997e00a06a274cb5bdbec893f25fb493 refs/remotes/origin/main
+e7b492c6e04128e6106bbf29c0d6c7b381556d77 refs/remotes/origin/research/compile-performance
+360f2c142aed54a65ad4232ae7ef655b8a3fcc5b refs/remotes/origin/research/compile7-20261031
+8c4fa27f677b992e6d5590493a4ea530b95ae46d refs/remotes/origin/research/cp21-invalidate
+74142bc822c57b1246c9bf328c019fd364ee150a refs/remotes/origin/research/cp22-parse-cache
+1cb27ac6b907aeef28b8a472d15ee1859b9959c1 refs/remotes/origin/research/cp23-query-read
+7e7f8083af9361de17793c602bfaa7117e6f47b9 refs/remotes/origin/research/cp26-parse-publication
+79bb5348fe426a62aecaae808321f70966cbc24c refs/remotes/origin/research/cp27-temp-ownership
+1082b50ec3221ccf0550255fb1a6675500266055 refs/remotes/origin/task/228
+faf7c8e2c713d81cedaf2b2a74a738045f093cd0 refs/remotes/origin/task/228-229
+2890f226fdc2328248b341de4cdcaeb49871b0a0 refs/remotes/origin/task/228-consumer
+cfa425410f864f997cb7cfd3295d07e745344130 refs/remotes/origin/task/228-transport
+026ea29beb8d83c382ad04bd417606679769afa3 refs/remotes/origin/task/229
+e739f583b63ba8fa44fa26a937d36afb9cbaea2a refs/remotes/origin/task/cp25-reactive-session
+ee5333028cb0c959dc6b73e43de000c66e4ace3f refs/remotes/pull/11/merge
+

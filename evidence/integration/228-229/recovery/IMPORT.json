@@ -1,0 +1,55 @@
+{
+  "utc": "2026-10-31T01:40:02.569610+00:00",
+  "repository": "/workspace/scratch/e9af9764d083/zil",
+  "target_ref": "refs/construction9/pr11-tested",
+  "target_sha": "ee5333028cb0c959dc6b73e43de000c66e4ace3f",
+  "commands": [
+    {
+      "argv": [
+        "git",
+        "bundle",
+        "verify",
+        "/workspace/scratch/e9af9764d083/source-recovery-pr11/repository.bundle"
+      ],
+      "exit_code": 0,
+      "log": "bundle-verify.log"
+    },
+    {
+      "argv": [
+        "git",
+        "-c",
+        "gc.auto=0",
+        "-c",
+        "maintenance.auto=false",
+        "fetch",
+        "--no-auto-maintenance",
+        "--no-tags",
+        "--no-write-fetch-head",
+        "/workspace/scratch/e9af9764d083/source-recovery-pr11/repository.bundle",
+        "HEAD:refs/construction9/pr11-tested"
+      ],
+      "exit_code": 0,
+      "log": "import.log"
+    }
+  ],
+  "new_pack_files": [
+    {
+      "name": "pack-c99c13859b29923c6c0a5584de352ad12c3341a6.idx",
+      "bytes": 1983668
+    },
+    {
+      "name": "pack-c99c13859b29923c6c0a5584de352ad12c3341a6.pack",
+      "bytes": 271257488
+    },
+    {
+      "name": "pack-c99c13859b29923c6c0a5584de352ad12c3341a6.rev",
+      "bytes": 283280
+    }
+  ],
+  "local_heads_unchanged": true,
+  "tracked_worktree_status_unchanged": true,
+  "heads_before": "refs/heads/main 0a96f5a903fde894daa45f30fd18864fb379c041\nrefs/heads/task/228 1082b50ec3221ccf0550255fb1a6675500266055\nrefs/heads/task/228-229 faf7c8e2c713d81cedaf2b2a74a738045f093cd0\nrefs/heads/task/228-consumer 2890f226fdc2328248b341de4cdcaeb49871b0a0\nrefs/heads/task/228-review 790bd52ea703abd5936120d22725900848b1b663\nrefs/heads/task/229 026ea29beb8d83c382ad04bd417606679769afa3\nrefs/heads/task/229-review 0a46926fb8172a507e4d9d72d12120f934ee9e91",
+  "heads_after": "refs/heads/main 0a96f5a903fde894daa45f30fd18864fb379c041\nrefs/heads/task/228 1082b50ec3221ccf0550255fb1a6675500266055\nrefs/heads/task/228-229 faf7c8e2c713d81cedaf2b2a74a738045f093cd0\nrefs/heads/task/228-consumer 2890f226fdc2328248b341de4cdcaeb49871b0a0\nrefs/heads/task/228-review 790bd52ea703abd5936120d22725900848b1b663\nrefs/heads/task/229 026ea29beb8d83c382ad04bd417606679769afa3\nrefs/heads/task/229-review 0a46926fb8172a507e4d9d72d12120f934ee9e91",
+  "alternates_left_unchanged": true,
+  "source_zip_untouched": true
+}

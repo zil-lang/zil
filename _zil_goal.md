@@ -171,3 +171,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 以精确远端6ba0b04e接续，施工8的225–227保留其派工和冻结身份。228补有限#for struct/type alias生成，229补普通泛型自由函数where Copy正规化；两作者独立写集，第三代理编写生成事件与普通展开对照，交叉非作者审核绑定精确提交。新增规范与旧拥有/借用合同不相交；主树由集成者管理，日志只更新zil施工9专属行。共享磁盘缓存回收和GitHub对象恢复只算环境恢复，不计语言进展。
 
 两片须完成源正反例、真实预算边界、原回归及LLVM API O0/O2组合后才可晋升；完整Type/Syntax/#emit、一般trait/lending、defer及225–227、长期生命周期/异步/并发、完整1.4/ZUI与Rust产品门继续按各自真实状态保留。
+
+## 2026-10-31 施工9验收228–229
+
+有限生成非泛型struct/alias与普通自由泛型where Copy已随PR11合入main；共同实现04fbd476、实际main e60f9e22，完整PR/main runs41154458005/41156023933各25步骤通过，各自默认2905/0/0、reference2863/0/0。三个独审问题已返修且原Fail保留；预算变化按具名源记录，不宣称编译性能收益。225–227并行记录保留，B0/181、完整1.4/ZUI、Rust四目标和原生Windows状态不变。接续以docs/CURRENT-HANDOFF.md及真实main为准。

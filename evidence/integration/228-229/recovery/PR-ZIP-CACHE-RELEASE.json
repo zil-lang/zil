@@ -1,0 +1,15 @@
+{
+  "status": "Pass",
+  "scope": "Release a reproducible local download cache after exact member archival and Git object restoration",
+  "original_zip_sha256": "c86ccc4453fb67d001190f63ce41a1f7c427df4d591f3043994f68f1fdfdad6b",
+  "original_zip_bytes": 274967249,
+  "bundle_raw_sha256": "546feec492456e06a4f7644b48ea8379018976ccee0d56d95f04dbfe350b4234",
+  "bundle_raw_bytes": 271258946,
+  "header_sha256": "3439fb607311f8b5459b4fba66e6249300a782ab52ed29f74742d041446669a9",
+  "header_bytes": 1458,
+  "pack_git_id": "c99c13859b29923c6c0a5584de352ad12c3341a6",
+  "all_other_45_members_archived": "../ci41154458005/final-receipts.tar.xz",
+  "original_github_artifact_id": 13024694207,
+  "original_ci_audit_unchanged": true,
+  "note": "The original ZIP was completely verified before cache release; exact bundle bytes can be reconstructed by prefixing this header to the owned verified pack. The original GitHub artifact and all audit identities remain unchanged."
+}

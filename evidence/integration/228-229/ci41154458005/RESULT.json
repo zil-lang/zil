@@ -1,0 +1,425 @@
+{
+  "audit_kind": "Independent read-only CI receipt audit; not a new implementation review or a new test run.",
+  "reviewer": "/root/mainline_recovery",
+  "verdict": "Pass",
+  "status": "Pass",
+  "completeness": "Complete within stated artifact verification scope",
+  "created_at_utc": "2026-10-31T01:34:06.570081+00:00",
+  "run_id": 41154458005,
+  "run_attempt": 1,
+  "run_url": "https://github.com/zil-lang/zil/actions/runs/41154458005",
+  "job_id": 124398067122,
+  "event": "pull_request",
+  "pr": 11,
+  "pr_head": "faf7c8e2c713d81cedaf2b2a74a738045f093cd0",
+  "actual_tested_commit": "ee5333028cb0c959dc6b73e43de000c66e4ace3f",
+  "actual_git_tree": "a72cfaa984e4f4720c0a047084fa24d159646ad9",
+  "reviewed_production_candidate": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+  "source_binding": {
+    "merge": "ee5333028cb0c959dc6b73e43de000c66e4ace3f",
+    "pr_head": "faf7c8e2c713d81cedaf2b2a74a738045f093cd0",
+    "reviewed_candidate": "04fbd476fdbf02fbeaee374d2a8895f16f23c954",
+    "paths": [
+      {
+        "path": ".github",
+        "remote_merge": "df6acd94cde5c6010c2340363e6d319c0b8c36bb",
+        "pr_head": "df6acd94cde5c6010c2340363e6d319c0b8c36bb",
+        "reviewed_candidate": "df6acd94cde5c6010c2340363e6d319c0b8c36bb",
+        "all_equal": true
+      },
+      {
+        "path": "tools",
+        "remote_merge": "5f6859d4dda9462b1c9d5a42fc7dc418ee24eb70",
+        "pr_head": "5f6859d4dda9462b1c9d5a42fc7dc418ee24eb70",
+        "reviewed_candidate": "5f6859d4dda9462b1c9d5a42fc7dc418ee24eb70",
+        "all_equal": true
+      },
+      {
+        "path": "rust-toolchain.toml",
+        "remote_merge": "58eef2ccd48f957feeada49b17ad1e3fd667bf8c",
+        "pr_head": "58eef2ccd48f957feeada49b17ad1e3fd667bf8c",
+        "reviewed_candidate": "58eef2ccd48f957feeada49b17ad1e3fd667bf8c",
+        "all_equal": true
+      },
+      {
+        "path": "Cargo.toml",
+        "remote_merge": "d0e906f4852161e0d6e487124a633f5e0c094e8d",
+        "pr_head": "d0e906f4852161e0d6e487124a633f5e0c094e8d",
+        "reviewed_candidate": "d0e906f4852161e0d6e487124a633f5e0c094e8d",
+        "all_equal": true
+      },
+      {
+        "path": "Cargo.lock",
+        "remote_merge": "9107f4a982d037b5736d62c8906f58b40805f431",
+        "pr_head": "9107f4a982d037b5736d62c8906f58b40805f431",
+        "reviewed_candidate": "9107f4a982d037b5736d62c8906f58b40805f431",
+        "all_equal": true
+      },
+      {
+        "path": "crates",
+        "remote_merge": "21bdc454a5c7947cb7899ddd9321f91c6bf7fb77",
+        "pr_head": "21bdc454a5c7947cb7899ddd9321f91c6bf7fb77",
+        "reviewed_candidate": "826028437a7e7cdc78f52ff4e6857726a3258c1d",
+        "all_equal": false
+      },
+      {
+        "path": "examples",
+        "remote_merge": "b38ea2d504e434ae074be40c8a3f03ccde4df47b",
+        "pr_head": "b38ea2d504e434ae074be40c8a3f03ccde4df47b",
+        "reviewed_candidate": "b38ea2d504e434ae074be40c8a3f03ccde4df47b",
+        "all_equal": true
+      }
+    ],
+    "all_equal": false,
+    "all_remote_merge_paths_equal_pr_head": true,
+    "crates_changes_after_review_candidate": [
+      "A\tcrates/zil-driver/tests/review229_joint.rs"
+    ],
+    "additional_independent_review_test_only": true,
+    "production_crates_unchanged_after_review_candidate": true,
+    "acceptance_note": "Complete crates tree differs solely by the additional independent review229_joint.rs test; production, workflow, tools and fixtures remain equal."
+  },
+  "required_workflow_steps": 22,
+  "actual_successful_steps": 25,
+  "workspace": {
+    "passed": 2905,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0,
+    "bytes": 296665,
+    "sha256": "ffb623869b0e6cf5b0752cb9a845dc50baa1d6bb788c253d8825f8734b4d7d03",
+    "summary_records": 316,
+    "nonempty_test_groups": 298,
+    "executed_groups": 298,
+    "failed_summary_records": 0,
+    "malformed_summaries": [],
+    "unconsumed_test_lines": [],
+    "scope": "Canonical per-configuration log only; counts not added across configurations."
+  },
+  "reference": {
+    "passed": 2863,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0,
+    "bytes": 298652,
+    "sha256": "17c3d519353d5dae7d1097c64920a03b63ccc4773b327cc3808beb7c4581bbfe",
+    "summary_records": 316,
+    "nonempty_test_groups": 294,
+    "executed_groups": 294,
+    "failed_summary_records": 0,
+    "malformed_summaries": [],
+    "unconsumed_test_lines": [],
+    "scope": "Canonical per-configuration log only; counts not added across configurations."
+  },
+  "feature_difference": {
+    "actual_checkout": "ee5333028cb0c959dc6b73e43de000c66e4ace3f",
+    "all_identity_receipts_byte_equal": true,
+    "identity_receipts": {
+      "commit.txt": true,
+      "source-tree.txt": true,
+      "toolchain.txt": true,
+      "llvm-api-toolchain.json": true
+    },
+    "group_pairing": "Exact sequential ordinal plus runner header normalized only for target path and binary hash; complete original headers retained.",
+    "summary_records_per_configuration": 316,
+    "workspace_only_tests": 45,
+    "reference_only_tests": 3,
+    "net_passed_difference": 42,
+    "all_explicit_unavailable_controls_passed": true,
+    "counts_not_added_across_configurations": true
+  },
+  "formatting": "Pass",
+  "clippy": {
+    "status": "Pass",
+    "command": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+    "finished_dev_profile": true,
+    "log_sha256": "5bc4a7c177d4ae729be85352324ee158048b99cf94e4a908c2f95ff1650fa783"
+  },
+  "consumer209": {
+    "status": "Pass",
+    "source_commit": "ee5333028cb0c959dc6b73e43de000c66e4ace3f",
+    "source_identity_kind": "observed-git",
+    "builds": 16,
+    "api_builder_objects": 40,
+    "executions": 128,
+    "allocator_observations": 88,
+    "injected_failures": 56,
+    "commands": 145,
+    "all_source_and_oracle_hashes_match_frozen_tree": true,
+    "all_observations_match_rederived_oracle": true,
+    "all_builder_api_without_fallback": true,
+    "all_builds_verify_once": true,
+    "ordinary_probe_ir_pair_equality": true,
+    "all_observed_allocations_released": true,
+    "sha256": "78f764b8590abdc795f5b5a79afdb4d960769b2a63307ee49f8ee23e439cdf52",
+    "scope": "Uploaded summary inspected; current workflow does not upload full consumer209 raw commands or executables."
+  },
+  "text_reference": {
+    "passed": 36,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0,
+    "bytes": 3931,
+    "sha256": "502d5b06dd8c982c65ebe9e59643b09bba74059f914ac4eedd62830b663a006b",
+    "summary_records": 8,
+    "nonempty_test_groups": 5,
+    "executed_groups": 5,
+    "failed_summary_records": 0,
+    "malformed_summaries": [],
+    "unconsumed_test_lines": [],
+    "scope": "Canonical per-configuration log only; counts not added across configurations."
+  },
+  "migration_runner": {
+    "tests": 9,
+    "terminal_ok": true,
+    "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53",
+    "classification": "Synthetic migration-runner controls, not ZIL native executions."
+  },
+  "native_artifacts": [
+    {
+      "phase": "workspace",
+      "artifact_metadata": {
+        "id": 13024633174,
+        "name": "zil-main-41154458005-1-workspace-native",
+        "size_in_bytes": 190750885,
+        "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13024633174",
+        "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13024633174/zip",
+        "expired": false,
+        "created_at": "2026-10-31T01:23:22Z",
+        "expires_at": "2026-11-30T01:22:29Z",
+        "updated_at": "2026-10-31T01:23:22Z",
+        "digest": "sha256:e7a2fb5a3f13b795a35514d37e4f34318bc8060b344a706199713aa07440de1a",
+        "workflow_run": {
+          "id": 41154458005,
+          "repository_id": 1433889316,
+          "head_repository_id": 1433889316,
+          "head_branch": "task/228-229",
+          "head_sha": "faf7c8e2c713d81cedaf2b2a74a738045f093cd0"
+        }
+      },
+      "manifest": {
+        "sha256": "ab8fb636f4f0fe0246245c8399d33015aeff3bab4900cddf07cf31226fac150e",
+        "bytes": 12795202,
+        "phase": "workspace",
+        "producer_root": "/home/runner/work/_temp/native-evidence/workspace",
+        "file_count": 63447,
+        "payload_bytes": 3072568774,
+        "producer_executable_mode_files": 2471,
+        "problems": [],
+        "executable_count_is_not_execution_count": true,
+        "payload_zip_independently_verified": false
+      },
+      "upload": "success",
+      "inventory_protected_release": "success",
+      "native_zip_payload_independently_downloaded": false,
+      "audit_basis": "Complete downloaded manifest, GitHub metadata, successful upload, and exact inventory-protected release. Native ZIP bytes/per-file payload were not independently downloaded or verified."
+    },
+    {
+      "phase": "reference",
+      "artifact_metadata": {
+        "id": 13023998860,
+        "name": "zil-main-41154458005-1-reference-native",
+        "size_in_bytes": 187615036,
+        "url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13023998860",
+        "archive_download_url": "https://api.github.com/repos/zil-lang/zil/actions/artifacts/13023998860/zip",
+        "expired": false,
+        "created_at": "2026-10-31T01:29:54Z",
+        "expires_at": "2026-11-30T01:29:07Z",
+        "updated_at": "2026-10-31T01:29:54Z",
+        "digest": "sha256:f56d2e118b07dc3b4cf705cd9a7e39371f441ad9462e54f06d086defc776c63d",
+        "workflow_run": {
+          "id": 41154458005,
+          "repository_id": 1433889316,
+          "head_repository_id": 1433889316,
+          "head_branch": "task/228-229",
+          "head_sha": "faf7c8e2c713d81cedaf2b2a74a738045f093cd0"
+        }
+      },
+      "manifest": {
+        "sha256": "4a21313bd5ff3d876016f540539af87d354dd291271187b3895ec8da7d385ff2",
+        "bytes": 12315591,
+        "phase": "reference",
+        "producer_root": "/home/runner/work/_temp/native-evidence/reference",
+        "file_count": 61179,
+        "payload_bytes": 3029948827,
+        "producer_executable_mode_files": 2335,
+        "problems": [],
+        "executable_count_is_not_execution_count": true,
+        "payload_zip_independently_verified": false
+      },
+      "upload": "success",
+      "inventory_protected_release": "success",
+      "native_zip_payload_independently_downloaded": false,
+      "audit_basis": "Complete downloaded manifest, GitHub metadata, successful upload, and exact inventory-protected release. Native ZIP bytes/per-file payload were not independently downloaded or verified."
+    }
+  ],
+  "all_phase_and_final_duplicate_receipts_byte_identical": true,
+  "all_five_artifacts_present_unexpired_with_digest": true,
+  "all_downloaded_phase_and_final_zip_bytes_match_api_digest": true,
+  "source_history_bundle": {
+    "present_in_final_zip": true,
+    "ci_bundle_verify": "success",
+    "bundle_metadata": {
+      "uncompressed_bytes": 271258946,
+      "compressed_bytes": 269668908,
+      "crc32": "8c593848"
+    },
+    "bundle_extracted_or_locally_verified": false
+  },
+  "limitations": [
+    "Native ZIP payloads were not independently downloaded: native evidence uses complete manifests, API metadata, successful upload and exact inventory-protected release.",
+    "consumer209 full raw commands and executables are not uploaded by this workflow; only its complete summary was independently inspected and every observation compared with the rederived oracle.",
+    "Final repository.bundle was present and CI-verified; it was neither extracted nor independently verified locally.",
+    "Python migration controls are synthetic controls, not ZIL native executions."
+  ],
+  "ci_failures_observed": [],
+  "scratch_parser_correction": "audit-parser-attempt-01.json preserves a wrong initial expectation that resource SHA lines appeared on job stdout; hashes were read from their actual phase resources-after.log locations without changing any source/evidence bytes.",
+  "new_compiler_tests_executed": false,
+  "source_code_modified": false,
+  "remote_mutations_performed": false,
+  "evidence_files": [
+    {
+      "path": "artifacts-final.json",
+      "bytes": 4060,
+      "sha256": "7430f06b7e5e93710083bb683234ba9089b76d1e7fc9dda872be36adab21f879"
+    },
+    {
+      "path": "artifacts-workspace-observed.json",
+      "bytes": 1641,
+      "sha256": "b570f1e3b6caa6f6e625ca1d1b6b6189a80976cfc24507f4b1ebe8b97c6204fd"
+    },
+    {
+      "path": "audit-parser-attempt-01.json",
+      "bytes": 470,
+      "sha256": "85537b3098ab47e2fdc6a40fc774dc825b42561afeea98d34df121bfed3d8dd4"
+    },
+    {
+      "path": "audit_final.py",
+      "bytes": 8507,
+      "sha256": "2ffbd9330a4ef72fef5e337ee54c2c43bded5d0b284801fbaedf766759afe264"
+    },
+    {
+      "path": "audit_receipts.py",
+      "bytes": 7685,
+      "sha256": "4e070ebfc871de86cd84505d0c98f4c9399c6944fe2317713fa4488941c618ae"
+    },
+    {
+      "path": "compare_phases.py",
+      "bytes": 3401,
+      "sha256": "6988a18d05f1ffa43ee60d983e527ba6fb8720f04e9056a91a0dd68683817090"
+    },
+    {
+      "path": "download_receipt.py",
+      "bytes": 1255,
+      "sha256": "bb4787a19ce80cae1ecc1cbfdc6d915fe5147d993914168f5bab84c86bb84cf7"
+    },
+    {
+      "path": "feature-count-differences.json",
+      "bytes": 16171,
+      "sha256": "6075bc1ce716ceb2e3387eb0da0457e4f56df012a52a68e2f07aed52fcd75780"
+    },
+    {
+      "path": "final-audit.json",
+      "bytes": 54682,
+      "sha256": "a80afb9ea5be79b3b00433f7018e46ceedd1abe191b1b2c87a6ce998dda48e0e"
+    },
+    {
+      "path": "job.log",
+      "bytes": 961695,
+      "sha256": "dfcfb88fcd293d335e543fe2b143afc1bf29fc4599228b677f1df1d58cdf64c8"
+    },
+    {
+      "path": "jobs-final.json",
+      "bytes": 7978,
+      "sha256": "838742e176fc24e66bb8833bb7f9cf035d76af33521fbecf8a8ee5b2b3ff5e7e"
+    },
+    {
+      "path": "jobs-observed-01.json",
+      "bytes": 4317,
+      "sha256": "96d5005fc6ba53f2fc9754e44db020cd5dcd3ec6771883ffbd9d50fd55490022"
+    },
+    {
+      "path": "merge-git-object.json",
+      "bytes": 2752,
+      "sha256": "9ae8a328fc594cc7f1b4b57288fd4bdbf7a89f4f81aa9992c664a6980c09a0ee"
+    },
+    {
+      "path": "merge-root-tree.json",
+      "bytes": 8211,
+      "sha256": "416a5d2a7a6dce811b094c44653c854261667810f8f50f435e1dbdebec9ecd83"
+    },
+    {
+      "path": "observations.json",
+      "bytes": 1511,
+      "sha256": "bc70cec7d7e40be9ed4f204a3ae0ca407f6e4c0d4288013125f9d22ad769c4ed"
+    },
+    {
+      "path": "reference-audit.json",
+      "bytes": 380420,
+      "sha256": "f42c79aa51598398b117c08fd343c0f25c200469219b381886c7beabf82f072e"
+    },
+    {
+      "path": "reference.transfer.json",
+      "bytes": 324,
+      "sha256": "9c8a1a0230dc7a23d3bc9c523f18eb50a9a1f87606ecd324087fb727ccad37e8"
+    },
+    {
+      "path": "reference.zip",
+      "bytes": 3372605,
+      "sha256": "55a4077e8e6836346a4fa27d0f9ef563f3e3a1384aef9e65c2311a5d8420fc34"
+    },
+    {
+      "path": "run-final.json",
+      "bytes": 13444,
+      "sha256": "1ffb1960a6eccba3b7aa0eacbd90a5183bcf2dc4c2682c91e82e41c93793ca3d"
+    },
+    {
+      "path": "run-observed-01.json",
+      "bytes": 13441,
+      "sha256": "3bba803502da055647a12d4268208e751149b9a58d50602340c217f860f9dc9a"
+    },
+    {
+      "path": "source-subtree-binding.json",
+      "bytes": 2499,
+      "sha256": "5f76463c8ba0a5c335d84959cfef52c1144bc45c035ae35f23026af30dfd233b"
+    },
+    {
+      "path": "steps-observed-02.json",
+      "bytes": 3570,
+      "sha256": "668c3a294dd76d26c07a17f72ef20f2defff5d62e4e1d11dc7336dc433a32c45"
+    },
+    {
+      "path": "workflow-audit.json",
+      "bytes": 11387,
+      "sha256": "08bf7baec02c9ef06a3bb040ce4dc9d886fffb3b731582cddeab7d13095d565f"
+    },
+    {
+      "path": "workflow-binding-head.json",
+      "bytes": 2143,
+      "sha256": "9b78eacbd5034d9ebbcf84de3f17739eef362cdcfa93472b009175faedc043c0"
+    },
+    {
+      "path": "workspace-audit.json",
+      "bytes": 380752,
+      "sha256": "2c128c7e38bd04865f6a19291bb83eee2641ab0abc51f6efc31a832d27781de3"
+    },
+    {
+      "path": "workspace-file-ref.json",
+      "bytes": 559,
+      "sha256": "6542e85402994800f6da0432a18541b907bcd31bf8147f67216cdb8a9a83385e"
+    },
+    {
+      "path": "workspace.transfer.json",
+      "bytes": 324,
+      "sha256": "da186a12004d35fb9f8175c9c752db4b96b98e7161a585766db2422560f8e127"
+    },
+    {
+      "path": "workspace.zip",
+      "bytes": 3432695,
+      "sha256": "de6e48ac1f6e41f81ea0e14972ecc7cf8e4ee51ac9786c1b21c4e3f4d2e58e34"
+    }
+  ]
+}
