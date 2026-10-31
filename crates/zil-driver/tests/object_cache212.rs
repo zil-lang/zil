@@ -691,12 +691,39 @@ fn large_file_chunks_preserve_owned_closures_drop_and_function_addresses() {
         if backend == NativeBackend::LlvmApi {
             assert_eq!(report.commands.len(), 1);
         }
-        assert!(report.native_codegen.as_ref().unwrap().actual_units > 1);
         let native = Command::new(&report.artifacts["executable"])
             .output()
             .unwrap();
         assert_eq!(native.status.code(), Some(0));
         assert_eq!(native.stdout, b"AB");
+        let codegen = report.native_codegen.as_ref().unwrap();
+        if incremental {
+            // Complete O2 closures must preserve the shared local resource
+            // implementation instead of importing only a safe-looking prefix.
+            assert_eq!(codegen.actual_units, 1);
+            assert_eq!(
+                codegen.fallback.as_deref(),
+                Some("complete O2 call closure requires a local definition")
+            );
+        } else {
+            assert!(codegen.actual_units > 1, "{}", report.to_json());
+        }
+        if backend == NativeBackend::LlvmApi && incremental {
+            let warm = d.build(&o);
+            assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+            assert_eq!(warm.verification_runs, 1);
+            assert_eq!(warm.commands.len(), 1);
+            let cached = warm.native_codegen.as_ref().unwrap();
+            assert_eq!(cached.actual_units, 1);
+            assert_eq!(cached.fallback, codegen.fallback);
+            assert_eq!(cached.object_cache.hits, 1);
+            assert_eq!(cached.object_cache.misses, 0);
+            let native = Command::new(&warm.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(native.status.code(), Some(0));
+            assert_eq!(native.stdout, b"AB");
+        }
     }
 }
 
