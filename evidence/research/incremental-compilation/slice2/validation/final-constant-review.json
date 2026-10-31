@@ -1,0 +1,216 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "implementation_author": "/root",
+  "implementation_commit": "5cf1c417f5cbdc0895e5edceb3053d9d4da490c6",
+  "baseline": "646099a70105b6da3821ce7d8ea20bd8e28fe3e1",
+  "verdict": "Pass",
+  "scope": "Independent limited functional/rejection-boundary review of constant canonicalization, real-source controls, cross-binary cache identity and mixed-benchmark validity filtering. No formal full-suite or timing/product approval.",
+  "previous_review": {
+    "implementation_commit": "646099a70105b6da3821ce7d8ea20bd8e28fe3e1",
+    "receipt": "combo-memory-review.json",
+    "verdict": "Pass",
+    "unchanged_prior_implementation": true
+  },
+  "changed_paths": [
+    ".task/research/incremental-compilation.md",
+    "changes/research-narrow-integer-constants.md",
+    "crates/zil-driver/tests/narrow_constants.rs",
+    "crates/zil-llvm-api/src/native/builder.rs",
+    "crates/zil-llvm-api/tests/builder210.rs",
+    "tools/research/incremental-compilation/mixed_bench.py"
+  ],
+  "production_delta": [
+    "crates/zil-llvm-api/src/native/builder.rs"
+  ],
+  "unresolved_findings": [],
+  "checks": [
+    "Mask u64::MAX >> (64-width) is defined for every supported width 1/8/16/32/64; width64 shifts by0. Casting negative i128 then masking produces the intended modulo-2^width bits. Permitted unsigned values are unchanged.",
+    "Machine preflight widths and signed-minimum through unsigned-maximum bounds remain unchanged; no accepted-value expansion, ABI change, budget relaxation, optimizer removal or Verify bypass.",
+    "All integer uses share this adapter, including global/array constants and GEP operands. Bool constants already use canonical 0/1.",
+    "Runtime getchar controls exercise -2/0/-1 paths; byte_io tests include empty, NUL/high-byte and 600-byte inputs with exact exit/stdout/stderr. Both API/clang O0/O2 and cold/warm object cache are tested with Verify=1.",
+    "Object-cache identity includes current compiler ELF installation/build-id identity, loaded LLVM identity, target and optimization. Actual cross-binary test confirms two namespaces and no old-object reuse.",
+    "mixed_bench records wrong baseline native outcomes, asserts candidate agreement with consistent candidate-clang O0/O2 reference, and emits candidate_over_baseline=null if any outcome in the case/opt cell differs."
+  ],
+  "commands": [
+    {
+      "command": "cargo test --offline --locked -p zil-llvm-api --features native,text-reference --test builder210 signed_and_unsigned_spellings_of_integer_bits_are_identical_at_all_widths",
+      "passed": 1,
+      "native_executions": 40,
+      "log": "final-constant-review-builder.log"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --features llvm-api --test narrow_constants",
+      "passed": 2,
+      "build_requests": 24,
+      "native_executions": 88,
+      "log": "final-constant-review-source.log"
+    }
+  ],
+  "environment": ". /workspace/.zil-env/env.sh; cwd=/workspace/zil",
+  "diagnosis": {
+    "receipt": "o2-independent/diagnosis.json",
+    "direct_c_api_cases": 90,
+    "noncanonical_observations": 17,
+    "key_control": "i32 -2 printed identically for canonical 0xfffffffe and noncanonical 0xfffffffffffffffe; LLVMConstIntGetZExtValue and constant identity expose the difference.",
+    "serialization_controls": "Clone and use-list reversals retain failure; text/bitcode roundtrips repair the narrow pattern. These are diagnostics, not a production workaround."
+  },
+  "cross_binary_cache": {
+    "source": "/workspace/zil/examples/mainline/byte_io/main.zil",
+    "input_hex": "614263210a0080",
+    "cpu_affinity": [
+      3,
+      4
+    ],
+    "old_binary": {
+      "path": "/workspace/.zil-env/research/target-slice1-candidate/release/zil",
+      "sha256": "90f00a1ba4d8592e777b485a06480db37bb2e352f6fb59614c7b11b210fa22f6"
+    },
+    "new_binary": {
+      "path": "/workspace/.zil-env/research/target-stage2/release/zil",
+      "sha256": "64fd64caaec0cd1d543aa25ba2da05e12b4d925c730295871f10c003cde5f84d"
+    },
+    "expected_old_native_exit": 2,
+    "expected_new_native_exit": 0,
+    "rows": [
+      {
+        "label": "old-cold",
+        "command": [
+          "/workspace/.zil-env/research/target-slice1-candidate/release/zil",
+          "build",
+          "/workspace/zil/examples/mainline/byte_io/main.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O2",
+          "--codegen-units",
+          "1",
+          "--object-cache",
+          "/workspace/.zil-env/research/final-constant-cross-cache/objects",
+          "--json",
+          "-o",
+          "/workspace/.zil-env/research/final-constant-cross-cache/program"
+        ],
+        "verify": 1,
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 0,
+          "misses": 1,
+          "corrupt": 0,
+          "stored": 1,
+          "write_failures": 0,
+          "key_ns": 194483,
+          "lookup_ns": 13320,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "native_exit": 2,
+        "stdout_hex": "414243210a0080",
+        "elf_sha256": "51621fabce26948013bcf5eb3af2f60972140dfe54698bec50c855765106cf73",
+        "namespaces": [
+          "b265adfeff13d29ccacb03c18b73632e7a3e60e84c5c7353c85d7038bf43497d"
+        ]
+      },
+      {
+        "label": "new-cold",
+        "command": [
+          "/workspace/.zil-env/research/target-stage2/release/zil",
+          "build",
+          "/workspace/zil/examples/mainline/byte_io/main.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O2",
+          "--codegen-units",
+          "1",
+          "--object-cache",
+          "/workspace/.zil-env/research/final-constant-cross-cache/objects",
+          "--json",
+          "-o",
+          "/workspace/.zil-env/research/final-constant-cross-cache/program"
+        ],
+        "verify": 1,
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 0,
+          "misses": 1,
+          "corrupt": 0,
+          "stored": 1,
+          "write_failures": 0,
+          "key_ns": 207933,
+          "lookup_ns": 11448,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "native_exit": 0,
+        "stdout_hex": "414243210a0080",
+        "elf_sha256": "fdfc5f616b3ff59bf3fa75f5e19eac724176e2c1f1fd86a3515fd3961a3f54d3",
+        "namespaces": [
+          "82d88f1801b32e28a3fee44fa8d9b48685c8bf2cb7aab872ddb6ec00805fe3fc",
+          "b265adfeff13d29ccacb03c18b73632e7a3e60e84c5c7353c85d7038bf43497d"
+        ]
+      },
+      {
+        "label": "new-warm",
+        "command": [
+          "/workspace/.zil-env/research/target-stage2/release/zil",
+          "build",
+          "/workspace/zil/examples/mainline/byte_io/main.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O2",
+          "--codegen-units",
+          "1",
+          "--object-cache",
+          "/workspace/.zil-env/research/final-constant-cross-cache/objects",
+          "--json",
+          "-o",
+          "/workspace/.zil-env/research/final-constant-cross-cache/program"
+        ],
+        "verify": 1,
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 1,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 195134,
+          "lookup_ns": 40321,
+          "current_preflight_ns": 255305,
+          "disabled_reason": null
+        },
+        "native_exit": 0,
+        "stdout_hex": "414243210a0080",
+        "elf_sha256": "fdfc5f616b3ff59bf3fa75f5e19eac724176e2c1f1fd86a3515fd3961a3f54d3",
+        "namespaces": [
+          "82d88f1801b32e28a3fee44fa8d9b48685c8bf2cb7aab872ddb6ec00805fe3fc",
+          "b265adfeff13d29ccacb03c18b73632e7a3e60e84c5c7353c85d7038bf43497d"
+        ]
+      }
+    ]
+  },
+  "evidence_sha256": {
+    "final-constant-review-builder.log": "84ab736eb2e5273f5c81a91afe2322951a3a7bb87c873b5294eb0659b04f1f7c",
+    "final-constant-review-source.log": "f9de65bb67bf8fb194e321ac5799f150d3aaa06bd0163cb2e93ee7ef162b54dc",
+    "final-constant-cross-cache/result.json": "49c8aa022bb4ec880a18804dc6df8c4543c571e8247c84f8e34c08a7d569a00f",
+    "o2-independent/diagnosis.json": "50f9c4aa3cbdcb0ff46623e40639e74957749f002cd5f7ce23755abf2662d267",
+    "o2-independent/const-int-canonicality.py": "dc85dfd21b3b90f767f0ef7993850122bcfc2d400bc8c2636bda839896ac0baf",
+    "o2-independent/const-int-canonicality.json": "70b479f59ac058de1a8a4954ac0c83adc890ff4988843ca6673f32d46c4c0fc2",
+    "o2-independent/native-results.json": "6c6dafb34eb9f5967dbcd2047159b697d7a40ae6d6ea54c0dac07c9be2f3e8ea",
+    "o2-independent/roundtrip.c": "ab1449cfdd691295721b08f2eb1903485c477f0a7d8fd192f737668041c28e47",
+    "o2-independent/LLVMConstInt.disassembly.txt": "3d9e93fc6ff4d07c2ede9a89cb18a02d4fa8705cd6d0dca2c50d3be82de107a5",
+    "o2-independent/ConstantInt-get.disassembly.txt": "fe4fab3b039cf7a0dc328a05cd6e0472a5d6ac35af54caa7d5b9727468239a5c",
+    "o2-independent/LLVM23-Core-ConstInt-excerpt.txt": "aa4034197daac44045112a43709163a7448d9b885a5aa56a5542563e781205ef",
+    "combo-memory-review.json": "7047fd27a0d775f80716dcc2305078ec3a963a7a07d6413e94302668db825c2c"
+  },
+  "limitations": [
+    "The 90 C API cases include out-of-range diagnostic neighbors, not accepted-source claims.",
+    "Final performance measurements/statistical summaries are not certified here. Incorrect baseline O2 outputs must remain excluded from equivalence speed ratios.",
+    "No formal full suite or Rust/product gate was run or approved.",
+    "Source-to-release identity is supplied by the build record; independent cache evidence separately binds actual compiler SHA256 and retained artifacts."
+  ]
+}

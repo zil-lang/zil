@@ -33,3 +33,10 @@
 ## 混合源码验证发现的后端正确性修复
 
 第二窗口后在真实 byte_io 示例发现原基线已有的 LLVM API O2 常量传播错误。按 `changes/research-narrow-integer-constants.md` 先记录语义修复，再追加写集：`crates/zil-llvm-api/src/native/builder.rs`、`crates/zil-llvm-api/tests/builder210.rs`、`crates/zil-driver/tests/narrow_constants.rs`、该changes提案。此修复不降优化级别或减少独立验证；错误基线O2不计等价速度收益。
+
+## 本轮组合交付
+
+- 最终生产实现 `5cf1c417f5cbdc0895e5edceb3053d9d4da490c6`，b230组合实现、646过时owners释放与5cf常量修复均经精确提交独审Pass；最终486项限定测试及受影响库Clippy通过。
+- 四个完整窗口各1560请求，分别保留首轮RSS回退、owners修正、最终正确性修正及开工main直接对照；不叠乘历史收益。另320次真实混合源码编译及16次文本参考控制，旧O2错误组不计算等价速度比。
+- 从main直接对照512模块暖Session check 105.515→38.183 ms，128模块暖build 57.034→43.331 ms；512模块私有修改check 108.016→104.204 ms。冷CLI与小语料有不利点，完整表列。报告、外部研究和可校验原始证据进入跟踪路径，见 `docs/research/incremental-compilation/RESULTS.md`。
+- 工单保持Doing：函数级语义增量、完整链接动作模型与分段核验尚未完成；不改父任务/产品门，不自行合入main。云安装/启动配置已保存，当前固定Rust1.99.1与LLVM23.1.4。

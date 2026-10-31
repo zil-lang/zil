@@ -1,0 +1,11 @@
+{
+  "archive": "raw.tar.gz",
+  "sha256": "0248030ee17aea329f0e24011201fb656d9d45d50c2b05e9f0846a8536fb6770",
+  "bytes": 2632136,
+  "file_count": 2163,
+  "uncompressed_bytes": 31037698,
+  "excluded": "object/incremental caches, executable binaries, object/shared libraries/bitcode; source, IR, reports, native outputs, failures and timing rows retained",
+  "records": [
+    "stage2-main-final"
+  ]
+}
