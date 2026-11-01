@@ -54,7 +54,9 @@ fn contains_owned_store(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
         }
         return Ok(false);
     }
-    if let Type::Enum { variants, .. } = ty {
+    if !budget.sum_functions.is_empty()
+        && let Type::Enum { variants, .. } = ty
+    {
         budget.spend(variants.len(), "ordinary Sum Store alternatives")?;
         for (_, fields) in variants {
             budget.spend(fields.len(), "ordinary Sum Store fields")?;
@@ -65,7 +67,9 @@ fn contains_owned_store(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
             }
         }
     }
-    if let Type::ErrorUnion { error, result } = ty {
+    if !budget.sum_functions.is_empty()
+        && let Type::ErrorUnion { error, result } = ty
+    {
         return Ok(contains_owned_store(error, budget)? || contains_owned_store(result, budget)?);
     }
     Ok(false)
