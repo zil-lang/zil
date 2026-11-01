@@ -5,7 +5,7 @@
 //! current machine preflight. New entries are committed after final publication.
 //! ELF build IDs identify trusted installed tools, not hostile replacements;
 //! SHA-256 detects accidental cache damage, not an attacker replacing both fields.
-use crate::Optimization;
+use crate::{FunctionMerging, Optimization};
 use std::fs::{self, File, OpenOptions};
 use std::hash::{Hash, Hasher};
 use std::io::{self, Read, Seek, SeekFrom, Write};
@@ -18,6 +18,10 @@ use zil_llvm_api::model::Module;
 const MAGIC: &[u8; 8] = b"ZILOBJ01";
 const HEADER: usize = 8 + 32 + 32 + 8;
 const MAX_OBJECT: u64 = 128 * 1024 * 1024;
+// Isolate complete call closures, checked-add chains and scalar leaves, including
+// O0 builds where the strategy is disabled. Format and current verification stay unchanged;
+// actual transformed bodies are hashed, with the precise compiler/library identity.
+const ACTION_PROTOCOL: &str = "ZIL-OBJECT-ACTION-212-v5-current-input-o2";
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -67,11 +71,14 @@ impl ObjectCacheSummary {
 pub struct PendingObjectCache {
     pub(crate) directory: Option<PathBuf>,
     pub(crate) objects: Vec<PendingObject>,
+    pub(crate) layout: Option<crate::machine_cgu::layout::Pending>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct PendingObject {
     pub(crate) key: Fingerprint,
     pub(crate) bytes: Vec<u8>,
+    // Only a full native compilation may replace the reusable base index.
+    pub(crate) base: Option<(Fingerprint, Vec<u8>)>,
 }
 impl PendingObjectCache {
     /// Best effort after a successful request. Failed/cancelled callers drop the
@@ -80,10 +87,20 @@ impl PendingObjectCache {
         if let Some(directory) = self.directory {
             for object in self.objects {
                 match store(&directory, object.key, &object.bytes) {
-                    Ok(()) => summary.stored += 1,
+                    Ok(()) => {
+                        summary.stored += 1;
+                        if let Some((key, bytes)) = object.base
+                            && store(&directory.join("full-bases-v1"), key, &bytes).is_err()
+                        {
+                            summary.write_failures += 1;
+                        }
+                    }
                     Err(_) => summary.write_failures += 1,
                 }
             }
+        }
+        if let Some(layout) = self.layout {
+            layout.commit();
         }
     }
 }
@@ -92,6 +109,7 @@ pub(crate) struct PreparedCache {
     pub(crate) directory: PathBuf,
     pub(crate) llvm_version: String,
     namespace: Fingerprint,
+    pub(crate) patch_policy: Option<crate::machine_object_patch::Policy>,
 }
 pub(crate) struct Access {
     pub(crate) key: Fingerprint,
@@ -122,6 +140,8 @@ impl PreparedCache {
         directory: &Path,
         target: &TargetProfile,
         opt: Optimization,
+        function_merging: FunctionMerging,
+        patch_enabled: bool,
     ) -> Result<Self, String> {
         // Interposed LLVM functions may come from another DSO. Do not reuse
         // objects under an incomplete tool identity in that environment.
@@ -141,10 +161,17 @@ impl PreparedCache {
         let (version, library) = zil_llvm_api::cache_runtime(&config).map_err(|e| e.to_string())?;
         let compiler = std::env::current_exe().map_err(|e| e.to_string())?;
         let mut state = FingerprintBuilder::new();
+        let patch_policy = patch_enabled
+            .then(crate::machine_object_patch::Policy::discover)
+            .flatten();
         // Versioned exact protocol. Compiler-specific derived Hash cannot cross
         // a compiler identity boundary. Generic CPU/features/pipeline/relocation
         // and layout derivation are fixed in that very compiler's native adapter.
-        "ZIL-OBJECT-ACTION-212-v1".hash(&mut state);
+        ACTION_PROTOCOL.hash(&mut state);
+        if let Some(policy) = &patch_policy {
+            "bounded-full-base-object-patch-v1".hash(&mut state);
+            policy.identity.hash(&mut state);
+        }
         installed_identity(&compiler)
             .map_err(|e| e.to_string())?
             .hash(&mut state);
@@ -158,6 +185,7 @@ impl PreparedCache {
             Optimization::O2 => "O2",
         }
         .hash(&mut state);
+        zil_llvm_api::pipeline_identity(config.optimization, function_merging).hash(&mut state);
         "x86-64|features=|reloc=PIC|model=default|debug=none|lto=none|llvm-pre-post-verify"
             .hash(&mut state);
         let namespace = state.digest();
@@ -171,7 +199,30 @@ impl PreparedCache {
             directory,
             llvm_version: version,
             namespace,
+            patch_policy,
         })
+    }
+    pub(crate) fn patch_record(&self, key: Fingerprint) -> Option<Vec<u8>> {
+        let directory = self.directory.join("full-bases-v1");
+        let meta = fs::symlink_metadata(&directory).ok()?;
+        if !meta.is_dir() || meta.file_type().is_symlink() {
+            return None;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if meta.permissions().mode() & 0o022 != 0 {
+                return None;
+            }
+        }
+        let metadata = fs::symlink_metadata(entry_path(&directory, key)).ok()?;
+        if metadata.len() > 2 * 1024 * 1024 + HEADER as u64 {
+            return None;
+        }
+        load(&directory, key).ok()
+    }
+    pub(crate) fn base_object(&self, key: Fingerprint) -> Option<Vec<u8>> {
+        load(&self.directory, key).ok()
     }
     pub(crate) fn key(&self, module: &Module) -> Fingerprint {
         machine_key(self.namespace, module)
@@ -198,8 +249,56 @@ impl PreparedCache {
         )
     }
 }
+// Derived Hash emits many small fields. Coalesce only their writes, preserving
+// the exact byte stream and SHA-256 keys of the unbuffered implementation.
+pub(crate) struct BufferedHasher {
+    state: FingerprintBuilder,
+    buffer: [u8; 4096],
+    used: usize,
+}
+impl BufferedHasher {
+    pub(crate) fn new() -> Self {
+        Self {
+            state: FingerprintBuilder::new(),
+            buffer: [0; 4096],
+            used: 0,
+        }
+    }
+    fn flush(&mut self) {
+        self.state.update(&self.buffer[..self.used]);
+        self.used = 0;
+    }
+    pub(crate) fn digest(mut self) -> Fingerprint {
+        self.flush();
+        self.state.digest()
+    }
+    pub(crate) fn digest_reset(&mut self) -> Fingerprint {
+        self.flush();
+        // Only the SHA state is fresh. The scratch buffer stays allocated;
+        // used == 0 prevents bytes from the previous stream being observed.
+        std::mem::take(&mut self.state).digest()
+    }
+}
+impl Hasher for BufferedHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        if bytes.len() > self.buffer.len() - self.used {
+            self.flush();
+        }
+        if bytes.len() >= self.buffer.len() {
+            self.state.update(bytes);
+        } else {
+            self.buffer[self.used..self.used + bytes.len()].copy_from_slice(bytes);
+            self.used += bytes.len();
+        }
+    }
+    fn finish(&self) -> u64 {
+        let mut state = self.state.clone();
+        state.update(&self.buffer[..self.used]);
+        state.finish()
+    }
+}
 fn machine_key(namespace: Fingerprint, module: &Module) -> Fingerprint {
-    let mut state = FingerprintBuilder::new();
+    let mut state = BufferedHasher::new();
     namespace.hash(&mut state);
     // Exhaustive destructuring forces future Module fields to be considered.
     // fingerprint is used only by the diagnostic renderer, never by Builder.
@@ -314,7 +413,11 @@ fn store(directory: &Path, key: Fingerprint, bytes: &[u8]) -> io::Result<()> {
 /// Fast installed-tool identity, following the build-id approach used by mature
 /// toolchains. Installed tools must not be modified while the compiler runs.
 /// Full SHA-256 fallback supports tools without a GNU build ID.
-fn installed_identity(path: &Path) -> io::Result<Fingerprint> {
+pub fn installed_compiler_identity() -> io::Result<Fingerprint> {
+    installed_identity(&std::env::current_exe()?)
+}
+
+pub(crate) fn installed_identity(path: &Path) -> io::Result<Fingerprint> {
     let mut file = File::open(path)?;
     let meta = file.metadata()?;
     if !meta.is_file() {
@@ -432,7 +535,7 @@ fn elf_build_id(file: &mut File, size: u64) -> io::Result<Option<Vec<u8>>> {
 mod tests {
     use super::*;
     use zil_llvm_api::model::{
-        Arg, Attr, Block, Function, Inst, Item, Linkage, Op, Param, Signature, Ty, Val,
+        Arg, Attr, Block, Function, Global, Inst, Item, Linkage, Op, Param, Signature, Ty, Val,
     };
     struct Dir(PathBuf);
     impl Dir {
@@ -470,15 +573,123 @@ mod tests {
             })],
         }
     }
+    fn key_matching_unbuffered(namespace: Fingerprint, module: &Module) -> Fingerprint {
+        // The previous calculation remains an independent compatibility oracle.
+        let mut old = FingerprintBuilder::new();
+        namespace.hash(&mut old);
+        module.triple.hash(&mut old);
+        module.items.hash(&mut old);
+        let actual = machine_key(namespace, module);
+        assert_eq!(actual, old.digest());
+        actual
+    }
+    #[test]
+    fn buffered_writes_match_sha256_across_block_and_buffer_boundaries() {
+        for size in [0, 1, 55, 56, 63, 64, 65, 4095, 4096, 4097, 8192, 8193] {
+            let input = (0..size).map(|i| (i * 37) as u8).collect::<Vec<_>>();
+            let expected = Fingerprint::of(&input);
+            for chunk in [1, 7, 63, 64, 65, 4095, 4096, 4097, 8193] {
+                let mut buffered = BufferedHasher::new();
+                buffered.write(&[]);
+                for bytes in input.chunks(chunk) {
+                    buffered.write(bytes);
+                }
+                // finish is observational: subsequent writes must still append.
+                assert_eq!(
+                    buffered.finish(),
+                    u64::from_le_bytes(expected.0[..8].try_into().unwrap())
+                );
+                buffered.write(&[]);
+                assert_eq!(buffered.digest(), expected, "size={size}, chunk={chunk}");
+            }
+        }
+        let mut buffered = BufferedHasher::new();
+        buffered.write(b"prefix");
+        let _ = buffered.finish();
+        let large = vec![42; 8193];
+        buffered.write(&large);
+        buffered.write(b"suffix");
+        assert_eq!(
+            buffered.digest(),
+            Fingerprint::of(&[b"prefix".as_slice(), &large, b"suffix"].concat())
+        );
+    }
+    #[test]
+    fn buffered_digest_reset_starts_an_independent_stream() {
+        let mut buffered = BufferedHasher::new();
+        for (size, chunk) in [
+            (8193, 7),
+            (0, 1),
+            (63, 1),
+            (4096, 4096),
+            (65, 63),
+            (4097, 4097),
+            (1, 1),
+            (0, 1),
+        ] {
+            let input = (0..size).map(|i| (i * 29 + size) as u8).collect::<Vec<_>>();
+            let expected = Fingerprint::of(&input);
+            for bytes in input.chunks(chunk) {
+                buffered.write(bytes);
+            }
+            assert_eq!(
+                buffered.finish(),
+                u64::from_le_bytes(expected.0[..8].try_into().unwrap())
+            );
+            assert_eq!(
+                buffered.digest_reset(),
+                expected,
+                "size={size}, chunk={chunk}"
+            );
+        }
+        assert_eq!(buffered.digest(), Fingerprint::of(&[]));
+    }
+    #[test]
+    fn buffered_machine_keys_match_large_initializers_and_global_fields() {
+        let ns = Fingerprint::of(b"compiler-and-target");
+        for size in [4095, 4096, 4097, 8193] {
+            let mut module = sample();
+            module.items.push(Item::Global(Global {
+                name: "bytes".into(),
+                linkage: Linkage::Private,
+                ty: Ty::array(size, Ty::Int(8)),
+                initializer: Some(Val::Bytes(vec![42; size as usize])),
+                constant: true,
+                unnamed_addr: true,
+                alignment: 1,
+            }));
+            let key = key_matching_unbuffered(ns, &module);
+            let changes: [fn(&mut Global); 7] = [
+                |g| g.name.push('x'),
+                |g| g.linkage = Linkage::External,
+                |g| g.ty = Ty::Int(8),
+                |g| g.initializer = None,
+                |g| g.constant = false,
+                |g| g.unnamed_addr = false,
+                |g| g.alignment = 8,
+            ];
+            for change in changes {
+                let mut changed = module.clone();
+                let Item::Global(global) = &mut changed.items[1] else {
+                    unreachable!()
+                };
+                change(global);
+                assert_ne!(key, key_matching_unbuffered(ns, &changed));
+            }
+        }
+    }
     #[test]
     fn key_binds_all_machine_changes_but_not_authorization_comment() {
         let a = sample();
         let ns = Fingerprint::of(b"compiler-and-target");
-        let key = machine_key(ns, &a);
+        let key = key_matching_unbuffered(ns, &a);
         let mut b = a.clone();
         b.fingerprint = "other-current-verify".into();
-        assert_eq!(key, machine_key(ns, &b));
-        assert_ne!(key, machine_key(Fingerprint::of(b"other-toolchain"), &a));
+        assert_eq!(key, key_matching_unbuffered(ns, &b));
+        assert_ne!(
+            key,
+            key_matching_unbuffered(Fingerprint::of(b"other-toolchain"), &a)
+        );
         let changes: [fn(&mut Module); 8] = [
             |m| m.triple = "x86_64-pc-windows-msvc".into(),
             |m| {
@@ -519,13 +730,13 @@ mod tests {
         for change in changes {
             let mut b = a.clone();
             change(&mut b);
-            assert_ne!(key, machine_key(ns, &b));
+            assert_ne!(key, key_matching_unbuffered(ns, &b));
         }
         let mut b = a.clone();
         b.items.push(Item::NamedType("x".into(), vec![]));
-        let first = machine_key(ns, &b);
+        let first = key_matching_unbuffered(ns, &b);
         b.items.reverse();
-        assert_ne!(first, machine_key(ns, &b));
+        assert_ne!(first, key_matching_unbuffered(ns, &b));
     }
     #[test]
     fn entry_roundtrip_corruption_key_and_length_are_checked() {
@@ -579,13 +790,37 @@ mod tests {
             objects: vec![PendingObject {
                 key: Fingerprint::ZERO,
                 bytes: b"complete-object".to_vec(),
+                base: Some((Fingerprint::of(b"base-index"), b"base-record".to_vec())),
             }],
+            layout: None,
         };
         drop(make());
         assert_eq!(fs::read_dir(&d.0).unwrap().count(), 0);
         make().commit(&mut summary);
         assert_eq!(summary.stored, 1);
         assert_eq!(summary.write_failures, 0);
+        assert_eq!(
+            load(&d.0.join("full-bases-v1"), Fingerprint::of(b"base-index")).unwrap(),
+            b"base-record"
+        );
+        // A delayed derived result can replace the same action key after a
+        // full compile commits. It must not relabel the full-base record; its
+        // bound full-object digest will reject these different bytes on reuse.
+        PendingObjectCache {
+            directory: Some(d.0.clone()),
+            objects: vec![PendingObject {
+                key: Fingerprint::ZERO,
+                bytes: b"derived-object".to_vec(),
+                base: None,
+            }],
+            layout: None,
+        }
+        .commit(&mut summary);
+        assert_eq!(load(&d.0, Fingerprint::ZERO).unwrap(), b"derived-object");
+        assert_eq!(
+            load(&d.0.join("full-bases-v1"), Fingerprint::of(b"base-index")).unwrap(),
+            b"base-record"
+        );
     }
     #[test]
     fn unwritable_cache_cannot_revoke_success() {
@@ -598,7 +833,9 @@ mod tests {
             objects: vec![PendingObject {
                 key: Fingerprint::ZERO,
                 bytes: b"object".to_vec(),
+                base: None,
             }],
+            layout: None,
         }
         .commit(&mut summary);
         assert_eq!(summary.write_failures, 1);

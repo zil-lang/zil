@@ -4,7 +4,7 @@
 //! data, not authority: the LLVM backend rebinds it to this same capability.
 
 use zil_base::{CompileResult, Diagnostic, Phase, SCHEMA_VERSION};
-use zil_ir::{CallableKind, LirModule, ScalarLayout, Type};
+use zil_ir::{CallableKind, LirModule, LirView, ScalarLayout, Type};
 use zil_verify::VerifiedModule;
 
 /// Retain the independently checked CFG and concrete closure definitions, and
@@ -17,6 +17,12 @@ use zil_verify::VerifiedModule;
 /// }
 /// ```
 pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
+    lower_view(verified).map(|view| view.to_owned())
+}
+
+/// Run the same lowering admission checks, borrowing immutable verified CFG
+/// storage. The returned public raw view must be rebound by the backend.
+pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
     let module = verified.module();
     let target = &module.target;
     if module.schema_version != SCHEMA_VERSION {
@@ -122,15 +128,15 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
             }
         }
     }
-    Ok(LirModule {
-        resources: module.resources.clone(),
+    Ok(LirView {
+        resources: &module.resources,
         schema_version: SCHEMA_VERSION,
         module_id: module.module_id,
         verified_fingerprint: verified.fingerprint(),
-        target: target.clone(),
-        functions: module.functions.clone(),
-        closures: module.closures.clone(),
-        layouts: scalar_layouts(),
+        target,
+        functions: &module.functions,
+        closures: &module.closures,
+        layouts: std::borrow::Cow::Owned(scalar_layouts()),
     })
 }
 

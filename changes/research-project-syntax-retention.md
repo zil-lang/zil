@@ -1,0 +1,13 @@
+# 项目原始语法保留与真实模块 Parse 复用
+
+现有默认 raw 容量32在大项目中只保留28个 Parse，加上Expand/CT/Types/Analyze四个整项目 owner。1024个子模块及根模块的私有编辑因此执行997次Parse；全输入相同的TypedProgram捷径只能改善unchanged。此候选在既有ExpandedProject内保留不可变原始语法索引，实际减少未改变模块的lexer/parser工作，不删除QueryKey输入身份，也不声称后续Expand/CT/Types已变成模块级增量。
+
+索引为按现有Parse身份索引的Arc<ParseResult>，是现有整项目raw owner的子所有权。容量仍限制raw根条目，默认32、不改公开计数；它从来不是字节上界。保留AST会增加常驻RSS，需要与完整请求时延同时测量。大项目开始新版本前只借旧语法索引，不借旧ExpandedProject/Core/Typed；prepare_project照旧释放过时大语义owner。新旧索引共享未改AST，旧索引只在构造当前请求期间临时存活，历史整体仍由原LRU与可达收据回收。clear释放全部索引；不得另建无限历史表。
+
+Parse身份沿用现有FileId/ModuleId/完整路径/源码指纹、规则、build_inputs和limits。CP33已经规范化token/node配额，候选继续在每模块当前位置检查ParseResult::fits_limits，并照旧charge_frontend扣全项目token/node逻辑费用；不足回原parser，保持N/N−1、EOF/属性节点、第一诊断和span。不改变默认limits、公共Wire/schema、QueryKey或当前独立Verify。
+
+显式ProjectSources在源图与ArtifactPlan检查后、prepare_project之前借用已成功发布且收据有效的语法索引；每个命中仍经过当前query读取、发布、事件和取消边界。索引只含成功Parse。新的完整索引随成功Expand查询发布，Expand取消或失败不发布新索引。既有prepare_project为保守淘汰，不承诺失败后旧整项目快照继续命中；本候选保持该合同，不宣称全请求缓存事务。Analyze子查询checkpoint不变。
+
+filesystem入口必须在load_sources实际复用旧Arc；逐文件读取当前字节、检查当前导入/歧义/路径及预算照旧。loader把每项Parsed Arc与实际复用来源一起借给pipeline，避免在loader重解析后仅修改事件制造命中。冷解析报Executed，成功借旧Arc报Reused。发现导入期间只借用、不发布查询；ArtifactPlan通过后才进入原发布路径。阶段产物、磁盘源码缓存与当前Verify仍执行，必须与fresh逐字或完整报告对照。
+
+限定控制包含容量8/32、超过容量的40/128/1025源码单元、首尾/私有/签名/trivia编辑、Arc指针身份与实际事件、路径/FileId/ModuleId/规则/配额变化、N/N−1/EOF/属性、导入歧义与错误恢复、逐阶段取消、完整emit产物、O0/O2原生完整结果，以及连续编辑/clear/旧Core和Typed释放。性能窗口期间仅编辑，功能执行须等排他窗口结束；候选源码冻结后再做同窗Session时延/RSS对照，不能以Parse命中比例推导整体加速。

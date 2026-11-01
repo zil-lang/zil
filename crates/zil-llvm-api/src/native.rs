@@ -2,7 +2,7 @@
 //! Invariants: every owned handle is released once; module dies before context;
 //! ParseIR consumes its memory buffer even on failure; target refs are borrowed;
 //! all LLVM work for one unit stays on one thread. No raw handle is Send/Sync.
-use super::{Config, Error, ErrorKind, Object, Optimization, Receipt};
+use super::{Config, Error, ErrorKind, FunctionMerging, Object, Optimization, Receipt};
 enum Input<'a> {
     #[cfg(feature = "text-reference")]
     Text(&'a str),
@@ -70,6 +70,7 @@ unsafe extern "C" {
     fn LLVMPassBuilderOptionsSetLoopInterleaving(options: Handle, value: c_int);
     fn LLVMPassBuilderOptionsSetLoopVectorization(options: Handle, value: c_int);
     fn LLVMPassBuilderOptionsSetSLPVectorization(options: Handle, value: c_int);
+    fn LLVMPassBuilderOptionsSetMergeFunctions(options: Handle, value: c_int);
     fn LLVMRunPasses(
         module: Handle,
         pipeline: *const c_char,
@@ -161,16 +162,23 @@ fn verify(module: &Module) -> Result<(), Error> {
 pub(super) fn compile(
     ir: &str,
     config: &Config<'_>,
+    function_merging: FunctionMerging,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
-    compile_input(Input::Text(ir), config, cancelled)
+    compile_input(Input::Text(ir), config, function_merging, cancelled)
 }
 pub(super) fn compile_module(
     module: &crate::model::Module,
     config: &Config<'_>,
+    function_merging: FunctionMerging,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
-    compile_input(Input::Structured(module), config, cancelled)
+    compile_input(
+        Input::Structured(module),
+        config,
+        function_merging,
+        cancelled,
+    )
 }
 pub(super) fn check_config(config: &Config<'_>) -> Result<[u32; 3], Error> {
     if !matches!(
@@ -238,11 +246,15 @@ pub(super) fn runtime_library() -> Result<std::path::PathBuf, Error> {
 fn compile_input(
     input: Input<'_>,
     config: &Config<'_>,
+    function_merging: FunctionMerging,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
     let start = Instant::now();
     check(cancelled)?;
     check_config(config)?;
+    if config.optimization != Optimization::O2 && function_merging != FunctionMerging::Disabled {
+        return Err(error(ErrorKind::Optimize, "function merging requires O2"));
+    }
     INIT.call_once(|| {
         // SAFETY: target registry is initialized once, before worker lookups.
         unsafe {
@@ -354,10 +366,10 @@ fn compile_input(
         ));
     }
     unsafe { LLVMSetModuleDataLayout(module.0, layout.0) };
-    let pipeline = if optimized {
-        c"default<O2>"
-    } else {
-        c"default<O0>"
+    let pipeline = match (optimized, function_merging) {
+        (false, _) => c"default<O0>",
+        (true, FunctionMerging::BeforeAndAfter) => c"mergefunc,default<O2>",
+        (true, _) => c"default<O2>",
     };
     let opts = PassOptions(unsafe { LLVMCreatePassBuilderOptions() });
     if opts.0.is_null() {
@@ -368,6 +380,12 @@ fn compile_input(
         LLVMPassBuilderOptionsSetLoopInterleaving(opts.0, i32::from(optimized));
         LLVMPassBuilderOptionsSetLoopVectorization(opts.0, i32::from(optimized));
         LLVMPassBuilderOptionsSetSLPVectorization(opts.0, i32::from(optimized));
+        // LLVM's aliases option remains false. Do not add unnamed_addr: emitted
+        // canonical functions keep their address identity and external names.
+        LLVMPassBuilderOptionsSetMergeFunctions(
+            opts.0,
+            i32::from(function_merging != FunctionMerging::Disabled),
+        );
     }
     let t = Instant::now();
     let failure = unsafe { LLVMRunPasses(module.0, pipeline.as_ptr(), machine.0, opts.0) };
@@ -412,7 +430,7 @@ fn compile_input(
             cpu: "x86-64".into(),
             features: String::new(),
             data_layout,
-            pipeline: pipeline.to_string_lossy().into_owned(),
+            pipeline: super::pipeline_identity(config.optimization, function_merging).into(),
             relocation: "PIC".into(),
             code_model: "default".into(),
             verify_before_after: true,

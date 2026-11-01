@@ -134,10 +134,11 @@ python3 tools/package.py ../delivery/zil-source.zip
 
 ## 直接构建与核对
 
-安装`rust-toolchain.toml`要求的Rust，以及当前后端要求的clang后，精简源码单独即可构建。无需审计ZIP或Git历史参与编译。
+安装`rust-toolchain.toml`要求的Rust，以及当前后端要求的clang后，精简源码可构建。当前研究分支使用 Cargo.lock 精确锁定的 RustCrypto SHA-256 registry 依赖；首次须联网获取，或预先提供与锁文件匹配的 Cargo registry 缓存，之后可离线构建。源码包不附带该缓存。无需审计ZIP或Git历史参与编译。
 
 ```sh
 python3 tools/package_check.py
+cargo fetch --locked  # 首次准备依赖；已有匹配缓存时可省略
 cargo build --workspace --offline --locked
 cargo run --offline --locked -p zil-cli -- run examples/modules/main.zil --entry main
 ```

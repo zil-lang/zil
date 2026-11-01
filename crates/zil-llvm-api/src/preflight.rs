@@ -1,7 +1,8 @@
 //! Preflight for LLVMBuilder inputs. This checks machine types, symbols, SSA,
 //! CFG and supported operation shapes; it does NOT prove ZIL memory safety.
 use super::model::*;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 type Result<T> = std::result::Result<T, String>;
 #[derive(Clone, Debug)]
@@ -11,10 +12,64 @@ pub(crate) struct Schedule {
     pub functions: BTreeMap<String, Vec<(usize, usize)>>,
 }
 #[derive(Clone, Debug)]
-struct Definition {
-    ty: Ty,
+struct Definition<'a> {
+    // The complete current model stays immutable for the whole preflight.
+    // Sharing its type bytes does not reuse a validation result.
+    ty: &'a Ty,
     place: Option<(usize, usize)>,
 }
+#[derive(Default)]
+struct DominatorScratch {
+    seen: Vec<bool>,
+    post: Vec<usize>,
+    stack: Vec<(usize, bool)>,
+    rank: Vec<usize>,
+    idom: Vec<usize>,
+}
+impl DominatorScratch {
+    fn clear(&mut self) {
+        self.seen.clear();
+        self.post.clear();
+        self.stack.clear();
+        self.rank.clear();
+        self.idom.clear();
+    }
+}
+#[derive(Default)]
+struct FunctionScratch<'a> {
+    labels: HashMap<&'a str, usize>,
+    defs: HashMap<&'a str, Definition<'a>>,
+    succ: Vec<Vec<usize>>,
+    pred: Vec<Vec<usize>>,
+    uses: Vec<&'a str>,
+    dominators: DominatorScratch,
+}
+impl FunctionScratch<'_> {
+    fn clear(&mut self) {
+        self.labels.clear();
+        self.defs.clear();
+        self.uses.clear();
+        for edges in self.succ.iter_mut().chain(&mut self.pred) {
+            edges.clear();
+        }
+        self.dominators.clear();
+    }
+}
+fn reusable_function_scratch(f: &Function) -> bool {
+    f.blocks.as_ref().is_some_and(|blocks| {
+        blocks.len() <= 32
+            && blocks
+                .iter()
+                .try_fold(f.signature.params.len(), |count, block| {
+                    count
+                        .checked_add(block.instructions.len())
+                        .filter(|&count| count <= 256)
+                })
+                .is_some_and(|count| count <= 256)
+    })
+}
+static POINTER_RESULT: Ty = Ty::Ptr;
+static COMPARISON_RESULT: Ty = Ty::Int(1);
 fn fail<T>(s: impl Into<String>) -> Result<T> {
     Err(s.into())
 }
@@ -48,6 +103,9 @@ fn alignment(a: u32) -> Result<()> {
 struct World<'a> {
     named: BTreeMap<&'a str, &'a Vec<Ty>>,
     symbols: BTreeMap<&'a str, &'a Item>,
+    // Request-local successful DAG summaries, including maximum nesting height.
+    // A shallow success alone cannot authorize a deeper use of the same type.
+    valid_named: RefCell<BTreeMap<String, usize>>,
 }
 impl<'a> World<'a> {
     fn ty(
@@ -56,28 +114,30 @@ impl<'a> World<'a> {
         allow_void: bool,
         stack: &mut BTreeSet<String>,
         depth: usize,
-    ) -> Result<()> {
+    ) -> Result<usize> {
         if depth > 128 {
             return fail("machine type nesting exceeds supported limit");
         }
-        match t {
-            Ty::Void if allow_void => {}
+        let height = match t {
+            Ty::Void if allow_void => 0,
             Ty::Void => return fail("void is not a stored/parameter machine type"),
-            Ty::Int(1 | 8 | 16 | 32 | 64) | Ty::Ptr => {}
+            Ty::Int(1 | 8 | 16 | 32 | 64) | Ty::Ptr => 0,
             Ty::Int(_) => return fail("unsupported machine integer width"),
             Ty::Array(n, element) => {
                 if *n > u32::MAX as u64 {
                     return fail("machine array length exceeds current profile");
                 }
-                self.ty(element, false, stack, depth + 1)?;
+                1 + self.ty(element, false, stack, depth + 1)?
             }
             Ty::Struct(fields) => {
                 if fields.len() > u32::MAX as usize {
                     return fail("too many struct fields");
                 }
+                let mut height = 0;
                 for f in fields {
-                    self.ty(f, false, stack, depth + 1)?;
+                    height = height.max(1 + self.ty(f, false, stack, depth + 1)?);
                 }
+                height
             }
             Ty::Named(name) => {
                 if !identifier(name) {
@@ -90,16 +150,27 @@ impl<'a> World<'a> {
                 if !stack.insert(name.clone()) {
                     return fail("recursive inline machine layout");
                 }
-                for f in fields.iter() {
-                    self.ty(f, false, stack, depth + 1)?;
+                if let Some(&height) = self.valid_named.borrow().get(name)
+                    && height <= 128 - depth
+                {
+                    stack.remove(name);
+                    return Ok(height);
                 }
+                // Insufficient height allowance follows the original ordered
+                // DFS, preserving its first error. Failed paths never publish.
+                let mut height = 0;
+                for f in fields.iter() {
+                    height = height.max(1 + self.ty(f, false, stack, depth + 1)?);
+                }
+                self.valid_named.borrow_mut().insert(name.clone(), height);
                 stack.remove(name);
+                height
             }
-        }
-        Ok(())
+        };
+        Ok(height)
     }
     fn check_ty(&self, t: &Ty, void: bool) -> Result<()> {
-        self.ty(t, void, &mut BTreeSet::new(), 0)
+        self.ty(t, void, &mut BTreeSet::new(), 0).map(|_| ())
     }
     fn fields<'b>(&'b self, t: &'b Ty) -> Result<&'b [Ty]> {
         match t {
@@ -112,14 +183,13 @@ impl<'a> World<'a> {
             _ => fail("operation requires struct/named aggregate"),
         }
     }
-    fn indexed(&self, t: &Ty, index: u32) -> Result<Ty> {
+    fn indexed<'b>(&'b self, t: &'b Ty, index: u32) -> Result<&'b Ty> {
         match t {
-            Ty::Array(n, element) if u64::from(index) < *n => Ok((**element).clone()),
+            Ty::Array(n, element) if u64::from(index) < *n => Ok(element.as_ref()),
             Ty::Array(..) => fail("aggregate index outside machine array"),
             _ => self
                 .fields(t)?
                 .get(index as usize)
-                .cloned()
                 .ok_or_else(|| "aggregate index outside struct".into()),
         }
     }
@@ -127,14 +197,14 @@ impl<'a> World<'a> {
         &self,
         t: &Ty,
         indices: &[Arg],
-        defs: &BTreeMap<&str, Definition>,
+        defs: &HashMap<&str, Definition<'_>>,
         constant: bool,
     ) -> Result<()> {
         self.check_ty(t, false)?;
         if indices.is_empty() {
             return fail("GEP needs a pointer index");
         }
-        let mut current = t.clone();
+        let mut current = t;
         for (i, a) in indices.iter().enumerate() {
             if !matches!(a.ty, Ty::Int(_)) {
                 return fail("GEP index is not integer");
@@ -144,7 +214,7 @@ impl<'a> World<'a> {
                 continue;
             }
             current = match current {
-                Ty::Array(_, element) => *element,
+                Ty::Array(_, element) => element.as_ref(),
                 Ty::Struct(_) | Ty::Named(_) => {
                     if a.ty != Ty::Int(32) {
                         return fail("struct GEP index must be i32");
@@ -155,14 +225,14 @@ impl<'a> World<'a> {
                     if n < 0 || n > u32::MAX as i128 {
                         return fail("invalid struct GEP index");
                     }
-                    self.indexed(&current, n as u32)?
+                    self.indexed(current, n as u32)?
                 }
                 _ => return fail("GEP traverses a non-aggregate"),
             };
         }
         Ok(())
     }
-    fn arg(&self, a: &Arg, defs: &BTreeMap<&str, Definition>, constant: bool) -> Result<()> {
+    fn arg(&self, a: &Arg, defs: &HashMap<&str, Definition<'_>>, constant: bool) -> Result<()> {
         self.check_ty(&a.ty, false)?;
         attrs(&a.attrs, Some(&a.ty))?;
         self.value(&a.value, &a.ty, defs, constant, 0)
@@ -171,7 +241,7 @@ impl<'a> World<'a> {
         &self,
         v: &Val,
         t: &Ty,
-        defs: &BTreeMap<&str, Definition>,
+        defs: &HashMap<&str, Definition<'_>>,
         constant: bool,
         depth: usize,
     ) -> Result<()> {
@@ -186,7 +256,7 @@ impl<'a> World<'a> {
                 let d = defs
                     .get(name.as_str())
                     .ok_or_else(|| format!("undefined SSA value %{name}"))?;
-                if d.ty != *t {
+                if d.ty != t {
                     return fail(format!("SSA type mismatch for %{name}: {} != {t}", d.ty));
                 }
             }
@@ -249,22 +319,27 @@ impl<'a> World<'a> {
         }
         Ok(())
     }
-    fn result(&self, op: &Op) -> Result<Option<Ty>> {
+    fn result<'b>(&'b self, op: &'b Op) -> Result<Option<&'b Ty>> {
         Ok(match op {
-            Op::Alloca { .. } | Op::Gep { .. } => Some(Ty::Ptr),
-            Op::Load { ty, .. } | Op::Binary { ty, .. } | Op::Phi { ty, .. } => Some(ty.clone()),
-            Op::Compare { .. } => Some(Ty::Int(1)),
-            Op::Cast { to, .. } => Some(to.clone()),
+            Op::Alloca { .. } | Op::Gep { .. } => Some(&POINTER_RESULT),
+            Op::Load { ty, .. } | Op::Binary { ty, .. } | Op::Phi { ty, .. } => Some(ty),
+            Op::Compare { .. } => Some(&COMPARISON_RESULT),
+            Op::Cast { to, .. } => Some(to),
             Op::Extract { arg, index } => Some(self.indexed(&arg.ty, *index)?),
-            Op::Insert { arg, .. } | Op::Freeze(arg) => Some(arg.ty.clone()),
+            Op::Insert { arg, .. } | Op::Freeze(arg) => Some(&arg.ty),
             Op::Call {
                 result: Ty::Void, ..
             } => None,
-            Op::Call { result, .. } => Some(result.clone()),
+            Op::Call { result, .. } => Some(result),
             _ => None,
         })
     }
-    fn op(&self, op: &Op, defs: &BTreeMap<&str, Definition>, signature: &Signature) -> Result<()> {
+    fn op(
+        &self,
+        op: &Op,
+        defs: &HashMap<&str, Definition<'_>>,
+        signature: &Signature,
+    ) -> Result<()> {
         let value = |v: &Val, t: &Ty| self.value(v, t, defs, false, 0);
         match op {
             Op::Alloca { ty, align } => {
@@ -355,7 +430,7 @@ impl<'a> World<'a> {
             Op::Insert { arg, field, index } => {
                 self.arg(arg, defs, false)?;
                 self.arg(field, defs, false)?;
-                if self.indexed(&arg.ty, *index)? != field.ty {
+                if self.indexed(&arg.ty, *index)? != &field.ty {
                     return fail("insertvalue field type mismatch");
                 }
             }
@@ -438,11 +513,22 @@ fn successors(op: &Op) -> impl Iterator<Item = &str> {
     edges.into_iter().flatten()
 }
 /// Immediate dominators in reverse postorder. No CFG×SSA/variable Cartesian table.
-fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize>) {
+fn dominators_in<'a>(
+    succ: &[Vec<usize>],
+    pred: &[Vec<usize>],
+    scratch: &'a mut DominatorScratch,
+) -> (&'a [bool], &'a [usize]) {
     let n = succ.len();
-    let mut seen = vec![false; n];
-    let mut post = vec![];
-    let mut stack = vec![(0usize, false)];
+    scratch.clear();
+    let DominatorScratch {
+        seen,
+        post,
+        stack,
+        rank,
+        idom,
+    } = scratch;
+    seen.resize(n, false);
+    stack.push((0usize, false));
     while let Some((b, exit)) = stack.pop() {
         if exit {
             post.push(b);
@@ -460,11 +546,11 @@ fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize
         }
     }
     post.reverse();
-    let mut rank = vec![usize::MAX; n];
+    rank.resize(n, usize::MAX);
     for (i, &b) in post.iter().enumerate() {
         rank[b] = i;
     }
-    let mut idom = vec![usize::MAX; n];
+    idom.resize(n, usize::MAX);
     idom[0] = 0;
     let intersect = |mut a: usize, mut b: usize, idom: &[usize]| {
         while a != b {
@@ -483,8 +569,14 @@ fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize
         for &b in post.iter().skip(1) {
             let mut p = pred[b].iter().copied().filter(|&p| idom[p] != usize::MAX);
             let Some(mut next) = p.next() else { continue };
-            for p in p {
-                next = intersect(next, p, &idom);
+            // Pay O(n) setup only when the current block has enough edges to
+            // cover it. Many small joins in a large CFG keep the old walk.
+            if pred[b].len() >= 32 && pred[b].len() >= n.div_ceil(4) {
+                next = intersect_many(next, p, rank, idom);
+            } else {
+                for p in p {
+                    next = intersect(next, p, idom);
+                }
             }
             if next != idom[b] {
                 idom[b] = next;
@@ -494,7 +586,146 @@ fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize
     }
     (seen, idom)
 }
-fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
+#[cfg(test)]
+fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize>) {
+    let mut scratch = DominatorScratch::default();
+    dominators_in(succ, pred, &mut scratch);
+    (scratch.seen, scratch.idom)
+}
+// The current idom tree does not change during one predecessor merge. Project
+// each visited node onto the first predecessor's ancestor chain, then choose
+// the highest intersection on that chain. Each parent edge is followed at most
+// once in this merge; shared trap exits no longer rewalk a growing chain for
+// every checked operation. Nothing is retained across blocks or iterations.
+fn intersect_many(
+    first: usize,
+    predecessors: impl Iterator<Item = usize>,
+    rank: &[usize],
+    idom: &[usize],
+) -> usize {
+    if first == 0 {
+        return 0;
+    }
+    let mut projected = vec![usize::MAX; idom.len()];
+    let mut ancestor = first;
+    loop {
+        projected[ancestor] = ancestor;
+        if ancestor == 0 {
+            break;
+        }
+        ancestor = idom[ancestor];
+    }
+    let mut common = first;
+    let mut trail = Vec::new();
+    for mut p in predecessors {
+        trail.clear();
+        while projected[p] == usize::MAX {
+            trail.push(p);
+            p = idom[p];
+        }
+        let meet = projected[p];
+        for &node in &trail {
+            projected[node] = meet;
+        }
+        if rank[meet] < rank[common] {
+            common = meet;
+        }
+        if common == 0 {
+            break;
+        }
+    }
+    common
+}
+// DFS intervals on the current dominator tree turn repeated ancestor walks
+// into constant-time tests. Iterative traversal also handles deep CFGs without
+// growing the Rust call stack. Unreachable blocks retain sentinel intervals.
+fn dominator_intervals(reachable: &[bool], idom: &[usize]) -> Vec<(usize, usize)> {
+    let n = idom.len();
+    let mut child = vec![usize::MAX; n];
+    let mut sibling = vec![usize::MAX; n];
+    for b in 1..n {
+        if reachable[b] {
+            let parent = idom[b];
+            sibling[b] = child[parent];
+            child[parent] = b;
+        }
+    }
+    let mut intervals = vec![(usize::MAX, usize::MAX); n];
+    let mut stack = vec![(0usize, false)];
+    let mut clock = 0;
+    while let Some((b, exit)) = stack.pop() {
+        if exit {
+            intervals[b].1 = clock;
+        } else {
+            intervals[b].0 = clock;
+            clock += 1;
+            stack.push((b, true));
+            let mut next = child[b];
+            while next != usize::MAX {
+                stack.push((next, false));
+                next = sibling[next];
+            }
+        }
+    }
+    intervals
+}
+fn dominates(
+    reachable: &[bool],
+    idom: &[usize],
+    intervals: Option<&[(usize, usize)]>,
+    a: usize,
+    mut b: usize,
+) -> bool {
+    if !reachable[b] {
+        return true;
+    }
+    if !reachable[a] {
+        return false;
+    }
+    if a == 0 || a == b {
+        return true;
+    }
+    if let Some(spans) = intervals {
+        return spans[a].0 <= spans[b].0 && spans[b].0 < spans[a].1;
+    }
+    loop {
+        if a == b {
+            return true;
+        }
+        if b == 0 {
+            return false;
+        }
+        b = idom[b];
+    }
+}
+fn function<'a, const COLLECT_SCHEDULE: bool>(
+    world: &'a World<'_>,
+    f: &'a Function,
+    reusable: &mut FunctionScratch<'a>,
+) -> Result<Vec<(usize, usize)>> {
+    if f.blocks.is_none() {
+        return Ok(Vec::new());
+    }
+    if reusable_function_scratch(f) {
+        let result = function_in::<COLLECT_SCHEDULE>(world, f, reusable);
+        // A single operand may contain nested values. Bound retained scratch,
+        // without rescanning operands or changing validation's peak/work rules.
+        if reusable.uses.capacity() > 256 {
+            reusable.uses = Vec::new();
+        }
+        result
+    } else {
+        // Large functions still receive all the same checks, without retaining
+        // their allocations in the small-function pool for the rest of the unit.
+        function_in::<COLLECT_SCHEDULE>(world, f, &mut FunctionScratch::default())
+    }
+}
+fn function_in<'a, const COLLECT_SCHEDULE: bool>(
+    world: &'a World<'_>,
+    f: &'a Function,
+    scratch: &mut FunctionScratch<'a>,
+) -> Result<Vec<(usize, usize)>> {
+    scratch.clear();
     let Some(blocks) = &f.blocks else {
         return Ok(vec![]);
     };
@@ -505,8 +736,17 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
         return fail("variadic definition not supported by machine lowering");
     }
     let n = blocks.len();
-    let mut labels = BTreeMap::new();
-    let mut defs = BTreeMap::new();
+    // Input order controls diagnostics and scheduling; these maps only perform
+    // identity lookup. The label collision scan returns one fixed diagnostic.
+    let FunctionScratch {
+        labels,
+        defs,
+        succ,
+        pred,
+        uses,
+        dominators,
+    } = scratch;
+    labels.reserve(n);
     for p in &f.signature.params {
         let name = p
             .name
@@ -517,7 +757,7 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
                 .insert(
                     name,
                     Definition {
-                        ty: p.ty.clone(),
+                        ty: &p.ty,
                         place: None,
                     },
                 )
@@ -550,7 +790,7 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
             }
             if let Some(name) = &i.result {
                 let ty = world.result(&i.op)?.ok_or("named void instruction")?;
-                world.check_ty(&ty, false)?;
+                world.check_ty(ty, false)?;
                 if !identifier(name)
                     || defs
                         .insert(
@@ -571,8 +811,14 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
     if labels.keys().any(|label| defs.contains_key(*label)) {
         return fail("block label collides with SSA name");
     }
-    let mut succ = vec![vec![]; n];
-    let mut pred = vec![vec![]; n];
+    if succ.len() < n {
+        succ.resize_with(n, Vec::new);
+    }
+    if pred.len() < n {
+        pred.resize_with(n, Vec::new);
+    }
+    let succ = &mut succ[..n];
+    let pred = &mut pred[..n];
     for (b, block) in blocks.iter().enumerate() {
         for next in successors(&block.instructions.last().unwrap().op) {
             let id = *labels
@@ -585,29 +831,13 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
     if !pred[0].is_empty() {
         return fail("entry block has a predecessor");
     }
-    let (reachable, idom) = dominators(&succ, &pred);
-    let dominates = |a: usize, mut b: usize| {
-        if !reachable[b] {
-            return true;
-        }
-        if !reachable[a] {
-            return false;
-        }
-        loop {
-            if a == b {
-                return true;
-            }
-            if b == 0 {
-                return false;
-            }
-            b = idom[b];
-        }
-    };
-    let mut uses = Vec::new();
+    let (reachable, idom) = dominators_in(succ, pred, dominators);
+    let intervals = (n >= 32).then(|| dominator_intervals(reachable, idom));
+    let dominates = |a, b| dominates(reachable, idom, intervals.as_deref(), a, b);
     for (b, block) in blocks.iter().enumerate() {
         for (j, i) in block.instructions.iter().enumerate() {
             world
-                .op(&i.op, &defs, &f.signature)
+                .op(&i.op, defs, &f.signature)
                 .map_err(|s| format!("@{} / {} / {}: {s}", f.name, block.name, j))?;
             if let Op::Phi { incoming, .. } = &i.op {
                 let mut incoming_ids = vec![];
@@ -615,8 +845,8 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
                     let p = *labels.get(p.as_str()).ok_or("phi incoming block missing")?;
                     incoming_ids.push(p);
                     uses.clear();
-                    v.local_uses(&mut uses);
-                    for &name in &uses {
+                    v.local_uses(uses);
+                    for &name in uses.iter() {
                         if let Some((d, _)) = defs[name].place
                             && !dominates(d, p)
                         {
@@ -645,8 +875,8 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
             } else {
                 for value in i.op.values() {
                     uses.clear();
-                    value.local_uses(&mut uses);
-                    for &name in &uses {
+                    value.local_uses(uses);
+                    for &name in uses.iter() {
                         if let Some((d, pos)) = defs[name].place
                             && ((d == b && pos >= j) || (d != b && !dominates(d, b)))
                         {
@@ -659,6 +889,18 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
             }
         }
     }
+    // Validation-only callers do not consume a Builder instruction order.
+    // With every block reachable, each non-phi data edge already passed strict
+    // cross-block dominance or same-block earlier-position checks above. A
+    // sequence edge also moves forward within its block. Lexicographic
+    // (dominator-tree depth, instruction position) therefore increases along
+    // every scheduling edge. Phi definitions are precreated and excluded from
+    // this graph. Unreachable blocks have weaker dominance rules, so they must
+    // retain the complete original scheduling/cycle check below.
+    if !COLLECT_SCHEDULE && reachable.iter().all(|&block| block) {
+        return Ok(Vec::new());
+    }
+
     // Phi nodes are created first. Sort all other instructions by operand and
     // per-block sequencing edges, so forward textual block order is irrelevant.
     let mut positions = vec![];
@@ -685,8 +927,8 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
         }
         for v in blocks[b].instructions[j].op.values() {
             uses.clear();
-            v.local_uses(&mut uses);
-            for &name in &uses {
+            v.local_uses(uses);
+            for &name in uses.iter() {
                 if let Some((block, instruction)) = defs[name].place {
                     let source = ids[block][instruction];
                     if source != usize::MAX {
@@ -725,7 +967,16 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
     Ok(schedule)
 }
 
+#[cfg_attr(not(feature = "native"), allow(dead_code))]
 pub(crate) fn validate(module: &Module) -> Result<Schedule> {
+    validate_impl::<true>(module)
+}
+
+pub(crate) fn validate_only(module: &Module) -> Result<()> {
+    validate_impl::<false>(module).map(|_| ())
+}
+
+fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedule> {
     if !matches!(
         module.triple.as_str(),
         "x86_64-unknown-linux-gnu" | "x86_64-pc-windows-msvc"
@@ -735,6 +986,7 @@ pub(crate) fn validate(module: &Module) -> Result<Schedule> {
     let mut world = World {
         named: BTreeMap::new(),
         symbols: BTreeMap::new(),
+        valid_named: RefCell::new(BTreeMap::new()),
     };
     for item in &module.items {
         match item {
@@ -751,14 +1003,18 @@ pub(crate) fn validate(module: &Module) -> Result<Schedule> {
         }
     }
     let mut functions = BTreeMap::new();
+    let mut scratch = FunctionScratch::default();
     for item in &module.items {
         match item {
             Item::NamedType(n, _) => world.check_ty(&Ty::Named(n.clone()), false)?,
             Item::Global(g) => {
+                if g.linkage == Linkage::AvailableExternally {
+                    return fail("available-externally globals are not supported");
+                }
                 world.check_ty(&g.ty, false)?;
                 alignment(g.alignment)?;
                 if let Some(v) = &g.initializer {
-                    world.value(v, &g.ty, &BTreeMap::new(), true, 0)?;
+                    world.value(v, &g.ty, &HashMap::new(), true, 0)?;
                 } else if g.linkage.is_local() {
                     return fail("local global declaration without definition");
                 }
@@ -774,12 +1030,275 @@ pub(crate) fn validate(module: &Module) -> Result<Schedule> {
                     world.check_ty(&p.ty, false)?;
                     attrs(&p.attrs, Some(&p.ty))?;
                 }
-                if f.blocks.is_none() && f.linkage.is_local() {
+                if f.blocks.is_none()
+                    && (f.linkage.is_local() || f.linkage == Linkage::AvailableExternally)
+                {
                     return fail("local function without definition");
                 }
-                functions.insert(f.name.clone(), function(&world, f)?);
+                if COLLECT_SCHEDULE {
+                    functions.insert(f.name.clone(), function::<true>(&world, f, &mut scratch)?);
+                } else {
+                    function::<false>(&world, f, &mut scratch)?;
+                }
             }
         }
     }
     Ok(Schedule { functions })
+}
+
+#[cfg(test)]
+#[path = "preflight_validate_only_tests.rs"]
+mod validate_only_tests;
+
+#[cfg(test)]
+mod named_layout_tests {
+    use super::*;
+    impl World<'_> {
+        fn legacy_ty(
+            &self,
+            t: &Ty,
+            allow_void: bool,
+            stack: &mut BTreeSet<String>,
+            depth: usize,
+        ) -> Result<()> {
+            if depth > 128 {
+                return fail("machine type nesting exceeds supported limit");
+            }
+            match t {
+                Ty::Void if allow_void => {}
+                Ty::Void => return fail("void is not a stored/parameter machine type"),
+                Ty::Int(1 | 8 | 16 | 32 | 64) | Ty::Ptr => {}
+                Ty::Int(_) => return fail("unsupported machine integer width"),
+                Ty::Array(n, element) => {
+                    if *n > u32::MAX as u64 {
+                        return fail("machine array length exceeds current profile");
+                    }
+                    self.legacy_ty(element, false, stack, depth + 1)?;
+                }
+                Ty::Struct(fields) => {
+                    if fields.len() > u32::MAX as usize {
+                        return fail("too many struct fields");
+                    }
+                    for f in fields {
+                        self.legacy_ty(f, false, stack, depth + 1)?;
+                    }
+                }
+                Ty::Named(name) => {
+                    if !identifier(name) {
+                        return fail("invalid named machine type");
+                    }
+                    let fields = self
+                        .named
+                        .get(name.as_str())
+                        .ok_or_else(|| format!("undefined type {name}"))?;
+                    if !stack.insert(name.clone()) {
+                        return fail("recursive inline machine layout");
+                    }
+                    for f in fields.iter() {
+                        self.legacy_ty(f, false, stack, depth + 1)?;
+                    }
+                    stack.remove(name);
+                }
+            }
+            Ok(())
+        }
+    }
+    fn world(definitions: &[(String, Vec<Ty>)]) -> World<'_> {
+        World {
+            named: definitions
+                .iter()
+                .map(|(name, fields)| (name.as_str(), fields))
+                .collect(),
+            symbols: BTreeMap::new(),
+            valid_named: RefCell::new(BTreeMap::new()),
+        }
+    }
+    fn diamond(count: usize) -> Vec<(String, Vec<Ty>)> {
+        (0..count)
+            .map(|i| {
+                (
+                    format!("T{i}"),
+                    if i == 0 {
+                        vec![Ty::Int(32)]
+                    } else {
+                        vec![
+                            Ty::Named(format!("T{}", i - 1)),
+                            Ty::Named(format!("T{}", i - 1)),
+                        ]
+                    },
+                )
+            })
+            .collect()
+    }
+    #[test]
+    fn shared_layout_dag_is_bounded_by_nodes_and_depth_not_expanded_paths() {
+        let definitions = diamond(120);
+        let world = world(&definitions);
+        // The old DFS would visit more than 2^119 paths for this bounded input.
+        world.check_ty(&Ty::Named("T119".into()), false).unwrap();
+        assert_eq!(world.valid_named.borrow().len(), 120);
+        for i in 0..120 {
+            world.check_ty(&Ty::Named(format!("T{i}")), false).unwrap();
+        }
+        assert_eq!(world.valid_named.borrow().len(), 120);
+    }
+    #[test]
+    fn cached_shallow_success_never_hides_deeper_failure_or_first_error() {
+        let definitions = diamond(5);
+        let world = world(&definitions);
+        let named = Ty::Named("T4".into());
+        world.check_ty(&named, false).unwrap();
+        for depth in [0, 1, 123, 124, 125, 128, 129] {
+            let old = world.legacy_ty(&named, false, &mut BTreeSet::new(), depth);
+            let current = world
+                .ty(&named, false, &mut BTreeSet::new(), depth)
+                .map(|_| ());
+            assert_eq!(current, old, "depth {depth}");
+        }
+        let mut active = BTreeSet::from(["T4".into()]);
+        assert_eq!(
+            world.ty(&named, false, &mut active, 0).unwrap_err(),
+            "recursive inline machine layout"
+        );
+    }
+    #[test]
+    fn cyclic_missing_void_and_width_neighbors_match_original_dfs() {
+        for bad in [
+            Ty::Named("Missing".into()),
+            Ty::Named("T2".into()),
+            Ty::Void,
+            Ty::Int(7),
+            Ty::Named("bad name".into()),
+            Ty::Array(u64::MAX, Box::new(Ty::Int(8))),
+        ] {
+            for position in [0, 1] {
+                let mut definitions = diamond(5);
+                definitions[2].1[position] = bad.clone();
+                let world = world(&definitions);
+                for i in [0, 1, 4, 2, 3, 4] {
+                    let ty = Ty::Named(format!("T{i}"));
+                    assert_eq!(
+                        world.check_ty(&ty, false),
+                        world.legacy_ty(&ty, false, &mut BTreeSet::new(), 0)
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod dominance_interval_tests {
+    use super::*;
+    fn old_walk(reachable: &[bool], idom: &[usize], a: usize, mut b: usize) -> bool {
+        if !reachable[b] {
+            return true;
+        }
+        if !reachable[a] {
+            return false;
+        }
+        loop {
+            if a == b {
+                return true;
+            }
+            if b == 0 {
+                return false;
+            }
+            b = idom[b];
+        }
+    }
+    #[test]
+    fn intervals_match_original_walk_for_cycles_unreachable_and_irreducible_cfgs() {
+        let mut seed = 0x9e3779b97f4a7c15u64;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for n in [1, 2, 7, 31, 32, 33, 64, 129] {
+            for _ in 0..40 {
+                let mut succ = vec![vec![]; n];
+                let mut pred = vec![vec![]; n];
+                for (b, edges) in succ.iter_mut().enumerate() {
+                    for (p, predecessors) in pred.iter_mut().enumerate().skip(1) {
+                        if next() % 11 == 0 {
+                            edges.push(p);
+                            predecessors.push(b);
+                        }
+                    }
+                }
+                let (reachable, idom) = dominators(&succ, &pred);
+                let spans = dominator_intervals(&reachable, &idom);
+                for a in 0..n {
+                    for b in 0..n {
+                        let expected = old_walk(&reachable, &idom, a, b);
+                        assert_eq!(
+                            dominates(&reachable, &idom, Some(&spans), a, b),
+                            expected,
+                            "n={n} {a}->{b}"
+                        );
+                        assert_eq!(dominates(&reachable, &idom, None, a, b), expected);
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn deep_dominator_chain_uses_iterative_intervals() {
+        let n: usize = 65_536;
+        let idom = (0..n).map(|b| b.saturating_sub(1)).collect::<Vec<usize>>();
+        let reachable = vec![true; n];
+        let spans = dominator_intervals(&reachable, &idom);
+        for b in 1..n {
+            assert!(dominates(&reachable, &idom, Some(&spans), b - 1, b));
+            assert!(!dominates(&reachable, &idom, Some(&spans), b, b - 1));
+            assert!(dominates(&reachable, &idom, Some(&spans), 1, b));
+        }
+    }
+
+    #[test]
+    fn checked_chain_trap_idoms_survive_fanin_order_duplicates_and_backedges() {
+        for length in [1, 2, 30, 31, 32, 33, 128, 4096] {
+            for reverse in [false, true] {
+                for backedge in [false, true] {
+                    let trap = length + 1;
+                    let unreachable = length + 2;
+                    let mut succ = vec![vec![]; length + 3];
+                    succ[0].push(1);
+                    for (b, edges) in succ.iter_mut().enumerate().take(length + 1).skip(1) {
+                        if b < length {
+                            edges.push(b + 1);
+                        }
+                        edges.push(trap);
+                    }
+                    succ[length].push(trap); // Duplicate CFG edge.
+                    if backedge {
+                        succ[length].push((length / 2).max(1));
+                    }
+                    succ[unreachable].extend([unreachable, trap]);
+                    let mut pred = vec![vec![]; succ.len()];
+                    for (b, edges) in succ.iter().enumerate() {
+                        for &next in edges {
+                            pred[next].push(b);
+                        }
+                    }
+                    if reverse {
+                        for edges in &mut pred {
+                            edges.reverse();
+                        }
+                    }
+                    let (reachable, idom) = dominators(&succ, &pred);
+                    for b in 1..=length {
+                        assert!(reachable[b]);
+                        assert_eq!(idom[b], b - 1);
+                    }
+                    assert_eq!(idom[trap], 1);
+                    assert!(reachable[trap]);
+                    assert!(!reachable[unreachable]);
+                    assert_eq!(idom[unreachable], usize::MAX);
+                }
+            }
+        }
+    }
 }

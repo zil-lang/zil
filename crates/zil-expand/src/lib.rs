@@ -285,7 +285,8 @@ pub fn expand_program_with_limits(
     limits: &Limits,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
     let specialized = modules::specialize(sources, syntax, imports, limits)?;
-    let declarations = specialized.iter().map(|(m, _)| m).collect::<Vec<_>>();
+    let project_modules: Vec<_> = specialized.iter().map(|(module, _)| module).collect();
+    let declarations = declaration_index(project_modules.iter().copied());
     let mut result = Vec::new();
     let mut remaining = limits.clone();
     let mut defaults = ProjectDefaults::new();
@@ -333,7 +334,7 @@ pub fn expand_program_with_limits(
             module,
             true,
             sources,
-            (&declarations, source_imports),
+            (&declarations, &project_modules, source_imports),
             &remaining,
             Some(&defaults),
         )?;
@@ -396,15 +397,30 @@ fn expand_inner(
     module: &s::Module,
     imports_resolved: bool,
 ) -> CompileResult<ExpandedModule> {
+    let declarations = declaration_index(std::iter::once(module));
     expand_inner_project(
         source,
         module,
         imports_resolved,
         std::slice::from_ref(source),
-        (&[module], &[]),
+        (&declarations, &[module], &[]),
         &Limits::default(),
         None,
     )
+}
+
+// Collect once for the whole immutable syntax snapshot. Re-scanning every
+// project's declaration list once per module is quadratic in module count.
+// First declaration wins exactly as in the original ordered traversal.
+type Declarations<'a> = BTreeMap<String, &'a s::Aggregate>;
+fn declaration_index<'a>(modules: impl IntoIterator<Item = &'a s::Module>) -> Declarations<'a> {
+    let mut declarations = BTreeMap::new();
+    for item in modules.into_iter().flat_map(|module| &module.items) {
+        if let s::ItemKind::Aggregate(a) = &item.kind {
+            declarations.entry(a.name.clone()).or_insert(a);
+        }
+    }
+    declarations
 }
 
 fn expand_inner_project(
@@ -412,30 +428,25 @@ fn expand_inner_project(
     module: &s::Module,
     imports_resolved: bool,
     sources: &[SourceUnit],
-    project: (&[&s::Module], &[CoreImport]),
+    project: (&Declarations<'_>, &[&s::Module], &[CoreImport]),
     limits: &Limits,
     project_defaults: Option<&ProjectDefaults>,
 ) -> CompileResult<ExpandedModule> {
-    let (declarations, imports) = project;
-    let mut e = Expander::new(module.id, imports_resolved, limits, project_defaults);
-    // Declaration collection does not resolve traits, evaluate defaults, or
-    // grant capabilities. It supplies only already-written local syntax.
-    for item in declarations.iter().flat_map(|module| &module.items) {
-        match &item.kind {
-            s::ItemKind::Aggregate(a) => {
-                e.declarations.entry(a.name.clone()).or_insert(a);
-            }
-            s::ItemKind::Trait(_) => {}
-            _ => {}
-        }
-    }
+    let (declarations, project_modules, imports) = project;
+    let mut e = Expander::new(
+        module.id,
+        imports_resolved,
+        limits,
+        project_defaults,
+        declarations,
+    );
     for item in &module.items {
         if let s::ItemKind::Trait(t) = &item.kind {
             e.traits.entry(t.name.clone()).or_insert(t);
         }
     }
     e.collect_resource_drops(module);
-    e.collect_static_traits(module, declarations, imports, limits);
+    e.collect_static_traits(module, project_modules, imports, limits);
     // A public default is a declaration: check its body even when a particular
     // consumer explicitly supplies that field. Private/local defaults retain
     // their existing lazy lowering.
@@ -490,7 +501,7 @@ struct Expander<'a> {
     functions: Vec<CoreFunction>,
     aggregates: Vec<CoreAggregate>,
     enums: Vec<CoreEnum>,
-    declarations: BTreeMap<String, &'a s::Aggregate>,
+    declarations: &'a Declarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
     imported_public_traits: BTreeSet<String>,
@@ -512,6 +523,7 @@ impl<'a> Expander<'a> {
         imports_resolved: bool,
         limits: &Limits,
         project_defaults: Option<&'a ProjectDefaults>,
+        declarations: &'a Declarations<'a>,
     ) -> Self {
         Self {
             imports_resolved,
@@ -528,7 +540,7 @@ impl<'a> Expander<'a> {
             functions: Vec::new(),
             aggregates: Vec::new(),
             enums: Vec::new(),
-            declarations: BTreeMap::new(),
+            declarations,
             default_helpers: BTreeMap::new(),
             traits: BTreeMap::new(),
             imported_public_traits: BTreeSet::new(),

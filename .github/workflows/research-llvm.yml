@@ -1,0 +1,370 @@
+name: Research LLVM verification
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: zil-research-llvm-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  workspace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_STRIP: 'symbols'
+      CARGO_PROFILE_DEV_STRIP: 'symbols'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reclaim unused hosted-runner toolchain space
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/receipts"
+          sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_TEMP,GITHUB_WORKSPACE python3 tools/ci/research_disk_space.py --apply
+      - name: Preserve pre-build disk recovery receipt
+        id: disk_checkpoint
+        continue-on-error: true
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-research-llvm-${{ github.run_id }}-${{ github.run_attempt }}-disk-recovery
+          path: ${{ runner.temp }}/receipts/disk-space-before-build.json
+          retention-days: 30
+          if-no-files-found: error
+      - name: Build the pinned research LLVM toolchain pair
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/research/incremental-compilation/jump_threading_plugin/prepare_headers.py --release tools/llvm/release-linux-x86_64.json --cache "$RUNNER_TEMP/llvm-sdk-cache" --output "$RUNNER_TEMP/llvm-headers" 2>&1 | tee "$RUNNER_TEMP/receipts/research-headers.log"
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/llvm-23.1.4" --archive "$RUNNER_TEMP/llvm-sdk-cache/LLVM-23.1.4-Linux-X64.tar.zst" 2>&1 | tee "$RUNNER_TEMP/receipts/research-official-install.log"
+          python3 tools/research/incremental-compilation/toolchain_combination/rebuild.py --repo "$PWD" --llvm-prefix "$RUNNER_TEMP/llvm-23.1.4" --headers-prefix "$RUNNER_TEMP/llvm-headers" --out "$RUNNER_TEMP/llvm-research" --jobs 2 2>&1 | tee "$RUNNER_TEMP/receipts/research-rebuild.log"
+          echo "ZIL_CLANG=$RUNNER_TEMP/llvm-23.1.4/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/llvm-research/candidate/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/llvm-research/candidate/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/llvm-23.1.4/bin" >> "$GITHUB_PATH"
+      - name: Record exact checkout and current CI input snapshot
+        id: research_toolchain_identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target" >> "$GITHUB_ENV"
+          echo "ZIL_TEST_REPORT_DIR=$RUNNER_TEMP/native-evidence" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/receipts"
+          python3 tools/ci/source_snapshot.py --repo "$PWD" --out "$RUNNER_TEMP/receipts"
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          rustc -vV > "$RUNNER_TEMP/receipts/toolchain.txt"
+          "$ZIL_CLANG" --version >> "$RUNNER_TEMP/receipts/toolchain.txt"
+          python3 tools/llvm/check_toolchain.py > "$RUNNER_TEMP/receipts/llvm-api-toolchain.json"
+          cp "$RUNNER_TEMP/llvm-23.1.4/install-receipt.json" "$RUNNER_TEMP/receipts/llvm-install.json"
+          python3 tools/ci/research_llvm_manifest.py verify --repo "$PWD" --runner-temp "$RUNNER_TEMP"
+      - name: Collect research LLVM source and failure evidence
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/research_llvm_manifest.py collect --runner-temp "$RUNNER_TEMP"
+      - name: Preserve research LLVM preparation before tests
+        id: toolchain_checkpoint
+        continue-on-error: true
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-research-llvm-${{ github.run_id }}-${{ github.run_attempt }}-toolchain
+          path: |
+            ${{ runner.temp }}/receipts/llvm-research-evidence/
+            ${{ runner.temp }}/receipts/research-*.log
+            ${{ runner.temp }}/receipts/llvm-research-identity.json
+            ${{ runner.temp }}/receipts/llvm-api-toolchain.json
+          retention-days: 30
+          if-no-files-found: error
+      - name: Formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all -- --check 2>&1 | tee "$RUNNER_TEMP/receipts/fmt.log"
+      - name: Record workspace resources before tests
+        if: ${{ !cancelled() && steps.research_toolchain_identity.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            date -u '+%Y-%m-%dT%H:%M:%SZ'
+            df -Pk -- "$RUNNER_TEMP"
+            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/consumer209"; do
+              if [ -e "$path" ]; then du -sk -- "$path"; fi
+            done
+          } > "$RUNNER_TEMP/receipts/workspace-resources-before.log"
+      - name: Complete workspace tests
+        id: workspace_tests
+        if: ${{ !cancelled() && steps.research_toolchain_identity.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIL_TEST_REPORT_DIR="$RUNNER_TEMP/native-evidence/workspace" cargo test --locked --workspace --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/workspace.log"
+      - name: Record workspace resources after tests
+        id: workspace_resources_after
+        if: ${{ always() && (steps.workspace_tests.outcome == 'success' || steps.workspace_tests.outcome == 'failure' || steps.workspace_tests.outcome == 'cancelled') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            date -u '+%Y-%m-%dT%H:%M:%SZ'
+            df -Pk -- "$RUNNER_TEMP"
+            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/consumer209"; do
+              if [ -e "$path" ]; then du -sk -- "$path"; fi
+            done
+            sha256sum -- "$RUNNER_TEMP/receipts/workspace.log"
+          } > "$RUNNER_TEMP/receipts/workspace-resources-after.log"
+          python3 tools/ci/native_evidence.py capture "$RUNNER_TEMP" workspace >> "$GITHUB_OUTPUT"
+      - name: Preserve workspace receipts before releasing its cache
+        id: workspace_receipts
+        continue-on-error: true
+        if: ${{ always() && (steps.workspace_tests.outcome == 'success' || steps.workspace_tests.outcome == 'failure' || steps.workspace_tests.outcome == 'cancelled') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-research-llvm-${{ github.run_id }}-${{ github.run_attempt }}-workspace
+          path: |
+            ${{ runner.temp }}/receipts/workspace.log
+            ${{ runner.temp }}/receipts/workspace-resources-*.log
+            ${{ runner.temp }}/receipts/workspace-native-manifest.json
+            ${{ runner.temp }}/receipts/commit.txt
+            ${{ runner.temp }}/receipts/source-tree.txt
+            ${{ runner.temp }}/receipts/toolchain.txt
+            ${{ runner.temp }}/receipts/llvm-api-toolchain.json
+          retention-days: 30
+          if-no-files-found: error
+      - name: Preserve all workspace native evidence before releasing it
+        id: workspace_native
+        continue-on-error: true
+        if: ${{ always() && steps.workspace_resources_after.outcome == 'success' && steps.workspace_resources_after.outputs.native_file_count != '0' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-research-llvm-${{ github.run_id }}-${{ github.run_attempt }}-workspace-native
+          path: ${{ runner.temp }}/native-evidence/workspace/
+          include-hidden-files: true
+          retention-days: 30
+          if-no-files-found: error
+      - name: Release only the archived workspace native evidence
+        if: ${{ !cancelled() && steps.workspace_resources_after.outcome == 'success' && steps.workspace_receipts.outcome == 'success' && (steps.workspace_resources_after.outputs.native_file_count == '0' || steps.workspace_native.outcome == 'success') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/native_evidence.py release "$RUNNER_TEMP" workspace
+      - name: Release only the archived workspace compiler cache
+        if: ${{ !cancelled() && steps.workspace_resources_after.outcome == 'success' && steps.workspace_receipts.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP" <<'PY_CLEAN'
+          from pathlib import Path
+          import shutil, sys
+          root = Path(sys.argv[1])
+          if not root.is_absolute() or root != root.resolve():
+              raise SystemExit("Runner temporary root must be absolute and canonical")
+          cache = root / "target/debug"
+          if cache != cache.resolve() or cache.is_symlink():
+              raise SystemExit("Compiler cache path must not contain a symlink")
+          if cache.exists():
+              if not cache.is_dir():
+                  raise SystemExit("Compiler cache path is not a directory")
+              shutil.rmtree(cache)
+          print("Removed only compiler cache:", cache)
+          print("Free bytes after cleanup:", shutil.disk_usage(root).free)
+          PY_CLEAN
+      - name: Record reference resources before tests
+        if: ${{ !cancelled() && steps.research_toolchain_identity.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            date -u '+%Y-%m-%dT%H:%M:%SZ'
+            df -Pk -- "$RUNNER_TEMP"
+            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/consumer209"; do
+              if [ -e "$path" ]; then du -sk -- "$path"; fi
+            done
+          } > "$RUNNER_TEMP/receipts/reference-resources-before.log"
+      - name: Reference-only build and explicit unavailable control
+        id: reference_tests
+        if: ${{ !cancelled() && steps.research_toolchain_identity.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIL_TEST_REPORT_DIR="$RUNNER_TEMP/native-evidence/reference" CARGO_TARGET_DIR="$RUNNER_TEMP/target-reference" cargo test --locked --workspace --no-default-features --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/reference.log"
+      - name: Record reference resources after tests
+        id: reference_resources_after
+        if: ${{ always() && (steps.reference_tests.outcome == 'success' || steps.reference_tests.outcome == 'failure' || steps.reference_tests.outcome == 'cancelled') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            date -u '+%Y-%m-%dT%H:%M:%SZ'
+            df -Pk -- "$RUNNER_TEMP"
+            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/consumer209"; do
+              if [ -e "$path" ]; then du -sk -- "$path"; fi
+            done
+            sha256sum -- "$RUNNER_TEMP/receipts/reference.log"
+          } > "$RUNNER_TEMP/receipts/reference-resources-after.log"
+          python3 tools/ci/native_evidence.py capture "$RUNNER_TEMP" reference >> "$GITHUB_OUTPUT"
+      - name: Preserve reference receipts before releasing its cache
+        id: reference_receipts
+        continue-on-error: true
+        if: ${{ always() && (steps.reference_tests.outcome == 'success' || steps.reference_tests.outcome == 'failure' || steps.reference_tests.outcome == 'cancelled') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-research-llvm-${{ github.run_id }}-${{ github.run_attempt }}-reference
+          path: |
+            ${{ runner.temp }}/receipts/reference.log
+            ${{ runner.temp }}/receipts/reference-resources-*.log
+            ${{ runner.temp }}/receipts/reference-native-manifest.json
+            ${{ runner.temp }}/receipts/commit.txt
+            ${{ runner.temp }}/receipts/source-tree.txt
+            ${{ runner.temp }}/receipts/toolchain.txt
+            ${{ runner.temp }}/receipts/llvm-api-toolchain.json
+          retention-days: 30
+          if-no-files-found: error
+      - name: Preserve all reference native evidence before releasing it
+        id: reference_native
+        continue-on-error: true
+        if: ${{ always() && steps.reference_resources_after.outcome == 'success' && steps.reference_resources_after.outputs.native_file_count != '0' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-research-llvm-${{ github.run_id }}-${{ github.run_attempt }}-reference-native
+          path: ${{ runner.temp }}/native-evidence/reference/
+          include-hidden-files: true
+          retention-days: 30
+          if-no-files-found: error
+      - name: Release only the archived reference native evidence
+        if: ${{ !cancelled() && steps.reference_resources_after.outcome == 'success' && steps.reference_receipts.outcome == 'success' && (steps.reference_resources_after.outputs.native_file_count == '0' || steps.reference_native.outcome == 'success') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/native_evidence.py release "$RUNNER_TEMP" reference
+      - name: Release only the archived reference compiler cache
+        if: ${{ !cancelled() && steps.reference_resources_after.outcome == 'success' && steps.reference_receipts.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP" <<'PY_CLEAN'
+          from pathlib import Path
+          import shutil, sys
+          root = Path(sys.argv[1])
+          if not root.is_absolute() or root != root.resolve():
+              raise SystemExit("Runner temporary root must be absolute and canonical")
+          cache = root / "target-reference"
+          if cache != cache.resolve() or cache.is_symlink():
+              raise SystemExit("Compiler cache path must not contain a symlink")
+          if cache.exists():
+              if not cache.is_dir():
+                  raise SystemExit("Compiler cache path is not a directory")
+              shutil.rmtree(cache)
+          print("Removed only compiler cache:", cache)
+          print("Free bytes after cleanup:", shutil.disk_usage(root).free)
+          PY_CLEAN
+      - name: Native API State and allocation-failure controls
+        if: ${{ !cancelled() && steps.research_toolchain_identity.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          preserve_consumer_summary() {
+            gate_exit=$?
+            trap - EXIT
+            if [ -f "$RUNNER_TEMP/consumer209/summary.json" ]; then
+              if ! cp "$RUNNER_TEMP/consumer209/summary.json" "$RUNNER_TEMP/receipts/consumer209.json"; then
+                if [ "$gate_exit" -eq 0 ]; then gate_exit=1; fi
+              fi
+            elif [ "$gate_exit" -eq 0 ]; then
+              gate_exit=1
+            fi
+            exit "$gate_exit"
+          }
+          trap preserve_consumer_summary EXIT
+          cargo build --locked --release -p zil-cli
+          python3 tools/research/208/validate.py --repo . --cli "$CARGO_TARGET_DIR/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/consumer209"
+      - name: All-target Clippy
+        if: ${{ !cancelled() && steps.research_toolchain_identity.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo clippy --locked --workspace --all-targets -- -D warnings 2>&1 | tee "$RUNNER_TEMP/receipts/clippy.log"
+      - name: Explicit LLVM text-reference boundary
+        if: ${{ !cancelled() && steps.research_toolchain_identity.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked -p zil-llvm-api --features text-reference 2>&1 | tee "$RUNNER_TEMP/receipts/text-reference.log"
+          python3 tools/llvm/test_validate_migration.py 2>&1 | tee "$RUNNER_TEMP/receipts/migration-runner.log"
+      - name: Test CI evidence recovery
+        run: python3 tools/ci/test_evidence_transport.py
+      - name: Small recovery artifact, never target caches
+        id: recovery_final
+        continue-on-error: true
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-research-llvm-${{ github.run_id }}-${{ github.run_attempt }}-final
+          path: |
+            ${{ runner.temp }}/receipts/
+            ${{ runner.temp }}/llvm-23.1.4/install-receipt.json
+            ${{ runner.temp }}/llvm-23.1.4/installation-logs/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Recover complete evidence through verified log transport
+        id: evidence_log_recovery
+        if: ${{ always() && (steps.disk_checkpoint.outcome == 'failure' || steps.disk_checkpoint.outcome == 'cancelled' || steps.toolchain_checkpoint.outcome == 'failure' || steps.toolchain_checkpoint.outcome == 'cancelled' || steps.workspace_receipts.outcome == 'failure' || steps.workspace_receipts.outcome == 'cancelled' || steps.workspace_native.outcome == 'failure' || steps.workspace_native.outcome == 'cancelled' || steps.reference_receipts.outcome == 'failure' || steps.reference_receipts.outcome == 'cancelled' || steps.reference_native.outcome == 'failure' || steps.reference_native.outcome == 'cancelled' || steps.recovery_final.outcome == 'failure' || steps.recovery_final.outcome == 'cancelled' || steps.recovery_final.outcome != 'success') }}
+        shell: bash
+        env:
+          UPLOAD_DISK_CHECKPOINT: ${{ steps.disk_checkpoint.outcome }}
+          UPLOAD_TOOLCHAIN_CHECKPOINT: ${{ steps.toolchain_checkpoint.outcome }}
+          UPLOAD_WORKSPACE_RECEIPTS: ${{ steps.workspace_receipts.outcome }}
+          UPLOAD_WORKSPACE_NATIVE: ${{ steps.workspace_native.outcome }}
+          UPLOAD_REFERENCE_RECEIPTS: ${{ steps.reference_receipts.outcome }}
+          UPLOAD_REFERENCE_NATIVE: ${{ steps.reference_native.outcome }}
+          UPLOAD_RECOVERY_FINAL: ${{ steps.recovery_final.outcome }}
+        run: |
+          set -euo pipefail
+          python3 tools/ci/evidence_transport.py pack "$RUNNER_TEMP" "$RUNNER_TEMP/evidence-recovery.tar.zst"
+          python3 tools/ci/evidence_transport.py emit "$RUNNER_TEMP/evidence-recovery.tar.zst"
+          echo '::warning::Artifact upload failed; complete evidence was locally verified and emitted to this log. The integrator must retrieve and verify the exact-run archive before merging.'
+      - name: Report every evidence upload outcome
+        if: ${{ always() }}
+        shell: bash
+        env:
+          UPLOAD_DISK_CHECKPOINT: ${{ steps.disk_checkpoint.outcome }}
+          UPLOAD_TOOLCHAIN_CHECKPOINT: ${{ steps.toolchain_checkpoint.outcome }}
+          UPLOAD_WORKSPACE_RECEIPTS: ${{ steps.workspace_receipts.outcome }}
+          UPLOAD_WORKSPACE_NATIVE: ${{ steps.workspace_native.outcome }}
+          UPLOAD_REFERENCE_RECEIPTS: ${{ steps.reference_receipts.outcome }}
+          UPLOAD_REFERENCE_NATIVE: ${{ steps.reference_native.outcome }}
+          UPLOAD_RECOVERY_FINAL: ${{ steps.recovery_final.outcome }}
+          EVIDENCE_LOG_RECOVERY: ${{ steps.evidence_log_recovery.outcome }}
+        run: |
+          python3 - <<'PY_UPLOADS'
+          import os
+          from pathlib import Path
+          outcomes = {key[7:].lower(): value for key, value in os.environ.items() if key.startswith('UPLOAD_')}
+          lines = ['Evidence upload outcomes:'] + [f'- {key}: {value or "not run"}' for key, value in sorted(outcomes.items())]
+          recovery = os.environ.get('EVIDENCE_LOG_RECOVERY')
+          lines.append(f'- log recovery (local verification/emission only): {recovery or "not run"}')
+          print('\n'.join(lines))
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a') as stream:
+              stream.write('\n'.join(lines) + '\n')
+          failed = any(value in ('failure', 'cancelled') for value in outcomes.values())
+          if failed or outcomes.get('recovery_final') != 'success':
+              if recovery != 'success':
+                  print('::error::Evidence upload and complete log recovery are incomplete. Test results do not imply artifact preservation.')
+                  raise SystemExit(1)
+              print('::warning::Uploads remain failed. Complete log recovery emitted; independent retrieval and verification are required before merge.')
+          PY_UPLOADS

@@ -1,0 +1,13 @@
+# O2 等价函数合并候选
+
+基于研究分支644489605之后的源码，只对机器优化策略作显式候选，不改变语言Wire、Verify、默认预算或函数地址/导出合同。现有529/ee786二进制与ThinLocal正式窗口工具保持冻结，供同窗基线比较。
+
+精确Rust 1.99.1 revision 58cf8f9c35b355199727627d07ae34a4e2846d67 的SSA/back/write.rs L247–259在O2/O3/Os/Oz启用MergeFunctions；LLVM PassWrapper设置PTO.MergeFunctions。LLVM默认enable-merge-functions=false，因此现有纯default<O2>并不包含此项。Rust通用目标配置默认aliases；LLVM只有global unnamed_addr函数才能直接别名。本候选选择保留地址的trampolines，不给ZIL函数新增unnamed_addr、不启用aliases。源码对照仍须通过实际优化前后IR和原生行为验证，不能由Rust选项推出收益。
+
+新增FunctionMerging策略：Disabled、AfterOptimization、BeforeAndAfter，BuildOptions默认Disabled。AfterOptimization通过现有LLVM C API LLVMPassBuilderOptionsSetMergeFunctions启用标准O2末段合并；BeforeAndAfter显式前置mergefunc再执行相同O2/末段合并，独立评估早期消除重复正文对后续常量传播、调用数量和编译时间的影响。早期策略不因末段策略有效就自动晋升。API Config不增加必需字段，现有入口维持禁用，另加显式策略入口。
+
+LLVM当前前后verify、结构化当前machine preflight、取消/失败清理不变。receipt必须记录完整管线/函数合并策略；对象缓存namespace实际纳入同一管线身份，不能在同一二进制内复用另一策略的对象。默认外部符号全部保留，合并后的函数地址仍须逐定义唯一。Clang的AfterOptimization使用等价-mllvm enable-merge-functions=true及mergefunc-use-aliases=false；Clang进程路径不能可靠表达前置pass时明确Unsupported，不静默忽略。API的文本参考入口与结构化入口使用相同策略。
+
+控制包括：真实源码同体函数两个不同地址、全部导出保留、实际优化对象/重定位证明发生合并；资源/owned closure/Drop/FFI/native结果；两个策略冷暖与交叉切换缓存身份；当前坏正文拒绝、不发布新缓存、不替换旧可执行文件；API/text-reference差分。性能必须覆盖位等价与非等价正文、opaque runtime input、branch/大正文、均匀/偏斜大模块，并比较Disabled、末段、前后两次三个策略。ThinLocal的结果不能替代该候选自身测量。
+
+该提案不预设默认晋升：末段是Rust式策略，但仍须满足实际编译/运行质量控制；前置合并可能引入跳板调用并改变内联机会，必须保留反例与回退结果。

@@ -4,6 +4,7 @@ use super::closures::{
     BOOL, Graph, I32, I64, INTEGER, Projection, SCALAR, U8, U16, UNIT, VALUE, Variable,
 };
 use super::*;
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
@@ -216,7 +217,9 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
     let mut functions = Vec::new();
     for (function, flag) in core.functions.iter().zip(flags) {
         functions.push(
-            prepare(function, &table, None, &enum_types, flag, &mut budget).map_err(|e| vec![e])?,
+            prepare(function, &table, None, &enum_types, flag, &mut budget)
+                .map_err(|e| vec![e])?
+                .into_owned(),
         );
     }
     Ok(copy_module_metadata(core, functions))
@@ -228,6 +231,14 @@ pub fn infer_program_closures(
     program: &CoreProgram,
     limits: &Limits,
 ) -> CompileResult<CoreProgram> {
+    infer_program_closures_borrowed(program, limits).map(Cow::into_owned)
+}
+
+pub(super) fn infer_program_closures_borrowed<'a>(
+    program: &'a CoreProgram,
+    limits: &Limits,
+) -> CompileResult<Cow<'a, CoreProgram>> {
+    let original = program;
     let mut budget = Budget::new(limits);
     let mut tables = BTreeMap::new();
     let mut count = 0usize;
@@ -389,17 +400,32 @@ pub fn infer_program_closures(
                 .map_err(|e| vec![e])?,
             );
         }
-        modules.push(ProgramModule {
-            core: copy_module_metadata(&module.core, functions),
-            imports: module.imports.clone(),
-            exports: module.exports.clone(),
-        });
+        modules.push((module, functions));
     }
-    Ok(CoreProgram {
+    // All header/name/import/metadata/dependency checks and logical charges ran
+    // in the original order. Borrow only when no transformation ran anywhere.
+    if normalized.is_none()
+        && modules
+            .iter()
+            .all(|(_, functions)| functions.iter().all(|f| matches!(f, Cow::Borrowed(_))))
+    {
+        return Ok(Cow::Borrowed(original));
+    }
+    Ok(Cow::Owned(CoreProgram {
         root: program.root,
         source_fingerprint: program.source_fingerprint,
-        modules,
-    })
+        modules: modules
+            .into_iter()
+            .map(|(module, functions)| ProgramModule {
+                core: copy_module_metadata(
+                    &module.core,
+                    functions.into_iter().map(Cow::into_owned).collect(),
+                ),
+                imports: module.imports.clone(),
+                exports: module.exports.clone(),
+            })
+            .collect(),
+    }))
 }
 
 fn headers(
@@ -549,14 +575,14 @@ fn headers(
     Ok(table)
 }
 
-fn prepare(
-    function: &CoreFunction,
+fn prepare<'a>(
+    function: &'a CoreFunction,
     signatures: &BTreeMap<String, Signature>,
     imports: Option<&program::Imports<'_>>,
     enums: &BTreeMap<String, Type>,
     has_closure: bool,
     budget: &mut Budget<'_>,
-) -> R<CoreFunction> {
+) -> R<Cow<'a, CoreFunction>> {
     // Scalar-only functions retain their existing inference/default behavior.
     if !has_closure && function.type_parameters.is_empty() && function.state_parameters.is_empty() {
         let dependencies = retained::dependencies(
@@ -567,12 +593,12 @@ fn prepare(
             budget.limits,
         )?;
         if dependencies.is_empty() {
-            return Ok(function.clone());
+            return Ok(Cow::Borrowed(function));
         }
     }
     let mut solver = Solver::new(function, signatures, imports, enums, budget)?;
     solver.block(&function.body, 0)?;
-    solver.finish(function)
+    solver.finish(function).map(Cow::Owned)
 }
 
 fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> CoreModule {

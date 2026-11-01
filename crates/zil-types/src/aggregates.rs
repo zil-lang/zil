@@ -170,6 +170,21 @@ pub(super) fn resolve_program(
     })
 }
 
+/// The prepared input is immutable and already bounded by current inference.
+/// A borrowed result still performs shape resolution's complete ordered work;
+/// it carries no Types, Analyze or Verify capability.
+pub(super) fn resolve_prepared_program<'a>(
+    program: &'a CoreProgram,
+    limits: &Limits,
+) -> CompileResult<std::borrow::Cow<'a, CoreProgram>> {
+    match scalar_shapes::validate(program, limits) {
+        Some(result) => result.map(|()| std::borrow::Cow::Borrowed(program)),
+        // Unsupported shapes restart with the original allowance. No partial
+        // speculative work changes the existing resolver's diagnostic order.
+        None => resolve_program(program, limits).map(std::borrow::Cow::Owned),
+    }
+}
+
 fn resolve_indexed(
     mut core: CoreModule,
     project: &[&CoreModule],

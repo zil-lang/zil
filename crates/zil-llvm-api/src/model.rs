@@ -63,16 +63,19 @@ impl From<&str> for Ty {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Linkage {
     External,
+    /// Optimizer-only body; the canonical definition is emitted by another unit.
+    AvailableExternally,
     Internal,
     Private,
 }
 impl Linkage {
     pub fn is_local(self) -> bool {
-        self != Self::External
+        matches!(self, Self::Internal | Self::Private)
     }
     fn prefix(self) -> &'static str {
         match self {
             Self::External => "",
+            Self::AvailableExternally => "available_externally ",
             Self::Internal => "internal ",
             Self::Private => "private ",
         }
@@ -652,147 +655,312 @@ impl Module {
         })
     }
     pub fn to_text(&self) -> String {
-        let mut s = format!(
-            "; ZIL verified LLVM module\n; verified-fingerprint: {}\ntarget triple = \"{}\"\n\n",
-            self.fingerprint, self.triple
-        );
-        for item in &self.items {
-            match item {
-                Item::NamedType(n, fields) => {
-                    if fields.is_empty() {
-                        writeln!(s, "%{n} = type {{  }}").unwrap();
-                    } else {
-                        writeln!(s, "%{n} = type {}", Ty::Struct(fields.clone())).unwrap();
-                    }
-                }
-                Item::Global(g) => {
-                    write!(s, "@{} = {}", g.name, g.linkage.prefix()).unwrap();
-                    if g.initializer.is_none() {
-                        s.push_str("external ");
-                    }
-                    if g.unnamed_addr {
-                        s.push_str("unnamed_addr ");
-                    }
-                    write!(
-                        s,
-                        "{} {}",
-                        if g.constant { "constant" } else { "global" },
-                        g.ty
-                    )
-                    .unwrap();
-                    if let Some(v) = &g.initializer {
-                        write!(s, " {v}").unwrap();
-                    }
-                    if g.alignment != 0 {
-                        write!(s, ", align {}", g.alignment).unwrap();
-                    }
-                    s.push('\n');
-                }
-                Item::Function(f) => {
-                    write!(
-                        s,
-                        "{} {}",
-                        if f.blocks.is_some() {
-                            "define"
-                        } else {
-                            "declare"
-                        },
-                        f.linkage.prefix()
-                    )
-                    .unwrap();
-                    for a in &f.signature.result_attrs {
-                        write!(s, "{} ", a.name()).unwrap();
-                    }
-                    write!(s, "{} @{}(", f.signature.result, f.name).unwrap();
-                    for (i, p) in f.signature.params.iter().enumerate() {
-                        if i != 0 {
-                            s.push_str(", ");
-                        }
-                        write!(s, "{}", p.ty).unwrap();
-                        for a in &p.attrs {
-                            write!(s, " {}", a.name()).unwrap();
-                        }
-                        if let Some(n) = &p.name {
-                            write!(s, " %{n}").unwrap();
-                        }
-                    }
-                    if f.signature.variadic {
-                        if !f.signature.params.is_empty() {
-                            s.push_str(", ");
-                        }
-                        s.push_str("...");
-                    }
-                    s.push(')');
-                    for a in &f.attrs {
-                        write!(s, " {}", a.name()).unwrap();
-                    }
-                    if let Some(blocks) = &f.blocks {
-                        s.push_str(" {\n");
-                        for b in blocks {
-                            writeln!(s, "{}:", b.name).unwrap();
-                            for i in &b.instructions {
-                                write_inst(&mut s, i);
-                            }
-                        }
-                        s.push_str("}\n");
-                    } else {
-                        s.push('\n');
-                    }
-                }
-            }
-        }
-        s
+        render_module(self)
     }
 }
-fn write_inst(s: &mut String, i: &Inst) {
-    s.push_str("  ");
-    if let Some(r) = &i.result {
-        write!(s, "%{r} = ").unwrap();
-    }
-    match &i.op {
-        Op::Alloca { ty, align } => {
-            write!(s, "alloca {ty}").unwrap();
-            if *align != 0 {
-                write!(s, ", align {align}").unwrap();
+
+// Text is an exact diagnostic/reference rendering of the same owned model.
+// Keep public Display independent; the former renderer is a cfg(test) oracle.
+fn render_module(module: &Module) -> String {
+    let mut s = String::new();
+    s.push_str("; ZIL verified LLVM module\n; verified-fingerprint: ");
+    s.push_str(&module.fingerprint);
+    s.push_str("\ntarget triple = \"");
+    s.push_str(&module.triple);
+    s.push_str("\"\n\n");
+    for item in &module.items {
+        match item {
+            Item::NamedType(name, fields) => {
+                s.push('%');
+                s.push_str(name);
+                s.push_str(" = type ");
+                if fields.is_empty() {
+                    s.push_str("{  }");
+                } else {
+                    write_fields(&mut s, fields);
+                }
+                s.push('\n');
             }
-            Ok(())
+            Item::Global(global) => {
+                s.push('@');
+                s.push_str(&global.name);
+                s.push_str(" = ");
+                s.push_str(global.linkage.prefix());
+                if global.initializer.is_none() {
+                    s.push_str("external ");
+                }
+                if global.unnamed_addr {
+                    s.push_str("unnamed_addr ");
+                }
+                s.push_str(if global.constant {
+                    "constant "
+                } else {
+                    "global "
+                });
+                write_type(&mut s, &global.ty);
+                if let Some(value) = &global.initializer {
+                    s.push(' ');
+                    write_value(&mut s, value);
+                }
+                write_alignment(&mut s, global.alignment);
+                s.push('\n');
+            }
+            Item::Function(function) => {
+                s.push_str(if function.blocks.is_some() {
+                    "define "
+                } else {
+                    "declare "
+                });
+                s.push_str(function.linkage.prefix());
+                write_attrs(&mut s, &function.signature.result_attrs);
+                write_type(&mut s, &function.signature.result);
+                s.push_str(" @");
+                s.push_str(&function.name);
+                s.push('(');
+                for (index, parameter) in function.signature.params.iter().enumerate() {
+                    if index != 0 {
+                        s.push_str(", ");
+                    }
+                    write_type(&mut s, &parameter.ty);
+                    for attr in &parameter.attrs {
+                        s.push(' ');
+                        s.push_str(attr.name());
+                    }
+                    if let Some(name) = &parameter.name {
+                        s.push_str(" %");
+                        s.push_str(name);
+                    }
+                }
+                if function.signature.variadic {
+                    if !function.signature.params.is_empty() {
+                        s.push_str(", ");
+                    }
+                    s.push_str("...");
+                }
+                s.push(')');
+                for attr in &function.attrs {
+                    s.push(' ');
+                    s.push_str(attr.name());
+                }
+                if let Some(blocks) = &function.blocks {
+                    s.push_str(" {\n");
+                    for block in blocks {
+                        s.push_str(&block.name);
+                        s.push_str(":\n");
+                        for instruction in &block.instructions {
+                            write_inst(&mut s, instruction);
+                        }
+                    }
+                    s.push_str("}\n");
+                } else {
+                    s.push('\n');
+                }
+            }
+        }
+    }
+    s
+}
+
+fn write_attrs(s: &mut String, attrs: &[Attr]) {
+    for attr in attrs {
+        s.push_str(attr.name());
+        s.push(' ');
+    }
+}
+
+fn write_fields(s: &mut String, fields: &[Ty]) {
+    if fields.is_empty() {
+        s.push_str("{}");
+        return;
+    }
+    s.push_str("{ ");
+    for (index, field) in fields.iter().enumerate() {
+        if index != 0 {
+            s.push_str(", ");
+        }
+        write_type(s, field);
+    }
+    s.push_str(" }");
+}
+
+fn write_type(s: &mut String, ty: &Ty) {
+    match ty {
+        Ty::Void => s.push_str("void"),
+        Ty::Int(bits) => match bits {
+            1 => s.push_str("i1"),
+            8 => s.push_str("i8"),
+            16 => s.push_str("i16"),
+            32 => s.push_str("i32"),
+            64 => s.push_str("i64"),
+            _ => write!(s, "i{bits}").unwrap(),
+        },
+        Ty::Ptr => s.push_str("ptr"),
+        Ty::Array(length, element) => {
+            write!(s, "[{length} x ").unwrap();
+            write_type(s, element);
+            s.push(']');
+        }
+        Ty::Struct(fields) => write_fields(s, fields),
+        Ty::Named(name) => {
+            s.push('%');
+            s.push_str(name);
+        }
+    }
+}
+
+fn write_value(s: &mut String, value: &Val) {
+    match value {
+        Val::Local(name) => {
+            s.push('%');
+            s.push_str(name);
+        }
+        Val::Global(name) => {
+            s.push('@');
+            s.push_str(name);
+        }
+        Val::Int(value) => write!(s, "{value}").unwrap(),
+        Val::Bool(value) => s.push_str(if *value { "true" } else { "false" }),
+        Val::Null => s.push_str("null"),
+        Val::Zero => s.push_str("zeroinitializer"),
+        Val::Undef => s.push_str("undef"),
+        Val::Poison => s.push_str("poison"),
+        Val::Array(args) => {
+            s.push('[');
+            write_arguments(s, args);
+            s.push(']');
+        }
+        Val::Bytes(bytes) => {
+            const HEX: &[u8; 16] = b"0123456789ABCDEF";
+            s.push_str("c\"");
+            for &byte in bytes {
+                if (32..=126).contains(&byte) && byte != b'\\' && byte != b'"' {
+                    s.push(char::from(byte));
+                } else {
+                    s.push('\\');
+                    s.push(char::from(HEX[usize::from(byte >> 4)]));
+                    s.push(char::from(HEX[usize::from(byte & 15)]));
+                }
+            }
+            s.push('"');
+        }
+        Val::Gep { ty, ptr, indices } => {
+            s.push_str("getelementptr (");
+            write_type(s, ty);
+            s.push_str(", ptr ");
+            write_value(s, ptr);
+            for index in indices {
+                s.push_str(", ");
+                write_argument(s, index);
+            }
+            s.push(')');
+        }
+        Val::Invalid(value) => {
+            s.push_str("<invalid:");
+            s.push_str(value);
+            s.push('>');
+        }
+    }
+}
+
+fn write_argument(s: &mut String, arg: &Arg) {
+    write_type(s, &arg.ty);
+    s.push(' ');
+    write_attrs(s, &arg.attrs);
+    write_value(s, &arg.value);
+}
+
+fn write_arguments(s: &mut String, args: &[Arg]) {
+    for (index, arg) in args.iter().enumerate() {
+        if index != 0 {
+            s.push_str(", ");
+        }
+        write_argument(s, arg);
+    }
+}
+
+fn write_alignment(s: &mut String, alignment: u32) {
+    if alignment != 0 {
+        write!(s, ", align {alignment}").unwrap();
+    }
+}
+
+fn write_inst(s: &mut String, instruction: &Inst) {
+    s.push_str("  ");
+    if let Some(result) = &instruction.result {
+        s.push('%');
+        s.push_str(result);
+        s.push_str(" = ");
+    }
+    match &instruction.op {
+        Op::Alloca { ty, align } => {
+            s.push_str("alloca ");
+            write_type(s, ty);
+            write_alignment(s, *align);
         }
         Op::Load { ty, ptr, align } => {
-            write!(s, "load {ty}, ptr {ptr}").unwrap();
-            if *align != 0 {
-                write!(s, ", align {align}").unwrap();
-            }
-            Ok(())
+            s.push_str("load ");
+            write_type(s, ty);
+            s.push_str(", ptr ");
+            write_value(s, ptr);
+            write_alignment(s, *align);
         }
         Op::Store { arg, ptr, align } => {
-            write!(s, "store {arg}, ptr {ptr}").unwrap();
-            if *align != 0 {
-                write!(s, ", align {align}").unwrap();
-            }
-            Ok(())
+            s.push_str("store ");
+            write_argument(s, arg);
+            s.push_str(", ptr ");
+            write_value(s, ptr);
+            write_alignment(s, *align);
         }
         Op::Binary {
             opcode,
             ty,
             left,
             right,
-        } => write!(s, "{opcode} {ty} {left}, {right}"),
+        } => {
+            s.push_str(opcode);
+            s.push(' ');
+            write_binary_operands(s, ty, left, right);
+        }
         Op::Compare {
             predicate,
             ty,
             left,
             right,
-        } => write!(s, "icmp {predicate} {ty} {left}, {right}"),
-        Op::Cast { opcode, arg, to } => write!(s, "{opcode} {arg} to {to}"),
-        Op::Gep { ty, ptr, indices } => {
-            write!(s, "getelementptr {ty}, ptr {ptr}").unwrap();
-            for a in indices {
-                write!(s, ", {a}").unwrap();
-            }
-            Ok(())
+        } => {
+            s.push_str("icmp ");
+            s.push_str(predicate);
+            s.push(' ');
+            write_binary_operands(s, ty, left, right);
         }
-        Op::Extract { arg, index } => write!(s, "extractvalue {arg}, {index}"),
-        Op::Insert { arg, field, index } => write!(s, "insertvalue {arg}, {field}, {index}"),
+        Op::Cast { opcode, arg, to } => {
+            s.push_str(opcode);
+            s.push(' ');
+            write_argument(s, arg);
+            s.push_str(" to ");
+            write_type(s, to);
+        }
+        Op::Gep { ty, ptr, indices } => {
+            s.push_str("getelementptr ");
+            write_type(s, ty);
+            s.push_str(", ptr ");
+            write_value(s, ptr);
+            for index in indices {
+                s.push_str(", ");
+                write_argument(s, index);
+            }
+        }
+        Op::Extract { arg, index } => {
+            s.push_str("extractvalue ");
+            write_argument(s, arg);
+            write!(s, ", {index}").unwrap();
+        }
+        Op::Insert { arg, field, index } => {
+            s.push_str("insertvalue ");
+            write_argument(s, arg);
+            s.push_str(", ");
+            write_argument(s, field);
+            write!(s, ", {index}").unwrap();
+        }
         Op::Call {
             result,
             result_attrs,
@@ -801,55 +969,79 @@ fn write_inst(s: &mut String, i: &Inst) {
             vararg,
         } => {
             s.push_str("call ");
-            for a in result_attrs {
-                write!(s, "{} ", a.name()).unwrap();
-            }
-            write!(s, "{result} ").unwrap();
+            write_attrs(s, result_attrs);
+            write_type(s, result);
+            s.push(' ');
             if let Some(types) = vararg {
                 s.push('(');
-                for (i, t) in types.iter().enumerate() {
-                    if i != 0 {
+                for (index, ty) in types.iter().enumerate() {
+                    if index != 0 {
                         s.push_str(", ");
                     }
-                    write!(s, "{t}").unwrap();
+                    write_type(s, ty);
                 }
                 if !types.is_empty() {
                     s.push_str(", ");
                 }
                 s.push_str("...) ");
             }
-            write!(s, "{callee}(").unwrap();
-            for (i, a) in args.iter().enumerate() {
-                if i != 0 {
-                    s.push_str(", ");
-                }
-                write!(s, "{a}").unwrap();
-            }
+            write_value(s, callee);
+            s.push('(');
+            write_arguments(s, args);
             s.push(')');
-            Ok(())
         }
-        Op::Freeze(arg) => write!(s, "freeze {arg}"),
+        Op::Freeze(arg) => {
+            s.push_str("freeze ");
+            write_argument(s, arg);
+        }
         Op::Phi { ty, incoming } => {
-            write!(s, "phi {ty} ").unwrap();
-            for (i, (v, b)) in incoming.iter().enumerate() {
-                if i != 0 {
+            s.push_str("phi ");
+            write_type(s, ty);
+            s.push(' ');
+            for (index, (value, block)) in incoming.iter().enumerate() {
+                if index != 0 {
                     s.push_str(", ");
                 }
-                write!(s, "[ {v}, %{b} ]").unwrap();
+                s.push_str("[ ");
+                write_value(s, value);
+                s.push_str(", %");
+                s.push_str(block);
+                s.push_str(" ]");
             }
-            Ok(())
         }
-        Op::Branch(b) => write!(s, "br label %{b}"),
+        Op::Branch(block) => {
+            s.push_str("br label %");
+            s.push_str(block);
+        }
         Op::CondBranch { condition, yes, no } => {
-            write!(s, "br i1 {condition}, label %{yes}, label %{no}")
+            s.push_str("br i1 ");
+            write_value(s, condition);
+            s.push_str(", label %");
+            s.push_str(yes);
+            s.push_str(", label %");
+            s.push_str(no);
         }
-        Op::Return(Some(a)) => write!(s, "ret {a}"),
-        Op::Return(None) => write!(s, "ret void"),
-        Op::Unreachable => write!(s, "unreachable"),
+        Op::Return(Some(arg)) => {
+            s.push_str("ret ");
+            write_argument(s, arg);
+        }
+        Op::Return(None) => s.push_str("ret void"),
+        Op::Unreachable => s.push_str("unreachable"),
     }
-    .unwrap();
     s.push('\n');
 }
+
+fn write_binary_operands(s: &mut String, ty: &Ty, left: &Val, right: &Val) {
+    write_type(s, ty);
+    s.push(' ');
+    write_value(s, left);
+    s.push_str(", ");
+    write_value(s, right);
+}
+
+#[cfg(test)]
+#[path = "text_reference_tests.rs"]
+mod text_reference_tests;
 
 pub fn type_name(ty: &Ty) -> String {
     if let Ty::Named(name) = ty {

@@ -272,6 +272,25 @@ impl Database {
         }
         gone.into_iter().collect()
     }
+    /// Retain metadata needed to validate the supplied raw-cache roots. A raw
+    /// value may be evicted while its small dependency receipt is still needed
+    /// by another cached result. Never collect while a query is active.
+    pub fn retain_reachable<'a>(&mut self, roots: impl IntoIterator<Item = &'a QueryKey>) {
+        if !self.active.is_empty() {
+            return;
+        }
+        let mut keep = BTreeSet::new();
+        let mut pending = roots.into_iter().cloned().collect::<Vec<_>>();
+        while let Some(key) = pending.pop() {
+            if !keep.insert(key.clone()) {
+                continue;
+            }
+            if let Some(snapshot) = self.snapshots.get(&key) {
+                pending.extend(snapshot.dependencies.iter().map(|dep| dep.key.clone()));
+            }
+        }
+        self.snapshots.retain(|key, _| keep.contains(key));
+    }
     pub fn clear(&mut self) {
         self.snapshots.clear();
         self.active.clear();
