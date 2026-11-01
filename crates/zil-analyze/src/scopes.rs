@@ -65,7 +65,11 @@ pub(super) fn check(
             deferred |= matches!(instruction.kind, InstructionKind::RegisterDefer { .. });
             package |= matches!(
                 instruction.kind,
-                InstructionKind::MakePackage { .. }
+                InstructionKind::VariantTagLocal { .. }
+                    | InstructionKind::ReadVariantLocal { .. }
+                    | InstructionKind::UnpackVariant { .. }
+                    | InstructionKind::DropEnum { .. }
+                    | InstructionKind::MakePackage { .. }
                     | InstructionKind::ReadPackageField { .. }
                     | InstructionKind::DescribePackageField { .. }
                     | InstructionKind::TakePackageField { .. }
@@ -246,7 +250,20 @@ pub(super) fn check(
                         return Err(bad("storage ends before it starts"));
                     }
                 }
-                InstructionKind::Load(local)
+                InstructionKind::UnpackVariant {
+                    local, ref fields, ..
+                } => {
+                    budget.spend(fields.len().saturating_add(1), "Unpack storage uses")?;
+                    if !state.live.contains_key(&local)
+                        || fields.iter().any(|l| !state.live.contains_key(l))
+                    {
+                        return Err(bad("Unpack source or targets outside storage activation"));
+                    }
+                }
+                InstructionKind::VariantTagLocal { local, .. }
+                | InstructionKind::ReadVariantLocal { local, .. }
+                | InstructionKind::DropEnum { local }
+                | InstructionKind::Load(local)
                 | InstructionKind::RegisterDefer { local, .. }
                 | InstructionKind::Store { local, .. }
                 | InstructionKind::TakeLocal { local }
