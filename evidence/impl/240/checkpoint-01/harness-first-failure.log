@@ -1,0 +1,20 @@
+   Compiling zil-ir v0.1.0 (/workspace/zil-240/crates/zil-ir)
+   Compiling zil-types v0.1.0 (/workspace/zil-240/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/zil-240/crates/zil-expand)
+   Compiling impl240-front-probe v0.0.0 (/tmp/impl240-front-probe)
+error[E0753]: expected outer doc comment
+ --> /workspace/zil-240/crates/zil-driver/tests/impl240_front.rs:1:1
+  |
+1 | //! Author public source-to-Types checks. Independent kernels are tested separately.
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 | use zil_base::{FileId,Limits,ModuleId,SourceUnit,TargetProfile};
+  | ---------------------------------------------------------------- the inner doc comment doesn't annotate this `use` import
+  |
+help: to annotate the `use` import, change the doc comment from inner to outer style
+  |
+1 - //! Author public source-to-Types checks. Independent kernels are tested separately.
+1 + /// Author public source-to-Types checks. Independent kernels are tested separately.
+  |
+
+For more information about this error, try `rustc --explain E0753`.
+error: could not compile `impl240-front-probe` (test "front") due to 1 previous error

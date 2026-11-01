@@ -855,10 +855,10 @@ impl Resolver<'_> {
                         let mut fields = Vec::new();
                         for field in raw_fields {
                             let ty = self.ty(field, depth + 1, declaration.span)?;
-                            if !ty.is_copy_value() {
+                            if !ty.is_copy_value() && !owned_shapes::value(&ty) {
                                 return Err(unsupported(
                                     declaration.span,
-                                    "enum payload requires a finite Copy value",
+                                    "enum payload requires finite Copy or an ordinary complete owned value",
                                 ));
                             }
                             fields.push(ty);
@@ -885,7 +885,11 @@ impl Resolver<'_> {
                             || (d.kind == AggregateKind::Package
                                 && !f.manages
                                 && matches!(ty, Type::Package { .. })
-                                && packages::product::owned_supported(&ty))
+                                && (packages::product::owned_supported(&ty)
+                                    || owned_shapes::value(&ty)))
+                            || (d.kind == AggregateKind::Package
+                                && !f.manages
+                                && owned_shapes::sum(&ty))
                             || (d.kind == AggregateKind::Package
                                 && f.manages
                                 && matches!(ty, Type::Managed(_))
@@ -901,14 +905,15 @@ impl Resolver<'_> {
                     let name = format!("@module{}:{}", self.owners[name], name);
                     if d.kind == AggregateKind::Package {
                         let ty = Type::Package { name, fields };
-                        if packages::product::nested(&ty) {
+                        if packages::product::nested(&ty) && packages::product::owned_supported(&ty)
+                        {
                             packages::product::validate_owned(
                                 &ty,
                                 &mut self.remaining,
                                 self.depth_limit,
                                 span,
                             )?;
-                        } else if !d.fields.iter().any(|f| f.manages) {
+                        } else if !d.fields.iter().any(|f| f.manages) && !owned_shapes::value(&ty) {
                             return Err(unsupported(
                                 span,
                                 "package requires at least one manages field or complete owning child",
