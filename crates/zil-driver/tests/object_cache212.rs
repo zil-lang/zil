@@ -711,6 +711,66 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
 }
 
 #[test]
+fn propagated_results_do_not_invalidate_unmodified_leaf_units() {
+    let d = Dir::new();
+    let mut main = String::new();
+    for module in 0..4 {
+        main += &format!("import m{module}\n");
+        let mut source = String::new();
+        for function in 0..256 {
+            source += &format!("fn f{function}(x:i32)->i32{{return x+0;}}\n");
+        }
+        source += "pub fn value()->i32{var total:i32=0;\n";
+        for function in 0..256 {
+            source += &format!("total=total+f{function}(0);\n");
+        }
+        source += "return total;}\n";
+        d.write(&format!("m{module}.zil"), &source);
+    }
+    main += "fn main()->i32{return m0.value()+m1.value()+m2.value()+m3.value();}";
+    d.write("main.zil", &main);
+    let mut options = d.options(8, Optimization::O2);
+    options.incremental_o2 = true;
+    let cold = d.build(&options);
+    success(&cold, 0);
+    let codegen = cold.native_codegen.as_ref().unwrap();
+    assert_eq!(codegen.actual_units, 5, "{}", cold.to_json());
+    assert_eq!(codegen.object_cache.misses, 5);
+    // All 1,024 external leaf definitions, four value functions, source main
+    // and the native wrapper remain present. This is not closed deletion.
+    let machine = fs::read_to_string(&cold.artifacts["llvm"]).unwrap();
+    assert_eq!(
+        machine
+            .lines()
+            .filter(|line| line.starts_with("define "))
+            .count(),
+        1030
+    );
+    let warm = d.build(&options);
+    success(&warm, 0);
+    assert_eq!(warm.native_codegen.as_ref().unwrap().object_cache.hits, 5);
+    let original = fs::read_to_string(d.0.join("m0.zil")).unwrap();
+    d.write(
+        "m0.zil",
+        &original.replacen("return x+0;", "return x+1;", 1),
+    );
+    let edited = d.build(&options);
+    success(&edited, 1);
+    let cache = &edited.native_codegen.as_ref().unwrap().object_cache;
+    // Only the changed leaf unit and the small propagated-caller unit miss;
+    // the other three modules' leaf objects remain current and reusable.
+    assert_eq!(cache.misses, 2, "{}", edited.to_json());
+    assert_eq!(cache.hits, 3);
+    d.write("m0.zil", &original);
+    let restored = d.build(&options);
+    success(&restored, 0);
+    assert_eq!(
+        restored.native_codegen.as_ref().unwrap().object_cache.hits,
+        5
+    );
+}
+
+#[test]
 fn large_file_chunks_preserve_owned_closures_drop_and_function_addresses() {
     let d = Dir::new();
     let mut source = String::from(
