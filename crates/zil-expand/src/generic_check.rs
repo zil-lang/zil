@@ -679,8 +679,8 @@ impl Check<'_, '_, '_> {
             _ => false,
         })
     }
-    // Only a real give result carries this ownership through a new binding.
-    // A bare resource Name remains a description, irrespective of its type.
+    // Only a real give result carries ownership through a new binding.
+    // A bare resource Name preserves declaration scope but remains a description.
     fn transferred_resource_expression(
         &mut self,
         expression: &Expr,
@@ -688,6 +688,13 @@ impl Check<'_, '_, '_> {
     ) -> R<(bool, bool)> {
         self.tick(expression.span)?;
         match &expression.kind {
+            ExprKind::Name(name) => Ok((
+                false,
+                state
+                    .locals
+                    .get(name)
+                    .is_some_and(|local| local.declaration_resource),
+            )),
             ExprKind::Group(inner) => self.transferred_resource_expression(inner, state),
             ExprKind::Unary {
                 op: UnaryOp::Give,
@@ -1393,6 +1400,9 @@ impl Check<'_, '_, '_> {
                     return Ok(Some(named("i64", span)));
                 }
                 if let Some(local) = state.locals.get(target) {
+                    if local.declaration_resource {
+                        return Ok(None);
+                    }
                     self.budget.ty(&local.ty)?;
                     let result = if let Some(bound) = self.callable.as_ref().and_then(|bounds| {
                         bounds.bindings().find(|bound| {
@@ -1696,16 +1706,17 @@ impl Check<'_, '_, '_> {
                     error(e.span, format!("unknown value {name} in generic body"))
                 })?;
                 let id = ty.id;
+                let declaration_resource = ty.declaration_resource;
                 self.budget.ty(&ty.ty)?;
                 let ty = ty.ty.clone();
                 let defer_consumes = if self.defer_captures.is_some() {
-                    !borrowing && !self.known_copy(&ty)?
+                    !borrowing && !declaration_resource && !self.known_copy(&ty)?
                 } else {
                     false
                 };
                 self.defer_use(id, defer_consumes, e.span)?;
                 if !self.factory_scopes.is_empty() {
-                    let consumes = !borrowing && !self.known_copy(&ty)?;
+                    let consumes = !borrowing && !declaration_resource && !self.known_copy(&ty)?;
                     self.factory_use(id, false, consumes, e.span)?;
                 }
                 if state.moved.contains(&id) {
@@ -1732,7 +1743,9 @@ impl Check<'_, '_, '_> {
                     .as_ref()
                     .is_some_and(|bound| bound.owned_state)
                     && self.package_local(e, state).is_some();
-                if !borrowing && (!self.known_copy(&ty)? || owning_package) {
+                if !borrowing
+                    && ((!declaration_resource && !self.known_copy(&ty)?) || owning_package)
+                {
                     self.defer_held(state, id, true, e.span)?;
                     self.alias_invalidate(state, id, None, e.span)?;
                     for ((owner, _), field) in &self.package_slots {
@@ -2264,6 +2277,12 @@ impl Check<'_, '_, '_> {
                     }
                 };
                 if let Some(local) = state.locals.get(target) {
+                    if local.declaration_resource {
+                        return Err(error(
+                            e.span,
+                            "a declared resource description is not a callable parameter",
+                        ));
+                    }
                     // A factory's visible signature may itself be large. Pay
                     // its full type before cloning the symbolic local.
                     self.budget.ty(&local.ty)?;

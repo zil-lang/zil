@@ -140,6 +140,9 @@ fn concrete_enum_field_uses_its_declaration_scope_when_helper_binder_has_same_na
     for body in [
         "let saved=give a;sink(give saved);",
         "let observed=a.n;sink(give a);",
+        "let description=a;let observed=description.n;sink(give a);",
+        "let description=a;let alias=description;let observed=alias.n;sink(give a);",
+        "let saved=give a;let description=saved;let observed=description.n;sink(give saved);",
     ] {
         let actual = source.replace("sink(give a);", body);
         checked(&actual);
@@ -151,6 +154,9 @@ fn concrete_enum_field_uses_its_declaration_scope_when_helper_binder_has_same_na
         "sink(give a);sink(give a);",
         "let observed=callback.n;sink(give a);",
         "sink(give callback);sink(give a);",
+        "let description=a;description();sink(give a);",
+        "let saved=give a;let description=saved;sink(give description);",
+        "let saved=give a;sink(give saved);let observed=saved.n;",
     ] {
         assert!(
             expand(&source.replace("sink(give a);", body)).is_err(),
