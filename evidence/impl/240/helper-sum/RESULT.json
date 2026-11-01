@@ -1,0 +1,89 @@
+{
+  "producer": "32d92fd7d09954c349695926baca5b5723779809",
+  "parent": "56a0dca5189289560f6c710230a5643c6377bb38",
+  "original_failure_common_P": "d393f47db2a1e3da23d1d52c875fb142c193ef14",
+  "q_control_observation": "541f21bbe8cff775cb7341aae3652759a0a65c8d",
+  "scope": "Real Parse/Expand/Types only; no Analyze/Verify/native completion claimed by these receipts.",
+  "default_limits_changed": false,
+  "profiles": {
+    "old-give-param": {
+      "q": [
+        389,
+        544
+      ],
+      "current": [
+        389,
+        544
+      ]
+    },
+    "old-package-field": {
+      "q": [
+        430,
+        711
+      ],
+      "current": [
+        430,
+        711
+      ]
+    },
+    "sum-direct": {
+      "current": [
+        598,
+        2020
+      ]
+    },
+    "sum-relay": {
+      "current": [
+        640,
+        2141
+      ]
+    }
+  },
+  "files": {
+    "240-callback-param-after.log": "2967d7f693f0dadf3d3b8b4e5eb94c1ffc1bcd0723b3a9186f5ab90cf37e15e3",
+    "240-callback-param-after02.log": "bc32a0f3bae8ff989bcd1051f8afd99b86761f279e355fa6ba5bf535370dfbd1",
+    "240-callback-param-before02.log": "4e392fb957e38eedfb293396fd6076bb121b39c13e702141b35272de5115b015",
+    "240-helper-budget-current02.log": "0d20bac4fe361e1c7c90cc4d301f0957d60c8c8e11639a298523dd62b7285a15",
+    "240-helper-budget-q.log": "c6b611771e0058385c563b5498bf8f04fec4623e8b5de2c9928e51063e5d403f",
+    "240-relay-after.log": "8c7bc3404f2092dc4d11ec32ce605315b68e934b61645113869664e5ccc03597",
+    "240-relay-clippy.log": "a491cabf0848932dd0ac184efb170e5a2e5f0db2f4e737557a10954497988854",
+    "240-relay-tests01.log": "5d6f08956b2a5b1c23c81020570a4b42a00e02663d8a2bdb2b8d6af569f6caff",
+    "budget/current/Cargo.toml": "59fb3d8dfd88714ad22ac749e7d4f91d0fc13af8e23f9853576a1c42486fbca0",
+    "budget/current/src/main.rs": "9f14e32726380b3c0ecf90bdbddea3ed46589556d56c1a64e8798dbb2f93135a",
+    "budget/old-give-param.zil": "f5a818a303237f25423d01d233e33c9864d7f6121d76c7e233e56f3452e08480",
+    "budget/old-package-field.zil": "51cb21f18fd1140eac16de89035e9d363b8cefc85c69cbca39c1b2cf7b412e7f",
+    "budget/q/Cargo.toml": "890965caeeae05e0f179eb29a42c966327a5ea91e34866e1b9bc89f7d17f75d2",
+    "budget/q/src/main.rs": "9f14e32726380b3c0ecf90bdbddea3ed46589556d56c1a64e8798dbb2f93135a",
+    "budget/receipts-current/old-give-param-expand-Nminus1.txt": "8c7607d95049ae9eef31347c18f9671f3c938efdae3299dd4b18689fef6fb9e4",
+    "budget/receipts-current/old-give-param-types-Nminus1.txt": "da5d0a03adfbd719e1d7f21678d1156de20102b17d34c9aea1d955b7a6abce51",
+    "budget/receipts-current/old-give-param.core": "516889e6f7e7a045fef97eb54e49574e1c0f417db9689e021ed1791a762be959",
+    "budget/receipts-current/old-give-param.typed": "12ab4fe0c0bad7e41b88cfcbe4de2bec5fda63031367bdd0edbc679116781c33",
+    "budget/receipts-current/old-package-field-expand-Nminus1.txt": "50e80a2499c0be536133ed36882e176dfc62664bdc5bbdc442fd1110019f4d93",
+    "budget/receipts-current/old-package-field-types-Nminus1.txt": "02a44fdf6be2261d5b2db18cfa1470cad1b8536fd38937db89f16b75b3d74b9c",
+    "budget/receipts-current/old-package-field.core": "6cbe2e1b28f680cfba0bb3ab27134e725f5293a03ad650334286099af814a123",
+    "budget/receipts-current/old-package-field.typed": "a3ee9ad70d4b1e15eaa4a6b9cc830a25d4db1322977207b06fa918b9edf4e86b",
+    "budget/receipts-current/sum-direct-expand-Nminus1.txt": "2642cdd10633c865f09ff4ddb1e974a6af12b3e6038ec4bbfac34a9b569afbb9",
+    "budget/receipts-current/sum-direct-types-Nminus1.txt": "d305299afafaefd5bb9d9b18008665f4e0f217a068b7ef7ef0cd86d5ebf73086",
+    "budget/receipts-current/sum-direct.core": "803d67bb26379a70ce3d273d251f13318b0d8a319281a2b7e130ae8f876778f9",
+    "budget/receipts-current/sum-direct.typed": "a6e84fb4c5f048af656d46f24b95e53048a1975d1383b27a131d7e31ee0ddf19",
+    "budget/receipts-current/sum-relay-expand-Nminus1.txt": "e7c48f03efb4b919c5a408331834a1463e17736c2bc4bf6b40e979589c89067e",
+    "budget/receipts-current/sum-relay-types-Nminus1.txt": "d3f10d88facf28e33b2a0ad5189249be891325ed745a27de87f53701b77c6fc1",
+    "budget/receipts-current/sum-relay.core": "f8d28e3c3e546717b7c67419b641c91aad3df28589b16de9bca93e47cb3ac440",
+    "budget/receipts-current/sum-relay.typed": "87c46bf82c5ec39b0015f0c70d2c46e8852e132a3863539d2098a554282001aa",
+    "budget/receipts-q/old-give-param-expand-Nminus1.txt": "8c7607d95049ae9eef31347c18f9671f3c938efdae3299dd4b18689fef6fb9e4",
+    "budget/receipts-q/old-give-param-types-Nminus1.txt": "da5d0a03adfbd719e1d7f21678d1156de20102b17d34c9aea1d955b7a6abce51",
+    "budget/receipts-q/old-give-param.core": "3a50af4ae7b0f9aeaf7e35f83a1db8123f993db409e49ce5263b298c33a45af3",
+    "budget/receipts-q/old-give-param.typed": "fc9d88d35b5503029e4b356335195e146ff072f518b9e180bc9aef930fd019d2",
+    "budget/receipts-q/old-package-field-expand-Nminus1.txt": "50e80a2499c0be536133ed36882e176dfc62664bdc5bbdc442fd1110019f4d93",
+    "budget/receipts-q/old-package-field-types-Nminus1.txt": "02a44fdf6be2261d5b2db18cfa1470cad1b8536fd38937db89f16b75b3d74b9c",
+    "budget/receipts-q/old-package-field.core": "7b25b50f199e12346b54dd82604bc6037a517b90fc4075ba13cf16afa8a26a0a",
+    "budget/receipts-q/old-package-field.typed": "5e89d8960d3a2c974f1a06ea2cf84deb410b049dc12f5633cbfebbf70c027ee3",
+    "budget/sum-direct.zil": "e3e005287cc923df9df8d6aeb54fc77d627e5186a7dc8cb2463ec47ae70d3e17",
+    "budget/sum-relay.zil": "b5032fd74a5209ccbcc752df723f0cf118b0170afa7adc6a3da1e17747c97283",
+    "original-P-failures/callback_forward_unused/result.json": "1b7b3a448c41b17e61c5c51fb3219999a8ed391025bd63dc807873bb37797601",
+    "original-P-failures/callback_forward_unused/source.zil": "4bd3b72208593e8a675d304dd6cb0fdfd30e5f5b7fd55f9b640a37a76016ed15",
+    "original-P-failures/callback_owned_forward/result.json": "1b7b3a448c41b17e61c5c51fb3219999a8ed391025bd63dc807873bb37797601",
+    "original-P-failures/callback_owned_forward/source.zil": "bff8cb5c34ba17c5de9e312ee1d083aaefdaa7cc7e0d4a1d343a314fb1d36798",
+    "README.md": "290395f2618db0bfd746200f4196cfa3dbe47e6a6294fce96f2a280aab403a91"
+  }
+}
