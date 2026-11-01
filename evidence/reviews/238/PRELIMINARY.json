@@ -1,0 +1,107 @@
+{
+  "task": "238",
+  "role": "Non-author reviewer; no238 production changes",
+  "status": "InProgress awaiting joint source checkpoint for returned budget/static-template findings",
+  "code_checkpoint": "0af913ff3b282816b0cdbfe7c3b158a6bfadc3d8",
+  "environment": {
+    "setup": "source /workspace/.zil-env/env.sh",
+    "target": "/workspace/.zil-env/target-238",
+    "jobs": 1,
+    "feature": "llvm-api",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+  },
+  "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/review238-<run> cargo test -p zil-driver --features llvm-api --test review238_contracts -- --nocapture",
+  "runs": [
+    {
+      "run": "dev01",
+      "log": "logs/review238-dev01.log.gz",
+      "uncompressed_log_sha256": "4bbb11f49e1d8e213f1c9885644113fb9d412521be026f5d2a77490b9085b98a",
+      "compressed_log_sha256": "1df97cf27eeea7b132db819edc93444d7c3c24b066d6e0b5e81c79ca0dcf497b",
+      "archive": "review238-dev01.tar.gz",
+      "archive_sha256": "27d5a1a95f5603415656f755692aa88ac3829a9735b20853b6947e9701be2351",
+      "inventory": "review238-dev01.files.json",
+      "files": 481,
+      "native_executions": 22,
+      "raw_modules": 9
+    },
+    {
+      "run": "final01",
+      "log": "logs/review238-final01.log.gz",
+      "uncompressed_log_sha256": "6fc6095044e17246b45b027eb748d8a8c21a7cf1c40fd5da5f7136a3b8354ac4",
+      "compressed_log_sha256": "62eff99ac28e307447bcbf751c9ca40688d34efe8df8f49c7ded50f7cd224307",
+      "archive": "review238-final01.tar.gz",
+      "archive_sha256": "c4cb70b3580fa39c9feb350696c0de82ed39266fce5e51536c8336dafc619f29",
+      "inventory": "review238-final01.files.json",
+      "files": 453,
+      "native_executions": 20,
+      "raw_modules": 9
+    },
+    {
+      "run": "final02",
+      "log": "logs/review238-final02.log.gz",
+      "uncompressed_log_sha256": "c74e15e138c2a626d50cf2f5873e73d9273da5f69567e58e4d3584dcf65beb56",
+      "compressed_log_sha256": "d6546365d99806687dd5fc551492ad611f3a0dd86a9f2cafc6e1db84be729afe",
+      "archive": "review238-final02.tar.gz",
+      "archive_sha256": "6ff752f1d328cfa833f4b5f83c6a0063865a6609bd34cb2769ba9dc8481fcf8d",
+      "inventory": "review238-final02.files.json",
+      "files": 543,
+      "native_executions": 26,
+      "raw_modules": 9
+    }
+  ],
+  "counting": {
+    "dev01": "13/0, earlier13-group reviewer test revision;22 native executions. Not final and not added to later counts.",
+    "final01": "12/1. The sole failure was the reviewer-added #for fixture grammar, not a production defect. It used #for i in0..2 while the actual grammar requires #for(i in0..2); the raw original source/report/log is preserved.20 native executions completed before this failure.",
+    "final02": "13/0 after correcting only the review fixture.26 native executions,13 actual source cases each O0/O2;9 malicious raw modules each sent directly to Verify raw and Wire before optional Analyze. No prior Analyze success for the mutated modules.",
+    "note": "The later generic/TypeApply reviewer case was added after final02 and is NotRun at this receipt. A final exact-source recheck will be a separate record."
+  },
+  "observed": {
+    "native_backend": "LlvmApi, asserted with no fallback",
+    "exit_and_stdout": "Exact exit/stdout plus empty stderr for each of26 executions in final02",
+    "original_order_oracles": [
+      "self LQAB",
+      "independent ABLQCD",
+      "no-defer LAB",
+      "fail-before-self LQAB",
+      "fail-after-self ABLQ",
+      "independent-failure CDLQAB",
+      "partial-fill BALQCD",
+      "loop IXIXIXLQAB",
+      "generated EFCDLQAB"
+    ],
+    "raw_safety": [
+      "duplicate take",
+      "same-type wrong target",
+      "publish over live old debt",
+      "missing publication",
+      "shared borrow of half-extracted shell",
+      "field publish after whole shell death",
+      "Copy read after normal whole move",
+      "incomplete publication at phi",
+      "incomplete publication at backedge"
+    ],
+    "ir_semantic_oracle": "Initial shell Store exactly once. Both old owner DropPackageField operations precede any of three new owner/Copy StorePackageField operations, and follow declaration order0,2. No ordinary call/registration in publication."
+  },
+  "returned_findings": [
+    {
+      "id": "R238-BUDGET-QUALIFICATION",
+      "status": "Author acknowledged and reports a fix; awaiting new exact code review",
+      "checkpoint": "0af913ff3b282816b0cdbfe7c3b158a6bfadc3d8",
+      "evidence": "SOURCE-0AF-PRODUCT-REPLACEMENT.rs.txt.gz",
+      "finding": "The new recursive owned_supported(ty) admission walk ran before the first new-path snapshot. This was a prepayment gap identified by code review, not an elapsed DoS benchmark. Author reports type_snapshot_work plus qualification*2 reservation before this walk."
+    },
+    {
+      "id": "R238-STATIC-TEMPLATE-SCOPE",
+      "status": "Root requires support through existing ordinary static template/TypeApply instantiation; author reports a fix, joint family inference still pending",
+      "checkpoint": "0af913ff3b282816b0cdbfe7c3b158a6bfadc3d8",
+      "evidence": "SOURCE-0AF-PRODUCT-REPLACEMENT.rs.txt.gz",
+      "finding": "Concrete-only self-call checks excluded ordinary generic/static TypeApply calls described by the profile. No memory safety bypass was observed. Root requested implementation support instead of shrinking the frozen contract."
+    }
+  ],
+  "limitations": [
+    "This is a development/preliminary receipt, not final Pass.",
+    "No reviewer production changes; the238 author owns both fixes.",
+    "No product/Rust performance or native Windows claim.",
+    "Do not combine historical/repeated native executions or test counts into new independent coverage."
+  ]
+}
