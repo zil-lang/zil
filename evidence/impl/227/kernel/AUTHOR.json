@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "task": "227",
+  "role": "Analyze/Verify obligation kernel author",
+  "status": "AuthorScopedPass",
+  "implementation_commit": "fa184f94f8d9b4ca695cd467f6d507767af8db10",
+  "base_head": "1bd2beddc53600a1351c3f3035a7472e579da89e",
+  "worktree": "/workspace/zil-227",
+  "source_manifest": "SOURCE-SHA256.json",
+  "environment": {
+    "setup": "source /workspace/.zil-env/env.sh",
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-227",
+    "CARGO_BUILD_JOBS": "1",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+  },
+  "checks": [
+    {
+      "id": "first-check-incomplete-match",
+      "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_BUILD_JOBS=1 cargo check -p zil-analyze -p zil-verify",
+      "exit_code": 101,
+      "status": "Fail retained",
+      "log": "logs/initial-check-E0004.transcript.log.gz",
+      "cause": "Parallel implementation had added RegisterDefer to public IR before the Analyze resource operand walker covered it. Added the no-SSA-operand arm; subsequent check passed. The archived failure is explicitly a transcript, not a shell redirect."
+    },
+    {
+      "id": "limited-two-crate-regression",
+      "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_BUILD_JOBS=1 cargo test -p zil-analyze -p zil-verify --lib --tests -- --nocapture",
+      "exit_code": 0,
+      "status": "Pass at earlier uncommitted worktree point",
+      "passed": 477,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "suite_pass_counts": [
+        39,
+        12,
+        10,
+        8,
+        10,
+        7,
+        11,
+        5,
+        275,
+        16,
+        19,
+        24,
+        29,
+        9,
+        3
+      ],
+      "log": "logs/limited-crates-before-final-growth.log.gz",
+      "source_binding": "Earlier worktree based on baseline1bd2beddc; precise transient source manifest was not captured. Each new defer module then had9 tests. This run preceded two added tests per kernel, final prepayment increments and root-reentry hardening; do not bind these477 to the final checkpoint."
+    },
+    {
+      "id": "pre-root-reentry-targeted",
+      "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_BUILD_JOBS=1 cargo test -p zil-analyze -p zil-verify --lib defer_tests -- --nocapture",
+      "exit_code": 0,
+      "status": "Pass at later pre-root-reentry worktree point",
+      "passed_by_crate": {
+        "zil-analyze": 11,
+        "zil-verify": 11
+      },
+      "failed": 0,
+      "ignored": 0,
+      "filtered_by_crate": {
+        "zil-analyze": 30,
+        "zil-verify": 266
+      },
+      "log": "logs/defer-pre-root-reentry.log.gz",
+      "source_binding": "After final new-path prepayment, before root_entered and closed-root backedge assertion. Superseded by final targeted run; not added to coverage."
+    },
+    {
+      "id": "final-checkpoint-targeted",
+      "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_BUILD_JOBS=1 cargo test -p zil-analyze -p zil-verify --lib defer_tests -- --nocapture",
+      "exit_code": 0,
+      "status": "Pass",
+      "implementation_commit": "fa184f94f8d9b4ca695cd467f6d507767af8db10",
+      "passed_by_crate": {
+        "zil-analyze": 11,
+        "zil-verify": 11
+      },
+      "failed": 0,
+      "ignored": 0,
+      "filtered_by_crate": {
+        "zil-analyze": 30,
+        "zil-verify": 266
+      },
+      "log": "logs/checkpoint-defer.log.gz",
+      "source_binding": "Checker/test and dependency bytes were clean at execution and manifest generation and equal the named committed checkpoint. Includes last root_entered/closed-root backedge case."
+    }
+  ],
+  "budgets": {
+    "Analyze": 3320,
+    "Verify": 3324,
+    "input": "Each crate defer_tests::fixture(2,true,true), hand-built raw module with same-type Copy-capturing actions and older/newer Managed locals.",
+    "checks": [
+      "N success",
+      "N-1 ResourceLimit",
+      "fresh N success"
+    ],
+    "interpretation": "Deterministic logical full Analyze/Verify pipeline units, not elapsed performance. The fixture and independently constructed untrusted plan are committed test code.",
+    "old_paths": "No new spend call executes in modules without RegisterDefer: the existing scope/cleanup inventory discovers the feature and conditionally invokes new reconstruction. Historical precise budget regression groups passed in the earlier477 run; source-specific old budget comparisons are frontend evidence, not remeasured here."
+  },
+  "boundary_coverage": [
+    "Empty and pure-Copy capturing FnOnce actions retain must-invoke debt; identical concrete action types remain distinguished by local identity.",
+    "Initial Store immediately precedes unique RegisterDefer; local must be initialized, non-parameter, current-scope-owned, concrete zero-argument Unit FnOnce.",
+    "Only adjacent TakeLocal result plus CallClosureOnce with zero arguments discharges debt; Take preserves pending state and mixed construction age.",
+    "Drop, escape into another local, ordinary Load/borrow/describe/mutation and duplicate calls cannot cancel debt.",
+    "Actual invocation must lie in a same-block cleanup suffix ending at its own ScopeExit; ordinary work, intermediate operations, new registration and outgoing block edges cannot follow before that exit.",
+    "Mixed resource/action reverse successful construction order, same-type action order, Register age, SSA callee identity and call argument count are reconstructed.",
+    "Return/Fallthrough/Error/Break/Continue have valid fixtures and missing-actual-call nearest counterexamples; ScopeExit and StorageDead cannot retain pending debt.",
+    "Outer pending action may cross an internal loop; active-scope reentry and reopening a closed function root are rejected; Trap alone has no unwind obligation, reachable Unreachable is not the Trap exemption.",
+    "All rejection cases run both raw and Wire boundaries. Verify candidates are built without Analyze or Types; resource_tests::plan supplies initialization and empty Hold claims only and invokes no defer/resource validator."
+  ],
+  "independence": {
+    "Analyze": "Sparse BTreeMap/BTreeSet activation facts, pending map, mixed later edges and queue traversal.",
+    "Verify": "Independent per-local status bytes/ownership vectors, resource live rows, newer relation and stack worklist; a separate full cleanup-suffix walk precedes each action take.",
+    "shared_safety_solver": false,
+    "trusted_frontend_fulfilled_bit": false
+  },
+  "logs": [
+    {
+      "origin": "/tmp/227-kernel-all.log",
+      "archive": "logs/limited-crates-before-final-growth.log.gz",
+      "capture": "redirected-shell-log",
+      "uncompressed_sha256": "eddef11c3e529fbfc851ec9d81f261d4a564c262dd7f7c1a987866d26a626ad5",
+      "gzip_sha256": "1b252a74a6388590fe7539ebb7ad24386dd20ba3bb777c9b4dd1fdac14cdd438",
+      "uncompressed_bytes": 46309
+    },
+    {
+      "origin": "/tmp/227-kernel-defer.log",
+      "archive": "logs/defer-pre-root-reentry.log.gz",
+      "capture": "redirected-shell-log",
+      "uncompressed_sha256": "3e60510c104184cfe22a81741a24b538934b0f074b507e129e0e5ff8407fab71",
+      "gzip_sha256": "d1667c510f079bc93fe320d139254df58fa3dadc196522b4064fa822e2f77deb",
+      "uncompressed_bytes": 2646
+    },
+    {
+      "origin": "/tmp/227-kernel-checkpoint.log",
+      "archive": "logs/checkpoint-defer.log.gz",
+      "capture": "redirected-shell-log",
+      "uncompressed_sha256": "8ed2633992494f50d1c306419aa0e9843c19734a87cc04beaa29bdf8e5a10fcb",
+      "gzip_sha256": "eb20b170f8b30dd6e757265219243d625c24cab95e8cca96ddd9dfc63867b8f3",
+      "uncompressed_bytes": 2646
+    },
+    {
+      "origin": null,
+      "archive": "logs/initial-check-E0004.transcript.log.gz",
+      "capture": "transcribed-tool-output",
+      "uncompressed_sha256": "f69b473c1a5ad162b09380ef78d8ac6ab6e5ab51290cdc7e24ae69ad4ca4e055",
+      "gzip_sha256": "f288acf5c02c6e8e8cb82d0741432d6b37b4ff44baadcbd83c3c5fb2c8b0299f",
+      "uncompressed_bytes": 1526
+    }
+  ],
+  "limitations": [
+    "Author kernel scope only; not an independent review or formal language/product gate.",
+    "Do not add earlier477 and later added tests into an invented single481-test run. Final checkpoint run selected11 tests per crate and filtered the other tests explicitly.",
+    "No source-to-native run, Rust-equivalent benchmark, peak RSS or native Windows execution was performed by this kernel author. Those are separate evidence lanes.",
+    "Independent reviewer reported a separate moved-closure Copy-capture persistence machine failure at this checkpoint. This kernel pass does not close that integration failure or claim overall227 accepted."
+  ],
+  "rust_goals": {
+    "safety": "Finite defer obligation, scope, order and raw/Wire checks have reproducible author tests; whole-language safety is not established.",
+    "runtime_memory": "No runtime/RSS comparison measured here. RegisterDefer has no machine operation in the separate IR/backend lane.",
+    "expression_maintenance": "Executable ordinary defer composition is an implementation increment; maintenance-cost advantage not measured.",
+    "compile_cost": "New reconstruction is prepaid and old no-defer paths avoid new logical fees; no compile performance comparison measured.",
+    "breakthrough": "No product-level repeatable Rust breakthrough established; product gates and B0 status unchanged."
+  }
+}

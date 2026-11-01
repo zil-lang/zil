@@ -1,0 +1,26 @@
+[
+  {
+    "original_directory": "/tmp/review227-dev01/review227-capture-writeback-59151-11",
+    "binary_sha256": "65a656688da1a1aaa36d1a495308d971aa889b357553352df68c79b301389d62",
+    "source_sha256": "9c361e6dafcc04b76e7f55e85b2e579cd31ca7245cbc710c6cde6c3639c61c01",
+    "command": [
+      "/tmp/review227-dev01/review227-capture-writeback-59151-11/program"
+    ],
+    "exit": 2,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "provenance": "Author replay of unchanged independent-review pre-fix executable; this is a reproduced old failure, not a newly compiled candidate or an independent review receipt."
+  },
+  {
+    "original_directory": "/tmp/review227-dev02/review227-capture-writeback-59304-12",
+    "binary_sha256": "65a656688da1a1aaa36d1a495308d971aa889b357553352df68c79b301389d62",
+    "source_sha256": "9c361e6dafcc04b76e7f55e85b2e579cd31ca7245cbc710c6cde6c3639c61c01",
+    "command": [
+      "/tmp/review227-dev02/review227-capture-writeback-59304-12/program"
+    ],
+    "exit": 2,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "provenance": "Author replay of unchanged independent-review pre-fix executable; this is a reproduced old failure, not a newly compiled candidate or an independent review receipt."
+  }
+]
