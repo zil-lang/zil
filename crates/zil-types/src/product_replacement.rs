@@ -3,6 +3,112 @@
 use super::*;
 
 impl Builder<'_, '_> {
+    // Only callers which manufacture a whole-value transaction may register
+    // an instruction. Neither source ids/spans nor public IR carry this fact.
+    fn internal_product_field(
+        &mut self,
+        kind: InstructionKind,
+        ty: Option<Type>,
+        span: Span,
+    ) -> R<Option<ValueId>> {
+        self.closures.snapshot(
+            self.closures
+                .internal_product_fields
+                .len()
+                .saturating_add(1)
+                .ilog2() as usize
+                + 1,
+            span,
+        )?;
+        let count = self
+            .closures
+            .internal_product_fields
+            .get(&self.function.id)
+            .map_or(0, |v| v.len());
+        self.closures.snapshot(
+            (count.saturating_add(1).ilog2() as usize + 1)
+                .saturating_add(
+                    self.closures
+                        .internal_product_fields
+                        .len()
+                        .saturating_add(1)
+                        .ilog2() as usize
+                        + 1,
+                )
+                .saturating_add(4),
+            span,
+        )?;
+        let block = self.current.expect("live transaction block");
+        let index = self.function.blocks[block.0 as usize].instructions.len();
+        let receipt = kind.clone();
+        let result = self.emit(kind, ty, span)?;
+        self.closures
+            .internal_product_fields
+            .entry(self.function.id)
+            .or_default()
+            .insert((block, index), receipt);
+        Ok(result)
+    }
+
+    pub(super) fn take_replacement_input(
+        &mut self,
+        expression: &CoreExpr,
+        expected: Option<&Type>,
+    ) -> R<Option<(ValueId, Type)>> {
+        let Some(local) = self.replacement_input else {
+            return Ok(None);
+        };
+        let CoreExprKind::Name(name) = &expression.kind else {
+            return Ok(None);
+        };
+        self.closures.snapshot(
+            self.scopes.len().saturating_mul(
+                (self.function.locals.len().saturating_add(1).ilog2() as usize + 1)
+                    .saturating_mul(name.len().saturating_add(1)),
+            ),
+            expression.span,
+        )?;
+        if self.lookup(name) != Some(local) {
+            return Ok(None);
+        }
+        self.replacement_input = None;
+        let ty = &self.function.locals[local.0 as usize].ty;
+        let work = inference::type_snapshot_work(ty, expression.span, self.limits)?;
+        self.closures
+            .snapshot(work.saturating_mul(3), expression.span)?;
+        let ty = ty.clone();
+        if let Some(expected) = expected {
+            self.same(&ty, expected, expression.span)?;
+        }
+        let Type::Package { fields, .. } = &ty else {
+            unreachable!()
+        };
+        let mut values = Vec::with_capacity(fields.len());
+        for (index, (_, field)) in fields.iter().enumerate() {
+            let kind = if matches!(field, Type::Managed(_) | Type::Package { .. }) {
+                InstructionKind::TakePackageField {
+                    local,
+                    index: index as u32,
+                }
+            } else {
+                InstructionKind::ReadPackageField {
+                    local,
+                    index: index as u32,
+                }
+            };
+            let value = self
+                .internal_product_field(kind, Some(field.clone()), expression.span)?
+                .expect("rebuilt field value");
+            values.push(value);
+        }
+        let value = self.value(
+            InstructionKind::MakePackage { fields: values },
+            ty.clone(),
+            expression.span,
+        )?;
+        Ok(Some((value, ty)))
+    }
+
     pub(super) fn replace_product(
         &mut self,
         local: LocalId,
@@ -38,8 +144,8 @@ impl Builder<'_, '_> {
             limits: self.limits,
         }
         .expr(rhs, false, 0)?;
-        let rewritten;
-        let rhs = if references {
+        let previous_input = self.replacement_input;
+        if references {
             let CoreExprKind::Call { callee, arguments } = &rhs.kind else {
                 return Err(unsupported(
                     rhs.span,
@@ -106,64 +212,16 @@ impl Builder<'_, '_> {
                     "Product self replacement needs exactly one direct whole-target argument",
                 ));
             };
-            let work = inference::type_snapshot_work(ty, span, self.limits)?;
-            let Type::Package { fields, .. } = ty else {
-                unreachable!()
-            };
-            self.closures.snapshot(
-                work.saturating_add(fields.len().saturating_mul(name.len().saturating_add(8))),
-                span,
-            )?;
-            let argument = &arguments[position];
-            let mut values = Vec::with_capacity(fields.len());
-            for (field, field_type) in fields {
-                let place = CoreExpr {
-                    id: argument.id,
-                    span: argument.span,
-                    kind: CoreExprKind::Member {
-                        object: Box::new(CoreExpr {
-                            id: argument.id,
-                            span: argument.span,
-                            kind: CoreExprKind::Name(name.clone()),
-                        }),
-                        member: field.clone(),
-                    },
-                };
-                let value = if matches!(field_type, Type::Managed(_)) {
-                    CoreExpr {
-                        id: argument.id,
-                        span: argument.span,
-                        kind: CoreExprKind::Unary {
-                            op: UnaryOp::Give,
-                            operand: Box::new(place),
-                        },
-                    }
-                } else {
-                    place
-                };
-                values.push((field.clone(), value));
-            }
-            // The bounded full traversal above paid for this source snapshot.
-            let mut call = rhs.clone();
-            let CoreExprKind::Call { arguments, .. } = &mut call.kind else {
-                unreachable!()
-            };
-            arguments[position] = CoreExpr {
-                id: argument.id,
-                span: argument.span,
-                kind: CoreExprKind::Record {
-                    ty: ty.clone(),
-                    fields: values,
-                },
-            };
-            rewritten = call;
-            &rewritten
-        } else {
-            rhs
-        };
+            // References proved this is the sole direct target argument. It is
+            // rebuilt when that argument is evaluated, preserving source order.
+            let _ = position;
+            self.replacement_input = Some(local);
+        }
         let work = inference::type_snapshot_work(ty, span, self.limits)?;
         self.closures.snapshot(work.saturating_mul(3), span)?;
-        let (value, actual) = self.transfer_expr(rhs, Some(ty))?;
+        let evaluated = self.transfer_expr(rhs, Some(ty));
+        self.replacement_input = previous_input;
+        let (value, actual) = evaluated?;
         self.same(&actual, ty, rhs.span)?;
         // This independently checked full value protects all RHS obligations
         // while old fields execute their ordinary declared-order cleanup.
@@ -174,7 +232,7 @@ impl Builder<'_, '_> {
         };
         for (index, (_, field)) in fields.iter().enumerate() {
             if matches!(field, Type::Managed(_) | Type::Package { .. }) {
-                self.emit(
+                self.internal_product_field(
                     InstructionKind::DropPackageField {
                         local,
                         index: index as u32,
@@ -199,8 +257,10 @@ impl Builder<'_, '_> {
                     index,
                 }
             };
-            let value = self.value(kind, field.clone(), span)?;
-            self.emit(
+            let value = self
+                .internal_product_field(kind, Some(field.clone()), span)?
+                .expect("field value");
+            self.internal_product_field(
                 InstructionKind::StorePackageField {
                     local,
                     index,
@@ -215,8 +275,8 @@ impl Builder<'_, '_> {
 }
 
 /// Only the target binding matters; lexical shadowing can be represented by
-/// one bit. Every node is visited even after a reference is found, so cloning
-/// the self-call never precedes its budget reservation.
+/// one bit. Every node is visited even after a reference is found, so no other
+/// argument can hide a target access behind the whole-value transaction.
 struct References<'a, 's> {
     target: &'a str,
     state: &'s mut closures::State,
