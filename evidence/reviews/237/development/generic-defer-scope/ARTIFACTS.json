@@ -1,0 +1,42 @@
+[
+  {
+    "path": "development.json",
+    "bytes": 1211,
+    "sha256": "cf35c379784adfdc651d682560d7b7ca4d74a98e2324c1aa848effd7e9111d10"
+  },
+  {
+    "path": "first-run.tar.gz",
+    "bytes": 19500,
+    "sha256": "2fa4d8c4c530e93344e56e5994d2d6de683f427398ca64f469dd44131dd4a635"
+  },
+  {
+    "path": "first.log",
+    "bytes": 3745,
+    "sha256": "30aefd9710e8127173f5d286bad8a459fcddf68656d498ba84d9f6b7d9d2e553"
+  },
+  {
+    "path": "review237_generic_defer.rs",
+    "bytes": 8688,
+    "sha256": "21770e69ea154d33585b78c1273a8449db3495acb4bef704fe066df1c6995e7f"
+  },
+  {
+    "path": "second-run.tar.gz",
+    "bytes": 40129,
+    "sha256": "c72f8a3ea5183670c41c8199a52af5a3df002f783fd73ba44867a541b504b980"
+  },
+  {
+    "path": "second.log",
+    "bytes": 2256,
+    "sha256": "6b73d164c530b4fceaf66b4e297c072606c7d1ed2c977348551e527b7d66d27f"
+  },
+  {
+    "path": "third-run.tar.gz",
+    "bytes": 72139,
+    "sha256": "b88e80500d6491943e9a696e2a69cd6cc10e66c87274c77602d1a1272df34363"
+  },
+  {
+    "path": "third.log",
+    "bytes": 618,
+    "sha256": "31b002654547becddcef48011905f71abfc0d776929c136545c9bf097296fe11"
+  }
+]

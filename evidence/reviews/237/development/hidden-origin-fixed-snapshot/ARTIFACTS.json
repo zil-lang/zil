@@ -1,0 +1,22 @@
+[
+  {
+    "path": "cargo.log",
+    "bytes": 2362,
+    "sha256": "1edf1e75410f4ac6d5937a904eca325e262a7a241b9e1020464e8610ce4a25e4"
+  },
+  {
+    "path": "complete-development-run.tar.gz",
+    "bytes": 1642487,
+    "sha256": "37cb2532c80f61f92a94b5911d065bf5ac5b2dfab8ea5a011cdceb5d88484178"
+  },
+  {
+    "path": "development.json",
+    "bytes": 907,
+    "sha256": "467acde52b5db305e8fc79c7ce6184087ee537ee146f95fe95d0fa98f42775aa"
+  },
+  {
+    "path": "snapshot.json",
+    "bytes": 280,
+    "sha256": "60339fbfb643c7327a6909ef274d996db4cb0bf44f1cae066fbea3c02f16b9ac"
+  }
+]

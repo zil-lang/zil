@@ -389,31 +389,6 @@ fn validate_recipe(
     }
     Ok(())
 }
-pub(super) fn free(ty: &Type, names: &Bindings) -> bool {
-    match ty {
-        Type::Named(n) => names.names().any(|name| name == n),
-        Type::Package { fields, .. } | Type::Record { fields, .. } => {
-            fields.iter().any(|(_, t)| free(t, names))
-        }
-        Type::Tuple(ts) => ts.iter().any(|t| free(t, names)),
-        Type::Managed(t)
-        | Type::Desc(t)
-        | Type::Address { inner: t, .. }
-        | Type::OwnedStore { element: t }
-        | Type::Array { element: t, .. }
-        | Type::Slice { element: t }
-        | Type::Opaque { hidden: t, .. } => free(t, names),
-        Type::ErrorUnion { error, result } => free(error, names) || free(result, names),
-        Type::Enum { variants, .. } => variants
-            .iter()
-            .any(|(_, ts)| ts.iter().any(|t| free(t, names))),
-        Type::FunctionPointer { parameters, result }
-        | Type::ForeignCallback { parameters, result } => {
-            parameters.iter().any(|t| free(t, names)) || free(result, names)
-        }
-        _ => false,
-    }
-}
 pub(super) fn canonical(
     family: Family,
     args: &[Type],
@@ -457,62 +432,213 @@ pub(super) fn origins(modules: &[&CoreModule], limits: &Limits, left: &mut usize
         return Ok(None);
     }
     let index = Index::new(modules, limits, left)?;
-    let mut origins = Origins::default();
-    for (_, application, header) in index.applications.values() {
-        let owner = application.owner.as_ref().map(|o| (o.module, o.function));
-        let bindings = owner
-            .and_then(|o| index.owners.get(&o))
-            .cloned()
-            .unwrap_or_default();
-        spend(left, application.arguments.len(), header.span)?;
+    spend(
+        left,
+        index.applications.len().saturating_mul(3),
+        Span::default(),
+    )?;
+    let mut rows = Vec::new();
+    for (_, app, header) in index.applications.values() {
+        let owner = app.owner.as_ref().map(|o| (o.module, o.function));
+        let bindings = if let Some(b) = owner.and_then(|o| index.owners.get(&o)) {
+            spend(
+                left,
+                b.names().fold(1usize, |n, s| n.saturating_add(s.len())),
+                header.span,
+            )?;
+            b.clone()
+        } else {
+            Bindings::default()
+        };
+        spend(left, app.arguments.len(), header.span)?;
         let mut arguments = Vec::new();
-        for arg in &application.arguments {
-            let ty = match arg {
-                CoreAggregateArgument::Concrete(ty) => {
-                    type_work(ty, limits, left, header.span)?;
-                    ty.clone()
+        for arg in &app.arguments {
+            arguments.push(match arg {
+                CoreAggregateArgument::Concrete(t) => {
+                    type_work(t, limits, left, header.span)?;
+                    t.clone()
                 }
                 CoreAggregateArgument::Parameter { index: 0 } => {
+                    spend(
+                        left,
+                        bindings.ordinary.as_ref().map_or(0, String::len),
+                        header.span,
+                    )?;
                     Type::Named(bindings.ordinary.clone().ok_or_else(|| {
                         bad(header.span, "generic Product origin has no owner binder")
                     })?)
                 }
                 _ => return Err(bad(header.span, "generic Product origin binder is invalid")),
-            };
-            arguments.push(ty);
+            });
         }
-        let owner = if arguments.iter().any(|a| free(a, &bindings)) {
-            owner
-        } else {
-            None
-        };
-        let family = (application.template_module, application.template);
-        let name = canonical(family, &arguments, owner, limits, left, header.span)?;
-        spend(
-            left,
-            name.len().saturating_add(arguments.len()),
-            header.span,
-        )?;
-        if let Some(prior) = origins.entries.get(&name)
-            && (prior.family != family || prior.arguments != arguments || prior.owner != owner)
-        {
-            return Err(bad(
-                header.span,
-                "generic Product canonical identity collision",
-            ));
-        }
-        origins.entries.insert(
-            name,
+        rows.push((
             Origin {
-                family,
+                family: (app.template_module, app.template),
                 arguments,
                 owner,
                 bindings,
             },
-        );
+            header.span,
+        ));
     }
+    let mut origins = Origins::default();
+    let mut names = vec![None; rows.len()];
+    let mut complete = false;
+    // A hidden phantom edge may not occur in the runtime field tree. Resolve
+    // only those source argument dependencies; every pass/clone is prepaid.
+    for depth in 0..=limits.max_call_depth {
+        let mut changed = false;
+        for (i, (row, span)) in rows.iter().enumerate() {
+            let mut symbolic = false;
+            if let Some(owner) = row.owner {
+                for a in &row.arguments {
+                    symbolic |= contextual_free(
+                        a,
+                        &row.bindings,
+                        owner,
+                        &origins.entries,
+                        limits,
+                        *span,
+                        &mut |n| spend(left, n, *span),
+                    )?;
+                }
+            }
+            let owner = if symbolic { row.owner } else { None };
+            let name = canonical(row.family, &row.arguments, owner, limits, left, *span)?;
+            spend(
+                left,
+                name.len().saturating_add(origins.entries.len()),
+                *span,
+            )?;
+            changed |= names[i].as_ref() != Some(&name);
+            names[i] = Some(name.clone());
+            for a in &row.arguments {
+                type_work(a, limits, left, *span)?;
+            }
+            spend(
+                left,
+                row.bindings
+                    .names()
+                    .fold(1usize, |n, s| n.saturating_add(s.len())),
+                *span,
+            )?;
+            if let Some(prior) = origins.entries.get(&name)
+                && (prior.family != row.family
+                    || prior.arguments != row.arguments
+                    || prior.owner != owner)
+            {
+                return Err(bad(*span, "generic Product canonical identity collision"));
+            }
+            let mut origin = row.clone();
+            origin.owner = owner;
+            origins.entries.insert(name, origin);
+        }
+        if !changed {
+            complete = true;
+            break;
+        }
+        if depth == limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "generic Product hidden-argument depth exceeded",
+                None,
+            ));
+        }
+    }
+    if !complete {
+        return Err(bad(
+            Span::default(),
+            "generic Product argument origins do not converge",
+        ));
+    }
+    let mut final_entries = BTreeMap::new();
+    for ((mut row, span), name) in rows.into_iter().zip(names) {
+        let name = name.expect("each bounded origin pass assigns a key");
+        spend(
+            left,
+            name.len()
+                .saturating_mul(final_entries.len().saturating_add(1).ilog2() as usize + 2),
+            span,
+        )?;
+        row.owner = origins.entries[&name].owner;
+        final_entries.insert(name, row);
+    }
+    origins.entries = final_entries;
     origins.owners = index.owners;
     Ok(Some(std::rc::Rc::new(std::cell::RefCell::new(origins))))
+}
+
+fn contextual_free(
+    ty: &Type,
+    bindings: &Bindings,
+    owner: Owner,
+    entries: &BTreeMap<String, Origin>,
+    limits: &Limits,
+    span: Span,
+    charge: &mut impl FnMut(usize) -> R<()>,
+) -> R<bool> {
+    let work = inference::type_snapshot_work(ty, span, limits)?;
+    charge(work.saturating_mul(2))?;
+    fn visit(
+        ty: &Type,
+        b: &Bindings,
+        owner: Owner,
+        entries: &BTreeMap<String, Origin>,
+        charge: &mut impl FnMut(usize) -> R<()>,
+    ) -> R<bool> {
+        charge(1)?;
+        if let Type::Package { name, .. } = ty {
+            charge(
+                name.len()
+                    .saturating_mul(entries.len().saturating_add(1).ilog2() as usize + 2),
+            )?;
+            if entries.get(name).is_some_and(|o| o.owner == Some(owner)) {
+                return Ok(true);
+            }
+        }
+        let mut found = false;
+        match ty {
+            Type::Named(n) => found = b.names().any(|name| name == n),
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                for (_, t) in fields {
+                    found |= visit(t, b, owner, entries, charge)?;
+                }
+            }
+            Type::Tuple(ts) => {
+                for t in ts {
+                    found |= visit(t, b, owner, entries, charge)?;
+                }
+            }
+            Type::Managed(t)
+            | Type::Desc(t)
+            | Type::Address { inner: t, .. }
+            | Type::OwnedStore { element: t }
+            | Type::Array { element: t, .. }
+            | Type::Slice { element: t }
+            | Type::Opaque { hidden: t, .. } => found |= visit(t, b, owner, entries, charge)?,
+            Type::ErrorUnion { error, result } => {
+                found |= visit(error, b, owner, entries, charge)?;
+                found |= visit(result, b, owner, entries, charge)?;
+            }
+            Type::Enum { variants, .. } => {
+                for (_, ts) in variants {
+                    for t in ts {
+                        found |= visit(t, b, owner, entries, charge)?;
+                    }
+                }
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                for t in parameters {
+                    found |= visit(t, b, owner, entries, charge)?;
+                }
+                found |= visit(result, b, owner, entries, charge)?;
+            }
+            _ => {}
+        }
+        Ok(found)
+    }
+    visit(ty, bindings, owner, entries, charge)
 }
 
 /// Rebuild the nominal identity from complete real arguments after an ordinary
@@ -655,14 +781,42 @@ pub(super) fn rebind_type(
                     None
                 }
             };
-            if let Some((owner, bindings)) = caller
-                && origin.arguments.iter().any(|a| free(a, &bindings))
-            {
-                origin.owner = Some(owner);
-                origin.bindings = bindings;
+            if let Some((owner, bindings)) = caller {
+                let registry = products.borrow();
+                let mut symbolic = false;
+                for arg in &origin.arguments {
+                    symbolic |= contextual_free(
+                        arg,
+                        &bindings,
+                        owner,
+                        &registry.entries,
+                        limits,
+                        span,
+                        charge,
+                    )?;
+                }
+                if symbolic {
+                    origin.owner = Some(owner);
+                    origin.bindings = bindings;
+                }
             }
-            if !origin.arguments.iter().any(|a| free(a, &origin.bindings)) {
-                origin.owner = None;
+            if let Some(owner) = origin.owner {
+                let registry = products.borrow();
+                let mut symbolic = false;
+                for arg in &origin.arguments {
+                    symbolic |= contextual_free(
+                        arg,
+                        &origin.bindings,
+                        owner,
+                        &registry.entries,
+                        limits,
+                        span,
+                        charge,
+                    )?;
+                }
+                if !symbolic {
+                    origin.owner = None;
+                }
             }
             let mut allowance = limits.max_analysis_steps;
             let name = canonical(
@@ -846,13 +1000,81 @@ pub(super) fn parameter_in(
     if store_templates::has_parameter(ty, name) {
         return Ok(true);
     }
-    let Some(origin) = product_origin(ty, products, limits, span, charge)? else {
+    if products.is_none() {
         return Ok(false);
-    };
-    Ok(origin
-        .arguments
-        .iter()
-        .any(|a| store_templates::has_parameter(a, name)))
+    }
+    struct Search<'a, F> {
+        name: &'a str,
+        products: &'a Products,
+        limits: &'a Limits,
+        span: Span,
+        charge: &'a mut F,
+        active: BTreeSet<String>,
+    }
+    impl<F: FnMut(usize) -> R<()>> Search<'_, F> {
+        fn visit(&mut self, ty: &Type, depth: usize) -> R<bool> {
+            if store_templates::has_parameter(ty, self.name) {
+                return Ok(true);
+            }
+            (self.charge)(1)?;
+            if depth > self.limits.max_call_depth {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "generic Product input argument depth exceeded",
+                    Some(self.span),
+                ));
+            }
+            match ty {
+                Type::Managed(inner) | Type::Desc(inner) => {
+                    if let Type::OwnedStore { element } = inner.as_ref() {
+                        return self.visit(element, depth + 1);
+                    }
+                }
+                Type::ErrorUnion { error, result } => {
+                    return Ok(self.visit(error, depth + 1)? || self.visit(result, depth + 1)?);
+                }
+                _ => {}
+            }
+            let Some(origin) =
+                product_origin(ty, self.products, self.limits, self.span, self.charge)?
+            else {
+                return Ok(false);
+            };
+            let Type::Package { name, .. } = ty else {
+                unreachable!()
+            };
+            (self.charge)(
+                name.len()
+                    .saturating_add(self.active.len())
+                    .saturating_add(1),
+            )?;
+            if !self.active.insert(name.clone()) {
+                return Err(bad(
+                    self.span,
+                    "cyclic generic Product input argument origins",
+                ));
+            }
+            let mut found = false;
+            for a in &origin.arguments {
+                if self.visit(a, depth + 1)? {
+                    found = true;
+                    break;
+                }
+            }
+            (self.charge)(name.len().saturating_add(self.active.len()))?;
+            self.active.remove(name);
+            Ok(found)
+        }
+    }
+    Search {
+        name,
+        products,
+        limits,
+        span,
+        charge,
+        active: BTreeSet::new(),
+    }
+    .visit(ty, 0)
 }
 pub(super) fn input_pairs(
     pattern: &Type,

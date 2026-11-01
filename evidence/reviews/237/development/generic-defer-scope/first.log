@@ -1,0 +1,26 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-237/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.37s
+     Running tests/review237_generic_defer.rs (/workspace/.zil-env/target-237/debug/deps/review237_generic_defer-daab9a9b6daba4b2)
+
+running 2 tests
+
+thread 'a_generic_cleanup_has_its_own_legal_loop_control_boundary' (94247) panicked at crates/zil-driver/tests/review237_generic_defer.rs:45:9:
+assertion `left == right` failed: own-loop: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"helper-local nested environments require an additional contract","span":{"file":0,"start":41,"end":104},"notes":[]}],"artifacts":{"core":"/tmp/review237-generic-defer-first/review237-generic-defer-own-loop-94246-0/phases/core.txt","ct-core":"/tmp/review237-generic-defer-first/review237-generic-defer-own-loop-94246-0/phases/ct-core.txt","source-map":"/tmp/review237-generic-defer-first/review237-generic-defer-own-loop-94246-0/phases/source-map.txt","syntax":"/tmp/review237-generic-defer-first/review237-generic-defer-own-loop-94246-0/phases/syntax.txt"},"input_fingerprint":"5817e3f1223ad4ca0db444ea86ade07e9b18bf482b8e6b3cffbe948cf91fac23","seconds":0.009635896,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"generic_defer.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test a_generic_cleanup_has_its_own_legal_loop_control_boundary ... FAILED
+
+thread 'unused_generic_defer_definitions_preserve_declared_capabilities_and_cleanup_control' (94248) panicked at crates/zil-driver/tests/review237_generic_defer.rs:173:9:
+package-shared-capture-then-take: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"capturing a new State declaration source requires an explicit preserved capability contract","span":{"file":0,"start":119,"end":124},"notes":[]}],"artifacts":{"core":"/tmp/review237-generic-defer-first/review237-generic-defer-package-shared-capture-then-take-94246-6/phases/core.txt","ct-core":"/tmp/review237-generic-defer-first/review237-generic-defer-package-shared-capture-then-take-94246-6/phases/ct-core.txt","source-map":"/tmp/review237-generic-defer-first/review237-generic-defer-package-shared-capture-then-take-94246-6/phases/source-map.txt","syntax":"/tmp/review237-generic-defer-first/review237-generic-defer-package-shared-capture-then-take-94246-6/phases/syntax.txt"},"input_fingerprint":"a99c966132b31a5bb6ea36c319db7a910415241205ed3722f75509b39c08bd3f","seconds":0.003619644,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"unused_generic_defer.zil"},"scalar_interfaces":[]}
+test unused_generic_defer_definitions_preserve_declared_capabilities_and_cleanup_control ... FAILED
+
+failures:
+
+failures:
+    a_generic_cleanup_has_its_own_legal_loop_control_boundary
+    unused_generic_defer_definitions_preserve_declared_capabilities_and_cleanup_control
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-driver --test review237_generic_defer`

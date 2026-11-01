@@ -1,0 +1,30 @@
+{
+  "status": "Pass",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--locked",
+    "--test",
+    "impl237_types",
+    "--test",
+    "impl237_budget",
+    "--test",
+    "impl206_budget",
+    "--test",
+    "impl206_verify",
+    "--",
+    "--nocapture"
+  ],
+  "exit_code": 0,
+  "scope": "Author limited Types/identity/budget and LLVM API Linux native evidence; not final independent acceptance",
+  "baseline": "6e5b6686f6f87653624295c95bf4f1754ff4809a",
+  "schema": 29,
+  "log_sha256": "35d17eee89fb4e4926caf05032d069daf766274716f932c06d7857c7530df900",
+  "full_suite": "NotRun",
+  "native_windows": "NotRun",
+  "wine": "NotRun"
+}

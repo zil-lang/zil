@@ -1,0 +1,33 @@
+{
+  "status": "Fail",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--locked",
+    "--test",
+    "impl237_types",
+    "--test",
+    "impl237_budget",
+    "--test",
+    "impl237_machine",
+    "--test",
+    "impl206_budget",
+    "--test",
+    "impl206_verify",
+    "--",
+    "--nocapture"
+  ],
+  "exit_code": 101,
+  "scope": "Author limited checks after hidden-phantom owner repair and upfront charging; no final acceptance claim",
+  "source_checkpoint": "7b964394455fe680f0fa782d29af45d2f00bb4ec",
+  "tracked_diff_sha256": "1e15e180642ec8fd3a381a7e27488d3e3d611b8bf64ceafc04eac1484e23a894",
+  "schema": 29,
+  "log_sha256": "89363aa3970ed69e0209b723a1e643b4c55d13dbfae98d89d10f75ce86476f8e",
+  "full_suite": "NotRun",
+  "native_windows": "NotRun",
+  "wine": "NotRun"
+}

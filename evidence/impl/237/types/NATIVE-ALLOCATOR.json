@@ -1,0 +1,197 @@
+{
+  "scope": "Author actual LLVM API O0/O2 object and wrapped realloc/free; original235 source bytes unchanged",
+  "executions": 6,
+  "allocation_failures": 2,
+  "observations": [
+    {
+      "optimization": "O0",
+      "source_sha256": "693c447e9798ad21d7e627619f0dfaaa6cd5870f7ab8ce977afcf59d4550d99d",
+      "llvm_sha256": "1f5a0f465b2373392329b66a0962ceceaea6a533a1c50ead2059161f0284e179",
+      "object_sha256": "487a99dc2577c8c0378e40d3567d1b3c22996d80e5fbe6451cf481966bb04994",
+      "compile_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 6920,
+            "input_kind": "builder",
+            "preflight_ns": 1859728,
+            "builder_ns": 1383986,
+            "parse_ns": 0,
+            "optimize_ns": 340381,
+            "emit_ns": 6096035,
+            "total_ns": 10357671
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "runs": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "AZ",
+          "allocator": {
+            "alloc_calls": 1,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 12
+          }
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "Z",
+          "allocator": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "fail_at": 2,
+          "exit": 0,
+          "stdout": "AZ",
+          "allocator": {
+            "alloc_calls": 1,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 12
+          }
+        }
+      ]
+    },
+    {
+      "optimization": "O2",
+      "source_sha256": "693c447e9798ad21d7e627619f0dfaaa6cd5870f7ab8ce977afcf59d4550d99d",
+      "llvm_sha256": "1f5a0f465b2373392329b66a0962ceceaea6a533a1c50ead2059161f0284e179",
+      "object_sha256": "809b72c2ac918f171ed9ecf25783b687482081ef2df671c34abdeb4cf3f21cdf",
+      "compile_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1512,
+            "input_kind": "builder",
+            "preflight_ns": 1666011,
+            "builder_ns": 874055,
+            "parse_ns": 0,
+            "optimize_ns": 8831379,
+            "emit_ns": 5559479,
+            "total_ns": 17204949
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "runs": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "AZ",
+          "allocator": {
+            "alloc_calls": 1,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 12
+          }
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "Z",
+          "allocator": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "fail_at": 2,
+          "exit": 0,
+          "stdout": "AZ",
+          "allocator": {
+            "alloc_calls": 1,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 12
+          }
+        }
+      ]
+    }
+  ],
+  "native_windows": "NotRun",
+  "wine": "NotRun"
+}

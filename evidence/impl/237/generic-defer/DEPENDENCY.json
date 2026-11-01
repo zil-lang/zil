@@ -1,0 +1,8 @@
+{
+  "worktree_head_at_capture": "33b1514c9b8c7adbd1a547f57b5bbcea3f040661",
+  "required238_commit": "3fdd02070",
+  "required238_is_ancestor": false,
+  "merge_base_exit": 1,
+  "product_replacement_file_present": false,
+  "replace_product_in_types_lib": false
+}
