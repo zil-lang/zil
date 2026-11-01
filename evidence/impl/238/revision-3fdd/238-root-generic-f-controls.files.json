@@ -1,0 +1,407 @@
+[
+  {
+    "path": "238-root-generic-f-controls/RESULT.json",
+    "bytes": 2008,
+    "sha256": "1404f01e3c3cc8eb1085719d44b22ec2a5bdb8b3d8ed47ead65e3bdb00917d53"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/command.json",
+    "bytes": 395,
+    "sha256": "49b590ef724bae1e369841b0df0cc53bbef2956221b34211f65564599097d007"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/compile.json",
+    "bytes": 3425,
+    "sha256": "cba951c00700ef37db5448933001bf0fbefdffc5df95068d1caed1d495170976"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/compile.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/exit.json",
+    "bytes": 12,
+    "sha256": "5bc232b82de377a5655a39a2af9d7ae0fc868de5b9df957e18905cb914606c88"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/phases/candidate.txt",
+    "bytes": 27364,
+    "sha256": "4361e59510d326df58ed34dfeccd46a6520b0b3f9ff1bb5daa956967507fdb16"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/phases/core.txt",
+    "bytes": 168174,
+    "sha256": "dfb5cecb36aa63c87fa65334e5088eceec626734ee948a54e770aa4cce8f60d2"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/phases/ct-core.txt",
+    "bytes": 199861,
+    "sha256": "b6e55f3e3136a0c68e59aa72875419cab5619b941b4540020585c9df4b6ffc94"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/phases/interfaces.txt",
+    "bytes": 1724,
+    "sha256": "d59059bc89b070e94510e7e4bf44730474c5ab1f7c2e53e0d6646e9ae9d7eb69"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/phases/lir.txt",
+    "bytes": 330550,
+    "sha256": "87c81dc53441a0a70d549fb3b3f0aa2be15f89deb228e1ead1cfe709cbcd892f"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/phases/llvm.ll",
+    "bytes": 39528,
+    "sha256": "6b96e646292e458f31ff92ed06eb8a4ade637f717c8707973252e67bfa461945"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/phases/source-map.txt",
+    "bytes": 92783,
+    "sha256": "5d4def35a031b8d9116f9564d2541676be2345ab29715aa9cca9218cae7b0b22"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/phases/syntax.txt",
+    "bytes": 352147,
+    "sha256": "b666cae993b88452c4db31cbff41114a9dd032a58302a967f388ee365ff44d23"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/phases/typed.txt",
+    "bytes": 329721,
+    "sha256": "f29e6a8473bae25ec0ec3ddf04c434d50b579a977aa583a38b53c9c41d63a228"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/phases/verified-interfaces.txt",
+    "bytes": 2674,
+    "sha256": "ec3b6523528393fb6a7941202a608a52b6a729d42edd3b67ee392feedaa92c92"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/phases/verified.txt",
+    "bytes": 329798,
+    "sha256": "a239725fb03890ae8cec8dbda43b8c409df6b7132681852f85a5494870d1c48c"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/program",
+    "bytes": 20784,
+    "sha256": "e279ed8db3bf3127a1d8e5ef187fa085c00074b2c20ec9f62e32786445fc7330"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/program.ll",
+    "bytes": 39528,
+    "sha256": "6b96e646292e458f31ff92ed06eb8a4ade637f717c8707973252e67bfa461945"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/source.zil",
+    "bytes": 1160,
+    "sha256": "602333f4eeab7d0d3bb52bf8e2eddeac2cd085e28bb94855c68512df2cf1482f"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O0/stdout",
+    "bytes": 3,
+    "sha256": "9897a7f21cb0b3814f6eb757e0d5ff7097accfcb6897f63de2dc14a4569e23a1"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/command.json",
+    "bytes": 395,
+    "sha256": "1645475f1a3346a5947671c1851485b3d515882033813a3750ffa3f6fd801e8c"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/compile.json",
+    "bytes": 3427,
+    "sha256": "26cf3c606ce3fa330d65e200651d237cbaa0b99b3e178dd404ac7af2ab154a71"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/compile.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/exit.json",
+    "bytes": 12,
+    "sha256": "5bc232b82de377a5655a39a2af9d7ae0fc868de5b9df957e18905cb914606c88"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/phases/candidate.txt",
+    "bytes": 27365,
+    "sha256": "08f0c92bc476bac96ff7e963ba7e599be943c8106de0052e91d0ceac1addcf9e"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/phases/core.txt",
+    "bytes": 168168,
+    "sha256": "1495955b1f6474905b3678562267ff241fb44313ab6defa347f0fa15f9e55309"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/phases/ct-core.txt",
+    "bytes": 199855,
+    "sha256": "a63c0f5a5557d5999021b153efa16fac58759b5316a66b76314837748e644800"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/phases/interfaces.txt",
+    "bytes": 1724,
+    "sha256": "d59059bc89b070e94510e7e4bf44730474c5ab1f7c2e53e0d6646e9ae9d7eb69"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/phases/lir.txt",
+    "bytes": 330551,
+    "sha256": "e50bc225c1e31082e917693b7c82370b29d22a4f19f35c401b94957bfedac79d"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/phases/llvm.ll",
+    "bytes": 39528,
+    "sha256": "cc96c1bd3ce7f20a1c7e70efb6fa7e4eaf3ef4714bde789b5b199f403760448f"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/phases/source-map.txt",
+    "bytes": 92783,
+    "sha256": "5d4def35a031b8d9116f9564d2541676be2345ab29715aa9cca9218cae7b0b22"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/phases/syntax.txt",
+    "bytes": 352147,
+    "sha256": "b666cae993b88452c4db31cbff41114a9dd032a58302a967f388ee365ff44d23"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/phases/typed.txt",
+    "bytes": 329715,
+    "sha256": "596e66bb56bfddf42168b622a93e451af7a0cf97c353fafbd44675d4b26d601a"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/phases/verified-interfaces.txt",
+    "bytes": 2674,
+    "sha256": "ec3b6523528393fb6a7941202a608a52b6a729d42edd3b67ee392feedaa92c92"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/phases/verified.txt",
+    "bytes": 329792,
+    "sha256": "10e8279d0357bdb50e6d520d2871cf719273a8321efe5c78897ce02991d06e0b"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/program",
+    "bytes": 16232,
+    "sha256": "ee24a92fc2d3840327ca8087bd2ad28a07d8f4319d86dcf3cebe9a0f52f9c28d"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/program.ll",
+    "bytes": 39528,
+    "sha256": "cc96c1bd3ce7f20a1c7e70efb6fa7e4eaf3ef4714bde789b5b199f403760448f"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/source.zil",
+    "bytes": 1160,
+    "sha256": "602333f4eeab7d0d3bb52bf8e2eddeac2cd085e28bb94855c68512df2cf1482f"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_explicit-O2/stdout",
+    "bytes": 3,
+    "sha256": "9897a7f21cb0b3814f6eb757e0d5ff7097accfcb6897f63de2dc14a4569e23a1"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/command.json",
+    "bytes": 395,
+    "sha256": "f5c952a90eb6753415b07f2f53087db5b19495b112150eca6f8c9fd161ca2ca9"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/compile.json",
+    "bytes": 3426,
+    "sha256": "186534bc1f467316588ce3a65274cc42d64503222cf8da7ef372a66f06eebd3e"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/compile.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/exit.json",
+    "bytes": 12,
+    "sha256": "5bc232b82de377a5655a39a2af9d7ae0fc868de5b9df957e18905cb914606c88"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/phases/candidate.txt",
+    "bytes": 27366,
+    "sha256": "f57c27ff053458b478084e8b8546ce614fde9df5ce86b67766f687ba0be067e6"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/phases/core.txt",
+    "bytes": 168170,
+    "sha256": "f97cc241ebb9c9e1d9cd1f303efee728430d16b786397ba4859ed5dbd6fae1ec"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/phases/ct-core.txt",
+    "bytes": 199857,
+    "sha256": "cd48b72cff5bcb0d2571733d8f9a14bf89410e4fbab47067b9ebc87f6e775382"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/phases/interfaces.txt",
+    "bytes": 1726,
+    "sha256": "6f3b0c70ec70caf78c742014fabb4c88dae1dfab4cadb0ab2ec0c1b56e5605f6"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/phases/lir.txt",
+    "bytes": 330530,
+    "sha256": "0ba3cbf76ab90a13448f095b01e72ce7995f933be4328c8f4162dbb73792cfe7"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/phases/llvm.ll",
+    "bytes": 39528,
+    "sha256": "7d0838bbd56e5b78616c462a415eaa8fad60db56c25ea7d085cb7e7121bfd0b2"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/phases/source-map.txt",
+    "bytes": 92778,
+    "sha256": "2acf3e3f073affd22b5ed4bccce4868bf080ac06f6f8077b751fbe6f96ae2ebc"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/phases/syntax.txt",
+    "bytes": 346147,
+    "sha256": "82b624b5f5aef0987d8655eebd0f29bc3631ed26409e9c20141a634bed665d14"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/phases/typed.txt",
+    "bytes": 329699,
+    "sha256": "5d8df49dc5f1c2238f7c0d32b485144ccdc4a926195f6cc366fd930f97360973"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/phases/verified-interfaces.txt",
+    "bytes": 2676,
+    "sha256": "3d2cb30d330bb9a147f57e6244767d98d5dfcedb0dd216d3da227fdb35f1bee3"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/phases/verified.txt",
+    "bytes": 329776,
+    "sha256": "f6ae227f41f937d3391821fe653ea23a876d8da704ce3fe3126d1c5d5b3a7b51"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/program",
+    "bytes": 20784,
+    "sha256": "e279ed8db3bf3127a1d8e5ef187fa085c00074b2c20ec9f62e32786445fc7330"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/program.ll",
+    "bytes": 39528,
+    "sha256": "7d0838bbd56e5b78616c462a415eaa8fad60db56c25ea7d085cb7e7121bfd0b2"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/source.zil",
+    "bytes": 1149,
+    "sha256": "0ee78230d4c948c946714e616ca7ce128aa4cd8a3339f29b820eeef86b27e8b3"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O0/stdout",
+    "bytes": 3,
+    "sha256": "9897a7f21cb0b3814f6eb757e0d5ff7097accfcb6897f63de2dc14a4569e23a1"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/command.json",
+    "bytes": 395,
+    "sha256": "5b6e2161b3c605161d1ee58de7e71257b4349f7dc5b1590e570396901833187f"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/compile.json",
+    "bytes": 3427,
+    "sha256": "1753b331bdf8b16554079a3934b8855554d602431e7d65421d3550f962e3ddcb"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/compile.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/exit.json",
+    "bytes": 12,
+    "sha256": "5bc232b82de377a5655a39a2af9d7ae0fc868de5b9df957e18905cb914606c88"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/phases/candidate.txt",
+    "bytes": 27368,
+    "sha256": "a4d442afbac13f4b23ccfde9a9f348ce8c91a68354bf4b9c946c777536742927"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/phases/core.txt",
+    "bytes": 168168,
+    "sha256": "e26d35f148675ec47c1f459182232fff5e3d527168c17d5c1aacf5fd222d398b"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/phases/ct-core.txt",
+    "bytes": 199855,
+    "sha256": "c2c2ed985a83f853498c7ce8552aeeed950afc4d1b1c57680b36c264b336bfaf"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/phases/interfaces.txt",
+    "bytes": 1726,
+    "sha256": "6f3b0c70ec70caf78c742014fabb4c88dae1dfab4cadb0ab2ec0c1b56e5605f6"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/phases/lir.txt",
+    "bytes": 330532,
+    "sha256": "bc480e0d2a912759b288f4eae790839ee4e4b27367c2909f5f7b0eecb805e862"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/phases/llvm.ll",
+    "bytes": 39528,
+    "sha256": "faa4aa5f492003227298504188d6e08c2a948c544449ca239d67a737dc29477f"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/phases/source-map.txt",
+    "bytes": 92778,
+    "sha256": "2acf3e3f073affd22b5ed4bccce4868bf080ac06f6f8077b751fbe6f96ae2ebc"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/phases/syntax.txt",
+    "bytes": 346147,
+    "sha256": "82b624b5f5aef0987d8655eebd0f29bc3631ed26409e9c20141a634bed665d14"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/phases/typed.txt",
+    "bytes": 329697,
+    "sha256": "cc8eb0a2320cf399b359ea3825cbdcff67b5f222a555884895ef6d935f79a7f6"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/phases/verified-interfaces.txt",
+    "bytes": 2676,
+    "sha256": "3d2cb30d330bb9a147f57e6244767d98d5dfcedb0dd216d3da227fdb35f1bee3"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/phases/verified.txt",
+    "bytes": 329774,
+    "sha256": "7ee524e36363de5e7618e441bdf104916d4e69e66e1bd59a892390035d71fce2"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/program",
+    "bytes": 16232,
+    "sha256": "ee24a92fc2d3840327ca8087bd2ad28a07d8f4319d86dcf3cebe9a0f52f9c28d"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/program.ll",
+    "bytes": 39528,
+    "sha256": "faa4aa5f492003227298504188d6e08c2a948c544449ca239d67a737dc29477f"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/source.zil",
+    "bytes": 1149,
+    "sha256": "0ee78230d4c948c946714e616ca7ce128aa4cd8a3339f29b820eeef86b27e8b3"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-f-controls/root_f_helper_relay_only_implicit-O2/stdout",
+    "bytes": 3,
+    "sha256": "9897a7f21cb0b3814f6eb757e0d5ff7097accfcb6897f63de2dc14a4569e23a1"
+  }
+]

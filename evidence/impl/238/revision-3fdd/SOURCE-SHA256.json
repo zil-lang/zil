@@ -1,0 +1,27 @@
+{
+  "implementation_commit": "3fdd02070b417a027444143f0c03d55c7b11c5bb",
+  "combined_probe_commit": "e5c9dedda53bee9befe325b283e4f33c47432071",
+  "captured_at_utc": "2026-11-01T19:26:17.940802+00:00",
+  "files": [
+    {
+      "path": "crates/zil-types/src/lib.rs",
+      "sha256": "83b13de785cd52f98937d8ab05d17101fc7046b8e9cab01670b3a2c5028e3d92",
+      "git_blob": "43f19fbd3fccbda741c63855b5a7577f9d2d8f8c"
+    },
+    {
+      "path": "crates/zil-types/src/product_replacement.rs",
+      "sha256": "9643b211deb38f212facfa71f2157c3db9e95641e4f1a3a57014a10938f33608",
+      "git_blob": "6ea20069c60024a3749130e0c11736376f280317"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl238_product_replacement.rs",
+      "sha256": "4d321fbe45de936fa023ba698806dfd0a3abfeedfa3cbe0ba3611680289f0674",
+      "git_blob": "f3c5472f2236b4403f5c779e2c9e9a9c70b6287a"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl238_machine.rs",
+      "sha256": "c25d8dcf447101fe541d10631cd93821fcf6d66697f6fbb9aa8be44628de65f1",
+      "git_blob": "84024c0343ead5bb40a6a3266eb417e2d94ac136"
+    }
+  ]
+}
