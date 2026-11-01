@@ -480,14 +480,21 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             function.parameters.len().saturating_add(1),
             "helper parameter envelope and candidate table",
         )?;
-        let candidates = function
-            .parameters
-            .iter()
-            .enumerate()
-            .filter_map(|(index, p)| {
-                env(&function.locals[p.0 as usize].ty).map(|_| (index as u32, *p))
-            })
-            .collect::<Vec<_>>();
+        let mut candidates = Vec::new();
+        let mut sum_state_companion = false;
+        // The existing paid envelope visit also records the State exclusion;
+        // legacy constructors acquire no second parameter traversal or table.
+        for (index, parameter) in function.parameters.iter().enumerate() {
+            let ty = &function.locals[parameter.0 as usize].ty;
+            if env(ty).is_some() {
+                candidates.push((index as u32, *parameter));
+            } else {
+                let owned_union = matches!(ty,Type::ErrorUnion { error,result }
+                    if matches!(error.as_ref(),Type::Package { .. } | Type::Managed(_))
+                        || matches!(result.as_ref(),Type::Package { .. } | Type::Managed(_)));
+                sum_state_companion |= owned_union || budget.sum_type(ty)?;
+            }
+        }
         // retained::check_function already reconstructed every public factory
         // from its actual signature, capture graph and reachable Return sites.
         // One direct owning input is an ordinary transfer, not a noescape role.
@@ -510,24 +517,12 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             && matches!(&function.return_type,Type::Package{fields,..}
                 if fields.iter().any(|(_,ty)| *ty==Type::Closure(id)))
         {
-            // The ordinary helper data extension does not widen owning State
-            // constructors. New Sum positions are recorded by our own bounded
-            // preflight; old flat owned error-union slots are visible directly.
-            for parameter in &function.parameters {
-                if *parameter == candidates[0].1 {
-                    continue;
-                }
-                let ty = &function.locals[parameter.0 as usize].ty;
-                let owned_union = matches!(ty, Type::ErrorUnion { error, result }
-                    if matches!(error.as_ref(),Type::Package { .. } | Type::Managed(_))
-                        || matches!(result.as_ref(),Type::Package { .. } | Type::Managed(_)));
-                if owned_union || budget.sum_type(ty)? {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Analyze,
-                        "owning State constructor data parameters do not acquire ordinary Sum qualification",
-                        Some(function.span),
-                    )]);
-                }
+            if sum_state_companion {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Analyze,
+                    "owning State constructor data parameters do not acquire ordinary Sum qualification",
+                    Some(function.span),
+                )]);
             }
             callable_fields::self_contained(module, id, budget)?;
             continue;

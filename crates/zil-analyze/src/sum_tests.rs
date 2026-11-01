@@ -1542,6 +1542,10 @@ fn invalid_union_slots() -> Vec<Type> {
             result: Box::new(leaf()),
         },
         Type::ErrorUnion {
+            error: Box::new(sum()),
+            result: Box::new(leaf()),
+        },
+        Type::ErrorUnion {
             error: Box::new(leaf()),
             result: Box::new(sum()),
         },
