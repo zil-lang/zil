@@ -1,0 +1,27 @@
+{
+  "status": "ScopedPass",
+  "implementation_commit": "db682a85c0a338bf3f77a2065777900d8f61876a",
+  "integrator": "/root",
+  "schema": 29,
+  "feature": "llvm-api",
+  "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-core CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/workspace/.zil-env/integration29-early01/native cargo test --locked -p zil-driver --features llvm-api --test impl202_source --test impl202_raw --test impl202_budget --test impl203_source --test impl203_independent --test impl218_factory_types --test impl218_factory_budget --test review235_contracts -- --nocapture",
+  "passed": 80,
+  "failed": 0,
+  "ignored": 0,
+  "filtered": 0,
+  "groups": {
+    "impl202_budget": 2,
+    "impl202_raw": 4,
+    "impl202_source": 8,
+    "impl203_independent": 28,
+    "impl203_source": 13,
+    "impl218_factory_budget": 3,
+    "impl218_factory_types": 15,
+    "review235_contracts": 7
+  },
+  "original237_success_obligation": "Exact original review235 source and unchanged expected Success now passes through LLVM API O0/O2; no skip. Later237 hardening is not covered by this checkpoint.",
+  "full_workspace": "NotRun",
+  "consumer236": "NotInThisRun",
+  "product": "NotRun",
+  "archive_sha256": "5acf2d58af28af9b1bc3deea61c5a21e755048c2883c0d54fe7e301f14b6741f"
+}

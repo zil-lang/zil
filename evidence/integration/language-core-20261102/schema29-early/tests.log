@@ -1,0 +1,161 @@
+   Compiling zil-base v0.1.0 (/workspace/zil-core/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/zil-core/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/zil-core/crates/zil-verify)
+   Compiling zil-syntax v0.1.0 (/workspace/zil-core/crates/zil-syntax)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-core/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/zil-core/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/zil-core/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/zil-core/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/zil-core/crates/zil-lower)
+   Compiling zil-analyze v0.1.0 (/workspace/zil-core/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/zil-core/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 28.32s
+     Running tests/impl202_budget.rs (/workspace/.zil-env/target-core/debug/deps/impl202_budget-9d36d2eac6207aff)
+
+running 2 tests
+old-original02: types_work=6326, locals=16, functions=5
+original-push: types_work=37756, locals=43, functions=8
+old-two-elements: types_work=29030, locals=39, functions=7
+original-factory: types_work=36976, locals=41, functions=9
+test complete_type_instances_have_exact_work_local_and_function_boundaries ... ok
+old-nested-helper: types_work=29566, locals=40, functions=8
+test pre202_callback_store_paths_keep_their_recorded_types_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+
+     Running tests/impl202_raw.rs (/workspace/.zil-env/target-core/debug/deps/impl202_raw-e702ed1bdc8c753c)
+
+running 4 tests
+test unused_type_application_checks_target_before_value_arity ... ok
+test unused_store_element_bound_does_not_grant_fields_or_numeric_operations ... ok
+test unused_ordinary_binder_is_local_to_its_definition ... ok
+test ordinary_metadata_and_application_placement_are_checked_when_unused ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/impl202_source.rs (/workspace/.zil-env/target-core/debug/deps/impl202_source-36758c491e2907b9)
+
+running 8 tests
+test identity_without_store_still_carries_independently_checked_element_qualification ... ok
+test ordinary_template_may_call_an_independent_factory_and_callable_helper ... ok
+test ordinary_binders_forward_alpha_renamed_complete_type_arguments ... ok
+test original_push_preserves_complete_t ... ok
+test original_factory_and_reserve_keep_the_same_nominal_t ... ok
+test five_module_consumer_preserves_pop_success_and_push_error_responsibility ... ok
+test source_inference_keeps_a_type_application_in_a_factory_using_caller ... ok
+test pop_template_success_retains_its_owned_callback_for_a_nested_helper ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.81s
+
+     Running tests/impl203_independent.rs (/workspace/.zil-env/target-core/debug/deps/impl203_independent-e2c5ddd8b8fc4e37)
+
+running 28 tests
+test cross_module_equal_named_data_families_keep_their_full_state_instance ... ok
+test declaration_order_and_field_order_are_independent_even_when_ids_are_equal ... ok
+test complete_nominal_and_phantom_t_remain_part_of_dual_state_identity ... ok
+test full_type_identity_annotations_and_local_moves_preserve_weak_bound_modes ... ok
+test declared_callee_mode_is_prepared_before_fallible_argument_cleanup ... ok
+test field_take_and_direct_helper_arguments_do_not_strengthen_actual_fn ... ok
+test identity_without_store_operations_still_checks_actual_two_root_layout ... ok
+test ordinary_templates_keep_error_payload_and_success_payload_separate ... ok
+test imported_runtime_templates_keep_scalar_ct_arguments_in_i64_context ... ok
+test raw_complete_type_application_cannot_relabel_equal_concrete_callback_slots ... ok
+test raw_reused_node_identity_cannot_hide_conflicting_field_origins ... ok
+test original_repeated_and_reversed_once_calls_are_rejected_after_the_positive_control ... ok
+test raw_store_checks_bad_second_environment_and_metadata_without_any_store_operation ... ok
+test raw_store_heterogeneous_result_copy_is_checked_on_both_actual_roots ... ok
+test raw_store_two_root_work_bounds_replay_the_same_fresh_result ... ok
+test raw_record_values_cannot_relabel_equal_concrete_callback_slots ... ok
+test original_positive_inputs_keep_exact_bytes_and_declared_cleanup_timing ... ok
+test unused_raw_state_bodies_cannot_acquire_fields_or_repeat_a_declared_once_call ... ok
+test unused_raw_state_field_moves_do_not_gain_copy_from_callable_bounds ... ok
+test unused_raw_state_headers_validate_every_binding_and_real_field_selector ... ok
+test unused_raw_state_value_helper_transfer_cannot_leave_the_source_usable ... ok
+test unused_state_second_binder_metadata_has_a_real_early_budget ... ok
+test unused_raw_exclusive_field_view_cannot_overlap_a_direct_fnmut_call ... ok
+test unused_raw_field_borrow_alias_keeps_its_original_parent_position ... ok
+test value_inferred_complete_argument_work_has_an_exact_new_path_boundary ... ok
+test store_and_success_union_preserve_mode_for_same_and_different_actual_types ... ok
+test value_inferred_ordinary_calls_unify_every_argument_and_keep_nominal_identity ... ok
+test value_inferred_ordinary_identity_prepares_once_without_global_bound_taint ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.76s
+
+     Running tests/impl203_source.rs (/workspace/.zil-env/target-core/debug/deps/impl203_source-8003c5c82c796273)
+
+running 13 tests
+same-declared-modes: types_work=15907, locals=29, functions=7
+test error_side_complete_state_keeps_its_owning_payload ... ok
+test a_named_mutable_store_field_view_can_call_twice ... ok
+different-mutable-store: types_work=60889, locals=49, functions=14
+test mutable_windows_and_owned_once_keep_both_declared_modes ... ok
+test five_module_consumer_infers_complete_value_types ... ok
+test original_once_repeated ... ok
+test original_reversed_declaration ... ok
+test mutually_exclusive_once_paths_are_checked_independently ... ok
+bare-complete-value: types_work=62651, locals=50, functions=14
+test dual_state_and_value_inferred_instances_have_exact_types_boundaries ... ok
+test raw_unused_declaration_flow_keeps_separate_return_paths ... ok
+test raw_field_alias_invalidation_survives_refill_and_keeps_independent_fields ... ok
+test store_windows_reject_borrowed_once_and_shared_mutable ... ok
+test original_mode_cleanup_markers ... ok
+test original_same_factory_distinct_modes ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.97s
+
+     Running tests/impl218_factory_budget.rs (/workspace/.zil-env/target-core/debug/deps/impl218_factory_budget-a89a1a0e19c35908)
+
+running 3 tests
+{"case":"helper","expand_work":586,"types_work":421,"types_locals":6,"types_functions":4,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}
+
+{"case":"owning","expand_work":724,"types_work":770,"types_locals":12,"types_functions":5,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}
+
+{"case":"conditional","expand_work":818,"types_work":978,"types_locals":14,"types_functions":5,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}
+
+test conditional_capture_transfer_has_a_fresh_exact_budget ... ok
+{"case":"state","expand_work":829,"types_work":1441,"types_locals":8,"types_functions":4,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}
+
+{"case":"opaque","expand_work":3,"types_work":462,"types_locals":7,"types_functions":3,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}
+
+test legacy_helper_state_and_opaque_exact_boundaries ... ok
+{"case":"forwarding","expand_work":1438,"types_work":1556,"types_locals":18,"types_functions":7,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}
+
+test owning_factory_and_forwarded_nested_capture_exact_boundaries ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/impl218_factory_types.rs (/workspace/.zil-env/target-core/debug/deps/impl218_factory_types-b0fe9d0bc4616153)
+
+running 15 tests
+test copy_actual_argument_retains_the_callers_original_position ... ok
+test borrowed_direct_or_nested_input_cannot_become_self_contained ... ok
+test bare_function_pointer_signatures_keep_the_existing_copy_rule ... ok
+test complete_environment_identity_and_runtime_instances_remain_distinct ... ok
+test declared_once_survives_nested_capture_and_actual_mutable_input ... ok
+test input_may_be_consumed_or_dropped_without_capture ... ok
+test factory_body_can_forward_a_grounded_new_factory_result ... ok
+test one_grounded_result_can_be_selected_on_both_paths ... ok
+test managed_capture_fields_distinguish_consumption_and_refill ... ok
+test declared_once_survives_conditional_transfer_inside_the_returned_environment ... ok
+test ordinary_managed_package_product_and_leaf_store_companions ... ok
+test same_concrete_type_does_not_share_declaration_mode ... ok
+test real_owned_uses_preserve_existing_default_capture_inference ... ok
+test public_factory_instances_keep_defining_module_context ... ok
+test three_declared_modes_create_real_owned_boundaries ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/review235_contracts.rs (/workspace/.zil-env/target-core/debug/deps/review235_contracts-f6e5573014e21f4c)
+
+running 7 tests
+test ordinary_composition_does_not_open_capture_or_containers ... ok
+test direct_callback_store_and_noncallback_generic_wrapper_controls ... ok
+test remembered_header_description_blocks_parent_transfer_until_its_actual_last_use ... ok
+test unused_product_parameters_still_require_exact_canonical_store_metadata ... ok
+test pop_and_failed_full_push_then_parent_drop_settle_only_actual_prefix ... ok
+test generic_store_element_binder_survives_a_non_element_product_wrapper ... ok
+test same_typed_store_leaves_preserve_incoming_and_created_through_child_transfer ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
