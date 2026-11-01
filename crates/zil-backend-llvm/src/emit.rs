@@ -9,6 +9,7 @@ mod packages;
 mod resource_closures;
 mod resources;
 mod scalar_locals;
+mod scalar_summaries;
 mod slices;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_llvm_api::model as m;
@@ -50,14 +51,14 @@ pub(crate) fn lower_view_with_options(
     lir: &LirView<'_>,
     options: &EmitOptions,
 ) -> CompileResult<m::Module> {
-    lower_view_with_divisor_policy(verified, lir, options, false)
+    lower_view_with_incremental_scalar_policy(verified, lir, options, false)
 }
 
-pub(crate) fn lower_view_with_divisor_policy(
+pub(crate) fn lower_view_with_incremental_scalar_policy(
     verified: &VerifiedModule,
     lir: &LirView<'_>,
     options: &EmitOptions,
-    constant_divisor_guards: bool,
+    incremental_scalar_policy: bool,
 ) -> CompileResult<m::Module> {
     bind_lir(verified, lir)?;
     let functions = lir
@@ -71,6 +72,7 @@ pub(crate) fn lower_view_with_divisor_policy(
         .map(|closure| (closure.id, closure))
         .collect::<BTreeMap<_, _>>();
     let wrapper = entry_wrapper(&functions, options.entry, lir.resources)?;
+    let summaries = incremental_scalar_policy.then(|| scalar_summaries::plan(&functions));
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     let mut intrinsics = BTreeSet::new();
     // Finish each function before retaining it: no whole-project Event buffer.
@@ -96,6 +98,10 @@ pub(crate) fn lower_view_with_divisor_policy(
             );
             continue;
         }
+        if let Some(value) = summaries.as_ref().and_then(|plan| plan.get(&function.id)) {
+            body.push(m::Item::Function(scalar_summaries::emit(function, value)));
+            continue;
+        }
         let emitted = FunctionEmitter {
             function,
             target: lir.target,
@@ -107,7 +113,7 @@ pub(crate) fn lower_view_with_divisor_policy(
             temporary: 0,
             continuation: 0,
             partial_packages: BTreeSet::new(),
-            safe_divisors: constant_divisor_guards.then(BTreeSet::new),
+            safe_divisors: incremental_scalar_policy.then(BTreeSet::new),
         }
         .emit()?
         .into_items()

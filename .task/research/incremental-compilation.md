@@ -110,3 +110,9 @@ CI闭环追加写集：.github/workflows/verify-main.yml（以实际现有主验
 研究LLVM组合需要完整远端验证，追加独立写集.github/workflows/research-llvm.yml、tools/ci/research_llvm_manifest.py及限定控制、changes/research-llvm-ci.md。保持官方verify-main.yml不变；研究workflow仅专项push和显式dispatch，复用官方全量workspace/reference/native/Clippy/证据保存及成功归档后缓存释放逻辑。固定SDK一次下载、校验后同时供官方安装和精确headers，按已冻四TU组合工具分别重链original/candidate，测试只显式加载candidate/lib并核对实际check_toolchain库SHA与来源收据。完整源码/patch/log/receipt失败也归档，不上传SDK、动态库或target。研究时限可独立90分钟，不降低测试/预算，也不把远端正确性验收称作本地性能结果。root独审、统一提交，不自行合入main。
 
 2026-11-01：继续在实际 73d6 差距上筛选完整当前输入的 O2 工作削减，边界见 `changes/research-current-input-o2-work.md`。追加明确写集 `crates/zil-llvm-api/src/lib.rs`、既有 `preflight.rs`、driver/backend 内的私有摘要、来源身份、图和除数模块，以及对应限定控制与新版本测量工具。常量摘要和验证专用路径已完成各自隔离比较，图必要条件剪枝、稳定身份/闭合删除、常量除数仍分别筛选；最终由 root 一次组合并以新源码身份进行 Rust 完整确认。作者、独审、诊断和正式时间窗口保持分离，原失败及所有负结果保留；Doing 和产品门状态不变。
+
+## Stage 7: restored environment and focused Rust-gap work
+
+2026-11-01: user requests continued implementation in this conversation and fewer redundant experiments. Restored the published older environment, fetched specialty HEAD 66f15461, rebuilt the selected four-TU LLVM candidate and current compiler. Old local Stage 6 raw records and session98995 completion receipt are absent; no completion or final archive is inferred. Main remains untouched. Use four representative cases for diagnosis and screen, then one meaningful confirmation after selecting an implementation.
+
+Current scoped candidate is `changes/research-verified-scalar-summaries.md`: bounded scalar summaries after current Verify/bind_lir and before machine CFG construction. Existing backend/research writing scope applies. Current handoff's historical integrity Fail is not upgraded; full-language/product acceptance is unchanged. Independent reviewer is review_incremental_slice1; root implements.

@@ -231,7 +231,7 @@ pub fn build_view_with_cancellation_and_stable_names(
             None,
         )]);
     }
-    let mut machine = crate::emit::lower_view_with_divisor_policy(
+    let mut machine = crate::emit::lower_view_with_incremental_scalar_policy(
         verified,
         lir,
         &options.emit,
