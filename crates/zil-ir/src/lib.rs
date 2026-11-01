@@ -1282,7 +1282,9 @@ pub enum InstructionKind {
         variant: u32,
         fields: Vec<LocalId>,
     },
-    /// Consume a complete Enum and close only its actual active variant.
+    /// Conditionally close only the actual active variant of an available Enum.
+    /// Storage-live vacant/transferred states are no-ops; an exact all-path
+    /// cleaned duplicate or storage-dead access remains invalid.
     DropEnum {
         local: LocalId,
     },
