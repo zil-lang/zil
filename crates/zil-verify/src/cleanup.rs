@@ -67,6 +67,10 @@ fn has_scoped_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
 fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
     match instruction {
         InstructionKind::Load(local)
+        | InstructionKind::VariantTagLocal { local, .. }
+        | InstructionKind::ReadVariantLocal { local, .. }
+        | InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::DropEnum { local }
         | InstructionKind::RegisterDefer { local, .. }
         | InstructionKind::Store { local, .. }
         | InstructionKind::DescribeLocal { local }
@@ -150,6 +154,15 @@ pub(super) fn check_function(
                 | InstructionKind::ErrorTag { .. }
                 | InstructionKind::ReadErrorUnion { .. } => required = true,
                 _ => {}
+            }
+            if matches!(
+                instruction.kind,
+                InstructionKind::VariantTagLocal { .. }
+                    | InstructionKind::ReadVariantLocal { .. }
+                    | InstructionKind::UnpackVariant { .. }
+                    | InstructionKind::DropEnum { .. }
+            ) {
+                required = true;
             }
             if let InstructionKind::MakeErrorUnion { is_error: true, .. } = instruction.kind {
                 budget.spend(error_values.len().saturating_add(1))?;
@@ -321,6 +334,23 @@ pub(super) fn check_function(
                                         instruction.span,
                                         "local operation occurs outside its active storage scope",
                                     ));
+                                }
+                            }
+                            if let InstructionKind::UnpackVariant { ref fields, .. } =
+                                instruction.kind
+                            {
+                                budget.spend(
+                                    fields
+                                        .len()
+                                        .saturating_mul(state.live.len().saturating_add(1)),
+                                )?;
+                                for target in fields {
+                                    if state.live.get(target) != Some(&scope) {
+                                        return Err(bad(
+                                            instruction.span,
+                                            "Unpack destinations must have active storage in the innermost arm scope",
+                                        ));
+                                    }
                                 }
                             }
                         }
