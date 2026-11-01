@@ -1,0 +1,8 @@
+    Checking zil-syntax v0.1.0 (/workspace/zil-243/crates/zil-syntax)
+    Checking zil-types v0.1.0 (/workspace/zil-243/crates/zil-types)
+    Checking zil-expand v0.1.0 (/workspace/zil-243/crates/zil-expand)
+    Checking zil-ct v0.1.0 (/workspace/zil-243/crates/zil-ct)
+    Checking zil-analyze v0.1.0 (/workspace/zil-243/crates/zil-analyze)
+    Checking zil-db v0.1.0 (/workspace/zil-243/crates/zil-db)
+    Checking zil-driver v0.1.0 (/workspace/zil-243/crates/zil-driver)
+    Finished `dev` profile [unoptimized] target(s) in 8.76s

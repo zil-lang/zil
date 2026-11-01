@@ -1,0 +1,19 @@
+     Locking 13 packages to highest Rust 1.99.1 compatible versions
+   Compiling typenum v1.20.1
+   Compiling hybrid-array v0.4.15
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling digest v0.11.3
+   Compiling cpufeatures v0.3.1
+   Compiling cfg-if v1.0.5
+   Compiling sha2 v0.11.1
+   Compiling zil-base v0.1.0 (/workspace/zil-238-regression/crates/zil-base)
+   Compiling zil-syntax v0.1.0 (/workspace/zil-238-regression/crates/zil-syntax)
+   Compiling zil-ir v0.1.0 (/workspace/zil-238-regression/crates/zil-ir)
+   Compiling zil-expand v0.1.0 (/workspace/zil-238-regression/crates/zil-expand)
+   Compiling impl240-expand-budget-q v0.0.0 (/tmp/impl240-expand-budget/q)
+    Finished `dev` profile [unoptimized] target(s) in 8.88s
+     Running `/workspace/.zil-env/target-240-q-budget/debug/impl240-expand-budget-q /tmp/impl240-expand-budget/receipts/q`
+work N=331 cycles=[331, 331, 331]; N-1 ResourceLimit, warm/fresh Core identical
+nodes N=124 cycles=[124, 124, 124]; N-1 ResourceLimit, warm/fresh Core identical
+owner Expand accepted=true

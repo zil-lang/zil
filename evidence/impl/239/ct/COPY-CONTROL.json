@@ -1,0 +1,42 @@
+{
+  "status": "PartialControlPass",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "zil-ct",
+    "--test",
+    "impl239_runtime_enum_ops",
+    "legacy_copy_enum_ssa_observations_still_execute_in_ct",
+    "--",
+    "--nocapture"
+  ],
+  "passed": 1,
+  "failed": 0,
+  "ignored": 0,
+  "filtered": 1,
+  "executed_CT_VM_cases": 2,
+  "new_runtime_local_opcode_CT_rejections": "NotRun: ordinary Verify positive control awaits complete242 Sum support",
+  "spec_hash_at_run": "644de5e6db8044ec1ffd175a3e544587a298abbcb2acd0e6f486ed223438997f",
+  "normative_hash_at_run": "bd08f2c436b53dc4f0c3cb5922a25a001ed8796193e8ad07fc16fcd7cbaca3a8",
+  "test_source_sha256": "37c27760de431c8ad7cfc860787e54dbf1b19227c9a8f33e0584f5a4ec620b69",
+  "base_ir_clippy": {
+    "status": "Pass",
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "-p",
+      "zil-base",
+      "-p",
+      "zil-ir",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "log": "239-ir-clippy01.log.gz"
+  },
+  "native_executions": 0
+}

@@ -1,0 +1,20 @@
+Err(
+    [
+        Diagnostic {
+            phase: Expand,
+            category: SafeReject,
+            code: "E-GENERIC-ARGUMENT",
+            message: "StoreElement fields require finite Copy or explicit direct manages resources",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 51,
+                    end: 52,
+                },
+            ),
+            notes: [],
+        },
+    ],
+)

@@ -1,0 +1,7 @@
+     Locking 13 packages to highest Rust 1.99.1 compatible versions
+   Compiling impl240-expand-budget-current v0.0.0 (/tmp/impl240-expand-budget/current)
+    Finished `dev` profile [unoptimized] target(s) in 0.20s
+     Running `/workspace/.zil-env/target-240/debug/impl240-expand-budget-current /tmp/impl240-expand-budget/receipts/current`
+work N=336 cycles=[336, 336, 336]; N-1 ResourceLimit, warm/fresh Core identical
+nodes N=126 cycles=[126, 126, 126]; N-1 ResourceLimit, warm/fresh Core identical
+owner Expand accepted=false

@@ -1,0 +1,4 @@
+    Checking zil-verify v0.1.0 (/workspace/zil-243/crates/zil-verify)
+    Checking zil-backend-llvm v0.1.0 (/workspace/zil-243/crates/zil-backend-llvm)
+    Checking zil-lower v0.1.0 (/workspace/zil-243/crates/zil-lower)
+    Finished `dev` profile [unoptimized] target(s) in 5.27s

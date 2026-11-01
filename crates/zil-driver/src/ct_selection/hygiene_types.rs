@@ -287,8 +287,10 @@ impl Renamer<'_> {
                         self.budget.node(variant.span, 1)?;
                         self.attributes(&mut variant.attributes, 2)?;
                         if let s::VariantFields::Tuple(types) = &mut variant.fields {
-                            for ty in types {
-                                self.ty(ty, 2)?;
+                            for field in types {
+                                // Rewrite only the type: retain the exact manages marker
+                                // and source span of the original tuple payload field.
+                                self.ty(&mut field.ty, 2)?;
                             }
                         }
                     }

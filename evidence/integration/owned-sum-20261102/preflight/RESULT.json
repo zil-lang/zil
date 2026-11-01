@@ -1,0 +1,31 @@
+{
+  "status": "DevelopmentNotFinalAcceptance",
+  "root_independent_244": {
+    "build_commit": "86f7dc3c5e69041f5e605f6cea74da0d7b4532aa",
+    "execution_tree": "28d752f0b7430865839d917c1d31ae98c828818d",
+    "api_builds": 2,
+    "normal_invalid_native": 74,
+    "actual_allocation_failures": 26,
+    "passed": true,
+    "oracle_imported": false
+  },
+  "historical_failures_preserved": [
+    "original invalid Unit pattern rejected by both Q and new",
+    "Analyze default budget failure",
+    "Codegen default budget failure",
+    "fmt preflight failure"
+  ],
+  "current_handoff": {
+    "errors": 1144,
+    "warnings": 0,
+    "new_239_244_records": "\u65bd\u5de5, not accepted"
+  },
+  "check_plan_self_test": "Pass",
+  "archive": {
+    "path": "raw.tar.gz",
+    "files": 514,
+    "bytes": 1602848,
+    "sha256": "f55dc69309f65a84f5a985689d77ed3dfa0852f65857a26d61b6312ca6e8a2a2",
+    "all_member_sha256_reverified": true
+  }
+}

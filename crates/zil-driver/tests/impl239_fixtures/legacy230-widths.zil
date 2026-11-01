@@ -1,0 +1,1 @@
+#for(n in [1,2]){enum Event{Empty,Data([i32;n])}#if(n==1){pub fn one()->i32{let e=Event.Data([3]);match e{Event.Empty()=>{return 0},Event.Data(x)=>{return x[0]}}}}else{pub fn two()->i32{let e=Event.Data([4,5]);match e{Event.Empty()=>{return 0},Event.Data(x)=>{return x[0]+x[1]}}}}}fn main()->i32=>one()+two()-12

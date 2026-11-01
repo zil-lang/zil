@@ -310,24 +310,27 @@ impl Parser<'_> {
                 let attributes = p.attributes()?;
                 let name = p.ident()?;
                 let fields = if p.eat(Symbol::LParen) {
-                    let mut fields = Vec::new();
-                    p.newlines();
-                    while !p.at(Symbol::RParen) {
-                        let start = p.peek().span;
-                        let manages = p.eat_word("manages");
-                        let ty = p.ty()?;
-                        fields.push(VariantTupleField {
-                            ty,
-                            manages,
-                            span: p.span_from(start),
-                        });
+                    let fields = p.scoped(true, |p| {
+                        let mut fields = Vec::new();
                         p.newlines();
-                        if !p.eat(Symbol::Comma) {
-                            break;
+                        while !p.at(Symbol::RParen) {
+                            let start = p.peek().span;
+                            let manages = p.eat_word("manages");
+                            let ty = p.ty()?;
+                            fields.push(VariantTupleField {
+                                ty,
+                                manages,
+                                span: p.span_from(start),
+                            });
+                            p.newlines();
+                            if !p.eat(Symbol::Comma) {
+                                break;
+                            }
+                            p.newlines();
                         }
-                        p.newlines();
-                    }
-                    p.expect(Symbol::RParen)?;
+                        p.expect(Symbol::RParen)?;
+                        Ok(fields)
+                    })?;
                     VariantFields::Tuple(fields)
                 } else if p.eat(Symbol::LBrace) {
                     let mut fields = Vec::new();

@@ -1,0 +1,165 @@
+{
+  "scope": "241 author-scoped Analyze delivery; independent/full/product are separate root obligations",
+  "status": {
+    "author_scoped": "Pass",
+    "independent": "NotRun",
+    "formal_full": "NotRun",
+    "product": "NotRun"
+  },
+  "source_commit": "8ef3f69ee334a6e5b9ab3395a70a93bccfa563e5",
+  "spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66",
+  "baseline_dispatch": "79ed2b4bf697d4d74fb40281528bcbe2aaba55f1",
+  "public_ir_checkpoint": "8738416ea95edfb22c00fa1952b125f1d4cae8d2",
+  "final_source_dependencies": [
+    "240:b77e8fb5d35e230344b9d7a49905be1abb065942",
+    "242:b55af00e0",
+    "norm:e3b8f374e2a96b9ca6b3b6e0de36ee6397235d5e"
+  ],
+  "final_cli": {
+    "path": "/workspace/.zil-env/target-241/debug/zil",
+    "sha256": "35e8016931e9b23e6319b2e364ed099924914f545b98f1875b60e312d3c1b3fa",
+    "feature": "llvm-api",
+    "execution": "check --stop-after analyze; no native machine execution for 244"
+  },
+  "final_runs": [
+    {
+      "log": "logs/241-final-lib06.log.gz",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-241 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 cargo test -p zil-analyze --lib -- --nocapture",
+      "selected": 63,
+      "passed": 63,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "new_sum_groups": 22,
+      "legacy_groups": 41
+    },
+    {
+      "log": "logs/241-clippy-final04.log.gz",
+      "command": "cargo clippy -p zil-analyze --all-targets -- -D warnings",
+      "status": "Pass"
+    },
+    {
+      "log": "logs/241-final-driver-controls.log.gz",
+      "command": "ZIL_TEST_REPORT_DIR=/tmp/241-final-driver-controls CARGO_TARGET_DIR=/workspace/.zil-env/target-241 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 cargo test -p zil-driver --features llvm-api --test impl206_budget --test impl235_budget --test impl238_product_replacement --test impl240_front --test impl236_zui_core -- --nocapture",
+      "suites": {
+        "impl206_budget": 2,
+        "impl235_budget": 2,
+        "impl238_product_replacement": 7,
+        "impl240_front": 10,
+        "impl236_zui_core": 3
+      },
+      "selected": 24,
+      "passed": 24,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "native_backend": "llvm-api",
+      "native_optimizations": [
+        "O0",
+        "O2"
+      ],
+      "native_runs": {
+        "impl238": 24,
+        "impl236": 40
+      },
+      "native_total_this_run_only": 64,
+      "native_receipts": "Actual stdout/stderr + compiler reports in archive; original successful Rust assertions check exit/stdout/stderr. No reconstructed exit.json."
+    },
+    {
+      "kind": "source frontend raw/Wire Analyze",
+      "artifact": "source-development-failure-and-final.tar.gz:final-source-raw-wire/RESULT.json",
+      "sources": [
+        "original03",
+        "original05",
+        "nested",
+        "product",
+        "copy_scratch"
+      ],
+      "raw_successes": 5,
+      "wire_successes": 5,
+      "native_runs": 0
+    },
+    {
+      "kind": "actual five-module CLI",
+      "command": "/workspace/.zil-env/target-241/debug/zil check tests/impl244/project/main.zil --backend llvm-api --stop-after analyze --emit-dir /tmp/241-consumer-final/phases --json",
+      "default_max_analysis_steps": 10000000,
+      "status": "Success",
+      "phase": "analyze",
+      "native_runs": 0
+    }
+  ],
+  "budgets": {
+    "new_sum_raw_N": 4303,
+    "N_minus_1": "ResourceLimit",
+    "fresh_N": "Pass",
+    "cold_and_warm_session_N": "Pass",
+    "old206_flat": {
+      "types": 418,
+      "analyze": 8673
+    },
+    "old235_legacy": {
+      "types": 835,
+      "analyze": 7129,
+      "verify": 12161
+    },
+    "old235_nested_store": {
+      "types": 3943,
+      "analyze": 82079,
+      "verify": 173575
+    }
+  },
+  "preserved_failures": [
+    {
+      "log": "logs/241-sum03.log.gz",
+      "result": "6 pass / 1 failure",
+      "kind": "author test wrongly rejected moved conditional DropEnum; corrected to frozen legacy cleanup semantics, raw failure retained"
+    },
+    {
+      "log": "logs/241-lib06.log.gz",
+      "result": "54 pass / 1 failure",
+      "kind": "true/false Branch to same target incorrectly refined; implementation fixed, original attack unchanged"
+    },
+    {
+      "artifact": "source-development-failure-and-final.tar.gz:source01-original/nested",
+      "kind": "real source old wrapper shell dropped after final owner publication; 240 fixed generation order, 241 did not weaken cleanup age"
+    },
+    {
+      "artifact": "original-consumer-budget-failure.tar.gz",
+      "kind": "root actual five-module default Analyze budget exhausted before shared immutable origins; byte-for-byte original retained"
+    },
+    {
+      "artifact": "consumer-final-and-first-shared.tar.gz:shared01-verify-block",
+      "kind": "first immutable-sharing run passed Analyze, then Verify exhausted; not counted as final Analyze failure or native success"
+    }
+  ],
+  "archives": [
+    {
+      "path": "original-consumer-budget-failure.tar.gz",
+      "sha256": "3d8c063266e020a0755ee1c2b41bce81d0e9df9ed8ae52dae758496702869403",
+      "bytes": 167621
+    },
+    {
+      "path": "source-development-failure-and-final.tar.gz",
+      "sha256": "59fd307fed4685f28eac9d9812353ae8ce29d3b921027a36c65a9437aa66e2a4",
+      "bytes": 182733
+    },
+    {
+      "path": "consumer-final-and-first-shared.tar.gz",
+      "sha256": "f575cae83fdf4e0ed50e20d3fca9511661ced5ee693cbc76c70955279a194e18",
+      "bytes": 342876
+    },
+    {
+      "path": "final-driver-controls.tar.gz",
+      "sha256": "cbc3eda4f8217b047e2a0212704edfe83f7e460753149f49066697112b5ba65b",
+      "bytes": 2244954
+    }
+  ],
+  "notes": [
+    "Reruns are not added to final coverage counts. Development logs retain earlier schema/norm identities and failures.",
+    "Ordinary Value Call leaves remain Incoming across calls; only existing verified direct Managed create contracts preserve fresh status.",
+    "Arc sharing exists only inside the compiler analysis. Distinct runtime carriers keep distinct lifecycle and cleanup identities.",
+    "No default limits, public schema, normative oracle or main branch changes authored by 241."
+  ],
+  "generated_at_utc": "2026-11-01T21:56:54.790893+00:00"
+}

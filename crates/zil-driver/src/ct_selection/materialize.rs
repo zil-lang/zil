@@ -130,8 +130,10 @@ impl Materializer<'_, '_> {
                     if !self.iterations.is_empty() {
                         self.generation_attributes(&mut variant.attributes, depth + 2)?;
                         if let s::VariantFields::Tuple(types) = &mut variant.fields {
-                            for ty in types {
-                                self.generation_type(ty, depth + 2)?;
+                            for field in types {
+                                // Rewrite only the type: retain the exact manages marker
+                                // and source span of the original tuple payload field.
+                                self.generation_type(&mut field.ty, depth + 2)?;
                             }
                         }
                     }
