@@ -9,3 +9,5 @@ Q实际探针已证明Copy enum、无Store嵌套Product错误载荷及两侧平�
 分工：239公共IR/CT机械、240前端、241 Analyze、242独立Verify、243机器层、244真实消费者与独审。原Q3446/3347正式回归、236原样消费者、旧预算和声明权限都是回归基线；正式全量仅root执行。实现方sol/high，复杂Verify与独审sol/xhigh，独审者不写生产源码。
 
 原设计讨论仅作历史，当前正文和接口优先。特别是旧草案的guard、新父年龄、裸SSA Unpack及只两条opcode均未采纳。最近反例包括旧tag在重填后比较、绕过成功边、多次Unpack、活目标覆盖、owning Read、来源洗白、活Store窗口跨切换、构造后项失败提前清旧值及递归右payload误序。
+
+施工对接实查230生成器：既有Clone保留字段元数据，类型卫生/替换就地处理TypeRef，旧finiteCopy限制仅来自Types全局枚举门。为保持手写/生成同核并避免来源名字特判，root明确将§16.6载荷扩至相同普通有限owned Enum；不新增声明种类/genericenum/Type/Syntax权限，原bare ByteBuffer非法反例保留。239补marker保真和生成/手写机器对照，244独审名义与清理。
