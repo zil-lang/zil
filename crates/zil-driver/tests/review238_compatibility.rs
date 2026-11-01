@@ -188,3 +188,66 @@ fn capture_view_compatibility_does_not_reopen_an_ordinary_dead_product_local() {
         assert!(!report.artifacts.contains_key("executable"));
     }
 }
+
+#[test]
+fn internal_self_pack_preserves_existing_owned_union_argument_injection() {
+    let mut p =
+        project("var p=library.make();p=library.relay_union(p);return library.finish(p)-40");
+    p.modules[1] = SourceUnit::new(
+        FileId(1),
+        ModuleId(1),
+        "library.zil",
+        r#"
+extern "C" fn putchar(code:i32)->i32;
+resource R{code:i32}
+impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}
+pub package P{manages owned:R;n:i32}
+pub fn make()->P{return P{owned:R{code:65},n:40}}
+pub fn relay_union(value:void!P)->P{return make()}
+pub fn finish(p:P)->i32{return p.n}
+"#,
+    );
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let out = dir("private-owned-union-injection");
+        save_sources(&out, &p);
+        let backend = if cfg!(feature = "llvm-api") {
+            NativeBackend::LlvmApi
+        } else {
+            NativeBackend::Clang
+        };
+        let report = compile_project(
+            &p,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                backend,
+                optimization,
+                output: Some(out.join("program")),
+                emit_dir: Some(out.join("phases")),
+                ..CompileOptions::default()
+            },
+        );
+        fs::write(out.join("report.json"), report.to_json()).unwrap();
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let summary = report.native_codegen.as_ref().unwrap();
+        assert_eq!(summary.backend, backend);
+        assert!(summary.fallback.is_none());
+        let result = Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        fs::write(out.join("stdout"), &result.stdout).unwrap();
+        fs::write(out.join("stderr"), &result.stderr).unwrap();
+        fs::write(
+            out.join("exit.txt"),
+            format!("{:?}\n", result.status.code()),
+        )
+        .unwrap();
+        assert_eq!(result.status.code(), Some(0));
+        assert_eq!(result.stdout, b"AA");
+        assert!(result.stderr.is_empty());
+    }
+}
