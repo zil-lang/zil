@@ -84,16 +84,23 @@ pub(crate) fn lower_view_with_closed_scalar_policy(
         .collect::<BTreeMap<_, _>>();
     let wrapper = entry_wrapper(&functions, options.entry, lir.resources)?;
     let summaries = incremental_scalar_policy.then(|| scalar_summaries::plan(&functions));
-    let omit_known_definitions = closed_scalar_collection
+    let collected = (closed_scalar_collection
         && options.entry == EntryPoint::Main
-        && lir.target.triple == "x86_64-unknown-linux-gnu"
-        && summaries
-            .as_ref()
-            .is_some_and(|facts| scalar_summaries::can_collect_closed(lir, facts));
+        && lir.target.triple == "x86_64-unknown-linux-gnu")
+        .then(|| {
+            summaries
+                .as_ref()
+                .and_then(|facts| scalar_summaries::collect_closed(lir, &functions, facts))
+        })
+        .flatten();
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     let mut intrinsics = BTreeSet::new();
     // Finish each function before retaining it: no whole-project Event buffer.
-    let mut body = Vec::with_capacity(lir.functions.len());
+    let mut body = Vec::with_capacity(
+        collected
+            .as_ref()
+            .map_or(lir.functions.len(), BTreeSet::len),
+    );
     for function in lir.functions {
         if function.foreign.is_some() {
             if matches!(options.entry, EntryPoint::ReturnValue(_))
@@ -115,10 +122,13 @@ pub(crate) fn lower_view_with_closed_scalar_policy(
             );
             continue;
         }
+        if collected
+            .as_ref()
+            .is_some_and(|needed| !needed.contains(&function.id))
+        {
+            continue;
+        }
         if let Some(value) = summaries.as_ref().and_then(|plan| plan.get(&function.id)) {
-            if omit_known_definitions && function.name != "main" {
-                continue;
-            }
             body.push(m::Item::Function(scalar_summaries::emit(function, value)));
             continue;
         }
@@ -345,7 +355,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy(
             fingerprint: verified.fingerprint().to_hex(),
             items,
         },
-        omit_known_definitions,
+        collected.is_some(),
     ))
 }
 

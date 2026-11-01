@@ -265,7 +265,7 @@ fn constant_fact_does_not_hide_a_later_effectful_or_trapping_zero_arg_call() {
 
 #[test]
 fn closed_collection_omits_known_definitions_but_keeps_entry_and_effectful_helpers() {
-    let source = "fn unused()->i32{return 19;}fn known()->i32{return 66;}fn effect()->i32{unsafe{putchar(65);}return 0;}extern \"C\" fn putchar(x:i32)->i32;fn main()->i32{effect();unsafe{putchar(known());}return 0;}";
+    let source = "fn unused()->i32{return 19;}fn known()->i32{return with_parameter(65);}fn effect()->i32{unsafe{putchar(65);}return 0;}extern \"C\" fn putchar(x:i32)->i32;fn main()->i32{effect();unsafe{putchar(known());}return 0;}fn with_parameter(x:i32)->i32{return x+1;}";
     for closed in [false, true] {
         let dir = Dir::new();
         let llvm = dir.compile_main(source, closed);
@@ -275,6 +275,11 @@ fn closed_collection_omits_known_definitions_but_keeps_entry_and_effectful_helpe
         assert!(output.stderr.is_empty());
         assert_eq!(llvm.contains("@zil.fn.0("), !closed);
         assert_eq!(llvm.contains("@zil.fn.1("), !closed);
+        assert_eq!(
+            llvm.contains("@zil.fn.5("),
+            !closed,
+            "unreachable parameter helper"
+        );
         assert!(llvm.contains("@zil.fn.2("), "effect helper remains: {llvm}");
         assert!(llvm.contains("@zil.fn.4("), "source entry remains: {llvm}");
         assert!(llvm.contains("define i32 @main("), "native wrapper remains");

@@ -1,5 +1,6 @@
 //! Request-local evaluation of already bound, independently verified scalar CFGs.
-//! A failed/partial evaluation never changes the emitted function.
+//! Failed/partial evaluation never supplies a constant result. Closed collection
+//! separately omits unreachable functions in the supported scalar subset.
 use super::*;
 
 const MAX_WORK: usize = 1_000_000;
@@ -266,50 +267,65 @@ pub(super) fn argument(c: &Constant) -> m::Arg {
     m::Arg::new(ty, value)
 }
 
-/// Closed collection is deliberately narrower than general reachability. All
-/// omitted bodies have already become valid scalar returns; the remaining
-/// source can refer to them only through calls replaced by the same facts.
-pub(super) fn can_collect_closed(
+/// Restrict collection to verified scalar bodies with known emission support.
+/// Unsupported bodies remain roots even when unreachable, preserving their
+/// original diagnostics. A current constant fact removes only a direct edge.
+pub(super) fn collect_closed(
     lir: &LirView<'_>,
+    functions: &BTreeMap<FunctionId, &TypedFunction>,
     facts: &BTreeMap<FunctionId, Constant>,
-) -> bool {
+) -> Option<BTreeSet<FunctionId>> {
     if !lir.closures.is_empty() || !lir.resources.is_empty() || facts.is_empty() {
-        return false;
+        return None;
     }
-    let mut kept = 0usize;
+    let mut kept = lir
+        .functions
+        .iter()
+        .filter(|f| f.foreign.is_none() && (f.name == "main" || !eligible(f)))
+        .map(|f| f.id)
+        .collect::<BTreeSet<_>>();
+    let mut pending = kept.iter().copied().collect::<Vec<_>>();
     let mut work = 4096usize;
-    let mut omitted = false;
-    for f in lir.functions {
-        if f.foreign.is_some() {
-            // Declarations still take the complete original ABI emission path.
+    while let Some(id) = pending.pop() {
+        if kept.len() > 8 {
+            return None;
+        }
+        let f = functions.get(&id)?;
+        if facts.contains_key(&id) {
+            // This definition emits only a scalar return, not its original calls.
             continue;
         }
-        if f.name != "main" && facts.contains_key(&f.id) {
-            omitted = true;
-            continue;
-        }
-        kept += 1;
-        let Some(remaining) = work.checked_sub(f.locals.len() + f.values.len() + f.blocks.len())
-        else {
-            return false;
-        };
-        work = remaining;
-        if kept > 8
+        work = work.checked_sub(
+            f.locals
+                .len()
+                .checked_add(f.values.len())?
+                .checked_add(f.blocks.len())?,
+        )?;
+        if f.foreign.is_some()
             || f.environment.is_some()
             || !scalar(&f.return_type)
             || f.locals.iter().any(|l| !scalar(&l.ty))
             || f.values.iter().any(|ty| !scalar(ty))
         {
-            return false;
+            return None;
         }
         for block in &f.blocks {
-            let Some(remaining) = work.checked_sub(block.instructions.len()) else {
-                return false;
-            };
-            work = remaining;
+            work = work.checked_sub(block.instructions.len())?;
             for instruction in &block.instructions {
                 match &instruction.kind {
                     InstructionKind::Constant(c) if scalar(&c.ty()) => {}
+                    InstructionKind::Call {
+                        function,
+                        arguments,
+                    } => {
+                        // Facts are exclusively for zero-parameter functions;
+                        // check actual arguments too, just as the emitter does.
+                        if !(arguments.is_empty() && facts.contains_key(function))
+                            && kept.insert(*function)
+                        {
+                            pending.push(*function);
+                        }
+                    }
                     InstructionKind::Load(_)
                     | InstructionKind::Store { .. }
                     | InstructionKind::StorageLive(_)
@@ -321,16 +337,18 @@ pub(super) fn can_collect_closed(
                     | InstructionKind::Unary { .. }
                     | InstructionKind::Binary { .. }
                     | InstructionKind::ConvertInteger { .. }
-                    | InstructionKind::Call { .. }
                     | InstructionKind::ForeignCall { .. } => {}
                     // Addresses, closure/resource helpers and future operations
                     // keep the original complete machine-generation path.
-                    _ => return false,
+                    _ => return None,
                 }
             }
         }
     }
-    omitted
+    lir.functions
+        .iter()
+        .any(|f| f.foreign.is_none() && !kept.contains(&f.id))
+        .then_some(kept)
 }
 
 pub(super) fn emit(f: &TypedFunction, c: &Constant) -> m::Function {
