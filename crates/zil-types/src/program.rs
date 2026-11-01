@@ -138,6 +138,22 @@ pub(super) fn check_resolved_program_with_reuse(
     // Reserve the complete ordinary-function range before any local closure
     // gets an identity. Generated environment entries never enter interfaces.
     let mut closure_state = closures::State::new(count, limits);
+    if program
+        .modules
+        .iter()
+        .any(|m| !m.core.aggregate_applications.is_empty())
+    {
+        closure_state
+            .snapshot(program.modules.len(), Span::default())
+            .map_err(|e| vec![e])?;
+        let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+        let mut product_work = limits.max_analysis_steps;
+        closure_state.products = aggregate_templates::origins(&modules, limits, &mut product_work)
+            .map_err(|e| vec![e])?;
+        closure_state
+            .snapshot(limits.max_analysis_steps - product_work, Span::default())
+            .map_err(|e| vec![e])?;
+    }
     closure_state.resource_writes =
         resource_effects::program(program, &signatures_by_module, limits).map_err(|e| vec![e])?;
     let mut enum_work = limits.max_analysis_steps;

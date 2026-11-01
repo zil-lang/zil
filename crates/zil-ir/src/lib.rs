@@ -281,6 +281,10 @@ pub struct CoreModule {
     pub source_fingerprint: Fingerprint,
     pub functions: Vec<CoreFunction>,
     pub aggregates: Vec<CoreAggregate>,
+    /// Untrusted finite Product recipes; empty on pre-237 source paths.
+    pub aggregate_templates: Vec<CoreAggregateTemplate>,
+    /// Exact nominal applications, never ownership certificates.
+    pub aggregate_applications: Vec<CoreAggregateApplication>,
     pub enums: Vec<CoreEnum>,
     pub unsupported: Vec<UnsupportedFeature>,
 }
@@ -296,6 +300,59 @@ pub struct CoreTypeParameter {
     pub index: u32,
     pub name: String,
     pub bound: CoreTypeBound,
+}
+
+/// A finite Package family's original declaration and field recipe.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreAggregateTemplate {
+    pub id: NodeId,
+    pub name: String,
+    pub parameter: CoreTypeParameter,
+    pub fields: Vec<CoreAggregateFieldRecipe>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreAggregateFieldRecipe {
+    pub name: String,
+    pub public: bool,
+    pub manages: bool,
+    pub ty: CoreAggregateTypeRecipe,
+    pub span: Span,
+}
+/// Recipe Parameter refers only to this template's formal declaration slot.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CoreAggregateTypeRecipe {
+    Concrete(Type),
+    Parameter {
+        index: u32,
+    },
+    Store {
+        element: Box<CoreAggregateTypeRecipe>,
+    },
+    Apply {
+        module: ModuleId,
+        template: NodeId,
+        arguments: Vec<CoreAggregateTypeRecipe>,
+    },
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreAggregateApplication {
+    pub aggregate: NodeId,
+    pub template_module: ModuleId,
+    pub template: NodeId,
+    pub owner: Option<CoreAggregateOwner>,
+    pub arguments: Vec<CoreAggregateArgument>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CoreAggregateOwner {
+    pub module: ModuleId,
+    pub function: NodeId,
+}
+/// Application Parameter refers only to the actual owner's function binder.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CoreAggregateArgument {
+    Concrete(Type),
+    Parameter { index: u32 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1569,7 +1626,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V28\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V29\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);

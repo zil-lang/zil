@@ -318,6 +318,8 @@ mod tests {
     }
     fn module(kind: CoreStatementKind) -> CoreModule {
         CoreModule {
+            aggregate_templates: Vec::new(),
+            aggregate_applications: Vec::new(),
             schema_version: zil_base::SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,

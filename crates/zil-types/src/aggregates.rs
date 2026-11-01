@@ -320,7 +320,32 @@ fn resolve_indexed(
             }
         }
     }
+    let mut generic_modules = Vec::new();
+    if !core.aggregate_templates.is_empty()
+        || !core.aggregate_applications.is_empty()
+        || project
+            .iter()
+            .any(|m| !m.aggregate_templates.is_empty() || !m.aggregate_applications.is_empty())
+    {
+        aggregate_templates::spend(remaining, project.len().saturating_add(1), Span::default())
+            .map_err(|e| vec![e])?;
+        generic_modules.push(&core);
+        generic_modules.extend(
+            project
+                .iter()
+                .copied()
+                .filter(|m| m.module_id != core.module_id),
+        );
+    }
+    let generic = aggregate_templates::Index::new(&generic_modules, limits, remaining)
+        .map_err(|e| vec![e])?;
     let mut resolver = Resolver {
+        generic,
+        generic_types: BTreeMap::new(),
+        generic_active: BTreeSet::new(),
+        current_owner: None,
+        metadata_context: true,
+        generic_limits: limits.clone(),
         ordinary_parameter: None,
         active_callable_parameters: &[],
         active_state_parameters: &[],
@@ -391,6 +416,8 @@ fn resolve_indexed(
     let mut functions = std::mem::take(&mut core.functions);
     for (f, (callable_parameters, state_parameters)) in functions.iter_mut().zip(&original_headers)
     {
+        resolver.current_owner = Some((core.module_id, f.id));
+        resolver.metadata_context = false;
         resolver.active_callable_parameters = callable_parameters;
         resolver.active_state_parameters = state_parameters;
         store_templates::validate_header(f).map_err(|e| vec![e])?;
@@ -460,14 +487,38 @@ fn resolve_indexed(
         resolver.active_callable_parameters = &[];
         resolver.active_state_parameters = &[];
     }
+    resolver.current_owner = None;
+    resolver.metadata_context = true;
+    let resolved_arguments = std::mem::take(&mut resolver.generic.resolved);
     *remaining = resolver.remaining;
     let mut aggregates = core.aggregates.clone();
     for aggregate in &mut aggregates {
+        let application = resolver
+            .generic
+            .applications
+            .get(&aggregate.name)
+            .map(|(_, a, _)| a.clone());
+        resolver.current_owner =
+            application.and_then(|a| a.owner.as_ref().map(|o| (o.module, o.function)));
+        resolver.ordinary_parameter = resolver
+            .current_owner
+            .and_then(|o| resolver.generic.owners.get(&o))
+            .and_then(|b| b.ordinary.clone());
         for field in &mut aggregate.fields {
             field.ty = resolver.field_type(field, 0).map_err(|e| vec![e])?;
         }
     }
     *remaining = resolver.remaining;
+    drop(resolver);
+    for application in &mut core.aggregate_applications {
+        if let Some(arguments) = resolved_arguments.get(&(core.module_id, application.aggregate)) {
+            for (arg, resolved) in application.arguments.iter_mut().zip(arguments) {
+                if matches!(arg, CoreAggregateArgument::Concrete(_)) {
+                    *arg = CoreAggregateArgument::Concrete(resolved.clone());
+                }
+            }
+        }
+    }
     core.aggregates = aggregates;
     core.functions = functions;
     core.enums = resolved_enums;
@@ -487,6 +538,12 @@ fn owned_mode_type(ty: &Type) -> Type {
 }
 
 struct Resolver<'a> {
+    generic: aggregate_templates::Index,
+    generic_types: BTreeMap<String, Type>,
+    generic_active: BTreeSet<aggregate_templates::Family>,
+    current_owner: Option<aggregate_templates::Owner>,
+    metadata_context: bool,
+    generic_limits: Limits,
     callable_names: BTreeSet<String>,
     ordinary_parameter: Option<String>,
     active_callable_parameters: &'a [CoreCallableParameter],
@@ -635,6 +692,25 @@ impl Resolver<'_> {
     }
     fn ty(&mut self, ty: &Type, depth: usize, span: Span) -> R<Type> {
         self.charge(depth, span)?;
+        if let Type::Named(name) = ty
+            && self.generic.applications.contains_key(name)
+        {
+            return self.generic_application(name, depth, span);
+        }
+        if let Type::Package { name, .. } = ty
+            && !self.metadata_context
+            && self
+                .generic
+                .symbolic_names
+                .get(name)
+                .is_some_and(|owner| Some(*owner) != self.current_owner)
+        {
+            return Err(error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "symbolic Product used outside its exact lexical owner",
+            ));
+        }
         Ok(match ty {
             Type::Named(name) if self.ordinary_parameter.as_ref() == Some(name) => ty.clone(),
             Type::Named(name) if name == "ByteBuffer" => Type::Desc(Box::new(Type::ByteBuffer)),
@@ -1725,5 +1801,315 @@ impl Builder<'_, '_> {
             }
         }
         hints
+    }
+}
+
+impl Resolver<'_> {
+    fn generic_check_names(
+        &mut self,
+        ty: &Type,
+        bindings: &aggregate_templates::Bindings,
+        span: Span,
+    ) -> R<()> {
+        aggregate_templates::type_work(ty, &self.generic_limits, &mut self.remaining, span)?;
+        fn check(ty: &Type, b: &aggregate_templates::Bindings) -> bool {
+            match ty {
+                Type::Named(n) => b.names().any(|name| name == n),
+                Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                    fields.iter().all(|(_, t)| check(t, b))
+                }
+                Type::Tuple(ts) => ts.iter().all(|t| check(t, b)),
+                Type::Managed(t)
+                | Type::Desc(t)
+                | Type::Address { inner: t, .. }
+                | Type::OwnedStore { element: t }
+                | Type::Array { element: t, .. }
+                | Type::Slice { element: t }
+                | Type::Opaque { hidden: t, .. } => check(t, b),
+                Type::ErrorUnion { error, result } => check(error, b) && check(result, b),
+                Type::Enum { variants, .. } => variants
+                    .iter()
+                    .all(|(_, ts)| ts.iter().all(|t| check(t, b))),
+                Type::FunctionPointer { parameters, result }
+                | Type::ForeignCallback { parameters, result } => {
+                    parameters.iter().all(|t| check(t, b)) && check(result, b)
+                }
+                _ => true,
+            }
+        }
+        if !check(ty, bindings) {
+            return Err(error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "generic Product contains a free type outside its declared scope",
+            ));
+        }
+        Ok(())
+    }
+    fn generic_application(&mut self, name: &str, depth: usize, span: Span) -> R<Type> {
+        let (module, application, header) = self.generic.applications[name].clone();
+        let owner = application.owner.as_ref().map(|o| (o.module, o.function));
+        let bindings = owner
+            .and_then(|o| self.generic.owners.get(&o))
+            .cloned()
+            .unwrap_or_default();
+        if let Some(cached) = self.generic_types.get(name) {
+            let Type::Package { name: nominal, .. } = cached else {
+                unreachable!()
+            };
+            if !self.metadata_context
+                && self
+                    .generic
+                    .symbolic_names
+                    .get(nominal)
+                    .is_some_and(|o| Some(*o) != self.current_owner)
+            {
+                return Err(error(
+                    "E-PRODUCT-TEMPLATE",
+                    span,
+                    "symbolic Product used outside its exact lexical owner",
+                ));
+            }
+            aggregate_templates::type_work(
+                cached,
+                &self.generic_limits,
+                &mut self.remaining,
+                span,
+            )?;
+            return Ok(cached.clone());
+        }
+        let saved_owner = self.current_owner;
+        let saved_ordinary = self.ordinary_parameter.clone();
+        if self.metadata_context {
+            self.current_owner = owner;
+            self.ordinary_parameter = bindings.ordinary.clone();
+        }
+        let mut args = Vec::new();
+        aggregate_templates::spend(&mut self.remaining, application.arguments.len(), span)?;
+        for argument in &application.arguments {
+            let ty = match argument {
+                CoreAggregateArgument::Concrete(t) => self.ty(t, depth + 1, span)?,
+                CoreAggregateArgument::Parameter { index: 0 } => {
+                    Type::Named(bindings.ordinary.clone().ok_or_else(|| {
+                        error(
+                            "E-PRODUCT-TEMPLATE",
+                            span,
+                            "Product argument has no ordinary owner binder",
+                        )
+                    })?)
+                }
+                _ => {
+                    return Err(error(
+                        "E-PRODUCT-TEMPLATE",
+                        span,
+                        "Product argument binder index is invalid",
+                    ));
+                }
+            };
+            self.generic_check_names(&ty, &bindings, span)?;
+            args.push(ty);
+        }
+        let symbolic = args.iter().any(|t| aggregate_templates::free(t, &bindings));
+        if symbolic && !self.metadata_context && owner != self.current_owner {
+            return Err(error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "generic Product argument belongs to another lexical function",
+            ));
+        }
+        let family = (application.template_module, application.template);
+        let ty = self.generic_materialize(
+            family,
+            &args,
+            if symbolic { owner } else { None },
+            depth + 1,
+            span,
+        )?;
+        let template = self.generic.templates[&family].clone();
+        if header.fields.len() != template.fields.len() {
+            return Err(error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "Product header and original recipe field counts differ",
+            ));
+        }
+        let Type::Package { fields, .. } = &ty else {
+            unreachable!()
+        };
+        for ((actual, recipe), (_, expected)) in
+            header.fields.iter().zip(&template.fields).zip(fields)
+        {
+            if actual.name != recipe.name
+                || actual.public != recipe.public
+                || actual.manages != recipe.manages
+            {
+                return Err(error(
+                    "E-PRODUCT-TEMPLATE",
+                    span,
+                    "Product header differs from its original field recipe",
+                ));
+            }
+            let actual = self.field_type(actual, depth + 1)?;
+            aggregate_templates::type_work(
+                &actual,
+                &self.generic_limits,
+                &mut self.remaining,
+                span,
+            )?;
+            aggregate_templates::type_work(
+                expected,
+                &self.generic_limits,
+                &mut self.remaining,
+                span,
+            )?;
+            if actual != *expected {
+                return Err(error(
+                    "E-PRODUCT-TEMPLATE",
+                    span,
+                    "Product header type differs from its original field recipe",
+                ));
+            }
+        }
+        self.current_owner = saved_owner;
+        self.ordinary_parameter = saved_ordinary;
+        aggregate_templates::type_work(&ty, &self.generic_limits, &mut self.remaining, span)?;
+        self.generic
+            .resolved
+            .insert((module, application.aggregate), args);
+        self.generic_types.insert(name.to_owned(), ty.clone());
+        Ok(ty)
+    }
+    fn generic_materialize(
+        &mut self,
+        family: aggregate_templates::Family,
+        args: &[Type],
+        owner: Option<aggregate_templates::Owner>,
+        depth: usize,
+        span: Span,
+    ) -> R<Type> {
+        self.charge(depth, span)?;
+        aggregate_templates::spend(
+            &mut self.remaining,
+            self.generic_active.len().saturating_add(1),
+            span,
+        )?;
+        if !self.generic_active.insert(family) {
+            return Err(error(
+                "E-INFINITE-LAYOUT",
+                span,
+                "recursive generic Product recipe has infinite layout",
+            ));
+        }
+        let template = self
+            .generic
+            .templates
+            .get(&family)
+            .cloned()
+            .ok_or_else(|| {
+                error(
+                    "E-PRODUCT-TEMPLATE",
+                    span,
+                    "generic Product family is absent",
+                )
+            })?;
+        if args.len() != 1 {
+            return Err(error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "generic Product needs one complete type argument",
+            ));
+        }
+        aggregate_templates::spend(&mut self.remaining, template.fields.len(), span)?;
+        let mut fields = Vec::new();
+        for f in &template.fields {
+            let field = self.generic_recipe(&f.ty, args, owner, depth + 1, f.span)?;
+            let field = if f.manages {
+                if let Type::Desc(p) = field {
+                    Type::Managed(p)
+                } else {
+                    field
+                }
+            } else {
+                field
+            };
+            let raw = CoreField {
+                name: f.name.clone(),
+                ty: field,
+                public: f.public,
+                manages: f.manages,
+                span: f.span,
+            };
+            let ty = self.field_type(&raw, depth + 1)?;
+            fields.push((f.name.clone(), ty));
+        }
+        let name = aggregate_templates::canonical(
+            family,
+            args,
+            owner,
+            &self.generic_limits,
+            &mut self.remaining,
+            span,
+        )?;
+        if let Some(owner) = owner {
+            aggregate_templates::spend(&mut self.remaining, name.len().saturating_add(1), span)?;
+            self.generic.symbolic_names.insert(name.clone(), owner);
+        }
+        let ty = Type::Package { name, fields };
+        packages::product::validate_owned(&ty, &mut self.remaining, self.depth_limit, span)?;
+        self.generic_active.remove(&family);
+        Ok(ty)
+    }
+    fn generic_recipe(
+        &mut self,
+        recipe: &CoreAggregateTypeRecipe,
+        args: &[Type],
+        owner: Option<aggregate_templates::Owner>,
+        depth: usize,
+        span: Span,
+    ) -> R<Type> {
+        self.charge(depth, span)?;
+        match recipe {
+            CoreAggregateTypeRecipe::Concrete(t) => {
+                // Concrete recipe syntax is in the aggregate declaration, not
+                // the caller's T/F scope. It cannot capture a same-spelled binder.
+                let saved = self.ordinary_parameter.take();
+                let ty = self.ty(t, depth + 1, span)?;
+                self.ordinary_parameter = saved;
+                self.generic_check_names(&ty, &aggregate_templates::Bindings::default(), span)?;
+                Ok(ty)
+            }
+            CoreAggregateTypeRecipe::Parameter { index: 0 } => {
+                aggregate_templates::type_work(
+                    &args[0],
+                    &self.generic_limits,
+                    &mut self.remaining,
+                    span,
+                )?;
+                Ok(args[0].clone())
+            }
+            CoreAggregateTypeRecipe::Parameter { .. } => Err(error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "generic Product formal index is invalid",
+            )),
+            CoreAggregateTypeRecipe::Store { element } => {
+                let element = self.generic_recipe(element, args, owner, depth + 1, span)?;
+                Ok(Type::Desc(Box::new(Type::OwnedStore {
+                    element: Box::new(element),
+                })))
+            }
+            CoreAggregateTypeRecipe::Apply {
+                module,
+                template,
+                arguments,
+            } => {
+                aggregate_templates::spend(&mut self.remaining, arguments.len(), span)?;
+                let mut actual = Vec::new();
+                for a in arguments {
+                    actual.push(self.generic_recipe(a, args, owner, depth + 1, span)?);
+                }
+                self.generic_materialize((*module, *template), &actual, owner, depth + 1, span)
+            }
+        }
     }
 }

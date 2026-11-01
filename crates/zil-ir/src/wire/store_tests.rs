@@ -152,8 +152,8 @@ fn current_wire_rejects_all_old_versions_and_next_unknown_version() {
     let limits = Limits::default();
     let mut writer = Writer::new(&limits);
     writer.header(MODULE_MAGIC).unwrap();
-    assert_eq!(WIRE_VERSION, 28);
-    assert_eq!(SCHEMA_VERSION, 28);
+    assert_eq!(WIRE_VERSION, 29);
+    assert_eq!(SCHEMA_VERSION, 29);
     Reader::new(&writer.output, &limits)
         .unwrap()
         .header(MODULE_MAGIC)
