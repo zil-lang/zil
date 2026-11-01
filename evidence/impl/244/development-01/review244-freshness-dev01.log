@@ -1,0 +1,46 @@
+   Compiling typenum v1.20.1
+   Compiling hybrid-array v0.4.15
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling digest v0.11.3
+   Compiling cpufeatures v0.3.1
+   Compiling cfg-if v1.0.5
+   Compiling sha2 v0.11.1
+   Compiling zil-base v0.1.0 (/workspace/zil-244/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/zil-244/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/zil-244/crates/zil-verify)
+   Compiling zil-llvm-api v0.1.0 (/workspace/zil-244/crates/zil-llvm-api)
+   Compiling zil-syntax v0.1.0 (/workspace/zil-244/crates/zil-syntax)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-244/crates/zil-backend-llvm)
+   Compiling zil-expand v0.1.0 (/workspace/zil-244/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/zil-244/crates/zil-types)
+   Compiling zil-ct v0.1.0 (/workspace/zil-244/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/zil-244/crates/zil-lower)
+   Compiling zil-analyze v0.1.0 (/workspace/zil-244/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/zil-244/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/zil-244/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 32.04s
+     Running tests/review241_freshness.rs (/workspace/.zil-env/target-244/debug/deps/review241_freshness-3dd680795a02d4be)
+
+running 4 tests
+
+thread 'value_factories_and_nonidentity_repacking_do_not_export_freshness' (250067) panicked at crates/zil-driver/tests/review241_freshness.rs:30:18:
+factory/raw: ordinary Value returned Created authority
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test value_factories_and_nonidentity_repacking_do_not_export_freshness ... FAILED
+
+thread 'value_identity_does_not_reexport_a_created_leaf' (250068) panicked at crates/zil-driver/tests/review241_freshness.rs:30:18:
+identity/raw: ordinary Value returned Created authority
+test value_identity_does_not_reexport_a_created_leaf ... FAILED
+test direct_pack_unpack_and_explicit_managed_create_remain_fresh ... ok
+test same_typed_inline_fields_keep_their_actual_freshness_separate ... ok
+
+failures:
+
+failures:
+    value_factories_and_nonidentity_repacking_do_not_export_freshness
+    value_identity_does_not_reexport_a_created_leaf
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p zil-driver --test review241_freshness`
