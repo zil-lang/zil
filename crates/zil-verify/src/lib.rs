@@ -578,8 +578,9 @@ fn check_type_shape(
     limits: &Limits,
     budget: &mut Budget,
 ) -> Check<()> {
-    let mut pending = vec![(ty, 0usize)];
-    while let Some((ty, depth)) = pending.pop() {
+    let mut first = Some((ty, 0usize));
+    let mut pending = Vec::new();
+    while let Some((ty, depth)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
         if depth > limits.max_call_depth {
             return Err(limit("aggregate type nesting exceeds verification limit"));
@@ -653,8 +654,9 @@ fn check_type_shape(
 // Called only after check_type_shape has bounded the raw tree. Keeping
 // admission independent from producer helpers is part of the trust boundary.
 fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
-    let mut pending = vec![ty];
-    while let Some(ty) = pending.pop() {
+    let mut first = Some(ty);
+    let mut pending = Vec::new();
+    while let Some(ty) = first.take().or_else(|| pending.pop()) {
         match ty {
             Type::Unit
             | Type::Bool

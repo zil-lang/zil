@@ -247,13 +247,13 @@ impl PreparedCache {
 }
 // Derived Hash emits many small fields. Coalesce only their writes, preserving
 // the exact byte stream and SHA-256 keys of the unbuffered implementation.
-struct BufferedHasher {
+pub(crate) struct BufferedHasher {
     state: FingerprintBuilder,
     buffer: [u8; 4096],
     used: usize,
 }
 impl BufferedHasher {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             state: FingerprintBuilder::new(),
             buffer: [0; 4096],
@@ -264,9 +264,15 @@ impl BufferedHasher {
         self.state.update(&self.buffer[..self.used]);
         self.used = 0;
     }
-    fn digest(mut self) -> Fingerprint {
+    pub(crate) fn digest(mut self) -> Fingerprint {
         self.flush();
         self.state.digest()
+    }
+    pub(crate) fn digest_reset(&mut self) -> Fingerprint {
+        self.flush();
+        // Only the SHA state is fresh. The scratch buffer stays allocated;
+        // used == 0 prevents bytes from the previous stream being observed.
+        std::mem::take(&mut self.state).digest()
     }
 }
 impl Hasher for BufferedHasher {
@@ -603,6 +609,36 @@ mod tests {
             buffered.digest(),
             Fingerprint::of(&[b"prefix".as_slice(), &large, b"suffix"].concat())
         );
+    }
+    #[test]
+    fn buffered_digest_reset_starts_an_independent_stream() {
+        let mut buffered = BufferedHasher::new();
+        for (size, chunk) in [
+            (8193, 7),
+            (0, 1),
+            (63, 1),
+            (4096, 4096),
+            (65, 63),
+            (4097, 4097),
+            (1, 1),
+            (0, 1),
+        ] {
+            let input = (0..size).map(|i| (i * 29 + size) as u8).collect::<Vec<_>>();
+            let expected = Fingerprint::of(&input);
+            for bytes in input.chunks(chunk) {
+                buffered.write(bytes);
+            }
+            assert_eq!(
+                buffered.finish(),
+                u64::from_le_bytes(expected.0[..8].try_into().unwrap())
+            );
+            assert_eq!(
+                buffered.digest_reset(),
+                expected,
+                "size={size}, chunk={chunk}"
+            );
+        }
+        assert_eq!(buffered.digest(), Fingerprint::of(&[]));
     }
     #[test]
     fn buffered_machine_keys_match_large_initializers_and_global_fields() {

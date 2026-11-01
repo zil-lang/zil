@@ -51,6 +51,64 @@ fn ordinary_source_borrows_current_input_and_matches_raw_types_after_ct() {
 }
 
 #[test]
+fn scalar_shape_resolution_keeps_control_flow_conversions_and_current_errors() {
+    let ordinary = r#"
+extern "C" fn abs(x:i32)->i32;
+fn add(x:i32)->i32{return x+1;}
+fn result()->i32{
+    var i:i32=0;var total:i32=0;
+    while i<5 {
+        i=i+1;
+        if i==2 {continue;}
+        total=total+add(i);
+        if i==4 {break;}
+    }
+    let converted:i32=i32(u16(total));
+    let sign=if !(converted<0){1}else{2};
+    unsafe{return abs(converted)+sign;}
+}
+"#;
+    for (text, valid) in [
+        (ordinary.to_owned(), true),
+        (
+            ordinary.replace("abs(converted)+sign", "unknown+sign"),
+            false,
+        ),
+        (ordinary.replace("abs(converted)+sign", "true"), false),
+    ] {
+        let program = core(&text);
+        let limits = Limits::default();
+        let prepared = zil_types::infer_program_for_ct(&program, &limits)
+            .unwrap()
+            .into_prepared();
+        let expected = zil_types::check_program(&program, &TargetProfile::default(), &limits);
+        assert_eq!(expected.is_ok(), valid);
+        assert_eq!(
+            zil_types::check_prepared_program(&prepared, &TargetProfile::default(), &limits),
+            expected
+        );
+        let report = CompilationSession::default().compile_project(
+            &ProjectSources {
+                root: ModuleId(0),
+                modules: vec![source(&text)],
+                paths: BTreeMap::new(),
+            },
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status == ResultCategory::Success,
+            valid,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, usize::from(valid));
+    }
+}
+
+#[test]
 fn changed_ct_and_closure_inference_still_run_the_ordinary_types_path() {
     for (text, borrowed) in [
         ("fn result()->i64{return #(1+2);}", true),

@@ -360,8 +360,11 @@ pub(super) fn preflight(
             budget.spend(1, "Product Store instruction admission entry")?;
             product_store_elements.push(element);
         }
-        let mut pending = vec![(ty, 0usize, store_element, capture_owner, resource_head)];
-        while let Some((ty, depth, store_element, capture_owner, resource_head)) = pending.pop() {
+        let mut first = Some((ty, 0usize, store_element, capture_owner, resource_head));
+        let mut pending = Vec::new();
+        while let Some((ty, depth, store_element, capture_owner, resource_head)) =
+            first.take().or_else(|| pending.pop())
+        {
             budget.input(1, "type shape")?;
             if depth > limits.max_call_depth {
                 return Err(exhausted("aggregate nesting"));
