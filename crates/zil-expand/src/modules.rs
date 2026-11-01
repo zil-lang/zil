@@ -450,9 +450,9 @@ impl Visitor<'_, '_, '_> {
         }
         Ok(input.clone())
     }
-    fn symbol(
+    fn symbol<S: AsRef<str>>(
         &mut self,
-        path: &[String],
+        path: &[S],
         types: &Names,
         values: &Names,
         span: Span,
@@ -460,6 +460,7 @@ impl Visitor<'_, '_, '_> {
     ) -> R<Option<String>> {
         if let Mode::Binders { bindings, .. } = &self.mode {
             let [name] = path else { return Ok(None) };
+            let name = name.as_ref();
             if type_position
                 && types.contains(name)
                 && let Some(canonical) = bindings.get(name)
@@ -472,19 +473,19 @@ impl Visitor<'_, '_, '_> {
         let Mode::Normalize(index) = &self.mode else {
             return Ok(None);
         };
-        let Some(first) = path.first() else {
+        let Some(first) = path.first().map(AsRef::as_ref) else {
             return Ok(None);
         };
         if types.contains(first) || (!type_position && values.contains(first)) {
             return Ok(None);
         }
         let (owner, name, external) = match path {
-            [name] => (self.module, name, false),
+            [name] => (self.module, name.as_ref(), false),
             [alias, name] => {
-                let Some(owner) = index.imports[&self.module].get(alias) else {
+                let Some(owner) = index.imports[&self.module].get(alias.as_ref()) else {
                     return Ok(None);
                 };
-                (*owner, name, true)
+                (*owner, name.as_ref(), true)
             }
             _ => return Ok(None),
         };
@@ -952,20 +953,33 @@ impl Visitor<'_, '_, '_> {
             e.kind = ExprKind::Name(nominal.clone());
             return Ok(());
         }
-        let written = match &e.kind {
-            ExprKind::Name(n) => Some(vec![n.clone()]),
-            ExprKind::Member {
-                object,
-                member: MemberName::Name(n),
-            } => match &object.kind {
-                ExprKind::Name(alias) => Some(vec![alias.clone(), n.clone()]),
+        // Lookup paths are transient borrowed names, not new syntax. Restore
+        // cannot normalize a symbol; its separate canonical-name lookup below
+        // retains all of its original work, charges and generated imports.
+        let normalized = if matches!(self.mode, Mode::Restore { .. }) {
+            None
+        } else {
+            match &e.kind {
+                ExprKind::Name(name) => {
+                    self.symbol(std::slice::from_ref(name), types, values, e.span, false)?
+                }
+                ExprKind::Member {
+                    object,
+                    member: MemberName::Name(name),
+                } => match &object.kind {
+                    ExprKind::Name(alias) => self.symbol(
+                        &[alias.as_str(), name.as_str()],
+                        types,
+                        values,
+                        e.span,
+                        false,
+                    )?,
+                    _ => None,
+                },
                 _ => None,
-            },
-            _ => None,
+            }
         };
-        if let Some(path) = written
-            && let Some(name) = self.symbol(&path, types, values, e.span, false)?
-        {
+        if let Some(name) = normalized {
             e.kind = ExprKind::Name(name);
             return Ok(());
         }

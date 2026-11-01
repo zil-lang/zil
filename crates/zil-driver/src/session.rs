@@ -19,7 +19,7 @@ use zil_syntax::ParseResult;
 
 /// Only unverified, immutable data can be retained across requests. There is no
 /// VerifiedModule/VerifiedCTIR variant. The explicit trusted semantic cache can
-/// restore a raw ProjectTyped value, followed by current Analyze and Verify.
+/// restore raw ProjectTyped and Candidate values, followed by current Verify.
 #[derive(Clone, Debug)]
 pub(super) enum RawSnapshot {
     Parse(Arc<ParseResult>),
@@ -36,6 +36,7 @@ pub(super) enum RawSnapshot {
 pub(super) enum TypedInput {
     Module(Arc<TypedModule>),
     Program(Arc<TypedProgram>),
+    CachedProgram(Arc<TypedProgram>, Arc<CandidatePlan>),
 }
 pub(super) struct ProjectFrontend {
     pub typed: Arc<TypedProgram>,
@@ -45,13 +46,13 @@ impl TypedInput {
     fn module(&self) -> &TypedModule {
         match self {
             Self::Module(m) => m,
-            Self::Program(p) => &p.module,
+            Self::Program(p) | Self::CachedProgram(p, _) => &p.module,
         }
     }
     fn program(&self) -> Option<&TypedProgram> {
         match self {
             Self::Module(_) => None,
-            Self::Program(p) => Some(p),
+            Self::Program(p) | Self::CachedProgram(p, _) => Some(p),
         }
     }
     fn verify(
@@ -66,12 +67,14 @@ impl TypedInput {
                 &options.target,
                 &options.limits,
             ),
-            Self::Program(p) => zil_verify::verify_shared_program_module(
-                p.clone(),
-                candidate,
-                &options.target,
-                &options.limits,
-            ),
+            Self::Program(p) | Self::CachedProgram(p, _) => {
+                zil_verify::verify_shared_program_module(
+                    p.clone(),
+                    candidate,
+                    &options.target,
+                    &options.limits,
+                )
+            }
         }
     }
 }
@@ -80,7 +83,7 @@ impl RawSnapshot {
     /// NOT a content checksum or a verifier capability. Its complete query key
     /// binds source bytes/positions, rules, every limit and target; ordered
     /// dependency identities bind the exact upstream constructions observed.
-    /// Most values are private constructions. ProjectTyped can also come from
+    /// Most values are private constructions. ProjectTyped/Candidate can also come from
     /// the explicit trusted semantic cache, bound to the complete key and
     /// installed compiler identity; deserialization never grants authority.
     /// The public Typed/Verified fingerprints and independent Verify are intact.
@@ -656,6 +659,30 @@ impl CompilationSession {
         )
     }
 
+    /// Retrieve only the candidate actually adopted for this exact current
+    /// Types construction. Optional persistence cannot use a stale raw entry.
+    pub(super) fn analysis_candidate(
+        &self,
+        typed_snapshot: &QuerySnapshot,
+    ) -> Option<Arc<CandidatePlan>> {
+        let mut key = typed_snapshot.key.clone();
+        key.phase = Phase::Analyze;
+        let snapshot = self.database.read(&key).ok()??;
+        let [dependency] = snapshot.dependencies.as_slice() else {
+            return None;
+        };
+        if dependency.key != typed_snapshot.key
+            || dependency.kind != FingerprintKind::PrivateImplementation
+            || dependency.observed != typed_snapshot.fingerprints.private_implementation
+        {
+            return None;
+        }
+        match self.raw.get(&key)? {
+            RawSnapshot::Candidate(candidate) => Some(candidate.clone()),
+            _ => None,
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn finish_typed(
         &mut self,
@@ -673,24 +700,37 @@ impl CompilationSession {
         analysis_key.phase = Phase::Analyze;
         // A completed subquery is still raw data. Commit its replacement epoch
         // only if the enclosing driver query survives publication/cancellation.
-        let mut analysis = std::mem::take(&mut self.analysis);
-        let checkpoint = analysis.clone();
-        let queried = self.query(
-            analysis_key,
-            std::slice::from_ref(&typed_snapshot),
-            options,
-            report,
-            observer,
-            || {
-                analysis
-                    .analyze(typed.module(), &options.limits)
-                    .map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
-            },
-        );
-        self.analysis = if queried.is_ok() {
-            analysis
+        let queried = if let TypedInput::CachedProgram(_, candidate) = &typed {
+            self.query_with_disposition(
+                analysis_key,
+                std::slice::from_ref(&typed_snapshot),
+                options,
+                report,
+                observer,
+                || Ok(RawSnapshot::Candidate(candidate.clone())),
+                QueryDisposition::Reused,
+            )
         } else {
-            checkpoint
+            let mut analysis = std::mem::take(&mut self.analysis);
+            let checkpoint = analysis.clone();
+            let queried = self.query(
+                analysis_key,
+                std::slice::from_ref(&typed_snapshot),
+                options,
+                report,
+                observer,
+                || {
+                    analysis
+                        .analyze(typed.module(), &options.limits)
+                        .map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
+                },
+            );
+            self.analysis = if queried.is_ok() {
+                analysis
+            } else {
+                checkpoint
+            };
+            queried
         };
         let (candidate, _) = queried?;
         let RawSnapshot::Candidate(candidate) = candidate else {

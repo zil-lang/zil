@@ -302,13 +302,14 @@ def main():
     parser.add_argument("root", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--expected-pairs", type=int, default=6)
+    parser.add_argument("--window", action="append", help="window directory (repeatable)")
     arguments = parser.parse_args()
     root = arguments.root.resolve()
     out = arguments.output.resolve() if arguments.output else root / "quality"
     out.mkdir(parents=True, exist_ok=False)
     pairs, errors, commands = [], [], []
     found = []
-    for window in WINDOWS:
+    for window in arguments.window or WINDOWS:
         directory = root / window
         if not directory.is_dir():
             errors.append(f"missing window: {directory}")
@@ -329,7 +330,7 @@ def main():
                 errors.append(f"{label}: {error}")
     if len(found) != arguments.expected_pairs:
         errors.append(f"expected {arguments.expected_pairs} edited pairs; found {len(found)}")
-    result = {"scope": __doc__, "root": str(root), "expected_pairs": arguments.expected_pairs,
+    result = {"scope": __doc__, "root": str(root), "expected_pairs": arguments.expected_pairs, "windows": arguments.window or WINDOWS,
               "found_pairs": found, "completed_pairs": len(pairs), "operational_errors": errors,
               "bounds": {"thunk_depth": MAX_THUNK_DEPTH, "function_bytes": MAX_FUNCTION_BYTES,
                          "function_instructions": MAX_FUNCTION_INSTRUCTIONS},

@@ -216,7 +216,7 @@ impl CompilationSession {
             } else {
                 DiskCacheStatus::Missing
             };
-            if let Some(typed) = store.load(options)
+            if let Some((typed, candidate)) = store.load(options)
                 && typed.module.source_fingerprint == fingerprint
                 && typed.module.module_id == project.root
                 && typed.module.target == options.target
@@ -246,7 +246,7 @@ impl CompilationSession {
                         options,
                         report,
                         observer,
-                        TypedInput::Program(typed),
+                        TypedInput::CachedProgram(typed, Arc::new(candidate)),
                         snapshot,
                         artifacts.clone(),
                         stable_source.as_ref(),
@@ -570,14 +570,15 @@ impl CompilationSession {
             report,
             observer,
             TypedInput::Program(typed.clone()),
-            typed_snapshot,
+            typed_snapshot.clone(),
             artifacts.clone(),
             stable_source.as_ref(),
         );
         if result.is_ok()
             && let Some(store) = &semantic
+            && let Some(candidate) = self.analysis_candidate(&typed_snapshot)
         {
-            store.save(&typed, options, &artifacts);
+            store.save(&typed, &candidate, options, &artifacts);
         }
         result
     }

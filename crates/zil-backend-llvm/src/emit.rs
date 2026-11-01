@@ -877,12 +877,12 @@ impl FunctionEmitter<'_> {
         }
 
         self.event(m::Event::Begin(m::Function {
-            name: symbol(self.function.id).to_string(),
+            name: symbol(self.function.id),
             linkage: m::Linkage::External,
             signature: m::Signature {
-                result: (llvm_type(&self.function.return_type)?).clone(),
+                result: llvm_type(&self.function.return_type)?,
                 result_attrs: vec![],
-                params: (parameters).clone(),
+                params: parameters,
                 variadic: false,
             },
             attrs: vec![],
@@ -1539,16 +1539,12 @@ impl FunctionEmitter<'_> {
                     Some(format!("v.{}", result(instruction)?.0))
                 };
                 self.event(m::Event::Instruction(m::Inst::new(
-                    (assignment).clone(),
+                    assignment,
                     m::Op::Call {
-                        result: (llvm_type(&callee.return_type)?).clone(),
+                        result: llvm_type(&callee.return_type)?,
                         result_attrs: vec![],
-                        callee: m::global(symbol(*function).to_string()),
-                        args: {
-                            let mut args = vec![];
-                            args.extend((emitted_arguments.clone()).clone());
-                            args
-                        },
+                        callee: m::global(symbol(*function)),
+                        args: emitted_arguments,
                         vararg: None,
                     },
                 )));
@@ -1600,16 +1596,12 @@ impl FunctionEmitter<'_> {
                     Some(format!("v.{}", result(instruction)?.0))
                 };
                 self.event(m::Event::Instruction(m::Inst::new(
-                    (assignment).clone(),
+                    assignment,
                     m::Op::Call {
-                        result: (llvm_type(return_type)?).clone(),
+                        result: llvm_type(return_type)?,
                         result_attrs: vec![],
                         callee: m::local(format!("v.{}", callee.0)),
-                        args: {
-                            let mut args = vec![];
-                            args.extend((emitted_arguments.clone()).clone());
-                            args
-                        },
+                        args: emitted_arguments,
                         vararg: None,
                     },
                 )));
@@ -1870,16 +1862,12 @@ impl FunctionEmitter<'_> {
                     }
                 }
                 self.event(m::Event::Instruction(m::Inst::new(
-                    (assignment).clone(),
+                    assignment,
                     m::Op::Call {
-                        result: (return_type).clone(),
+                        result: return_type,
                         result_attrs: vec![],
-                        callee: m::global(symbol(function).to_string()),
-                        args: {
-                            let mut args = vec![];
-                            args.extend((emitted_arguments.clone()).clone());
-                            args
-                        },
+                        callee: m::global(symbol(function)),
+                        args: emitted_arguments,
                         vararg: None,
                     },
                 )));
