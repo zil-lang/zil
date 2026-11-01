@@ -1,0 +1,113 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "verdict": "Fail",
+  "implementation_commit": "d393f47db2a1e3da23d1d52c875fb142c193ef14",
+  "schema": 30,
+  "spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66",
+  "scope": "Common candidate for239–243; consumer244 authored separately and root-reviewed. No claim that every slice itself is defective.",
+  "commands": [
+    {
+      "args": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "review240_helper_sum",
+        "--locked",
+        "--",
+        "--nocapture"
+      ],
+      "selected": 2,
+      "executed": 2,
+      "passed": 1,
+      "failed": 1
+    },
+    {
+      "args": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl244_consumer",
+        "--test",
+        "review239_generation",
+        "--test",
+        "review240_match_exits",
+        "--test",
+        "review241_freshness",
+        "--test",
+        "review241_store_windows",
+        "--test",
+        "review242_tag_edges",
+        "--locked",
+        "--",
+        "--nocapture"
+      ],
+      "selected": 25,
+      "executed": 25,
+      "passed": 25,
+      "failed": 0
+    }
+  ],
+  "combined_selected": 27,
+  "combined_executed": 27,
+  "combined_passed": 26,
+  "combined_failed": 1,
+  "failure": {
+    "test": "review240_helper_sum::finite_fn_helper_accepts_complete_enum_product_and_error_arguments",
+    "source_variant": "enum",
+    "expected": "Success; stdoutAB; exit0 at O0/O2",
+    "actual": "Unsupported at Analyze before Verify/native",
+    "diagnostic": "helper extra parameters require finite Copy, one Copy/slice address, Managed, Package or ByteBuffer description values; slice arguments require a Copy helper result",
+    "positive_sources_compiled": 1,
+    "positive_sources_not_reached": [
+      "product",
+      "error"
+    ],
+    "positive_native_runs": 0,
+    "negative_sources_passed": 7,
+    "source_sha256": "b0cc9d860b789141ae2dd77402a2fe62a9573a7757d2963611e27f338998b874",
+    "oracle_adjusted": false
+  },
+  "unaffected_controls": {
+    "consumer_tests": 8,
+    "independent_tests": 17,
+    "actual_native_builds": 24,
+    "actual_native_runs": 486,
+    "consumer_native_runs": 476,
+    "independent_native_runs": 10,
+    "allocator_runs": 380,
+    "actual_failure_runs": 252,
+    "all_final_live_allocations": 0,
+    "ct_evaluations": 1,
+    "ct_value": "I32(7)"
+  },
+  "attribution": [
+    "This independent failure is the Analyze helper ordinary-Enum data gate. Verify analogous gate is a static followup and was not reached by this source.",
+    "Root/242 subsequently found capture qualification and nested owned ErrorUnion profile defects; those author discoveries are not attributed to this reviewer.",
+    "Root formal historical oracle migrations are separate and not silently patched into P."
+  ],
+  "source_patches_by_reviewer": false,
+  "core_worktree_readonly": true,
+  "toolchain": [
+    "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)",
+    "Target: x86_64-unknown-linux-gnu",
+    "Thread model: posix",
+    "InstalledDir: /workspace/.zil-env/llvm-23.1.4/bin"
+  ],
+  "rust_goals": {
+    "safety": "Previously selected hostile source/raw/Wire/CT and real failure cleanup controls passed; newly reported closed-profile raw defects still require fixes.",
+    "performance": "Default-budget consumer still passes; no comparative timing or Rust win claimed.",
+    "ergonomics": "Natural finite callback helper with ordinary Enum data remains blocked at P, so promised combination is incomplete.",
+    "predictability": "Existing full source-oracle matrix and exact cleanup order matched; callback helper expected output was preserved through failure."
+  }
+}
