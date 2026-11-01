@@ -120,7 +120,7 @@ pub(super) fn check_type_for(
                     resources::charge_payload(error, budget)?;
                     if !error.is_copy_value() {
                         return Err(unsupported(
-                            "direct Managed error-union success requires a finite Copy error",
+                            "direct Managed error-union success type requires a finite Copy error",
                             span,
                         ));
                     }
@@ -130,7 +130,7 @@ pub(super) fn check_type_for(
                             resources::charge_payload(payload, budget)?;
                             if !payload.is_copy_value() {
                                 return Err(unsupported(
-                                    "ordinary error-union payload slots require finite Copy, Product or Enum values",
+                                    "ordinary error-union payload slot types require finite Copy, Product or Enum values",
                                     span,
                                 ));
                             }
