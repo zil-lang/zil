@@ -1,0 +1,127 @@
+{
+  "scope": "Six frozen ordinary source probes; observe actual capabilities, do not prescribe Unsupported",
+  "compiler_source_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "expected_cli_sha256": "ebc418f594c91f1c54b4f655cf6fdd0d99a9461852aec8e1f7ad09701d433395",
+  "cases": [
+    {
+      "name": "01-unit-flat",
+      "source": "sources/01-unit-flat/main.zil",
+      "source_sha256": "ca1b2ad3ee2fc50293458e996537be8ffaf8438b500db89dcf2d847b6d333fd7",
+      "purpose": "Existing Unit error / complete flat owned Package success",
+      "expected_semantic": "Natural legal API under language design; inspect actual implemented scope",
+      "negative": false,
+      "native_if_source_verified": [
+        {
+          "input": "0",
+          "exit": 0,
+          "stdout": "SRA"
+        },
+        {
+          "input": "1",
+          "exit": 1,
+          "stdout": "SA"
+        }
+      ]
+    },
+    {
+      "name": "02-unit-nested-and-owned-error-unit",
+      "source": "sources/02-unit-nested-and-owned-error-unit/main.zil",
+      "source_sha256": "ee7903a07715d935a37f2c3b3294250cb2ca8b1470c860670755cf7bf3b0512d",
+      "purpose": "Existing Unit/nested Product protocol shell and owned flat error/Unit shell",
+      "expected_semantic": "Natural legal API under language design; inspect actual implemented scope",
+      "negative": false,
+      "native_if_source_verified": [
+        {
+          "input": "0",
+          "exit": 0,
+          "stdout": "SRA"
+        },
+        {
+          "input": "1",
+          "exit": 1,
+          "stdout": "SA"
+        },
+        {
+          "input": "2",
+          "exit": 0,
+          "stdout": "SER"
+        }
+      ]
+    },
+    {
+      "name": "03-unit-store-session",
+      "source": "sources/03-unit-store-session/main.zil",
+      "source_sha256": "711e96d70a4225254168ec1134d678baeb5f934a5fb75dbe0fe7d98adeaa434c",
+      "purpose": "Natural complete Session containing a Product child that owns Store, as Unit-error success payload",
+      "expected_semantic": "Natural legal API under language design; inspect actual implemented scope",
+      "negative": false,
+      "native_if_source_verified": [
+        {
+          "input": "0",
+          "exit": 0,
+          "stdout": "SRA"
+        },
+        {
+          "input": "1",
+          "exit": 1,
+          "stdout": "SA"
+        }
+      ]
+    },
+    {
+      "name": "04-both-owned-flat",
+      "source": "sources/04-both-owned-flat/main.zil",
+      "source_sha256": "f205b79668d60de59e38c48fa82dea544bcb7d98661e70c327b1b75f5c514d49",
+      "purpose": "Both ErrorUnion sides own distinct flat Packages; each side has a Unit-shell control above",
+      "expected_semantic": "Natural legal API under language design; inspect actual implemented scope",
+      "negative": false,
+      "native_if_source_verified": [
+        {
+          "input": "0",
+          "exit": 0,
+          "stdout": "SAR"
+        },
+        {
+          "input": "1",
+          "exit": 0,
+          "stdout": "SER"
+        }
+      ]
+    },
+    {
+      "name": "05-owned-option-session",
+      "source": "sources/05-owned-option-session/main.zil",
+      "source_sha256": "158d195a306f7e982de6e1ee860eb477c7dca7834ae4d96c07cc1e2e6c7a548f",
+      "purpose": "Ordinary owning enum with Unit and complete Session/Store Product alternatives",
+      "expected_semantic": "Natural legal API under language design; inspect actual implemented scope",
+      "negative": false,
+      "native_if_source_verified": [
+        {
+          "input": "0",
+          "exit": 0,
+          "stdout": "SRA"
+        },
+        {
+          "input": "1",
+          "exit": 0,
+          "stdout": "SR"
+        }
+      ]
+    },
+    {
+      "name": "06-negative-double-consume",
+      "source": "sources/06-negative-double-consume/main.zil",
+      "source_sha256": "16fb83ba3a1a3541422dbad23ec6f7f405b053a74d805328ccf449a6b3effa0e",
+      "purpose": "Nearest invalid source: consume the same already-owned ErrorUnion a second time",
+      "expected_semantic": "RejectDuplicateConsumption",
+      "negative": true,
+      "native_if_source_verified": []
+    }
+  ],
+  "native_optimization_levels": [
+    "O0",
+    "O2"
+  ],
+  "full_suite": "NotRun",
+  "production_changes": false
+}
