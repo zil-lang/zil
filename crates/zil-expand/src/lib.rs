@@ -958,6 +958,7 @@ impl Expander<'_> {
                     body: self.block(body),
                 }
             }
+            s::StmtKind::Defer(body) => CoreStatementKind::Defer(self.block(body)),
             s::StmtKind::Unsafe(body) => CoreStatementKind::Unsafe(self.block(body)),
             s::StmtKind::Break => CoreStatementKind::Break,
             s::StmtKind::Continue => CoreStatementKind::Continue,

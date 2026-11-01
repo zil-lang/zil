@@ -45,7 +45,7 @@ fn store_raw_ops_have_fixed_tags_and_reject_every_truncated_prefix() {
                     .is_err()
             );
         }
-        for unknown in [89, 90] {
+        for unknown in [90, 91] {
             let mut changed = writer.output.clone();
             changed[5] = unknown;
             assert_eq!(
@@ -152,8 +152,8 @@ fn current_wire_rejects_all_old_versions_and_next_unknown_version() {
     let limits = Limits::default();
     let mut writer = Writer::new(&limits);
     writer.header(MODULE_MAGIC).unwrap();
-    assert_eq!(WIRE_VERSION, 27);
-    assert_eq!(SCHEMA_VERSION, 27);
+    assert_eq!(WIRE_VERSION, 28);
+    assert_eq!(SCHEMA_VERSION, 28);
     Reader::new(&writer.output, &limits)
         .unwrap()
         .header(MODULE_MAGIC)

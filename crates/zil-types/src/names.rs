@@ -196,9 +196,9 @@ impl Names<'_> {
                         self.block(&arm.body, receiver, depth + 1)?;
                     }
                 }
-                CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => {
-                    self.block(b, receiver, depth + 1)?
-                }
+                CoreStatementKind::Block(b)
+                | CoreStatementKind::Unsafe(b)
+                | CoreStatementKind::Defer(b) => self.block(b, receiver, depth + 1)?,
                 _ => {}
             }
         }
