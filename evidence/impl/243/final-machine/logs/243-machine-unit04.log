@@ -1,0 +1,20 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-243/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized] target(s) in 5.94s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-243/debug/deps/zil_backend_llvm-801641aa7db5eb21)
+
+running 5 tests
+test emit::drop_plan::impl243_plan_tests::impl243_drop_plan_honors_current_shared_limit_and_fresh_boundary ... ok
+test emit::drop_plan::impl243_plan_tests::impl243_drop_plan_keeps_variant_choice_above_owned_fields ... ok
+test emit::enums::impl243_layout_tests::impl243_enum_managed_headers_keep_aligned_max_payload_abi ... ok
+test emit::enums::impl243_layout_tests::impl243_product_sum_nested_layout_preserves_field_offsets_and_bool_storage ... ok
+test tests::impl243_false_presence_cannot_authorize_mutated_raw_lir_new_opcode ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 126 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/workspace/.zil-env/target-243/debug/deps/zil_lower-77c77ba71a1e202b)
+
+running 1 test
+test owned_sums::impl243_tests::impl243_lower_uses_one_actual_request_budget_and_fresh_boundary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+

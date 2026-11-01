@@ -1,0 +1,34 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-243/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.33s
+     Running tests/impl243_machine.rs (/workspace/.zil-env/target-243/debug/deps/impl243_machine-23e51cd092071d75)
+
+running 3 tests
+test impl243_entry_owned_enum_error_cleans_nested_store_payload ... FAILED
+test impl243_original_store_product_error_and_owned_option_reach_both_machine_paths ... ok
+test impl243_recursive_match_multi_field_cleanup_and_copy_terminal ... FAILED
+
+failures:
+
+---- impl243_entry_owned_enum_error_cleans_nested_store_payload stdout ----
+
+thread 'impl243_entry_owned_enum_error_cleans_nested_store_payload' (248920) panicked at crates/zil-driver/tests/impl243_machine.rs:117:13:
+assertion `left == right` failed: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-IDENTIFIER","message":"expected an identifier","span":{"file":0,"start":350,"end":356},"notes":[]}],"artifacts":{},"input_fingerprint":"acc04ce63e97d2650a908b0883b0ffb26b483a424abf243a368a1a0f603c549c","seconds":0.000991997,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- impl243_recursive_match_multi_field_cleanup_and_copy_terminal stdout ----
+
+thread 'impl243_recursive_match_multi_field_cleanup_and_copy_terminal' (248962) panicked at crates/zil-driver/tests/impl243_machine.rs:117:13:
+assertion `left == right` failed: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-IDENTIFIER","message":"expected an identifier","span":{"file":0,"start":538,"end":544},"notes":[]}],"artifacts":{},"input_fingerprint":"5d1b85a56e34fc2c2138c83989a9a5fc63b9446fb701d4955924e7849225d315","seconds":0.000870089,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+
+failures:
+    impl243_entry_owned_enum_error_cleans_nested_store_payload
+    impl243_recursive_match_multi_field_cleanup_and_copy_terminal
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+
+error: test failed, to rerun pass `-p zil-driver --test impl243_machine`
