@@ -1,0 +1,32 @@
+{
+  "status": "Fail",
+  "implementation_commit": "5be212ffe4e934b5e14a215ae48ab9157531efba",
+  "scope": "Root four-target preflight before complete Q acceptance",
+  "tests_passed": 8,
+  "tests_failed": 3,
+  "ordinary_helper_native_runs_passed": 8,
+  "findings": [
+    {
+      "target": "impl183_raw_owned_success",
+      "reason": "Correct Unsupported rejection; new precise message omitted original asserted word type",
+      "resolution": "18e5fdd retains type in exact qualification diagnostic; rejection not loosened"
+    },
+    {
+      "target": "review240_helper_sum",
+      "reason": "Actual Enum resource F field confused with helper binder F by single-module expansion",
+      "resolution": "240 declaration-scope fix; original source and oracle retained"
+    },
+    {
+      "target": "review242_capture_profiles",
+      "reason": "Independent new test required Unsupported for two Analyze errors whose existing exact result is SafeReject E-ANALYZE-IR; Verify correctly rejects Unsupported",
+      "resolution": "4e42e804 narrows only those Analyze observations to exact established diagnostic; raw input unchanged"
+    }
+  ],
+  "archive": {
+    "path": "raw.tar.gz",
+    "bytes": 455770,
+    "sha256": "9c3fdf5dbdde8cc2ba65cd2a2d849398946078e4a6afbea5291f3d84d6b77dff",
+    "files": 299,
+    "all_members_reverified": true
+  }
+}

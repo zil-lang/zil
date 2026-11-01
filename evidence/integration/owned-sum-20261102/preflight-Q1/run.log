@@ -1,0 +1,97 @@
+   Compiling zil-verify v0.1.0 (/workspace/zil-core/crates/zil-verify)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-core/crates/zil-backend-llvm)
+   Compiling zil-expand v0.1.0 (/workspace/zil-core/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/zil-core/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/zil-core/crates/zil-ct)
+   Compiling zil-analyze v0.1.0 (/workspace/zil-core/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 19.01s
+     Running tests/impl183_raw_owned_success.rs (/workspace/.zil-env/target-sum-core/debug/deps/impl183_raw_owned_success-5d94016b6bafeb0d)
+
+running 5 tests
+test omitted_union_cleanup_and_post_transfer_tag_are_rejected ... ok
+test active_tag_and_source_category_are_checked_without_candidate_permission ... ok
+test independent_verify_rejects_missing_result_mode_and_laundered_freshness ... ok
+
+thread 'raw_shape_claims_cannot_extend_resource_error_nesting_or_capture_profiles' (318996) panicked at crates/zil-driver/tests/impl183_raw_owned_success.rs:72:9:
+nested-owned-error/raw: [
+    Diagnostic {
+        phase: Verify,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "direct Managed error-union success requires a finite Copy error",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 31,
+                end: 110,
+            },
+        ),
+        notes: [],
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test raw_shape_claims_cannot_extend_resource_error_nesting_or_capture_profiles ... FAILED
+test independent_verify_rejects_copying_and_double_transfer_of_managed_success_union ... ok
+
+failures:
+
+failures:
+    raw_shape_claims_cannot_extend_resource_error_nesting_or_capture_profiles
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p zil-driver --test impl183_raw_owned_success`
+     Running tests/review223_boundaries.rs (/workspace/.zil-env/target-sum-core/debug/deps/review223_boundaries-5bebba32efa0c4c1)
+
+running 2 tests
+test unused_mutable_nested_product_parameter_cannot_gain_a_write_capability ... ok
+test ordinary_product_sums_are_admitted_but_direct_nested_union_stays_closed ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/review240_helper_sum.rs (/workspace/.zil-env/target-sum-core/debug/deps/review240_helper_sum-40a19666c457d016)
+
+running 2 tests
+test ordinary_sum_argument_does_not_expand_callable_or_state_permissions ... ok
+
+thread 'finite_fn_helper_accepts_complete_enum_product_and_error_arguments' (319001) panicked at crates/zil-driver/tests/review240_helper_sum.rs:78:13:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"generic managed give requires a direct Package manages field","span":{"file":0,"start":433,"end":434},"notes":[]}],"artifacts":{"syntax":"/workspace/.zil-env/sum-integration-debug/Q-preflight01/review240-helper-enum-resource-named-F-O0-319000/phases/syntax.txt"},"input_fingerprint":"779a60af7256939f571d85fcc2f412c55ced881e15637ec7b4413135d38bff43","seconds":0.004112854,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"helper240.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test finite_fn_helper_accepts_complete_enum_product_and_error_arguments ... FAILED
+
+failures:
+
+failures:
+    finite_fn_helper_accepts_complete_enum_product_and_error_arguments
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+error: test failed, to rerun pass `-p zil-driver --test review240_helper_sum`
+     Running tests/review242_capture_profiles.rs (/workspace/.zil-env/target-sum-core/debug/deps/review242_capture_profiles-7f0f52a5d20e092c)
+
+running 2 tests
+test new_ordinary_sums_do_not_qualify_direct_or_nested_owned_captures ... ok
+
+thread 'unused_error_union_slots_preserve_the_old_managed_success_profile' (319037) panicked at crates/zil-driver/tests/review242_capture_profiles.rs:428:5:
+owned-enum-error-managed/analyze expected admitted=false, actual=Err([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "resource closure: Managed success requires a Copy error payload", span: None, notes: [] }])
+illegal-slot-inside-enum/analyze expected admitted=false, actual=Err([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "resource closure: Managed success requires a Copy error payload", span: None, notes: [] }])
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test unused_error_union_slots_preserve_the_old_managed_success_profile ... FAILED
+
+failures:
+
+failures:
+    unused_error_union_slots_preserve_the_old_managed_success_profile
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-driver --test review242_capture_profiles`
+error: 3 targets failed:
+    `-p zil-driver --test impl183_raw_owned_success`
+    `-p zil-driver --test review240_helper_sum`
+    `-p zil-driver --test review242_capture_profiles`
