@@ -1,0 +1,101 @@
+{
+  "scope": "Schema30 envelope migration of unchanged independently discovered223 mutable Product attack",
+  "base_commit": "f5ac46522b7c3686b843cbe70750a6cc5529bec0",
+  "production_changes": false,
+  "original_fixture": {
+    "file": "mutable-product-original.wire",
+    "bytes": 1744,
+    "sha256": "5ba4b35d45093a324e31ab8971d92788a1e9c18b57cbdc17fdd317c7d2f59de9",
+    "wire_version": 27,
+    "expected_current_result": "Verify/SafeReject/E-WIRE-VERSION"
+  },
+  "original_oracle_sha256": "d4e9dcc8e54b2a3029e9d9820e0ccfe65885a7c19f22eef7193ff00a263ecb94",
+  "migrated_fixture": {
+    "file": "schema30-mutable-product.wire",
+    "bytes": 1744,
+    "sha256": "783db64403cec14468080ce9708d4f25a4cbd315aaed36d2f994994f7f70e3c9",
+    "wire_version": 30,
+    "raw_and_wire_expected": {
+      "phase": "Verify",
+      "category": "Unsupported",
+      "code": "E-UNSUPPORTED",
+      "message": "ordinary Product addresses are shared synchronous inputs"
+    }
+  },
+  "allowed_half_open_byte_ranges": [
+    {
+      "offset": 8,
+      "end": 12,
+      "field": "transport Wire version",
+      "old": 27,
+      "new": 30
+    },
+    {
+      "offset": 12,
+      "end": 16,
+      "field": "TypedModule.schema_version",
+      "old": 27,
+      "new": 30
+    },
+    {
+      "offset": 1538,
+      "end": 1542,
+      "field": "CandidatePlan.schema_version",
+      "old": 27,
+      "new": 30
+    },
+    {
+      "offset": 1542,
+      "end": 1574,
+      "field": "CandidatePlan.module_fingerprint",
+      "old_hex": "74323308818d968aa1ba7ac3271b14c08adde4d3c7605c655119fe1fa1c6c794",
+      "new_hex": "57f29f34ce0740e5b6ac4a9519603c62a91b5207d578ddac0be22e395ed7f1da",
+      "derivation": "current30 module.fingerprint(), after changing only module.schema_version27\u219230; target fingerprint and all candidate proof claims remain unchanged"
+    }
+  ],
+  "actual_changed_byte_offsets": [
+    8,
+    12,
+    1538,
+    1542,
+    1543,
+    1544,
+    1545,
+    1546,
+    1547,
+    1548,
+    1549,
+    1550,
+    1551,
+    1552,
+    1553,
+    1554,
+    1555,
+    1556,
+    1557,
+    1558,
+    1559,
+    1560,
+    1561,
+    1562,
+    1563,
+    1564,
+    1565,
+    1566,
+    1567,
+    1568,
+    1569,
+    1570,
+    1571,
+    1572,
+    1573
+  ],
+  "unchanged_outside_allowed_ranges": true,
+  "method": "Test-local explicitly updates only the transport header to decode the unchanged TypedModule layout, then changes module/plan schema and derives module fingerprint. Re-encoding must exactly match both the fixed fixture and a copy of original with only the listed ranges rewritten. No production decoder compatibility path added.",
+  "historical_oracle": "Reject remains unchanged; the old UnexpectedAccept observation and original ORACLE.json are retained verbatim.",
+  "archived_schema29": {
+    "file": "mutable-product-schema29.wire",
+    "sha256": "3d5bf5e48a6a0856d3fad6c8b7997e8ba5ccb7adfbb0327a2e7e0852d4da4198",
+    "expected_current_result": "Verify/SafeReject/E-WIRE-VERSION"
+  }
+}
