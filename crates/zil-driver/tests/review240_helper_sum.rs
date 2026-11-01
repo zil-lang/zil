@@ -38,13 +38,23 @@ fn finite_fn_helper_accepts_complete_enum_product_and_error_arguments() {
             "make()",
         ),
         (
+            "enum-whole-move-once",
+            "fn use_value<F:Fn()->i32>(callback:F,value:E)->i32{let next=value;let n=callback();match next{E.Empty()=>{return n}\nE.Pair(a,b)=>{sink(give a);sink(give b);return n}}}",
+            "make()",
+        ),
+        (
             "enum-resource-named-F",
             "fn use_value<F:Fn()->i32>(callback:F,value:E)->i32{let n=callback();match value{E.Empty()=>{return n}\nE.Pair(a,b)=>{sink(give a);sink(give b);return n}}}",
             "make()",
         ),
+        (
+            "enum-resource-named-F-description",
+            "fn use_value<F:Fn()->i32>(callback:F,value:E)->i32{let n=callback();match value{E.Empty()=>{return n}\nE.Pair(a,b)=>{let description=a;let code=description.n;sink(give a);sink(give b);return n+code-65}}}",
+            "make()",
+        ),
     ] {
         let text = format!("{MODEL}{helper}fn main()->i32{{return use_value(()=>7,{argument})-7}}");
-        let text = if label == "enum-resource-named-F" {
+        let text = if label.starts_with("enum-resource-named-F") {
             // The Enum field's concrete global resource F and helper binder F
             // are distinct lexical identities despite their equal spelling.
             text.replace("resource R", "resource F")
@@ -123,8 +133,41 @@ fn ordinary_sum_argument_does_not_expand_callable_or_state_permissions() {
             "once-twice",
             "fn bad<F:FnOnce()->i32>(f:F,e:E)->i32{let first=f();return first+f()}",
         ),
+        (
+            "unused-enum-rematch",
+            "fn bad<F:Fn()->i32>(f:F,e:E)->i32{match e{E.Empty()=>{}\nE.Pair(a,b)=>{}}match e{E.Empty()=>{}\nE.Pair(a,b)=>{}}return f()}",
+        ),
+        (
+            "unused-product-copy",
+            "fn bad<F:Fn()->i32>(f:F,value:Wrap)->i32{let saved=value;let again=value;return f()}",
+        ),
+        (
+            "unused-union-copy",
+            "fn bad<F:Fn()->i32>(f:F,value:void!E)->i32{let saved=value;let again=value;return f()}",
+        ),
+        (
+            "scope-F-callback-field",
+            "fn bad<F:Fn()->i32>(f:F,e:E)->i32{return f.n}",
+        ),
+        (
+            "scope-F-callback-give",
+            "fn bad<F:Fn()->i32>(f:F,e:E)->i32{sink(give f);return 0}",
+        ),
+        (
+            "scope-F-description-give",
+            "fn bad<F:Fn()->i32>(f:F,e:E)->i32{match e{E.Empty()=>{return f()}\nE.Pair(a,b)=>{let description=a;sink(give description);return f()}}}",
+        ),
     ] {
         let text = format!("{MODEL}{helper}fn main(){{}}");
+        let text = if label.starts_with("scope-F-") {
+            text.replace("resource R", "resource F")
+                .replace("for R", "for F")
+                .replace("manages R", "manages F")
+                .replace("owner:R", "owner:F")
+                .replace("R{", "F{")
+        } else {
+            text
+        };
         let out = directory(label);
         fs::write(out.join("source.zil"), &text).unwrap();
         let report = compile_source(
