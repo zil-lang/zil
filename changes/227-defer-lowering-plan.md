@@ -39,3 +39,5 @@ return值先按既有求值/临时责任规则准备，再执行离开作用域�
 ## 2026-11-02 root冻结与重新派工
 
 用户要求优先补齐ZUI语言前置。规范§7.1现冻结Core Defer与RegisterDefer(scope,local)，隐藏FnOnce环境；实际相邻TakeLocal/CallClosureOnce才履行，每scope激活及混合逆构造次序由Analyze/Verify独立重建。调用限至所属ScopeExit的可核清理suffix，不接受普通正文提前调用。无新增defer move语法，普通捕获沿当前规则，嵌套defer/清理向外错误与跳转关闭。schema/Wire/指纹28同批发布；不得将原提案Copy一律快照的例子覆盖普通捕获。IR、前端、独立责任核按不相交写集并行，最终非作者审核另行绑定精确候选。原卡住/未实施证据保持历史身份。
+
+2026-11-02联合237/238真实F-helper追加普通defer Q后在Expand generic_check漏接，原ALQZ义务与失败源保留；去defer的ALZ控制只作定位，不替代成功条件。root要求接通generic普通函数入口及其未调用定义检查，沿§7.1既有控制/捕获规则，不开放新generic捕获或call kind权限。
