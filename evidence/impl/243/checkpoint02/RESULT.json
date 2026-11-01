@@ -1,0 +1,33 @@
+{
+  "status": "PrivateMachineUnitCheckpoint",
+  "source_commit": "78620904f34a0f0701f17ce49f4ee69fa4b13c9f",
+  "backend_private_tests_passed": 5,
+  "lower_private_tests_passed": 1,
+  "tests_failed": 0,
+  "native_executions": 0,
+  "source_verify_new_Sum": "NotRun; waiting for semantic producer/kernel integration",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "zil-lower",
+    "-p",
+    "zil-backend-llvm",
+    "--features",
+    "zil-backend-llvm/llvm-api",
+    "--lib",
+    "impl243",
+    "--",
+    "--test-threads=1"
+  ],
+  "covered": [
+    "Enum i32/aligned max payload with real 24B Managed headers",
+    "ErrorUnion fixed i1/two slots and nested Product/Enum layout",
+    "Structured Sum branch remains above declaration-ordered fields",
+    "Current-request per-stage shared N/N-1/fresh budget and disabled legacy path",
+    "Mutated raw LIR new opcode cannot use false presence to bypass exact sealed binding"
+  ],
+  "limits_source": "VerifiedModule::limits(); uses_owned_sum_extension only enables extra payment",
+  "note": "Private recipe/layout models are not claimed as real-source or native acceptance. First check02 unused-shadow warning was fixed before unit02."
+}
