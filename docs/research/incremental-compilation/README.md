@@ -1,5 +1,7 @@
 # 编译效率专项索引
 
+- [Stage14：避开重复发现解析，动态暖编译接近Rust](STAGE14-RESULTS.md)：最终75178b1cf，暖配对较Stage13减少20.5%，243.3ms对Rust239.2ms；保留中间退化、最终不利点和限定复测，未宣称稳定超越。
+
 当前专项分支：`research/incremental-compilation`，PR [#13](https://github.com/zil-lang/zil/pull/13)。
 
 - [第十三阶段：硬件兼容SHA、借用机器类型，编辑领先及剩余暖路径差距](STAGE13-RESULTS.md)
