@@ -46,6 +46,9 @@ fn has_scoped_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
                 pending.extend(fields.iter().map(|(_, ty)| ty));
             }
             Type::Enum { variants, .. } => {
+                if sums::owned_enum(ty) {
+                    return Ok(true);
+                }
                 budget.spend(variants.len())?;
                 for (_, fields) in variants {
                     budget.spend(fields.len())?;
@@ -345,10 +348,10 @@ pub(super) fn check_function(
                                         .saturating_mul(state.live.len().saturating_add(1)),
                                 )?;
                                 for target in fields {
-                                    if state.live.get(target) != Some(&scope) {
+                                    if !state.live.contains_key(target) {
                                         return Err(bad(
                                             instruction.span,
-                                            "Unpack destinations must have active storage in the innermost arm scope",
+                                            "every Unpack destination requires active storage",
                                         ));
                                     }
                                 }

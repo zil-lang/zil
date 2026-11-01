@@ -427,14 +427,6 @@ fn check_module(
         check_type_shape(ty, &module.target, limits, &mut budget)?;
     }
     closures::check_definitions(module, limits, &mut budget)?;
-    // Removed once the new responsibility transfer is connected below. This
-    // mechanical checkpoint must not admit an unimplemented ownership shape.
-    if budget.sums {
-        return Err(unsupported(
-            "ordinary owning Sum responsibility checking is not connected yet",
-            None,
-        ));
-    }
     foreign::check_declarations(module, &mut budget)?;
     let mut names = BTreeSet::new();
     let (mut block_count, mut instruction_count, mut local_count, mut value_count) =
@@ -589,12 +581,6 @@ fn check_module(
         retained::check_body(module, function, &graph, &mut budget)?;
         graphs.push(graph);
     }
-    if budget.sums {
-        return Err(unsupported(
-            "ordinary owning Sum responsibility checking is not connected yet",
-            None,
-        ));
-    }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
     borrows::check_module(module, plan, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
@@ -626,6 +612,7 @@ fn check_type_shape(
             ))
             || (context & 8 != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. }))
             || (context & 2 != 0
+                && context & 16 != 0
                 && matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })))
         {
             budget.sums = true;
@@ -665,7 +652,7 @@ fn check_type_shape(
                 budget.spend(fields.len())?;
                 let context = context
                     | if matches!(ty, Type::Package { .. }) {
-                        4
+                        4 | if context & 4 != 0 { 16 } else { 0 }
                     } else {
                         0
                     };
@@ -698,7 +685,7 @@ fn check_type_shape(
                 {
                     budget.sums = true;
                 }
-                let context = context | 2 | if context & 4 != 0 { 8 } else { 0 };
+                let context = context | 2 | if context & (4 | 2) != 0 { 8 } else { 0 };
                 pending.push((error, depth + 1, context));
                 pending.push((result, depth + 1, context));
             }
