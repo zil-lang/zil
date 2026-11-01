@@ -26,7 +26,7 @@ pub(crate) struct Policy {
     linker: PathBuf,
 }
 impl Policy {
-    pub(crate) fn discover(clang: &Path) -> Option<Self> {
+    pub(crate) fn discover() -> Option<Self> {
         if !cfg!(target_os = "linux")
             || ["LD_PRELOAD", "LD_AUDIT"]
                 .into_iter()
@@ -34,18 +34,10 @@ impl Policy {
         {
             return None;
         }
-        let clang = if clang.components().count() > 1 || clang.is_absolute() {
-            fs::canonicalize(clang).ok()?
-        } else {
-            std::env::split_paths(&std::env::var_os("PATH")?)
-                .map(|directory| directory.join(clang))
-                .find(|path| path.is_file())?
-                .canonicalize()
-                .ok()?
-        };
-        // Keep the ld.lld invocation name: its sibling may be a symlink to the
-        // generic lld driver, which dispatches according to argv[0].
-        let linker = clang.parent()?.join("ld.lld");
+        // Use the installed GNU relocatable linker. The SDK's large static lld
+        // lacks a build ID and would require hashing 200+ MiB on every request.
+        // Keep the same complete installed identity rules for both tools.
+        let linker = fs::canonicalize("/usr/bin/ld.bfd").ok()?;
         let objcopy = fs::canonicalize("/usr/bin/objcopy").ok()?;
         let mut identity = FingerprintBuilder::new();
         "ZIL-FULL-OBJECT-PATCH-1".hash(&mut identity);

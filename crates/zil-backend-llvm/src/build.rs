@@ -355,11 +355,10 @@ pub fn build_view_with_cancellation_and_stable_names(
             lir.target,
             options.optimization,
             options.function_merging,
-            (options.incremental_o2
+            options.incremental_o2
                 && options.optimization == Optimization::O2
                 && !options.closed_executable
-                && lir.target.triple == "x86_64-unknown-linux-gnu")
-                .then_some(options.clang.as_path()),
+                && lir.target.triple == "x86_64-unknown-linux-gnu",
         ) {
             Ok(cache) => {
                 cache_summary.enabled = true;
