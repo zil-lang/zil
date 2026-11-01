@@ -18,7 +18,9 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
 /// Complete nested Products use the ordinary value ABI. The old predicate
 /// remains the admission route for arrays and error payloads.
 pub(super) fn supported_value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    supported_type(ty, resources) || owned_product_type(ty, resources)
+    supported_type(ty, resources)
+        || owned_product_type(ty, resources)
+        || drop_plan::value_type(ty, resources)
 }
 
 pub(super) fn supported_capture_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
@@ -77,10 +79,12 @@ fn has_store_fields(ty: &Type) -> bool {
 fn owned_field(ty: &Type) -> bool {
     // An embedded child is complete. Its parent has one direct field flag;
     // internal partial flags belong only to the child's independent local.
-    matches!(
-        ty,
-        Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
-    ) || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+    drop_plan::owned_sum(ty)
+        || matches!(
+            ty,
+            Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
+        )
+        || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
 }
 
 /// Complete inline carriers have no nested partial flags. Enumerate only
@@ -90,10 +94,16 @@ pub(super) fn teardown_paths(
     ty: &Type,
     resources: &[ResourceDefinition],
 ) -> CompileResult<Vec<(Vec<u32>, String)>> {
+    if drop_plan::owned_sum(ty) {
+        return Ok(vec![(Vec::new(), drop_plan::symbol(ty))]);
+    }
     let mut pending = vec![(ty, Vec::new())];
     let mut result = Vec::new();
     while let Some((ty, path)) = pending.pop() {
         match ty {
+            Type::Enum { .. } | Type::ErrorUnion { .. } if drop_plan::owned_sum(ty) => {
+                result.push((path, drop_plan::symbol(ty)))
+            }
             Type::Closure(id) => result.push((path, format!("zil.closure.drop.{}", id.0))),
             Type::Managed(payload) => {
                 if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
