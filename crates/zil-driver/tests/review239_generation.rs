@@ -120,7 +120,10 @@ fn generation_preserves_private_iteration_identity_and_closed_payload_profiles()
         );
         assert!(!report.artifacts.contains_key("executable"));
         assert!(
-            report.diagnostics.iter().all(|d| !d.code.starts_with("E-PARSE")),
+            report
+                .diagnostics
+                .iter()
+                .all(|d| !d.code.starts_with("E-PARSE")),
             "{label}: {}",
             report.to_json()
         );
