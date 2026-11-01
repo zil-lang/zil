@@ -300,7 +300,7 @@ impl Slots {
         views: &packages::CaptureViews,
         budget: &mut Budget,
     ) -> Check<Self> {
-        if budget.sums {
+        if budget.sum_function(f.id) {
             for ty in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
                 charge_payload(ty, budget)?;
             }
@@ -1548,7 +1548,10 @@ impl Transfer<'_> {
                         {
                             return Err(bad(
                                 span,
-                                format!("automatic cleanup is not in reverse successful initialization order (local {})", local.0),
+                                format!(
+                                    "automatic cleanup is not in reverse successful initialization order (local {})",
+                                    local.0
+                                ),
                             ));
                         }
                     }
@@ -2197,6 +2200,7 @@ pub(super) fn check_module(
             sum_proofs
                 .rows
                 .get(function.id.0 as usize)
+                .filter(|rows| !rows.is_empty())
                 .map(Vec::as_slice),
             budget,
         )?;
