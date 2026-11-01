@@ -1,532 +1,182 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-31T09:09:58.969207+00:00",
-  "status": "Integrated",
-  "conversation": "zil施工10",
-  "accepted_main_at_start": "aaeb67f12b5638677332132e28df86fa23cde3d8",
-  "latest_main_observed": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
-  "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
-  "main_merge_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
-  "integration_commit": "9e7072b1ebdc6900c7370863c27c7432953bd830",
-  "milestone": "225/226 Product captures; 230 generated Unit/Tuple enums; 231 nominal where bounds",
-  "active_development_agents": 0,
-  "tasks": [
-    {
-      "id": "225",
-      "state": "已合入",
-      "review": "evidence/reviews/225/construction10/FINAL.json",
-      "main_continuity": "evidence/reviews/225/construction10/MAIN-CONTINUITY.json"
+  "observed_at_utc": "2026-10-31T13:45:25.307851+00:00",
+  "status": "ConstructionStatusAuditComplete;LanguageMainlinePartial",
+  "conversation": "zil施工状态核查",
+  "actual_tested_main": "f2572502beb76eb86e9254dea855404e4998a64d",
+  "restored_review_tip": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+  "main_merge_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+  "integration_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+  "accepted_pr": 15,
+  "tasks": {
+    "232": {
+      "status": "已合入",
+      "card": ".task/impl/232.md"
     },
-    {
-      "id": "226",
-      "state": "已合入",
-      "review": "evidence/reviews/226/construction10/FINAL.json",
-      "main_continuity": "evidence/reviews/225/construction10/MAIN-CONTINUITY.json"
+    "233": {
+      "status": "已合入",
+      "card": ".task/impl/233.md"
     },
-    {
-      "id": "230",
-      "state": "已合入",
-      "review": "evidence/reviews/230/FINAL.json",
-      "main_continuity": "evidence/reviews/230/MAIN-CONTINUITY.json"
-    },
-    {
-      "id": "231",
-      "state": "已合入",
-      "review": "evidence/reviews/231/attempt2/FINAL.json",
-      "main_continuity": "evidence/reviews/231/attempt2/MAIN-CONTINUITY.json"
+    "234": {
+      "status": "已合入",
+      "card": ".task/impl/234.md"
     }
-  ],
-  "candidate_ci": {
-    "schema_version": 1,
-    "status": "Pass",
-    "run_id": 41184530698,
-    "run_attempt": 1,
-    "job_id": 124488604160,
-    "head_candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
-    "actual_checkout": "045dc75cec6eaa4de52951e075c52fd809fb6b3c",
-    "compared_candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
-    "metadata_only_tree_difference": [],
-    "compiler_test_tool_and_normative_inputs_identical": true,
-    "workspace": {
-      "groups": 326,
-      "passed": 2976,
-      "failed": 0,
-      "ignored": 0,
-      "measured": 0,
-      "filtered": 0
-    },
-    "reference": {
-      "groups": 326,
-      "passed": 2933,
-      "failed": 0,
-      "ignored": 0,
-      "measured": 0,
-      "filtered": 0
-    },
-    "text_reference": {
-      "groups": 8,
-      "passed": 36,
-      "failed": 0,
-      "ignored": 0,
-      "measured": 0,
-      "filtered": 0
-    },
-    "migration_runner": {
-      "status": "Pass",
-      "passed": 9
-    },
-    "all_required_steps_success": true,
-    "successful_step_count": 25,
-    "consumer209": {
-      "status": "Pass",
-      "builds": 16,
-      "objects": 40,
-      "observations": 128,
-      "allocation_observations": 88,
-      "actual_failure_injections": 56,
-      "all_observed_live_zero": true,
-      "backend": "llvm-api",
-      "llvm_version": "23.1.4",
-      "fallback": null
-    },
-    "receipt_hashes": {
-      "bundle-verify.log": {
-        "bytes": 2357,
-        "sha256": "8da4424282940260b44c71919caf72788c66aef8f22ad7104ba7a06adbaa95ad"
-      },
-      "clippy.log": {
-        "bytes": 1190,
-        "sha256": "b3682e9132994629cfab3cdff1ebb374d85f925eeb5dd28f10efef31c0efd8ca"
-      },
-      "commit.txt": {
-        "bytes": 41,
-        "sha256": "de746ec58883b77a9a7afd37c71eb06008db5ece3bb144cdb7c8139a10e2cc32"
-      },
-      "consumer209.json": {
-        "bytes": 76471,
-        "sha256": "160b2917e9f8e38b527ea634f1ad5def31ced840929f839edde684b33ac148ce"
-      },
-      "fmt.log": {
-        "bytes": 0,
-        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-      },
-      "llvm-api-toolchain.json": {
-        "bytes": 1397,
-        "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
-      },
-      "llvm-install.json": {
-        "bytes": 35125,
-        "sha256": "7a1618089c1527fbaf52457086adb2c591543bbbf8b3845d5dd6a82cabdcd625"
-      },
-      "migration-runner.log": {
-        "bytes": 107,
-        "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
-      },
-      "reference-native-manifest.json": {
-        "bytes": 12745645,
-        "sha256": "c8e0117b1687e0fa630b883ba3578de32501029a234064ef677df3ba2f13e418"
-      },
-      "reference-resources-after.log": {
-        "bytes": 388,
-        "sha256": "e90e07dac3b8751251b078efcd1fafa7a8ba293f427ea71e1e30902e1a508e4e"
-      },
-      "reference-resources-before.log": {
-        "bytes": 220,
-        "sha256": "9eb60d955c83830dcfc3fdb49a322d021be395c8cbfd6af15651385da5872c8f"
-      },
-      "reference.log": {
-        "bytes": 306150,
-        "sha256": "f5c2236d7c5db39fd8950c0f241938d67d294516d497cb1490dca211a13562d9"
-      },
-      "source-tree.txt": {
-        "bytes": 11554382,
-        "sha256": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5"
-      },
-      "text-reference.log": {
-        "bytes": 3931,
-        "sha256": "be8557552d99c7976339b917a2332cb65129ac1a64a0aaac2e48b398bfe7fe9e"
-      },
-      "toolchain.txt": {
-        "bytes": 404,
-        "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
-      },
-      "workspace-native-manifest.json": {
-        "bytes": 13265351,
-        "sha256": "b609fe51936811f31f6832461754cdd7bca0f8a014ff6a0943917192727693c7"
-      },
-      "workspace-resources-after.log": {
-        "bytes": 344,
-        "sha256": "db445329e487187a2fd1d200773556cb16f3368fe211b8f868b718b9085c8e0b"
-      },
-      "workspace-resources-before.log": {
-        "bytes": 144,
-        "sha256": "180221aead1f13b07c58759475ad6a9d773f7ebca2a9ba6c265dccd366d9f631"
-      },
-      "workspace.log": {
-        "bytes": 304147,
-        "sha256": "82c0bb4b1d1dc1d8c8ae4779a88f3dbfe6fb00f6cf1c706ee9c5d891de34c981"
-      }
-    },
-    "boundaries": {
-      "complete_language": "NotSatisfied",
-      "product_gates": "NotRun",
-      "native_Windows": "NotRun",
-      "default_and_reference_counts_not_added": true
-    },
-    "implementation_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
-    "source_equivalence": "The complete observed source-tree.txt is byte-identical to git ls-tree -r I2. P2 to I2 changes only four task records, the freeze receipt, and a first-run observation JSON; all compiler, test, example, tool, and normative inputs are identical."
   },
   "last_main_ci": {
     "schema_version": 1,
     "status": "Pass",
-    "run_id": 41186163758,
-    "run_attempt": 1,
-    "job_id": 124493408210,
-    "head_candidate": "9e7072b1ebdc6900c7370863c27c7432953bd830",
-    "actual_checkout": "9e7072b1ebdc6900c7370863c27c7432953bd830",
-    "compared_candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
-    "metadata_only_tree_difference": [],
-    "compiler_test_tool_and_normative_inputs_identical": true,
-    "workspace": {
-      "groups": 326,
-      "passed": 2976,
-      "failed": 0,
-      "ignored": 0,
-      "measured": 0,
-      "filtered": 0
-    },
-    "reference": {
-      "groups": 326,
-      "passed": 2933,
-      "failed": 0,
-      "ignored": 0,
-      "measured": 0,
-      "filtered": 0
-    },
-    "text_reference": {
-      "groups": 8,
-      "passed": 36,
-      "failed": 0,
-      "ignored": 0,
-      "measured": 0,
-      "filtered": 0
-    },
-    "migration_runner": {
-      "status": "Pass",
-      "passed": 9
-    },
-    "all_required_steps_success": true,
-    "successful_step_count": 25,
-    "consumer209": {
-      "status": "Pass",
-      "builds": 16,
-      "objects": 40,
-      "observations": 128,
-      "allocation_observations": 88,
-      "actual_failure_injections": 56,
-      "all_observed_live_zero": true,
-      "backend": "llvm-api",
-      "llvm_version": "23.1.4",
-      "fallback": null
-    },
-    "receipt_hashes": {
-      "bundle-verify.log": {
-        "bytes": 2346,
-        "sha256": "991000fe4ac78b9cdb21f46c1184b9998d63a434616fddc3c1434ab8ffd68461"
+    "scope": "Read-only reconstruction of the actual main CI result and exact source continuity; no compiler tests rerun in this audit",
+    "observed_at_utc": "2026-10-31T13:15:00Z",
+    "reviewer": "/root/closeout_review",
+    "main_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+    "pr_candidate": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+    "pr_checkout": "db07200ba221bdb67f3f1b7bef7f8e9851592a1a",
+    "source_tree": "da369979b8a7f7d0a93f14defbb2e68ba9e53142",
+    "all_three_complete_trees_equal": true,
+    "published_review_branch_tip": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+    "review_tip_net_root_changes_from_main": [
+      "docs",
+      "evidence"
+    ],
+    "run_id": 41198113948,
+    "job_id": 124528303818,
+    "url": "https://github.com/zil-lang/zil/actions/runs/41198113948",
+    "workflow": "Main source verification",
+    "event": "push",
+    "conclusion": "success",
+    "successful_steps": 25,
+    "test_counts": {
+      "workspace": {
+        "groups": 336,
+        "passed": 3027,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
       },
-      "clippy.log": {
-        "bytes": 1190,
-        "sha256": "85c2bed986b6066b00a387a35d449686757d11368a9da74fa008c9be71cca864"
+      "reference": {
+        "groups": 336,
+        "passed": 2983,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
       },
-      "commit.txt": {
-        "bytes": 41,
-        "sha256": "aade5c19ddcc5e20be26c3e662d8bf66768984e5c5e8b0d344b5e66e713b40a4"
-      },
-      "consumer209.json": {
-        "bytes": 76476,
-        "sha256": "3b9d3cbd4869ad478064be4d84cb119e64939aaace6cfb1d55923a919f125cd4"
-      },
-      "fmt.log": {
-        "bytes": 0,
-        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-      },
-      "llvm-api-toolchain.json": {
-        "bytes": 1397,
-        "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
-      },
-      "llvm-install.json": {
-        "bytes": 35125,
-        "sha256": "42b12d119cfe93c3a7e34f1cf81bb251efdd8643d7f94457faeb325fdf86543b"
-      },
-      "migration-runner.log": {
-        "bytes": 107,
-        "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
-      },
-      "reference-native-manifest.json": {
-        "bytes": 12745560,
-        "sha256": "0b6a816edabb9f5e999394d68899e61a4753c23ab96d3d676c93593fa428f902"
-      },
-      "reference-resources-after.log": {
-        "bytes": 388,
-        "sha256": "070c472afa4cf7cb567383510e4f00ccfc56e134064481f2c6e4e9c1880339ab"
-      },
-      "reference-resources-before.log": {
-        "bytes": 220,
-        "sha256": "6470505b2ae83857d0c037ebd227280daa837e891e7b4db2af68ab0be6aeda85"
-      },
-      "reference.log": {
-        "bytes": 306151,
-        "sha256": "328d875ed9b5603c6775b2a3aad911d1875a688594bb113e27ec50768880bb6e"
-      },
-      "source-tree.txt": {
-        "bytes": 11554382,
-        "sha256": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5"
-      },
-      "text-reference.log": {
-        "bytes": 3931,
-        "sha256": "b8d11f1c778ce05b1ae75472189d087b2000956a9ae8d1b14f05d352de334382"
-      },
-      "toolchain.txt": {
-        "bytes": 404,
-        "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
-      },
-      "workspace-native-manifest.json": {
-        "bytes": 13265092,
-        "sha256": "9ebd7c7572a3e32bb8babf4b078c5b98249fdc4be23c875c4ba42671194146d1"
-      },
-      "workspace-resources-after.log": {
-        "bytes": 344,
-        "sha256": "95b424e39f55cae48f89cb251ef3d9be943f88c52c34d4f1649d6222469a3501"
-      },
-      "workspace-resources-before.log": {
-        "bytes": 144,
-        "sha256": "7dcbed1138f52e08257d3e432b59864aed4bcf17fd1667c50a95f20636598d87"
-      },
-      "workspace.log": {
-        "bytes": 304148,
-        "sha256": "8d8e0e090b1480cc33b65c6ba1322393e67963358326596d3b54ec6350c92484"
+      "text_reference": {
+        "groups": 8,
+        "passed": 37,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
       }
     },
-    "boundaries": {
-      "complete_language": "NotSatisfied",
-      "product_gates": "NotRun",
-      "native_Windows": "NotRun",
-      "default_and_reference_counts_not_added": true
-    }
-  },
-  "last_acceptance_ci": {
-    "schema_version": 1,
-    "status": "Pass",
-    "run_id": 41186163758,
-    "run_attempt": 1,
-    "job_id": 124493408210,
-    "head_candidate": "9e7072b1ebdc6900c7370863c27c7432953bd830",
-    "actual_checkout": "9e7072b1ebdc6900c7370863c27c7432953bd830",
-    "compared_candidate": "f1492652cb6497a33f39e615fd398456ce09253a",
-    "metadata_only_tree_difference": [],
-    "compiler_test_tool_and_normative_inputs_identical": true,
-    "workspace": {
-      "groups": 326,
-      "passed": 2976,
-      "failed": 0,
-      "ignored": 0,
-      "measured": 0,
-      "filtered": 0
+    "migration_runner_passed": 9,
+    "other_successful_gates": [
+      "Formatting",
+      "Native API State and allocation-failure controls",
+      "All-target Clippy"
+    ],
+    "decoded_job_log": {
+      "path": "evidence/integration/construction-status-20261031/main-job124528303818.log.gz",
+      "uncompressed_bytes": 1005182,
+      "uncompressed_sha256": "64e3b0f3aae3a8d825a62e47904b38c5207ef35ad3400f3b4bdffac71c14f47b",
+      "compressed_sha256": "a81a1248078aed97f5a85610bc83547e404f442864c67624e5e8e30e9c425a0e"
     },
-    "reference": {
-      "groups": 326,
-      "passed": 2933,
-      "failed": 0,
-      "ignored": 0,
-      "measured": 0,
-      "filtered": 0
-    },
-    "text_reference": {
-      "groups": 8,
-      "passed": 36,
-      "failed": 0,
-      "ignored": 0,
-      "measured": 0,
-      "filtered": 0
-    },
-    "migration_runner": {
-      "status": "Pass",
-      "passed": 9
-    },
-    "all_required_steps_success": true,
-    "successful_step_count": 25,
-    "consumer209": {
-      "status": "Pass",
-      "builds": 16,
-      "objects": 40,
-      "observations": 128,
-      "allocation_observations": 88,
-      "actual_failure_injections": 56,
-      "all_observed_live_zero": true,
-      "backend": "llvm-api",
-      "llvm_version": "23.1.4",
-      "fallback": null
-    },
-    "receipt_hashes": {
-      "bundle-verify.log": {
-        "bytes": 2346,
-        "sha256": "991000fe4ac78b9cdb21f46c1184b9998d63a434616fddc3c1434ab8ffd68461"
-      },
-      "clippy.log": {
-        "bytes": 1190,
-        "sha256": "85c2bed986b6066b00a387a35d449686757d11368a9da74fa008c9be71cca864"
-      },
-      "commit.txt": {
-        "bytes": 41,
-        "sha256": "aade5c19ddcc5e20be26c3e662d8bf66768984e5c5e8b0d344b5e66e713b40a4"
-      },
-      "consumer209.json": {
-        "bytes": 76476,
-        "sha256": "3b9d3cbd4869ad478064be4d84cb119e64939aaace6cfb1d55923a919f125cd4"
-      },
-      "fmt.log": {
-        "bytes": 0,
-        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-      },
-      "llvm-api-toolchain.json": {
-        "bytes": 1397,
-        "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
-      },
-      "llvm-install.json": {
-        "bytes": 35125,
-        "sha256": "42b12d119cfe93c3a7e34f1cf81bb251efdd8643d7f94457faeb325fdf86543b"
-      },
-      "migration-runner.log": {
-        "bytes": 107,
-        "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
-      },
-      "reference-native-manifest.json": {
-        "bytes": 12745560,
-        "sha256": "0b6a816edabb9f5e999394d68899e61a4753c23ab96d3d676c93593fa428f902"
-      },
-      "reference-resources-after.log": {
-        "bytes": 388,
-        "sha256": "070c472afa4cf7cb567383510e4f00ccfc56e134064481f2c6e4e9c1880339ab"
-      },
-      "reference-resources-before.log": {
-        "bytes": 220,
-        "sha256": "6470505b2ae83857d0c037ebd227280daa837e891e7b4db2af68ab0be6aeda85"
-      },
-      "reference.log": {
-        "bytes": 306151,
-        "sha256": "328d875ed9b5603c6775b2a3aad911d1875a688594bb113e27ec50768880bb6e"
-      },
-      "source-tree.txt": {
-        "bytes": 11554382,
-        "sha256": "3241d672334626f4811c0d5246364d4005151c38e7997670fb5326897e628af5"
-      },
-      "text-reference.log": {
-        "bytes": 3931,
-        "sha256": "b8d11f1c778ce05b1ae75472189d087b2000956a9ae8d1b14f05d352de334382"
-      },
-      "toolchain.txt": {
-        "bytes": 404,
-        "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
-      },
-      "workspace-native-manifest.json": {
-        "bytes": 13265092,
-        "sha256": "9ebd7c7572a3e32bb8babf4b078c5b98249fdc4be23c875c4ba42671194146d1"
-      },
-      "workspace-resources-after.log": {
-        "bytes": 344,
-        "sha256": "95b424e39f55cae48f89cb251ef3d9be943f88c52c34d4f1649d6222469a3501"
-      },
-      "workspace-resources-before.log": {
-        "bytes": 144,
-        "sha256": "7dcbed1138f52e08257d3e432b59864aed4bcf17fd1667c50a95f20636598d87"
-      },
-      "workspace.log": {
-        "bytes": 304148,
-        "sha256": "8d8e0e090b1480cc33b65c6ba1322393e67963358326596d3b54ec6350c92484"
-      }
+    "counting_policy": "PR, main, author and independent replays remain separate; configurations are not summed as unique coverage",
+    "unpublished_checkpoint": {
+      "prefix": "1c868827",
+      "github_lookup": "No commit found on 2026-10-31; not used as evidence"
     },
     "boundaries": {
-      "complete_language": "NotSatisfied",
-      "product_gates": "NotRun",
+      "full_language": "NotSatisfied",
+      "full_ZUI": "NotSatisfied",
+      "B0": "Doing",
       "native_Windows": "NotRun",
-      "default_and_reference_counts_not_added": true
+      "Rust_product_goals": "NotRun"
     }
   },
-  "accepted_capabilities": {
-    "225": "自含环境中的完整 Product Store 拥有捕获，保留实际责任转交、布局与清理。",
-    "226": "已证明普通局部根的显式同步共享 &Product 捕获，最后实际使用之后才允许转交或替换。",
-    "230": "有限 #for 中生成无泛型 Unit/Tuple enum，支持名义卫生、构造/匹配、同批前向绑定及普通复检。",
-    "231": "普通自由泛型函数既有名义 trait 的 where 正规化，保留模块身份/隐私、Copy 组合与保留能力边界。"
-  },
+  "accepted_capabilities": [
+    "default readonly local Product capture",
+    "cross-module ordinary static trait implementations",
+    "LLVM integer constants truncated to actual bit width"
+  ],
   "limits": {
+    "full_language": "NotSatisfied",
+    "full_ZUI": "NotSatisfied",
     "B0": "Doing",
     "181": "施工",
-    "complete_1_4": "NotSatisfied",
-    "complete_ZUI": "NotSatisfied",
-    "Rust_product_gates": "NotRun",
-    "native_Windows": "NotRun",
-    "four_goal_conjunction": "NotEstablished",
-    "product_level_net_breakthrough": "NotEstablished"
-  },
-  "source_history": "All original 225/226 tips, recovered 230/231 source identities and new independent review commits remain in main history; incomplete older recovery inputs are explicitly mapped in RECOVERY.json.",
-  "previous_snapshot": "evidence/integration/construction10/previous-construction-progress.json",
-  "notification": {
-    "requested_minutes_approximately": 10,
-    "automation_created": false,
-    "page": "https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab",
-    "row": "zil施工10",
-    "page_updates_during_active_construction": true,
-    "after_turn_background_activity_promised": false
+    "product_gates": "NotRun",
+    "native_Windows": "NotRun"
   },
   "next_candidates": [
-    "Default readonly complete Product capture from proven ordinary local roots, with real ownership-use classification and independent verification.",
-    "Ordinary defer registration and exactly-once execution across the five exit families, after aligning capture semantics with the current design."
+    "227 ordinary synchronous defer registration and must-execute contract",
+    "general owned Sum/deep Store",
+    "general traits/lending/dyn",
+    "Type/Syntax/ui",
+    "retained callbacks/drain/suspend/cancel/concurrency"
   ],
   "branch_cleanup": {
-    "status": "DeletedAndVerifiedAbsent",
-    "run_id": 41187879812,
-    "run_url": "https://github.com/zil-lang/zil/actions/runs/41187879812",
-    "validated_main": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
-    "accepted_full_ci_main": "9e7072b1ebdc6900c7370863c27c7432953bd830",
+    "status": "ArchivedDeletedAndVerified",
+    "run_id": 41206556938,
+    "run_attempt": 2,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41206556938/attempts/2",
+    "checked_main": "886ce5581aa4d176c19d9edf302282297d907a97",
     "deleted_refs": [
-      "refs/heads/impl/225-product-store-capture",
-      "refs/heads/impl/226-shared-product-capture",
-      "refs/heads/integration/construction10",
-      "refs/heads/review/construction10-231"
+      "refs/heads/chore/construction8-resume",
+      "refs/heads/chore/construction10-cleanup",
+      "refs/heads/chore/construction10-exact-transport",
+      "refs/heads/chore/construction10-recovery",
+      "refs/heads/chore/construction11-exact-transport",
+      "refs/heads/integration/construction11",
+      "refs/heads/review/construction11",
+      "refs/heads/task/construction-status-20261031-cleanup"
     ],
-    "raw_receipt": "evidence/integration/construction10/cleanup/RESULT.json",
-    "research_branches": "Retained: unmerged unique commits remain.",
-    "local_worktrees_removed": 6,
-    "local_cleanup_receipt": "evidence/integration/construction10/cleanup/local-worktrees.json",
-    "independent_verification": "evidence/integration/construction10/cleanup/INDEPENDENT-OBSERVATION.json"
+    "original_branches": 23,
+    "remaining_branches": 16,
+    "archive_tags": {
+      "refs/tags/archive/20261031/construction8-resume-6f7b7679a4fd": "6f7b7679a4fd54df0e0460a7b61c425710ad0953",
+      "refs/tags/archive/20261031/construction10-cleanup-acccc78fe1b4": "acccc78fe1b4719fe7598f8ea5d64812e1e9ff5c",
+      "refs/tags/archive/20261031/construction10-exact-transport-d6218fe763f1": "d6218fe763f13cac89f52f0c6663344bb916b371",
+      "refs/tags/archive/20261031/construction10-recovery-88d3e426af67": "88d3e426af67e48d0fbc041ec406f35b54b17b60",
+      "refs/tags/archive/20261031/construction11-exact-transport-a40d12be3767": "a40d12be3767c198d80e8928fac84fe8fb5a5522",
+      "refs/tags/archive/20261031/construction11-integration-c0418f532e75": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+      "refs/tags/archive/20261031/construction11-review-61203584c01e": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+      "refs/tags/archive/20261031/construction-status-cleanup-62e273ac1159": "62e273ac1159056a3a0d305f1363001460ac0a71"
+    },
+    "research_and_cp25": "Retained; all unrelated refs unchanged during atomic operation",
+    "receipt": "evidence/integration/construction-status-20261031/cleanup/RESULT.json",
+    "local_worktrees": "This fresh audit environment did not have the old worktrees; no claim of deleting another sandbox process or worktree"
   },
-  "metadata_scope": "Tested main identity is M. Subsequent task, review and evidence commits retain identical compiler/test/tool/normative inputs; their HEAD is not claimed as another full test execution.",
   "handoff_record_integrity": {
     "status": "Fail",
-    "checked_commit": "115f4f81e58b6262e3f80234953310158f8b0785",
+    "checked_commit": "886ce5581aa4d176c19d9edf302282297d907a97",
+    "baseline_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
     "errors": 1145,
     "warnings": 0,
-    "baseline_errors_unchanged": true,
+    "baseline_error_multiset_equal": true,
     "added_errors": 0,
     "removed_errors": 0,
-    "four_accepted_task_errors": 0,
-    "receipt": "evidence/integration/construction10/closeout/RESULT.json"
+    "three_accepted_task_errors": 0,
+    "receipt": "evidence/integration/construction-status-20261031/cleanup/RESULT.json",
+    "first_attempt_retained": "evidence/integration/construction-status-20261031/attempt1/FAILURE.json"
   },
+  "previous_snapshot": {
+    "commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+    "path": "data/construction-progress.json"
+  },
+  "metadata_scope": "Compiler/tests/tools/CI/normative inputs remain identical to actual tested main; new HEAD is not a new test execution",
+  "latest_main_observed": "886ce5581aa4d176c19d9edf302282297d907a97",
   "check_plan": {
     "status": "Pass",
-    "checked_commit": "115f4f81e58b6262e3f80234953310158f8b0785",
+    "checked_commit": "886ce5581aa4d176c19d9edf302282297d907a97",
     "tasks": 14,
     "negative_self_tests": 7,
-    "receipt": "evidence/integration/construction10/closeout/check-plan.stdout"
+    "receipt": "evidence/integration/construction-status-20261031/cleanup/RESULT.json"
   },
-  "candidate_commit": "f1492652cb6497a33f39e615fd398456ce09253a",
-  "sandbox": {
-    "name": "zil-sandbox10",
-    "separate_git_repository": true,
-    "object_alternates": false,
-    "compiler_cache_reused": false,
-    "ready": true,
-    "last_verified_metadata_commit": "3dc9174d836d0e12f6d9a8374dc5580b12bf62d0",
-    "final_receipt_sync": "The final evidence commit is fast-forwarded after publication; inspect live Git HEAD rather than treating this prepublication observation as a self-hash."
+  "notification": {
+    "page": "https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab",
+    "row": "zil施工状态核查",
+    "heartbeat": "Only while actual work is active; audit completion ends this heartbeat"
   }
 }
