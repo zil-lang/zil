@@ -9,3 +9,4 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+sha2 = { version = "=0.11.1", default-features = false }

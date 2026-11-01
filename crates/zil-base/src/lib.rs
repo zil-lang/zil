@@ -1,8 +1,10 @@
 #![forbid(unsafe_code)]
 
-//! Stable, dependency-free identities, diagnostics, limits, and fingerprints.
+//! Stable identities, diagnostics, limits, and byte-compatible SHA-256 fingerprints.
 
 mod sha256;
+#[cfg(test)]
+mod sha256_scalar_reference;
 mod source_map;
 pub use source_map::*;
 

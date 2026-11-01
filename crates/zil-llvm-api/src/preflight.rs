@@ -12,10 +12,14 @@ pub(crate) struct Schedule {
     pub functions: BTreeMap<String, Vec<(usize, usize)>>,
 }
 #[derive(Clone, Debug)]
-struct Definition {
-    ty: Ty,
+struct Definition<'a> {
+    // The complete current model stays immutable for the whole preflight.
+    // Sharing its type bytes does not reuse a validation result.
+    ty: &'a Ty,
     place: Option<(usize, usize)>,
 }
+static POINTER_RESULT: Ty = Ty::Ptr;
+static COMPARISON_RESULT: Ty = Ty::Int(1);
 fn fail<T>(s: impl Into<String>) -> Result<T> {
     Err(s.into())
 }
@@ -129,14 +133,13 @@ impl<'a> World<'a> {
             _ => fail("operation requires struct/named aggregate"),
         }
     }
-    fn indexed(&self, t: &Ty, index: u32) -> Result<Ty> {
+    fn indexed<'b>(&'b self, t: &'b Ty, index: u32) -> Result<&'b Ty> {
         match t {
-            Ty::Array(n, element) if u64::from(index) < *n => Ok((**element).clone()),
+            Ty::Array(n, element) if u64::from(index) < *n => Ok(element.as_ref()),
             Ty::Array(..) => fail("aggregate index outside machine array"),
             _ => self
                 .fields(t)?
                 .get(index as usize)
-                .cloned()
                 .ok_or_else(|| "aggregate index outside struct".into()),
         }
     }
@@ -144,14 +147,14 @@ impl<'a> World<'a> {
         &self,
         t: &Ty,
         indices: &[Arg],
-        defs: &HashMap<&str, Definition>,
+        defs: &HashMap<&str, Definition<'_>>,
         constant: bool,
     ) -> Result<()> {
         self.check_ty(t, false)?;
         if indices.is_empty() {
             return fail("GEP needs a pointer index");
         }
-        let mut current = t.clone();
+        let mut current = t;
         for (i, a) in indices.iter().enumerate() {
             if !matches!(a.ty, Ty::Int(_)) {
                 return fail("GEP index is not integer");
@@ -161,7 +164,7 @@ impl<'a> World<'a> {
                 continue;
             }
             current = match current {
-                Ty::Array(_, element) => *element,
+                Ty::Array(_, element) => element.as_ref(),
                 Ty::Struct(_) | Ty::Named(_) => {
                     if a.ty != Ty::Int(32) {
                         return fail("struct GEP index must be i32");
@@ -172,14 +175,14 @@ impl<'a> World<'a> {
                     if n < 0 || n > u32::MAX as i128 {
                         return fail("invalid struct GEP index");
                     }
-                    self.indexed(&current, n as u32)?
+                    self.indexed(current, n as u32)?
                 }
                 _ => return fail("GEP traverses a non-aggregate"),
             };
         }
         Ok(())
     }
-    fn arg(&self, a: &Arg, defs: &HashMap<&str, Definition>, constant: bool) -> Result<()> {
+    fn arg(&self, a: &Arg, defs: &HashMap<&str, Definition<'_>>, constant: bool) -> Result<()> {
         self.check_ty(&a.ty, false)?;
         attrs(&a.attrs, Some(&a.ty))?;
         self.value(&a.value, &a.ty, defs, constant, 0)
@@ -188,7 +191,7 @@ impl<'a> World<'a> {
         &self,
         v: &Val,
         t: &Ty,
-        defs: &HashMap<&str, Definition>,
+        defs: &HashMap<&str, Definition<'_>>,
         constant: bool,
         depth: usize,
     ) -> Result<()> {
@@ -203,7 +206,7 @@ impl<'a> World<'a> {
                 let d = defs
                     .get(name.as_str())
                     .ok_or_else(|| format!("undefined SSA value %{name}"))?;
-                if d.ty != *t {
+                if d.ty != t {
                     return fail(format!("SSA type mismatch for %{name}: {} != {t}", d.ty));
                 }
             }
@@ -266,22 +269,27 @@ impl<'a> World<'a> {
         }
         Ok(())
     }
-    fn result(&self, op: &Op) -> Result<Option<Ty>> {
+    fn result<'b>(&'b self, op: &'b Op) -> Result<Option<&'b Ty>> {
         Ok(match op {
-            Op::Alloca { .. } | Op::Gep { .. } => Some(Ty::Ptr),
-            Op::Load { ty, .. } | Op::Binary { ty, .. } | Op::Phi { ty, .. } => Some(ty.clone()),
-            Op::Compare { .. } => Some(Ty::Int(1)),
-            Op::Cast { to, .. } => Some(to.clone()),
+            Op::Alloca { .. } | Op::Gep { .. } => Some(&POINTER_RESULT),
+            Op::Load { ty, .. } | Op::Binary { ty, .. } | Op::Phi { ty, .. } => Some(ty),
+            Op::Compare { .. } => Some(&COMPARISON_RESULT),
+            Op::Cast { to, .. } => Some(to),
             Op::Extract { arg, index } => Some(self.indexed(&arg.ty, *index)?),
-            Op::Insert { arg, .. } | Op::Freeze(arg) => Some(arg.ty.clone()),
+            Op::Insert { arg, .. } | Op::Freeze(arg) => Some(&arg.ty),
             Op::Call {
                 result: Ty::Void, ..
             } => None,
-            Op::Call { result, .. } => Some(result.clone()),
+            Op::Call { result, .. } => Some(result),
             _ => None,
         })
     }
-    fn op(&self, op: &Op, defs: &HashMap<&str, Definition>, signature: &Signature) -> Result<()> {
+    fn op(
+        &self,
+        op: &Op,
+        defs: &HashMap<&str, Definition<'_>>,
+        signature: &Signature,
+    ) -> Result<()> {
         let value = |v: &Val, t: &Ty| self.value(v, t, defs, false, 0);
         match op {
             Op::Alloca { ty, align } => {
@@ -372,7 +380,7 @@ impl<'a> World<'a> {
             Op::Insert { arg, field, index } => {
                 self.arg(arg, defs, false)?;
                 self.arg(field, defs, false)?;
-                if self.indexed(&arg.ty, *index)? != field.ty {
+                if self.indexed(&arg.ty, *index)? != &field.ty {
                     return fail("insertvalue field type mismatch");
                 }
             }
@@ -651,7 +659,7 @@ fn function<const COLLECT_SCHEDULE: bool>(
                 .insert(
                     name,
                     Definition {
-                        ty: p.ty.clone(),
+                        ty: &p.ty,
                         place: None,
                     },
                 )
@@ -684,7 +692,7 @@ fn function<const COLLECT_SCHEDULE: bool>(
             }
             if let Some(name) = &i.result {
                 let ty = world.result(&i.op)?.ok_or("named void instruction")?;
-                world.check_ty(&ty, false)?;
+                world.check_ty(ty, false)?;
                 if !identifier(name)
                     || defs
                         .insert(

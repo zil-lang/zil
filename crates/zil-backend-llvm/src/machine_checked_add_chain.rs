@@ -73,6 +73,9 @@ impl Kind {
     fn pair(self) -> Ty {
         Ty::Struct(vec![self.ty(), Ty::Int(1)])
     }
+    fn matches_pair(self, ty: &Ty) -> bool {
+        matches!(ty, Ty::Struct(fields) if fields.as_slice() == [self.ty(), Ty::Int(1)])
+    }
     fn interpret(self, raw: i128) -> i128 {
         let modulus = 1i128 << self.bits;
         let raw = raw & (modulus - 1);
@@ -92,18 +95,18 @@ impl Kind {
     }
 }
 
-#[derive(Clone)]
-struct Check {
+#[derive(Clone, Copy)]
+struct Check<'a> {
     kind: Kind,
-    intrinsic: String,
-    source: String,
+    intrinsic: &'a str,
+    source: &'a str,
     constant: i128,
-    pair: String,
-    value: String,
-    flag: String,
-    materializer: Option<String>,
-    trap: String,
-    next: String,
+    pair: &'a str,
+    value: &'a str,
+    flag: &'a str,
+    materializer: Option<&'a str>,
+    trap: &'a str,
+    next: &'a str,
 }
 struct Chain {
     blocks: Vec<usize>,
@@ -160,7 +163,7 @@ fn declarations(module: &Module) -> (HashMap<&str, Kind>, bool) {
             _ => continue,
         };
         let kind = Kind { bits, signed };
-        if function.signature.result == kind.pair()
+        if kind.matches_pair(&function.signature.result)
             && function.signature.params.len() == 2
             && function.signature.params.iter().all(|p| p.ty == kind.ty())
         {
@@ -170,7 +173,7 @@ fn declarations(module: &Module) -> (HashMap<&str, Kind>, bool) {
     (intrinsics, trap)
 }
 
-fn checked_block(block: &Block, intrinsics: &HashMap<&str, Kind>) -> Option<Check> {
+fn checked_block<'a>(block: &'a Block, intrinsics: &HashMap<&str, Kind>) -> Option<Check<'a>> {
     let instructions = &block.instructions;
     let offset = match instructions.len() {
         4 => 0,
@@ -189,7 +192,7 @@ fn checked_block(block: &Block, intrinsics: &HashMap<&str, Kind>) -> Option<Chec
         return None;
     };
     let kind = *intrinsics.get(name.as_str())?;
-    if result != &kind.pair()
+    if !kind.matches_pair(result)
         || !result_attrs.is_empty()
         || args.len() != 2
         || args
@@ -214,14 +217,16 @@ fn checked_block(block: &Block, intrinsics: &HashMap<&str, Kind>) -> Option<Chec
         }
         // Concrete, flag-free integer add only. Truncate before interpreting sign.
         let raw = kind.interpret(literal(left)?) + kind.interpret(literal(right)?);
-        Some((prefix.result.as_ref()?, kind.interpret(raw)))
+        Some((prefix.result.as_deref()?, kind.interpret(raw)))
     } else {
         None
     };
     let constant = |value: &Val| {
         literal(value).map(|n| kind.interpret(n)).or_else(|| {
             let Val::Local(name) = value else { return None };
-            materializer.filter(|(m, _)| *m == name).map(|(_, n)| n)
+            materializer
+                .filter(|(m, _)| *m == name.as_str())
+                .map(|(_, n)| n)
         })
     };
     let (source, number, constant_value) = match (&args[0].value, &args[1].value) {
@@ -234,23 +239,23 @@ fn checked_block(block: &Block, intrinsics: &HashMap<&str, Kind>) -> Option<Chec
         _ => return None,
     };
     if let Some((materializer, _)) = materializer
-        && constant_value != &Val::Local(materializer.clone())
+        && !matches!(constant_value, Val::Local(name) if name == materializer)
     {
         return None;
     }
-    let pair = call.result.as_ref()?;
-    let extract = |instruction: &Inst, wanted| {
+    let pair = call.result.as_deref()?;
+    let extract = |instruction: &'a Inst, wanted| {
         let Op::Extract { arg, index } = &instruction.op else {
             return None;
         };
         if *index != wanted
-            || arg.ty != kind.pair()
+            || !kind.matches_pair(&arg.ty)
             || !arg.attrs.is_empty()
-            || arg.value != Val::Local(pair.clone())
+            || !matches!(&arg.value, Val::Local(name) if name == pair)
         {
             return None;
         }
-        instruction.result.clone()
+        instruction.result.as_deref()
     };
     let value = extract(&instructions[offset + 1], 0)?;
     let flag = extract(&instructions[offset + 2], 1)?;
@@ -262,20 +267,20 @@ fn checked_block(block: &Block, intrinsics: &HashMap<&str, Kind>) -> Option<Chec
     else {
         return None;
     };
-    if condition != &flag || yes == no || instructions[offset + 3].result.is_some() {
+    if condition != flag || yes == no || instructions[offset + 3].result.is_some() {
         return None;
     }
     Some(Check {
         kind,
-        intrinsic: name.clone(),
-        source: source.clone(),
+        intrinsic: name,
+        source,
         constant: number,
-        pair: pair.clone(),
+        pair,
         value,
         flag,
-        materializer: materializer.map(|(m, _)| m.clone()),
-        trap: yes.clone(),
-        next: no.clone(),
+        materializer: materializer.map(|(m, _)| m),
+        trap: yes,
+        next: no,
     })
 }
 
@@ -362,7 +367,7 @@ fn function_chains(function: &Function, intrinsics: &HashMap<&str, Kind>) -> Vec
     // use-count, cycle, sign, sum and Phi checks remain in the unchanged planner.
     let has_adjacent_checks = checks.iter().flatten().any(|previous| {
         names
-            .get(previous.next.as_str())
+            .get(previous.next)
             .and_then(|&index| checks[index].as_ref())
             .is_some_and(|next| {
                 next.kind == previous.kind
@@ -422,15 +427,12 @@ fn function_chains(function: &Function, intrinsics: &HashMap<&str, Kind>) -> Vec
         return vec![];
     }
     let single = |name: &str, count: usize| uses.get(name).copied().unwrap_or(0) == count;
-    let eligible = |check: &Check| {
-        single(&check.pair, 2)
-            && single(&check.flag, 1)
-            && check
-                .materializer
-                .as_ref()
-                .is_none_or(|name| single(name, 1))
+    let eligible = |check: &Check<'_>| {
+        single(check.pair, 2)
+            && single(check.flag, 1)
+            && check.materializer.is_none_or(|name| single(name, 1))
             && names
-                .get(check.trap.as_str())
+                .get(check.trap)
                 .is_some_and(|&i| exact_trap(&blocks[i]))
     };
     let mut claimed = vec![false; blocks.len()];
@@ -453,7 +455,7 @@ fn function_chains(function: &Function, intrinsics: &HashMap<&str, Kind>) -> Vec
                 work.set((nodes, probes + 1));
             });
             let previous = checks[current].as_ref().expect("chain member");
-            let Some(&next_id) = names.get(previous.next.as_str()) else {
+            let Some(&next_id) = names.get(previous.next) else {
                 break;
             };
             if next_id == 0 || claimed[next_id] || predecessors[next_id].as_slice() != [current] {
@@ -466,7 +468,7 @@ fn function_chains(function: &Function, intrinsics: &HashMap<&str, Kind>) -> Vec
                 || next.intrinsic != first.intrinsic
                 || next.trap != first.trap
                 || next.source != previous.value
-                || !single(&previous.value, 1)
+                || !single(previous.value, 1)
             {
                 break;
             }
@@ -490,7 +492,7 @@ fn function_chains(function: &Function, intrinsics: &HashMap<&str, Kind>) -> Vec
         if sequence.len() < 2 {
             continue;
         }
-        let endpoint = names[checks[current].as_ref().expect("last member").next.as_str()];
+        let endpoint = names[checks[current].as_ref().expect("last member").next];
         if blocks[endpoint]
             .instructions
             .iter()
@@ -512,38 +514,38 @@ fn function_chains(function: &Function, intrinsics: &HashMap<&str, Kind>) -> Vec
         let pair = first.kind.pair();
         let replacement = vec![
             Inst::new(
-                Some(last.pair.clone()),
+                Some(last.pair.to_owned()),
                 Op::Call {
                     result: pair.clone(),
                     result_attrs: vec![],
-                    callee: Val::Global(first.intrinsic.clone()),
+                    callee: Val::Global(first.intrinsic.to_owned()),
                     args: vec![
-                        Arg::new(first.kind.ty(), Val::Local(first.source.clone())),
+                        Arg::new(first.kind.ty(), Val::Local(first.source.to_owned())),
                         Arg::new(first.kind.ty(), Val::Int(sum)),
                     ],
                     vararg: None,
                 },
             ),
             Inst::new(
-                Some(last.value.clone()),
+                Some(last.value.to_owned()),
                 Op::Extract {
-                    arg: Arg::new(pair.clone(), Val::Local(last.pair.clone())),
+                    arg: Arg::new(pair.clone(), Val::Local(last.pair.to_owned())),
                     index: 0,
                 },
             ),
             Inst::new(
-                Some(last.flag.clone()),
+                Some(last.flag.to_owned()),
                 Op::Extract {
-                    arg: Arg::new(pair, Val::Local(last.pair.clone())),
+                    arg: Arg::new(pair, Val::Local(last.pair.to_owned())),
                     index: 1,
                 },
             ),
             Inst::new(
                 None,
                 Op::CondBranch {
-                    condition: Val::Local(last.flag.clone()),
-                    yes: last.trap.clone(),
-                    no: last.next.clone(),
+                    condition: Val::Local(last.flag.to_owned()),
+                    yes: last.trap.to_owned(),
+                    no: last.next.to_owned(),
                 },
             ),
         ];
