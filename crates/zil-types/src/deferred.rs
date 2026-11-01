@@ -99,10 +99,11 @@ impl Builder<'_, '_> {
                         "loop control cannot cross a defer cleanup boundary",
                     ));
                 }
-                CoreStatementKind::Binding { initializer, .. } => {
-                    if let Some(value) = initializer {
-                        self.validate_defer_expr(value, depth + 1, cleanup)?;
-                    }
+                CoreStatementKind::Binding {
+                    initializer: Some(value),
+                    ..
+                } => {
+                    self.validate_defer_expr(value, depth + 1, cleanup)?;
                 }
                 CoreStatementKind::Assign { target, value } => {
                     self.validate_defer_expr(target, depth + 1, cleanup)?;
