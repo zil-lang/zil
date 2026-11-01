@@ -137,7 +137,7 @@ impl PreparedCache {
         target: &TargetProfile,
         opt: Optimization,
         function_merging: FunctionMerging,
-        patch_clang: Option<&Path>,
+        patch_enabled: bool,
     ) -> Result<Self, String> {
         // Interposed LLVM functions may come from another DSO. Do not reuse
         // objects under an incomplete tool identity in that environment.
@@ -157,7 +157,9 @@ impl PreparedCache {
         let (version, library) = zil_llvm_api::cache_runtime(&config).map_err(|e| e.to_string())?;
         let compiler = std::env::current_exe().map_err(|e| e.to_string())?;
         let mut state = FingerprintBuilder::new();
-        let patch_policy = patch_clang.and_then(crate::machine_object_patch::Policy::discover);
+        let patch_policy = patch_enabled
+            .then(crate::machine_object_patch::Policy::discover)
+            .flatten();
         // Versioned exact protocol. Compiler-specific derived Hash cannot cross
         // a compiler identity boundary. Generic CPU/features/pipeline/relocation
         // and layout derivation are fixed in that very compiler's native adapter.
