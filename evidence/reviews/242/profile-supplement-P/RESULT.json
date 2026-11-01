@@ -1,0 +1,43 @@
+{
+  "status": "IndependentSupplementaryControlsOnSameProductionBlobs",
+  "implementation_commit": "d393f47db2a1e3da23d1d52c875fb142c193ef14",
+  "reviewer": "/root/review_language_contracts",
+  "verdict": "Fail",
+  "test": "crates/zil-driver/tests/review242_capture_profiles.rs",
+  "sha256": "046394764f1c4c394b9463b0f4f0efc7a058535d95226011aaa7b4cf3fddfdf4",
+  "authorship": "Root/242 first found capture qualification and nested ErrorUnion slot family; this reviewer independently generated coherent neighboring public candidates, not first-discovery credit.",
+  "production_identity": "Private244 tree production sources equal exactP; only test/evidence added.",
+  "capture_probe": {
+    "selected": 1,
+    "failed": 1,
+    "unread_old_package_capture_control": "Analyze/raw/Wire accepted; actual supplied owning field and exact old Package view prefix retained.",
+    "direct_enum": "Same actual owned constructor and capture field; body does not read payload. Verify raw/Wire accepted forbidden capture. Analyze rejected.",
+    "other_profiles": "Package<Enum> and ErrorUnion<Enum> captures independently rejected Unsupported in both kernels."
+  },
+  "unused_slot_probe": {
+    "selected": 1,
+    "failed": 1,
+    "positive_raw_shapes": 3,
+    "negative_raw_shapes": 5,
+    "actual": "All three positive controls passed Analyze/raw/Wire. Verify raw and Wire accepted all five illegal ErrorUnion positions. Analyze also accepted owning Enum error with Managed success and illegal union nested inside Enum.",
+    "positive_shapes": [
+      "Copy error!Managed result",
+      "owned Enum error!Unit result",
+      "Enum payload containing legal Copy!Managed union"
+    ],
+    "negative_shapes": [
+      "owned union error!Managed result",
+      "owned Enum error!Managed result",
+      "owned union error!Unit result",
+      "Unit error!owned union result",
+      "Enum payload containing illegal owned-union-error!Managed-result"
+    ]
+  },
+  "native_runs": 0,
+  "fixture_exploration": [
+    "Initial retained factory route was already rejected by retained-return qualification, so it did not reach the capture-definition hole.",
+    "Initial whole-payload reads were rejected by Package-view/TakeCapture operations; final raw body deliberately ignores payload and old Package control retains its mandatory view prefix.",
+    "Malformed intermediate test controls rejected before probe and are archived as fixture development, not compiler discoveries."
+  ],
+  "source_oracles_changed": false
+}
