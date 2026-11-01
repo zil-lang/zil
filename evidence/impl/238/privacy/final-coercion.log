@@ -1,0 +1,26 @@
+   Compiling zil-types v0.1.0 (/workspace/zil-238-privacy/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/zil-238-privacy/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 17.64s
+     Running tests/impl238_private_replacement.rs (/workspace/.zil-env/target-238-privacy/debug/deps/impl238_private_replacement-9569567b1e554f48)
+
+running 4 tests
+test source_private_accesses_are_never_internal_transaction_operations ... ok
+test opaque_independent_and_self_replacement_preserve_private_fields ... ok
+test original_cross_module_projects_reach_analyze_unchanged ... ok
+test opaque_replacement_with_later_temporaries_runs_on_both_native_levels ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/impl238_product_replacement.rs (/workspace/.zil-env/target-238-privacy/debug/deps/impl238_product_replacement-6ec5b07dc8e3054b)
+
+running 7 tests
+test replacement_types_budget_is_paid_before_field_growth ... ok
+test ordinary_whole_move_copy_reads_live_windows_and_complex_self_remain_closed ... ok
+test self_call_keeps_each_actual_binding_and_copy_read_available_after_commit ... ok
+test original_relay_retains_shell_age_and_unchanged_cleanup_oracle ... ok
+test self_call_reuses_ordinary_inferred_and_explicit_template_instantiation ... ok
+test independent_rhs_prepares_then_cleans_declared_fields_and_publishes_copy ... ok
+test rhs_error_keeps_old_value_and_self_argument_failure_keeps_actual_stage ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.85s
+

@@ -1,0 +1,54 @@
+   Compiling zil-types v0.1.0 (/workspace/zil-238-privacy/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/zil-238-privacy/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 20.97s
+     Running tests/impl060.rs (/workspace/.zil-env/target-238-privacy/debug/deps/impl060-3160e6adaad6ffe3)
+
+running 3 tests
+test whole_package_call_return_closes_both_real_native_descriptors ... ok
+test partial_preparation_and_complete_package_cleanup_have_distinct_native_orders ... ok
+test bounded_ui_events_move_complete_packages_without_losing_field_descriptions ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.92s
+
+     Running tests/impl064.rs (/workspace/.zil-env/target-238-privacy/debug/deps/impl064-6af64de1973dd1a4)
+
+running 2 tests
+test helper064_public_field_view_survives_two_calls_and_whole_package_move ... ok
+test helper064_native_owned_borrowed_adapted_and_error_paths_match_rust ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.45s
+
+     Running tests/impl206_budget.rs (/workspace/.zil-env/target-238-privacy/debug/deps/impl206_budget-9dbef93c347da278)
+
+running 2 tests
+old-flat: Types=418, Analyze=8673
+test old_flat_package_records_exact_phase_boundaries ... ok
+mixed: Types=753, Analyze=21120
+whole: Types=796, Analyze=27114
+wrappers: Types=752, Analyze=26951
+test new_product_leaf_tables_have_exact_fresh_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/impl238_private_replacement.rs (/workspace/.zil-env/target-238-privacy/debug/deps/impl238_private_replacement-9569567b1e554f48)
+
+running 3 tests
+test source_private_accesses_are_never_internal_transaction_operations ... ok
+test opaque_independent_and_self_replacement_preserve_private_fields ... ok
+test original_cross_module_projects_reach_analyze_unchanged ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/impl238_product_replacement.rs (/workspace/.zil-env/target-238-privacy/debug/deps/impl238_product_replacement-6ec5b07dc8e3054b)
+
+running 7 tests
+test replacement_types_budget_is_paid_before_field_growth ... ok
+test ordinary_whole_move_copy_reads_live_windows_and_complex_self_remain_closed ... ok
+test original_relay_retains_shell_age_and_unchanged_cleanup_oracle ... ok
+test self_call_keeps_each_actual_binding_and_copy_read_available_after_commit ... ok
+test independent_rhs_prepares_then_cleans_declared_fields_and_publishes_copy ... ok
+test self_call_reuses_ordinary_inferred_and_explicit_template_instantiation ... ok
+test rhs_error_keeps_old_value_and_self_argument_failure_keeps_actual_stage ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.80s
+

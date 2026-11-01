@@ -122,10 +122,29 @@ impl<'a> Visibility<'a> {
         &mut self,
         function: &TypedFunction,
         module: ModuleId,
+        internal: &BTreeMap<FunctionId, BTreeMap<(BlockId, usize), InstructionKind>>,
     ) -> CompileResult<()> {
+        if !internal.is_empty() {
+            self.spend(
+                internal.len().saturating_add(1).ilog2() as usize + 1,
+                function.span,
+            )
+            .map_err(|e| vec![e])?;
+        }
+        let internal = internal.get(&function.id);
         for block in &function.blocks {
-            for instruction in &block.instructions {
+            for (index, instruction) in block.instructions.iter().enumerate() {
                 self.spend(1, instruction.span).map_err(|e| vec![e])?;
+                if let Some(internal) = internal {
+                    self.spend(
+                        internal.len().saturating_add(1).ilog2() as usize + 1,
+                        instruction.span,
+                    )
+                    .map_err(|e| vec![e])?;
+                    if internal.get(&(block.id, index)) == Some(&instruction.kind) {
+                        continue;
+                    }
+                }
                 let access = match &instruction.kind {
                     InstructionKind::ExtractField { aggregate, index }
                     | InstructionKind::UpdateField {

@@ -107,6 +107,8 @@ pub(super) struct State {
     pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
     pub store_instances: Vec<store_templates::Instance>,
     pub products: aggregate_templates::Products,
+    // Private compiler provenance; public Core/Typed/Wire cannot supply it.
+    pub internal_product_fields: BTreeMap<FunctionId, BTreeMap<(BlockId, usize), InstructionKind>>,
     pub helper_functions: Vec<TypedFunction>,
     pub helper_exports: Vec<helpers::Export>,
     pub pending: Vec<Pending>,
@@ -123,6 +125,55 @@ pub(super) struct State {
 }
 
 impl State {
+    pub(super) fn inserted_instruction(
+        &mut self,
+        function: FunctionId,
+        block: BlockId,
+        position: usize,
+        span: Span,
+    ) -> R<()> {
+        if self.internal_product_fields.is_empty() {
+            return Ok(());
+        }
+        self.snapshot(
+            self.internal_product_fields.len().saturating_add(1).ilog2() as usize + 1,
+            span,
+        )?;
+        let Some(receipts) = self.internal_product_fields.get(&function) else {
+            return Ok(());
+        };
+        let count = receipts.len();
+        self.snapshot(
+            count
+                .saturating_mul(count.saturating_add(1).ilog2() as usize + 3)
+                .saturating_add(
+                    self.internal_product_fields.len().saturating_add(1).ilog2() as usize + 1,
+                ),
+            span,
+        )?;
+        let receipts = self
+            .internal_product_fields
+            .get_mut(&function)
+            .expect("existing receipts");
+        *receipts = std::mem::take(receipts)
+            .into_iter()
+            .map(|((owner, index), kind)| {
+                (
+                    (
+                        owner,
+                        if owner == block && index >= position {
+                            index + 1
+                        } else {
+                            index
+                        },
+                    ),
+                    kind,
+                )
+            })
+            .collect();
+        Ok(())
+    }
+
     // Private work-product receipts record only shared accounting, never proof.
     pub(super) fn accounting(&self) -> [usize; 6] {
         [
@@ -173,6 +224,7 @@ impl State {
             helper_instances: BTreeMap::new(),
             store_instances: Vec::new(),
             products: None,
+            internal_product_fields: BTreeMap::new(),
             helper_functions: Vec::new(),
             helper_exports: Vec::new(),
             pending: vec![],

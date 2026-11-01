@@ -1,0 +1,9 @@
+. /workspace/.zil-env/env.sh
+export CARGO_TARGET_DIR=/workspace/.zil-env/target-238-privacy CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0
+cargo test -p zil-driver --features llvm-api --locked --test impl238_private_replacement --test impl238_product_replacement --test impl206_budget --test impl060 --test impl064 -- --nocapture
+cargo test -p zil-driver --features llvm-api --locked --lib semantic_cache::tests::private_format_roundtrips_all_raw_program_fields_for_real_projects -- --exact --nocapture
+cargo test -p zil-driver --features llvm-api --locked --test impl072_packages packages072_direct_operations_keep_defining_module_field_privacy -- --exact --nocapture
+cargo test -p zil-driver --features llvm-api --locked --test impl206_verify -- --nocapture
+cargo test -p zil-driver --features llvm-api --locked --test impl238_private_replacement --test impl238_product_replacement -- --nocapture
+cargo test -p zil-driver --features llvm-api --locked --test impl238_private_replacement -- --nocapture
+cargo clippy -p zil-types --all-targets --locked -- -D warnings
