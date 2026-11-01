@@ -5,7 +5,7 @@ use super::*;
 impl Builder<'_, '_> {
     // Only callers which manufacture a whole-value transaction may register
     // an instruction. Neither source ids/spans nor public IR carry this fact.
-    fn internal_product_field(
+    pub(super) fn internal_product_field(
         &mut self,
         kind: InstructionKind,
         ty: Option<Type>,
@@ -72,6 +72,9 @@ impl Builder<'_, '_> {
             return Ok(None);
         }
         self.replacement_input = None;
+        if let Some(value) = self.take_sum_slot(local, expected, expression.span, true)? {
+            return Ok(Some(value));
+        }
         let ty = &self.function.locals[local.0 as usize].ty;
         let work = inference::type_snapshot_work(ty, expression.span, self.limits)?;
         self.closures
@@ -85,7 +88,7 @@ impl Builder<'_, '_> {
         };
         let mut values = Vec::with_capacity(fields.len());
         for (index, (_, field)) in fields.iter().enumerate() {
-            let kind = if matches!(field, Type::Managed(_) | Type::Package { .. }) {
+            let kind = if owned_shapes::field(field) {
                 InstructionKind::TakePackageField {
                     local,
                     index: index as u32,
@@ -132,7 +135,7 @@ impl Builder<'_, '_> {
         let qualification = inference::type_snapshot_work(ty, span, self.limits)?;
         self.closures
             .snapshot(qualification.saturating_mul(2), span)?;
-        if !packages::product::owned_supported(ty) {
+        if !packages::product::owned_supported(ty) && !owned_shapes::value(ty) {
             return Ok(false);
         }
         self.closures
@@ -231,7 +234,7 @@ impl Builder<'_, '_> {
             unreachable!()
         };
         for (index, (_, field)) in fields.iter().enumerate() {
-            if matches!(field, Type::Managed(_) | Type::Package { .. }) {
+            if owned_shapes::field(field) {
                 self.internal_product_field(
                     InstructionKind::DropPackageField {
                         local,
@@ -246,7 +249,7 @@ impl Builder<'_, '_> {
         // Copy fields are published only after every old owning field is clear.
         for (index, (_, field)) in fields.iter().enumerate() {
             let index = index as u32;
-            let kind = if matches!(field, Type::Managed(_) | Type::Package { .. }) {
+            let kind = if owned_shapes::field(field) {
                 InstructionKind::TakePackageField {
                     local: prepared,
                     index,
@@ -277,10 +280,10 @@ impl Builder<'_, '_> {
 /// Only the target binding matters; lexical shadowing can be represented by
 /// one bit. Every node is visited even after a reference is found, so no other
 /// argument can hide a target access behind the whole-value transaction.
-struct References<'a, 's> {
-    target: &'a str,
-    state: &'s mut closures::State,
-    limits: &'a Limits,
+pub(super) struct References<'a, 's> {
+    pub(super) target: &'a str,
+    pub(super) state: &'s mut closures::State,
+    pub(super) limits: &'a Limits,
 }
 impl References<'_, '_> {
     fn charge(&mut self, depth: usize, span: Span, extra: usize) -> R<()> {
@@ -422,7 +425,7 @@ impl References<'_, '_> {
         }
         Ok(found)
     }
-    fn expr(&mut self, value: &CoreExpr, shadow: bool, depth: usize) -> R<bool> {
+    pub(super) fn expr(&mut self, value: &CoreExpr, shadow: bool, depth: usize) -> R<bool> {
         self.charge(depth, value.span, 0)?;
         let mut found = false;
         match &value.kind {

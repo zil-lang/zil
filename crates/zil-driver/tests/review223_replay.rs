@@ -1,45 +1,54 @@
-//! Exact original223 attack bytes, plus an explicitly migrated schema29 envelope.
+//! Exact original223 attack bytes, plus an explicitly migrated schema30 envelope.
 use std::{fs, path::PathBuf};
 use zil_base::{Fingerprint, Limits, Phase, ResultCategory, TargetProfile};
 
 const ORIGINAL: &[u8] = include_bytes!("review223_fixtures/mutable-product-original.wire");
 const SCHEMA29: &[u8] = include_bytes!("review223_fixtures/mutable-product-schema29.wire");
+const SCHEMA30: &[u8] = include_bytes!("review223_fixtures/schema30-mutable-product.wire");
 
 #[test]
-fn frozen_schema27_wire_is_rejected_as_an_old_transport() {
-    assert_eq!(
-        Fingerprint::of(ORIGINAL).to_hex(),
-        "5ba4b35d45093a324e31ab8971d92788a1e9c18b57cbdc17fdd317c7d2f59de9"
-    );
+fn frozen_schema27_and29_wire_are_rejected_as_old_transports() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
-    for errors in [
-        zil_ir::wire::decode_module_candidate(ORIGINAL, &limits).unwrap_err(),
-        zil_verify::verify_module_bytes(ORIGINAL, &target, &limits).unwrap_err(),
+    for (wire, hash) in [
+        (
+            ORIGINAL,
+            "5ba4b35d45093a324e31ab8971d92788a1e9c18b57cbdc17fdd317c7d2f59de9",
+        ),
+        (
+            SCHEMA29,
+            "3d5bf5e48a6a0856d3fad6c8b7997e8ba5ccb7adfbb0327a2e7e0852d4da4198",
+        ),
     ] {
-        assert_eq!(errors.len(), 1, "{errors:#?}");
-        let error = &errors[0];
-        assert_eq!(error.phase, Phase::Verify);
-        assert_eq!(error.category, ResultCategory::SafeReject);
-        assert_eq!(error.code, "E-WIRE-VERSION");
+        assert_eq!(Fingerprint::of(wire).to_hex(), hash);
+        for errors in [
+            zil_ir::wire::decode_module_candidate(wire, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(wire, &target, &limits).unwrap_err(),
+        ] {
+            assert_eq!(errors.len(), 1, "{errors:#?}");
+            let error = &errors[0];
+            assert_eq!(error.phase, Phase::Verify);
+            assert_eq!(error.category, ResultCategory::SafeReject);
+            assert_eq!(error.code, "E-WIRE-VERSION");
+        }
     }
 }
 
 // This is a fixture migration, not a production backward-compatible decoder.
-// The original TypedModule payload uses the same field layout in27 and29.
+// The original TypedModule payload uses the same field layout in27 and30.
 fn migrate_original_envelope(limits: &Limits) -> Vec<u8> {
     assert_eq!(&ORIGINAL[..8], b"ZILMODP\0");
     assert_eq!(&ORIGINAL[8..12], &27u32.to_le_bytes());
-    assert_eq!(zil_ir::wire::WIRE_VERSION, 29);
-    assert_eq!(zil_base::SCHEMA_VERSION, 29);
+    assert_eq!(zil_ir::wire::WIRE_VERSION, 30);
+    assert_eq!(zil_base::SCHEMA_VERSION, 30);
     let mut transport = ORIGINAL.to_vec();
-    transport[8..12].copy_from_slice(&29u32.to_le_bytes());
+    transport[8..12].copy_from_slice(&30u32.to_le_bytes());
     let (mut module, mut plan) = zil_ir::wire::decode_module_candidate(&transport, limits).unwrap();
     assert_eq!(module.schema_version, 27);
     assert_eq!(plan.schema_version, 27);
     assert_eq!(plan.target_fingerprint, module.target.fingerprint());
-    module.schema_version = 29;
-    plan.schema_version = 29;
+    module.schema_version = 30;
+    plan.schema_version = 30;
     plan.module_fingerprint = module.fingerprint();
     let migrated = zil_ir::wire::encode_module_candidate(&module, &plan, limits).unwrap();
     // Fixed offsets are audited against the original1744-byte envelope.
@@ -47,7 +56,7 @@ fn migrate_original_envelope(limits: &Limits) -> Vec<u8> {
     let mut expected = ORIGINAL.to_vec();
     for offset in [8, 12, 1538] {
         assert_eq!(&ORIGINAL[offset..offset + 4], &27u32.to_le_bytes());
-        expected[offset..offset + 4].copy_from_slice(&29u32.to_le_bytes());
+        expected[offset..offset + 4].copy_from_slice(&30u32.to_le_bytes());
     }
     expected[1542..1574].copy_from_slice(&plan.module_fingerprint.0);
     assert_eq!(migrated, expected);
@@ -59,14 +68,14 @@ fn frozen_mutable_product_raw_and_wire_must_be_rejected() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     assert_eq!(
-        Fingerprint::of(SCHEMA29).to_hex(),
-        "3d5bf5e48a6a0856d3fad6c8b7997e8ba5ccb7adfbb0327a2e7e0852d4da4198"
+        Fingerprint::of(SCHEMA30).to_hex(),
+        "783db64403cec14468080ce9708d4f25a4cbd315aaed36d2f994994f7f70e3c9"
     );
-    assert_eq!(migrate_original_envelope(&limits), SCHEMA29);
-    let (module, plan) = zil_ir::wire::decode_module_candidate(SCHEMA29, &limits).unwrap();
+    assert_eq!(migrate_original_envelope(&limits), SCHEMA30);
+    let (module, plan) = zil_ir::wire::decode_module_candidate(SCHEMA30, &limits).unwrap();
     assert_eq!(
         zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap(),
-        SCHEMA29
+        SCHEMA30
     );
     assert_eq!(module.fingerprint(), plan.module_fingerprint);
     let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
@@ -81,7 +90,7 @@ fn frozen_mutable_product_raw_and_wire_must_be_rejected() {
         ),
         (
             "wire",
-            zil_verify::verify_module_bytes(SCHEMA29, &target, &limits),
+            zil_verify::verify_module_bytes(SCHEMA30, &target, &limits),
         ),
     ];
     for (route, result) in &results {
