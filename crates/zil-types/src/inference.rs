@@ -804,6 +804,7 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
             || resources::supported(ty)
             || errors::owned(ty)
             || packages::ordinary(ty)
+            || owned_shapes::enumeration(ty)
             || packages::owned_array_supported(ty)
     };
     if signature.type_parameter.is_none()
@@ -1158,6 +1159,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             || function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || packages::ordinary(&function.return_type)
+            || owned_shapes::enumeration(&function.return_type)
             || packages::owned_array_supported(&function.return_type)
             || resources::supported(&function.return_type))
         {
