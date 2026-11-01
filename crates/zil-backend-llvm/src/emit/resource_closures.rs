@@ -391,6 +391,7 @@ impl FunctionEmitter<'_> {
         match ty {
             Type::Managed(_) | Type::Package { .. } => true,
             Type::ErrorUnion { .. } => errors::owned(ty),
+            Type::Enum { .. } => !ty.is_copy_value(),
             Type::Closure(id) => self.closures.get(id).is_some_and(|definition| {
                 owns(definition) || definition.kind == CallableKind::FnOnce
             }),
