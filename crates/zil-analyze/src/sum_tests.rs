@@ -346,8 +346,10 @@ fn sum_budget_boundary_fresh_and_incremental_are_exact() {
     let mut hi = Limits::default().max_analysis_steps;
     while lo + 1 < hi {
         let n = (lo + hi) / 2;
-        let mut l = Limits::default();
-        l.max_analysis_steps = n;
+        let l = Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        };
         if analyze(&m, &l).is_ok() {
             hi = n
         } else {
@@ -355,8 +357,10 @@ fn sum_budget_boundary_fresh_and_incremental_are_exact() {
         }
     }
     eprintln!("impl241 Analyze exact boundary N={hi}");
-    let mut l = Limits::default();
-    l.max_analysis_steps = hi;
+    let mut l = Limits {
+        max_analysis_steps: hi,
+        ..Limits::default()
+    };
     analyze(&m, &l).unwrap();
     let mut session = AnalysisSession::default();
     session.analyze(&m, &l).unwrap();
@@ -762,7 +766,10 @@ fn product_store_inside_sum_and_error_union_checks_actual_canonical_definition()
     let mut union = m.clone();
     let ty = Type::ErrorUnion {
         error: Box::new(Type::I32),
-        result: Box::new(root),
+        result: Box::new(Type::Package {
+            name: "Envelope".into(),
+            fields: vec![("nested".into(), root)],
+        }),
     };
     let f = &mut union.functions[0];
     f.locals.truncate(1);
@@ -1353,6 +1360,112 @@ fn ordinary_value_calls_do_not_export_private_created_leaf_freshness() {
                     .iter()
                     .any(|d| d.message.contains("create result"))
             );
+        }
+    }
+}
+
+#[test]
+fn checked_direct_managed_create_call_keeps_its_existing_fresh_contract() {
+    let mut m = module(false, false);
+    let f = &mut m.functions[0];
+    let at = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| i.result == Some(ValueId(1)))
+        .unwrap();
+    f.blocks[0].instructions[at] = op(
+        Some(ValueId(1)),
+        InstructionKind::Call {
+            function: FunctionId(1),
+            arguments: vec![],
+        },
+    );
+    let at = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::DropManaged { local: LocalId(1) }))
+        .unwrap();
+    let out = ValueId(f.values.len() as u32);
+    f.values.push(leaf());
+    f.blocks[0].instructions[at] = op(Some(out), InstructionKind::TakeLocal { local: LocalId(1) });
+    f.return_type = leaf();
+    f.result_mode = PassingMode::Create;
+    f.blocks[0].terminator = Terminator::Return(Some(out));
+    m.functions.push(TypedFunction {
+        callable_return_contract: None,
+        callable_contract: None,
+        id: FunctionId(1),
+        name: "new_token".into(),
+        foreign: None,
+        environment: None,
+        parameters: vec![],
+        return_type: leaf(),
+        result_mode: PassingMode::Create,
+        locals: vec![],
+        values: vec![Type::I32, leaf()],
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            instructions: vec![
+                op(
+                    Some(ValueId(0)),
+                    InstructionKind::Constant(Constant::I32(2)),
+                ),
+                op(
+                    Some(ValueId(1)),
+                    InstructionKind::MakeManaged {
+                        fields: vec![ValueId(0)],
+                    },
+                ),
+            ],
+            terminator: Terminator::Return(Some(ValueId(1))),
+        }],
+        entry: BlockId(0),
+        span: Span::default(),
+    });
+    for result in both(&m) {
+        result.unwrap();
+    }
+}
+
+#[test]
+fn sum_copy_payload_does_not_turn_a_nonowning_package_into_product_permission() {
+    for package in [false, true] {
+        let mut m = module(true, false);
+        let copy = if package {
+            Type::Package {
+                name: "FakeProduct".into(),
+                fields: vec![("n".into(), Type::I32)],
+            }
+        } else {
+            Type::Record {
+                name: "CopyRecord".into(),
+                fields: vec![("n".into(), Type::I32)],
+            }
+        };
+        m.functions[0].locals[0].ty = Type::Enum {
+            name: "Mixed".into(),
+            variants: vec![
+                ("Pair".into(), vec![copy.clone(), leaf()]),
+                ("Empty".into(), vec![]),
+            ],
+        };
+        m.functions[0].locals[1].ty = copy;
+        for block in &mut m.functions[0].blocks {
+            block
+                .instructions
+                .retain(|i| !matches!(i.kind, InstructionKind::DropManaged { local: LocalId(1) }));
+        }
+        for result in both(&m) {
+            if package {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .iter()
+                        .any(|d| d.message.contains("Managed leaf"))
+                );
+            } else {
+                result.unwrap();
+            }
         }
     }
 }
