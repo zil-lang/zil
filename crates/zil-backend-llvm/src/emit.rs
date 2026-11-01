@@ -8,6 +8,7 @@ mod foreign;
 mod packages;
 mod resource_closures;
 mod resources;
+mod scalar_leaf;
 mod scalar_locals;
 mod scalar_summaries;
 mod slices;
@@ -130,6 +131,12 @@ pub(crate) fn lower_view_with_closed_scalar_policy(
         }
         if let Some(value) = summaries.as_ref().and_then(|plan| plan.get(&function.id)) {
             body.push(m::Item::Function(scalar_summaries::emit(function, value)));
+            continue;
+        }
+        if incremental_scalar_policy
+            && let Some(machine) = scalar_leaf::emit(function, &mut intrinsics)
+        {
+            body.push(m::Item::Function(machine));
             continue;
         }
         let emitted = FunctionEmitter {

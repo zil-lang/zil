@@ -20,6 +20,86 @@ struct Definition {
     calls: BTreeSet<String>,
 }
 
+// Source callers can change when a callee's result propagates even after their
+// machine calls disappear. Isolate only a small, closed set of current linkage
+// components; ordinary dynamic call graphs retain the existing partition.
+fn small_caller_components(
+    module: &Module,
+    lir: &LirView<'_>,
+    defs: &[Definition],
+    names: &BTreeMap<&str, usize>,
+    roots: &[usize],
+    entry: Option<usize>,
+) -> Option<BTreeSet<usize>> {
+    let mut remaining = 1_000_000usize.checked_sub(lir.functions.len())?;
+    let source_ids = lir
+        .functions
+        .iter()
+        .filter(|function| function.foreign.is_none())
+        .map(|function| function.id)
+        .collect::<BTreeSet<_>>();
+    let mut selected = BTreeSet::new();
+    for function in lir.functions.iter().filter(|f| f.foreign.is_none()) {
+        remaining = remaining.checked_sub(function.blocks.len())?;
+        let mut calls_source = false;
+        for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+            remaining = remaining.checked_sub(1)?;
+            if matches!(&instruction.kind, zil_ir::InstructionKind::Call { function, .. }
+                if source_ids.contains(function))
+            {
+                calls_source = true;
+                break;
+            }
+        }
+        if calls_source {
+            let name = format!("zil.fn.{}", function.id.0);
+            selected.insert(roots[*names.get(name.as_str())?]);
+            if selected.len() > 256 {
+                return None;
+            }
+        }
+    }
+    if selected.is_empty() {
+        return None;
+    }
+    if let Some(entry) = entry {
+        selected.insert(roots[entry]);
+    }
+    let mut total_cost = 0usize;
+    let mut selected_cost = 0usize;
+    let mut selected_count = 0usize;
+    for (id, definition) in defs.iter().enumerate() {
+        remaining = remaining.checked_sub(1)?;
+        let cost = match &module.items[definition.index] {
+            Item::Function(function) => {
+                remaining = remaining.checked_sub(function.blocks.as_ref().map_or(0, Vec::len))?;
+                function.cost()
+            }
+            _ => 1,
+        };
+        total_cost = total_cost.checked_add(cost)?;
+        if !selected.contains(&roots[id]) {
+            continue;
+        }
+        selected_count += 1;
+        selected_cost = selected_cost.checked_add(cost)?;
+        if selected_count > 256 || selected_cost > 4096 {
+            return None;
+        }
+        for callee in &definition.calls {
+            remaining = remaining.checked_sub(1)?;
+            if let Some(&callee) = names.get(callee.as_str())
+                && !selected.contains(&roots[callee])
+            {
+                // Do not pull a dynamic caller's ordinary leaf implementations
+                // into this group. The original complete importer stays intact.
+                return None;
+            }
+        }
+    }
+    (selected_cost.checked_mul(16)? <= total_cost).then_some(selected)
+}
+
 #[cfg(test)]
 pub(crate) fn partition(module: Module, lir: &LirModule, entry: EntryPoint, count: usize) -> Plan {
     partition_view(module, &lir.as_view(), entry, count, false, false)
@@ -97,9 +177,9 @@ pub(crate) fn partition_view(
     // body-only edits local without moving unaffected chunks as the body grows.
     // The explicit O2 strategy also copies complete call implementations below.
     const FUNCTIONS_PER_CHUNK: usize = 256;
-    let mut files = BTreeMap::<(FileId, usize), usize>::new();
     let mut ordinals = BTreeMap::<FileId, usize>::new();
     let mut source_ids = Vec::new();
+    let mut entry_id = None;
     for function in lir.functions {
         if function.foreign.is_some() {
             continue;
@@ -115,20 +195,17 @@ pub(crate) fn partition_view(
             0
         };
         *ordinal += 1;
-        let group = (function.span.file, chunk);
-        if let Some(&first) = files.get(&group) {
-            sets.join(first, id);
-        } else {
-            files.insert(group, id);
-        }
         source_ids.push(((function.span.file.0, chunk), id));
         let selected = match entry {
             EntryPoint::Main => function.name == "main",
             EntryPoint::ReturnValue(wanted) => function.id == wanted,
             EntryPoint::None => false,
         };
-        if selected && let Some(&wrapper) = names.get("main") {
-            sets.join(id, wrapper);
+        if selected {
+            entry_id = Some(id);
+            if let Some(&wrapper) = names.get("main") {
+                sets.join(id, wrapper);
+            }
         }
     }
     if let (Some(&main), Some(&pe)) = (names.get("main"), names.get("zil.pe.entry")) {
@@ -141,6 +218,24 @@ pub(crate) fn partition_view(
             {
                 sets.join(id, target);
             }
+        }
+    }
+    // Determine mandatory local-state components before optional source chunk
+    // grouping. A component belongs wholly to the caller group or wholly outside.
+    let local_roots = (0..defs.len()).map(|id| sets.root(id)).collect::<Vec<_>>();
+    let caller_components = if split_large_files && import_complete_call_closures {
+        entry_id.and_then(|entry| {
+            small_caller_components(&module, lir, &defs, &names, &local_roots, Some(entry))
+        })
+    } else {
+        None
+    };
+    let mut files = BTreeMap::new();
+    for &(group, id) in &source_ids {
+        if let Some(&first) = files.get(&group) {
+            sets.join(first, id);
+        } else {
+            files.insert(group, id);
         }
     }
     let roots = (0..defs.len()).map(|id| sets.root(id)).collect::<Vec<_>>();
@@ -163,7 +258,18 @@ pub(crate) fn partition_view(
             )
         });
     }
-    let owners = roots.iter().map(|r| buckets[r]).collect::<Vec<_>>();
+    let mut owners = roots.iter().map(|r| buckets[r]).collect::<Vec<_>>();
+    if let (Some(callers), Some(entry)) = (caller_components, entry_id) {
+        let entry_owner = owners[entry];
+        // Keep every ordinary definition's original owner, including chunks
+        // joined indirectly by local state. Only the small caller components
+        // move, together, to the existing entry bucket; no bucket is reserved.
+        for (id, owner) in owners.iter_mut().enumerate() {
+            if callers.contains(&local_roots[id]) {
+                *owner = entry_owner;
+            }
+        }
+    }
     let mut members = BTreeMap::<usize, Vec<usize>>::new();
     for (id, &owner) in owners.iter().enumerate() {
         members.entry(owner).or_default().push(id);
@@ -670,6 +776,81 @@ mod tests {
         }
         let original = partition_view(module, &source.as_view(), EntryPoint::None, 8, false, false);
         assert_eq!(original.units.len(), 1);
+    }
+    #[test]
+    fn small_source_callers_keep_local_components_and_dynamic_fallback() {
+        // Typed calls provide grouping metadata here; only the current machine
+        // models are validated. Real source acceptance belongs to driver tests.
+        let mut source = candidate_lir(&(0..600).collect::<Vec<_>>());
+        source.functions[0].name = "main".into();
+        for (caller, callee) in [(0, 256), (256, 512)] {
+            source.functions[caller].blocks = vec![zil_ir::BasicBlock {
+                id: zil_ir::BlockId(0),
+                instructions: vec![zil_ir::Instruction {
+                    result: Some(zil_ir::ValueId(0)),
+                    kind: zil_ir::InstructionKind::Call {
+                        function: zil_ir::FunctionId(callee),
+                        arguments: vec![],
+                    },
+                    span: zil_base::Span::default(),
+                }],
+                terminator: zil_ir::Terminator::Return(Some(zil_ir::ValueId(0))),
+            }];
+        }
+        let mut items = (0..600)
+            .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
+            .collect::<Vec<_>>();
+        items[256] = call_function("zil.fn.256", Ty::Int(32), "zil.fn.512");
+        let Item::Function(local) = &mut items[512] else {
+            unreachable!()
+        };
+        local.linkage = Linkage::Internal;
+        items.push(call_function("main", Ty::Int(32), "zil.fn.0"));
+        let plan = partition_view(
+            m(items.clone()),
+            &source.as_view(),
+            EntryPoint::Main,
+            8,
+            true,
+            true,
+        );
+        assert!(plan.fallback.is_none());
+        assert_eq!(plan.units.len(), 2);
+        let entry = plan
+            .units
+            .iter()
+            .find(|unit| definitions(unit).contains("main"))
+            .unwrap();
+        for name in ["zil.fn.0", "zil.fn.256", "zil.fn.512"] {
+            assert!(definitions(entry).contains(name));
+        }
+        assert!(!definitions(entry).contains("zil.fn.257"));
+        assert_eq!(function_linkage(entry, "zil.fn.256"), Linkage::External);
+        assert_eq!(function_linkage(entry, "zil.fn.512"), Linkage::Internal);
+        for unit in &plan.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+        }
+
+        // A remaining call to an ordinary leaf declines the new policy. The
+        // exact original partition/import model, including its keys, survives.
+        items[256] = call_function("zil.fn.256", Ty::Int(32), "zil.fn.1");
+        let dynamic = partition_view(
+            m(items.clone()),
+            &source.as_view(),
+            EntryPoint::Main,
+            8,
+            true,
+            true,
+        );
+        for function in &mut source.functions {
+            function.blocks.clear();
+        }
+        let original = partition_view(m(items), &source.as_view(), EntryPoint::Main, 8, true, true);
+        assert_eq!(dynamic.fallback, original.fallback);
+        assert_eq!(dynamic.units, original.units);
+        for unit in &dynamic.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+        }
     }
     #[test]
     fn o2_imports_follow_transitive_bodies_and_keep_unique_emitted_owners() {

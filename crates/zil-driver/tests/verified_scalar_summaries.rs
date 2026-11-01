@@ -109,6 +109,59 @@ fn first_function(llvm: &str) -> &str {
 }
 
 #[test]
+fn compact_parameter_leaves_keep_runtime_overflow_boundaries() {
+    for (ty, maximum, previous, intrinsic) in [
+        (
+            "i32",
+            "2147483647",
+            "2147483646",
+            "llvm.sadd.with.overflow.i32",
+        ),
+        (
+            "i64",
+            "9223372036854775807",
+            "9223372036854775806",
+            "llvm.sadd.with.overflow.i64",
+        ),
+        ("u8", "255", "254", "llvm.uadd.with.overflow.i8"),
+        ("u16", "65535", "65534", "llvm.uadd.with.overflow.i16"),
+    ] {
+        let source = format!(
+            "fn plus(x:{ty})->{ty}{{return x+1;}}\nextern \"C\" fn getchar()->i32;\nfn result()->{ty}{{var seed:i32=0;unsafe{{seed=getchar();}}if seed==0{{return plus({maximum});}}return plus({previous});}}"
+        );
+        let dir = Dir::new();
+        for enabled in [false, true] {
+            let llvm = dir.compile(&source, NativeBackend::LlvmApi, enabled);
+            let body = first_function(&llvm);
+            assert!(body.contains(intrinsic), "{body}");
+            assert!(body.contains("@llvm.trap()"), "{body}");
+            assert_eq!(body.contains("bb.0:"), !enabled, "{body}");
+            let success = dir.run(1);
+            assert!(success.status.success(), "{success:?}");
+            assert_eq!(success.stdout, format!("{maximum}\n").as_bytes());
+            let overflow = dir.run(0);
+            assert_eq!(overflow.status.signal(), Some(4), "{overflow:?}");
+            assert!(overflow.stdout.is_empty());
+        }
+    }
+}
+
+#[test]
+fn compact_leaf_rejects_effectful_nearest_shape() {
+    let source = "fn plus(x:i32)->i32{unsafe{putchar(65);}return x+1;}extern \"C\" fn putchar(x:i32)->i32;fn result()->i32{return plus(41);}";
+    let dir = Dir::new();
+    for backend in [NativeBackend::LlvmApi, NativeBackend::Clang] {
+        let llvm = dir.compile(source, backend, true);
+        let body = first_function(&llvm);
+        assert!(body.contains("bb.0:"));
+        assert!(body.contains("@putchar("));
+        let output = dir.run(0);
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(output.stdout, b"A42\n");
+    }
+}
+
+#[test]
 fn summaries_preserve_checked_scalar_results_and_avoid_machine_expansion() {
     let cases = [
         (
