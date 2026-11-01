@@ -28,7 +28,7 @@ pub(super) enum RawSnapshot {
     Typed(Arc<TypedModule>),
     Candidate(Arc<CandidatePlan>),
     Project(Arc<super::project::ExpandedProject>),
-    ProjectCore(Arc<zil_ir::CoreProgram>),
+    ProjectCore(Arc<zil_types::PreparedProgram>),
     ProjectTyped(Arc<zil_ir::TypedProgram>),
 }
 /// Shared raw ownership never carries verification authority. Each request

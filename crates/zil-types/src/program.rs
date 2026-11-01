@@ -25,7 +25,14 @@ pub fn check_program(
     limits: &Limits,
 ) -> CompileResult<TypedProgram> {
     let inferred = resolve_program_shapes(program, limits)?;
-    let program = &inferred;
+    check_resolved_program(&inferred, target, limits)
+}
+
+pub(super) fn check_resolved_program(
+    program: &CoreProgram,
+    target: &TargetProfile,
+    limits: &Limits,
+) -> CompileResult<TypedProgram> {
     let reject = |code: &str, text: &str| vec![Diagnostic::error(Phase::Types, code, None, text)];
     let limit = || {
         vec![Diagnostic::limit(

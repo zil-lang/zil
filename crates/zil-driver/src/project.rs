@@ -461,15 +461,16 @@ impl CompilationSession {
             report,
             observer,
             || {
-                let inferred = zil_types::infer_program_closures(&expanded.core, &options.limits)?;
+                let inference = zil_types::infer_program_for_ct(&expanded.core, &options.limits)?;
+                let inferred = inference.program();
                 let mut remaining = expanded.selection.remaining(&options.limits)?;
-                let context = zil_ct::SourceProgramContext::new(&inferred, &remaining)?;
+                let context = zil_ct::SourceProgramContext::new(inferred, &remaining)?;
                 let mut modules = Vec::new();
                 for module in &inferred.modules {
                     // Restrict execution to the remaining graph allowance BEFORE
                     // entering the CT verifier/VM, then deduct actual usage.
                     let compiler = super::ct_program::Compiler {
-                        program: &inferred,
+                        program: inferred,
                         module: module.core.module_id,
                         target: &options.target,
                     };
@@ -502,19 +503,23 @@ impl CompilationSession {
                         exports: module.exports.clone(),
                     });
                 }
-                Ok(RawSnapshot::ProjectCore(Arc::new(CoreProgram {
-                    root: project.root,
-                    source_fingerprint: fingerprint,
-                    modules,
-                })))
+                drop(context);
+                Ok(RawSnapshot::ProjectCore(Arc::new(
+                    inference.after_evaluation(CoreProgram {
+                        root: project.root,
+                        source_fingerprint: fingerprint,
+                        modules,
+                    }),
+                )))
             },
         )?;
-        let RawSnapshot::ProjectCore(core) = raw else {
+        let RawSnapshot::ProjectCore(prepared) = raw else {
             return Err(infra(
                 "E-QUERY-KIND",
                 "project CT query returned another snapshot kind",
             ));
         };
+        let core = prepared.program();
         report.phase = Phase::Ct;
         artifacts.dump_lazy(report, options, "ct-core", |_| format!("{core:#?}"))?;
         check_entry_contract(
@@ -532,7 +537,7 @@ impl CompilationSession {
             report,
             observer,
             || {
-                zil_types::check_program(&core, &options.target, &options.limits)
+                zil_types::check_prepared_program(&prepared, &options.target, &options.limits)
                     .map(|typed| RawSnapshot::ProjectTyped(Arc::new(typed)))
             },
         )?;
