@@ -1,0 +1,24 @@
+{
+  "status": "PredeclaredBeforeFinalQExecution",
+  "positive_sources": 7,
+  "negative_unused_definitions": 13,
+  "original915_three_positive_and_seven_negative_source_forms": "preserved",
+  "supplement": [
+    "actual give producer preserves ownership through local binding",
+    "whole ordinary Enum move once remains legal",
+    "resource F and helper binder F have distinct lexical identity",
+    "a bare Desc alias reads its actual resource F header then permits last-use give of the owner",
+    "unused Enum rematch and Product/ErrorUnion duplicate moves reject",
+    "callback binder F never gains global resource F fields or give permission",
+    "description remains nonowner with the same-spelled resource and binder"
+  ],
+  "positive_stdout": "AB",
+  "positive_exit": 0,
+  "optimizations": [
+    "O0",
+    "O2"
+  ],
+  "native_runs_for_new_supplement": 0,
+  "test_sha256": "61d3629cfd8c5e7f020dbef4196a6ad49bc2c7040b94eb2fbd5e470e61782a72",
+  "source_scope": "ordinary data; no callback signature/return/State/capture profile extension"
+}
