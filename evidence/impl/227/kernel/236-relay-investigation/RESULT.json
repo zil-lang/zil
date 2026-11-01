@@ -1,0 +1,167 @@
+{
+  "task": "227/236",
+  "kind": "Root-cause investigation; no production change",
+  "kernel_checkpoint": "fa184f94f8d9b4ca695cd467f6d507767af8db10",
+  "joint_checkpoint": "bf7b1de72ac1483bfa9364f7da946eed76ccf5f0",
+  "joint_cli": {
+    "path": "/workspace/.zil-env/target-core/debug/zil",
+    "sha256": "c4b32949d2a2f27dad6965bad4f381b89aa6711bf28b6fa202796cb8eac9da83"
+  },
+  "findings": [
+    "The actual full236 compile stopped in Analyze before Verify (verification_runs=0). Its first mixed-order conflict is main block32 instruction7: DropManaged late(l11), span971..979, while current(l7) is newer due to the post-relay Store. The minimal diagnostic model in extracted-main-ops is debugging support, not a safety certificate.",
+    "TakeLocal(current) forgets the old age edges. Returning the owner and Store(current) then establishes new late->current edges. No stale old-current edge was retained; merely deleting stale edges cannot fix this failure.",
+    "Types still emits static lexical cleanup late->defer Q->current. This differs from the latest actual whole-local Store order.",
+    "The same Store age rule exists independently in the pre-existing Analyze and Verify resource checkers. An actual CLI check of the relay reduction with defer removed also fails Analyze with resource closure: cleanup is not reverse successful initialization order. This is not proof that a pre227 binary was executed; it isolates the existing resource path in the current joint candidate.",
+    "The minimum relay-free control passes actual Verify once. The relay/defer minimum fails new defer reconstruction; the no-defer relay minimum fails existing resource reconstruction.",
+    "Managed and concrete Closure mutable rebinding already use private retained one-field Package shells. Their field replacement is RHS prepare, old field cleanup, transfer prepared value and StorePackageField; shell initialization rank remains fixed. Bare whole Product rebinding currently uses the ordinary Assign Store(local) path instead."
+  ],
+  "independent_author_command": {
+    "setup": "source /workspace/.zil-env/env.sh",
+    "command": [
+      "/workspace/.zil-env/target-core/debug/zil",
+      "check",
+      "/tmp/227-relay-no-defer.zil",
+      "--stop-after",
+      "verify",
+      "--json",
+      "--emit-dir",
+      "/tmp/227-relay-no-defer-phases"
+    ],
+    "stdout": "logs/relay-no-defer-report.json",
+    "exit_code": 1,
+    "status": "SafeReject",
+    "phase": "analyze",
+    "code": "E-ANALYZE-IR",
+    "message": "resource closure: cleanup is not reverse successful initialization order",
+    "verification_runs": 0
+  },
+  "consumer_commands": "The two original consumer command.json/check.json records are copied verbatim; they are attributed to the consumer lane, not reruns by this kernel author.",
+  "root_decision": "Keep both independent kernels age rules and Take/Store order unchanged. Frontend author will examine the existing retained outer-slot lowering route as a separate238 proposal. Do not change236 inputs or cleanup oracle to hide the failure.",
+  "implementation_change": false,
+  "semantic_limits": [
+    "No exemption for repeated Store and no LocalId-based cleanup ordering was added.",
+    "A generic stable-rank exception would need explicit semantics and could not preserve first-initialization rank by changing Store alone, because Take/Drop already forget old edges.",
+    "Nested Product wrappers must retain independent field completeness, actual source projections and prepare-before-replace. This investigation does not declare the238 lowering implemented or safe."
+  ],
+  "artifacts": [
+    {
+      "origin": "/workspace/.zil-env/236-joint01/minimal02/owning-local-relay/main.zil",
+      "path": "source/relay-defer.zil",
+      "origin_sha256": "5a2e5d8ff214763d3307d7bd22423a6022fce7965d3d870ef469619a98c2eab2",
+      "stored_sha256": "5a2e5d8ff214763d3307d7bd22423a6022fce7965d3d870ef469619a98c2eab2",
+      "origin_bytes": 362
+    },
+    {
+      "origin": "/workspace/.zil-env/236-joint01/minimal02/owning-local-relay/check.json",
+      "path": "logs/relay-defer-check.json",
+      "origin_sha256": "a68a31c60a7673dc227c97b1a3a33cb92e467dc3905559f62d93500020230c62",
+      "stored_sha256": "a68a31c60a7673dc227c97b1a3a33cb92e467dc3905559f62d93500020230c62",
+      "origin_bytes": 1666
+    },
+    {
+      "origin": "/workspace/.zil-env/236-joint01/minimal02/owning-local-relay/command.json",
+      "path": "logs/relay-defer-command.json",
+      "origin_sha256": "6f0a6146ca433c2d365d0fbcafd2295f4cb7f7bc91529e0b5527fad3f7a5cd0a",
+      "stored_sha256": "6f0a6146ca433c2d365d0fbcafd2295f4cb7f7bc91529e0b5527fad3f7a5cd0a",
+      "origin_bytes": 281
+    },
+    {
+      "origin": "/workspace/.zil-env/236-joint01/minimal02/owning-local-relay/stderr",
+      "path": "logs/relay-defer-stderr",
+      "origin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "origin_bytes": 0
+    },
+    {
+      "origin": "/workspace/.zil-env/236-joint01/minimal02/owning-local-relay/phases/typed.txt",
+      "path": "logs/relay-defer-typed.txt.gz",
+      "origin_sha256": "4e114ece2aef6b6d6a05cd1f31e66221a9aaacecd08ac494b6d38f81a5e5635a",
+      "stored_sha256": "33645a3c62d7e9f467e5420f125c3129df594c0d8eef1b4fb12752466d99a1b9",
+      "origin_bytes": 83207
+    },
+    {
+      "origin": "/workspace/.zil-env/236-joint01/minimal02/without-relay/main.zil",
+      "path": "source/no-relay-defer.zil",
+      "origin_sha256": "4f95dbbe81e271aa5813cf49b742ae80bd722e0623199d567569493a35153eac",
+      "stored_sha256": "4f95dbbe81e271aa5813cf49b742ae80bd722e0623199d567569493a35153eac",
+      "origin_bytes": 339
+    },
+    {
+      "origin": "/workspace/.zil-env/236-joint01/minimal02/without-relay/check.json",
+      "path": "logs/no-relay-defer-check.json",
+      "origin_sha256": "ca45ba0ac6985fd248a75f369326336cad87bd36be783da6ca590f6ece765b9e",
+      "stored_sha256": "ca45ba0ac6985fd248a75f369326336cad87bd36be783da6ca590f6ece765b9e",
+      "origin_bytes": 1846
+    },
+    {
+      "origin": "/workspace/.zil-env/236-joint01/minimal02/without-relay/command.json",
+      "path": "logs/no-relay-defer-command.json",
+      "origin_sha256": "70d88b2ad266281ac253360850418734c971cd2a1ac48906dc4e01da874eeb64",
+      "stored_sha256": "70d88b2ad266281ac253360850418734c971cd2a1ac48906dc4e01da874eeb64",
+      "origin_bytes": 271
+    },
+    {
+      "origin": "/workspace/.zil-env/236-joint01/minimal02/without-relay/stderr",
+      "path": "logs/no-relay-defer-stderr",
+      "origin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "origin_bytes": 0
+    },
+    {
+      "origin": "/workspace/.zil-env/236-joint01/minimal02/without-relay/phases/typed.txt",
+      "path": "logs/no-relay-defer-typed.txt.gz",
+      "origin_sha256": "3018c39ec01ade4ffec9e6887c89c42ee02c4272eb24aac157285a9d4d70285c",
+      "stored_sha256": "3db6a62894cc899ce5a4d647d264aab04cc1ab2dc97bf7adebf976889fa52e7e",
+      "origin_bytes": 74255
+    },
+    {
+      "origin": "/tmp/227-relay-no-defer.zil",
+      "path": "source/relay-no-defer.zil",
+      "origin_sha256": "7a7fd63ecca41acaf2042b1318e92b3643bd40f511538c4c8720a68746ceac1b",
+      "stored_sha256": "7a7fd63ecca41acaf2042b1318e92b3643bd40f511538c4c8720a68746ceac1b",
+      "origin_bytes": 346
+    },
+    {
+      "origin": "/tmp/227-relay-no-defer-report.json",
+      "path": "logs/relay-no-defer-report.json",
+      "origin_sha256": "14a01422adea304a0cf6175ae3cec327ab1ccc7c78bceab21ee7edc77cb30ee1",
+      "stored_sha256": "14a01422adea304a0cf6175ae3cec327ab1ccc7c78bceab21ee7edc77cb30ee1",
+      "origin_bytes": 1403
+    },
+    {
+      "origin": "/tmp/227-relay-no-defer-phases/typed.txt",
+      "path": "logs/relay-no-defer-typed.txt.gz",
+      "origin_sha256": "82d8c513cd85e1d5df45351b5f5c156d3f60c282d9e34246e5c6e161092b7490",
+      "stored_sha256": "5ff50db9b4fb4521413fee874e894585f008cd15be280499c917d78f132452ed",
+      "origin_bytes": 71664
+    },
+    {
+      "origin": "/workspace/.zil-env/236-joint01/test-reports/consumer236-verify-61634/report.json",
+      "path": "logs/full236-report.json",
+      "origin_sha256": "40b8b4f74a6fc13f8f460ee6ebe6992f8706f08228a21fa355d0ca8a1bc122fc",
+      "stored_sha256": "40b8b4f74a6fc13f8f460ee6ebe6992f8706f08228a21fa355d0ca8a1bc122fc",
+      "origin_bytes": 3347
+    },
+    {
+      "origin": "/workspace/.zil-env/236-joint01/test-reports/consumer236-verify-61634/phases/typed.txt",
+      "path": "logs/full236-typed.txt.gz",
+      "origin_sha256": "b114d070d04535c24c1f4996ff8f427a8ac0fab1ca19cedff637fc9dcc165628",
+      "stored_sha256": "3cf3c9d205ef7390126b369d2f3a9a5cff3781c1a2bfed371b34ca38d57b6830",
+      "origin_bytes": 1586766
+    },
+    {
+      "origin": "/tmp/227-debug-typed.py",
+      "path": "logs/extract-debug-typed.py",
+      "origin_sha256": "9883b59e6339b6f12e789195bda8daa0fd5b5938b030ea8de113873bf7021d2d",
+      "stored_sha256": "9883b59e6339b6f12e789195bda8daa0fd5b5938b030ea8de113873bf7021d2d",
+      "origin_bytes": 3645
+    },
+    {
+      "origin": "/tmp/227-debug-typed.out",
+      "path": "logs/extracted-main-ops.txt.gz",
+      "origin_sha256": "fcd3174406e93628427bf1c7dfb5def6fe0612716253074b0e4b524bd94c8f38",
+      "stored_sha256": "d42bf561434e88a7588a7767c6ee8286fa82376011e1b571e2ad793170e391d8",
+      "origin_bytes": 21252
+    }
+  ]
+}

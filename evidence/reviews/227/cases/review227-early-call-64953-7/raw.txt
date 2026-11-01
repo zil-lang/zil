@@ -1,0 +1,20 @@
+Err(
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-DEFER",
+            message: "defer call must occur in a cleanup suffix directly reaching its own ScopeExit",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 180,
+                    end: 182,
+                },
+            ),
+            notes: [],
+        },
+    ],
+)

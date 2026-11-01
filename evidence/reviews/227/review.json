@@ -1,0 +1,95 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "implementation_author": "/root",
+  "contributors": [
+    "/root/impl_defer227",
+    "/root/ir_defer227",
+    "/root/kernel_defer227"
+  ],
+  "implementation_commit": "2587538fa4060ec951facc4f26a304c65f3d0b37",
+  "verdict": "Pass",
+  "scope": "Independent review of the frozen ordinary synchronous defer profile in ZIL-LANG-1.4 section 7.1; not full-language, product, async/unwind, Windows, Product whole-local slot rebinding or 236 consumer acceptance.",
+  "schema_version": 28,
+  "spec_hash": "41b1e00a4553931440fb891847b077f4cd4cc2565d4f270db4e0dc71e1745924",
+  "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78",
+  "review_test": "crates/zil-driver/tests/review227_contracts.rs",
+  "review_test_sha256": "ef0bb23918b3ca80aea8d1c94a27518ea6c888f5596881f629fa7870e86e343e",
+  "commands": [
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/review227-final01 cargo test -p zil-driver --features llvm-api --test review227_contracts --test impl227_machine --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "log": "independent-source-native.log"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/review227-final02 cargo test -p zil-analyze -p zil-verify --lib --locked defer_tests -- --nocapture",
+      "exit_code": 0,
+      "passed": 22,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 296,
+      "log": "kernel-raw-wire.log",
+      "selection": "11 must-invoke raw/Wire tests in each kernel; unrelated existing library tests intentionally not selected."
+    }
+  ],
+  "static_review": [
+    "RegisterDefer binds an initialized zero-argument Unit FnOnce slot in its actual innermost activation and is adjacent to the unique initial Store.",
+    "Both kernels retain must-invoke status and mixed construction/registration age through TakeLocal; only the adjacent matching actual CallClosureOnce discharges the action.",
+    "Empty/Copy captures remain mandatory; affine Drop and slot transfers cannot settle the action.",
+    "The same-block cleanup suffix reaches the owning ScopeExit and permits only cleanup, subsequent actions, necessary capture writeback and storage teardown.",
+    "Scope/storage/return/backedge checks reconstruct actual per-activation state; an outer pending action may survive an internal loop; Trap has no unwind guarantee.",
+    "Analyze uses maps/sets and Verify independently uses action-status/owner/resource tables. Verify does not call Types/Analyze proof routines. Existing data formats and intrinsic type shapes are shared, not safety conclusions."
+  ],
+  "independent_coverage": [
+    "Nested loops with skipped registration/continue/break and an outer pending action.",
+    "Managed and opaque callback return carriers are prepared before cleanup and transferred once.",
+    "Three successive FnMut calls retain deferred Copy capture mutation (1,2,3).",
+    "Borrowed callback cannot hide a resource required by future defer execution.",
+    "Empty registered action hostile raw/Wire: Drop substitute, missing call, incorrect scope, ordinary borrowing.",
+    "Actual call moved before normal body work fails cleanup suffix verification.",
+    "Real borrowed environment transferred through an ordinary FnOnce local into registered storage retains resource sources; wrong source move rejects.",
+    "Shared address Hold roots survive the same ordinary FnOnce transfer; raw/Wire reject overlapping writes. Producer exports Hold facts; ordinary shared-write exclusion remains Verify responsibility, matching the existing direct-address path."
+  ],
+  "fixed_finding": {
+    "id": "227-deferred-copy-capture-writeback",
+    "status": "Fixed and independently retested",
+    "original": "The outer FnMut read its Copy capture into an activation local; inner deferred mutation used an exclusive address, but no final WriteCapture was emitted. The second call saw stale state and the program exited 2.",
+    "fix": "The Defer capture-use walk enters nested_depth, preserving the existing indirect mutation writeback classification.",
+    "original_source_sha256": "9c361e6dafcc04b76e7f55e85b2e579cd31ca7245cbc710c6cde6c3639c61c01",
+    "preserved_failure": "evidence/impl/227/frontend/writeback-fix/independent-original-failure.tar.gz",
+    "replay": "evidence/impl/227/frontend/writeback-fix/ORIGINAL-EXIT2-REPLAY.json",
+    "provenance": "Original pre-fix native failure was observed in reviewer tool output. No original cargo log was saved locally; the preserved unchanged old executable was explicitly replayed by the frontend author. These replays are not counted as new independent acceptance."
+  },
+  "native": {
+    "independent_program_runs": 6,
+    "allocator_program_runs": 10,
+    "real_injected_failures": 6,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "backend": "LLVM API builder",
+    "target": "x86_64-unknown-linux-gnu",
+    "allocator_live_after_each_run": 0
+  },
+  "budget": {
+    "analyze_raw_minimum": 3320,
+    "verify_raw_minimum": 3324,
+    "checks": "N succeeds; N-1 ResourceLimit; fresh N succeeds; original default limits unchanged."
+  },
+  "rust_goals_reflection": {
+    "safety": "Must-invoke is explicit and independently checked; FnOnce at-most-once alone is insufficient.",
+    "runtime_memory": "Registration is a machine no-op; existing inline closure/call/remaining-environment cleanup is reused, without hidden RC/Box/locks/tables.",
+    "maintenance": "Source defer now expresses lexical mandatory cleanup across normal/error/loop exits; a real persistent capture bug was found and fixed.",
+    "compile_cost": "New state and traversal work is charged; bounded logical limits tested. No total compile-time or product advantage is claimed.",
+    "breakthrough_status": "Semantics and scope-exit implementation demonstrated only; no new quantitative product breakthrough claim."
+  },
+  "limitations": [
+    "No full workspace/product gate was run by reviewer.",
+    "238 stable whole-Product rebinding is a distinct frontend lowering obligation and is not covered by this Pass.",
+    "Final integrated 227/235/236 compiler snapshot still requires root integration checks."
+  ]
+}

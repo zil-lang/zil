@@ -1,0 +1,23 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-227/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.55s
+     Running tests/impl227_machine.rs (/workspace/.zil-env/target-227/debug/deps/impl227_machine-cd80a80f7c8924eb)
+
+running 1 test
+test registration_and_cleanup_preserve_actual_allocation_debt ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+     Running tests/review227_contracts.rs (/workspace/.zil-env/target-227/debug/deps/review227_contracts-93ec38064baa81cf)
+
+running 8 tests
+test empty_actions_still_require_the_actual_adjacent_call_at_scope_exit ... ok
+test an_early_actual_call_cannot_resume_the_ordinary_body ... ok
+test borrowing_a_callback_does_not_erase_the_deferred_future_resource_use ... ok
+test ordinary_once_transfer_preserves_shared_address_holds_until_actual_invocation ... ok
+test ordinary_once_transfer_cannot_launder_registered_action_resource_sources ... ok
+test deferred_capture_mutation_survives_outer_callback_writeback ... ok
+test owned_resource_and_callback_returns_are_prepared_before_cleanup ... ok
+test pending_outer_action_crosses_internal_loops_and_inner_actions_close_first ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
