@@ -1,0 +1,35 @@
+   Compiling zil-base v0.1.0 (/workspace/zil-240/crates/zil-base)
+   Compiling zil-syntax v0.1.0 (/workspace/zil-240/crates/zil-syntax)
+   Compiling zil-ir v0.1.0 (/workspace/zil-240/crates/zil-ir)
+   Compiling zil-expand v0.1.0 (/workspace/zil-240/crates/zil-expand)
+    Finished `test` profile [unoptimized] target(s) in 7.05s
+     Running tests/impl237_product_recipes.rs (/workspace/.zil-env/target-240/debug/deps/impl237_product_recipes-0243848275902dad)
+
+running 3 tests
+test concrete_existing_generic_fields_are_materialized_in_the_original_recipe ... ok
+test preserves_original_recipe_and_exact_ordinary_owner ... ok
+product237_expand_work_n=5298
+product237_expand_nodes_n=1363
+product237_expand_depth_n=7
+test new_recipe_tables_have_exact_fresh_work_node_and_depth_boundaries ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/normalization.rs (/workspace/.zil-env/target-240/debug/deps/normalization-3725380081f43d8e)
+
+running 12 tests
+test plan_t01_002_implicit_parameter_and_shorthand_map_to_real_sources ... ok
+test explicit_compile_time_marker_survives_until_the_ct_stage ... ok
+test context_records_do_not_infer_nominal_types_from_fields_or_outer_closure_return ... ok
+test plan_t01_002_explicit_group_default_and_static_are_fixed_before_body ... ok
+test plan_t01_004_failed_override_does_not_commit_or_run_later_fields ... ok
+test plan_t01_002_nested_closures_inherit_lexical_receiver_only ... ok
+test plan_t01_002_trait_receiver_comes_from_signature_not_body_or_order ... ok
+test plan_t01_004_pipeline_order_single_input_and_callable_factory ... ok
+test plan_t01_004_record_update_prepares_base_then_source_order_overrides ... ok
+test range_name_and_ordered_endpoints_survive_source_expansion ... ok
+test record_defaults_keep_declaration_scope_and_declared_order ... ok
+test source_map_covers_unique_core_node_ids_and_is_deterministic ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

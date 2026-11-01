@@ -6,12 +6,33 @@ impl Expander<'_> {
         if !declaration.generics.is_empty() {
             self.unsupported("generic enum declarations", span);
         }
+        for variant in &declaration.variants {
+            if let s::VariantFields::Tuple(fields) = &variant.fields {
+                for field in fields {
+                    if field.manages
+                        && !matches!(&field.ty.kind, s::TypeKind::Named { path, .. } if path.as_slice() != ["Ref"])
+                    {
+                        self.unsupported("manages enum field requires a resource nominal type, not a borrowed type", field.span);
+                    }
+                }
+            }
+        }
         let mut variants = Vec::new();
         for variant in &declaration.variants {
             self.unexecuted_attributes(&variant.attributes, "enum variant");
             let fields = match &variant.fields {
                 s::VariantFields::Unit => Vec::new(),
-                s::VariantFields::Tuple(fields) => fields.iter().map(type_ref).collect(),
+                s::VariantFields::Tuple(fields) => fields
+                    .iter()
+                    .map(|field| {
+                        let ty = type_ref(&field.ty);
+                        if field.manages {
+                            Type::Managed(Box::new(ty))
+                        } else {
+                            ty
+                        }
+                    })
+                    .collect(),
                 s::VariantFields::Record(_) => {
                     self.unsupported("record enum variants", variant.span);
                     Vec::new()
