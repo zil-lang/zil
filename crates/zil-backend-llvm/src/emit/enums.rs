@@ -553,3 +553,74 @@ impl FunctionEmitter<'_> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod impl243_layout_tests {
+    use super::*;
+    fn buffer() -> Type {
+        Type::Managed(Box::new(Type::ByteBuffer))
+    }
+    fn store() -> Type {
+        Type::Managed(Box::new(Type::OwnedStore {
+            element: Box::new(Type::Package {
+                name: "Element".into(),
+                fields: vec![("bytes".into(), buffer())],
+            }),
+        }))
+    }
+    #[test]
+    fn impl243_enum_managed_headers_keep_aligned_max_payload_abi() {
+        let ty = Type::Enum {
+            name: "Headers".into(),
+            variants: vec![
+                ("Empty".into(), vec![]),
+                ("Pair".into(), vec![buffer(), store()]),
+            ],
+        };
+        let layout = union_layout(&ty).unwrap();
+        assert_eq!((layout.words, layout.word_align, layout.align), (6, 8, 8));
+        assert_eq!(
+            llvm_enum_type(&ty).unwrap().to_string(),
+            "{ i32, [6 x i64] }"
+        );
+        assert_eq!(
+            (
+                physical_layout(&ty).unwrap().size,
+                physical_layout(&ty).unwrap().align
+            ),
+            (56, 8)
+        );
+        // Headers are three actual words; treating Managed as ptr gives 24, not56.
+        let error = Type::ErrorUnion {
+            error: Box::new(Type::I32),
+            result: Box::new(ty),
+        };
+        assert_eq!(
+            llvm_type(&error).unwrap().to_string(),
+            "{ i1, i32, { i32, [6 x i64] } }"
+        );
+        assert_eq!(physical_layout(&error).unwrap().size, 64);
+    }
+    #[test]
+    fn impl243_product_sum_nested_layout_preserves_field_offsets_and_bool_storage() {
+        let inner = Type::Enum {
+            name: "Inner".into(),
+            variants: vec![("None".into(), vec![]), ("Some".into(), vec![buffer()])],
+        };
+        let product = Type::Package {
+            name: "Product".into(),
+            fields: vec![("bool".into(), Type::Bool), ("sum".into(), inner)],
+        };
+        let outer = Type::Enum {
+            name: "Outer".into(),
+            variants: vec![("Value".into(), vec![product])],
+        };
+        assert_eq!(
+            (
+                union_layout(&outer).unwrap().words,
+                physical_layout(&outer).unwrap().size
+            ),
+            (5, 48)
+        );
+    }
+}
