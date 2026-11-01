@@ -337,3 +337,36 @@ fn ordinary_identity_and_factory_value_returns_do_not_grant_leaf_create() {
         );
     }
 }
+
+#[test]
+fn ordinary_helper_sum_data_parameters_reach_independent_raw_and_wire_verify() {
+    const BASE: &str = r#"
+resource R{n:i32}
+enum E{Empty,Pair(manages R,manages R)}
+package Wrap{state:E;ready:bool}
+fn sink(give owner:R){}
+fn make()->E{return E.Pair(R{n:65},R{n:66})}
+"#;
+    for (name, helper, argument) in [
+        (
+            "helper_enum_forwarded_owner",
+            "fn use_value<F:Fn()->i32>(callback:F,value:E)->i32{let n=callback();match value{E.Empty()=>{return n}\nE.Pair(a,b)=>{let saved=give a;sink(give saved);sink(give b);return n}}}",
+            "make()",
+        ),
+        (
+            "helper_product_sum",
+            "fn use_value<F:Fn()->i32>(callback:F,value:Wrap)->i32{return callback()}",
+            "Wrap{state:make(),ready:true}",
+        ),
+        (
+            "helper_error_union_sum",
+            "fn fallible()->void!Wrap{return Wrap{state:make(),ready:true}}fn use_value<F:Fn()->i32>(callback:F,value:void!Wrap)->i32{return callback()}",
+            "fallible()",
+        ),
+    ] {
+        check(
+            name,
+            &format!("{BASE}{helper}fn main()->i32{{return use_value(()=>7,{argument})-7}}"),
+        );
+    }
+}
