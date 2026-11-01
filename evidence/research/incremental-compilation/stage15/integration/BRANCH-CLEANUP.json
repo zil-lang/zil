@@ -1,0 +1,8 @@
+{
+  "remote_branch": "refs/heads/research/incremental-compilation",
+  "remote_exists": false,
+  "local_exists": false,
+  "current_branch": "main",
+  "head": "24442feb9e915181dedb4866951da01d0ddf67a4",
+  "worktree_clean": true
+}

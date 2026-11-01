@@ -1,6 +1,8 @@
 # Stage15：四项编译优化、完整成本与主线集成准备
 
-生产 `c4d7b3fe1488fd22dc4f64e092b75a6ec2f08cad`；中间实现 `1222448ba0c8fae17fe60b3556a20f2e01476bae`；对照为Stage14生产75178b1cf。最新main 1cb1b62a3的17个记录提交已通过074015c3f合入本分支，无源码冲突。用户授权验收后合入main并删除已合并专项分支，当前报告不提前宣布远端集成完成。
+**集成完成（2026-11-02，北京时间）：** [PR13](https://github.com/zil-lang/zil/pull/13)已由merge commit `24442feb9e915181dedb4866951da01d0ddf67a4`合入main，本地/远端专项分支已删除。两套交付CI成功，完整远端归档已独立回收核验；实际合并树与受测PR树完全相同，复用该验收完成清理。额外main自动CI仍运行，未当作已通过。见[最终验收与清理](../../../evidence/research/incremental-compilation/stage15/integration/ACCEPTANCE.json)。长期能力边界不升级。
+
+生产 `c4d7b3fe1488fd22dc4f64e092b75a6ec2f08cad`；中间实现 `1222448ba0c8fae17fe60b3556a20f2e01476bae`；对照为Stage14生产75178b1cf。最新main 1cb1b62a3的17个记录提交已通过074015c3f合入本分支，无源码冲突。实际集成、验收复用和分支清理已完成，具体身份见上方最终记录。
 
 ## 实现与边界
 

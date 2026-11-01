@@ -1,0 +1,24 @@
+{
+  "run_id": 41327533923,
+  "head_sha": "78cc97f6e2a06b35fb886f8bcdeec3c9ddc0607f",
+  "conclusion": "success",
+  "log_download_exit": 0,
+  "log_bytes": 107676745,
+  "log_sha256": "7dd8e5ae3b43712a2ef29d019c6864f2ca38bcfb30878b6aedb90507afb38935",
+  "fallback_present": true,
+  "recovery_exit": 0,
+  "verify_exit": 0,
+  "archive_bytes": 77643872,
+  "archive_sha256": "c2afd0ed55898d982d5451cbd38e2506f1d9df07db11a908f8aa3bd1db503340",
+  "archive_identity": {
+    "sha256": "c2afd0ed55898d982d5451cbd38e2506f1d9df07db11a908f8aa3bd1db503340",
+    "files": 134932,
+    "run_id": "41327533923",
+    "checkout": "2ba0fad9d7333ab271156816e155606209054e04"
+  },
+  "checkout_parents": [
+    "1cb1b62a381d9f261b0b0e5b5e334d9253a7c57c",
+    "78cc97f6e2a06b35fb886f8bcdeec3c9ddc0607f"
+  ],
+  "binding_valid": true
+}

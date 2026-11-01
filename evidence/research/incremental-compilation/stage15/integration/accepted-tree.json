@@ -1,0 +1,10 @@
+{
+  "accepted_commit": "2ba0fad9d7333ab271156816e155606209054e04",
+  "accepted_tree": "10f01a026b9479e1b52277d4591045ace04109e3",
+  "parents": [
+    "1cb1b62a381d9f261b0b0e5b5e334d9253a7c57c",
+    "78cc97f6e2a06b35fb886f8bcdeec3c9ddc0607f"
+  ],
+  "delivery": "78cc97f6e2a06b35fb886f8bcdeec3c9ddc0607f",
+  "delivery_tree": "10f01a026b9479e1b52277d4591045ace04109e3"
+}

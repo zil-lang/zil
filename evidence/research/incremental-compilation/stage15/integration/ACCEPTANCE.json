@@ -1,0 +1,19 @@
+{
+  "status": "AcceptedAndMerged",
+  "main_merge": "24442feb9e915181dedb4866951da01d0ddf67a4",
+  "delivery": "78cc97f6e2a06b35fb886f8bcdeec3c9ddc0607f",
+  "production": "c4d7b3fe1488fd22dc4f64e092b75a6ec2f08cad",
+  "accepted_ci_checkout": "2ba0fad9d7333ab271156816e155606209054e04",
+  "full_tree": "10f01a026b9479e1b52277d4591045ace04109e3",
+  "tree_reuse": "actual merge and accepted PR checkout have identical full Git trees; both LLVM profiles, tests, feature/target/rules unchanged; provenance remains bound to tested SHA",
+  "official_ci": "https://github.com/zil-lang/zil/actions/runs/41327533826",
+  "research_ci": "https://github.com/zil-lang/zil/actions/runs/41327533923",
+  "both_ci_success": true,
+  "complete_remote_recovery_independently_verified": true,
+  "branch_deleted_remote_and_local": "research/incremental-compilation",
+  "dependent_open_prs": 0,
+  "cleanup_scope": "only the merged research branch; no evidence, other branches, toolchains or caches deleted",
+  "main_automatic_ci": "additional push verification was queued/running at this record, not claimed passed; equivalent accepted tree evidence reused",
+  "raw_ci_archives": "complete archives retained in current workspace /workspace/.zil-env/research/stage15/delivery-ci and recoverable from exact Actions run logs under service retention; Git stores compact receipts and complete performance raw evidence",
+  "language_scope": "four optimizations landed; function-level Types reuse limited to nontrivial scalar CFGs. General resource/generic/closure semantic incrementality and industrial all-scenario Rust superiority remain uncompleted; B0/W4/product gates unchanged"
+}

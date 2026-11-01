@@ -1,0 +1,98 @@
+{
+  "status": "Ready",
+  "delivery": "78cc97f6e2a06b35fb886f8bcdeec3c9ddc0607f",
+  "base": "1cb1b62a381d9f261b0b0e5b5e334d9253a7c57c",
+  "accepted_checkout": "2ba0fad9d7333ab271156816e155606209054e04",
+  "accepted_tree": "10f01a026b9479e1b52277d4591045ace04109e3",
+  "independent_verifications": [
+    {
+      "workflow": "official",
+      "run": 41327533826,
+      "url": "https://github.com/zil-lang/zil/actions/runs/41327533826",
+      "verification": {
+        "status": "Pass",
+        "archive": "/workspace/.zil-env/research/stage15/delivery-ci/41327533826-evidence.tar.zst",
+        "archive_sha256": "08fe1039cfcdd325f7e277236d8f42e744c0d1642686ae43deea322e0713ec26",
+        "archive_bytes": 77393193,
+        "files": 134761,
+        "logical_bytes": 6420340109,
+        "run_id": "41327533826",
+        "checkout": "2ba0fad9d7333ab271156816e155606209054e04",
+        "tree": "10f01a026b9479e1b52277d4591045ace04109e3",
+        "source_inputs_match_git": 3961,
+        "uploads": {
+          "disk_checkpoint": "failure",
+          "recovery_final": "failure",
+          "reference_native": "failure",
+          "reference_receipts": "failure",
+          "workspace_native": "failure",
+          "workspace_receipts": "failure"
+        },
+        "counts": {
+          "reference.log": {
+            "passed": 3188,
+            "failed": 0,
+            "ignored": 0
+          },
+          "workspace.log": {
+            "passed": 3283,
+            "failed": 0,
+            "ignored": 0
+          },
+          "text-reference.log": {
+            "passed": 64,
+            "failed": 0,
+            "ignored": 0
+          }
+        },
+        "receipts": "/workspace/.zil-env/research/stage15/delivery-ci/official-root-v2/receipts"
+      }
+    },
+    {
+      "workflow": "research",
+      "run": 41327533923,
+      "url": "https://github.com/zil-lang/zil/actions/runs/41327533923",
+      "verification": {
+        "status": "Pass",
+        "archive": "/workspace/.zil-env/research/stage15/delivery-ci/41327533923-evidence.tar.zst",
+        "archive_sha256": "c2afd0ed55898d982d5451cbd38e2506f1d9df07db11a908f8aa3bd1db503340",
+        "archive_bytes": 77643872,
+        "files": 134932,
+        "logical_bytes": 6424438804,
+        "run_id": "41327533923",
+        "checkout": "2ba0fad9d7333ab271156816e155606209054e04",
+        "tree": "10f01a026b9479e1b52277d4591045ace04109e3",
+        "source_inputs_match_git": 3961,
+        "uploads": {
+          "disk_checkpoint": "failure",
+          "recovery_final": "failure",
+          "reference_native": "failure",
+          "reference_receipts": "failure",
+          "toolchain_checkpoint": "failure",
+          "workspace_native": "failure",
+          "workspace_receipts": "failure"
+        },
+        "counts": {
+          "reference.log": {
+            "passed": 3188,
+            "failed": 0,
+            "ignored": 0
+          },
+          "workspace.log": {
+            "passed": 3283,
+            "failed": 0,
+            "ignored": 0
+          },
+          "text-reference.log": {
+            "passed": 64,
+            "failed": 0,
+            "ignored": 0
+          }
+        },
+        "receipts": "/workspace/.zil-env/research/stage15/delivery-ci/research-root-v2/receipts"
+      }
+    }
+  ],
+  "merge_method": "merge",
+  "cleanup_only_after_actual_main_tree_comparison": true
+}

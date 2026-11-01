@@ -1,0 +1,38 @@
+{
+  "status": "Pass",
+  "archive": "/workspace/.zil-env/research/stage15/delivery-ci/41327533826-evidence.tar.zst",
+  "archive_sha256": "08fe1039cfcdd325f7e277236d8f42e744c0d1642686ae43deea322e0713ec26",
+  "archive_bytes": 77393193,
+  "files": 134761,
+  "logical_bytes": 6420340109,
+  "run_id": "41327533826",
+  "checkout": "2ba0fad9d7333ab271156816e155606209054e04",
+  "tree": "10f01a026b9479e1b52277d4591045ace04109e3",
+  "source_inputs_match_git": 3961,
+  "uploads": {
+    "disk_checkpoint": "failure",
+    "recovery_final": "failure",
+    "reference_native": "failure",
+    "reference_receipts": "failure",
+    "workspace_native": "failure",
+    "workspace_receipts": "failure"
+  },
+  "counts": {
+    "reference.log": {
+      "passed": 3188,
+      "failed": 0,
+      "ignored": 0
+    },
+    "workspace.log": {
+      "passed": 3283,
+      "failed": 0,
+      "ignored": 0
+    },
+    "text-reference.log": {
+      "passed": 64,
+      "failed": 0,
+      "ignored": 0
+    }
+  },
+  "receipts": "/workspace/.zil-env/research/stage15/delivery-ci/official-root-v2/receipts"
+}

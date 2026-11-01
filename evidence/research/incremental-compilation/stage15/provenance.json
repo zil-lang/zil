@@ -236,7 +236,7 @@
     "general resource/generic/closure function-level semantic dependency graph not implemented",
     "Expand/CT/global checks/Analyze/Verify stay current",
     "no check/O0/industrial/Rust runtime matrix added",
-    "no universal Rust win: dynamic warm and edited-warm slower in final observations",
-    "final exact delivery CI and integration remain pending"
-  ]
+    "no universal Rust win: dynamic warm and edited-warm slower in final observations"
+  ],
+  "acceptance_record": "integration/ACCEPTANCE.json"
 }

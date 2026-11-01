@@ -1,0 +1,10 @@
+{
+  "status": "Pass",
+  "main_commit": "24442feb9e915181dedb4866951da01d0ddf67a4",
+  "main_tree": "10f01a026b9479e1b52277d4591045ace04109e3",
+  "accepted_ci_commit": "2ba0fad9d7333ab271156816e155606209054e04",
+  "accepted_ci_tree": "10f01a026b9479e1b52277d4591045ace04109e3",
+  "full_tree_equal": true,
+  "delivery_is_ancestor": true,
+  "evidence_reused": "same full file tree; same tests/features/targets/rules and both LLVM configurations; source provenance SHA remains the tested commit"
+}
