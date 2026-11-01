@@ -636,6 +636,7 @@ fn check_type_shape(
                 Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
             ))
             || (context & 8 != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. }))
+            || (context & 32 != 0 && context & 4 != 0 && matches!(ty, Type::Package { .. }))
             || (context & 2 != 0
                 && context & 16 != 0
                 && matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })))
@@ -704,13 +705,16 @@ fn check_type_shape(
             }
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
-                if **error != Type::Unit
-                    && **result != Type::Unit
-                    && (packages::has_children(error) || packages::has_children(result))
-                {
-                    budget.mark_sum(budget.current_function)?;
-                }
-                let context = context | 2 | if context & (4 | 2) != 0 { 8 } else { 0 };
+                // Record the gate while visiting the existing paid nodes;
+                // do not scan an as-yet-unbounded raw Package field list here.
+                let context = context
+                    | 2
+                    | if context & (4 | 2) != 0 { 8 } else { 0 }
+                    | if **error != Type::Unit && **result != Type::Unit {
+                        32
+                    } else {
+                        0
+                    };
                 pending.push((error, depth + 1, context));
                 pending.push((result, depth + 1, context));
             }
