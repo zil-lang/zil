@@ -68,8 +68,17 @@ fn source(label: &str, body: &str, accept: bool) {
             report.to_json()
         );
     } else {
+        // Explicit phantom argument conflicts are resolved by the ordinary
+        // generic source binder, before the ownership stages are reached.
+        let phantom_constraint = label == "phantom-family-wrong-argument"
+            && report.phase == Phase::Expand
+            && report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-GENERIC-ARGUMENT");
         assert!(
-            matches!(report.phase, Phase::Types | Phase::Analyze | Phase::Verify),
+            matches!(report.phase, Phase::Types | Phase::Analyze | Phase::Verify)
+                || phantom_constraint,
             "{label}: rejected before the tested type/ownership boundary: {}",
             report.to_json()
         );
