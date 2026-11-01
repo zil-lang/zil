@@ -2,8 +2,8 @@
   "schema_version": 1,
   "scope": "Frozen consumer, oracle, runner and actual allocator probe inputs; not compiler identity",
   "files": {
-    "crates/zil-driver/tests/impl236_zui_core.rs": "ab1fae1b5539abaa15e34df00ab5e0c5897335e7dfb6121ccda0c7bba62aa7ee",
-    "examples/mainline/zui_core236/README.md": "dc508f7e58709e178a1f456bc595039625b24b977a48035c8d29a0303e02d41c",
+    "crates/zil-driver/tests/impl236_zui_core.rs": "cf74ddf21291e71c240ebc6e58c3a4e8b57bf4c014ffaf4729a8b94c8dba46fb",
+    "examples/mainline/zui_core236/README.md": "3efa4e4f754bc7fb5993903b0bb71fcd4168393fa81f421a47e924d58c09a72d",
     "examples/mainline/zui_core236/collections.zil": "fab1ed8cbdb11abb6015bcda0b803c610d9f2f2dcff1b54329e085a36ca2a4a8",
     "examples/mainline/zui_core236/defer_control.zil": "113588160c5d8ed9ed8dbbf8a52742176555cc4e7dad7f3a75473fd2d6007e16",
     "examples/mainline/zui_core236/leaf_control.zil": "37e035932af277c9c2123e9ddb47d8cbe50bee5365fb14625d0e7e0b291769cc",

@@ -1,6 +1,8 @@
-# 236：普通同步语言前置消费者（等待227/235）
+# 236：普通同步语言前置消费者（联合验证中）
 
 这是五模块真实ZIL源码，不是ZUI框架。初始基线`a68398ad7`尚未实现227/defer及235/普通Product拥有Store child；本目录不能据源码存在声称已通过。具体执行身份和结果以`evidence/impl/236/`及仓外原始回执为准。
+
+首个合流候选`bf7b1de72`的限定测试0通过/3失败：完整正例在Analyze被whole-Product局部再赋值后的清理顺序拦截，没有生成或执行原生产物。该缺口已交238沿稳定外槽路线补齐，正例源码和运行oracle保持原样；不将程序改成child API规避。独立负例harness另以无defer入口验证，结果单独记账。
 
 `Session`内联拥有`SubscriptionSet`和`NodeSet`两个完整child，各自管理真实Store和每项ByteBuffer。普通跨模块参数/返回、child取出/回填、扩容失败保持、先准备后替换与声明序关闭共同使用。没有新Session捕获、`Store<Session>`、拥有Sum、dyn或外部userdata。
 
@@ -18,7 +20,7 @@
 
 `tools/language/236/oracle.py`独立按源码操作预测输出、退出及实际分配调用/释放，绝不读取编译器或机器输出。`ORACLE.json`冻结所有20个有效输入及4个无效入口，每个实际分配点失败一次，另含fail_at=0及末次申请之后控制：每个优化等级24次普通运行、151次分配探针。准备失败前缀、未插入的失败项、旧集合保留、新集合提交、注册前失败和注册后扩容/替换失败都有独立预期。字节峰值由探针记录，不猜机器布局或冒称RSS。
 
-最近反例由限定测试按完整正例作两处修改：省略child回填后整值返回，预期Analyze拒绝；持有child的Store窗口后移动child并继续读旧窗口，预期Verify `E-BORROW-CONFLICT`。这两条预期尚待依赖合流后执行，不以其他早期Unsupported代替相应拒绝。
+最近反例由限定测试按完整正例作两处修改：省略child回填后整值返回；持有child的Store窗口后移动child并继续读旧窗口。使用无defer入口的同五模块正控制先通过Verify，避免无关defer错误遮蔽目标。两份实际非法源均由Analyze `E-ANALYZE-IR`拒绝，测试进一步精确核对缺字段和失效窗口消息。初版猜测后一份到Verify才拒绝不正确；首次联合失败、隔离源与真实诊断保留在`evidence/impl/236/joint01/`。这些源反例不代替235本身的独立raw/Wire核验。
 
 `leaf_control.zil`是另外的三模块既有叶形状控制；`defer_control.zil`是两模块基线观察。它们不计入联合五模块程序。`controls.py`只确认基线Unsupported及原API对象的真实分配ABI，成功不表示236或227/235通过。
 

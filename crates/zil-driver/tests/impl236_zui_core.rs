@@ -161,12 +161,34 @@ fn runtime_counts_exit_modes_and_declared_shutdown_order() {
 
 #[test]
 fn nearest_missing_refill_and_live_window_counterexamples() {
-    for (label, session_source, phase, code) in [
+    // Keep this ownership boundary independent of unrelated defer lowering.
+    // The valid five-module control must pass before either rejection counts.
+    const ENTRY: &str = "import portable\nimport model\nimport collections\nimport session\nfn main()->i32{return 0}\n";
+    let path = directory("counterexample-control");
+    let mut control = project();
+    control.modules[0].text = ENTRY.to_owned();
+    fs::write(path.join("main.zil"), ENTRY).unwrap();
+    let report = CompilationSession::default().compile_project(
+        &control,
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            emit_dir: Some(path.join("phases")),
+            ..CompileOptions::default()
+        },
+    );
+    fs::write(path.join("report.json"), report.to_json()).unwrap();
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    for (label, session_source, message) in [
         (
             "missing-refill",
             FILES[4].1.replacen("    current.nodes = node_set\n", "", 1),
-            Phase::Analyze,
-            "E-ANALYZE-IR",
+            "resource closure: whole aggregate move requires every owned element or field live",
         ),
         (
             "live-window",
@@ -174,13 +196,14 @@ fn nearest_missing_refill_and_live_window_counterexamples() {
                 "{}\nfn held_then_move(owned: Session) -> Session {{\nvar current = owned\nlet child = current.nodes\nlet held = store_at(child.items, 0)\ncurrent.nodes = child\nportable.emit(held.id)\nreturn current\n}}\n",
                 FILES[4].1
             ),
-            Phase::Verify,
-            "E-BORROW-CONFLICT",
+            "captured Store transition invalidates a live element window",
         ),
     ] {
         let path = directory(label);
         let mut input = project();
+        input.modules[0].text = ENTRY.to_owned();
         input.modules[4].text = session_source;
+        fs::write(path.join("main.zil"), ENTRY).unwrap();
         fs::write(path.join("session.zil"), &input.modules[4].text).unwrap();
         let report = CompilationSession::default().compile_project(
             &input,
@@ -197,12 +220,11 @@ fn nearest_missing_refill_and_live_window_counterexamples() {
             "{}",
             report.to_json()
         );
-        assert_eq!(report.phase, phase, "{}", report.to_json());
+        assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
         assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.code == code),
+            report.diagnostics.iter().any(
+                |diagnostic| diagnostic.code == "E-ANALYZE-IR" && diagnostic.message == message
+            ),
             "{}",
             report.to_json()
         );
