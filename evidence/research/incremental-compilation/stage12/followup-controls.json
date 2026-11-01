@@ -1,0 +1,210 @@
+[
+  {
+    "name": "semantic-unit",
+    "command": [
+      "cargo",
+      "test",
+      "--features",
+      "zil-driver/llvm-api",
+      "-p",
+      "zil-driver",
+      "--lib",
+      "semantic_cache::tests::",
+      "--",
+      "--test-threads=1"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "semantic-source",
+    "command": [
+      "cargo",
+      "test",
+      "--features",
+      "zil-driver/llvm-api",
+      "-p",
+      "zil-driver",
+      "--test",
+      "semantic_cache",
+      "--",
+      "--test-threads=1"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "module043_01_public_templates_aliases_and_two_consumers_native",
+    "command": [
+      "cargo",
+      "test",
+      "--features",
+      "zil-driver/llvm-api",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl043",
+      "module043_01_public_templates_aliases_and_two_consumers_native",
+      "--",
+      "--exact"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "module043_03_private_declarations_reject",
+    "command": [
+      "cargo",
+      "test",
+      "--features",
+      "zil-driver/llvm-api",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl043",
+      "module043_03_private_declarations_reject",
+      "--",
+      "--exact"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "module043_06_project_expansion_budget_stops_without_executable",
+    "command": [
+      "cargo",
+      "test",
+      "--features",
+      "zil-driver/llvm-api",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl043",
+      "module043_06_project_expansion_budget_stops_without_executable",
+      "--",
+      "--exact"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "module043_07_reexports_aliases_explicit_calls_and_shared_module_identity",
+    "command": [
+      "cargo",
+      "test",
+      "--features",
+      "zil-driver/llvm-api",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl043",
+      "module043_07_reexports_aliases_explicit_calls_and_shared_module_identity",
+      "--",
+      "--exact"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "module043_11_lexical_bindings_can_shadow_imports_and_type_names",
+    "command": [
+      "cargo",
+      "test",
+      "--features",
+      "zil-driver/llvm-api",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl043",
+      "module043_11_lexical_bindings_can_shadow_imports_and_type_names",
+      "--",
+      "--exact"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "emit-closure",
+    "command": [
+      "cargo",
+      "test",
+      "--features",
+      "zil-driver/llvm-api",
+      "-p",
+      "zil-driver",
+      "--test",
+      "scalar_local_promotion",
+      "branches_loops_addresses_and_captures_retain_required_storage",
+      "--",
+      "--exact"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "emit-indirect",
+    "command": [
+      "cargo",
+      "test",
+      "--features",
+      "zil-driver/llvm-api",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl040",
+      "function_return_argument_record_array_tuple_and_assignment_contexts_execute",
+      "--",
+      "--exact"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "emit-dynamic",
+    "command": [
+      "cargo",
+      "test",
+      "--features",
+      "zil-driver/llvm-api",
+      "-p",
+      "zil-driver",
+      "--test",
+      "verified_scalar_summaries",
+      "effects_opaque_input_recursion_and_exhausted_work_keep_runtime_paths",
+      "--",
+      "--exact"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "followup-clippy",
+    "command": [
+      "cargo",
+      "clippy",
+      "--features",
+      "zil-driver/llvm-api",
+      "-p",
+      "zil-driver",
+      "-p",
+      "zil-backend-llvm",
+      "-p",
+      "zil-expand",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "followup-fmt",
+    "command": [
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "exit": 0
+  },
+  {
+    "name": "followup-diff",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit": 0
+  }
+]

@@ -1,0 +1,95 @@
+{
+  "scope": "Linux wait4 CPU usage and process maximum RSS; RSS is not simultaneous tree-wide memory. Same paired identities as analysis.json; no extra samples.",
+  "cells": [
+    {
+      "case": "large-even-8x1024",
+      "contract": "closed",
+      "request": "cold",
+      "repetitions": 1,
+      "cpu_seconds": {
+        "unit": "seconds",
+        "median": {
+          "baseline": 0.400568,
+          "candidate": 0.37371099999999996
+        },
+        "candidate_baseline_geomean": 0.9329527071558387,
+        "paired_range": [
+          0.9329527071558387,
+          0.9329527071558387
+        ]
+      },
+      "max_rss_kib": {
+        "unit": "MiB",
+        "median": {
+          "baseline": 187.859375,
+          "candidate": 177.234375
+        },
+        "candidate_baseline_geomean": 0.9434417366713799,
+        "paired_range": [
+          0.9434417366713799,
+          0.9434417366713799
+        ]
+      }
+    },
+    {
+      "case": "large-even-8x1024",
+      "contract": "closed",
+      "request": "warm",
+      "repetitions": 1,
+      "cpu_seconds": {
+        "unit": "seconds",
+        "median": {
+          "baseline": 0.209554,
+          "candidate": 0.186419
+        },
+        "candidate_baseline_geomean": 0.8895988623457438,
+        "paired_range": [
+          0.8895988623457438,
+          0.8895988623457438
+        ]
+      },
+      "max_rss_kib": {
+        "unit": "MiB",
+        "median": {
+          "baseline": 104.55078125,
+          "candidate": 104.20703125
+        },
+        "candidate_baseline_geomean": 0.9967121240425929,
+        "paired_range": [
+          0.9967121240425929,
+          0.9967121240425929
+        ]
+      }
+    },
+    {
+      "case": "large-even-8x1024",
+      "contract": "closed",
+      "request": "edit",
+      "repetitions": 1,
+      "cpu_seconds": {
+        "unit": "seconds",
+        "median": {
+          "baseline": 0.423712,
+          "candidate": 0.37460899999999997
+        },
+        "candidate_baseline_geomean": 0.8841123215769201,
+        "paired_range": [
+          0.8841123215769201,
+          0.8841123215769201
+        ]
+      },
+      "max_rss_kib": {
+        "unit": "MiB",
+        "median": {
+          "baseline": 188.2109375,
+          "candidate": 177.25
+        },
+        "candidate_baseline_geomean": 0.941762483915155,
+        "paired_range": [
+          0.941762483915155,
+          0.941762483915155
+        ]
+      }
+    }
+  ]
+}

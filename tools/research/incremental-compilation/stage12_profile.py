@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Instrument a private Stage11/12 source snapshot for Stage12 diagnosis.
+"""Instrument private 38a7d5a08 or f15cf54a43 snapshots for Stage12 diagnosis.
 
 Usage: stage12_profile.py SNAPSHOT_ROOT. Patches assert their exact source shapes;
 never run this on the production checkout. Timed stderr diagnostics are not

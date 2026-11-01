@@ -1,0 +1,143 @@
+{
+  "production": "743c9699eda7b5ef79b0759702cb48a17acfb83d",
+  "baseline_delivery": "38a7d5a088ecd291255907dfca32e37785b8292c",
+  "baseline_production": "082efcfc0f8e0408844a22af8bcc34d29c0d9df4",
+  "initial_candidate": "f15cf54a43a162f0c13fc11b8ddb26c344fc1315",
+  "artifacts": [
+    {
+      "path": "/workspace/.zil-env/research/stage12/baseline/zil",
+      "bytes": 8350040,
+      "sha256": "e871f7da42854e29ec4a3118c711e9546cd48ebbb63b712c950930bf0d5d8594"
+    },
+    {
+      "path": "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+      "bytes": 8339928,
+      "sha256": "725aaa5558107d421c81518c4b97fe4734b7057d7be4f94157ac9e2f04118baf"
+    },
+    {
+      "path": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib/libLLVM.so.23.1",
+      "bytes": 72097832,
+      "sha256": "7b5c5ef8b204e019c58da7bbb01853dc56fa68fcec08364c5d07b10494fa9a98"
+    },
+    {
+      "path": "/usr/bin/x86_64-linux-gnu-objcopy",
+      "bytes": 159568,
+      "sha256": "403f90bbd5d26c8ab9a2ad51f56255b812e8858a83aa8740ee71791071ddb580"
+    },
+    {
+      "path": "/usr/bin/x86_64-linux-gnu-ld.bfd",
+      "bytes": 1861256,
+      "sha256": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b"
+    }
+  ],
+  "final_windows": [
+    "selected-target",
+    "selected-guards",
+    "selected-closed-guard"
+  ],
+  "negative_windows": [
+    "final-target",
+    "final-guards",
+    "final-closed-guard"
+  ],
+  "requests": 63,
+  "valid_native": 63,
+  "current_zil_verifies": 42,
+  "rust_observations": 21,
+  "independent_cache_histories": 7,
+  "comparison_cells": 15,
+  "scoped_checks": {
+    "distinct": 59,
+    "initial_candidate": 40,
+    "final_increment": 19,
+    "final_increment_counts": {
+      "semantic_unit": 4,
+      "semantic_source": 7,
+      "module_source": 5,
+      "emit_native": 3
+    },
+    "first_attempt_missing_feature": "controls-without-api-feature preserves zero-test and Clippy error records; excluded from valid controls; final runner adds zil-driver/llvm-api",
+    "clippy": "initial five crates and final backend/driver/expand all-targets -D warnings passed",
+    "fmt": "pass",
+    "formal_full_local": "not run"
+  },
+  "quality": {
+    "edited_pairs": 7,
+    "effective_instruction_differences": 0,
+    "raw_label_differences": {
+      "single8192": 146,
+      "other_pairs": 0
+    },
+    "all_size_deltas": 0,
+    "uncompared_per_pair": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      1,
+      1
+    ],
+    "full_elf_equal_pairs": 2,
+    "historical_thunk_cost": "Stage11 retained old merged jump still exists; unchanged in Stage12",
+    "text_byte_equal_pairs": 7,
+    "remaining_elf_differences": "all changed bytes in .strtab for five pairs; see native-section-bytes.json"
+  },
+  "diagnostic_profiles": {
+    "profile": {
+      "production_source": "38a7d5a088ecd291255907dfca32e37785b8292c",
+      "instrumentation_source": "f15cf54a43a162f0c13fc11b8ddb26c344fc1315:tools/research/incremental-compilation/stage12_profile.py",
+      "requests": 3
+    },
+    "profile-candidate": {
+      "production_source": "f15cf54a43a162f0c13fc11b8ddb26c344fc1315",
+      "instrumentation_source": "743c9699eda7b5ef79b0759702cb48a17acfb83d:tools/research/incremental-compilation/stage12_profile.py",
+      "requests": 6
+    },
+    "warning": "private instrumented diagnostics, not final timing; runner checkout identity is not the private profiled source identity; nested wall intervals and per-unit sums must not be added as exclusive wall time"
+  },
+  "prior_ci": "previous-ci.json binds38a7d5a08, both successful, not current acceptance",
+  "handoff": "historical integrity Fail retained",
+  "boundaries": "main/environment/public Wire/limits/Cargo.lock/product gates unchanged; task Doing",
+  "tools": {
+    "tools/research/incremental-compilation/stage12_profile.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage12_profile.py",
+      "bytes": 7082,
+      "sha256": "4aa7509be4eee49557b74aa66d513209b75f12890bf9d00cc414db44e01d3341"
+    },
+    "tools/research/incremental-compilation/stage11_quality.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage11_quality.py",
+      "bytes": 18289,
+      "sha256": "be682bbe38ec5930d176d63c4a7ddc6d5ed4102dff50f1ce601597703e672139"
+    },
+    "tools/research/incremental-compilation/stage8_screen.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage8_screen.py",
+      "bytes": 8932,
+      "sha256": "7216f6a1c7f14d6d37af0e4fe6deffd96fb35c16e9150785660a7a2609481ef5"
+    },
+    "tools/research/incremental-compilation/stage7_analyze.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage7_analyze.py",
+      "bytes": 3062,
+      "sha256": "bc37c93472abcb917affbfa5273744c3a1961313e31b4099a97a3dc219c12f4e"
+    },
+    "tools/research/incremental-compilation/stage8_resources.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage8_resources.py",
+      "bytes": 2146,
+      "sha256": "eb146572d27ae30b76c255bdc196d54786ffda04f5c8caa668c926319ebe378a"
+    }
+  },
+  "raw_archive": {
+    "path": "evidence/research/incremental-compilation/stage12/raw.tar.gz",
+    "bytes": 13348773,
+    "sha256": "2d1ac2abdba013189422c6b25f5825ae2b843ef57ffa3a12421187986978fa6f",
+    "files": 1732,
+    "contents": "original measurements, sources, stdout/stderr, diagnostics, scoped-control/build logs and commands, failed missing-feature control attempt, complete offline quality records and reproducible section reader; compiler binaries/object-cache payloads omitted and bound by manifests"
+  },
+  "native_archive": {
+    "path": "evidence/research/incremental-compilation/stage12/native-elves.tar.gz",
+    "bytes": 829261,
+    "sha256": "656ffa4839afa227df65f2fc76fbad92b9aae38072123afb637d94a3890ae9e9",
+    "files": 14,
+    "contents": "the fourteen actual edited baseline/candidate ELF inputs to the independent quality inspection, paths relative to the original stage12 root; hashes also bound in native-section-bytes.json"
+  }
+}
