@@ -788,14 +788,8 @@ fn source_21_copy_companions() {
 
 #[test]
 fn source_22_inner_store() {
-    rejected(
-        "22_inner_store",
-        source!("22_inner_store"),
-        Phase::Types,
-        ResultCategory::Unsupported,
-        None,
-        None,
-    );
+    // 235 promotes the original frozen source without rewriting its fixture.
+    accepted("22_inner_store", source!("22_inner_store"));
 }
 
 #[test]
