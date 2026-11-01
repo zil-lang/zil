@@ -131,6 +131,12 @@ fn native(name: &str, source: &str, rows: &[(&str, i32, &str)]) {
                 let output = run(Path::new(&report.artifacts["executable"]), input);
                 fs::write(path.join(format!("input-{input}.stdout")), &output.stdout).unwrap();
                 fs::write(path.join(format!("input-{input}.stderr")), &output.stderr).unwrap();
+                fs::write(
+                    path.join(format!("input-{input}.exit")),
+                    format!("{:?}\n", output.status.code()),
+                )
+                .unwrap();
+                fs::write(path.join(format!("input-{input}.stdin")), input).unwrap();
                 assert_eq!(
                     output.status.code(),
                     Some(*exit),
@@ -216,13 +222,14 @@ fn impl243_actual_api_object_entry_faults_settle_only_selected_live_payload() {
                     && r.contains("\"verify_before_after\":true"))
         );
         let probe = path.join("probe");
-        let link = Command::new(&clang)
+        let mut link_command = Command::new(&clang);
+        link_command
             .arg(path.join("api.o"))
             .arg(&shim)
             .args(["-Wl,--wrap=realloc", "-Wl,--wrap=free", "-o"])
-            .arg(&probe)
-            .output()
-            .unwrap();
+            .arg(&probe);
+        fs::write(path.join("link.command.txt"), format!("{link_command:?}\n")).unwrap();
+        let link = link_command.output().unwrap();
         fs::write(path.join("link.stdout"), &link.stdout).unwrap();
         fs::write(path.join("link.stderr"), &link.stderr).unwrap();
         assert!(link.status.success(), "{link:?}");
@@ -253,6 +260,12 @@ fn impl243_actual_api_object_entry_faults_settle_only_selected_live_payload() {
                     &output.stderr,
                 )
                 .unwrap();
+                fs::write(
+                    path.join(format!("input-{input}-fail-{fail}.exit")),
+                    format!("{:?}\n", output.status.code()),
+                )
+                .unwrap();
+                fs::write(path.join(format!("input-{input}-fail-{fail}.stdin")), input).unwrap();
                 let failed = fail > 0 && fail <= requests;
                 let expected = if failed {
                     "S"
@@ -285,4 +298,23 @@ fn impl243_actual_api_object_entry_faults_settle_only_selected_live_payload() {
             }
         }
     }
+}
+
+#[test]
+fn impl243_copy_scratch_and_nested_empty_variants_preserve_source_drop_order() {
+    native(
+        "copy-scratch",
+        include_str!("impl240_fixtures/copy_scratch.zil"),
+        &[("", 0, "XALQE")],
+    );
+    native(
+        "nested-order",
+        include_str!("impl240_fixtures/nested_order.zil"),
+        &[
+            ("0", 0, "ACDLQE"),
+            ("1", 0, "LQE"),
+            ("2", 0, "ALQE"),
+            ("3", 0, "LQE"),
+        ],
+    );
 }
