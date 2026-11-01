@@ -231,15 +231,17 @@ pub fn build_view_with_cancellation_and_stable_names(
             None,
         )]);
     }
-    let (mut machine, collected_closed) = crate::emit::lower_view_with_closed_scalar_policy(
-        verified,
-        lir,
-        &options.emit,
-        options.optimization == Optimization::O2 && options.incremental_o2,
-        options.closed_executable
-            && options.backend == NativeBackend::LlvmApi
-            && options.codegen.units >= 2,
-    )?;
+    let (mut machine, collected_closed) =
+        crate::emit::lower_view_with_closed_scalar_policy_and_jobs(
+            verified,
+            lir,
+            &options.emit,
+            options.optimization == Optimization::O2 && options.incremental_o2,
+            options.closed_executable
+                && options.backend == NativeBackend::LlvmApi
+                && options.codegen.units >= 2,
+            options.codegen.jobs,
+        )?;
     // The opt-in O2 strategy contracts strict checked-add chains before
     // scalar evaluation. Each nonempty plan validates its complete unchanged
     // input before mutation. Ordinary O2 skips both passes.
