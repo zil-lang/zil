@@ -317,6 +317,34 @@ pub fn instructions(flag: bool) -> Vec<InstructionKind> {
             callee: ValueId(5633),
             arguments: vec![ValueId(5636), ValueId(5638)],
         },
+        InstructionKind::VariantTagLocal {
+            local: LocalId(5702),
+            path: vec![VariantProjection {
+                variant: 3,
+                index: 5,
+            }],
+        },
+        InstructionKind::ReadVariantLocal {
+            local: LocalId(5703),
+            path: vec![
+                VariantProjection {
+                    variant: 7,
+                    index: 11,
+                },
+                VariantProjection {
+                    variant: 13,
+                    index: 17,
+                },
+            ],
+        },
+        InstructionKind::UnpackVariant {
+            local: LocalId(5704),
+            variant: 19,
+            fields: vec![LocalId(5705), LocalId(5706)],
+        },
+        InstructionKind::DropEnum {
+            local: LocalId(5707),
+        },
         InstructionKind::Unsupported("unsupported-值".into()),
     ]
 }
