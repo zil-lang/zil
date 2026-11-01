@@ -1,0 +1,20 @@
+{
+  "status": "ReturnedForIndependentPositiveRejection",
+  "implementation_commit": "b51dc2043ae51ec42c1bec964bec0623df152431",
+  "workspace": {
+    "passed": 3575,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "groups": 395
+  },
+  "limited_review": {
+    "targets": 16,
+    "passed": 138,
+    "failed": 0
+  },
+  "finding": "A valid current managed owner after branch replacement is incorrectly rejected in an unused callable helper; ordinary-function control passes Types and Analyze. Old description invalidation must be distinct from the current complete owner.",
+  "finding_source": "/tmp/review240-boundaries/results-Q-b51-diagnostic-final",
+  "reference": "NotRunOnReturnedCandidate",
+  "original_results_preserved": true
+}
