@@ -6,6 +6,7 @@ mod enums;
 mod errors;
 mod foreign;
 mod packages;
+mod parallel_lowering;
 mod resource_closures;
 mod resources;
 mod scalar_leaf;
@@ -72,6 +73,24 @@ pub(crate) fn lower_view_with_closed_scalar_policy(
     incremental_scalar_policy: bool,
     closed_scalar_collection: bool,
 ) -> CompileResult<(m::Module, bool)> {
+    lower_view_with_closed_scalar_policy_and_jobs(
+        verified,
+        lir,
+        options,
+        incremental_scalar_policy,
+        closed_scalar_collection,
+        1,
+    )
+}
+
+pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &EmitOptions,
+    incremental_scalar_policy: bool,
+    closed_scalar_collection: bool,
+    jobs: usize,
+) -> CompileResult<(m::Module, bool)> {
     bind_lir(verified, lir)?;
     let functions = lir
         .functions
@@ -95,73 +114,42 @@ pub(crate) fn lower_view_with_closed_scalar_policy(
         })
         .flatten();
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
-    let mut intrinsics = BTreeSet::new();
-    // Finish each function before retaining it: no whole-project Event buffer.
-    let mut body = Vec::with_capacity(
+    // A large source can collapse to a tiny closed program before emission.
+    // Do not start workers merely to skip thousands of discarded definitions.
+    let jobs = if collected
+        .as_ref()
+        .is_some_and(|needed| needed.len() < parallel_lowering::MIN_PARALLEL_FUNCTIONS)
+    {
+        1
+    } else {
+        jobs
+    };
+    let batches = parallel_lowering::ordered_batches(lir.functions, jobs, |batch| {
+        lower_function_batch(
+            batch,
+            lir,
+            options,
+            incremental_scalar_policy,
+            &functions,
+            &closures,
+            summaries.as_ref(),
+            collected.as_ref(),
+        )
+    })?;
+    let mut batches = batches.into_iter();
+    let FunctionBatch {
+        mut body,
+        mut intrinsics,
+    } = batches.next().expect("lowering always returns a batch");
+    body.reserve(
         collected
             .as_ref()
-            .map_or(lir.functions.len(), BTreeSet::len),
+            .map_or(lir.functions.len(), BTreeSet::len)
+            .saturating_sub(body.len()),
     );
-    for function in lir.functions {
-        if function.foreign.is_some() {
-            if matches!(options.entry, EntryPoint::ReturnValue(_))
-                && function
-                    .foreign
-                    .as_ref()
-                    .is_some_and(|f| f.symbol == "printf")
-            {
-                return invalid(
-                    "E-CODEGEN-FOREIGN",
-                    "foreign printf conflicts with the optional return-value harness",
-                    Some(function.span),
-                );
-            }
-            body.extend(
-                foreign::declaration(function, lir.target)?
-                    .into_items()
-                    .map_err(machine_error)?,
-            );
-            continue;
-        }
-        if collected
-            .as_ref()
-            .is_some_and(|needed| !needed.contains(&function.id))
-        {
-            continue;
-        }
-        if let Some(value) = summaries.as_ref().and_then(|plan| plan.get(&function.id)) {
-            body.push(m::Item::Function(scalar_summaries::emit(function, value)));
-            continue;
-        }
-        if incremental_scalar_policy
-            && let Some(machine) = scalar_leaf::emit(function, &mut intrinsics)
-        {
-            body.push(m::Item::Function(machine));
-            continue;
-        }
-        let emitted = FunctionEmitter {
-            function,
-            target: lir.target,
-            functions: &functions,
-            scalar_summaries: summaries.as_ref(),
-            closures: &closures,
-            resources: lir.resources,
-            intrinsics: &mut intrinsics,
-            text: m::Code::new(),
-            temporary: 0,
-            continuation: 0,
-            partial_packages: BTreeSet::new(),
-            safe_divisors: incremental_scalar_policy.then(BTreeSet::new),
-        }
-        .emit()?
-        .into_items()
-        .map_err(machine_error)?;
-        for mut item in emitted {
-            if let m::Item::Function(machine) = &mut item {
-                scalar_locals::promote(function, machine);
-            }
-            body.push(item);
-        }
+    for batch in batches {
+        body.extend(batch.body);
+        intrinsics.extend(batch.intrinsics);
     }
     let mut text = m::Code::new();
     for closure in lir.closures {
@@ -364,6 +352,87 @@ pub(crate) fn lower_view_with_closed_scalar_policy(
         },
         collected.is_some(),
     ))
+}
+
+struct FunctionBatch {
+    body: Vec<m::Item>,
+    intrinsics: BTreeSet<(&'static str, u32)>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_function_batch(
+    batch: &[TypedFunction],
+    lir: &LirView<'_>,
+    options: &EmitOptions,
+    incremental_scalar_policy: bool,
+    functions: &BTreeMap<FunctionId, &TypedFunction>,
+    closures: &BTreeMap<ClosureId, &ClosureDefinition>,
+    summaries: Option<&BTreeMap<FunctionId, Constant>>,
+    collected: Option<&BTreeSet<FunctionId>>,
+) -> CompileResult<FunctionBatch> {
+    let mut intrinsics = BTreeSet::new();
+    // Finish each function before retaining it: no whole-project Event buffer.
+    let mut body =
+        Vec::with_capacity(collected.map_or(batch.len(), |needed| needed.len().min(batch.len())));
+    for function in batch {
+        if function.foreign.is_some() {
+            if matches!(options.entry, EntryPoint::ReturnValue(_))
+                && function
+                    .foreign
+                    .as_ref()
+                    .is_some_and(|f| f.symbol == "printf")
+            {
+                return invalid(
+                    "E-CODEGEN-FOREIGN",
+                    "foreign printf conflicts with the optional return-value harness",
+                    Some(function.span),
+                );
+            }
+            body.extend(
+                foreign::declaration(function, lir.target)?
+                    .into_items()
+                    .map_err(machine_error)?,
+            );
+            continue;
+        }
+        if collected.is_some_and(|needed| !needed.contains(&function.id)) {
+            continue;
+        }
+        if let Some(value) = summaries.and_then(|plan| plan.get(&function.id)) {
+            body.push(m::Item::Function(scalar_summaries::emit(function, value)));
+            continue;
+        }
+        if incremental_scalar_policy
+            && let Some(machine) = scalar_leaf::emit(function, &mut intrinsics)
+        {
+            body.push(m::Item::Function(machine));
+            continue;
+        }
+        let emitted = FunctionEmitter {
+            function,
+            target: lir.target,
+            functions,
+            scalar_summaries: summaries,
+            closures,
+            resources: lir.resources,
+            intrinsics: &mut intrinsics,
+            text: m::Code::new(),
+            temporary: 0,
+            continuation: 0,
+            partial_packages: BTreeSet::new(),
+            safe_divisors: incremental_scalar_policy.then(BTreeSet::new),
+        }
+        .emit()?
+        .into_items()
+        .map_err(machine_error)?;
+        for mut item in emitted {
+            if let m::Item::Function(machine) = &mut item {
+                scalar_locals::promote(function, machine);
+            }
+            body.push(item);
+        }
+    }
+    Ok(FunctionBatch { body, intrinsics })
 }
 
 fn machine_error(message: String) -> Vec<Diagnostic> {

@@ -587,3 +587,126 @@ fn first_error_follows_original_function_order_in_mixed_reachability_modules() {
     cycle_first.items.swap(0, 1);
     rejected(&cycle_first, "@bad / entry / 0: boolean constant is not i1");
 }
+
+fn scratch_world(module: &Module) -> World<'_> {
+    World {
+        named: BTreeMap::new(),
+        symbols: module
+            .items
+            .iter()
+            .map(|item| {
+                let Item::Function(f) = item else {
+                    panic!("function fixture")
+                };
+                (f.name.as_str(), item)
+            })
+            .collect(),
+        valid_named: RefCell::new(BTreeMap::new()),
+    }
+}
+
+#[test]
+fn reused_scratch_preserves_errors_and_schedules_across_function_boundaries() {
+    fn check<const COLLECT: bool>() {
+        let model = module(vec![
+            function_item(
+                "producer",
+                vec![block(
+                    "entry",
+                    vec![
+                        add("x", Val::Int(1), Val::Int(2)),
+                        ret(Val::Local("x".into())),
+                    ],
+                )],
+            ),
+            loop_module(false).items.remove(0),
+            function_item(
+                "missing",
+                vec![block("entry", vec![ret(Val::Local("x".into()))])],
+            ),
+            function_item("dangling", vec![block("entry", vec![branch("loop")])]),
+            diamond().items.remove(0),
+            dead_dependencies(false).items.remove(0),
+        ]);
+        let world = scratch_world(&model);
+        let mut reused = FunctionScratch::default();
+        for id in [0, 1, 2, 1, 3, 4, 5, 0] {
+            let Item::Function(f) = &model.items[id] else {
+                unreachable!()
+            };
+            let expected = function_in::<COLLECT>(&world, f, &mut FunctionScratch::default());
+            if id == 2 {
+                assert_eq!(
+                    expected.as_ref().unwrap_err(),
+                    "@missing / entry / 0: undefined SSA value %x"
+                );
+                // The retention cap must also apply when the next attempt fails.
+                reused.uses.reserve(1024);
+            } else if id == 3 {
+                assert_eq!(expected.as_ref().unwrap_err(), "unknown block %loop");
+            }
+            assert_eq!(function::<COLLECT>(&world, f, &mut reused), expected);
+            assert!(reused.uses.capacity() <= 256);
+        }
+    }
+    check::<false>();
+    check::<true>();
+}
+
+#[test]
+fn large_functions_use_temporary_scratch_without_growing_the_small_pool() {
+    let many_blocks = (0..33)
+        .map(|id| {
+            block(
+                &format!("b{id}"),
+                vec![if id == 32 {
+                    ret(Val::Int(0))
+                } else {
+                    branch(&format!("b{}", id + 1))
+                }],
+            )
+        })
+        .collect();
+    let mut many_instructions = (0..256)
+        .map(|id| add(&format!("v{id}"), Val::Int(1), Val::Int(2)))
+        .collect::<Vec<_>>();
+    many_instructions.push(ret(Val::Local("undefined".into())));
+    let model = module(vec![
+        function_item("small", vec![block("entry", vec![ret(Val::Int(0))])]),
+        function_item("many_blocks", many_blocks),
+        function_item("many_instructions", vec![block("entry", many_instructions)]),
+    ]);
+    let world = scratch_world(&model);
+    let mut reused = FunctionScratch::default();
+    let Item::Function(small) = &model.items[0] else {
+        unreachable!()
+    };
+    function::<false>(&world, small, &mut reused).unwrap();
+    let capacities = |s: &FunctionScratch<'_>| {
+        [
+            s.labels.capacity(),
+            s.defs.capacity(),
+            s.succ.len(),
+            s.pred.len(),
+            s.dominators.seen.capacity(),
+            s.dominators.post.capacity(),
+            s.dominators.stack.capacity(),
+            s.dominators.rank.capacity(),
+            s.dominators.idom.capacity(),
+        ]
+    };
+    let before = capacities(&reused);
+    for item in &model.items[1..] {
+        let Item::Function(f) = item else {
+            unreachable!()
+        };
+        assert!(!reusable_function_scratch(f));
+        let expected = function_in::<false>(&world, f, &mut FunctionScratch::default());
+        assert_eq!(function::<false>(&world, f, &mut reused), expected);
+        assert_eq!(capacities(&reused), before);
+        function::<false>(&world, small, &mut reused).unwrap();
+    }
+    reused.uses.reserve(1024);
+    function::<false>(&world, small, &mut reused).unwrap();
+    assert!(reused.uses.capacity() <= 256);
+}

@@ -94,6 +94,43 @@ fn entries(root: &Path) -> Vec<PathBuf> {
     files
 }
 #[test]
+fn parallel_lowering_keeps_source_order_text_cache_keys_and_owned_cleanup() {
+    let d = Dir::new();
+    let mut source = String::from(
+        "extern \"C\" fn putchar(n:i32)->i32;\nresource Token{code:i32}\nimpl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}\nfn make(n:i32)->Token contract{result(create)}{return Token{code:n}}\nfn early()->i32{let t=make(65);let f=move()=>t.code;return f()-65;}\n",
+    );
+    // Cross several lowering batches, including a short final batch. These
+    // parameter-dependent bodies also require checked arithmetic intrinsics.
+    for i in 0..201 {
+        source += &format!("fn padding{i}(x:i32)->i32{{if x<0{{return x-1;}}return x+1;}}\n");
+    }
+    source += "fn late()->i32{let t=make(66);let f=move()=>t.code;let p:fn(i32)->i32=padding0;return f()+p(0)-67;}\nfn main()->i32{return early()+late();}\n";
+    d.write("main.zil", &source);
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let mut options = d.options(8, optimization);
+        options.incremental_o2 = optimization == Optimization::O2;
+        options.codegen.jobs = 1;
+        let serial = d.build(&options);
+        success(&serial, 0);
+        let text = fs::read(&serial.artifacts["llvm"]).unwrap();
+        let binary = fs::read(&serial.artifacts["executable"]).unwrap();
+        options.codegen.jobs = 2;
+        let parallel = d.build(&options);
+        success(&parallel, 0);
+        let codegen = parallel.native_codegen.as_ref().unwrap();
+        assert_eq!(codegen.object_cache.hits, codegen.actual_units);
+        assert_eq!(codegen.object_cache.misses, 0);
+        assert_eq!(fs::read(&parallel.artifacts["llvm"]).unwrap(), text);
+        assert_eq!(fs::read(&parallel.artifacts["executable"]).unwrap(), binary);
+        let output = Command::new(&parallel.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert_eq!(output.stdout, b"AB");
+        assert!(output.stderr.is_empty());
+    }
+}
+
+#[test]
 fn unused_foreign_declarations_do_not_invalidate_independent_objects() {
     for optimization in [Optimization::O0, Optimization::O2] {
         let d = Dir::new();

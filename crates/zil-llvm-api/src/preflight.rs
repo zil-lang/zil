@@ -18,6 +18,56 @@ struct Definition<'a> {
     ty: &'a Ty,
     place: Option<(usize, usize)>,
 }
+#[derive(Default)]
+struct DominatorScratch {
+    seen: Vec<bool>,
+    post: Vec<usize>,
+    stack: Vec<(usize, bool)>,
+    rank: Vec<usize>,
+    idom: Vec<usize>,
+}
+impl DominatorScratch {
+    fn clear(&mut self) {
+        self.seen.clear();
+        self.post.clear();
+        self.stack.clear();
+        self.rank.clear();
+        self.idom.clear();
+    }
+}
+#[derive(Default)]
+struct FunctionScratch<'a> {
+    labels: HashMap<&'a str, usize>,
+    defs: HashMap<&'a str, Definition<'a>>,
+    succ: Vec<Vec<usize>>,
+    pred: Vec<Vec<usize>>,
+    uses: Vec<&'a str>,
+    dominators: DominatorScratch,
+}
+impl FunctionScratch<'_> {
+    fn clear(&mut self) {
+        self.labels.clear();
+        self.defs.clear();
+        self.uses.clear();
+        for edges in self.succ.iter_mut().chain(&mut self.pred) {
+            edges.clear();
+        }
+        self.dominators.clear();
+    }
+}
+fn reusable_function_scratch(f: &Function) -> bool {
+    f.blocks.as_ref().is_some_and(|blocks| {
+        blocks.len() <= 32
+            && blocks
+                .iter()
+                .try_fold(f.signature.params.len(), |count, block| {
+                    count
+                        .checked_add(block.instructions.len())
+                        .filter(|&count| count <= 256)
+                })
+                .is_some_and(|count| count <= 256)
+    })
+}
 static POINTER_RESULT: Ty = Ty::Ptr;
 static COMPARISON_RESULT: Ty = Ty::Int(1);
 fn fail<T>(s: impl Into<String>) -> Result<T> {
@@ -463,11 +513,22 @@ fn successors(op: &Op) -> impl Iterator<Item = &str> {
     edges.into_iter().flatten()
 }
 /// Immediate dominators in reverse postorder. No CFG×SSA/variable Cartesian table.
-fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize>) {
+fn dominators_in<'a>(
+    succ: &[Vec<usize>],
+    pred: &[Vec<usize>],
+    scratch: &'a mut DominatorScratch,
+) -> (&'a [bool], &'a [usize]) {
     let n = succ.len();
-    let mut seen = vec![false; n];
-    let mut post = vec![];
-    let mut stack = vec![(0usize, false)];
+    scratch.clear();
+    let DominatorScratch {
+        seen,
+        post,
+        stack,
+        rank,
+        idom,
+    } = scratch;
+    seen.resize(n, false);
+    stack.push((0usize, false));
     while let Some((b, exit)) = stack.pop() {
         if exit {
             post.push(b);
@@ -485,11 +546,11 @@ fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize
         }
     }
     post.reverse();
-    let mut rank = vec![usize::MAX; n];
+    rank.resize(n, usize::MAX);
     for (i, &b) in post.iter().enumerate() {
         rank[b] = i;
     }
-    let mut idom = vec![usize::MAX; n];
+    idom.resize(n, usize::MAX);
     idom[0] = 0;
     let intersect = |mut a: usize, mut b: usize, idom: &[usize]| {
         while a != b {
@@ -511,10 +572,10 @@ fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize
             // Pay O(n) setup only when the current block has enough edges to
             // cover it. Many small joins in a large CFG keep the old walk.
             if pred[b].len() >= 32 && pred[b].len() >= n.div_ceil(4) {
-                next = intersect_many(next, p, &rank, &idom);
+                next = intersect_many(next, p, rank, idom);
             } else {
                 for p in p {
-                    next = intersect(next, p, &idom);
+                    next = intersect(next, p, idom);
                 }
             }
             if next != idom[b] {
@@ -524,6 +585,12 @@ fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize
         }
     }
     (seen, idom)
+}
+#[cfg(test)]
+fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize>) {
+    let mut scratch = DominatorScratch::default();
+    dominators_in(succ, pred, &mut scratch);
+    (scratch.seen, scratch.idom)
 }
 // The current idom tree does not change during one predecessor merge. Project
 // each visited node onto the first predecessor's ancestor chain, then choose
@@ -631,10 +698,34 @@ fn dominates(
         b = idom[b];
     }
 }
-fn function<const COLLECT_SCHEDULE: bool>(
-    world: &World<'_>,
-    f: &Function,
+fn function<'a, const COLLECT_SCHEDULE: bool>(
+    world: &'a World<'_>,
+    f: &'a Function,
+    reusable: &mut FunctionScratch<'a>,
 ) -> Result<Vec<(usize, usize)>> {
+    if f.blocks.is_none() {
+        return Ok(Vec::new());
+    }
+    if reusable_function_scratch(f) {
+        let result = function_in::<COLLECT_SCHEDULE>(world, f, reusable);
+        // A single operand may contain nested values. Bound retained scratch,
+        // without rescanning operands or changing validation's peak/work rules.
+        if reusable.uses.capacity() > 256 {
+            reusable.uses = Vec::new();
+        }
+        result
+    } else {
+        // Large functions still receive all the same checks, without retaining
+        // their allocations in the small-function pool for the rest of the unit.
+        function_in::<COLLECT_SCHEDULE>(world, f, &mut FunctionScratch::default())
+    }
+}
+fn function_in<'a, const COLLECT_SCHEDULE: bool>(
+    world: &'a World<'_>,
+    f: &'a Function,
+    scratch: &mut FunctionScratch<'a>,
+) -> Result<Vec<(usize, usize)>> {
+    scratch.clear();
     let Some(blocks) = &f.blocks else {
         return Ok(vec![]);
     };
@@ -647,8 +738,15 @@ fn function<const COLLECT_SCHEDULE: bool>(
     let n = blocks.len();
     // Input order controls diagnostics and scheduling; these maps only perform
     // identity lookup. The label collision scan returns one fixed diagnostic.
-    let mut labels = HashMap::with_capacity(n);
-    let mut defs = HashMap::new();
+    let FunctionScratch {
+        labels,
+        defs,
+        succ,
+        pred,
+        uses,
+        dominators,
+    } = scratch;
+    labels.reserve(n);
     for p in &f.signature.params {
         let name = p
             .name
@@ -713,8 +811,14 @@ fn function<const COLLECT_SCHEDULE: bool>(
     if labels.keys().any(|label| defs.contains_key(*label)) {
         return fail("block label collides with SSA name");
     }
-    let mut succ = vec![vec![]; n];
-    let mut pred = vec![vec![]; n];
+    if succ.len() < n {
+        succ.resize_with(n, Vec::new);
+    }
+    if pred.len() < n {
+        pred.resize_with(n, Vec::new);
+    }
+    let succ = &mut succ[..n];
+    let pred = &mut pred[..n];
     for (b, block) in blocks.iter().enumerate() {
         for next in successors(&block.instructions.last().unwrap().op) {
             let id = *labels
@@ -727,14 +831,13 @@ fn function<const COLLECT_SCHEDULE: bool>(
     if !pred[0].is_empty() {
         return fail("entry block has a predecessor");
     }
-    let (reachable, idom) = dominators(&succ, &pred);
-    let intervals = (n >= 32).then(|| dominator_intervals(&reachable, &idom));
-    let dominates = |a, b| dominates(&reachable, &idom, intervals.as_deref(), a, b);
-    let mut uses = Vec::new();
+    let (reachable, idom) = dominators_in(succ, pred, dominators);
+    let intervals = (n >= 32).then(|| dominator_intervals(reachable, idom));
+    let dominates = |a, b| dominates(reachable, idom, intervals.as_deref(), a, b);
     for (b, block) in blocks.iter().enumerate() {
         for (j, i) in block.instructions.iter().enumerate() {
             world
-                .op(&i.op, &defs, &f.signature)
+                .op(&i.op, defs, &f.signature)
                 .map_err(|s| format!("@{} / {} / {}: {s}", f.name, block.name, j))?;
             if let Op::Phi { incoming, .. } = &i.op {
                 let mut incoming_ids = vec![];
@@ -742,8 +845,8 @@ fn function<const COLLECT_SCHEDULE: bool>(
                     let p = *labels.get(p.as_str()).ok_or("phi incoming block missing")?;
                     incoming_ids.push(p);
                     uses.clear();
-                    v.local_uses(&mut uses);
-                    for &name in &uses {
+                    v.local_uses(uses);
+                    for &name in uses.iter() {
                         if let Some((d, _)) = defs[name].place
                             && !dominates(d, p)
                         {
@@ -772,8 +875,8 @@ fn function<const COLLECT_SCHEDULE: bool>(
             } else {
                 for value in i.op.values() {
                     uses.clear();
-                    value.local_uses(&mut uses);
-                    for &name in &uses {
+                    value.local_uses(uses);
+                    for &name in uses.iter() {
                         if let Some((d, pos)) = defs[name].place
                             && ((d == b && pos >= j) || (d != b && !dominates(d, b)))
                         {
@@ -824,8 +927,8 @@ fn function<const COLLECT_SCHEDULE: bool>(
         }
         for v in blocks[b].instructions[j].op.values() {
             uses.clear();
-            v.local_uses(&mut uses);
-            for &name in &uses {
+            v.local_uses(uses);
+            for &name in uses.iter() {
                 if let Some((block, instruction)) = defs[name].place {
                     let source = ids[block][instruction];
                     if source != usize::MAX {
@@ -900,6 +1003,7 @@ fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedu
         }
     }
     let mut functions = BTreeMap::new();
+    let mut scratch = FunctionScratch::default();
     for item in &module.items {
         match item {
             Item::NamedType(n, _) => world.check_ty(&Ty::Named(n.clone()), false)?,
@@ -932,9 +1036,9 @@ fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedu
                     return fail("local function without definition");
                 }
                 if COLLECT_SCHEDULE {
-                    functions.insert(f.name.clone(), function::<true>(&world, f)?);
+                    functions.insert(f.name.clone(), function::<true>(&world, f, &mut scratch)?);
                 } else {
-                    function::<false>(&world, f)?;
+                    function::<false>(&world, f, &mut scratch)?;
                 }
             }
         }
