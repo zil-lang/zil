@@ -77,8 +77,8 @@ fn is_owner(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bool>
     budget.spend(1)?;
     Ok(match ty {
         Type::Managed(_) | Type::Package { .. } => true,
-        Type::ErrorUnion { .. } => errors::owned(ty),
-        Type::Enum { .. } => sums::owned_enum(ty),
+        Type::ErrorUnion { .. } => errors::owned(ty, budget.sums),
+        Type::Enum { .. } => budget.sums && sums::owned_enum(ty),
         Type::Array { element, length } => {
             *length != 0 && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
         }

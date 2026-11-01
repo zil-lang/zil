@@ -842,7 +842,9 @@ fn check_function_signature_type(
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
         Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
-        Type::Enum { .. } if sums::owned_enum(ty) => sums::check_type_for(module, ty, span, budget),
+        Type::Enum { .. } if budget.sums && sums::owned_enum(ty) => {
+            sums::check_type_for(module, ty, span, budget)
+        }
         ty if resources::arrays::is_owned_type(ty) => {
             resources::arrays::check_type_for(module, ty, span, budget)
         }
@@ -888,7 +890,9 @@ fn check_local_type(
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
         Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
-        Type::Enum { .. } if sums::owned_enum(ty) => sums::check_type_for(module, ty, span, budget),
+        Type::Enum { .. } if budget.sums && sums::owned_enum(ty) => {
+            sums::check_type_for(module, ty, span, budget)
+        }
         ty if resources::arrays::is_owned_type(ty) => {
             resources::arrays::check_type_for(module, ty, span, budget)
         }
@@ -1334,7 +1338,7 @@ fn check_instruction(
         | InstructionKind::ScopeEnter { .. }
         | InstructionKind::ScopeExit { .. } => None,
         InstructionKind::TakeErrorUnion { .. } | InstructionKind::DropErrorUnion { .. } => {
-            errors::check_instruction(function, instruction)?
+            errors::check_instruction(function, instruction, budget)?
         }
         InstructionKind::MakeErrorUnion { is_error, value } => {
             let result = instruction.result.ok_or_else(|| {
@@ -1409,7 +1413,7 @@ fn check_instruction(
         )?),
         InstructionKind::Load(local) => {
             let ty = local_type(function, *local, span)?;
-            if errors::owned(ty) || sums::owned_enum(ty) {
+            if errors::owned(ty, budget.sums) || (budget.sums && sums::owned_enum(ty)) {
                 return Err(reject(
                     "E-VERIFY-ERROR",
                     span,
@@ -1438,8 +1442,8 @@ fn check_instruction(
                 && !matches!(ty, Type::Closure(_))
                 && !matches!(ty, Type::Managed(_))
                 && !matches!(ty, Type::Package { .. })
-                && !errors::owned(ty)
-                && !sums::owned_enum(ty)
+                && !errors::owned(ty, budget.sums)
+                && !(budget.sums && sums::owned_enum(ty))
                 && !resources::arrays::is_owned_type(ty)
                 && !closures::owned_type(module, ty, budget)?
             {
@@ -1962,7 +1966,7 @@ fn check_instruction(
         }
         InstructionKind::VariantTag { value } => {
             let ty = value_type(function, *value, span)?;
-            if !matches!(ty, Type::Enum { .. }) || sums::owned_enum(ty) {
+            if !matches!(ty, Type::Enum { .. }) || (budget.sums && sums::owned_enum(ty)) {
                 return Err(reject("E-VERIFY-ENUM", span, "tag requires an enum value"));
             }
             Some(Type::I32)
@@ -1980,7 +1984,7 @@ fn check_instruction(
                     "payload projection requires an enum value",
                 ));
             };
-            if sums::owned_enum(source) {
+            if budget.sums && sums::owned_enum(source) {
                 return Err(reject(
                     "E-VERIFY-SUM",
                     span,
