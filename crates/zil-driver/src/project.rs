@@ -25,7 +25,7 @@ pub struct ProjectSources {
 
 #[derive(Clone, Debug)]
 pub(super) struct ExpandedProject {
-    core: CoreProgram,
+    core: Arc<CoreProgram>,
     maps: Vec<SourceMap>,
     selection: super::ct_selection::Receipt,
     pub(super) syntax: Arc<ProjectSyntax>,
@@ -414,11 +414,11 @@ impl CompilationSession {
                     maps.push(map);
                 }
                 Ok(RawSnapshot::Project(Arc::new(ExpandedProject {
-                    core: CoreProgram {
+                    core: Arc::new(CoreProgram {
                         root: project.root,
                         source_fingerprint: fingerprint,
                         modules,
-                    },
+                    }),
                     maps,
                     selection: selected
                         .map_or_else(super::ct_selection::Receipt::default, |selected| {
@@ -461,10 +461,34 @@ impl CompilationSession {
             report,
             observer,
             || {
-                let inference = zil_types::infer_program_for_ct(&expanded.core, &options.limits)?;
+                let inference =
+                    zil_types::infer_shared_program_for_ct(&expanded.core, &options.limits)?;
                 let inferred = inference.program();
                 let mut remaining = expanded.selection.remaining(&options.limits)?;
                 let context = zil_ct::SourceProgramContext::new(inferred, &remaining)?;
+                let initial_remaining = remaining.clone();
+                let mut unchanged = true;
+                for module in &inferred.modules {
+                    let Some(usage) = zil_ct::validate_unchanged_source(
+                        &module.core,
+                        &options.target,
+                        &remaining,
+                        Some(&context),
+                    ) else {
+                        unchanged = false;
+                        break;
+                    };
+                    charge_ct_usage(&mut remaining, usage?, module.core.functions.len())?;
+                }
+                if unchanged {
+                    drop(context);
+                    return Ok(RawSnapshot::ProjectCore(Arc::new(
+                        inference.into_prepared(),
+                    )));
+                }
+                // A plain prefix performed no CT queries or mutation. The full
+                // evaluator starts with its original logical allowance.
+                remaining = initial_remaining;
                 let mut modules = Vec::new();
                 for module in &inferred.modules {
                     // Restrict execution to the remaining graph allowance BEFORE
@@ -481,22 +505,7 @@ impl CompilationSession {
                         Some(&context),
                         &compiler,
                     )?;
-                    remaining.max_ct_steps = remaining
-                        .max_ct_steps
-                        .checked_sub(usage.steps)
-                        .ok_or_else(|| limit(Phase::Ct, "project CT step budget exceeded"))?;
-                    take(
-                        &mut remaining.max_nodes,
-                        usage.nodes,
-                        Phase::Ct,
-                        "project CT node budget exceeded",
-                    )?;
-                    take(
-                        &mut remaining.max_functions,
-                        core.functions.len(),
-                        Phase::Ct,
-                        "project CT function budget exceeded",
-                    )?;
+                    charge_ct_usage(&mut remaining, usage, core.functions.len())?;
                     modules.push(ProgramModule {
                         core,
                         imports: module.imports.clone(),
@@ -1043,6 +1052,29 @@ fn load_sources(
         index += 1;
     }
     Ok(syntax)
+}
+
+fn charge_ct_usage(
+    remaining: &mut Limits,
+    usage: zil_ct::SourceEvaluationUsage,
+    functions: usize,
+) -> CompileResult<()> {
+    remaining.max_ct_steps = remaining
+        .max_ct_steps
+        .checked_sub(usage.steps)
+        .ok_or_else(|| limit(Phase::Ct, "project CT step budget exceeded"))?;
+    take(
+        &mut remaining.max_nodes,
+        usage.nodes,
+        Phase::Ct,
+        "project CT node budget exceeded",
+    )?;
+    take(
+        &mut remaining.max_functions,
+        functions,
+        Phase::Ct,
+        "project CT function budget exceeded",
+    )
 }
 
 #[cfg(test)]

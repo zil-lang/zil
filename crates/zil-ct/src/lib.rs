@@ -11,7 +11,7 @@ pub use program::{CompileTimeValue, ProgramEvaluation, evaluate_program};
 pub use source::{
     SourceCompiler, SourceEvaluationUsage, SourceProgramContext, evaluate_source_constants,
     evaluate_source_constants_with_compiler, evaluate_source_constants_with_context,
-    evaluate_source_constants_with_usage,
+    evaluate_source_constants_with_usage, validate_unchanged_source,
 };
 
 pub fn evaluate(program: &VerifiedCTIR) -> CompileResult<Constant> {
