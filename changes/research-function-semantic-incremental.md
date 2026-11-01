@@ -37,3 +37,19 @@ signature/visibility changes, function-ID shifts, low budget fallback and
 unsupported-effect fallback. Persistent receipts remain explicitly trusted local
 producer data like the existing semantic cache, with a compiler identity and
 bounded integrity envelope; they do not authenticate a malicious writer.
+
+## Work-aware retention refinement
+
+The initial Stage 15 screen showed that retaining every cheap scalar leaf adds
+approximately one additional full Typed epoch alongside the exact semantic
+candidate; hashing, CFG copies and about 4.8 MB of extra transport on the 8192
+leaf input can outweigh the saved builder work. A scheduling-only gate now
+retains functions with at least four top-level statements or a top-level
+if/while/range loop. Trivial leaves and forwarders execute the original builder.
+If no function qualifies, even the declaration-context cache hash is omitted.
+The gate applies independently to functions and does not disable all useful
+helpers because another function is cheap or unsupported. The original screen
+is preserved; the change does not claim a measured individual speedup yet.
+
+Source controls use real branching functions through this production gate and
+also check that an all-trivial project creates no function epoch artifact.

@@ -43,8 +43,11 @@ impl Drop for Directory {
         let _ = fs::remove_dir_all(&self.0);
     }
 }
-const MAIN: &str = "import library\nfn value()->i32{return library.answer();}";
-const LIBRARY: &str = "fn leaf(x:i32)->i32{return x+1;} pub fn answer()->i32{return leaf(41);}";
+// Nontrivial CFGs exercise the actual production profitability gate; trivial
+// leaves intentionally stay cheaper to rebuild than to serialize and restore.
+const MAIN: &str =
+    "import library\nfn value()->i32{if true{return library.answer();}else{return 0;}}";
+const LIBRARY: &str = "fn leaf(x:i32)->i32{if x<10{return x+1;}else{return x*2;}} pub fn answer()->i32{if true{return leaf(41);}else{return 0;}}";
 fn success(r: &CompileReport) {
     assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
     assert_eq!(r.verification_runs, 1, "{}", r.to_json());
@@ -270,4 +273,24 @@ fn function_types_decodable_rejected_work_product_rebuilds_current_source() {
     assert!(r.verification_runs >= 1);
     assert_eq!(s.function_type_stats().reused_functions, 0);
     compare_fresh(&s, &r, &p, &options);
+}
+
+#[test]
+fn function_types_trivial_leaves_do_not_create_persistent_work_products() {
+    let d = Directory::new();
+    let options = CompileOptions {
+        semantic_cache: Some(d.0.join("cache")),
+        ..Default::default()
+    };
+    let mut session = CompilationSession::default();
+    let main = "import library\nfn value()->i32{return library.answer();}";
+    let library = "fn leaf(x:i32)->i32{return x+1;} pub fn answer()->i32{return leaf(41);}";
+    success(&session.compile_project(&d.project(main, library), &options));
+    assert!(!d.0.join("cache/function-types-v1").exists());
+    let p = d.project(main, &library.replace("x+1", "x+2"));
+    let r = session.compile_project(&p, &options);
+    success(&r);
+    assert_eq!(session.function_type_stats().reused_functions, 0);
+    assert!(!d.0.join("cache/function-types-v1").exists());
+    compare_fresh(&session, &r, &p, &options);
 }
