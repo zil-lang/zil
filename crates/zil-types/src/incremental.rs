@@ -307,12 +307,36 @@ fn rebase(f: &mut TypedFunction, old: Span, new: Span) -> bool {
             .all(|i| convert(&mut i.span).is_some())
 }
 
+// Hashing, rebasing and transporting a CFG can cost more than rebuilding a
+// tiny scalar leaf. This cheap source-shape gate is a scheduling choice only:
+// excluded functions retain the full original builder and budget behavior.
+fn worthwhile(function: &CoreFunction) -> bool {
+    function.foreign.is_none()
+        && (function.body.statements.len() >= 4
+            || function.body.statements.iter().any(|statement| {
+                matches!(
+                    statement.kind,
+                    CoreStatementKind::If { .. }
+                        | CoreStatementKind::While { .. }
+                        | CoreStatementKind::ForRange { .. }
+                )
+            }))
+}
+
 fn keys(
     program: &CoreProgram,
     tables: &BTreeMap<ModuleId, BTreeMap<String, Signature>>,
     target: &TargetProfile,
     limits: &Limits,
 ) -> Option<BTreeMap<(ModuleId, String), Fingerprint>> {
+    if !program
+        .modules
+        .iter()
+        .flat_map(|module| &module.core.functions)
+        .any(worthwhile)
+    {
+        return None;
+    }
     let mut context = FingerprintBuilder::new();
     context.update(b"ZIL-FUNCTION-TYPES-1\0");
     target.hash(&mut context);
@@ -398,7 +422,7 @@ fn keys(
     let mut keys = BTreeMap::new();
     for module in &program.modules {
         for f in &module.core.functions {
-            if f.foreign.is_some() {
+            if !worthwhile(f) {
                 continue;
             }
             let mut encoder = BodyKey {
