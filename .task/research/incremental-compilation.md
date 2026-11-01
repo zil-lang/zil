@@ -220,3 +220,5 @@ Stage14 final production75178b1cfb42bfd37746b7573999d74d7d7668db freezes direct 
 保持独立Verify、完整当前输入绑定、失败回退、取消和逻辑预算；不改公共Wire、默认额度或产品门。新私有持久候选格式必须有界、可损坏回退且不携带核验权限。先源码正确性与限定控制，再合并最新main及独审；最终仅按受影响场景采集有代表性的冷/暖/编辑与原生结果，不为已有明确结论重复大矩阵。真实测试与性能负结果均保留；四方向分别说明已实现覆盖、未覆盖和实测，不将有限增量称全语言完成。
 
 Stage15实现冻结：四方向已接通有界生产路径，函数级范围为标量CFG（一般资源/泛型/闭包保留原路），Expand/CT/全局合同和Analyze/Verify仍当前。root补实际layout目标的ArtifactPlan保护，冲突仅丢弃可选缓存。首轮backend126/discovery10/functionTypes6/cache-native32均通过；解码数组分块lint修正后6项重跑通过，Python证据恢复5项通过，受影响all-targetsClippy/fmt/diff通过。历史014c两CI的语言测试实际通过（每套workspace3265/reference3170/text-reference64），仅artifact配额上传失败，保留原失败。新运输需要最终exactrun下载还原再核SHA才算证据已保存。此处仍未登记性能收益或main已合入。
+
+Stage15最终生产c4d7b3fe1488fd22dc4f64e092b75a6ec2f08cad按实际工作量限制函数epoch，保留122中间32screen/12warm的负结果。最终4分布48请求+closed8保护全部有效/native，40当前ZILVerify、16新Rust观察；五组edited .text逐字相等。14/16个主窗口ZIL/Rust点较快，动态warm仍慢8.1%/4.5%；单大模块cold、均匀edit及closed edit-warm不利点保留，不称全场景胜出。175不同限定Rust控制（含复跑187执行）+5Python控制、最终Clippy/fmt与非作者源码审查Pass。完整原始记录910文件归档10765728B，SHA b4a9c0f0cfe8f7444cb0952f9414e4ca6365f025f36f5005ce56ca877f1d5d87。报告见STAGE15-RESULTS.md。接续只剩最终远端两套CI、证据回收、授权main合入及已合并分支清理；不扩大测试矩阵或把一般函数语义增量记完成。

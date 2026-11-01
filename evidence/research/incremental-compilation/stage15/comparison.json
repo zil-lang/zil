@@ -1,0 +1,178 @@
+[
+  {
+    "case": "large-8192",
+    "request": "cold",
+    "milliseconds": {
+      "baseline": 1443.875224,
+      "candidate": 1661.362857,
+      "rust": 2508.988656
+    },
+    "new_old": 1.1506277200307442,
+    "new_rust": 0.6621643557562582
+  },
+  {
+    "case": "large-8192",
+    "request": "warm",
+    "milliseconds": {
+      "baseline": 190.857162,
+      "candidate": 162.755072,
+      "rust": 524.305922
+    },
+    "new_old": 0.8527585252472737,
+    "new_rust": 0.3104200528179424
+  },
+  {
+    "case": "large-8192",
+    "request": "edit",
+    "milliseconds": {
+      "baseline": 501.14421200000004,
+      "candidate": 458.43145699999997,
+      "rust": 1565.927496
+    },
+    "new_old": 0.9147695334451951,
+    "new_rust": 0.2927539481687471
+  },
+  {
+    "case": "large-8192",
+    "request": "edit-warm",
+    "milliseconds": {
+      "baseline": 204.104658,
+      "candidate": 163.689537,
+      "rust": 510.43503300000003
+    },
+    "new_old": 0.8019882476175532,
+    "new_rust": 0.320686329145437
+  },
+  {
+    "case": "large-even-8x1024",
+    "request": "cold",
+    "milliseconds": {
+      "baseline": 1641.739112,
+      "candidate": 1596.819615,
+      "rust": 1634.894766
+    },
+    "new_old": 0.9726390772616252,
+    "new_rust": 0.9767109469111849
+  },
+  {
+    "case": "large-even-8x1024",
+    "request": "warm",
+    "milliseconds": {
+      "baseline": 252.406297,
+      "candidate": 175.131553,
+      "rust": 543.190877
+    },
+    "new_old": 0.6938477965151558,
+    "new_rust": 0.32241254486312
+  },
+  {
+    "case": "large-even-8x1024",
+    "request": "edit",
+    "milliseconds": {
+      "baseline": 459.52815000000004,
+      "candidate": 497.70741000000004,
+      "rust": 773.102155
+    },
+    "new_old": 1.0830836152257484,
+    "new_rust": 0.6437796179729961
+  },
+  {
+    "case": "large-even-8x1024",
+    "request": "edit-warm",
+    "milliseconds": {
+      "baseline": 258.20680400000003,
+      "candidate": 188.582902,
+      "rust": 565.117365
+    },
+    "new_old": 0.7303560521201446,
+    "new_rust": 0.3337057285436628
+  },
+  {
+    "case": "large-skew-8",
+    "request": "cold",
+    "milliseconds": {
+      "baseline": 1680.814496,
+      "candidate": 1338.8397160000002,
+      "rust": 1696.2487660000002
+    },
+    "new_old": 0.796542223538748,
+    "new_rust": 0.7892944377240007
+  },
+  {
+    "case": "large-skew-8",
+    "request": "warm",
+    "milliseconds": {
+      "baseline": 282.04306,
+      "candidate": 147.68901,
+      "rust": 481.977056
+    },
+    "new_old": 0.5236399363983641,
+    "new_rust": 0.3064233206984857
+  },
+  {
+    "case": "large-skew-8",
+    "request": "edit",
+    "milliseconds": {
+      "baseline": 474.58583300000004,
+      "candidate": 436.117005,
+      "rust": 821.470328
+    },
+    "new_old": 0.9189423170160244,
+    "new_rust": 0.5308980618469764
+  },
+  {
+    "case": "large-skew-8",
+    "request": "edit-warm",
+    "milliseconds": {
+      "baseline": 233.13979,
+      "candidate": 155.624921,
+      "rust": 463.55783499999995
+    },
+    "new_old": 0.6675176339482848,
+    "new_rust": 0.33571845679191253
+  },
+  {
+    "case": "opaque-2048-branch",
+    "request": "cold",
+    "milliseconds": {
+      "baseline": 12417.297416,
+      "candidate": 11990.271944,
+      "rust": 57172.650707
+    },
+    "new_old": 0.96561043376075,
+    "new_rust": 0.20972041344467446
+  },
+  {
+    "case": "opaque-2048-branch",
+    "request": "warm",
+    "milliseconds": {
+      "baseline": 235.84055700000002,
+      "candidate": 213.510636,
+      "rust": 197.554648
+    },
+    "new_old": 0.9053177227697948,
+    "new_rust": 1.080767464403065
+  },
+  {
+    "case": "opaque-2048-branch",
+    "request": "edit",
+    "milliseconds": {
+      "baseline": 12144.959951,
+      "candidate": 11803.651755,
+      "rust": 57782.817043999996
+    },
+    "new_old": 0.9718971328537072,
+    "new_rust": 0.20427615611076647
+  },
+  {
+    "case": "opaque-2048-branch",
+    "request": "edit-warm",
+    "milliseconds": {
+      "baseline": 268.309685,
+      "candidate": 245.32402100000002,
+      "rust": 234.830743
+    },
+    "new_old": 0.9143315903784837,
+    "new_rust": 1.0446844304367764
+  }
+]
