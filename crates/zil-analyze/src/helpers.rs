@@ -480,14 +480,21 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             function.parameters.len().saturating_add(1),
             "helper parameter envelope and candidate table",
         )?;
-        let candidates = function
-            .parameters
-            .iter()
-            .enumerate()
-            .filter_map(|(index, p)| {
-                env(&function.locals[p.0 as usize].ty).map(|_| (index as u32, *p))
-            })
-            .collect::<Vec<_>>();
+        let mut candidates = Vec::new();
+        let mut sum_state_companion = false;
+        // The existing paid envelope visit also records the State exclusion;
+        // legacy constructors acquire no second parameter traversal or table.
+        for (index, parameter) in function.parameters.iter().enumerate() {
+            let ty = &function.locals[parameter.0 as usize].ty;
+            if env(ty).is_some() {
+                candidates.push((index as u32, *parameter));
+            } else {
+                let owned_union = matches!(ty,Type::ErrorUnion { error,result }
+                    if matches!(error.as_ref(),Type::Package { .. } | Type::Managed(_))
+                        || matches!(result.as_ref(),Type::Package { .. } | Type::Managed(_)));
+                sum_state_companion |= owned_union || budget.sum_type(ty)?;
+            }
+        }
         // retained::check_function already reconstructed every public factory
         // from its actual signature, capture graph and reachable Return sites.
         // One direct owning input is an ordinary transfer, not a noescape role.
@@ -510,6 +517,13 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             && matches!(&function.return_type,Type::Package{fields,..}
                 if fields.iter().any(|(_,ty)| *ty==Type::Closure(id)))
         {
+            if sum_state_companion {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Analyze,
+                    "owning State constructor data parameters do not acquire ordinary Sum qualification",
+                    Some(function.span),
+                )]);
+            }
             callable_fields::self_contained(module, id, budget)?;
             continue;
         }
@@ -551,6 +565,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             1,
             "helper extra parameter membership",
         )?;
+        // Ordinary data parameters were admitted by bounded module preflight.
+        // Their callee CFG still conserves each actual resource; this does not
+        // change any callback role, invocation signature or helper result.
         if function.parameters.iter().any(|p| {
             !candidates.iter().any(|(_, local)| p == local)
                 && !function.locals[p.0 as usize].ty.is_copy_value()
@@ -561,12 +578,12 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 && !matches!(&function.locals[p.0 as usize].ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
                 && !matches!(
                     function.locals[p.0 as usize].ty,
-                    Type::Managed(_) | Type::Package { .. }
+                    Type::Managed(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
                 )
         }) {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "helper extra parameters require finite Copy, one Copy/slice address, Managed, Package or ByteBuffer description values; slice arguments require a Copy helper result",
+                "helper extra parameters require finite Copy, one Copy/slice address, Managed, Package, ordinary Enum/ErrorUnion or ByteBuffer description values; slice arguments require a Copy helper result",
                 None,
             )]);
         }
