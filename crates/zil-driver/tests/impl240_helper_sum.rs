@@ -163,3 +163,24 @@ fn concrete_enum_field_uses_its_declaration_scope_when_helper_binder_has_same_na
         assert!(expand(actual).is_err(), "{field}");
     }
 }
+
+#[test]
+fn unused_helpers_cannot_duplicate_or_rematch_complete_owned_sums() {
+    for declarations in [
+        "resource R{n:i32}enum E{V(manages R)}",
+        "resource R{n:i32}package P{manages r:R}enum E{V(P)}",
+        "resource R{n:i32}enum Inner{V(manages R)}enum E{V(Inner)}",
+    ] {
+        for ty in ["E", "void!E"] {
+            let source = format!(
+                "{declarations}fn duplicate<F:Fn()->i32>(cb:F,e:{ty})->i32{{let first=e;let second=e;return cb()}}fn main(){{}}"
+            );
+            assert!(expand(&source).is_err(), "{source}");
+        }
+    }
+    let rematch = "resource R{n:i32}package P{manages r:R}enum E{V(manages R)}fn duplicate<F:Fn()->i32>(cb:F,e:E)->i32{match e{E.V(r)=>{let first=P{r:give r};}}match e{E.V(r)=>{let second=P{r:give r};}}return cb()}fn main(){}";
+    assert!(expand(rematch).is_err());
+    checked(
+        "enum E{V(i32)}fn duplicate<F:Fn()->i32>(cb:F,e:E)->i32{let first=e;let second=e;return cb()}fn main(){}",
+    );
+}
