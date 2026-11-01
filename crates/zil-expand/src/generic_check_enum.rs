@@ -207,10 +207,22 @@ impl Check<'_, '_, '_> {
                                 // not against the helper's possibly same-spelled binders.
                                 self.budget.ty(t)?;
                                 let declaration_resource = self.declared_resource(t);
+                                let roots =
+                                    if declaration_resource {
+                                        Some(self.resource_description_root(
+                                            state.locals[name].id,
+                                            p.span,
+                                        )?)
+                                    } else {
+                                        None
+                                    };
                                 let local =
                                     state.locals.get_mut(name).expect("actual pattern binding");
                                 local.owned_resource = true;
                                 local.declaration_resource = declaration_resource;
+                                local.description_roots = roots;
+                                local.description_reference_depth =
+                                    declaration_resource.then_some(0);
                                 self.enum_resource_flow = true;
                                 if stores::element(&local.ty).is_some() {
                                     // Extraction is incoming ownership, never a create producer.
@@ -249,6 +261,7 @@ impl Check<'_, '_, '_> {
         };
         for arm in arms {
             let mut branch = self.clone_state(state)?;
+            let first_resource_local = self.next_local;
             let p = self.pattern(&arm.pattern, &ty, &mut branch, &mut BTreeSet::new())?;
             if !self.useful(
                 &rows,
@@ -272,6 +285,7 @@ impl Check<'_, '_, '_> {
                     BlockFlow::NEXT
                 }
             };
+            self.resource_description_scope_exit(&mut branch, first_resource_local, arm.span)?;
             flow.returns |= branch_flow.returns;
             if branch_flow.fallthrough {
                 flow.fallthrough = true;

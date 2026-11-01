@@ -66,6 +66,8 @@ pub(super) fn validate_parametric<'l>(
         traits,
         next_local: function.params.len(),
         enum_resource_flow: false,
+        resource_desc_roots: false,
+        resource_root_owners: Vec::new(),
         package_slots: BTreeMap::new(),
         loops: Vec::new(),
         aliases: state_aliases::Tracker::default(),
@@ -123,6 +125,8 @@ pub(super) fn validate_parametric<'l>(
                         mutable: false,
                         owned_resource: false,
                         declaration_resource: false,
+                        description_roots: None,
+                        description_reference_depth: None,
                     },
                 )
             })
@@ -411,13 +415,15 @@ struct Local {
     id: usize,
     ty: TypeRef,
     mutable: bool,
-    // Only the new two-input State constructor records concrete resources
-    // received by give or produced as real owned locals. A description of a
-    // resource never inherits this capability from its nominal type.
+    // Actual managed Enum fields and the established State/factory producers
+    // record ownership. A description never inherits it from a nominal type.
     owned_resource: bool,
     // The type came from a concrete declaration field, outside this helper's
-    // binder scope. This fact is inherited only through actual give results.
+    // binder scope, including through bare descriptions and actual give results.
     declaration_resource: bool,
+    // Immutable root sets clone only their reference in branch snapshots.
+    description_roots: Option<std::rc::Rc<[usize]>>,
+    description_reference_depth: Option<usize>,
 }
 #[derive(Clone)]
 struct State {
@@ -446,6 +452,8 @@ struct Check<'s, 'b, 'l> {
     traits: &'s trait_bounds::Index<'l>,
     next_local: usize,
     enum_resource_flow: bool,
+    resource_desc_roots: bool,
+    resource_root_owners: Vec<(usize, usize)>,
     package_slots: BTreeMap<(usize, String), usize>,
     loops: Vec<loop_control::LoopFrame>,
     aliases: state_aliases::Tracker,
@@ -679,49 +687,6 @@ impl Check<'_, '_, '_> {
             _ => false,
         })
     }
-    // Only a real give result carries ownership through a new binding.
-    // A bare resource Name preserves declaration scope but remains a description.
-    fn transferred_resource_expression(
-        &mut self,
-        expression: &Expr,
-        state: &State,
-    ) -> R<(bool, bool)> {
-        self.tick(expression.span)?;
-        match &expression.kind {
-            ExprKind::Name(name) => Ok((
-                false,
-                state
-                    .locals
-                    .get(name)
-                    .is_some_and(|local| local.declaration_resource),
-            )),
-            ExprKind::Group(inner) => self.transferred_resource_expression(inner, state),
-            ExprKind::Unary {
-                op: UnaryOp::Give,
-                operand,
-            } => {
-                let owns = self.owned_resource_expression(expression, state)?;
-                let mut operand = operand.as_ref();
-                while let ExprKind::Group(inner) = &operand.kind {
-                    self.tick(operand.span)?;
-                    operand = inner;
-                }
-                let declaration = matches!(&operand.kind, ExprKind::Name(name)
-                    if state.locals.get(name).is_some_and(|local| local.declaration_resource));
-                Ok((owns, owns && declaration))
-            }
-            ExprKind::If {
-                then_value,
-                else_value,
-                ..
-            } => {
-                let a = self.transferred_resource_expression(then_value, state)?;
-                let b = self.transferred_resource_expression(else_value, state)?;
-                Ok((a.0 && b.0, a.1 && b.1))
-            }
-            _ => Ok((false, false)),
-        }
-    }
     fn tick(&mut self, span: Span) -> R<()> {
         // The borrowed preflight checked full AST depth before any cloning.
         self.budget.node(span, 0)
@@ -740,6 +705,8 @@ impl Check<'_, '_, '_> {
                 mutable: false,
                 owned_resource: false,
                 declaration_resource: false,
+                description_roots: None,
+                description_reference_depth: None,
             },
         );
         Ok(())
@@ -977,7 +944,13 @@ impl Check<'_, '_, '_> {
                 ));
             }
             self.budget.ty(&local.ty)?;
-            let (id, ty) = (local.id, local.ty.clone());
+            let (id, ty, roots) = (local.id, local.ty.clone(), local.description_roots.clone());
+            if roots.is_some() {
+                self.defer_use(id, true, operand.span)?;
+                self.defer_held(state, id, true, operand.span)?;
+            }
+            self.resource_description_use(roots.as_deref(), state, operand.span)?;
+            self.resource_description_invalidate(roots.as_deref(), state, operand.span)?;
             self.factory_use(id, false, true, operand.span)?;
             if !state.moved.insert(id) {
                 return Err(error(operand.span, "owned resource used after give"));
@@ -1137,10 +1110,18 @@ impl Check<'_, '_, '_> {
         for _ in &state.defer_holds {
             self.budget.node(self.result.span, 0)?;
         }
+        if self.resource_desc_roots {
+            // Fresh root activations also live in moved; reserve their snapshot
+            // before cloning the set. No old profile enters this extra walk.
+            for _ in &state.moved {
+                self.budget.node(self.result.span, 0)?;
+            }
+        }
         Ok(state.clone())
     }
     fn join_states(&mut self, state: &mut State, branches: &[&State], span: Span) -> R<()> {
         self.alias_join(state, branches, span)?;
+        self.resource_description_join(state, branches, span)?;
         state.moved.clear();
         state.invalidated_stores.clear();
         state.store_origins.clear();
@@ -1400,7 +1381,7 @@ impl Check<'_, '_, '_> {
                     return Ok(Some(named("i64", span)));
                 }
                 if let Some(local) = state.locals.get(target) {
-                    if local.declaration_resource {
+                    if local.description_reference_depth.is_some() {
                         return Ok(None);
                     }
                     self.budget.ty(&local.ty)?;
@@ -1705,6 +1686,7 @@ impl Check<'_, '_, '_> {
                 let ty = state.locals.get(name).ok_or_else(|| {
                     error(e.span, format!("unknown value {name} in generic body"))
                 })?;
+                self.resource_description_use(ty.description_roots.as_deref(), state, e.span)?;
                 let id = ty.id;
                 let declaration_resource = ty.declaration_resource;
                 self.budget.ty(&ty.ty)?;
@@ -1928,7 +1910,9 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Index { object, .. } => {
                 let (ty, _) = self.place(e, state)?;
-                if !borrowing && !self.known_copy(&ty)? {
+                let actual_description = self.resource_desc_roots
+                    && self.transferred_resource_expression(e, state)?.declaration;
+                if !borrowing && !actual_description && !self.known_copy(&ty)? {
                     // Existing concrete owning arrays transfer complete Package
                     // elements, and Copy-member reads project without a move.
                     // A reference to such an array grants neither operation by
@@ -2005,7 +1989,9 @@ impl Check<'_, '_, '_> {
                 let TypeKind::Reference { inner, .. } = &group(&ty).kind else {
                     return Err(error(e.span, "dereference requires an address"));
                 };
-                if !borrowing && !self.known_copy(inner)? {
+                let actual_description = self.resource_desc_roots
+                    && self.transferred_resource_expression(e, state)?.declaration;
+                if !borrowing && !actual_description && !self.known_copy(inner)? {
                     return Err(needs_bound());
                 }
                 self.alias_read_place(e, state)?;
@@ -2277,7 +2263,7 @@ impl Check<'_, '_, '_> {
                     }
                 };
                 if let Some(local) = state.locals.get(target) {
-                    if local.declaration_resource {
+                    if local.description_reference_depth.is_some() {
                         return Err(error(
                             e.span,
                             "a declared resource description is not a callable parameter",
@@ -2694,8 +2680,12 @@ impl Check<'_, '_, '_> {
                 let address_local = matches!(&base_expression.kind, ExprKind::Name(name)
                     if state.locals.get(name).is_some_and(|local|
                         matches!(group(&local.ty).kind, TypeKind::Reference { .. })));
-                let declaration_resource = matches!(&base_expression.kind, ExprKind::Name(name)
-                    if state.locals.get(name).is_some_and(|local| local.declaration_resource));
+                let declaration_resource = if self.resource_desc_roots {
+                    let flow = self.transferred_resource_expression(object, state)?;
+                    flow.declaration || flow.reference_depth == Some(1)
+                } else {
+                    false
+                };
                 let value = self.expr(
                     object,
                     state,
@@ -2939,6 +2929,7 @@ impl Check<'_, '_, '_> {
         for _ in &state.defer_holds {
             self.budget.node(block.span, 0)?;
         }
+        let first_resource_local = self.next_local;
         let outer_holds = state.defer_holds.clone();
         let mut flow = BlockFlow::NEXT;
         for statement in &block.statements {
@@ -2980,20 +2971,20 @@ impl Check<'_, '_, '_> {
                     }
                     let owns_store = self.owning_store_expression(value, state);
                     let fresh_store = owns_store && self.fresh_store_expression(value, state)?;
-                    let (owns_resource, declaration_resource) = if self
-                        .two_input_state_constructor()
+                    let mut resource_flow = if self.enum_resource_flow {
+                        self.transferred_resource_expression(value, state)?
+                    } else {
+                        ResourceFlow::default()
+                    };
+                    if self.two_input_state_constructor()
                         || self
                             .callable
                             .as_ref()
                             .is_some_and(|bounds| bounds.owned_factory)
                     {
-                        (self.owned_resource_expression(value, state)?, false)
-                    } else if self.enum_resource_flow {
-                        self.transferred_resource_expression(value, state)?
-                    } else {
-                        (false, false)
-                    };
-                    if declaration_resource
+                        resource_flow.owns = self.owned_resource_expression(value, state)?;
+                    }
+                    if resource_flow.declaration
                         && ty.as_ref().is_some_and(|ty| dependent(ty, &self.variables))
                     {
                         return Err(error(
@@ -3019,9 +3010,18 @@ impl Check<'_, '_, '_> {
                     self.bind_local(state, n.clone(), ty.clone().unwrap_or(actual))?;
                     self.factory_bind_value(state.locals[n].id, value, state)?;
                     self.alias_bind(state, state.locals[n].id, statement.span)?;
+                    let owns_resource = resource_flow.owns;
+                    let declaration_resource = resource_flow.declaration;
+                    let roots = if declaration_resource && owns_resource {
+                        Some(self.resource_description_root(state.locals[n].id, statement.span)?)
+                    } else {
+                        resource_flow.roots
+                    };
                     let local = state.locals.get_mut(n).expect("just bound");
                     local.mutable = *mutable;
                     local.declaration_resource = declaration_resource;
+                    local.description_roots = roots;
+                    local.description_reference_depth = resource_flow.reference_depth;
                     local.owned_resource = owns_resource
                         && (declaration_resource || self.concrete_helper_resource(&local.ty));
                     if stores::element(&local.ty).is_some() {
@@ -3114,8 +3114,13 @@ impl Check<'_, '_, '_> {
                     } else {
                         None
                     };
+                    let resource_replacement =
+                        self.resource_description_replacement(whole, value, state)?;
                     let actual = self.expr(value, state, Some(&ty), false)?;
                     same(&actual, &ty, value.span, self.budget)?;
+                    if let Some((name, flow)) = resource_replacement {
+                        self.resource_description_replace(&name, flow, state, target.span)?;
+                    }
                     self.alias_replace_place(target, state)?;
                     let mut whole = target;
                     while let ExprKind::Group(inner) = &whole.kind {
@@ -3317,6 +3322,7 @@ impl Check<'_, '_, '_> {
                 }
             }
         }
+        self.resource_description_scope_exit(state, first_resource_local, block.span)?;
         state.defer_holds = outer_holds;
         Ok(flow)
     }
@@ -3333,3 +3339,7 @@ mod places;
 
 #[path = "generic_aliases.rs"]
 mod state_aliases;
+
+#[path = "generic_resource_desc.rs"]
+mod resource_desc;
+use resource_desc::ResourceFlow;
