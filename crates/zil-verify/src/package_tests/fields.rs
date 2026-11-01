@@ -788,7 +788,10 @@ fn responsibility_cost(m: &TypedModule, limit: usize) -> Check<usize> {
             package_views: packages::CaptureViews::default(),
         })
         .collect::<Vec<_>>();
-    let mut budget = Budget { remaining: limit };
+    let mut budget = Budget {
+        remaining: limit,
+        ..Budget::new(&Limits::default())
+    };
     resources::check_module(m, &graphs, &mut budget)?;
     Ok(limit - budget.remaining)
 }
