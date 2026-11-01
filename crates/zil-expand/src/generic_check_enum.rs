@@ -203,9 +203,14 @@ impl Check<'_, '_, '_> {
                                 {
                                     self.budget.text(name, p.span)?;
                                 }
+                                // Resolve this real declaration field in its own scope,
+                                // not against the helper's possibly same-spelled binders.
+                                self.budget.ty(t)?;
+                                let declaration_resource = self.declared_resource(t);
                                 let local =
                                     state.locals.get_mut(name).expect("actual pattern binding");
                                 local.owned_resource = true;
+                                local.declaration_resource = declaration_resource;
                                 self.enum_resource_flow = true;
                                 if stores::element(&local.ty).is_some() {
                                     // Extraction is incoming ownership, never a create producer.

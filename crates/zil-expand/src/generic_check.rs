@@ -122,6 +122,7 @@ pub(super) fn validate_parametric<'l>(
                         ty: p.ty.clone(),
                         mutable: false,
                         owned_resource: false,
+                        declaration_resource: false,
                     },
                 )
             })
@@ -392,6 +393,9 @@ struct Local {
     // received by give or produced as real owned locals. A description of a
     // resource never inherits this capability from its nominal type.
     owned_resource: bool,
+    // The type came from a concrete declaration field, outside this helper's
+    // binder scope. This fact is inherited only through actual give results.
+    declaration_resource: bool,
 }
 #[derive(Clone)]
 struct State {
@@ -584,6 +588,9 @@ impl Check<'_, '_, '_> {
         if self.callable.is_none() || dependent(ty, &self.variables) {
             return false;
         }
+        self.declared_resource(ty)
+    }
+    fn declared_resource(&self, ty: &TypeRef) -> bool {
         match &group(ty).kind {
             TypeKind::Named { path, args } if path.as_slice() == ["ByteBuffer"] => args.is_empty(),
             TypeKind::Named { path, args } => matches!(self.nominals.get(&path.join(".")),
@@ -653,20 +660,38 @@ impl Check<'_, '_, '_> {
     }
     // Only a real give result carries this ownership through a new binding.
     // A bare resource Name remains a description, irrespective of its type.
-    fn transferred_resource_expression(&mut self, expression: &Expr, state: &State) -> R<bool> {
+    fn transferred_resource_expression(
+        &mut self,
+        expression: &Expr,
+        state: &State,
+    ) -> R<(bool, bool)> {
         self.tick(expression.span)?;
         match &expression.kind {
             ExprKind::Group(inner) => self.transferred_resource_expression(inner, state),
             ExprKind::Unary {
-                op: UnaryOp::Give, ..
-            } => self.owned_resource_expression(expression, state),
+                op: UnaryOp::Give,
+                operand,
+            } => {
+                let owns = self.owned_resource_expression(expression, state)?;
+                let mut operand = operand.as_ref();
+                while let ExprKind::Group(inner) = &operand.kind {
+                    self.tick(operand.span)?;
+                    operand = inner;
+                }
+                let declaration = matches!(&operand.kind, ExprKind::Name(name)
+                    if state.locals.get(name).is_some_and(|local| local.declaration_resource));
+                Ok((owns, owns && declaration))
+            }
             ExprKind::If {
                 then_value,
                 else_value,
                 ..
-            } => Ok(self.transferred_resource_expression(then_value, state)?
-                && self.transferred_resource_expression(else_value, state)?),
-            _ => Ok(false),
+            } => {
+                let a = self.transferred_resource_expression(then_value, state)?;
+                let b = self.transferred_resource_expression(else_value, state)?;
+                Ok((a.0 && b.0, a.1 && b.1))
+            }
+            _ => Ok((false, false)),
         }
     }
     fn tick(&mut self, span: Span) -> R<()> {
@@ -686,6 +711,7 @@ impl Check<'_, '_, '_> {
                 ty,
                 mutable: false,
                 owned_resource: false,
+                declaration_resource: false,
             },
         );
         Ok(())
@@ -908,7 +934,7 @@ impl Check<'_, '_, '_> {
         }
         if let ExprKind::Name(name) = &direct.kind
             && let Some(local) = state.locals.get(name)
-            && self.concrete_helper_resource(&local.ty)
+            && (local.declaration_resource || self.concrete_helper_resource(&local.ty))
             && (local.owned_resource
                 || self.two_input_state_constructor()
                 || self
@@ -2628,11 +2654,13 @@ impl Check<'_, '_, '_> {
                 let address_local = matches!(&base_expression.kind, ExprKind::Name(name)
                     if state.locals.get(name).is_some_and(|local|
                         matches!(group(&local.ty).kind, TypeKind::Reference { .. })));
+                let declaration_resource = matches!(&base_expression.kind, ExprKind::Name(name)
+                    if state.locals.get(name).is_some_and(|local| local.declaration_resource));
                 let value = self.expr(
                     object,
                     state,
                     None,
-                    borrowing || package.is_some() || address_local,
+                    borrowing || package.is_some() || address_local || declaration_resource,
                 )?;
                 let (base, through_address) = match &group(&value).kind {
                     TypeKind::Reference { inner, .. } => (group(inner), true),
@@ -2641,6 +2669,9 @@ impl Check<'_, '_, '_> {
                 let TypeKind::Named { path, args } = &base.kind else {
                     return Err(needs_bound());
                 };
+                if !declaration_resource && path.len() == 1 && self.variables.contains(&path[0]) {
+                    return Err(needs_bound());
+                }
                 let Some(Item {
                     kind: ItemKind::Aggregate(aggregate),
                     ..
@@ -2909,18 +2940,27 @@ impl Check<'_, '_, '_> {
                     }
                     let owns_store = self.owning_store_expression(value, state);
                     let fresh_store = owns_store && self.fresh_store_expression(value, state)?;
-                    let owns_resource = if self.two_input_state_constructor()
+                    let (owns_resource, declaration_resource) = if self
+                        .two_input_state_constructor()
                         || self
                             .callable
                             .as_ref()
                             .is_some_and(|bounds| bounds.owned_factory)
                     {
-                        self.owned_resource_expression(value, state)?
+                        (self.owned_resource_expression(value, state)?, false)
                     } else if self.enum_resource_flow {
                         self.transferred_resource_expression(value, state)?
                     } else {
-                        false
+                        (false, false)
                     };
+                    if declaration_resource
+                        && ty.as_ref().is_some_and(|ty| dependent(ty, &self.variables))
+                    {
+                        return Err(error(
+                            statement.span,
+                            "a declaration resource cannot be annotated as a helper type parameter",
+                        ));
+                    }
                     let origins = self.store_origins(value, state)?;
                     let actual = self.expr(value, state, ty.as_ref(), false)?;
                     self.traits.store_types(
@@ -2941,8 +2981,9 @@ impl Check<'_, '_, '_> {
                     self.alias_bind(state, state.locals[n].id, statement.span)?;
                     let local = state.locals.get_mut(n).expect("just bound");
                     local.mutable = *mutable;
-                    local.owned_resource =
-                        owns_resource && self.concrete_helper_resource(&local.ty);
+                    local.declaration_resource = declaration_resource;
+                    local.owned_resource = owns_resource
+                        && (declaration_resource || self.concrete_helper_resource(&local.ty));
                     if stores::element(&local.ty).is_some() {
                         if owns_store {
                             state.store_owners.insert(local.id);
