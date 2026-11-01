@@ -21,7 +21,7 @@ const MAX_OBJECT: u64 = 128 * 1024 * 1024;
 // Isolate complete call closures, checked-add chains and scalar leaves, including
 // O0 builds where the strategy is disabled. Format and current verification stay unchanged;
 // actual transformed bodies are hashed, with the precise compiler/library identity.
-const ACTION_PROTOCOL: &str = "ZIL-OBJECT-ACTION-212-v4-complete-closures-chain-v4-scalar-v3";
+const ACTION_PROTOCOL: &str = "ZIL-OBJECT-ACTION-212-v5-current-input-o2";
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

@@ -652,6 +652,7 @@ impl CompilationSession {
             TypedInput::Module(typed),
             typed_snapshot,
             artifacts,
+            None,
         )
     }
 
@@ -664,6 +665,7 @@ impl CompilationSession {
         typed: TypedInput,
         typed_snapshot: Arc<QuerySnapshot>,
         artifacts: ArtifactPlan,
+        stable_source: Option<&super::stable_source_identity::SourceIdentities>,
     ) -> CompileResult<()> {
         // Types and Analyze depend on the same complete request identity. The
         // cached raw result is still independently checked below on every call.
@@ -812,10 +814,14 @@ impl CompilationSession {
         // itself is a single external build step; this API does not claim to
         // interrupt a linker already running. Outputs stay in a private directory
         // until the last cancellation check and all fallible dumps have finished.
-        let artifact =
-            zil_backend_llvm::build_view_with_cancellation(&verified, &lir, &build, &|| {
-                options.cancellation.check(Phase::Link).is_err()
-            })?;
+        let stable_names = stable_source.and_then(|source| source.bind(verified.module()));
+        let artifact = zil_backend_llvm::build_view_with_cancellation_and_stable_names(
+            &verified,
+            &lir,
+            &build,
+            &|| options.cancellation.check(Phase::Link).is_err(),
+            stable_names.as_deref(),
+        )?;
         event(Phase::Link, QueryDisposition::Executed, report, observer);
         if let Err(error) = options.cancellation.check(Phase::Link) {
             return Err(vec![error]);

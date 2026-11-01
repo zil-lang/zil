@@ -734,7 +734,7 @@ fn fold_with_sources(module: &mut Module, sources: &BTreeSet<String>) -> usize {
     }
     let mut expected = module.clone();
     let expected_count = fold_with_sources_v1(&mut expected, sources);
-    let count = super::fold_with_sources(module, sources);
+    let count = super::fold_leaf_only_with_sources(module, sources);
     assert_eq!(count, expected_count, "v1/v2 replacement count");
     assert_eq!(
         *module, expected,

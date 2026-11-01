@@ -568,12 +568,22 @@ fn plan_with_sources_and_fuel(
 
 fn fold_with_sources(module: &mut Module, sources: &BTreeSet<String>) -> usize {
     let replacements = plan_with_sources(module, sources);
-    if replacements.is_empty() || zil_llvm_api::validate_module(module).is_err() {
+    if replacements.is_empty() {
+        return 0;
+    }
+    let summaries = summary::plan(module, sources, &replacements);
+    if zil_llvm_api::validate_module(module).is_err() {
         // No mutation occurred, including on malformed original models. Leave
         // the existing diagnostic/backend path and per-unit preflight intact.
         return 0;
     }
-    let count = replacements.len();
+    let count = replacements.len() + summaries.count();
+    apply_leaf_replacements(module, replacements);
+    summaries.apply(module);
+    count
+}
+
+fn apply_leaf_replacements(module: &mut Module, replacements: Vec<Replacement>) {
     for (item, block, instruction, value) in replacements {
         let Item::Function(function) = &mut module.items[item] else {
             unreachable!()
@@ -581,8 +591,21 @@ fn fold_with_sources(module: &mut Module, sources: &BTreeSet<String>) -> usize {
         function.blocks.as_mut().expect("original definition")[block].instructions[instruction]
             .op = Op::Freeze(Arg::new(Ty::Int(value.bits), value.value()));
     }
+}
+
+#[cfg(test)]
+fn fold_leaf_only_with_sources(module: &mut Module, sources: &BTreeSet<String>) -> usize {
+    let replacements = plan_with_sources(module, sources);
+    if replacements.is_empty() || zil_llvm_api::validate_module(module).is_err() {
+        return 0;
+    }
+    let count = replacements.len();
+    apply_leaf_replacements(module, replacements);
     count
 }
+
+#[path = "machine_scalar_summary.rs"]
+mod summary;
 
 #[cfg(test)]
 #[path = "machine_scalar_tests.rs"]

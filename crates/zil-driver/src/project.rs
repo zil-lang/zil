@@ -46,6 +46,9 @@ pub(super) struct ProjectSyntax {
 struct LoadedSyntax {
     parsed: Arc<ParseResult>,
     reused: bool,
+    // Present only when filesystem discovery supplied a lossless canonical
+    // identity for the explicit closed-executable trial.
+    stable_module_key: Option<Arc<str>>,
 }
 
 pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> CompileReport {
@@ -173,6 +176,23 @@ impl CompilationSession {
         let mut artifacts = ArtifactPlan::project(root, &project.modules, options)?;
         let fingerprint = project_fingerprint(project);
         report.input_fingerprint = fingerprint;
+        // Syntax from the current filesystem request is also available on a
+        // semantic-cache hit. Never recover this hint from cached Typed names.
+        let stable_source = if super::stable_source_identity::eligible(options) {
+            loaded_syntax.and_then(|syntax| {
+                super::stable_source_identity::capture(
+                    project.root,
+                    fingerprint,
+                    options.limits.max_functions,
+                    &project.modules,
+                    syntax
+                        .iter()
+                        .map(|loaded| (&loaded.parsed.module, loaded.stable_module_key.as_deref())),
+                )
+            })
+        } else {
+            None
+        };
         report.source_files = project
             .modules
             .iter()
@@ -229,6 +249,7 @@ impl CompilationSession {
                         TypedInput::Program(typed),
                         snapshot,
                         artifacts.clone(),
+                        stable_source.as_ref(),
                     )
                 });
                 match attempt {
@@ -278,6 +299,7 @@ impl CompilationSession {
                 TypedInput::Program(frontend.typed),
                 frontend.snapshot,
                 artifacts,
+                stable_source.as_ref(),
             );
         }
         let mut parsed = Vec::new();
@@ -536,6 +558,7 @@ impl CompilationSession {
             TypedInput::Program(typed.clone()),
             typed_snapshot,
             artifacts.clone(),
+            stable_source.as_ref(),
         );
         if result.is_ok()
             && let Some(store) = &semantic
@@ -909,6 +932,9 @@ fn load_sources(
         project.paths.insert(vec![stem.into()], project.root);
     }
     let mut known = BTreeMap::from([(root_path.clone(), project.root)]);
+    let mut stable_modules = super::stable_source_identity::eligible(options)
+        .then(|| super::stable_source_identity::CanonicalModules::new(&root_path))
+        .flatten();
     let mut index = 0;
     let mut syntax = Vec::new();
     while index < project.modules.len() {
@@ -991,13 +1017,24 @@ fn load_sources(
                 )?;
                 source.module_id = ModuleId(number);
                 source.file_id = FileId(number);
+                if stable_modules
+                    .as_mut()
+                    .is_some_and(|keys| keys.push(&canonical).is_none())
+                {
+                    stable_modules = None;
+                }
                 known.insert(canonical, source.module_id);
                 project.modules.push(source);
                 ModuleId(number)
             };
             project.paths.insert(import.path.clone(), id);
         }
-        syntax.push(LoadedSyntax { parsed, reused });
+        let stable_module_key = stable_modules.as_ref().and_then(|keys| keys.get(index));
+        syntax.push(LoadedSyntax {
+            parsed,
+            reused,
+            stable_module_key,
+        });
         index += 1;
     }
     Ok(syntax)

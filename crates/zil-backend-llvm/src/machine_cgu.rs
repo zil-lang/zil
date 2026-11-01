@@ -445,6 +445,13 @@ pub(crate) fn internalize_closed_executable(units: &mut [Module], lir: &LirView<
         .filter(|function| function.foreign.is_none())
         .map(|function| format!("zil.fn.{}", function.id.0))
         .collect::<BTreeSet<_>>();
+    internalize_closed_executable_names(units, &candidates)
+}
+
+pub(crate) fn internalize_closed_executable_names(
+    units: &mut [Module],
+    candidates: &BTreeSet<String>,
+) -> usize {
     let mut owners = BTreeMap::new();
     for (unit, module) in units.iter().enumerate() {
         for item in &module.items {

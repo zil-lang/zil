@@ -5,7 +5,7 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use zil_base::{CompileResult, Diagnostic, Phase, ResultCategory};
-use zil_ir::{LirModule, LirView};
+use zil_ir::{FunctionId, LirModule, LirView};
 use zil_verify::VerifiedModule;
 
 use crate::object_cache::{
@@ -184,6 +184,19 @@ pub fn build_view_with_cancellation(
     options: &BuildOptions,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<BuildArtifact> {
+    build_view_with_cancellation_and_stable_names(verified, lir, options, cancelled, None)
+}
+
+/// Internal-use cross-crate experiment. The optional current-request spelling
+/// hint is not a verification capability; existing public callers use no hint.
+#[doc(hidden)]
+pub fn build_view_with_cancellation_and_stable_names(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &BuildOptions,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    stable_names: Option<&[(FunctionId, String)]>,
+) -> CompileResult<BuildArtifact> {
     check_cancelled(cancelled)?;
     if options.emit.entry == EntryPoint::None {
         return Err(vec![Diagnostic::error(
@@ -218,7 +231,12 @@ pub fn build_view_with_cancellation(
             None,
         )]);
     }
-    let mut machine = crate::emit::lower_view_with_options(verified, lir, &options.emit)?;
+    let mut machine = crate::emit::lower_view_with_divisor_policy(
+        verified,
+        lir,
+        &options.emit,
+        options.optimization == Optimization::O2 && options.incremental_o2,
+    )?;
     // The opt-in O2 strategy contracts strict checked-add chains before
     // scalar evaluation. Each nonempty plan validates its complete unchanged
     // input before mutation. Ordinary O2 skips both passes.
@@ -226,18 +244,54 @@ pub fn build_view_with_cancellation(
         crate::machine_checked_add_chain::fold_checked_add_chains(&mut machine);
         crate::machine_scalar::fold_known_leaf_calls(&mut machine, lir);
     }
+    let mut stable = if options.closed_executable
+        && options.backend == NativeBackend::LlvmApi
+        && options.optimization == Optimization::O2
+        && options.incremental_o2
+        && options.codegen.units >= 2
+        && options.emit.entry == EntryPoint::Main
+        && lir.target.triple == "x86_64-unknown-linux-gnu"
+    {
+        stable_names.and_then(|names| {
+            crate::machine_stable_identity::prepare(
+                &machine,
+                lir,
+                names,
+                options.codegen.units,
+                cancelled,
+            )
+        })
+    } else {
+        None
+    };
+    check_cancelled(cancelled)?;
+    if let Some(plan) = &mut stable {
+        plan.prune_unreachable_closed_definitions(&mut machine);
+        plan.rename(&mut machine);
+    }
     // Diagnostic/reference output only. Each nonempty transform plan requires
     // complete original-model preflight. Existing per-unit API preflight still runs
     // immediately before its LLVMBuilder calls and cannot be bypassed.
     let llvm = machine.to_text();
-    let mut plan = crate::machine_cgu::partition_view(
-        machine,
-        lir,
-        options.emit.entry,
-        options.codegen.units,
-        options.optimization == Optimization::O0 || options.incremental_o2,
-        options.optimization == Optimization::O2 && options.incremental_o2,
-    );
+    let (mut plan, stable_candidates, stable_diagnostic) = if let Some(stable) = stable {
+        let trace =
+            std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).map(PathBuf::from);
+        let (plan, candidates, diagnostic) = stable.partition(machine, trace);
+        (plan, Some(candidates), diagnostic)
+    } else {
+        (
+            crate::machine_cgu::partition_view(
+                machine,
+                lir,
+                options.emit.entry,
+                options.codegen.units,
+                options.optimization == Optimization::O0 || options.incremental_o2,
+                options.optimization == Optimization::O2 && options.incremental_o2,
+            ),
+            None,
+            None,
+        )
+    };
     if options.backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
         return Err(vec![Diagnostic::new(
             Phase::Codegen,
@@ -263,7 +317,11 @@ pub fn build_view_with_cancellation(
         )]);
     }
     if options.closed_executable {
-        crate::machine_cgu::internalize_closed_executable(&mut plan.units, lir);
+        if let Some(candidates) = stable_candidates {
+            crate::machine_cgu::internalize_closed_executable_names(&mut plan.units, &candidates);
+        } else {
+            crate::machine_cgu::internalize_closed_executable(&mut plan.units, lir);
+        }
     }
     let mut cache_summary = ObjectCacheSummary {
         requested: options.object_cache.is_some(),
@@ -286,6 +344,9 @@ pub fn build_view_with_cancellation(
             }
         }
     });
+    if let Some(diagnostic) = stable_diagnostic {
+        diagnostic.write(&plan.units, cache.as_ref());
+    }
     let mut pending_cache = PendingObjectCache {
         directory: cache.as_ref().map(|c| c.directory.clone()),
         ..PendingObjectCache::default()

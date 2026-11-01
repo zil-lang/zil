@@ -623,7 +623,10 @@ fn dominates(
         b = idom[b];
     }
 }
-fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
+fn function<const COLLECT_SCHEDULE: bool>(
+    world: &World<'_>,
+    f: &Function,
+) -> Result<Vec<(usize, usize)>> {
     let Some(blocks) = &f.blocks else {
         return Ok(vec![]);
     };
@@ -775,6 +778,18 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
             }
         }
     }
+    // Validation-only callers do not consume a Builder instruction order.
+    // With every block reachable, each non-phi data edge already passed strict
+    // cross-block dominance or same-block earlier-position checks above. A
+    // sequence edge also moves forward within its block. Lexicographic
+    // (dominator-tree depth, instruction position) therefore increases along
+    // every scheduling edge. Phi definitions are precreated and excluded from
+    // this graph. Unreachable blocks have weaker dominance rules, so they must
+    // retain the complete original scheduling/cycle check below.
+    if !COLLECT_SCHEDULE && reachable.iter().all(|&block| block) {
+        return Ok(Vec::new());
+    }
+
     // Phi nodes are created first. Sort all other instructions by operand and
     // per-block sequencing edges, so forward textual block order is irrelevant.
     let mut positions = vec![];
@@ -841,7 +856,16 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
     Ok(schedule)
 }
 
+#[cfg_attr(not(feature = "native"), allow(dead_code))]
 pub(crate) fn validate(module: &Module) -> Result<Schedule> {
+    validate_impl::<true>(module)
+}
+
+pub(crate) fn validate_only(module: &Module) -> Result<()> {
+    validate_impl::<false>(module).map(|_| ())
+}
+
+fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedule> {
     if !matches!(
         module.triple.as_str(),
         "x86_64-unknown-linux-gnu" | "x86_64-pc-windows-msvc"
@@ -899,12 +923,20 @@ pub(crate) fn validate(module: &Module) -> Result<Schedule> {
                 {
                     return fail("local function without definition");
                 }
-                functions.insert(f.name.clone(), function(&world, f)?);
+                if COLLECT_SCHEDULE {
+                    functions.insert(f.name.clone(), function::<true>(&world, f)?);
+                } else {
+                    function::<false>(&world, f)?;
+                }
             }
         }
     }
     Ok(Schedule { functions })
 }
+
+#[cfg(test)]
+#[path = "preflight_validate_only_tests.rs"]
+mod validate_only_tests;
 
 #[cfg(test)]
 mod named_layout_tests {

@@ -28,6 +28,7 @@ mod emit;
 mod machine_cgu;
 mod machine_checked_add_chain;
 mod machine_scalar;
+mod machine_stable_identity;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
 mod object_cache;
 pub use object_cache::{ObjectCacheSummary, PendingObjectCache, installed_compiler_identity};
@@ -37,7 +38,8 @@ use zil_ir::FunctionId;
 
 pub use build::{
     BuildArtifact, BuildOptions, CodegenOptions, CodegenSummary, NativeBackend, Optimization,
-    WindowsLinkOptions, build, build_view_with_cancellation, build_with_cancellation,
+    WindowsLinkOptions, build, build_view_with_cancellation,
+    build_view_with_cancellation_and_stable_names, build_with_cancellation,
 };
 pub use emit::{emit, emit_with_options};
 

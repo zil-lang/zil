@@ -538,11 +538,38 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
         let mut options = d.options(8, Optimization::O2);
         options.incremental_o2 = true;
         options.closed_executable = closed;
+        // Only the fully folded closed program satisfies the flat reachability
+        // gate. Its helper definitions are removed before object construction.
+        let pruned = closed && !opaque;
+        let units = if pruned { 1 } else { 3 };
         let cold = d.build(&options);
         success(&cold, 0);
-        assert_eq!(cold.native_codegen.as_ref().unwrap().actual_units, 3);
-        assert_eq!(cold.native_codegen.as_ref().unwrap().object_cache.misses, 3);
+        assert_eq!(cold.native_codegen.as_ref().unwrap().actual_units, units);
+        assert_eq!(
+            cold.native_codegen.as_ref().unwrap().object_cache.misses,
+            units
+        );
         let machine = fs::read_to_string(&cold.artifacts["llvm"]).unwrap();
+        if pruned {
+            assert_eq!(
+                machine
+                    .lines()
+                    .filter(|line| line.starts_with("define "))
+                    .count(),
+                2
+            );
+            assert!(machine.contains("@zil.stable."));
+            assert!(!machine.contains("@zil.fn."));
+        } else {
+            assert_eq!(
+                machine
+                    .lines()
+                    .filter(|line| line.starts_with("define "))
+                    .count(),
+                602
+            );
+            assert!(!machine.contains("@zil.stable."));
+        }
         let direct_calls = machine.matches("call i32 @zil.fn.").count();
         assert_eq!(
             direct_calls >= 600,
@@ -552,7 +579,7 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
         let warm = d.build(&options);
         success(&warm, 0);
         let summary = warm.native_codegen.as_ref().unwrap();
-        assert_eq!(summary.object_cache.hits, 3);
+        assert_eq!(summary.object_cache.hits, units);
         assert!(
             summary
                 .object_reports
@@ -563,8 +590,9 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
             "{}",
             warm.to_json()
         );
-        // A real body edit can preserve the known scalar result. Its owner
-        // changes, but only an opaque consumer still depends on the full body.
+        // A real body edit preserves the known result. A removed helper has no
+        // remaining owner; retained owners and opaque consumers still depend
+        // on the actual body under their respective export contracts.
         let old_body = "fn f0(x:i32)->i32{return x+0;}";
         let new_body = "fn f0(x:i32)->i32{return x*1;}";
         assert_eq!(original.matches(old_body).count(), 1);
@@ -575,7 +603,13 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
         let neutral = d.build(&options);
         success(&neutral, 0);
         let neutral_cache = &neutral.native_codegen.as_ref().unwrap().object_cache;
-        let neutral_misses = if opaque { 2 } else { 1 };
+        let neutral_misses = if pruned {
+            0
+        } else if opaque {
+            2
+        } else {
+            1
+        };
         assert_eq!(
             neutral_cache.misses,
             neutral_misses,
@@ -584,7 +618,7 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
         );
         assert_eq!(
             neutral_cache.hits,
-            3 - neutral_misses,
+            units - neutral_misses,
             "{}",
             neutral.to_json()
         );
@@ -596,31 +630,58 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
             .as_ref()
             .unwrap()
             .object_cache;
-        assert_eq!(restored_cache.hits, 3, "{}", neutral_restored.to_json());
+        assert_eq!(restored_cache.hits, units, "{}", neutral_restored.to_json());
         assert_eq!(restored_cache.misses, 0, "{}", neutral_restored.to_json());
-        // f0 owns unit0. Main in unit2 consumes its folded result for known
-        // arguments, or its complete imported implementation for opaque ones.
+        // Retained f0/main owners both change under the ordinary contract.
+        // Closed pruning keeps one actual entry unit whose result now changes.
         d.write("main.zil", &source(600, 0, false, opaque));
         let early = d.build(&options);
         success(&early, 1);
+        let early_machine = fs::read_to_string(&early.artifacts["llvm"]).unwrap();
         assert_eq!(
             early.native_codegen.as_ref().unwrap().object_cache.misses,
-            2,
+            if pruned { 1 } else { 2 },
             "{}",
             early.to_json()
         );
-        assert_eq!(early.native_codegen.as_ref().unwrap().object_cache.hits, 1);
+        assert_eq!(
+            early.native_codegen.as_ref().unwrap().object_cache.hits,
+            if pruned { 0 } else { 1 }
+        );
         d.write("main.zil", &source(600, 599, false, opaque));
         let late = d.build(&options);
         success(&late, 1);
-        // Reverting f0 reuses its original owner; only the entry owner changes.
+        // The joint summary replaces main with Return(1). After closed pruning,
+        // both retained definitions therefore equal the preceding edit; their
+        // actual object is reusable. Ordinary owners still retain f599's body.
+        if pruned {
+            let late_machine = fs::read_to_string(&late.artifacts["llvm"]).unwrap();
+            assert_eq!(
+                early_machine.split_once("define ").unwrap().1,
+                late_machine.split_once("define ").unwrap().1
+            );
+            fn action_key(report: &zil_driver::CompileReport) -> &str {
+                report.native_codegen.as_ref().unwrap().object_reports[0]
+                    .split("\"action_key\":\"")
+                    .nth(1)
+                    .unwrap()
+                    .split('"')
+                    .next()
+                    .unwrap()
+            }
+            assert_eq!(action_key(&early), action_key(&late));
+        }
+        let late_misses = usize::from(!pruned);
         assert_eq!(
             late.native_codegen.as_ref().unwrap().object_cache.misses,
-            1,
+            late_misses,
             "{}",
             late.to_json()
         );
-        assert_eq!(late.native_codegen.as_ref().unwrap().object_cache.hits, 2);
+        assert_eq!(
+            late.native_codegen.as_ref().unwrap().object_cache.hits,
+            units - late_misses
+        );
         for (count, extra) in [(600, true), (599, false)] {
             d.write("main.zil", &source(count, 0, extra, opaque));
             success(&d.build(&options), 1);
@@ -630,7 +691,7 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
         success(&restored, 0);
         assert_eq!(
             restored.native_codegen.as_ref().unwrap().object_cache.hits,
-            3
+            units
         );
         let executable = fs::read(options.output.as_ref().unwrap()).unwrap();
         let argument = if opaque { "seed" } else { "0" };
