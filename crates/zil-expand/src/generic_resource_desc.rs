@@ -243,6 +243,9 @@ impl Check<'_, '_, '_> {
         for (name, local) in &mut state.locals {
             self.budget.node(span, 0)?;
             let mut merged = None;
+            let mut owner_complete = local.owned_resource && local.declaration_resource;
+            let mut owner_roots = None;
+            let mut owner_roots_changed = false;
             for branch in branches {
                 self.budget.node(span, 0)?;
                 let actual = branch
@@ -250,6 +253,22 @@ impl Check<'_, '_, '_> {
                     .get(name)
                     .filter(|value| value.id == local.id)
                     .unwrap_or(local);
+                owner_complete &= actual.owned_resource
+                    && actual.declaration_resource
+                    && !branch.moved.contains(&actual.id)
+                    && actual.description_roots.is_some();
+                if let Some(roots) = &actual.description_roots {
+                    if let Some(previous) = &owner_roots {
+                        if !Rc::ptr_eq(previous, roots) {
+                            for _ in 0..previous.len().saturating_add(roots.len()) {
+                                self.budget.node(span, 0)?;
+                            }
+                            owner_roots_changed |= previous.as_ref() != roots.as_ref();
+                        }
+                    } else {
+                        owner_roots = Some(roots.clone());
+                    }
+                }
                 let flow = ResourceFlow {
                     owns: actual.owned_resource,
                     declaration: actual.declaration_resource,
@@ -263,7 +282,13 @@ impl Check<'_, '_, '_> {
                     }
                 });
             }
-            if let Some(flow) = merged {
+            if let Some(mut flow) = merged {
+                if owner_complete && owner_roots_changed {
+                    // The current complete owner exists on every continuing
+                    // path. Its joint activation is distinct from old borrowed
+                    // descriptions, whose may-invalidated tokens remain moved.
+                    flow.roots = Some(self.resource_description_root(local.id, span)?);
+                }
                 local.declaration_resource = flow.declaration;
                 local.description_roots = flow.roots;
                 local.description_reference_depth = flow.reference_depth;
