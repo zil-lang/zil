@@ -190,3 +190,70 @@ fn unused_helpers_cannot_duplicate_or_rematch_complete_owned_sums() {
         "enum E{V(i32)}fn duplicate<F:Fn()->i32>(cb:F,e:E)->i32{let first=e;let second=e;return cb()}fn main(){}",
     );
 }
+
+#[test]
+fn actual_resource_descriptions_keep_live_roots_through_aliases_and_joins() {
+    let head = "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}";
+    let source = |body: &str| {
+        format!(
+            "{head}fn use_value<F:Fn()->i32>(cb:F,e:E,flag:bool)->i32{{match e{{E.V(a,b)=>{{{body}}}}}}}fn main(){{}}"
+        )
+    };
+    for body in [
+        "let d=if flag{a}else{b};let n=d.n;let p=P{r:give a};return cb()+n",
+        "let d=if flag{a}else{a};let n=d.n;let p=P{r:give a};return cb()+n",
+        "var d=a;d=b;let p=P{r:give a};return cb()+d.n",
+        "let saved=give a;let d=(saved);return cb()+d.n",
+        "let d=a;defer{let observed=d.n}return cb()",
+        "let d=&a;let observed=(*d).n;let p=P{r:give a};return cb()+observed",
+        "let d=&a;let observed=d.n;let p=P{r:give a};return cb()+observed",
+    ] {
+        checked(&source(body));
+        checked(
+            &source(body)
+                .replace("resource R", "resource F")
+                .replace("manages r:R", "manages r:F")
+                .replace("manages R", "manages F"),
+        );
+    }
+    for body in [
+        "let d=a;let p=P{r:give a};return cb()+d.n",
+        "let d=(a);let p=P{r:give a};return cb()+d.n",
+        "let d=a;let alias=d;let p=P{r:give a};return cb()+alias.n",
+        "let d=if flag{a}else{b};let p=P{r:give a};return cb()+d.n",
+        "let d=if flag{a}else{a};let p=P{r:give a};return cb()+d.n",
+        "var d=a;d=b;let p=P{r:give b};return cb()+d.n",
+        "var d=a;if flag{d=b}else{}let p=P{r:give b};return cb()+d.n",
+        "var d=a;while flag{d=b;break}let p=P{r:give b};return cb()+d.n",
+        "var d=a;if flag{let saved=give b;d=saved}else{}return cb()+d.n",
+        "var d=a;if flag{let saved=give b;d=saved;let saved=0}else{}return cb()+d.n",
+        "var saved=give a;let d=saved;saved=give b;return cb()+d.n",
+        "let d=a;defer{let observed=d.n}let p=P{r:give a};return cb()",
+        "defer{let p=P{r:give a}}let d=a;return cb()+d.n",
+        "let d=&a;let p=P{r:give a};return cb()+(*d).n",
+        "let d=&a;let alias=d;let p=P{r:give a};return cb()+(*alias).n",
+        "let tuple=(a,b);return cb()+tuple.0.n",
+        "let array=[a,b];return cb()+array[0].n",
+        "let tuple=(a,1);let p=P{r:give a};return cb()+tuple.0.n",
+        "let tuple=(a,1);let d=tuple.0;let p=P{r:give a};return cb()+d.n",
+        "let array=[a,b];let p=P{r:give a};return cb()+array[0].n",
+        "let array=[a,b];let d=array[if flag{0}else{1}];let p=P{r:give a};return cb()+d.n",
+        "let array=[a,b];let d=array[0];let p=P{r:give a};return cb()+d.n",
+    ] {
+        assert!(expand(&source(body)).is_err(), "{body}");
+        assert!(
+            expand(
+                &source(body)
+                    .replace("resource R", "resource F")
+                    .replace("manages r:R", "manages r:F")
+                    .replace("manages R", "manages F")
+            )
+            .is_err(),
+            "F/{body}"
+        );
+    }
+    let arm_escape = format!(
+        "{head}fn use_value<F:Fn()->i32>(cb:F,e:E,other:E)->i32{{match e{{E.V(a,b)=>{{var d=a;match other{{E.V(c,z)=>{{d=c}}}}return cb()+d.n}}}}}}fn main(){{}}"
+    );
+    assert!(expand(&arm_escape).is_err());
+}
