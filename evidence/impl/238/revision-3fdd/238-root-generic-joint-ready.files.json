@@ -1,0 +1,507 @@
+[
+  {
+    "path": "238-root-generic-joint-ready/RESULT.json",
+    "bytes": 4726,
+    "sha256": "ac18aea0732c97b59ba498a14884b99785847f93ae15216e6cd9a3c69993f913"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_explicit-O0/command.json",
+    "bytes": 365,
+    "sha256": "f3d587b300e2a7a6f444c6abf22185b38d1fe9c3d1d8847615e50096ded69a8c"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_explicit-O0/compile.json",
+    "bytes": 785,
+    "sha256": "c238a555be8f5922136a7e0c93bd923e40d3940c8f253024e8c412bf8b09d822"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_explicit-O0/compile.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_explicit-O0/phases/syntax.txt",
+    "bytes": 363925,
+    "sha256": "ef3bbb7d6dabf1fd50d7b2b49a4df265d03a9590831fbef44d915a69ea69e03c"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_explicit-O0/source.zil",
+    "bytes": 1186,
+    "sha256": "f6e93bbccdb526e821b57ae754472d82da63bbc2b8e2c54bf23496828fbd4295"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_explicit-O2/command.json",
+    "bytes": 365,
+    "sha256": "cb9a5dd1c302007a0514042aa5a825bb4ac3558482d136bad9119d11b8651f6a"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_explicit-O2/compile.json",
+    "bytes": 785,
+    "sha256": "3d6ef0f60272de251e334206c6ba0dc07a59db382dd7e326432ed4d70e2589f2"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_explicit-O2/compile.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_explicit-O2/phases/syntax.txt",
+    "bytes": 363925,
+    "sha256": "ef3bbb7d6dabf1fd50d7b2b49a4df265d03a9590831fbef44d915a69ea69e03c"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_explicit-O2/source.zil",
+    "bytes": 1186,
+    "sha256": "f6e93bbccdb526e821b57ae754472d82da63bbc2b8e2c54bf23496828fbd4295"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_implicit-O0/command.json",
+    "bytes": 365,
+    "sha256": "bf6ac789d7dc31b6ade1ee86715008cc96872bfc26b3bed5c0c2d20c9dacb81c"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_implicit-O0/compile.json",
+    "bytes": 785,
+    "sha256": "5c6e56beb6a32d269242fbf601bd1672fd671e9c8bfac1b39ab4275712e01c01"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_implicit-O0/compile.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_implicit-O0/phases/syntax.txt",
+    "bytes": 357929,
+    "sha256": "7a288cfe31094d2fb8b6d1f547ceec6566b3478860db74b62f2652125b61b25f"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_implicit-O0/source.zil",
+    "bytes": 1175,
+    "sha256": "da836720cf1cf928174a6246d63909c65ef4f1eb9c4040c55f166915eec16ed9"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_implicit-O2/command.json",
+    "bytes": 365,
+    "sha256": "6dcf8ab12ab0ee979299fec4389817b66ad3e13674ddad5e292ced4ec3a5a408"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_implicit-O2/compile.json",
+    "bytes": 785,
+    "sha256": "aa5d51936a766ac7677c7286765ae1f98f909b69b2c08f7b05ce00bf39797675"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_implicit-O2/compile.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_implicit-O2/phases/syntax.txt",
+    "bytes": 357929,
+    "sha256": "7a288cfe31094d2fb8b6d1f547ceec6566b3478860db74b62f2652125b61b25f"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_f_helper_implicit-O2/source.zil",
+    "bytes": 1175,
+    "sha256": "da836720cf1cf928174a6246d63909c65ef4f1eb9c4040c55f166915eec16ed9"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/command.json",
+    "bytes": 356,
+    "sha256": "9402687eeed2f2a47fdaf3c26bd069fd3e9bb2deedd5b2cb91df2af9c7184d72"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/compile.json",
+    "bytes": 3229,
+    "sha256": "c15b758b199f1334d22e1861c343c2098a2c8755f220b179d4e52c0f4a5dac00"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/compile.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/exit.json",
+    "bytes": 12,
+    "sha256": "5bc232b82de377a5655a39a2af9d7ae0fc868de5b9df957e18905cb914606c88"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/phases/candidate.txt",
+    "bytes": 11071,
+    "sha256": "f02077e7f80fee372b016ef3628aba419ab121692623ff447558ac17d10bdd78"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/phases/core.txt",
+    "bytes": 80797,
+    "sha256": "715ea106a8c3a39c7465e4c983cb15f9cb54ee92f685d08dd229860527334710"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/phases/ct-core.txt",
+    "bytes": 96314,
+    "sha256": "822328bb478908dd328bee82493d2a12ef5d0925dbd808d608058111f62863a4"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/phases/interfaces.txt",
+    "bytes": 1727,
+    "sha256": "70f03580baa2f4d7ac31361e79aee735c0fbdbb8d5fc0228735c723bc36ee453"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/phases/lir.txt",
+    "bytes": 153103,
+    "sha256": "39c5390fbb1b7cc9a753b54ceee31692ff419c50c478a8e3bf4ea2d0c1e2cff5"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/phases/llvm.ll",
+    "bytes": 20572,
+    "sha256": "e91b4f9ee2817fc05d541c34a03fe0868ea8fd7638051a877695be0d93712af3"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/phases/source-map.txt",
+    "bytes": 46176,
+    "sha256": "e100b7ddcb3f4d1b78fed4bddc04ecd9e8ce78def598ed19b5a3346befda0b61"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/phases/syntax.txt",
+    "bytes": 168653,
+    "sha256": "438bd4b93ac652ec5511b7e976fac5c4f1bd960d85878c0ea9705ff6371ad484"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/phases/typed.txt",
+    "bytes": 152266,
+    "sha256": "e4228fdd92a81efe45d19dc307871733e7a015682668dbb110cfefa92499e04a"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/phases/verified-interfaces.txt",
+    "bytes": 2677,
+    "sha256": "76b30a8e389d01c2fbe072441d057340108b1ca092c4f468b76e5f24ed423ffa"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/phases/verified.txt",
+    "bytes": 152343,
+    "sha256": "16d098ce53640104f2ac117de824f67a88bcf3668cb4af7fdefc6d9b2305523a"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/program",
+    "bytes": 16560,
+    "sha256": "1001f366de959544cd3e8f9e710ddb4a6267dbdcac5a9defd19db958982a59f3"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/program.ll",
+    "bytes": 20572,
+    "sha256": "e91b4f9ee2817fc05d541c34a03fe0868ea8fd7638051a877695be0d93712af3"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/source.zil",
+    "bytes": 576,
+    "sha256": "b12640fe92b1841fbab4dea89cfa5fcbca5b1ab5c3cad484327194dc3e24b834"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O0/stdout",
+    "bytes": 3,
+    "sha256": "aa378a8ea7c3289aa206bccc0c023eba8ddf729e58f0923004ff8cdd9782d78c"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/command.json",
+    "bytes": 356,
+    "sha256": "92b32c5cbbd757d55906f5d3b7893c716a87bbd0f4208cfd7e6d0ff9e79c924d"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/compile.json",
+    "bytes": 3231,
+    "sha256": "dc436a6bb76162f6d3e3dd32ae2595b8f5fca6d242dba1cf840a6ed6ced7a318"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/compile.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/exit.json",
+    "bytes": 12,
+    "sha256": "5bc232b82de377a5655a39a2af9d7ae0fc868de5b9df957e18905cb914606c88"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/phases/candidate.txt",
+    "bytes": 11069,
+    "sha256": "f142cb59d3e8ac25e644e012810c40d0e93e8cd560b7adc12fb96e63f54738c1"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/phases/core.txt",
+    "bytes": 80801,
+    "sha256": "78fdc62603c8e1d7fcf9e3be0db6d5a43db6dc027df13fc4b61476cc523d4abb"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/phases/ct-core.txt",
+    "bytes": 96318,
+    "sha256": "f4eb513b40758263eb44b9a72e27d943f9c0c4875df5d32cd04c2ba7a3dc624b"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/phases/interfaces.txt",
+    "bytes": 1727,
+    "sha256": "70f03580baa2f4d7ac31361e79aee735c0fbdbb8d5fc0228735c723bc36ee453"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/phases/lir.txt",
+    "bytes": 153101,
+    "sha256": "7c87aa0889330c930b7417ac723750dcd4e55de4171c7088675d33e76317a27c"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/phases/llvm.ll",
+    "bytes": 20572,
+    "sha256": "7fc2e6f2e4d3432053d5b4a729d1bcbc2add323e73a55615fe114b48b4263a5a"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/phases/source-map.txt",
+    "bytes": 46176,
+    "sha256": "e100b7ddcb3f4d1b78fed4bddc04ecd9e8ce78def598ed19b5a3346befda0b61"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/phases/syntax.txt",
+    "bytes": 168653,
+    "sha256": "438bd4b93ac652ec5511b7e976fac5c4f1bd960d85878c0ea9705ff6371ad484"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/phases/typed.txt",
+    "bytes": 152270,
+    "sha256": "4262eb0a70258bf18c98cb0e49765851699df8d07b612ad5f0f959ae6803e08c"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/phases/verified-interfaces.txt",
+    "bytes": 2677,
+    "sha256": "76b30a8e389d01c2fbe072441d057340108b1ca092c4f468b76e5f24ed423ffa"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/phases/verified.txt",
+    "bytes": 152347,
+    "sha256": "c1304e27769c80dac22f00417d31eee499a9bd8cb1386fd1509e471a2bdb7867"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/program",
+    "bytes": 16096,
+    "sha256": "3ad8075c6e609a7972c0049022d10272131e006112ae9a9ac474dc4c783a221f"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/program.ll",
+    "bytes": 20572,
+    "sha256": "7fc2e6f2e4d3432053d5b4a729d1bcbc2add323e73a55615fe114b48b4263a5a"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/source.zil",
+    "bytes": 576,
+    "sha256": "b12640fe92b1841fbab4dea89cfa5fcbca5b1ab5c3cad484327194dc3e24b834"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_explicit-O2/stdout",
+    "bytes": 3,
+    "sha256": "aa378a8ea7c3289aa206bccc0c023eba8ddf729e58f0923004ff8cdd9782d78c"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/command.json",
+    "bytes": 356,
+    "sha256": "fc6de6e35b4ac715c17257fc2035952933b1aeb363ed10e28b49a034e640a240"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/compile.json",
+    "bytes": 3230,
+    "sha256": "fbb8025524a4f111eda624b1c0f61ccea87d14c143dc8934e92d132ccbc5b682"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/compile.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/exit.json",
+    "bytes": 12,
+    "sha256": "5bc232b82de377a5655a39a2af9d7ae0fc868de5b9df957e18905cb914606c88"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/phases/candidate.txt",
+    "bytes": 11072,
+    "sha256": "dbb11b67b8dc5e200c9e85386c5a8aa5237ce161af685a09c4c6c64af810a21e"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/phases/core.txt",
+    "bytes": 80798,
+    "sha256": "2006e4b7bf77bbebdaf780b54eefde485522b93a20977451dec68e6ac1e8c028"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/phases/ct-core.txt",
+    "bytes": 96315,
+    "sha256": "becbcd1a2f48f98f9679162dd28114c25ebe27a6626249bd411f0ba6e2e2caa8"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/phases/interfaces.txt",
+    "bytes": 1727,
+    "sha256": "3ea0a2e15536cf89552f77d7dbdc86b0ea28590b15d37c2750579d25611831fd"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/phases/lir.txt",
+    "bytes": 153104,
+    "sha256": "ce37d78f52ee67215082437891f5364f214a7a5f7a6d342aabbf04e114c78dfe"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/phases/llvm.ll",
+    "bytes": 20572,
+    "sha256": "a5433d1b2e321dced0c50c289feaba4b10d5a3f6ff5661faacaa33e55d358f9b"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/phases/source-map.txt",
+    "bytes": 46176,
+    "sha256": "a0d66a130932fda5eddd35c34973aed0fe02ae8ff3687f05b59a72c0f6e1544a"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/phases/syntax.txt",
+    "bytes": 165025,
+    "sha256": "eab0883bf2cd50c7c5a0177cf9fce37619305952e47e53658b270e9f042dbc1c"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/phases/typed.txt",
+    "bytes": 152267,
+    "sha256": "1a016ef729227df71f7c85537736255f4a8a8eccedd0216618280680b1bb5bbe"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/phases/verified-interfaces.txt",
+    "bytes": 2677,
+    "sha256": "92fea3bbd37bad149ec107f7d3b1c1a92301c44f29cdc179b3b3d39ac3b57d56"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/phases/verified.txt",
+    "bytes": 152344,
+    "sha256": "7b962610df38b0603e80229db284209b870cad703278f8d05689ab4b659db61b"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/program",
+    "bytes": 16560,
+    "sha256": "1001f366de959544cd3e8f9e710ddb4a6267dbdcac5a9defd19db958982a59f3"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/program.ll",
+    "bytes": 20572,
+    "sha256": "a5433d1b2e321dced0c50c289feaba4b10d5a3f6ff5661faacaa33e55d358f9b"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/source.zil",
+    "bytes": 568,
+    "sha256": "316a0e08a8d7cb51c2594a278ff3d89fbcff95669da9e9cbb5bad578d00895ec"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O0/stdout",
+    "bytes": 3,
+    "sha256": "aa378a8ea7c3289aa206bccc0c023eba8ddf729e58f0923004ff8cdd9782d78c"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/command.json",
+    "bytes": 356,
+    "sha256": "1e6a1916793408a97cb17f47e134ad25615daf92a7c717eb22fd8ccf14871968"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/compile.json",
+    "bytes": 3232,
+    "sha256": "1ac829077f9c2ed1b78789020c68b7ea6bbce8ad3663e3f11932cf2ca8d6fd22"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/compile.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/exit.json",
+    "bytes": 12,
+    "sha256": "5bc232b82de377a5655a39a2af9d7ae0fc868de5b9df957e18905cb914606c88"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/phases/candidate.txt",
+    "bytes": 11070,
+    "sha256": "dc20cb603afadd1d7037e2364d800355d76ccd424762b3db88a2e40df55ef71c"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/phases/core.txt",
+    "bytes": 80800,
+    "sha256": "28eecfcfd6e5d36c5e7606c09bbc69d154ec522d9d281f5ebfba9134644b7042"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/phases/ct-core.txt",
+    "bytes": 96317,
+    "sha256": "c180e335b8e2dc65d5c3cc0c798e9981b889b5c2d4b842086f39b936c6d5f5bd"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/phases/interfaces.txt",
+    "bytes": 1727,
+    "sha256": "3ea0a2e15536cf89552f77d7dbdc86b0ea28590b15d37c2750579d25611831fd"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/phases/lir.txt",
+    "bytes": 153102,
+    "sha256": "a5936ce25fea9d2fa582fd86b59e67a231e69fec06857a24fbd5f6cc3917ea95"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/phases/llvm.ll",
+    "bytes": 20572,
+    "sha256": "e6a14a6fb2beae69341c6e4d62a7d4ea2cee753d3841fff887de144850204207"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/phases/source-map.txt",
+    "bytes": 46176,
+    "sha256": "a0d66a130932fda5eddd35c34973aed0fe02ae8ff3687f05b59a72c0f6e1544a"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/phases/syntax.txt",
+    "bytes": 165025,
+    "sha256": "eab0883bf2cd50c7c5a0177cf9fce37619305952e47e53658b270e9f042dbc1c"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/phases/typed.txt",
+    "bytes": 152269,
+    "sha256": "86655c690a834d2c34be54d3af07b39688fef878201939a7dd6ba4611099cd3d"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/phases/verified-interfaces.txt",
+    "bytes": 2677,
+    "sha256": "92fea3bbd37bad149ec107f7d3b1c1a92301c44f29cdc179b3b3d39ac3b57d56"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/phases/verified.txt",
+    "bytes": 152346,
+    "sha256": "4d8e226f99dabad6e91dc7989f715af198666331ade0e807c44d4542cfb77e3e"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/program",
+    "bytes": 16096,
+    "sha256": "3ad8075c6e609a7972c0049022d10272131e006112ae9a9ac474dc4c783a221f"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/program.ll",
+    "bytes": 20572,
+    "sha256": "e6a14a6fb2beae69341c6e4d62a7d4ea2cee753d3841fff887de144850204207"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/source.zil",
+    "bytes": 568,
+    "sha256": "316a0e08a8d7cb51c2594a278ff3d89fbcff95669da9e9cbb5bad578d00895ec"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint-ready/root_plain_implicit-O2/stdout",
+    "bytes": 3,
+    "sha256": "aa378a8ea7c3289aa206bccc0c023eba8ddf729e58f0923004ff8cdd9782d78c"
+  }
+]

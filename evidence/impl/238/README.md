@@ -1,5 +1,7 @@
 # 238 author evidence
 
+The initial0af receipt below is superseded by [revision-3fdd/AUTHOR.json](revision-3fdd/AUTHOR.json): the independent budget finding is repaired, ordinary template dispatch is reused, and actual Root<T>/F-helper controls are recorded. Generic-helper defer remains a separately preserved, currently blocked ALQZ obligation awaiting the next joint candidate.
+
 Scoped author Pass on `0af913ff3b282816b0cdbfe7c3b158a6bfadc3d8`; independent review and final integration belong to separate receipts. Full-language and product gates are NotRun here.
 
 `AUTHOR.json` records exact commands, both real initial failures and subsequent fixes, final per-group counts, allocator/native observations, prior budget references and Rust-goal limits. Historical repeats are never summed into final coverage. `SOURCE-SHA256.json` binds the four author files and unchanged236 source/oracle inputs.
