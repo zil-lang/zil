@@ -1469,3 +1469,32 @@ fn sum_copy_payload_does_not_turn_a_nonowning_package_into_product_permission() 
         }
     }
 }
+
+#[test]
+fn unused_foreign_signature_cannot_acquire_ordinary_owning_sum_abi() {
+    let mut m = module(true, false);
+    m.functions.push(TypedFunction {
+        callable_return_contract: None,
+        callable_contract: None,
+        id: FunctionId(1),
+        name: "foreign_owner".into(),
+        foreign: Some(ForeignDeclaration {
+            abi: "C".into(),
+            symbol: "foreign_owner".into(),
+            noescape_parameters: vec![],
+            static_callbacks: false,
+        }),
+        environment: None,
+        parameters: vec![],
+        return_type: sum(),
+        result_mode: PassingMode::Infer,
+        locals: vec![],
+        values: vec![],
+        blocks: vec![],
+        entry: BlockId(0),
+        span: Span::default(),
+    });
+    for result in both(&m) {
+        assert!(result.is_err());
+    }
+}
