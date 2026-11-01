@@ -430,12 +430,24 @@ pub(super) fn preflight(
                     child.product_sum |= context.in_product;
                 }
                 Type::Managed(_) => {
-                    new_sum |= !context.blocked
-                        && (context.in_enum
-                            || context.product_sum
-                            || context.error_products >= 2
-                            || (context.error_products > 0
-                                && super::dynamic_store::is_owned_carrier(ty)));
+                    let extension = context.in_enum
+                        || context.product_sum
+                        || context.error_products >= 2
+                        || (context.error_products > 0
+                            && super::dynamic_store::is_owned_carrier(ty));
+                    if extension
+                        && (context.blocked
+                            || store_element.is_some()
+                            || capture_owner.is_some()
+                            || resource_head)
+                    {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "ordinary owned Sum does not grant array, StoreElement, capture, borrowed or resource-head qualification",
+                            None,
+                        )]);
+                    }
+                    new_sum |= extension;
                     child = SumContext {
                         blocked: true,
                         ..SumContext::default()
@@ -711,6 +723,9 @@ pub(super) fn preflight(
     // scan is needed in the scope checker, including for legacy scalar IR.
     let mut package_functions = Vec::new();
     for (function_index, function) in module.functions.iter().enumerate() {
+        if function.id.0 as usize != function_index {
+            return Err(bad("noncanonical function ID"));
+        }
         blocks = count(blocks, function.blocks.len(), limits.max_blocks, "block")?;
         locals = count(locals, function.locals.len(), limits.max_locals, "local")?;
         values = count(values, function.values.len(), limits.max_values, "value")?;
@@ -840,8 +855,11 @@ pub(super) fn preflight(
         {
             return Err(bad("function references an absent environment"));
         }
-        for local in &function.locals {
+        for (index, local) in function.locals.iter().enumerate() {
             budget.input(1, "local type preflight")?;
+            if local.id.0 as usize != index {
+                return Err(bad("noncanonical local ID"));
+            }
             budget.input(local.name.len(), "local metadata")?;
             sum_function |= budget.sum_type(&local.ty)?;
             product_store |= local_value(&local.ty, local.span, module, budget)?;
