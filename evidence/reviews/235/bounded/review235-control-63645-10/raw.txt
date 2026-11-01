@@ -1,0 +1,962 @@
+Ok(
+    VerifiedModule {
+        module: TypedModule {
+            schema_version: 27,
+            module_id: ModuleId(
+                0,
+            ),
+            source_fingerprint: Fingerprint(
+                [
+                    215,
+                    95,
+                    84,
+                    86,
+                    167,
+                    30,
+                    74,
+                    76,
+                    252,
+                    43,
+                    193,
+                    81,
+                    152,
+                    130,
+                    108,
+                    148,
+                    132,
+                    194,
+                    12,
+                    109,
+                    249,
+                    64,
+                    152,
+                    225,
+                    145,
+                    9,
+                    30,
+                    143,
+                    218,
+                    140,
+                    150,
+                    233,
+                ],
+            ),
+            target: TargetProfile {
+                id: "native-llvm",
+                triple: "x86_64-unknown-linux-gnu",
+                pointer_width: 64,
+                endian: Little,
+                backend: "llvm",
+                rule_version: "ZIL-LANG-1.4",
+                checked_arithmetic: true,
+            },
+            functions: [
+                TypedFunction {
+                    callable_return_contract: None,
+                    callable_contract: None,
+                    id: FunctionId(
+                        0,
+                    ),
+                    name: "putchar",
+                    foreign: Some(
+                        ForeignDeclaration {
+                            abi: "C",
+                            symbol: "putchar",
+                            noescape_parameters: [],
+                            static_callbacks: false,
+                        },
+                    ),
+                    environment: None,
+                    parameters: [
+                        LocalId(
+                            0,
+                        ),
+                    ],
+                    return_type: I32,
+                    result_mode: Infer,
+                    locals: [
+                        LocalDecl {
+                            id: LocalId(
+                                0,
+                            ),
+                            name: "code",
+                            ty: I32,
+                            mutable: false,
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 23,
+                                end: 31,
+                            },
+                        },
+                    ],
+                    values: [],
+                    blocks: [],
+                    entry: BlockId(
+                        0,
+                    ),
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 12,
+                        end: 38,
+                    },
+                },
+                TypedFunction {
+                    callable_return_contract: None,
+                    callable_contract: None,
+                    id: FunctionId(
+                        1,
+                    ),
+                    name: "Ticket.$drop",
+                    foreign: None,
+                    environment: None,
+                    parameters: [
+                        LocalId(
+                            0,
+                        ),
+                    ],
+                    return_type: Unit,
+                    result_mode: Infer,
+                    locals: [
+                        LocalDecl {
+                            id: LocalId(
+                                0,
+                            ),
+                            name: "self",
+                            ty: Desc(
+                                Record {
+                                    name: "@module0:Ticket",
+                                    fields: [
+                                        (
+                                            "code",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            ),
+                            mutable: false,
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 94,
+                                end: 103,
+                            },
+                        },
+                    ],
+                    values: [
+                        Desc(
+                            Record {
+                                name: "@module0:Ticket",
+                                fields: [
+                                    (
+                                        "code",
+                                        I32,
+                                    ),
+                                ],
+                            },
+                        ),
+                        I32,
+                        I32,
+                    ],
+                    blocks: [
+                        BasicBlock {
+                            id: BlockId(
+                                0,
+                            ),
+                            instructions: [
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeEnter {
+                                        scope: ScopeId(
+                                            0,
+                                        ),
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 86,
+                                        end: 128,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeEnter {
+                                        scope: ScopeId(
+                                            1,
+                                        ),
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 104,
+                                        end: 128,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: UnsafeEnter {
+                                        region: 0,
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 111,
+                                        end: 127,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeEnter {
+                                        scope: ScopeId(
+                                            2,
+                                        ),
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 111,
+                                        end: 127,
+                                    },
+                                },
+                                Instruction {
+                                    result: Some(
+                                        ValueId(
+                                            0,
+                                        ),
+                                    ),
+                                    kind: Load(
+                                        LocalId(
+                                            0,
+                                        ),
+                                    ),
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 120,
+                                        end: 125,
+                                    },
+                                },
+                                Instruction {
+                                    result: Some(
+                                        ValueId(
+                                            1,
+                                        ),
+                                    ),
+                                    kind: ReadDesc {
+                                        desc: ValueId(
+                                            0,
+                                        ),
+                                        index: 0,
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 120,
+                                        end: 125,
+                                    },
+                                },
+                                Instruction {
+                                    result: Some(
+                                        ValueId(
+                                            2,
+                                        ),
+                                    ),
+                                    kind: ForeignCall {
+                                        function: FunctionId(
+                                            0,
+                                        ),
+                                        arguments: [
+                                            ValueId(
+                                                1,
+                                            ),
+                                        ],
+                                        region: 0,
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 112,
+                                        end: 126,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeExit {
+                                        scope: ScopeId(
+                                            2,
+                                        ),
+                                        kind: Fallthrough,
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 111,
+                                        end: 127,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: UnsafeExit {
+                                        region: 0,
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 111,
+                                        end: 127,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeExit {
+                                        scope: ScopeId(
+                                            1,
+                                        ),
+                                        kind: Fallthrough,
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 104,
+                                        end: 128,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: StorageDead(
+                                        LocalId(
+                                            0,
+                                        ),
+                                    ),
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 104,
+                                        end: 128,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeExit {
+                                        scope: ScopeId(
+                                            0,
+                                        ),
+                                        kind: Return,
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 104,
+                                        end: 128,
+                                    },
+                                },
+                            ],
+                            terminator: Return(
+                                None,
+                            ),
+                        },
+                    ],
+                    entry: BlockId(
+                        0,
+                    ),
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 86,
+                        end: 128,
+                    },
+                },
+                TypedFunction {
+                    callable_return_contract: None,
+                    callable_contract: None,
+                    id: FunctionId(
+                        2,
+                    ),
+                    name: "unused",
+                    foreign: None,
+                    environment: None,
+                    parameters: [
+                        LocalId(
+                            0,
+                        ),
+                    ],
+                    return_type: Unit,
+                    result_mode: Infer,
+                    locals: [
+                        LocalDecl {
+                            id: LocalId(
+                                0,
+                            ),
+                            name: "value",
+                            ty: Package {
+                                name: "@module0:Pair",
+                                fields: [
+                                    (
+                                        "left",
+                                        Package {
+                                            name: "@module0:Bag",
+                                            fields: [
+                                                (
+                                                    "items",
+                                                    Managed(
+                                                        OwnedStore {
+                                                            element: Package {
+                                                                name: "@module0:Item",
+                                                                fields: [
+                                                                    (
+                                                                        "ticket",
+                                                                        Managed(
+                                                                            Record {
+                                                                                name: "@module0:Ticket",
+                                                                                fields: [
+                                                                                    (
+                                                                                        "code",
+                                                                                        I32,
+                                                                                    ),
+                                                                                ],
+                                                                            },
+                                                                        ),
+                                                                    ),
+                                                                    (
+                                                                        "value",
+                                                                        I32,
+                                                                    ),
+                                                                ],
+                                                            },
+                                                        },
+                                                    ),
+                                                ),
+                                            ],
+                                        },
+                                    ),
+                                    (
+                                        "right",
+                                        Package {
+                                            name: "@module0:Bag",
+                                            fields: [
+                                                (
+                                                    "items",
+                                                    Managed(
+                                                        OwnedStore {
+                                                            element: Package {
+                                                                name: "@module0:Item",
+                                                                fields: [
+                                                                    (
+                                                                        "ticket",
+                                                                        Managed(
+                                                                            Record {
+                                                                                name: "@module0:Ticket",
+                                                                                fields: [
+                                                                                    (
+                                                                                        "code",
+                                                                                        I32,
+                                                                                    ),
+                                                                                ],
+                                                                            },
+                                                                        ),
+                                                                    ),
+                                                                    (
+                                                                        "value",
+                                                                        I32,
+                                                                    ),
+                                                                ],
+                                                            },
+                                                        },
+                                                    ),
+                                                ),
+                                            ],
+                                        },
+                                    ),
+                                ],
+                            },
+                            mutable: false,
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 258,
+                                end: 268,
+                            },
+                        },
+                    ],
+                    values: [],
+                    blocks: [
+                        BasicBlock {
+                            id: BlockId(
+                                0,
+                            ),
+                            instructions: [
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeEnter {
+                                        scope: ScopeId(
+                                            0,
+                                        ),
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 248,
+                                        end: 271,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeEnter {
+                                        scope: ScopeId(
+                                            1,
+                                        ),
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 269,
+                                        end: 271,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeExit {
+                                        scope: ScopeId(
+                                            1,
+                                        ),
+                                        kind: Fallthrough,
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 269,
+                                        end: 271,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: DropPackage {
+                                        local: LocalId(
+                                            0,
+                                        ),
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 269,
+                                        end: 271,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: StorageDead(
+                                        LocalId(
+                                            0,
+                                        ),
+                                    ),
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 269,
+                                        end: 271,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeExit {
+                                        scope: ScopeId(
+                                            0,
+                                        ),
+                                        kind: Return,
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 269,
+                                        end: 271,
+                                    },
+                                },
+                            ],
+                            terminator: Return(
+                                None,
+                            ),
+                        },
+                    ],
+                    entry: BlockId(
+                        0,
+                    ),
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 248,
+                        end: 271,
+                    },
+                },
+                TypedFunction {
+                    callable_return_contract: None,
+                    callable_contract: None,
+                    id: FunctionId(
+                        3,
+                    ),
+                    name: "main",
+                    foreign: None,
+                    environment: None,
+                    parameters: [],
+                    return_type: Unit,
+                    result_mode: Infer,
+                    locals: [],
+                    values: [],
+                    blocks: [
+                        BasicBlock {
+                            id: BlockId(
+                                0,
+                            ),
+                            instructions: [
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeEnter {
+                                        scope: ScopeId(
+                                            0,
+                                        ),
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 271,
+                                        end: 282,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeEnter {
+                                        scope: ScopeId(
+                                            1,
+                                        ),
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 280,
+                                        end: 282,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeExit {
+                                        scope: ScopeId(
+                                            1,
+                                        ),
+                                        kind: Fallthrough,
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 280,
+                                        end: 282,
+                                    },
+                                },
+                                Instruction {
+                                    result: None,
+                                    kind: ScopeExit {
+                                        scope: ScopeId(
+                                            0,
+                                        ),
+                                        kind: Return,
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 280,
+                                        end: 282,
+                                    },
+                                },
+                            ],
+                            terminator: Return(
+                                None,
+                            ),
+                        },
+                    ],
+                    entry: BlockId(
+                        0,
+                    ),
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 271,
+                        end: 282,
+                    },
+                },
+            ],
+            closures: [],
+            resources: [
+                ResourceDefinition {
+                    name: "@module0:Ticket",
+                    payload: Record {
+                        name: "@module0:Ticket",
+                        fields: [
+                            (
+                                "code",
+                                I32,
+                            ),
+                        ],
+                    },
+                    teardown: Some(
+                        FunctionId(
+                            1,
+                        ),
+                    ),
+                },
+                ResourceDefinition {
+                    name: "@builtin:OwnedStore<@module0:Item>",
+                    payload: OwnedStore {
+                        element: Package {
+                            name: "@module0:Item",
+                            fields: [
+                                (
+                                    "ticket",
+                                    Managed(
+                                        Record {
+                                            name: "@module0:Ticket",
+                                            fields: [
+                                                (
+                                                    "code",
+                                                    I32,
+                                                ),
+                                            ],
+                                        },
+                                    ),
+                                ),
+                                (
+                                    "value",
+                                    I32,
+                                ),
+                            ],
+                        },
+                    },
+                    teardown: None,
+                },
+            ],
+            unsupported: [],
+        },
+        plan: CandidatePlan {
+            schema_version: 27,
+            module_fingerprint: Fingerprint(
+                [
+                    108,
+                    66,
+                    42,
+                    19,
+                    221,
+                    104,
+                    212,
+                    37,
+                    205,
+                    250,
+                    86,
+                    99,
+                    238,
+                    128,
+                    197,
+                    17,
+                    128,
+                    12,
+                    22,
+                    231,
+                    126,
+                    75,
+                    209,
+                    154,
+                    254,
+                    125,
+                    178,
+                    235,
+                    19,
+                    199,
+                    2,
+                    80,
+                ],
+            ),
+            target_fingerprint: Fingerprint(
+                [
+                    205,
+                    49,
+                    11,
+                    211,
+                    61,
+                    158,
+                    160,
+                    206,
+                    0,
+                    177,
+                    155,
+                    124,
+                    142,
+                    36,
+                    127,
+                    255,
+                    149,
+                    121,
+                    131,
+                    121,
+                    165,
+                    196,
+                    116,
+                    61,
+                    206,
+                    130,
+                    190,
+                    234,
+                    40,
+                    5,
+                    28,
+                    15,
+                ],
+            ),
+            functions: [
+                FunctionPlan {
+                    function: FunctionId(
+                        0,
+                    ),
+                    blocks: [],
+                    holds: [],
+                },
+                FunctionPlan {
+                    function: FunctionId(
+                        1,
+                    ),
+                    blocks: [
+                        BlockPlan {
+                            block: BlockId(
+                                0,
+                            ),
+                            initialized_in: [
+                                LocalId(
+                                    0,
+                                ),
+                            ],
+                            initialized_out: [],
+                        },
+                    ],
+                    holds: [
+                        ValueHold {
+                            value: ValueId(
+                                0,
+                            ),
+                            roots: [],
+                        },
+                        ValueHold {
+                            value: ValueId(
+                                1,
+                            ),
+                            roots: [],
+                        },
+                        ValueHold {
+                            value: ValueId(
+                                2,
+                            ),
+                            roots: [],
+                        },
+                    ],
+                },
+                FunctionPlan {
+                    function: FunctionId(
+                        2,
+                    ),
+                    blocks: [
+                        BlockPlan {
+                            block: BlockId(
+                                0,
+                            ),
+                            initialized_in: [
+                                LocalId(
+                                    0,
+                                ),
+                            ],
+                            initialized_out: [],
+                        },
+                    ],
+                    holds: [],
+                },
+                FunctionPlan {
+                    function: FunctionId(
+                        3,
+                    ),
+                    blocks: [
+                        BlockPlan {
+                            block: BlockId(
+                                0,
+                            ),
+                            initialized_in: [],
+                            initialized_out: [],
+                        },
+                    ],
+                    holds: [],
+                },
+            ],
+            origins: [],
+            responsibilities: [],
+            unsupported: [],
+        },
+        fingerprint: Fingerprint(
+            [
+                108,
+                66,
+                42,
+                19,
+                221,
+                104,
+                212,
+                37,
+                205,
+                250,
+                86,
+                99,
+                238,
+                128,
+                197,
+                17,
+                128,
+                12,
+                22,
+                231,
+                126,
+                75,
+                209,
+                154,
+                254,
+                125,
+                178,
+                235,
+                19,
+                199,
+                2,
+                80,
+            ],
+        ),
+    },
+)

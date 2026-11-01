@@ -1,0 +1,31 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-235/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.37s
+     Running tests/impl235_budget.rs (/workspace/.zil-env/target-235/debug/deps/impl235_budget-a4fea5dbbe58043b)
+
+running 2 tests
+legacy: types=835,analyze=7129,verify=12161
+test legacy_flat_capture_boundaries_unchanged ... ok
+nested: types=3943,analyze=82079,verify=173575
+test ordinary_product_store_new_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/impl235_machine.rs (/workspace/.zil-env/target-235/debug/deps/impl235_machine-c204c2b1e6f593e4)
+
+running 1 test
+test replacement_preparation_and_moved_child_failures_settle_actual_store_prefixes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running tests/review235_contracts.rs (/workspace/.zil-env/target-235/debug/deps/review235_contracts-f6e5573014e21f4c)
+
+running 6 tests
+test remembered_header_description_blocks_parent_transfer_until_its_actual_last_use ... ok
+test direct_callback_store_and_noncallback_generic_wrapper_controls ... ok
+test unused_product_parameters_still_require_exact_canonical_store_metadata ... ok
+test ordinary_composition_does_not_open_capture_or_containers ... ok
+test pop_and_failed_full_push_then_parent_drop_settle_only_actual_prefix ... ok
+test same_typed_store_leaves_preserve_incoming_and_created_through_child_transfer ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.32s
+
