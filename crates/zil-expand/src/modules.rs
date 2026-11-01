@@ -215,14 +215,16 @@ pub(super) fn specialize(
     modules: &[&Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
+    products: &mut generics::products::Products,
 ) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
-    normalize(sources, modules, imports, limits).map_err(|e| vec![e])
+    normalize(sources, modules, imports, limits, products).map_err(|e| vec![e])
 }
 fn normalize(
     sources: &[SourceUnit],
     modules: &[&Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
+    products: &mut generics::products::Products,
 ) -> R<Vec<(Module, Vec<CoreImport>)>> {
     let mut budget = Budget::new(limits);
     if sources.len() != modules.len() || modules.len() != imports.len() || modules.is_empty() {
@@ -333,7 +335,9 @@ fn normalize(
             combined.items.push(item);
         }
     }
-    let specialized = match generics::specialize(&combined, limits).map_err(|mut e| e.remove(0))? {
+    let specialized = match generics::specialize_products(&combined, limits, products)
+        .map_err(|mut e| e.remove(0))?
+    {
         // A borrowed result is the unchanged combined input. Keep that owned
         // syntax rather than cloning it again while redistributing modules.
         Cow::Borrowed(_) => combined,
@@ -421,6 +425,7 @@ fn normalize(
             visitor.item(item, &Names::new(), true, 0)?;
         }
     }
+    products.restore_owners(&functions);
     Ok(output)
 }
 

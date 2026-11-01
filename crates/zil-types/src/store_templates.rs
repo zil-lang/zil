@@ -217,6 +217,14 @@ pub(super) fn resolve_argument(
             })
             .collect::<R<Vec<_>>>()?;
         callable_fields::specialize_type_all(&mut actual, &replacements);
+        aggregate_templates::rebind_callable_type(
+            &mut actual,
+            bounds,
+            bindings,
+            state,
+            limits,
+            span,
+        )?;
         return Ok(actual);
     }
     for bound in bounds {
@@ -227,6 +235,7 @@ pub(super) fn resolve_argument(
             bindings.get(bound.generic_index, span)?,
         );
     }
+    aggregate_templates::rebind_callable_type(&mut actual, bounds, bindings, state, limits, span)?;
     Ok(actual)
 }
 
@@ -257,6 +266,15 @@ pub(super) fn specialize(
     }
     substitution.ty(&mut result.return_type, 0)?;
     substitution.block(&mut result.body, 0)?;
+    let products = state.products.clone();
+    aggregate_templates::rebind_function(
+        &mut result,
+        &[(name, actual)],
+        &products,
+        limits,
+        span,
+        &mut |n| state.snapshot(n, span),
+    )?;
     result.type_parameters.clear();
     Ok(result)
 }
@@ -266,6 +284,7 @@ pub(super) fn substitute_type(
     name: &str,
     actual: &Type,
     limits: &Limits,
+    products: &aggregate_templates::Products,
     span: Span,
     charge: &mut impl FnMut(usize) -> R<()>,
 ) -> R<Type> {
@@ -282,6 +301,14 @@ pub(super) fn substitute_type(
         charge,
     }
     .ty(&mut result, 0)?;
+    aggregate_templates::rebind_type(
+        &mut result,
+        &[(name, actual)],
+        products,
+        limits,
+        span,
+        charge,
+    )?;
     Ok(result)
 }
 
@@ -441,12 +468,14 @@ impl Builder<'_, '_> {
                     "completed ordinary template is absent from its instance plan",
                 )
             })?;
+        let products = self.closures.products.clone();
         for parameter in &mut signature.parameters {
             *parameter = substitute_type(
                 parameter,
                 &bound.name,
                 actual,
                 self.limits,
+                &products,
                 span,
                 &mut |work| self.closures.snapshot(work, span),
             )?;
@@ -456,6 +485,7 @@ impl Builder<'_, '_> {
             &bound.name,
             actual,
             self.limits,
+            &products,
             span,
             &mut |work| self.closures.snapshot(work, span),
         )?;
