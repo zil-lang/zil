@@ -1,0 +1,9 @@
+[package]
+name="impl240-expand-budget-current"
+version="0.0.0"
+edition="2024"
+[dependencies]
+zil-base={path="/workspace/zil-240/crates/zil-base"}
+zil-ir={path="/workspace/zil-240/crates/zil-ir"}
+zil-syntax={path="/workspace/zil-240/crates/zil-syntax"}
+zil-expand={path="/workspace/zil-240/crates/zil-expand"}

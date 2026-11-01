@@ -1,0 +1,24 @@
+   Compiling zil-expand v0.1.0 (/workspace/zil-240/crates/zil-expand)
+    Finished `test` profile [unoptimized] target(s) in 4.88s
+     Running tests/generics.rs (/workspace/.zil-env/target-240/debug/deps/generics-00d332d0299621d0)
+
+running 4 tests
+test unused_generic_declaration_attributes_are_not_erased ... ok
+test unused_generic_with_declared_bound_checks_its_symbolic_method_body ... ok
+test unused_generic_bounds_require_builtin_copy_or_declared_nominal_traits ... ok
+test generic_records_use_structural_arguments_and_fresh_source_inexpressible_names ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/impl237_product_recipes.rs (/workspace/.zil-env/target-240/debug/deps/impl237_product_recipes-0243848275902dad)
+
+running 3 tests
+test concrete_existing_generic_fields_are_materialized_in_the_original_recipe ... ok
+test preserves_original_recipe_and_exact_ordinary_owner ... ok
+product237_expand_work_n=5298
+product237_expand_nodes_n=1363
+product237_expand_depth_n=7
+test new_recipe_tables_have_exact_fresh_work_node_and_depth_boundaries ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
