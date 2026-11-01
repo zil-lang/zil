@@ -4,9 +4,7 @@
 use super::*;
 
 pub(super) fn owned(ty: &Type) -> bool {
-    matches!(ty, Type::ErrorUnion { error, result }
-        if matches!(error.as_ref(), Type::Package { .. })
-            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_)))
+    matches!(ty, Type::ErrorUnion { .. }) && !ty.is_copy_value()
 }
 
 pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
@@ -17,13 +15,17 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
                 && resources::supported_type(result, resources))
             || (**error == Type::Unit && packages::supported_value_type(result, resources))
             || (**result == Type::Unit && packages::supported_value_type(error, resources)))
+        || drop_plan::value_type(ty, resources)
 }
 
 fn teardowns(
     payload: &Type,
     resources: &[ResourceDefinition],
 ) -> CompileResult<Vec<(Vec<u32>, String)>> {
-    if matches!(payload, Type::Package { .. } | Type::Managed(_)) {
+    if matches!(
+        payload,
+        Type::Package { .. } | Type::Managed(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+    ) {
         packages::teardown_paths(payload, resources)
     } else {
         Ok(Vec::new())
@@ -36,7 +38,7 @@ pub(super) fn entry_cleanup(ty: &Type, resources: &[ResourceDefinition]) -> Comp
     let Type::ErrorUnion { error, .. } = ty else {
         return Ok(m::Code::new());
     };
-    if !matches!(error.as_ref(), Type::Package { .. }) {
+    if error.is_copy_value() {
         return Ok(m::Code::new());
     }
     let union = llvm_type(ty)?;
