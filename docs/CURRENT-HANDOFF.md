@@ -4,7 +4,7 @@
 
 227同步defer、235普通嵌套Product持有Store、237完整泛型Product身份、238整体赋值和236五模块Session消费者已完成本批有限验收。默认3446/0、参考3347/0，均无忽略/过滤；Clippy、格式、State分配控制通过。Q新消费者364次包含208次实际分配失败，均live0；原源码与oracle保持。
 
-PR source CI41345639328、research LLVM CI41345639259均成功。常规artifact上传未完成，两份完整日志恢复归档已独立取回并验证所有blob；实际CI checkout fae6bc0d整树等同Q，4025个当前源文件SHA匹配。main自动重放另按真实run记录，当前不提前记Pass。正式证据入口为[evidence/integration/language-core-20261102/ACCEPTANCE.json](../evidence/integration/language-core-20261102/ACCEPTANCE.json)。
+PR source CI41345639328、research LLVM CI41345639259均成功。常规artifact上传未完成，两份完整日志恢复归档已独立取回并验证所有blob；实际CI checkout fae6bc0d整树等同Q，4025个当前源文件SHA匹配。main重放41348687045/41348687154也均成功，已取回两份完整恢复归档并核全部blob、4025个源码SHA与实际main身份；各自默认3446/0、参考3347/0，均无过滤/忽略，不与PR或本地次数叠加。正式证据入口为[evidence/integration/language-core-20261102/ACCEPTANCE.json](../evidence/integration/language-core-20261102/ACCEPTANCE.json)。
 
 本轮修复了捕获写回、泛型owner、预算预付，以及全仓发现的跨模块private误拒和旧capture take/refill回归；原P3425/11、原失败输入和所有限定收据保留，重放计数不叠加。详情见[阶段总结](LANGUAGE-CORE-20261102.md)。交接复查1144条历史错误、0警告；相对原1145条无新增，移除227旧规范快照错误，本批五单均无记录错误。原债务逐项保留，编译成功不等于全局handoff通过；差异见evidence/integration/language-core-20261102/handoff/RESULT.json。
 
